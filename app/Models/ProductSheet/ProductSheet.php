@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\ProductSheet;
 
 use App\Models\ProductSheet\Base;
 use App\Models\ProductSheet\Brand;

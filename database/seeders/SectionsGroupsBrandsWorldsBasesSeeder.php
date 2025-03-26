@@ -14,7 +14,6 @@ class SectionsGroupsBrandsWorldsBasesSeeder extends Seeder
     {
         // Insert data into sections table
         DB::table('sections')->insert([
-            ['name' => 'Section 1'],
             ['name' => 'BERMUDA'],
             ['name' => 'BODY'],
             ['name' => 'BUZO'],
@@ -51,11 +50,11 @@ class SectionsGroupsBrandsWorldsBasesSeeder extends Seeder
             ['name' => 'LOHARY'],
             ['name' => 'ATUENDOS'],
             ['name' => 'LAXO'],
+            ['name' => 'THE ANSWER'],
         ]);
 
         // Insert data into worlds table
         DB::table('worlds')->insert([
-            ['name' => 'World 1'],
             ['name' => 'DAMA'],
             ['name' => 'HOMBRE'],
             ['name' => 'JUNIOR'],
