@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ProductSheet\ProductSheetController;
+use App\Http\Controllers\ProductSheet\ProgrammerController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -17,19 +18,29 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Profile');
     })->name('profile');
     
-    Route::prefix('comercial-diseno')->name('comercial-diseno.')->group(function () {
+    Route::prefix('comercial')->name('comercial.')->group(function () {
         Route::resource('sabana-productos', ProductSheetController::class)->names([
             'index' => 'sabana-productos.index',
-            'create' => 'sabana-productos.create',
             'store' => 'sabana-productos.store',
             'show' => 'sabana-productos.show',
-            'edit' => 'sabana-productos.edit',
             'update' => 'sabana-productos.update',
             'destroy' => 'sabana-productos.destroy',
         ]);
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])->name('product-sheets.getData');
     });
+    
+    Route::prefix('diseno')->name('diseno.')->group(function () {
+        Route::resource('programador', ProgrammerController::class)->names([
+            'index' => 'programador.index',
+            'store' => 'programador.store',
+            'show' => 'programador.show',
+            'update' => 'programador.update',
+            'destroy' => 'programador.destroy',
+        ]);
+        Route::get('programmers', [ProgrammerController::class, 'getData'])->name('programmers.getData');
+    });
 });
+
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

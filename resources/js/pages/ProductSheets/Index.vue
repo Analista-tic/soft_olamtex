@@ -23,13 +23,13 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Base, Brand, Group, ProductSheet, Section, World, type BreadcrumbItem, type SharedData } from '@/types';
+import { OptionParams, ProductSheet , type BreadcrumbItem, type SharedData } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Pencil, Search, Trash } from 'lucide-vue-next';
+import { Search } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
 import EditProductSheetDialog from './EditProductSheetDialog.vue';
-import ProductSheetDialog from './ProductSheetDialog.vue';
+import ProductSheetDialog from './CreateProductSheetDialog.vue';
 import {
     Select,
     SelectTrigger,
@@ -39,25 +39,29 @@ import {
     SelectItem,
 } from '@/components/ui/select';
 import Badge from '@/components/ui/badge/Badge.vue'; // Importa el componente de badge
+import EditButton from '@/components/common/EditButton.vue'; // Importar el botón de editar
+import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
+import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Comercial-Diseño',
-        href: '/comercial-diseno',
+        title: 'Comercial/Sabana de Productos',
+        href: '/diseno/programador',
     },
 ];
 
 interface ProductSheetPageProps extends SharedData {
-    sections: Section[];
-    groups: Group[];
-    brands: Brand[];
-    worlds: World[];
-    bases: Base[];
+    sections: OptionParams[];
+    groups: OptionParams[];
+    brands: OptionParams[];
+    worlds: OptionParams[];
+    bases: OptionParams[];
 }
 
 interface StatusOption {
-    id: number | undefined; // El id puede ser un número o undefined
-    name: string; // El nombre es una cadena
+    id: number;
+    label: string;
+    value: string | null;
 }
 
 const props = defineProps<ProductSheetPageProps>();
@@ -69,12 +73,12 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
-const statusFilter = ref<number | undefined>(undefined); // Añade el filtro de estado
+const statusFilter = ref<string | null>(null); // Cambiar a string | null para mayor claridad
 
 const statusOptions: StatusOption[] = [
-    { id: undefined, name: 'Todos' }, // Opción para consultar ambos estados
-    { id: 0, name: 'Incompleto' },
-    { id: 1, name: 'Completo' },
+    { id: 0, label: 'Todos', value: null },
+    { id: 1, label: 'Incompleto', value: 'incomplete' },
+    { id: 2, label: 'Completo', value: 'complete' },
 ];
 
 function confirmDeleteProductSheet(product: ProductSheet) {
@@ -86,7 +90,7 @@ async function deleteProductSheet() {
     if (!productSheetToDelete.value) return;
 
     try {
-        await axios.delete(`/comercial-diseno/sabana-productos/${productSheetToDelete.value.id}`);
+        await axios.delete(`/comercial/sabana-productos/${productSheetToDelete.value.id}`);
         const index = products_sheet.value.findIndex((product) => product.id === productSheetToDelete.value!.id);
         if (index !== -1) {
             products_sheet.value.splice(index, 1);
@@ -100,14 +104,14 @@ async function deleteProductSheet() {
 }
 
 // Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
-async function fetchProductSheets(page = 1, search = '', status: number | undefined = undefined) {
+async function fetchProductSheets(page = 1, search = '', status: string | null = null) {
     try {
-        const response = await axios.get('/comercial-diseno/product-sheets', {
+        const response = await axios.get('/comercial/product-sheets', {
             params: {
                 page,
                 per_page: itemsPerPage,
                 search,
-                status,
+                status: status || undefined, // Convertir null a undefined para la API
             },
         });
         console.log(response);
@@ -131,6 +135,10 @@ function openEditDialog(product: ProductSheet) {
     editProductSheetDialogRef.value?.openEditDialog(product);
 }
 
+function viewProductSheet(product: ProductSheet) {
+    alert(`Visualizando el producto: ${product.reference}`);
+}
+
 onMounted(() => {
     fetchProductSheets();
 });
@@ -139,7 +147,7 @@ onMounted(() => {
 <template>
     <Head title="Sabana de Productos" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
+        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-xl font-bold">Sabana de Productos</h1>
                 <ProductSheetDialog
@@ -174,8 +182,8 @@ onMounted(() => {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectGroup>
-                                <SelectItem v-for="option in statusOptions" :key="option.id" :value="option.id">
-                                    {{ option.name }}
+                                <SelectItem v-for="option in statusOptions" :key="option.id" :value="option.value">
+                                    {{ option.label }}
                                 </SelectItem>
                             </SelectGroup>
                         </SelectContent>
@@ -192,41 +200,31 @@ onMounted(() => {
                             <TableHead>Marca</TableHead>
                             <TableHead>Mundo</TableHead>
                             <TableHead>Base</TableHead>
-                            <TableHead class="text-right">Precio Fact</TableHead>
-                            <TableHead class="text-right">Precio Venta</TableHead>
+                            <TableHead>Precio Fact</TableHead>
+                            <TableHead>Precio Venta</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Actions</TableHead>
+                            <TableHead>Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="product in products_sheet" :key="product.id">
+                        <TableRow v-for="product in products_sheet" :key="product.id" class="text-center">
                             <TableCell class="font-medium">{{ product.reference }}</TableCell>
                             <TableCell>{{ product.section.name }}</TableCell>
                             <TableCell>{{ product.group.name }}</TableCell>
                             <TableCell>{{ product.brand.name }}</TableCell>
                             <TableCell>{{ product.world.name }}</TableCell>
                             <TableCell>{{ product.base.name }}</TableCell>
-                            <TableCell class="text-right">{{ product.billing_price }}</TableCell>
-                            <TableCell class="text-right">{{ product.selling_price }}</TableCell>
+                            <TableCell>{{ product.billing_price }}</TableCell>
+                            <TableCell>{{ product.selling_price }}</TableCell>
                             <TableCell>
                                 <Badge :variant="product.status == 'complete' ? 'default' : 'destructive'">
                                     {{ product.status == 'complete' ? 'Completo' : 'Incompleto' }}
                                 </Badge>
                             </TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <Button
-                                    as-child
-                                    size="sm"
-                                    class="cursor-pointer bg-blue-500 text-white hover:bg-blue-700"
-                                    @click="openEditDialog(product)"
-                                >
-                                    <span class="flex items-center">
-                                        <Pencil class="mr-1" />
-                                    </span>
-                                </Button>
-                                <Button size="sm" class="bg-rose-500 text-white hover:bg-rose-700" @click="confirmDeleteProductSheet(product)">
-                                    <Trash />
-                                </Button>
+                            <TableCell class="flex justify-center gap-1 text-center">
+                                <ViewButton :onClick="() => viewProductSheet(product)" />
+                                <EditButton :onClick="() => openEditDialog(product)" />
+                                <DeleteButton :onClick="() => confirmDeleteProductSheet(product)" />
                             </TableCell>
                         </TableRow>
                     </TableBody>

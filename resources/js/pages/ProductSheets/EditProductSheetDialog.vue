@@ -1,48 +1,3 @@
-<template>
-    <Dialog @open="resetForm" v-model:open="isDialogOpen">
-        <DialogContent class="max-h-screen overflow-y-auto sm:max-w-5xl">
-            <DialogHeader>
-                <DialogTitle>Editar Sabana de Productos</DialogTitle>
-                <DialogDescription> Completa los campos para editar un producto. Haz clic en actualizar cuando termines. </DialogDescription>
-            </DialogHeader>
-
-            <div class="grid grid-cols-2 gap-4 gap-y-1">
-                <div class="space-y-5">
-                    <!-- Información General -->
-                    <InputField v-model="form.reference" label="Referencia" placeholder="ejemplo: 901010" />
-                    <SelectField v-model="form.section_id" label="Sección" :options="props.sections" required />
-                    <SelectField v-model="form.group_id" label="Grupo" :options="props.groups" required />
-                    <SelectField v-model="form.brand_id" label="Marca" :options="props.brands" required />
-                    <SelectField v-model="form.world_id" label="Mundo" :options="props.worlds" required />
-                    <SelectField v-model="form.base_id" label="Base" :options="props.bases" required />
-                    <SwitchField v-model="form.woven_product" label="Producto Tejido" id="woven_product" required />
-                </div>
-                <div class="space-y-5">
-                    <!-- Precios y Tamaños -->
-                    <InputField v-model="form.billing_price" label="Precio Facturación" placeholder="$ 0" />
-                    <InputField v-model="form.selling_price" label="Precio de Venta" placeholder="$ 0" />
-                    <SizeSelector v-model="form.sizes" :sizeGroups="sizeGroups" />
-
-                    <!-- Procesos y Descripción -->
-                    <ProcessSelector v-model="form.processes" :availableProcesses="allProcesses" :wovenProduct="form.woven_product" />
-                </div>
-                <div class="col-span-2 mt-3">
-                    <InputField
-                        v-model="form.description"
-                        label="Descripción de Producto"
-                        type="textarea"
-                        placeholder="Añade descripción o observaciones del producto"
-                    />
-                </div>
-            </div>
-
-            <DialogFooter class="mt-6 flex justify-end">
-                <Button size="sm" type="submit" @click="updateProductSheet">Actualizar</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-</template>
-
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
 import ProcessSelector from '@/components/ProcessSelector.vue';
@@ -151,7 +106,7 @@ function updateProductSheet() {
     determineStatus();
 
     axios
-        .put(`/comercial-diseno/sabana-productos/${productSheetId.value}`, {
+        .put(`/comercial/sabana-productos/${productSheetId.value}`, {
             ...form.value,
             sizes: form.value.sizes || JSON.stringify({}), // Asegurarse de que sizes sea una cadena
         })
@@ -226,3 +181,48 @@ function resetForm() {
 
 defineExpose({ openEditDialog });
 </script>
+
+<template>
+    <Dialog @open="resetForm" v-model:open="isDialogOpen">
+        <DialogContent class="max-h-screen overflow-y-auto sm:max-w-5xl">
+            <DialogHeader>
+                <DialogTitle>Editar Sabana de Productos</DialogTitle>
+                <DialogDescription> Completa los campos para editar un producto. Haz clic en actualizar cuando termines. </DialogDescription>
+            </DialogHeader>
+
+            <div class="grid grid-cols-2 gap-4 gap-y-1">
+                <div class="space-y-5">
+                    <!-- Información General -->
+                    <InputField v-model="form.reference" label="Referencia" placeholder="ejemplo: 901010" />
+                    <SelectField v-model="form.section_id" label="Sección" :options="props.sections" required />
+                    <SelectField v-model="form.group_id" label="Grupo" :options="props.groups" required />
+                    <SelectField v-model="form.brand_id" label="Marca" :options="props.brands" required />
+                    <SelectField v-model="form.world_id" label="Mundo" :options="props.worlds" required />
+                    <SelectField v-model="form.base_id" label="Base" :options="props.bases" required />
+                    <SwitchField v-model="form.woven_product" label="Producto Tejido" id="woven_product" required />
+                </div>
+                <div class="space-y-5">
+                    <!-- Precios y Tamaños -->
+                    <InputField v-model="form.billing_price" label="Precio Facturación" placeholder="$ 0" />
+                    <InputField v-model="form.selling_price" label="Precio de Venta" placeholder="$ 0" />
+                    <SizeSelector v-model="form.sizes" :sizeGroups="sizeGroups" />
+
+                    <!-- Procesos y Descripción -->
+                    <ProcessSelector v-model="form.processes" :availableProcesses="allProcesses" :wovenProduct="form.woven_product" />
+                </div>
+                <div class="col-span-2 mt-3">
+                    <InputField
+                        v-model="form.description"
+                        label="Descripción de Producto"
+                        type="textarea"
+                        placeholder="Añade descripción o observaciones del producto"
+                    />
+                </div>
+            </div>
+
+            <DialogFooter class="mt-6 flex justify-end">
+                <Button size="sm" type="submit" @click="updateProductSheet">Actualizar</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+</template>

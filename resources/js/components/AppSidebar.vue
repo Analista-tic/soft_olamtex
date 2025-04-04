@@ -4,9 +4,9 @@ import NavMain from '@/components/NavMain.vue';
 import NavMainGroup from '@/components/NavMainGroup.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types';
+import { type NavGroupItem, type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, TableProperties, CalendarClock } from 'lucide-vue-next';
+import { BookOpen, ChartNoAxesCombined, Folder, LayoutGrid, PencilRuler, Database } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -30,13 +30,43 @@ const footerNavItems: NavItem[] = [
     },
 ];
 
-const comercialDisenoLinks = [
+const navMainGroup: NavGroupItem[] = [
     {
-        title: 'Sabana de Productos',
-        href: '/comercial-diseno/sabana-productos',
-        icon: TableProperties,
+        title: 'Inventario',
+        href: '#',
+        icon: Database,
+        isActive: false,
+        items: [
+            {
+                title: 'Telas',
+                href: '/comercial-diseno/sabana-productos',
+            },
+        ],
     },
-    { title: 'Programador', href: '/', icon: CalendarClock },
+    {
+        title: 'Comercial',
+        href: '/comercial/sabana-productos',
+        icon: ChartNoAxesCombined,
+        isActive: false,
+        items: [
+            {
+                title: 'Sabana de Productos',
+                href: '/comercial/sabana-productos',
+            },
+        ],
+    },
+    {
+        title: 'Diseño',
+        href: '/diseno/programador',
+        icon: PencilRuler,
+        isActive: false,
+        items: [
+            {
+                title: 'Programador',
+                href: '/diseno/programador',
+            },
+        ],
+    },
 ];
 </script>
 
@@ -56,7 +86,7 @@ const comercialDisenoLinks = [
 
         <SidebarContent>
             <NavMain :items="mainNavItems" />
-            <NavMainGroup title="Comercial-Diseño" :links="comercialDisenoLinks" />
+            <NavMainGroup :items="navMainGroup" />
         </SidebarContent>
 
         <SidebarFooter>

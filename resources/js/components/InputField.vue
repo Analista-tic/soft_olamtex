@@ -3,7 +3,7 @@
         <Label>{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
         <Input
             :id="label"
-            type="text"
+            :type="type"
             v-model="localModelValue"
             :placeholder="placeholder"
             class="h-8"
@@ -20,13 +20,16 @@ interface Props {
     label: string;
     placeholder?: string;
     required?: boolean;
-    modelValue: string | number | undefined;
+    modelValue: string | number | undefined | null;
+    type?: string;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits(['update:modelValue']);
 
 const localModelValue = ref(props.modelValue || '');
+
+const type = props.type || 'text';
 
 watch(localModelValue, (newValue) => {
     emit('update:modelValue', newValue);

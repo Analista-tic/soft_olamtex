@@ -1,61 +1,71 @@
 <script setup lang="ts">
+
+// Importación de componentes reutilizables y dependencias necesarias.
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { OptionParams, ProductSheet, Programmer } from '@/types';
 import axios from 'axios';
 import { defineEmits, defineExpose, ref } from 'vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
-// Tipado de las propiedades recibidas
+/**
+ * Definición de las propiedades recibidas desde el componente padre.
+ */
 const props = defineProps<{
     destinations: OptionParams[]; // Lista de destinos con id y nombre
     productSheets: ProductSheet[]; // Lista de fichas de producto
 }>();
 
-// Desestructurar props para evitar advertencias del linter
+// Desestructuración de las propiedades para evitar advertencias del linter
 const { destinations, productSheets } = props;
 
-// Definición de eventos emitidos
+/**
+ * Definición de eventos emitidos hacia el componente padre.
+ */
 const emits = defineEmits<{
-    (event: 'programmerUpdated'): void;
+    (event: 'programmerUpdated'): void; // Evento emitido cuando se actualiza un programador
 }>();
 
-// Estado del diálogo
-const isDialogOpen = ref(false);
+/**
+ * Variables reactivas para el estado del componente.
+ */
+const isDialogOpen = ref(false); // Estado del diálogo (abierto/cerrado)
+const programmer = ref<Programmer>({} as Programmer); // Datos del programador que se está editando
+const isLoading = ref(false); // Estado de carga (true mientras se guarda)
+const errorMessage = ref<string | null>(null); // Mensaje de error para mostrar al usuario
 
-// Programador que se está editando
-const programmer = ref<Programmer>({} as Programmer);
-
-// Estado de carga
-const isLoading = ref(false);
-
-// Mensaje de error
-const errorMessage = ref<string | null>(null);
-
-// Obtener el nombre de la referencia basado en el ID
+/**
+ * Función para obtener el nombre de la referencia basado en el ID de la ficha de producto.
+ */
 function getReferenceName(productSheetId: number | null): string {
     const productSheet = props.productSheets.find((sheet) => sheet.id === productSheetId);
     return productSheet ? productSheet.reference : 'Referencia';
 }
 
-// Método para abrir el diálogo y cargar los datos del programador
+/**
+ * Función para abrir el diálogo y cargar los datos del programador seleccionado.
+ */
 function openDialog(selectedProgrammer: Programmer) {
     programmer.value = {
         ...selectedProgrammer,
         ecommerce_units: selectedProgrammer.ecommerce_units || '{}', // Asegurarse de que sea un string válido
     };
     isDialogOpen.value = true; // Abrir el diálogo
-    errorMessage.value = null; // Limpiar mensaje de error
+    errorMessage.value = null; // Limpiar cualquier mensaje de error previo
 }
 
-// Exponer la función `openDialog` para que pueda ser llamada desde el componente padre
+/**
+ * Exponer la función `openDialog` para que pueda ser llamada desde el componente padre.
+ */
 defineExpose({
     openDialog,
 });
 
-// Validar los campos requeridos
+/**
+ * Validar los campos requeridos antes de guardar los cambios.
+ */
 function validateFields(): boolean {
     if (!programmer.value?.product_sheet_id) {
         errorMessage.value = 'La referencia es obligatoria.';
@@ -77,38 +87,60 @@ function validateFields(): boolean {
         errorMessage.value = 'Las unidades deben ser un número mayor a 0.';
         return false;
     }
-    errorMessage.value = null;
+    errorMessage.value = null; // Limpiar mensaje de error si todo es válido
     return true;
 }
 
-// Función para guardar los cambios
+/**
+ * Función para guardar los cambios realizados en el programador.
+ */
 async function saveChanges() {
-    if (!validateFields()) return;
+    if (!validateFields()) return; // Validar campos antes de continuar
 
-    if (!programmer.value?.id) return;
+    if (!programmer.value?.id) {
+        errorMessage.value = 'No se encontró el ID del programador.';
+        return;
+    }
 
-    isLoading.value = true;
+    isLoading.value = true; // Activar el estado de carga
     try {
-        // Convertir ecommerce_units a string antes de enviar
+        // Preparar el payload para la solicitud PUT
         const payload = {
             ...programmer.value,
-            ecommerce_units: programmer.value.ecommerce_units, // Ya es un string
+            ecommerce_units: typeof programmer.value.ecommerce_units === 'string'
+                ? programmer.value.ecommerce_units
+                : JSON.stringify(programmer.value.ecommerce_units || {}),
         };
 
-        console.log('Payload enviado:', payload);
-        await axios.put(`/comercial-diseno/programador/${programmer.value.id}`, payload);
-        emits('programmerUpdated'); // Emitir el evento para notificar al componente padre
+        console.log('Payload enviado:', payload); // Depuración: Verificar el contenido del payload
+
+        // Realizar la solicitud PUT al servidor
+        const response = await axios.put(`/diseno/programador/${programmer.value.id}`, payload);
+
+        console.log('Respuesta del servidor:', response.data); // Depuración: Verificar la respuesta del servidor
+
+        emits('programmerUpdated'); // Emitir evento al componente padre
         isDialogOpen.value = false; // Cerrar el diálogo
-    } catch (error) {
-        console.error('Error al actualizar el programador:', error.response?.data || error);
-        errorMessage.value = 'Hubo un error al actualizar el programador. Por favor, inténtalo de nuevo.';
+    } catch (error: unknown) {
+        // Manejar errores de Axios
+        if (axios.isAxiosError(error)) {
+            console.error('Error al actualizar el programador:', error.response?.data || error);
+
+            // Mostrar un mensaje de error detallado al usuario
+            errorMessage.value = error.response?.data?.message || 'Hubo un error al actualizar el programador. Por favor, inténtalo de nuevo.';
+        } else {
+            // Manejar errores desconocidos
+            console.error('Error desconocido:', error);
+            errorMessage.value = 'Ocurrió un error inesperado. Por favor, inténtalo de nuevo.';
+        }
     } finally {
-        isLoading.value = false;
+        isLoading.value = false; // Desactivar el estado de carga
     }
 }
 </script>
 
 <template>
+    <!-- Diálogo para editar el programador -->
     <Dialog 
         v-model:open="isDialogOpen" 
         aria-labelledby="dialog-title" 
@@ -116,13 +148,9 @@ async function saveChanges() {
     >
         <DialogContent>
             <DialogHeader>
-                <!-- Título del diálogo -->
-                <DialogTitle id="dialog-title" class="sr-only">Editar Programador</DialogTitle>
+                <DialogTitle>Editar Lote Programado</DialogTitle>
+                <DialogDescription> Aquí puedes editar los detalles del programador seleccionado. </DialogDescription>
             </DialogHeader>
-            <!-- Descripción del diálogo -->
-            <p id="dialog-description" class="text-sm text-gray-500">
-                Aquí puedes editar los detalles del programador seleccionado.
-            </p>
             <div class="space-y-4">
                 <!-- Mostrar mensaje de error -->
                 <div v-if="errorMessage" class="text-sm text-red-500">
@@ -141,51 +169,31 @@ async function saveChanges() {
                         aria-required="true"
                     />
                 </div>
-                <!-- Campo de temporada -->
                 <div>
                     <SelectField
                         id="season"
                         v-model="programmer.season"
-                        :options="[
-                            { id: 'ENERO', name: 'ENERO' },
-                            { id: 'FEBRERO', name: 'FEBRERO' },
-                            { id: 'MARZO', name: 'MARZO' },
-                            { id: 'ABRIL', name: 'ABRIL' },
-                            { id: 'MAYO', name: 'MAYO' },
-                            { id: 'JUNIO', name: 'JUNIO' },
-                            { id: 'JULIO', name: 'JULIO' },
-                            { id: 'AGOSTO', name: 'AGOSTO' },
-                            { id: 'SEPTIEMBRE', name: 'SEPTIEMBRE' },
-                            { id: 'OCTUBRE', name: 'OCTUBRE' },
-                            { id: 'NOVIEMBRE', name: 'NOVIEMBRE' },
-                            { id: 'DICIEMBRE', name: 'DICIEMBRE' },
-                        ]"
+                        :options="[...Array(12).keys()].map((i) => ({
+                            id: new Date(0, i).toLocaleString('es', { month: 'long' }).toUpperCase(),
+                            name: new Date(0, i).toLocaleString('es', { month: 'long' }).toUpperCase(),
+                        }))"
                         label="Temporada"
                         required
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-
-                <!-- Campo de prioridad -->
                 <div>
                     <SelectField
                         id="priority"
                         v-model="programmer.priority"
-                        :options="[
-                            { id: 'A', name: 'A' },
-                            { id: 'B', name: 'B' },
-                            { id: 'C', name: 'C' },
-                            { id: 'D', name: 'D' },
-                        ]"
+                        :options="[ { id: 'A', name: 'A' }, { id: 'B', name: 'B' }, { id: 'C', name: 'C' }, { id: 'D', name: 'D' } ]"
                         label="Prioridad"
                         required
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-
-                <!-- Campo de destino -->
                 <div>
                     <SelectField
                         id="destination"
@@ -197,8 +205,6 @@ async function saveChanges() {
                         aria-required="true"
                     />
                 </div>
-
-                <!-- Campo de unidades -->
                 <div>
                     <InputField 
                         type="number" 
@@ -208,19 +214,17 @@ async function saveChanges() {
                         :class="{ 'border-red-500': !programmer.units }" 
                     />
                 </div>
-
-                <!-- Campo de cantidades de e-commerce -->
                 <div>
                     <label class="block text-sm font-medium">E-commerce</label>
                     <EcommerceSizesDialog
                         :productSheet="{
                             sizes: typeof programmer.ecommerce_units === 'string' 
                                 ? programmer.ecommerce_units 
-                                : JSON.stringify(programmer.ecommerce_units || {}), // Asegurarse de que sea un string
+                                : JSON.stringify(programmer.ecommerce_units || {}),
                             reference: getReferenceName(programmer.product_sheet_id)
                         }"
                         @sizesUpdated="(updatedData) => {
-                            programmer.ecommerce_units = JSON.stringify(updatedData.sizes || {}); // Guardar como texto
+                            programmer.ecommerce_units = JSON.stringify(updatedData.sizes || {});
                         }"
                     />
                 </div>

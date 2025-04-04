@@ -5,7 +5,7 @@
             <SelectTrigger class="h-8 w-full">
                 <SelectValue :placeholder="`Selecciona ${label.toLowerCase()}`" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent class="max-h-80 overflow-y-auto"> <!-- Clase añadida -->
                 <SelectGroup>
                     <SelectItem v-for="option in options" :key="option.id" :value="option.id">
                         {{ option.name }}
@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Label } from '@/components/ui/label';
 
 interface Option {
-    id: number;
+    id: number | string;
     name: string;
 }
 
@@ -30,7 +30,7 @@ interface Props {
     label: string;
     options: Option[];
     required?: boolean;
-    modelValue: number | undefined;
+    modelValue: number | string | undefined | null;
 }
 
 const props = defineProps<Props>();

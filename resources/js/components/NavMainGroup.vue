@@ -1,52 +1,84 @@
 <script setup lang="ts">
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenuButton, SidebarMenuItem, SidebarMenu } from '@/components/ui/sidebar';
-import { Link, usePage } from '@inertiajs/vue3';
-import { ChevronDown } from 'lucide-vue-next';
-import { type NavItem, type SharedData } from '@/types';
+import {
+    SidebarGroup,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    SidebarMenuSub,
+    SidebarMenuSubButton,
+    SidebarMenuSubItem,
+} from '@/components/ui/sidebar';
+import { Link } from '@inertiajs/vue3';
+import { ChevronRight } from 'lucide-vue-next';
 
-
-const props = defineProps<{
-    title: string;
-    links: NavItem[];
+defineProps<{
+    items: {
+        title: string;
+        href: string;
+        icon?: any; // Tipo para el ícono
+        isActive?: boolean;
+        items?: {
+            title: string;
+            href: string;
+        }[];
+    }[];
 }>();
 
-const page = usePage<SharedData>();
+// Función para verificar si la ruta actual coincide con la del item
+function isRouteActive(href: string): boolean {
+    console.log(`Comparando ${window.location.pathname} con ${href}`);
+
+    return window.location.pathname === href;
+}
 </script>
 
 <template>
-    <Collapsible defaultOpen class="group/collapsible">
-        <SidebarGroup>
-            <SidebarGroupLabel asChild>
-                <CollapsibleTrigger class="flex items-center">
-                    {{ props.title }}
-                    <ChevronDown class="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                </CollapsibleTrigger>
-            </SidebarGroupLabel>
-            <CollapsibleContent>
-                <SidebarGroupContent>
-                    <SidebarMenu>
-                        <SidebarMenuItem v-for="link in props.links" :key="link.href">
-                            <SidebarMenuButton as-child>
-                                <Link :href="link.href" class="flex items-center gap-2" :class="{ 'active': link.href === page.url }">
-                                    <component :is="link.icon" />
-                                    {{ link.title }}
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    </SidebarMenu>
-                </SidebarGroupContent>
-            </CollapsibleContent>
-        </SidebarGroup>
-    </Collapsible>
+    <SidebarGroup>
+        <SidebarMenu>
+            <Collapsible
+                v-for="item in items"
+                :key="item.title"
+                as-child
+                :default-open="item.isActive || isRouteActive(item.href)"
+                class="group/collapsible"
+            >
+                <SidebarMenuItem>
+                    <CollapsibleTrigger as-child>
+                        <SidebarMenuButton :tooltip="item.title" :class="{ active: isRouteActive(item.href) }">
+                            <component v-if="item.icon" :is="item.icon" />
+                            <span>{{ item.title }}</span>
+                            <ChevronRight class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                        </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                        <SidebarMenuSub>
+                            <SidebarMenuSubItem
+                                v-for="subItem in item.items"
+                                :key="subItem.title"
+                                :class="{ active: isRouteActive(subItem.href) }"
+                            >
+                                <SidebarMenuSubButton as-child>
+                                    <Link :href="subItem.href">
+                                        <span>{{ subItem.title }}</span>
+                                    </Link>
+                                </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                        </SidebarMenuSub>
+                    </CollapsibleContent>
+                </SidebarMenuItem>
+            </Collapsible>
+        </SidebarMenu>
+    </SidebarGroup>
 </template>
 
 <style scoped>
-.group\/collapsible {
-    width: 100%;
-}
 .active {
     font-weight: bold;
     color: #3490dc;
+}
+
+.group\/collapsible {
+    width: 100%;
 }
 </style>

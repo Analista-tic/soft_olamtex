@@ -23,9 +23,10 @@ return new class extends Migration
             $table->float('selling_price')->nullable();
             $table->json('sizes')->nullable();
             $table->boolean('woven_product');
-            $table->string('description');
+            $table->string('description')->nullable();
             $table->json('processes');
             $table->enum('status', ['completed', 'incomplete']);
+            $table->softDeletes();
             $table->timestamps();
         });
     }

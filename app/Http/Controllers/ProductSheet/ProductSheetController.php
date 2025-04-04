@@ -35,14 +35,6 @@ class ProductSheetController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -65,21 +57,17 @@ class ProductSheetController extends Controller
 
         $productSheet = ProductSheet::create($validatedData);
 
-        return redirect()->route('comercial-diseno.index')->with('success', 'Product sheet creado exitosamente.');
+        return response()->json([
+            'success' => true,
+            'message' => 'Product sheet creado exitosamente.',
+            'data' => $productSheet,
+        ], 201);
     }
 
     /**
      * Display the specified resource.
      */
     public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
     {
         //
     }
@@ -119,7 +107,7 @@ class ProductSheetController extends Controller
         $productSheet = ProductSheet::findOrFail($id);
         $productSheet->delete();
 
-        return redirect()->route('comercial-diseno.index')->with('success', 'Product sheet eliminado exitosamente.');
+        return response()->json(['message' => 'ProductSheet deleted successfully'], 200);
     }
 
     /**
@@ -136,7 +124,7 @@ class ProductSheetController extends Controller
 
         // Filtro por estado
         if ($request->has('status') && $request->status != '') {
-            $query->where('status', $request->status == 1 ? 'complete' : 'incomplete');
+            $query->where('status', $request->status);
         }
 
         // Paginación
