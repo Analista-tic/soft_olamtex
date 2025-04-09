@@ -32,9 +32,9 @@ export interface SharedData extends PageProps {
 }
 
 export interface Role {
-    id: number;
+    id: number | null;
     name: string;
-    permissions: Array<{ name: string }>;
+    permissions: Array<{ name: string }>; // Ajustado para reflejar correctamente los permisos
 }
 
 export interface User {

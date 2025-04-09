@@ -3,6 +3,7 @@
 use App\Http\Controllers\ProductSheet\ProductSheetController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
 use App\Http\Controllers\Settings\UserController;
+use App\Http\Controllers\Settings\RoleController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -58,6 +59,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('usuarios', UserController::class);
     Route::get('users', [UserController::class, 'getData'])->name('users.getData');
 
+    Route::resource('roles', RoleController::class);
+    Route::get('roles-data', [RoleController::class, 'getData'])->name('roles.getData');
 });
 
 

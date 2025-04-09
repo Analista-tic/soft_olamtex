@@ -39,7 +39,11 @@ import Button from '@/components/ui/button/Button.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Diseño/Programador',
+        title: 'Diseño',
+        href: '/diseno/programador',
+    },
+    {
+        title: 'Programador',
         href: '/diseno/programador',
     },
 ];

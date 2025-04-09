@@ -45,8 +45,12 @@ import ViewButton from '@/components/common/ViewButton.vue'; // Importar el bot√
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Comercial/Sabana de Productos',
-        href: '/diseno/programador',
+        title: 'Comercial',
+        href: '/diseno/sabana-productos',
+    },
+    {
+        title: 'Sabana de Productos',
+        href: '/diseno/sabana-productos',
     },
 ];
 

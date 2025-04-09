@@ -67,6 +67,10 @@ class UserController extends Controller
 
         $user->syncRoles($roles); // Sincronizar roles correctamente
 
+        // Sincronizar permisos basados en los roles asignados
+        $permissions = Role::whereIn('name', $roles)->with('permissions')->get()->pluck('permissions.*.name')->flatten();
+        $user->syncPermissions($permissions);
+
         return response()->json($user); // Asegurar que se devuelva el usuario actualizado
     }
 

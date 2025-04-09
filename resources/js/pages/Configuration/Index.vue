@@ -23,7 +23,7 @@ const modules = [
         description: 'Administra usuarios, roles y permisos de acceso.',
         options: [
             { name: 'Usuarios', href: '/usuarios' },
-            { name: 'Roles y Permisos', href: '' },
+            { name: 'Roles y Permisos', href: '/roles' },
         ],
     },
     {

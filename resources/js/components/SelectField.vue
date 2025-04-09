@@ -2,10 +2,15 @@
     <div class="grid w-full items-center gap-1.5">
         <Label>{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
         <Select v-model="localModelValue" :multiple="multiple" :aria-hidden="false"> <!-- Asegurar que aria-hidden sea false -->
-            <SelectTrigger class="h-8 w-full">
-                <SelectValue :placeholder="`Selecciona ${label.toLowerCase()}`" />
+            <SelectTrigger :class="{'flex-wrap': multiple}" class="h-auto w-full fixed-width">
+                <div v-if="multiple" class="selected-items">
+                    <span v-for="item in localModelValue" :key="item" class="selected-tag">
+                        {{ options.find(option => option.id === item)?.name }}
+                    </span>
+                </div>
+                <SelectValue v-else :placeholder="`Selecciona ${label.toLowerCase()}`" />
             </SelectTrigger>
-            <SelectContent class="max-h-80 overflow-y-auto" :aria-hidden="false"> <!-- Asegurar que aria-hidden sea false -->
+            <SelectContent class="max-h-80 overflow-y-auto fixed-width" :aria-hidden="false"> <!-- Asegurar que aria-hidden sea false -->
                 <SelectGroup>
                     <SelectItem v-for="option in options" :key="option.id" :value="option.id" :aria-hidden="false"> <!-- Asegurar que aria-hidden sea false -->
                         {{ option.name }}
@@ -15,6 +20,28 @@
         </Select>
     </div>
 </template>
+
+<style scoped>
+.fixed-width {
+    width: 100%; /* Asegura que el ancho sea fijo */
+}
+
+.selected-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+}
+
+.selected-tag {
+    background-color: #e5e7eb;
+    color: #374151;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    display: inline-block;
+}
+</style>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';

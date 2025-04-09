@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Role, User } from '@/types'; // Importar los tipos centralizados
+import { BreadcrumbItem, Role, User } from '@/types'; // Importar los tipos centralizados
 import EditButton from '@/components/common/EditButton.vue';
 import UserDialog from './UserDialog.vue';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,17 @@ import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { ref, onMounted, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+
+const breadcrumbs: BreadcrumbItem[] = [
+    {
+        title: 'Configuración',
+        href: '/configuracion',
+    },
+    {
+        title: 'Usuarios',
+        href: '/usuarios',
+    },
+];
 
 // Definir las props para recibir los roles
 const props = defineProps<{
@@ -132,7 +143,7 @@ onMounted(() => {
 
 <template>
     <Head title="Gestión de Usuarios" />
-    <AppLayout>
+    <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
