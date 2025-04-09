@@ -17,12 +17,7 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             SectionsGroupsBrandsWorldsBasesSeeder::class,
-        ]);
-
-        User::factory()->create([
-            'name' => 'admin',
-            'email' => 'admin@gmail.com',
-            'password' => '12345678',
+            RolesAndPermissionsSeeder::class,
         ]);
     }
 }

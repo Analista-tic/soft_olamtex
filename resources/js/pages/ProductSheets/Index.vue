@@ -149,7 +149,7 @@ onMounted(() => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-xl font-bold">Sabana de Productos</h1>
+                <h1 class="text-lg font-bold">Lista Sabana de Productos</h1>
                 <ProductSheetDialog
                     :sections="props.sections"
                     :groups="props.groups"
@@ -221,7 +221,7 @@ onMounted(() => {
                                     {{ product.status == 'complete' ? 'Completo' : 'Incompleto' }}
                                 </Badge>
                             </TableCell>
-                            <TableCell class="flex justify-center gap-1 text-center">
+                            <TableCell class="flex gap-1">
                                 <ViewButton :onClick="() => viewProductSheet(product)" />
                                 <EditButton :onClick="() => openEditDialog(product)" />
                                 <DeleteButton :onClick="() => confirmDeleteProductSheet(product)" />

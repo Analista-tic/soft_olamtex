@@ -20,6 +20,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Schema::defaultStringLength(191);
+        Schema::defaultStringLength(191); // Limita las cadenas a 191 caracteres
     }
 }

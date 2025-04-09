@@ -1,13 +1,13 @@
 <template>
     <div class="grid w-full items-center gap-1.5">
         <Label>{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
-        <Select v-model="localModelValue">
+        <Select v-model="localModelValue" :multiple="multiple" :aria-hidden="false"> <!-- Asegurar que aria-hidden sea false -->
             <SelectTrigger class="h-8 w-full">
                 <SelectValue :placeholder="`Selecciona ${label.toLowerCase()}`" />
             </SelectTrigger>
-            <SelectContent class="max-h-80 overflow-y-auto"> <!-- Clase añadida -->
+            <SelectContent class="max-h-80 overflow-y-auto" :aria-hidden="false"> <!-- Asegurar que aria-hidden sea false -->
                 <SelectGroup>
-                    <SelectItem v-for="option in options" :key="option.id" :value="option.id">
+                    <SelectItem v-for="option in options" :key="option.id" :value="option.id" :aria-hidden="false"> <!-- Asegurar que aria-hidden sea false -->
                         {{ option.name }}
                     </SelectItem>
                 </SelectGroup>
@@ -30,14 +30,15 @@ interface Props {
     label: string;
     options: Option[];
     required?: boolean;
-    modelValue: number | string | undefined | null;
+    modelValue: number | string | (number | string)[] | undefined | null; // Soportar valores múltiples
+    multiple?: boolean; // Nueva propiedad para habilitar selección múltiple
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits(['update:modelValue']);
 
-// Asignar un valor predeterminado de 0 si props.modelValue es undefined
-const localModelValue = ref(props.modelValue ?? 0);
+// Manejar valores múltiples o únicos
+const localModelValue = ref(props.modelValue ?? (props.multiple ? [] : null));
 
 watch(localModelValue, (newValue) => {
     emit('update:modelValue', newValue);

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ProductSheet\ProductSheetController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
+use App\Http\Controllers\Settings\UserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -14,10 +15,20 @@ Route::get('dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    // obtener informacion del usuario
+    Route::get('user', function () {
+        $user = Auth::user();
+        return response()->json([
+            'user' => $user,
+            'roles' => $user->roles->pluck('name'), // Roles del usuario
+            'permissions' => $user->getAllPermissions()->pluck('name'), // Permisos del usuario
+        ]);
+    })->name('user');
+
     Route::get('profile', function () {
         return Inertia::render('Profile');
     })->name('profile');
-    
+
     Route::prefix('comercial')->name('comercial.')->group(function () {
         Route::resource('sabana-productos', ProductSheetController::class)->names([
             'index' => 'sabana-productos.index',
@@ -28,7 +39,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])->name('product-sheets.getData');
     });
-    
+
     Route::prefix('diseno')->name('diseno.')->group(function () {
         Route::resource('programador', ProgrammerController::class)->names([
             'index' => 'programador.index',
@@ -39,8 +50,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
         Route::get('programmers', [ProgrammerController::class, 'getData'])->name('programmers.getData');
     });
+
+    Route::get('configuracion', function () {
+        return Inertia::render('Configuration/Index');
+    })->middleware(['auth', 'verified'])->name('configuration');
+
+    Route::resource('usuarios', UserController::class);
+    Route::get('users', [UserController::class, 'getData'])->name('users.getData');
+
 });
 
 
-require __DIR__.'/settings.php';
-require __DIR__.'/auth.php';
+require __DIR__ . '/settings.php';
+require __DIR__ . '/auth.php';

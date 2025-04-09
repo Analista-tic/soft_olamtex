@@ -27,8 +27,6 @@ defineProps<{
 
 // Función para verificar si la ruta actual coincide con la del item
 function isRouteActive(href: string): boolean {
-    console.log(`Comparando ${window.location.pathname} con ${href}`);
-
     return window.location.pathname === href;
 }
 </script>

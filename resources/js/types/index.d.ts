@@ -17,13 +17,7 @@ export interface NavItem {
     href: string;
     icon?: LucideIcon;
     isActive?: boolean;
-}
-export interface NavItem {
-    title: string;
-    href: string;
-    href: string;
-    icon?: LucideIcon;
-    isActive?: boolean;
+    permission?: string;
 }
 
 export interface NavGroupItem extends NavItem {
@@ -37,10 +31,18 @@ export interface SharedData extends PageProps {
     ziggy: Config & { location: string };
 }
 
-export interface User {
+export interface Role {
     id: number;
     name: string;
+    permissions: Array<{ name: string }>;
+}
+
+export interface User {
+    id: number | null;
+    name: string;
     email: string;
+    password?: string; // Opcional porque no se envía en la edición
+    roles?: Role[]; // Rol asignado al usuario
     avatar?: string;
     email_verified_at: string | null;
     created_at: string;
