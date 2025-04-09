@@ -144,7 +144,7 @@ onMounted(() => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Programador</h1>
+                <h1 class="text-lg font-bold">Lista Programador</h1>
                 <CreateProgrammerDialog 
                     :sections="props.sections"
                     :groups="props.groups"
@@ -229,7 +229,7 @@ onMounted(() => {
                             <TableHead>Precio Venta</TableHead>
                             <TableHead>Total Unidades</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
+                            <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -246,7 +246,7 @@ onMounted(() => {
                                     {{ programmer.status === 'complete' ? 'Completo' : 'Incompleto' }}
                                 </Badge>
                             </TableCell>
-                            <TableCell class="flex justify-center gap-1 text-center">
+                            <TableCell class="flex gap-1">
                                 <ViewButton :onClick="() => viewProgrammer(programmer)" />
                                 <EditButton :onClick="() => openEditDialog(programmer)" />
                                 <DeleteButton :onClick="() => confirmDeleteProgrammer(programmer)" />

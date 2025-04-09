@@ -29,7 +29,7 @@ class ProgrammerController extends Controller
         
         $productSheets = ProductSheet::with('section', 'group', 'brand', 'world', 'base')->where('status', 'complete')->get(); // Obtener todos los ProductSheet
         $destination = Destination::all(); // Obtener todos los destinos
-        return Inertia::render('Programmer/Index', [
+        return Inertia::render('Programmers/Index', [
             'productSheets' => $productSheets,
             'destinations' => $destination,
             'sections' => $sections,
