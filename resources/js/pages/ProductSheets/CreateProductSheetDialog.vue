@@ -129,7 +129,7 @@ function resetForm() {
 <template>
     <Dialog @open="resetForm" v-model:open="isDialogOpen">
         <DialogTrigger as-child>
-            <Button variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Producto</Button>
+            <Button variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Nuevo Producto</Button>
         </DialogTrigger>
         <DialogContent class="sm:max-w-5xl max-h-screen overflow-y-auto">
             <DialogHeader>

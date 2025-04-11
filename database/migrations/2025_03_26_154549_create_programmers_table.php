@@ -21,6 +21,7 @@ return new class extends Migration
             $table->json('ecommerce_units')->nullable(); // Asegúrate de que sea JSON
             $table->string('status');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

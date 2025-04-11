@@ -22,6 +22,7 @@ import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { ref, onMounted, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import { useAuthStore } from '@/stores/auth';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -54,6 +55,12 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref(''); // Campo de búsqueda
+
+const authStore = useAuthStore();
+
+const canCreate = authStore.can('crear usuarios');
+const canEdit = authStore.can('editar usuarios');
+const canDelete = authStore.can('eliminar usuarios');
 
 function openDialog(type: 'create' | 'edit', user: User | null = null) {
     dialogType.value = type;
@@ -147,7 +154,7 @@ onMounted(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Usuario</Button>
+                <Button v-if="canCreate" @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Usuario</Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
@@ -173,8 +180,8 @@ onMounted(() => {
                             <TableCell>{{ user.email }}</TableCell>
                             <TableCell>{{ user.roles?.map(role => role.name).join(', ') }}</TableCell> <!-- Mostrar roles -->
                             <TableCell class="flex gap-1">
-                                <EditButton :onClick="() => openDialog('edit', user)" />
-                                <DeleteButton :onClick="() => confirmDeleteUser(user)" />
+                                <EditButton v-if="canEdit" :onClick="() => openDialog('edit', user)" />
+                                <DeleteButton v-if="canDelete" :onClick="() => confirmDeleteUser(user)" />
                             </TableCell>
                         </TableRow>
                     </TableBody>

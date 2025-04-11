@@ -42,15 +42,16 @@ import Badge from '@/components/ui/badge/Badge.vue'; // Importa el componente de
 import EditButton from '@/components/common/EditButton.vue'; // Importar el botón de editar
 import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
 import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
+import { useAuthStore } from '@/stores/auth';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Comercial',
-        href: '/diseno/sabana-productos',
+        href: '/comercial/sabana-productos',
     },
     {
         title: 'Sabana de Productos',
-        href: '/diseno/sabana-productos',
+        href: '/comercial/sabana-productos',
     },
 ];
 
@@ -84,6 +85,13 @@ const statusOptions: StatusOption[] = [
     { id: 1, label: 'Incompleto', value: 'incomplete' },
     { id: 2, label: 'Completo', value: 'complete' },
 ];
+
+const authStore = useAuthStore();
+
+const canView = authStore.can('ver sabana productos');
+const canCreate = authStore.can('crear sabana productos');
+const canEdit = authStore.can('editar sabana productos');
+const canDelete = authStore.can('eliminar sabana productos');
 
 function confirmDeleteProductSheet(product: ProductSheet) {
     productSheetToDelete.value = product;
@@ -155,6 +163,7 @@ onMounted(() => {
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Lista Sabana de Productos</h1>
                 <ProductSheetDialog
+                    v-if="canCreate"
                     :sections="props.sections"
                     :groups="props.groups"
                     :brands="props.brands"
@@ -226,9 +235,9 @@ onMounted(() => {
                                 </Badge>
                             </TableCell>
                             <TableCell class="flex gap-1">
-                                <ViewButton :onClick="() => viewProductSheet(product)" />
-                                <EditButton :onClick="() => openEditDialog(product)" />
-                                <DeleteButton :onClick="() => confirmDeleteProductSheet(product)" />
+                                <ViewButton v-if="canView" :onClick="() => viewProductSheet(product)" />
+                                <EditButton v-if="canEdit" :onClick="() => openEditDialog(product)" />
+                                <DeleteButton v-if="canDelete" :onClick="() => confirmDeleteProductSheet(product)" />
                             </TableCell>
                         </TableRow>
                     </TableBody>

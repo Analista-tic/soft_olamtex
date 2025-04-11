@@ -25,7 +25,7 @@ return new class extends Migration
             $table->boolean('woven_product');
             $table->string('description')->nullable();
             $table->json('processes');
-            $table->enum('status', ['completed', 'incomplete']);
+            $table->enum('status', ['complete', 'incomplete']);
             $table->softDeletes();
             $table->timestamps();
         });

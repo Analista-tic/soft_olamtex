@@ -1,18 +1,10 @@
 <script setup lang="ts">
-import InputError from '@/components/InputError.vue';
-import TextLink from '@/components/TextLink.vue';
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import AuthBase from '@/layouts/AuthLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3';
-import { LoaderCircle } from 'lucide-vue-next';
-
-defineProps<{
-    status?: string;
-    canResetPassword: boolean;
-}>();
+import { useForm } from '@inertiajs/vue3';
 
 const form = useForm({
     email: '',
@@ -28,66 +20,47 @@ const submit = () => {
 </script>
 
 <template>
-    <AuthBase title="Log in to your account" description="Enter your email and password below to log in">
-        <Head title="Log in" />
-
-        <div v-if="status" class="mb-4 text-center text-sm font-medium text-green-600">
-            {{ status }}
-        </div>
-
-        <form @submit.prevent="submit" class="flex flex-col gap-6">
-            <div class="grid gap-6">
-                <div class="grid gap-2">
-                    <Label for="email">Email address</Label>
-                    <Input
-                        id="email"
-                        type="email"
-                        required
-                        autofocus
-                        :tabindex="1"
-                        autocomplete="email"
-                        v-model="form.email"
-                        placeholder="email@example.com"
-                    />
-                    <InputError :message="form.errors.email" />
-                </div>
-
-                <div class="grid gap-2">
-                    <div class="flex items-center justify-between">
-                        <Label for="password">Password</Label>
-                        <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm" :tabindex="5">
-                            Forgot password?
-                        </TextLink>
+    <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">
+        <div className="w-full max-w-sm md:max-w-3xl">
+            <Card class="overflow-hidden">
+                <CardContent class="grid p-0 md:grid-cols-2">
+                    <form @submit.prevent="submit" class="p-6 md:p-8">
+                        <div class="flex flex-col gap-6">
+                            <div class="flex flex-col items-center text-center">
+                                <AppLogoIcon src="/images/logo.jpg" alt="Logo de la aplicación" class="w-10" />
+                                <h1 class="text-2xl font-bold">Bienvenido de nuevo</h1>
+                                <p class="text-muted-foreground">Ingresa a tu cuenta de ForUTex</p>
+                            </div>
+                            <div class="grid gap-2">
+                                <Label for="email">Email</Label>
+                                <Input id="email" type="email" placeholder="email@ejemplo.com" v-model="form.email" required />
+                            </div>
+                            <div class="grid gap-2">
+                                <div class="flex items-center">
+                                    <Label for="password">Contraseña</Label>
+                                </div>
+                                <Input id="password" type="password" placeholder="Contraseña" v-model="form.password" required />
+                            </div>
+                            <div class="flex items-center justify-between" :tabindex="3">
+                                <Label for="remember" class="flex items-center space-x-3">
+                                    <input type="checkbox" id="remember" v-model="form.remember" :tabindex="4" />
+                                    <span>Recuérdame</span>
+                                </Label>
+                            </div>
+                            <Button type="submit" class="w-full" :disabled="form.processing"> Iniciar sesión </Button>
+                        </div>
+                    </form>
+                    <div class="relative hidden bg-muted md:block">
+                        <img
+                            src="/images/login.png"
+                            alt="Imagen"
+                            class="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+                        />
                     </div>
-                    <Input
-                        id="password"
-                        type="password"
-                        required
-                        :tabindex="2"
-                        autocomplete="current-password"
-                        v-model="form.password"
-                        placeholder="Password"
-                    />
-                    <InputError :message="form.errors.password" />
-                </div>
-
-                <div class="flex items-center justify-between" :tabindex="3">
-                    <Label for="remember" class="flex items-center space-x-3">
-                        <Checkbox id="remember" v-model:checked="form.remember" :tabindex="4" />
-                        <span>Remember me</span>
-                    </Label>
-                </div>
-
-                <Button type="submit" class="mt-4 w-full" :tabindex="4" :disabled="form.processing">
-                    <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
-                    Log in
-                </Button>
-            </div>
-
-            <div class="text-center text-sm text-muted-foreground">
-                Don't have an account?
-                <TextLink :href="route('register')" :tabindex="5">Sign up</TextLink>
-            </div>
-        </form>
-    </AuthBase>
+                </CardContent>
+            </Card>
+        </div>
+    </div>
+    <div class="flex flex-col gap-6">
+    </div>
 </template>

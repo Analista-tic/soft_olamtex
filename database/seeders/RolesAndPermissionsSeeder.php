@@ -25,6 +25,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear usuarios',
             'editar usuarios',
             'eliminar usuarios',
+            'ver roles',
+            'crear roles',
+            'editar roles',
+            'eliminar roles',
             'ver telas',
             'crear telas',
             'editar telas',
@@ -58,7 +62,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'email' => 'admin@gmail.com'
         ], [
             'name' => 'Admin',
-            'password' => '12345678',
+            'password' => Hash::make('12345678'), // Encriptar la contraseña
         ]);
         $adminUser->assignRole($admin);
 
@@ -66,7 +70,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'email' => 'general@gmail.com'
         ], [
             'name' => 'General',
-            'password' => '12345678',
+            'password' => Hash::make('12345678'), // Encriptar la contraseña
         ]);
         $generalUser->assignRole($general);
     }

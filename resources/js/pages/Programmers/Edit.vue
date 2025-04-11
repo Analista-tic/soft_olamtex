@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { OptionParams, ProductSheet, Programmer } from '@/types';
 import axios from 'axios';
-import { defineEmits, defineExpose, ref } from 'vue';
+import { defineEmits, defineExpose, ref, computed } from 'vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 /**
@@ -35,6 +35,16 @@ const isDialogOpen = ref(false); // Estado del diálogo (abierto/cerrado)
 const programmer = ref<Programmer>({} as Programmer); // Datos del programador que se está editando
 const isLoading = ref(false); // Estado de carga (true mientras se guarda)
 const errorMessage = ref<string | null>(null); // Mensaje de error para mostrar al usuario
+
+/**
+ * Propiedad computada para manejar el valor predeterminado de `programmer.units`
+ */
+const programmerUnits = computed({
+    get: () => programmer.value.units ?? 0,
+    set: (value: number) => {
+        programmer.value.units = value;
+    },
+});
 
 /**
  * Función para obtener el nombre de la referencia basado en el ID de la ficha de producto.
@@ -208,7 +218,7 @@ async function saveChanges() {
                 <div>
                     <InputField 
                         type="number" 
-                        v-model="programmer.units" 
+                        v-model="programmerUnits" 
                         label="Unidades" 
                         placeholder="Unds. a programar" 
                         :class="{ 'border-red-500': !programmer.units }" 

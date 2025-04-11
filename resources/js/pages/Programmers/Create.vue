@@ -187,7 +187,7 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
 <template>
     <Dialog @open="resetForm" v-model:open="isDialogOpen">
         <DialogTrigger as-child>
-            <Button variant="default" size="sm"><PlusCircle /> Crear</Button>
+            <Button variant="default" size="sm"><PlusCircle /> Nuevo Programador</Button>
         </DialogTrigger>
         <DialogContent class="sm:max-w-6xl max-h-screen overflow-y-auto">
             <DialogHeader>

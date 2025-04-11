@@ -22,6 +22,7 @@ import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
 import RoleDialog from './RoleDialog.vue';
+import { useAuthStore } from '@/stores/auth';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -50,6 +51,12 @@ const isDeleteDialogOpen = ref(false);
 const localRoles = ref<Role[]>([]);
 
 const formattedPermissions = (props.permissions || []).map((p) => ({ name: (p as { name: string }).name, module: 'default' }));
+
+const authStore = useAuthStore();
+
+const canCreate = authStore.can('crear roles');
+const canEdit = authStore.can('editar roles');
+// const canDelete = authStore.can('eliminar roles');
 
 async function fetchRoles(page = 1) {
     try {
@@ -112,7 +119,7 @@ onMounted(fetchRoles);
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Roles</h1>
-                <Button @click="openFormDialog()" variant="default" size="sm">
+                <Button v-if="canCreate" @click="openFormDialog()" variant="default" size="sm">
                     <PlusCircle class="h-4 w-4" /> Crear Nuevo Rol
                 </Button>
             </div>
@@ -138,8 +145,8 @@ onMounted(fetchRoles);
                             <TableCell class="font-medium">{{ role.name }}</TableCell>
                             <TableCell>{{ role.permissions?.map(permission => permission.name).join(' - ') }}</TableCell>
                             <TableCell class="flex gap-1">
-                                <EditButton @click="openFormDialog(role)" />
-                                <!-- <DeleteButton :onClick="() => openDeleteDialog(role)" /> -->
+                                <EditButton v-if="canEdit" @click="openFormDialog(role)" />
+                                <!-- <DeleteButton v-if="canDelete" :onClick="() => openDeleteDialog(role)" /> -->
                             </TableCell>
                         </TableRow>
                     </TableBody>

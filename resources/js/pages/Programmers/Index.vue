@@ -35,7 +35,14 @@ import EditButton from '@/components/common/EditButton.vue'; // Importar el bot�
 import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
 import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
 import Button from '@/components/ui/button/Button.vue';
+import { useAuthStore } from '@/stores/auth';
 
+const authStore = useAuthStore();
+
+const canView = authStore.can('ver programador');
+const canCreate = authStore.can('crear programador');
+const canEdit = authStore.can('editar programador');
+const canDelete = authStore.can('eliminar programador');
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -150,6 +157,7 @@ onMounted(() => {
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Lista Programador</h1>
                 <CreateProgrammerDialog 
+                    v-if="canCreate"
                     :sections="props.sections"
                     :groups="props.groups"
                     :brands="props.brands"
@@ -251,9 +259,9 @@ onMounted(() => {
                                 </Badge>
                             </TableCell>
                             <TableCell class="flex gap-1">
-                                <ViewButton :onClick="() => viewProgrammer(programmer)" />
-                                <EditButton :onClick="() => openEditDialog(programmer)" />
-                                <DeleteButton :onClick="() => confirmDeleteProgrammer(programmer)" />
+                                <ViewButton v-if="canView" :onClick="() => viewProgrammer(programmer)" />
+                                <EditButton v-if="canEdit" :onClick="() => openEditDialog(programmer)" />
+                                <DeleteButton v-if="canDelete" :onClick="() => confirmDeleteProgrammer(programmer)" />
                             </TableCell>
                         </TableRow>
                     </TableBody>
