@@ -2,6 +2,7 @@
 
 namespace App\Models\ProductSheet;
 
+use App\Models\Inventory\FabricRoll;
 use App\Models\ProductSheet\ProductSheet;
 use Illuminate\Database\Eloquent\Model;
 
@@ -12,5 +13,10 @@ class Section extends Model
     public function productSheets()
     {
         return $this->hasMany(ProductSheet::class);
+    }
+
+    public function fabricRolls()
+    {
+        return $this->hasMany(FabricRoll::class);
     }
 }

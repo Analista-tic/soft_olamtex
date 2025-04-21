@@ -2,6 +2,7 @@
 
 namespace App\Models\ProductSheet;
 
+use App\Models\Inventory\FabricOrder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -55,5 +56,13 @@ class Programmer extends Model
     public function destination()
     {
         return $this->belongsTo(Destination::class);
+    }
+
+    /**
+     * Relación con el modelo `FabricOrder`.
+     */
+    public function fabricOrders()
+    {
+        return $this->hasMany(FabricOrder::class);
     }
 }

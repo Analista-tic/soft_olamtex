@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             SectionsGroupsBrandsWorldsBasesSeeder::class,
             RolesAndPermissionsSeeder::class,
+            FabricFabricBaseFabricProvidersFavricColorsSeeder::class
         ]);
     }
 }

@@ -41,6 +41,18 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear sabana productos',
             'editar sabana productos',
             'eliminar sabana productos',
+            'ver pedidos telas',
+            'crear pedidos telas',
+            'editar pedidos telas',
+            'eliminar pedidos telas',
+            'ver recepcion telas',
+            'crear recepcion telas',
+            'editar recepcion telas',
+            'eliminar recepcion telas',
+            'ver inventario telas',
+            'crear inventario telas',
+            'editar inventario telas',
+            'eliminar inventario telas',
         ];
 
         foreach ($permissions as $perm) {

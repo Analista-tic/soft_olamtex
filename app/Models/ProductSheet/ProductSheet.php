@@ -2,6 +2,7 @@
 
 namespace App\Models\ProductSheet;
 
+use App\Models\Inventory\FabricOrderItem;
 use App\Models\ProductSheet\Base;
 use App\Models\ProductSheet\Brand;
 use App\Models\ProductSheet\Group;
@@ -59,5 +60,10 @@ class ProductSheet extends Model
     public function base()
     {
         return $this->belongsTo(Base::class);
+    }
+
+    public function fabricOrderItems()
+    {
+        return $this->hasMany(FabricOrderItem::class);
     }
 }

@@ -229,11 +229,6 @@ onMounted(() => {
                             <TableCell>{{ product.base.name }}</TableCell>
                             <TableCell>{{ product.billing_price }}</TableCell>
                             <TableCell>{{ product.selling_price }}</TableCell>
-                            <TableCell>
-                                <Badge :variant="product.status == 'complete' ? 'default' : 'destructive'">
-                                    {{ product.status == 'complete' ? 'Completo' : 'Incompleto' }}
-                                </Badge>
-                            </TableCell>
                             <TableCell class="flex gap-1">
                                 <ViewButton v-if="canView" :onClick="() => viewProductSheet(product)" />
                                 <EditButton v-if="canEdit" :onClick="() => openEditDialog(product)" />

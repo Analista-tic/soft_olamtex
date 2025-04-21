@@ -70,8 +70,9 @@ export function useAppearance() {
 
         const savedAppearance = localStorage.getItem('appearance') as Appearance | null;
 
-        if (savedAppearance) {
-            appearance.value = savedAppearance;
+        appearance.value = savedAppearance || 'light'; // Usar 'light' como valor predeterminado
+        if (!savedAppearance) {
+            updateAppearance('light'); // Forzar 'light' si no hay preferencia guardada
         }
     });
 

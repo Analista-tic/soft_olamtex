@@ -56,7 +56,7 @@ const navMainGroup: NavGroupItem[] = [
         items: [
             {
                 title: 'Telas',
-                href: '/comercial-diseno/sabana-productos',
+                href: '/inventario/telas',
                 permission: 'ver telas', // Permiso necesario para este subitem
             },
         ],

@@ -2,18 +2,39 @@ import type { PageProps } from '@inertiajs/core';
 import type { LucideIcon } from 'lucide-vue-next';
 import type { Config } from 'ziggy-js';
 
+// Interfaces relacionadas con autenticación y usuarios
 export interface Auth {
     user: User;
 }
 
+export interface Role {
+    id: number | null;
+    name: string;
+    permissions: Array<{ name: string }>;
+}
+
+export interface User {
+    id: number | null;
+    name: string;
+    email: string;
+    password?: string;
+    roles?: Role[];
+    avatar?: string;
+    email_verified_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+// Interfaces relacionadas con navegación
 export interface BreadcrumbItem {
     title: string;
     href: string;
 }
 
+export type BreadcrumbItemType = BreadcrumbItem;
+
 export interface NavItem {
     title: string;
-    href: string;
     href: string;
     icon?: LucideIcon;
     isActive?: boolean;
@@ -21,9 +42,10 @@ export interface NavItem {
 }
 
 export interface NavGroupItem extends NavItem {
-    items?: NavItem[]; // Permite subelementos dentro del grupo
+    items?: NavItem[];
 }
 
+// Datos compartidos en la aplicación
 export interface SharedData extends PageProps {
     name: string;
     quote: { message: string; author: string };
@@ -31,26 +53,7 @@ export interface SharedData extends PageProps {
     ziggy: Config & { location: string };
 }
 
-export interface Role {
-    id: number | null;
-    name: string;
-    permissions: Array<{ name: string }>; // Ajustado para reflejar correctamente los permisos
-}
-
-export interface User {
-    id: number | null;
-    name: string;
-    email: string;
-    password?: string; // Opcional porque no se envía en la edición
-    roles?: Role[]; // Rol asignado al usuario
-    avatar?: string;
-    email_verified_at: string | null;
-    created_at: string;
-    updated_at: string;
-}
-
-export type BreadcrumbItemType = BreadcrumbItem;
-
+// Interfaces relacionadas con productos
 export interface OptionParams {
     id: number;
     name: string;
@@ -70,21 +73,40 @@ export interface ProductSheet {
     selling_price?: number;
     sizes?: string;
     description?: string;
-    [key: string]: any; // Si hay propiedades adicionales
+    [key: string]: any;
 }
 
 export interface Programmer {
-    id: number; // ID único del programador
-    product_sheet_id: number | null; // ID de la ficha de producto asociada
-    product_sheet?: ProductSheet | null; // Relación con la ficha de producto (opcional o null)
-    season: string | null; // Temporada asociada al programador (puede ser null)
-    destination?: { id: number; name: string } | null; // Destino asociado o null si no tiene
-    destination_id: number | null; // ID del destino o null
-    priority: string | null; // Prioridad del programador (puede ser null)
-    isEcommerce: boolean; // Indica si es un producto de comercio electrónico
-    ecommerce_units: Record<string, number> | string | null; // Puede ser JSON (objeto), string o null
-    units: number | null; // Total de unidades (puede ser null)
-    status: 'complete' | 'incomplete'; // Estado del programador
-    created_at: string; // Fecha de creación
-    updated_at: string; // Fecha de última actualización
+    id: number;
+    product_sheet_id: number | null;
+    product_sheet?: ProductSheet | null;
+    season: string | null;
+    destination?: { id: number; name: string } | null;
+    destination_id: number | null;
+    priority: string | null;
+    isEcommerce: boolean;
+    ecommerce_units: Record<string, number> | string | null;
+    units: number | null;
+    status: 'complete' | 'incomplete';
+    created_at: string;
+    updated_at: string;
+}
+
+// Interfaces relacionadas con pedidos de telas
+export interface FabricOrder {
+    id: number | null;
+    fabric_provider_id: string;
+    fabric_provider? : { id: number; name: string } | null; // Declarar como objeto con id y nombre
+    status: string;
+    items?: FabricOrderItem[];
+}
+
+export interface FabricOrderItem {
+    fabric: string;
+    base_fabric_id: string | number;
+    provider_color: string;
+    provider_color_code: string;
+    quantity: number;
+    estimated_width: number;
+    price: number; // Cambiado a solo número
 }
