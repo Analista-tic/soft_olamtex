@@ -96,17 +96,28 @@ export interface Programmer {
 export interface FabricOrder {
     id: number | null;
     fabric_provider_id: string;
-    fabric_provider? : { id: number; name: string } | null; // Declarar como objeto con id y nombre
+    fabric_provider? : { id: number; name: string } | null;
     status: string;
     items?: FabricOrderItem[];
 }
 
 export interface FabricOrderItem {
+    id?: number;
     fabric: string;
-    base_fabric_id: string | number;
+    base_fabric_id?: string | number;
+    base_fabric?: { id: number; name: string } | null;
     provider_color: string;
     provider_color_code: string;
     quantity: number;
     estimated_width: number;
     price: number; // Cambiado a solo número
+}
+
+export interface FabricRoll {
+    location: string;
+    fabric_color_id: number | null; // ID del color de tela
+    fabric_order_item_id: number; // ID del ítem de pedido de tela
+    received_quantity: number; // Cantidad recibida
+    width: number; // Ancho del rollo
+    quantity: number; // Cantidad total
 }

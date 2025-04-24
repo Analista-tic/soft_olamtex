@@ -4,7 +4,7 @@ import EditButton from '@/components/common/EditButton.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { FabricOrder, FabricOrderItem } from '@/types';
+import type { FabricOrder } from '@/types';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
@@ -40,7 +40,7 @@ const isOrderDialogOpen = ref(false);
 const lastOrderNumber = ref(0);
 const searchQuery = ref('');
 const filters = ref({
-    status: null, // Cambiar el valor inicial a null
+    status: 'all',
 });
 
 const currentPage = ref(1);
@@ -90,38 +90,6 @@ async function deleteOrder(): Promise<void> {
     }
 }
 
-async function submitForm(orderData: FabricOrder): Promise<void> {
-    const url = dialogType.value === 'create' ? '/inventario/pedidos-telas' : `/inventario/pedidos-telas/${orderData.id}`;
-    const method = dialogType.value === 'create' ? 'POST' : 'PUT';
-
-    try {
-        const items: FabricOrderItem[] = orderData.items ?? [];
-        if (items.length === 0) {
-            throw new Error('El campo items debe contener al menos un elemento.');
-        }
-
-        const payload: FabricOrder = {
-            ...orderData,
-            fabric_provider_id: String(orderData.fabric_provider_id),
-            items: items.map((item) => ({
-                ...item,
-                base_fabric_id: String(item.base_fabric_id),
-                price: parseFloat(item.price.toString()),
-            })),
-        };
-
-        await axios({
-            method,
-            url,
-            data: payload,
-        });
-        fetchOrders();
-        isOrderDialogOpen.value = false;
-    } catch (error) {
-        console.error('Error al guardar el pedido:', error);
-    }
-}
-
 async function fetchOrders(page = 1): Promise<void> {
     try {
         const response = await axios.get('/inventario/pedidos-telas', {
@@ -129,7 +97,7 @@ async function fetchOrders(page = 1): Promise<void> {
                 page,
                 per_page: itemsPerPage.value,
                 search: searchQuery.value,
-                status: filters.value.status,
+                status: filters.value.status === 'all' ? null : filters.value.status, // Manejar 'all' como null
             },
         });
         fabricOrders.value = response.data.data.map((order: FabricOrder) => ({
@@ -175,12 +143,12 @@ function initializeForm(type: 'create' | 'edit', order: Partial<FabricOrder> | n
             status: order?.status ?? 'not_received',
             items: (order?.items ?? []).map(item => ({
                 fabric: item.fabric ?? '',
-                quantity: item.quantity,
-                price: item.price,
+                quantity: item.quantity ?? 0, // Asegurar valores predeterminados
+                price: item.price ?? 0,
                 base_fabric_id: String(item.base_fabric_id ?? ''),
-                provider_color: item.provider_color,
-                provider_color_code: item.provider_color_code,
-                estimated_width: item.estimated_width,
+                provider_color: item.provider_color ?? '',
+                provider_color_code: item.provider_color_code ?? '',
+                estimated_width: item.estimated_width ?? 0,
             })),
         };
 }
@@ -204,7 +172,7 @@ onMounted(async () => {
                     v-model="searchQuery" 
                     type="text" 
                     placeholder="Buscar por proveedor" 
-                    class="h-8 w-full pl-10" 
+                    class="h-9 w-full pl-10" 
                 />
                 <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                     <Search :size="20" class="text-muted-foreground" />
@@ -220,7 +188,7 @@ onMounted(async () => {
                     { id: 'received', name: 'Recibido' }
                 ]"
                 :required="false"
-                class="w-40"
+                class="max-w-xs"
             />
         </div>
         <Table>
@@ -238,8 +206,8 @@ onMounted(async () => {
                     <TableCell>{{ order.fabric_provider?.name ?? 'Sin proveedor' }}</TableCell>
                     <TableCell>
                         <Badge 
-                            :variant="order.status === 'received' ? 'outline' : (['in_reception'].includes(order.status) ? 'default' : 'destructive')"
-                            :class="order.status === 'received' ? 'custom-received-badge' : ''"
+                            :variant="order.status === 'received' ? 'outline' : (['in_reception'].includes(order.status) ? 'outline' : 'destructive')"
+                            :class="order.status === 'received' ? 'custom-received-badge' : 'custom-no-received-badge'"
                         >
                             {{ statusTranslations[order.status] ?? order.status }}
                         </Badge>
@@ -306,7 +274,6 @@ onMounted(async () => {
                 })),
             }"
             @refresh="fetchOrders"
-            @submit="submitForm"
         />
 
         <Dialog v-model:open="isDeleteDialogOpen">
@@ -327,9 +294,16 @@ onMounted(async () => {
 <style scoped>
 /* Estilo personalizado para el estado "recepcionado" */
 .custom-received-badge {
-    background-color: #43e19a; /* Verde claro */
-    color: #ffffff; /* Verde oscuro */
+    color: #43e19a; /* Verde oscuro */
     border: 1px solid #43e19a; /* Borde verde */
+    font-weight: bold;
+}
+
+/* Estilo personalizado para el estado "no recibido" */
+.custom-no-received-badge {
+    color: #e96f6f; /* Rojo */
+    border: 1px solid #e96f6f; /* Borde rojo */
+    background-color: transparent; /* Fondo transparente */
     font-weight: bold;
 }
 </style>

@@ -8,7 +8,6 @@ class FabricRoll extends Model
 {
     protected $fillable = [
         'location',
-        'fabric',
         'fabric_color_id',
         'fabric_order_item_id',
         'received_quantity',

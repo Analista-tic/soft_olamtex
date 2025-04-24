@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FabricOrderItem extends Model
 {
-    use SoftDeletes;
-
     protected $fillable = [
         'fabric',
         'base_fabric_id',
@@ -19,4 +17,14 @@ class FabricOrderItem extends Model
         'price',
         'fabric_order_id',
     ];
+
+    public function baseFabric()
+    {
+        return $this->belongsTo(BaseFabric::class, 'base_fabric_id');
+    }
+
+    public function fabricRolls()
+    {
+        return $this->hasMany(FabricRoll::class);
+    }
 }

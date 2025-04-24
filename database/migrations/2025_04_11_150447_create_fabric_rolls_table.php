@@ -14,7 +14,6 @@ return new class extends Migration
         Schema::create('fabric_rolls', function (Blueprint $table) {
             $table->id()->startingValue(9000);
             $table->string('location');
-            $table->string('fabric');
             $table->foreignId('fabric_color_id')->constrained();
             $table->foreignId('fabric_order_item_id')->constrained();
             $table->decimal('received_quantity', 8, 2)->nullable();

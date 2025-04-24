@@ -17,7 +17,7 @@ class FabricOrder extends Model
 
     public function items(): HasMany
     {
-        return $this->hasMany(FabricOrderItem::class)->withTrashed();
+        return $this->hasMany(FabricOrderItem::class);
     }
     
     public function fabricProvider()
