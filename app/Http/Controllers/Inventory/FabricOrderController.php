@@ -41,9 +41,19 @@ class FabricOrderController extends Controller
             ]);
 
             // Crear los ítems asociados a la orden
-            foreach ($validated['items'] as $item) {
-                $order->items()->create($item);
-            }
+            $items = array_map(function ($item) {
+                return [
+                    'fabric' => $item['fabric'],
+                    'base_fabric_id' => $item['base_fabric_id'],
+                    'provider_color' => $item['provider_color'],
+                    'provider_color_code' => $item['provider_color_code'],
+                    'quantity' => $item['quantity'],
+                    'estimated_width' => $item['estimated_width'],
+                    'price' => $item['price'],
+                ];
+            }, $validated['items']);
+
+            $order->items()->createMany($items); // Usar createMany para evitar replicación
 
             return response()->json($order->load('items'), 201);
         } catch (\Exception $e) {
@@ -80,12 +90,10 @@ class FabricOrderController extends Controller
                 'status' => $validated['status'] ?? $pedido->status,
             ]);
 
-            // Actualizar los ítems asociados
+            // Refrescar los ítems asociados
             if (isset($validated['items'])) {
-                $pedido->items()->delete(); // Eliminar ítems existentes
-                foreach ($validated['items'] as $item) {
-                    $pedido->items()->create($item);
-                }
+                $pedido->items()->delete(); // Eliminar todos los ítems existentes
+                $pedido->items()->createMany($validated['items']); // Cargar los nuevos ítems
             }
 
             return response()->json($pedido->load('items'));
@@ -109,7 +117,7 @@ class FabricOrderController extends Controller
     // Obtiene una lista paginada de órdenes con filtros y búsqueda
     public function getData(Request $request)
     {
-        $query = FabricOrder::with('items', 'fabricProvider');
+        $query = FabricOrder::with('items.baseFabric', 'fabricProvider');
 
         // Aplicar búsqueda por proveedor
         if ($search = $request->input('search')) {

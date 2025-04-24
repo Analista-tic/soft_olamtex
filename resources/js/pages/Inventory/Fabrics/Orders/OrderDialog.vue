@@ -25,7 +25,6 @@ const props = defineProps({
 const emit = defineEmits<{
     (e: 'update:open', value: boolean): void;
     (e: 'refresh'): void;
-    (e: 'submit', form: FabricOrder): void;
 }>();
 
 const items = ref<FabricOrderItem[]>([]);
@@ -137,29 +136,25 @@ async function submitForm() {
         return;
     }
 
-    const url = props.dialogType === 'create' 
-        ? '/inventario/pedidos-telas/' 
-        : `/inventario/pedidos-telas/${localForm.value.id}`;
-    const method = props.dialogType === 'create' ? 'POST' : 'PUT';
-
     try {
         const payload = {
             ...localForm.value,
             fabric_provider_id: String(localForm.value.fabric_provider_id), // Convertir a cadena
             items: items.value.map(item => ({
                 ...item,
-                base_fabrics: String(item.base_fabric_id), // Convertir a cadena
-                price: item.price, // Mantener el precio sin cambios
+                base_fabric_id: String(item.base_fabric_id), // Corregir clave a base_fabric_id
+                price: parseFloat(item.price.toString()), // Asegurar que el precio sea un número
             })),
         };
 
-        await axios({
-            method,
-            url,
-            data: payload,
-        });
+        const url = props.dialogType === 'create' 
+            ? '/inventario/pedidos-telas/' 
+            : `/inventario/pedidos-telas/${localForm.value.id}`;
+        const method = props.dialogType === 'create' ? 'POST' : 'PUT';
+
+        await axios({ method, url, data: payload });
         emit('refresh');
-        emit('update:open', false);
+        emit('update:open', false); // Cerrar el diálogo tras guardar
     } catch (error) {
         console.error('Error al guardar el pedido:', error);
     }
@@ -185,7 +180,8 @@ async function submitForm() {
                             v-model="computedId"
                             label="Número de Orden"
                             placeholder="Número de Orden"
-                            :disabled="dialogType === 'edit'"
+                            readonly
+                            disabled
                         />
                         <!-- Proveedor -->
                         <SelectField
@@ -215,7 +211,7 @@ async function submitForm() {
                 <!-- Botones de Acción -->
                 <DialogFooter class="mt-6">
                     <Button variant="outline" @click="emit('update:open', false)">Cancelar</Button>
-                    <Button type="submit">Guardar</Button>
+                    <Button size="sm" type="submit">Guardar</Button>
                 </DialogFooter>
             </form>
         </DialogContent>

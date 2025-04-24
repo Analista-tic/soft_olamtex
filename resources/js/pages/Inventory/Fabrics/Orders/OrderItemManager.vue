@@ -8,6 +8,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { PlusCircle } from 'lucide-vue-next';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
 
 const props = defineProps<{
     items: FabricOrderItem[];
@@ -51,6 +52,7 @@ function addItem() {
             estimated_width: 0,
             price: 0,
         };
+
         addItemDialogOpen.value = false;
     }
 }
@@ -66,7 +68,7 @@ function removeItem(index: number) {
     <div>
         <div class="flex items-center justify-between mb-4">
             <h3 class="font-bold text-md">Telas</h3>
-            <Button variant="default" size="sm" @click="addItemDialogOpen = true"><PlusCircle class="w-4 h-4"/> Añadir Tela</Button>
+            <Button type="button" variant="default" size="sm" @click="addItemDialogOpen = true"><PlusCircle class="w-4 h-4"/> Añadir Tela</Button>
         </div>
         <div v-if="items.length > 0">
             <Table>
@@ -109,6 +111,7 @@ function removeItem(index: number) {
             <DialogContent class="max-h-[80vh] w-[100vw] max-w-4xl overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Añadir Ítem</DialogTitle>
+                    <DialogDescription></DialogDescription>
                 </DialogHeader>
                 <form @submit.prevent="addItem">
                     <div class="space-y-6">

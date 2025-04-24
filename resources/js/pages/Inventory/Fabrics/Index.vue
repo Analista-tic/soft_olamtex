@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/tabs';
 
 import InventoryTab from './Tabs/Inventory.vue';
-import RecepcionTab from './Tabs/Receptions.vue';
+import RecepcionTab from './Receptions/Index.vue';
 import PedidosTab from './Orders/Index.vue';
 
 const currentRoute = usePage().url;
@@ -21,6 +21,12 @@ const breadcrumbs: BreadcrumbItem[] = [
         href: '/inventario/telas',
     },
 ];
+
+const handleTabClick = (path: string) => {
+    if (currentRoute !== path) {
+        router.get(path);
+    }
+};
 </script>
 
 <template>
@@ -32,15 +38,11 @@ const breadcrumbs: BreadcrumbItem[] = [
                 <TabsTrigger value="recepcion" @click="router.get('/inventario/telas/recepcion')">Recepción</TabsTrigger>
                 <TabsTrigger value="general" @click="router.get('/inventario/telas')">General</TabsTrigger>
             </TabsList>
-            <TabsContent value="pedidos" class="p-5">
-                <PedidosTab />
-            </TabsContent>
-            <TabsContent value="recepcion" class="p-5">
-                <RecepcionTab />
-            </TabsContent>
-            <TabsContent value="general" class="p-5">
-                <InventoryTab />
-            </TabsContent>
         </Tabs>
+        <div class="p-5">
+            <PedidosTab v-if="currentRoute.includes('pedidos')" />
+            <RecepcionTab v-if="currentRoute.includes('recepcion')" />
+            <InventoryTab v-if="!currentRoute.includes('pedidos') && !currentRoute.includes('recepcion')" />
+        </div>
     </AppLayout>
 </template>
