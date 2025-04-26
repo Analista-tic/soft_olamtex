@@ -13,9 +13,4 @@ class Destination extends Model
     {
         return $this->hasMany(ProductSheet::class);
     }
-
-    public function fabricOrders()
-    {
-        return $this->hasMany(FabricOrder::class);
-    }
 }

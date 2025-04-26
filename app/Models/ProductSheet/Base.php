@@ -14,9 +14,4 @@ class Base extends Model
     {
         return $this->hasMany(ProductSheet::class);
     }
-
-    public function baseFabrics()
-    {
-        return $this->hasMany(BaseFabric::class);
-    }
 }

@@ -110,3 +110,18 @@ export interface FabricOrderItem {
     estimated_width: number;
     price: number; // Cambiado a solo número
 }
+
+export interface CategoryGroup {
+    id: number;
+    name: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface CategorySubGroup {
+    id: number;
+    name: string;
+    category_group_id: number;
+    created_at?: string;
+    updated_at?: string;
+}

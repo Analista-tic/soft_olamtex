@@ -61,9 +61,4 @@ class ProductSheet extends Model
     {
         return $this->belongsTo(Base::class);
     }
-
-    public function fabricOrderItems()
-    {
-        return $this->hasMany(FabricOrderItem::class);
-    }
 }

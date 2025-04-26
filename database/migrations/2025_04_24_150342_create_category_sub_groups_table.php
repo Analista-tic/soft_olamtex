@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('fabric_orders', function (Blueprint $table) {
+        Schema::create('category_sub_groups', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('fabric_provider_id')->constrained();
-            $table->enum('status', ['not_received', 'in_reception', 'received']);
+            $table->string('name');
+            $table->foreignId('category_group_id')->constrained();
             $table->timestamps();
-            $table->softDeletes();
         });
     }
 
@@ -25,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('fabric_orders');
+        Schema::dropIfExists('category_sub_groups');
     }
 };

@@ -11,6 +11,8 @@ use App\Http\Controllers\ProductSheet\ProgrammerController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\Settings\RoleController;
 use App\Http\Controllers\Settings\FabricProviderController;
+use App\Http\Controllers\Common\CategoryGroupController;
+use App\Http\Controllers\Common\CategorySubGroupController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -77,32 +79,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // === INVENTARIO ===
-    Route::prefix('inventario')->name('inventario.')->group(function () {
-        Route::prefix('telas')->name('telas.')->middleware('permission:ver pedidos telas')->group(function () {
-            Route::get('/', [FabricOrderController::class, 'index'])->name('index'); // Vista principal (inventario)
-            Route::get('/recepcion', [FabricOrderController::class, 'index'])->name('recepcion'); // Subvista de recepción
-            Route::get('/pedidos', [FabricOrderController::class, 'index'])->name('pedidos'); // Subvista de pedidos
-        });
-
-        // === PEDIDOS DE TELAS ===
-        Route::prefix('pedidos-telas')->name('pedidos-telas.')->group(function () {
-            Route::get('/', [FabricOrderController::class, 'getData'])
-                ->middleware('permission:ver pedidos telas')
-                ->name('pedidos-telas.getData');
-            Route::post('/', [FabricOrderController::class, 'store'])
-                ->middleware('permission:crear pedidos telas')
-                ->name('store');
-            Route::get('/{pedido}', [FabricOrderController::class, 'show'])
-                ->middleware('permission:ver pedidos telas')
-                ->name('show');
-            Route::put('/{pedido}', [FabricOrderController::class, 'update'])
-                ->middleware('permission:editar pedidos telas')
-                ->name('update');
-            Route::delete('/{pedido}', [FabricOrderController::class, 'destroy'])
-                ->middleware('permission:eliminar pedidos telas')
-                ->name('destroy');
-        });
-    });
+    // Route::prefix('inventario')->name('inventario.')->group(function () {
+    //     Route::prefix('telas')->name('telas.')->middleware('permission:ver pedidos telas')->group(function () {
+    //         Route::get('/', [FabricOrderController::class, 'index'])->name('index'); // Vista principal (inventario)
+    //         Route::get('/recepcion', [FabricOrderController::class, 'index'])->name('recepcion'); // Subvista de recepción
+    //         Route::get('/pedidos', [FabricOrderController::class, 'index'])->name('pedidos'); // Subvista de pedidos
+    //     });
+    // });
 
     // === CONFIGURACIÓN ===
     Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
@@ -150,14 +133,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:eliminar roles')
         ->name('roles.destroy');
 
-    // Ruta para obtener los proveedores de telas
-    Route::get('/providers', [FabricProviderController::class, 'index'])
-        ->name('providers.index');
+    Route::prefix('categorias')->group(function () {
+        // Rutas para CategoryGroup
+        Route::post('grupos', [CategoryGroupController::class, 'store'])->name('groups.store');
 
-    // Ruta para obtener las bases de tela
-    Route::get('/base-fabrics', [BaseFabricsController::class, 'index'])
-        ->name('base-fabrics.index');
+        // Rutas para CategorySubGroup
+        Route::get('subgrupos', [CategorySubGroupController::class, 'index'])->name('subgroups.create');
+        Route::get('subgrupos-data', [CategorySubGroupController::class, 'getData'])->name('subgroups.getData');
+        Route::post('subgrupos', [CategorySubGroupController::class, 'store'])->name('subgroups.store');
+        Route::put('subgrupos/{subgroup}', [CategorySubGroupController::class, 'update'])->name('subgroups.update');
+        Route::delete('subgrupos/{subgroup}', [CategorySubGroupController::class, 'destroy'])->name('subgroups.destroy'); // Nueva ruta para eliminar
+    });
 });
+
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
