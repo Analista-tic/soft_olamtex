@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Common\ContactController;
 use App\Http\Controllers\Inventory\FabricOrderController;
 use App\Http\Controllers\Settings\BaseFabricsController;
 use Illuminate\Support\Facades\Route;
@@ -144,6 +145,60 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('subgrupos/{subgroup}', [CategorySubGroupController::class, 'update'])->name('subgroups.update');
         Route::delete('subgrupos/{subgroup}', [CategorySubGroupController::class, 'destroy'])->name('subgroups.destroy'); // Nueva ruta para eliminar
     });
+
+    // === CONTACTOS ===
+    Route::prefix('contactos')->group(function () {
+        Route::get('/', [ContactController::class, 'index'])->name('index');
+        Route::get('/data', [ContactController::class, 'getData'])->name('getData'); // Asegurarse de que esta ruta exista
+        Route::post('/', [ContactController::class, 'store'])->name('store');
+        Route::get('/{contact}', [ContactController::class, 'show'])->name('show');
+        Route::put('/{contact}', [ContactController::class, 'update'])->name('update');
+        Route::delete('/{contact}', [ContactController::class, 'destroy'])->name('destroy');
+    });
+});
+
+Route::get('/validar-nit/{nit}', function ($nit) {
+    try {
+        // Validar formato del NIT
+        if (!preg_match('/^\d{5,15}$/', $nit)) {
+            return response()->json(['error' => 'Formato de NIT inválido'], 400);
+        }
+
+        // Consultar RUES con timeout y headers
+        $response = Http::timeout(20)
+            ->withHeaders(['User-Agent' => 'Laravel RUES Client'])
+            ->withoutVerifying()
+            ->get("https://www.rues.org.co/RM/ConsultaNIT_json?nit=$nit");
+
+        // Verificar errores HTTP
+        if ($response->failed()) {
+            return response()->json([
+                'error' => 'RUES no respondió correctamente',
+                'details' => $response->body() ?? 'Sin detalles',
+            ], 502);
+        }
+
+        $data = $response->json();
+
+        // Si el NIT no existe
+        if (empty($data['NIT'])) {
+            return response()->json(['error' => 'NIT no encontrado'], 404);
+        }
+
+        // Respuesta exitosa
+        return response()->json([
+            'nit' => $data['NIT'],
+            'razon_social' => $data['RazonSocial'] ?? 'No disponible',
+            'estado' => $data['Estado'] ?? 'No disponible',
+            'camara_comercio' => $data['CamaraComercio'] ?? 'No disponible',
+        ]);
+
+    } catch (Exception $e) {
+        return response()->json([
+            'error' => 'Error interno al consultar RUES',
+            'message' => $e->getMessage(), // Solo para desarrollo
+        ], 500);
+    }
 });
 
 

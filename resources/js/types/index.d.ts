@@ -122,6 +122,32 @@ export interface CategorySubGroup {
     id: number;
     name: string;
     category_group_id: number;
+    category_group?: CategoryGroup; // Relación opcional con CategoryGroup
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface AdditionalContact {
+    name: string;
+    phone: string;
+    email: string;
+}
+
+export interface Contact {
+    id: number;
+    contact_type: string;
+    id_type: string;
+    id_number: string;
+    dv?: string;
+    full_name: string;
+    person_type: string;
+    category: string;
+    municipality?: string;
+    department?: string;
+    address?: string;
+    email: string;
+    phone?: string;
+    additional_contacts?: AdditionalContact[]; // Contactos adicionales
     created_at?: string;
     updated_at?: string;
 }

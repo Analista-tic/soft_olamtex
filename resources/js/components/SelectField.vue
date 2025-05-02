@@ -7,7 +7,7 @@
         >
             <SelectTrigger 
                 :class="{'flex-wrap': multiple}" 
-                class="h-auto w-full fixed-width"
+                class="h-8 w-full fixed-width"
             >
                 <div v-if="multiple" class="selected-items">
                     <span v-for="item in localModelValue" :key="item" class="selected-tag">

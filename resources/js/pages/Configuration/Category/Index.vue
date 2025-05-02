@@ -39,42 +39,44 @@ const props = defineProps<{
     groups: CategoryGroup[]; // Recibir los grupos como props
 }>();
 
+// Variables reactivas con tipado explícito
 const subGroups = ref<CategorySubGroup[]>([]);
 const subGroupToDelete = ref<CategorySubGroup | null>(null);
-const isDialogOpen = ref(false);
-const isDeleteDialogOpen = ref(false);
+const isDialogOpen = ref<boolean>(false);
+const isDeleteDialogOpen = ref<boolean>(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<Partial<CategorySubGroup>>({
-    id: null,
+    id: undefined,
     name: '',
-    category_group_id: null,
+    category_group_id: undefined,
 });
-const currentPage = ref(1);
+const currentPage = ref<number>(1);
 const itemsPerPage = 10;
-const totalItems = ref(0);
-const searchQuery = ref(''); // Campo de búsqueda
-const selectedGroup = ref<number | null>(null); // Filtro por grupo
+const totalItems = ref<number>(0);
+const searchQuery = ref<string>(''); // Campo de búsqueda
+const selectedGroup = ref<number | null | undefined>(null); // Filtro por grupo
 
-function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null) {
+// Funciones con tipado explícito
+function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
     dialogType.value = type;
     isDialogOpen.value = true;
     if (type === 'edit' && subGroup) {
         form.value = { ...subGroup };
     } else {
-        form.value = { id: null, name: '', category_group_id: null }; // Limpiar todo el formulario al crear
+        form.value = { id: undefined, name: '', category_group_id: undefined };
     }
 }
 
-function closeDialog() {
+function closeDialog(): void {
     isDialogOpen.value = false;
 }
 
-function confirmDeleteSubGroup(subGroup: CategorySubGroup) {
+function confirmDeleteSubGroup(subGroup: CategorySubGroup): void {
     subGroupToDelete.value = subGroup;
     isDeleteDialogOpen.value = true;
 }
 
-async function deleteSubGroup() {
+async function deleteSubGroup(): Promise<void> {
     if (!subGroupToDelete.value) return;
 
     try {
@@ -86,21 +88,21 @@ async function deleteSubGroup() {
     }
 }
 
-async function submitForm(subGroupData: Partial<CategorySubGroup>) {
+async function submitForm(subGroupData: Partial<CategorySubGroup>): Promise<void> {
     const url = dialogType.value === 'create' ? '/categorias/subgrupos' : `/categorias/subgrupos/${subGroupData.id}`;
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
 
     try {
         await axios({ method, url, data: subGroupData });
-        fetchSubGroups(); // Refrescar la lista de subgrupos
+        fetchSubGroups();
         closeDialog();
     } catch (error) {
         console.error('Error al guardar el subgrupo:', error);
     }
 }
 
-async function fetchSubGroups(page = 1, search = '', groupId = null) {
-    console.log('Fetching subgroups:', { page, search, groupId }); // Log para depurar
+async function fetchSubGroups(page: number = 1, search: string = '', groupId: number | null | undefined = null): Promise<void> {
+    console.log('Fetching subgroups:', { page, search, groupId });
     try {
         const response = await axios.get('/categorias/subgrupos-data', {
             params: {
@@ -119,15 +121,17 @@ async function fetchSubGroups(page = 1, search = '', groupId = null) {
     }
 }
 
-function handlePageChange(newPage) {
+function handlePageChange(newPage: number): void {
     currentPage.value = newPage;
-    fetchSubGroups(newPage, searchQuery.value, selectedGroup.value); // Asegurarse de que fetchSubGroups se llame correctamente
+    fetchSubGroups(newPage, searchQuery.value, selectedGroup.value);
 }
 
-watch([searchQuery, selectedGroup], ([newQuery, newGroup]) => {
+// Observadores con tipado explícito
+watch([searchQuery, selectedGroup], ([newQuery, newGroup]: [string, number | null | undefined]) => {
     fetchSubGroups(1, newQuery, newGroup);
 });
 
+// Llamada inicial al montar el componente
 onMounted(() => {
     fetchSubGroups();
 });

@@ -1,0 +1,147 @@
+<script setup lang="ts">
+import InputField from '@/components/InputField.vue';
+import SelectField from '@/components/SelectField.vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import axios from 'axios';
+import type { Contact } from '@/types';
+
+const props = defineProps<{
+    form: Partial<Contact>;
+}>();
+
+const emit = defineEmits<{
+    (e: 'update:form', updatedForm: Partial<Contact>): void;
+}>();
+
+// Crear un objeto interno para manejar los datos del formulario
+const internalForm = ref<Partial<Contact>>({ ...props.form }); // Asegurar el tipo correcto
+
+// Sincronizar el objeto interno con el prop `form` sin causar recursividad
+watch(
+    () => props.form,
+    (newForm) => {
+        if (JSON.stringify(newForm) !== JSON.stringify(internalForm.value)) {
+            internalForm.value = { ...newForm };
+        }
+    },
+    { deep: true }
+);
+
+// Emitir actualizaciones al padre cuando cambie el objeto interno
+watch(
+    internalForm,
+    (updatedForm) => {
+        if (JSON.stringify(updatedForm) !== JSON.stringify(props.form)) {
+            emit('update:form', updatedForm); // Emitir el formulario actualizado
+        }
+    },
+    { deep: true }
+);
+
+const colombiaData = ref<{ id: string; name: string; municipalities: string[] }[]>([]);
+
+async function loadColombiaData() {
+    try {
+        const response = await axios.get('https://raw.githubusercontent.com/marcovega/colombia-json/master/colombia.min.json');
+        colombiaData.value = response.data.map((department: any) => ({
+            id: department.departamento, // Usar el nombre del departamento como ID
+            name: department.departamento,
+            municipalities: department.ciudades || [], // Asegurar que siempre sea un arreglo
+        }));
+    } catch (error) {
+        console.error('Error al cargar los datos de Colombia:', error);
+    }
+}
+
+const filteredMunicipalities = computed(() => {
+    const selectedDepartment = internalForm.value.department;
+    const department = colombiaData.value.find((d) => d.id === selectedDepartment);
+    return department ? department.municipalities : []; // Retornar municipios o un arreglo vacío
+});
+
+onMounted(() => {
+    loadColombiaData();
+});
+
+const errors = ref<Record<string, string[]>>({}); // Manejo de errores
+
+const validateField = (field: keyof Contact) => {
+    if (errors.value[field]) {
+        delete errors.value[field];
+    }
+};
+</script>
+
+<template>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 space-y-4">
+        <SelectField
+            v-model="internalForm.contact_type"
+            label="Tipo de contacto"
+            required
+            :options="[ { id: 'Proveedor', name: 'Proveedor' }, { id: 'Cliente', name: 'Cliente' }, { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' } ]"
+            :error="errors.contact_type?.[0]"
+            @input="validateField('contact_type')"
+        />
+        <SelectField
+            v-model="internalForm.category"
+            label="Categoría proveedor/cliente"
+            required
+            :options="[ { id: 'Insumos', name: 'Insumos' }, { id: 'Suministros', name: 'Suministros' }, { id: 'Tela', name: 'Tela' }, { id: 'Repuestos', name: 'Repuestos' }, { id: 'Papelería y aseo', name: 'Papelería y aseo' }, { id: 'Otro', name: 'Otro' } ]"
+            :error="errors.category?.[0]"
+            @input="validateField('category')"
+        />
+        <SelectField
+            v-model="internalForm.id_type"
+            label="Tipo de identificación"
+            required
+            :options="[ { id: 'NIT', name: 'NIT - Número de identificación tributaria' }, { id: 'CC', name: 'CC - Cédula de ciudadanía' }, { id: 'NIT de otro país', name: 'NIT de otro país' }, { id: 'PP', name: 'PP - Pasaporte' }, { id: 'PEP', name: 'PEP - Permiso especial de permanencia' }, { id: 'DIE', name: 'DIE - Documento de identificación extranjero' }, { id: 'CE', name: 'CE - Cédula de extranjería' }, { id: 'TE', name: 'TE - Tarjeta de extranjería' }, { id: 'TI', name: 'TI - Tarjeta de identidad' }, { id: 'RC', name: 'RC - Registro civil' }, { id: 'NUIP', name: 'NUIP - Número único de identificación personal' }, { id: 'PPT', name: 'PPT - Permiso de protección temporal' } ]"
+        />
+        <div class="grid grid-cols-5 gap-4 mb-4">
+            <div class="col-span-4">
+                <InputField v-model="internalForm.id_number" label="Número de identificación" required placeholder="Número de identificación" />
+            </div>
+            <div class="col-span-1">
+                <InputField v-model="internalForm.dv" label="DV" placeholder="DV" />
+            </div>
+        </div>
+        <InputField v-model="internalForm.full_name" label="Nombre completo o razón social" required placeholder="Nombre completo" class="mb-4" />
+        <SelectField
+            v-model="internalForm.person_type"
+            label="Tipo de persona"
+            required
+            :options="[ { id: 'Persona natural', name: 'Persona natural' }, { id: 'Persona jurídica', name: 'Persona jurídica' } ]"
+            class="mb-4"
+        />
+        <SelectField
+            v-model="internalForm.department"
+            label="Departamento"
+            required
+            :options="colombiaData.map((department) => ({ id: department.id, name: department.name }))"
+            class="mb-4"
+        />
+        <SelectField
+            v-model="internalForm.municipality"
+            label="Municipio"
+            :options="filteredMunicipalities.map((municipality) => ({ id: municipality, name: municipality }))"
+            :disabled="!internalForm.department"
+            class="mb-4"
+        />
+        <div class="col-span-full grid grid-cols-3 gap-4 mb-4">
+            <InputField v-model="internalForm.address" label="Dirección" placeholder="Dirección" />
+            <InputField
+                v-model="internalForm.email"
+                label="Correo electrónico"
+                type="email"
+                required
+                placeholder="Correo electrónico"
+                :error="errors.email?.[0]"
+                @input="validateField('email')"
+            />
+            <InputField v-model="internalForm.phone" label="Teléfono" placeholder="Teléfono" />
+        </div>
+    </div>
+</template>
+
+<style scoped>
+/* Agregar estilos específicos si es necesario */
+</style>

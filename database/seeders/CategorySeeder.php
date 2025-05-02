@@ -14,6 +14,7 @@ class CategorySeeder extends Seeder
     {
         // Insertar grupos
         $groups = [
+            ['name' => 'Materia Prima'],
             ['name' => 'Insumos'],
             ['name' => 'Suministros'],
             ['name' => 'Aditamentos'],
@@ -31,6 +32,9 @@ class CategorySeeder extends Seeder
         // Insertar subgrupos
         $subGroups = [
             // Subgrupos para "Insumos"
+            ['name' => 'Tela', 'category_group_id' => $groupIds['Materia Prima']],
+            ['name' => 'Hilaza', 'category_group_id' => $groupIds['Materia Prima']],
+
             ['name' => 'Etiqueta', 'category_group_id' => $groupIds['Insumos']],
             ['name' => 'Botón', 'category_group_id' => $groupIds['Insumos']],
             ['name' => 'Código', 'category_group_id' => $groupIds['Insumos']],
