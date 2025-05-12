@@ -2,16 +2,15 @@
 
 namespace App\Models\ProductSheet;
 
-use App\Models\Inventory\BaseFabric;
 use App\Models\ProductSheet\ProductSheet;
 use Illuminate\Database\Eloquent\Model;
 
-class Base extends Model
+class FabricBase extends Model
 {
     protected $fillable = ['name'];
 
     public function productSheets()
     {
-        return $this->hasMany(ProductSheet::class);
+        return $this->hasMany(ProductSheet::class, 'base_id'); // Relación con ProductSheet
     }
 }

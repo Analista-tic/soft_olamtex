@@ -34,7 +34,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('profile', fn() => Inertia::render('Profile'))->name('profile');
 
     // === COMERCIAL ===
-    Route::prefix('comercial')->name('comercial.')->group(function () {
+    Route::prefix('diseno')->name('diseno.')->group(function () {
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])
             ->middleware('permission:ver sabana productos')
             ->name('product-sheets.getData');
@@ -57,7 +57,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // === DISEÑO ===
-    Route::prefix('diseno')->name('diseno.')->group(function () {
+    Route::prefix('comercial')->name('comercial.')->group(function () {
         Route::get('programmers', [ProgrammerController::class, 'getData'])
             ->middleware('permission:ver programador')
             ->name('programmers.getData');
@@ -78,15 +78,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->middleware('permission:eliminar programador')
             ->name('programador.destroy');
     });
-
-    // === INVENTARIO ===
-    // Route::prefix('inventario')->name('inventario.')->group(function () {
-    //     Route::prefix('telas')->name('telas.')->middleware('permission:ver pedidos telas')->group(function () {
-    //         Route::get('/', [FabricOrderController::class, 'index'])->name('index'); // Vista principal (inventario)
-    //         Route::get('/recepcion', [FabricOrderController::class, 'index'])->name('recepcion'); // Subvista de recepción
-    //         Route::get('/pedidos', [FabricOrderController::class, 'index'])->name('pedidos'); // Subvista de pedidos
-    //     });
-    // });
 
     // === CONFIGURACIÓN ===
     Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
@@ -117,7 +108,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('roles-data', [RoleController::class, 'getData'])
         ->middleware('permission:ver roles')
         ->name('roles.getData');
-
     Route::get('roles', [RoleController::class, 'index'])
         ->middleware('permission:ver roles')
         ->name('roles.index');
@@ -134,16 +124,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:eliminar roles')
         ->name('roles.destroy');
 
+    // === CATEGORIAS ===
     Route::prefix('categorias')->group(function () {
-        // Rutas para CategoryGroup
+        Route::get('grupos', [CategoryGroupController::class, 'getData'])->name('groups.getData');
         Route::post('grupos', [CategoryGroupController::class, 'store'])->name('groups.store');
-
-        // Rutas para CategorySubGroup
         Route::get('subgrupos', [CategorySubGroupController::class, 'index'])->name('subgroups.create');
         Route::get('subgrupos-data', [CategorySubGroupController::class, 'getData'])->name('subgroups.getData');
         Route::post('subgrupos', [CategorySubGroupController::class, 'store'])->name('subgroups.store');
         Route::put('subgrupos/{subgroup}', [CategorySubGroupController::class, 'update'])->name('subgroups.update');
         Route::delete('subgrupos/{subgroup}', [CategorySubGroupController::class, 'destroy'])->name('subgroups.destroy'); // Nueva ruta para eliminar
+        Route::delete('grupos/{group}', [CategoryGroupController::class, 'destroy'])->name('groups.destroy'); // Nueva ruta para eliminar
     });
 
     // === CONTACTOS ===
@@ -155,50 +145,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/{contact}', [ContactController::class, 'update'])->name('update');
         Route::delete('/{contact}', [ContactController::class, 'destroy'])->name('destroy');
     });
-});
-
-Route::get('/validar-nit/{nit}', function ($nit) {
-    try {
-        // Validar formato del NIT
-        if (!preg_match('/^\d{5,15}$/', $nit)) {
-            return response()->json(['error' => 'Formato de NIT inválido'], 400);
-        }
-
-        // Consultar RUES con timeout y headers
-        $response = Http::timeout(20)
-            ->withHeaders(['User-Agent' => 'Laravel RUES Client'])
-            ->withoutVerifying()
-            ->get("https://www.rues.org.co/RM/ConsultaNIT_json?nit=$nit");
-
-        // Verificar errores HTTP
-        if ($response->failed()) {
-            return response()->json([
-                'error' => 'RUES no respondió correctamente',
-                'details' => $response->body() ?? 'Sin detalles',
-            ], 502);
-        }
-
-        $data = $response->json();
-
-        // Si el NIT no existe
-        if (empty($data['NIT'])) {
-            return response()->json(['error' => 'NIT no encontrado'], 404);
-        }
-
-        // Respuesta exitosa
-        return response()->json([
-            'nit' => $data['NIT'],
-            'razon_social' => $data['RazonSocial'] ?? 'No disponible',
-            'estado' => $data['Estado'] ?? 'No disponible',
-            'camara_comercio' => $data['CamaraComercio'] ?? 'No disponible',
-        ]);
-
-    } catch (Exception $e) {
-        return response()->json([
-            'error' => 'Error interno al consultar RUES',
-            'message' => $e->getMessage(), // Solo para desarrollo
-        ], 500);
-    }
 });
 
 

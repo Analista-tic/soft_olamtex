@@ -20,16 +20,21 @@ class CategorySubGroupController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
             'category_group_id' => 'required|exists:category_groups,id',
+            'subgroups' => 'required|array',
+            'subgroups.*.name' => 'required|string|max:255',
         ]);
 
-        $subgroup = CategorySubGroup::create($request->only('name', 'category_group_id'));
+        foreach ($request->subgroups as $subgroupData) {
+            CategorySubGroup::create([
+                'name' => $subgroupData['name'],
+                'category_group_id' => $request->category_group_id,
+            ]);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Subgrupo creado exitosamente.',
-            'data' => $subgroup,
+            'message' => 'Subgrupos creados exitosamente.',
         ]);
     }
 

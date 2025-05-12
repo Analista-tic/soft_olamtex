@@ -19,11 +19,18 @@ class ContactController extends Controller
     public function getData(Request $request)
     {
         $contacts = Contact::query()
-            ->when($request->search, fn($query, $search) => $query->where(function ($q) use ($search) {
-                $q->where('full_name', 'like', "%$search%")
-                  ->orWhere('email', 'like', "%$search%");
-            }))
-            ->when($request->type, fn($query, $type) => $query->where('contact_type', $type)) // Filtro por tipo de contacto
+            ->when($request->search, fn($query, $search) => 
+                $query->where(function ($q) use ($search) {
+                    $q->where('full_name', 'like', "%$search%")
+                      ->orWhere('email', 'like', "%$search%");
+                })
+            )
+            ->when($request->contact_type, fn($query, $contactType) => 
+                $query->where('contact_type', $contactType)
+            )
+            ->when($request->group_id, fn($query, $groupId) => 
+                $query->whereJsonContains('groups', $groupId)
+            )
             ->paginate($request->get('per_page', 10));
 
         return response()->json($contacts);
@@ -38,7 +45,8 @@ class ContactController extends Controller
             'dv' => 'nullable|string|max:10',
             'full_name' => 'required|string|max:255',
             'person_type' => 'required|string|max:255',
-            'category' => 'required|string|max:255',
+            'groups' => 'nullable|array',
+            'groups.*' => 'exists:category_groups,id',
             'municipality' => 'nullable|string|max:255',
             'department' => 'nullable|string|max:255',
             'address' => 'nullable|string',
@@ -53,6 +61,7 @@ class ContactController extends Controller
         try {
             // Asegurarse de que additional_contacts sea un array válido
             $validated['additional_contacts'] = $validated['additional_contacts'] ?? [];
+            $validated['groups'] = $validated['groups'] ?? [];
 
             Contact::create($validated);
             return response()->json(['message' => 'Contacto creado exitosamente.']);
@@ -75,7 +84,8 @@ class ContactController extends Controller
             'dv' => 'nullable|string|max:10',
             'full_name' => 'required|string|max:255',
             'person_type' => 'required|string|max:255',
-            'category' => 'required|string|max:255',
+            'groups' => 'nullable|array',
+            'groups.*' => 'exists:category_groups,id',
             'municipality' => 'nullable|string|max:255',
             'department' => 'nullable|string|max:255',
             'address' => 'nullable|string',
@@ -90,6 +100,7 @@ class ContactController extends Controller
         try {
             // Asegurarse de que additional_contacts sea un array válido
             $validated['additional_contacts'] = $validated['additional_contacts'] ?? [];
+            $validated['groups'] = $validated['groups'] ?? [];
 
             $contact->update($validated); // Actualizar el contacto con los datos validados
             return response()->json(['message' => 'Contacto actualizado exitosamente.']);

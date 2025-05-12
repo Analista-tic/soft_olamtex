@@ -59,8 +59,23 @@ const filteredMunicipalities = computed(() => {
     return department ? department.municipalities : []; // Retornar municipios o un arreglo vacío
 });
 
+const groups = ref<{ id: string; name: string }[]>([]); // Lista de grupos
+
+async function loadGroups() {
+    try {
+        const response = await axios.get('categorias/grupos'); // Asegúrate de que el endpoint sea correcto
+        groups.value = response.data.map((group: any) => ({
+            id: group.id, // Asegúrate de que el campo `id` exista en los datos
+            name: group.name, // Asegúrate de que el campo `name` exista en los datos
+        }));
+    } catch (error) {
+        console.error('Error al cargar los grupos:', error);
+    }
+}
+
 onMounted(() => {
     loadColombiaData();
+    loadGroups(); // Cargar grupos al montar
 });
 
 const errors = ref<Record<string, string[]>>({}); // Manejo de errores
@@ -83,12 +98,13 @@ const validateField = (field: keyof Contact) => {
             @input="validateField('contact_type')"
         />
         <SelectField
-            v-model="internalForm.category"
+            v-model="internalForm.groups"
             label="Categoría proveedor/cliente"
             required
-            :options="[ { id: 'Insumos', name: 'Insumos' }, { id: 'Suministros', name: 'Suministros' }, { id: 'Tela', name: 'Tela' }, { id: 'Repuestos', name: 'Repuestos' }, { id: 'Papelería y aseo', name: 'Papelería y aseo' }, { id: 'Otro', name: 'Otro' } ]"
-            :error="errors.category?.[0]"
-            @input="validateField('category')"
+            multiple
+            :options="groups.map((group) => ({ id: group.id, name: group.name }))"
+            :error="errors.groups?.[0]"
+            @input="validateField('groups')"
         />
         <SelectField
             v-model="internalForm.id_type"

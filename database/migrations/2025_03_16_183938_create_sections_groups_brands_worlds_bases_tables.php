@@ -30,16 +30,25 @@ return new class extends Migration {
             $table->timestamps();
         });
 
-        Schema::create('bases', function (Blueprint $table) {
+        Schema::create('fabric_bases', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->timestamps();
         });
+
+        Schema::create('yarn_bases', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->timestamps();
+        });
+
+        // Eliminar la tabla antigua si existe
+        Schema::dropIfExists('bases');
     }
 
     public function down()
     {
-        Schema::dropIfExists('bases');
+        Schema::dropIfExists('fabric_bases');
         Schema::dropIfExists('worlds');
         Schema::dropIfExists('brands');
         Schema::dropIfExists('groups');

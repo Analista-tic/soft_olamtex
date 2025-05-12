@@ -97,7 +97,7 @@ const updateAdditionalContacts = (contacts: AdditionalContact[]) => {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent class="max-w-4xl max-h-screen overflow-y-auto p-10">
+        <DialogContent class="max-w-3xl max-h-screen overflow-y-auto p-10">
             <DialogHeader>
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription>

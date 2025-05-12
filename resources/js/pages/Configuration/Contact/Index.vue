@@ -50,7 +50,10 @@ const currentPage = ref<number>(1);
 const itemsPerPage = 10;
 const totalItems = ref<number>(0);
 const searchQuery = ref<string>(''); // Campo de búsqueda
-const contactTypeFilter = ref<string>(''); // Filtro por tipo de contacto
+const selectedContactType = ref<string | null>(null); // Filtro por tipo de contacto
+const selectedGroup = ref<string | null>(null); // Filtro por grupo
+const subgroups = ref<{ id: string; name: string }[]>([]); // Lista de subgrupos
+const groups = ref<{ id: string; name: string }[]>([]); // Lista de grupos
 
 // Funciones con tipado explícito
 function openDialog(type: 'create' | 'edit', contact: Contact | null = null): void {
@@ -97,14 +100,15 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
     }
 }
 
-async function fetchContacts(page: number = 1, search: string = '', type: string = ''): Promise<void> {
+async function fetchContacts(page: number = 1, search: string = '', contactType: string | null = null, groupId: string | null = null): Promise<void> {
     try {
         const response = await axios.get('/contactos/data', {
             params: {
                 page,
                 per_page: itemsPerPage,
                 search,
-                type, // Añadir el filtro de tipo de contacto
+                contact_type: contactType,
+                group_id: groupId, // Cambiar subgroup_id a group_id
             },
         });
 
@@ -116,19 +120,39 @@ async function fetchContacts(page: number = 1, search: string = '', type: string
     }
 }
 
+async function loadSubgroups() {
+    try {
+        const response = await axios.get('categorias/subgrupos'); // Endpoint para obtener subgrupos
+        subgroups.value = response.data;
+    } catch (error) {
+        console.error('Error al cargar los subgrupos:', error);
+    }
+}
+
+async function loadGroups() {
+    try {
+        const response = await axios.get('categorias/grupos'); // Endpoint para obtener grupos
+        groups.value = response.data;
+    } catch (error) {
+        console.error('Error al cargar los grupos:', error);
+    }
+}
+
 function handlePageChange(newPage: number): void {
     currentPage.value = newPage;
-    fetchContacts(newPage, searchQuery.value, contactTypeFilter.value);
+    fetchContacts(newPage, searchQuery.value, selectedContactType.value, selectedGroup.value);
 }
 
 // Observadores con tipado explícito
-watch([searchQuery, contactTypeFilter], ([newQuery, newType]) => {
-    fetchContacts(1, newQuery, newType);
+watch([searchQuery, selectedContactType, selectedGroup], ([newQuery, newType, newGroup]: [string, string | null, string | null]) => {
+    fetchContacts(1, newQuery, newType, newGroup);
 });
 
 // Llamada inicial al montar el componente
 onMounted(() => {
     fetchContacts();
+    loadSubgroups(); // Cargar subgrupos al montar
+    loadGroups(); // Cargar grupos al montar
 });
 </script>
 
@@ -148,22 +172,33 @@ onMounted(() => {
                     </span>
                 </div>
                 <div class="relative w-full max-w-xs">
-                    <select v-model="contactTypeFilter" class="h-8 w-full border rounded-md">
-                        <option value="">Todos</option>
-                        <option value="Cliente">Cliente</option>
-                        <option value="Proveedor">Proveedor</option>
-                        <option value="Cliente y Proveedor">Cliente y Proveedor</option>
+                    <select v-model="selectedContactType" class="h-8 w-full border rounded-md">
+                        <option :value="null">Todos los tipos</option>
+                        <option v-for="option in [ { id: 'Proveedor', name: 'Proveedor' }, { id: 'Cliente', name: 'Cliente' }, { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' } ]" 
+                                :key="option.id" 
+                                :value="option.id">
+                            {{ option.name }}
+                        </option>
+                    </select>
+                </div>
+                <div class="relative w-full max-w-xs">
+                    <select v-model="selectedGroup" class="h-8 w-full border rounded-md">
+                        <option :value="null">Todos los grupos</option>
+                        <option v-for="group in groups" :key="group.id" :value="group.id">
+                            {{ group.name }}
+                        </option>
                     </select>
                 </div>
             </div>
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <Table>
+                <Table class="text-center">
                     <TableHeader>
                         <TableRow>
                             <TableHead>Id</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Email</TableHead>
                             <TableHead>Teléfono</TableHead>
+                            <TableHead>Tipo</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -173,7 +208,8 @@ onMounted(() => {
                             <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
                             <TableCell>{{ contact.email }}</TableCell>
                             <TableCell>{{ contact.phone }}</TableCell>
-                            <TableCell class="flex gap-1">
+                            <TableCell>{{ contact.contact_type }}</TableCell>
+                            <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', contact)" />
                                 <DeleteButton :onClick="() => confirmDeleteContact(contact)" />
                             </TableCell>

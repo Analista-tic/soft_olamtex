@@ -121,7 +121,7 @@ export interface CategoryGroup {
 export interface CategorySubGroup {
     id: number;
     name: string;
-    category_group_id: number;
+    category_group_id: number | null; // Permitir null
     category_group?: CategoryGroup; // Relación opcional con CategoryGroup
     created_at?: string;
     updated_at?: string;
@@ -148,6 +148,7 @@ export interface Contact {
     email: string;
     phone?: string;
     additional_contacts?: AdditionalContact[]; // Contactos adicionales
+    groups?: string[]; // Cambiar subgroups a groups
     created_at?: string;
     updated_at?: string;
 }

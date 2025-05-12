@@ -39,19 +39,31 @@ import { useAuthStore } from '@/stores/auth';
 
 const authStore = useAuthStore();
 
-const canView = authStore.can('ver programador');
-const canCreate = authStore.can('crear programador');
-const canEdit = authStore.can('editar programador');
-const canDelete = authStore.can('eliminar programador');
+const canView = ref(false);
+const canCreate = ref(false);
+const canEdit = ref(false);
+const canDelete = ref(false);
+
+async function loadPermissions() {
+    try {
+        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estén cargados
+        canView.value = authStore.can('ver programador');
+        canCreate.value = authStore.can('crear programador');
+        canEdit.value = authStore.can('editar programador');
+        canDelete.value = authStore.can('eliminar programador');
+    } catch (error) {
+        console.error('Error al cargar los permisos:', error);
+    }
+}
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Diseño',
-        href: '/diseno/programador',
+        href: '/comercial/programador',
     },
     {
         title: 'Programador',
-        href: '/diseno/programador',
+        href: '/comercial/programador',
     },
 ];
 
@@ -60,9 +72,10 @@ const props = defineProps<{
     groups: OptionParams[];
     brands: OptionParams[];
     worlds: OptionParams[];
-    bases: OptionParams[];
+    fabricBases: OptionParams[]; // Cambiar bases a fabricBases
     productSheets: ProductSheet[];
     destinations: OptionParams[];
+    yarnBases: OptionParams[]; // Nueva propiedad para yarn bases
 }>();
 
 const programmers = ref<Programmer[]>([]);
@@ -78,6 +91,7 @@ const filters = ref({
     priority: '',
     status: '',
     destination_id: '',
+    yarn_base_id: '', // Nuevo filtro para yarn bases
 });
 
 function confirmDeleteProgrammer(programmer: Programmer) {
@@ -89,7 +103,7 @@ async function deleteProgrammer() {
     if (!programmerToDelete.value) return;
 
     try {
-        await axios.delete(`/diseno/programador/${programmerToDelete.value.id}`);
+        await axios.delete(`/comercial/programador/${programmerToDelete.value.id}`);
         fetchProgrammers(currentPage.value);
         programmerToDelete.value = null;
         isDialogOpen.value = false;
@@ -101,7 +115,7 @@ async function deleteProgrammer() {
 
 async function fetchProgrammers(page = 1) {
     try {
-        const response = await axios.get('/diseno/programmers', {
+        const response = await axios.get('/comercial/programmers', {
             params: {
                 page,
                 per_page: itemsPerPage.value,
@@ -110,6 +124,7 @@ async function fetchProgrammers(page = 1) {
                 priority: filters.value.priority,
                 status: filters.value.status,
                 destination_id: filters.value.destination_id,
+                yarn_base_id: filters.value.yarn_base_id,
             },
         });
         console.log(response);
@@ -145,7 +160,8 @@ function handlePageChange(page: number) {
     fetchProgrammers(page);
 }
 
-onMounted(() => {
+onMounted(async () => {
+    await loadPermissions();
     fetchProgrammers();
 });
 </script>
@@ -162,7 +178,8 @@ onMounted(() => {
                     :groups="props.groups"
                     :brands="props.brands"
                     :worlds="props.worlds"
-                    :bases="props.bases"
+                    :fabricBases="props.fabricBases"
+                    :yarnBases="props.yarnBases"
                     :productSheets="props.productSheets" 
                     :destinations="props.destinations" 
                     @programmerCreated="fetchProgrammers" 
@@ -183,7 +200,8 @@ onMounted(() => {
                 </div>
                 <SelectField 
                     v-model="filters.season" 
-                    label="Temporada" 
+                    label="" 
+                    placeholder="Filtrar Temporada"
                     :options="[ 
                         { id: 'all', name: 'TODOS' },
                         { id: 'ENERO', name: 'ENERO' },
@@ -202,7 +220,8 @@ onMounted(() => {
                 />
                 <SelectField 
                     v-model="filters.priority" 
-                    label="Prioridad" 
+                    label="" 
+                    placeholder="Filtrar Prioridad"
                     :options="[ 
                         { id: 'all', name: 'TODOS' },
                         { id: 'A', name: 'A' },
@@ -213,7 +232,8 @@ onMounted(() => {
                 />
                 <SelectField 
                     v-model="filters.status" 
-                    label="Estado" 
+                    label="" 
+                    placeholder="Filtrar Estado"
                     :options="[ 
                         { id: 'all', name: 'TODOS' },
                         { id: 'Completo', name: 'Completo' },
@@ -222,7 +242,8 @@ onMounted(() => {
                 />
                 <SelectField 
                     v-model="filters.destination_id" 
-                    label="Destino" 
+                    label="" 
+                    placeholder="Filtrar Destino"
                     :options="[ 
                         { id: 'all', name: 'TODOS' },
                         ...props.destinations.map(d => ({ id: d.id, name: d.name }))
@@ -233,6 +254,7 @@ onMounted(() => {
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead>Lote</TableHead>
                             <TableHead>Referencia</TableHead>
                             <TableHead>Temporada</TableHead>
                             <TableHead>Prioridad</TableHead>
@@ -245,7 +267,8 @@ onMounted(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="programmer in programmers" :key="programmer.id">
+                        <TableRow v-for="programmer in programmers" :key="programmer.id" class="text-center">
+                            <TableCell class="font-medium">MF{{ programmer.id }}</TableCell>
                             <TableCell class="font-medium">{{ programmer.product_sheet?.reference || 'Sin referencia' }}</TableCell>
                             <TableCell>{{ programmer.season }}</TableCell>
                             <TableCell>{{ programmer.priority }}</TableCell>
@@ -254,11 +277,12 @@ onMounted(() => {
                             <TableCell>{{ programmer.product_sheet?.selling_price ?? 'N/A' }}</TableCell>
                             <TableCell>{{ programmer.units }}</TableCell>
                             <TableCell>
-                                <Badge :variant="programmer.status === 'complete' ? 'default' : 'destructive'">
+                                <Badge :variant="programmer.status === 'complete' ? 'default' : 'outline'" 
+                                       :class="programmer.status === 'complete' ? '' : 'border-red-500 text-red-500'">
                                     {{ programmer.status === 'complete' ? 'Completo' : 'Incompleto' }}
                                 </Badge>
                             </TableCell>
-                            <TableCell class="flex gap-1">
+                            <TableCell class="flex justify-center items-center gap-1">
                                 <ViewButton v-if="canView" :onClick="() => viewProgrammer(programmer)" />
                                 <EditButton v-if="canEdit" :onClick="() => openEditDialog(programmer)" />
                                 <DeleteButton v-if="canDelete" :onClick="() => confirmDeleteProgrammer(programmer)" />

@@ -31,10 +31,11 @@ class CategorySeeder extends Seeder
 
         // Insertar subgrupos
         $subGroups = [
-            // Subgrupos para "Insumos"
+            // Subgrupos para "Materia Prima"
             ['name' => 'Tela', 'category_group_id' => $groupIds['Materia Prima']],
             ['name' => 'Hilaza', 'category_group_id' => $groupIds['Materia Prima']],
 
+            // Subgrupos para "Insumos"
             ['name' => 'Etiqueta', 'category_group_id' => $groupIds['Insumos']],
             ['name' => 'Botón', 'category_group_id' => $groupIds['Insumos']],
             ['name' => 'Código', 'category_group_id' => $groupIds['Insumos']],
@@ -60,35 +61,8 @@ class CategorySeeder extends Seeder
             ['name' => 'Crema', 'category_group_id' => $groupIds['Suministros']],
             ['name' => 'Código', 'category_group_id' => $groupIds['Suministros']],
             ['name' => 'Tinta', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Piedra', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Resina', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Talco', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Tiza', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Zuncho', 'category_group_id' => $groupIds['Suministros']],
-            ['name' => 'Alcohol', 'category_group_id' => $groupIds['Suministros']],
-
-            // Subgrupos para "Aditamentos"
-            ['name' => 'Afilador', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Aguja', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Caja', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Carretel', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Cepillo', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Cuchilla', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Guía', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Diente', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Paño', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Long Jack', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Sinker', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Pie', 'category_group_id' => $groupIds['Aditamentos']],
-            ['name' => 'Lampara', 'category_group_id' => $groupIds['Aditamentos']],
 
             // Subgrupos para "Herramientas"
-            ['name' => 'Tijera', 'category_group_id' => $groupIds['Herramientas']],
-            ['name' => 'Chequeador', 'category_group_id' => $groupIds['Herramientas']],
-            ['name' => 'Pistola', 'category_group_id' => $groupIds['Herramientas']],
-            ['name' => 'Calibrador', 'category_group_id' => $groupIds['Herramientas']],
-            ['name' => 'Metro', 'category_group_id' => $groupIds['Herramientas']],
-            ['name' => 'Mouse', 'category_group_id' => $groupIds['Herramientas']],
             ['name' => 'Teclado', 'category_group_id' => $groupIds['Herramientas']],
 
             // Subgrupos para "Repuestos"

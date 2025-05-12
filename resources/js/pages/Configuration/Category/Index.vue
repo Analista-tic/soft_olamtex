@@ -162,7 +162,7 @@ onMounted(() => {
                 </div>
             </div>
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <Table>
+                <Table class="text-center">
                     <TableHeader>
                         <TableRow>
                             <TableHead>Id</TableHead>
@@ -176,7 +176,7 @@ onMounted(() => {
                             <TableCell class="font-medium">{{ subGroup.id }}</TableCell>
                             <TableCell class="font-medium">{{ subGroup.name }}</TableCell>
                             <TableCell>{{ subGroup.category_group?.name }}</TableCell>
-                            <TableCell class="flex gap-1">
+                            <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', subGroup)" />
                                 <DeleteButton :onClick="() => confirmDeleteSubGroup(subGroup)" />
                             </TableCell>

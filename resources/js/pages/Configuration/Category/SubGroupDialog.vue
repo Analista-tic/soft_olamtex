@@ -8,6 +8,8 @@ import { CategoryGroup, CategorySubGroup } from '@/types';
 import { Button } from '@/components/ui/button';
 import GroupDialog from './GroupDialog.vue';
 import CreateButton from '@/components/common/CreateButton.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import { Trash } from 'lucide-vue-next';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -69,6 +71,37 @@ async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
     }
 }
 
+async function deleteGroup(groupId: number) {
+    try {
+        const confirmed = await confirmDialog('¿Estás seguro de que deseas eliminar este grupo?');
+        if (!confirmed) return;
+
+        const response = await axios.delete(`/categorias/grupos/${groupId}`);
+        alert(response.data.message); // Mostrar el mensaje del servidor
+
+        localGroups.value = localGroups.value.filter(group => group.id !== groupId);
+
+        // Si el grupo eliminado estaba seleccionado, limpiarlo del formulario
+        if (form.value.category_group_id === groupId) {
+            form.value.category_group_id = null;
+        }
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response?.data?.message) {
+            alert(error.response.data.message); // Mostrar el mensaje de error del servidor
+        } else {
+            console.error('Error al eliminar el grupo:', error);
+            alert('Ocurrió un error al intentar eliminar el grupo. Por favor, inténtalo de nuevo.');
+        }
+    }
+}
+
+async function confirmDialog(message: string): Promise<boolean> {
+    return new Promise((resolve) => {
+        const confirmed = window.confirm(message);
+        resolve(confirmed);
+    });
+}
+
 const isGroupDialogOpen = ref(false);
 
 function openGroupDialog() {
@@ -83,8 +116,45 @@ function closeDialog() {
     internalIsOpen.value = false;
 }
 
+const subGroupName = ref('');
+const subGroupList = ref<Partial<CategorySubGroup>[]>([]);
+
+function addSubGroupToList() {
+    if (subGroupName.value.trim()) {
+        subGroupList.value.push({
+            name: subGroupName.value.trim(),
+            category_group_id: form.value.category_group_id,
+        });
+        subGroupName.value = '';
+    }
+}
+
+function removeSubGroupFromList(index: number) {
+    subGroupList.value.splice(index, 1);
+}
+
 function submitForm() {
-    emit('submit', form.value);
+    emit('submit', { ...form.value, subgroups: subGroupList.value });
+}
+
+const isDeleteDialogOpen = ref(false);
+const groupToDelete = ref<number | null>(null);
+
+function openDeleteDialog(groupId: number) {
+    groupToDelete.value = groupId;
+    isDeleteDialogOpen.value = true;
+}
+
+function closeDeleteDialog() {
+    isDeleteDialogOpen.value = false;
+    groupToDelete.value = null;
+}
+
+async function confirmDeleteGroup() {
+    if (groupToDelete.value !== null) {
+        await deleteGroup(groupToDelete.value);
+    }
+    closeDeleteDialog();
 }
 </script>
 
@@ -98,7 +168,7 @@ function submitForm() {
                 </DialogDescription>
             </DialogHeader>
             <div class="space-y-4">
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-1">
                     <SearchableSelect
                         label="Grupo"
                         :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
@@ -107,8 +177,24 @@ function submitForm() {
                         searchable
                     />
                     <CreateButton class="flex items-center justify-center" @click="openGroupDialog" />
+                    <DeleteButton class="flex items-center justify-center" customClass="w-6 h-6 mt-5" @click="() => form.category_group_id !== null && form.category_group_id !== undefined && openDeleteDialog(form.category_group_id)" :disabled="!form.category_group_id"/>
                 </div>
-                <InputField v-model="form.name" label="Nombre" placeholder="Nombre del subgrupo" required />
+                <div class="flex items-end">
+                    <InputField v-model="subGroupName" label="Nombre del Subgrupo" placeholder="Escribe el nombre del subgrupo" />
+                    <Button size="sm" class="ml-2" @click="addSubGroupToList" :disabled="!subGroupName.trim()">Añadir</Button>
+                </div>
+                <div class="mt-4 space-y-2">
+                    <p class="flex flex-wrap gap-2">
+                        <span 
+                            v-for="(subGroup, index) in subGroupList" 
+                            :key="index" 
+                            class="px-3 py-1 bg-gray-200 rounded-full text-sm flex items-center space-x-2"
+                        >
+                            <span>{{ subGroup.name }}</span>
+                            <Trash class="w-4 h-4 hover:text-red-600 cursor-pointer" @click="removeSubGroupFromList(index)" />
+                        </span>
+                    </p>
+                </div>
             </div>
             <DialogFooter class="mt-4">
                 <Button variant="outline" @click="closeDialog">Cancelar</Button>
@@ -121,4 +207,20 @@ function submitForm() {
         @created="handleGroupCreated"
         @close="closeGroupDialog"
     />
+
+    <!-- Diálogo de confirmación para eliminar -->
+    <Dialog v-model:open="isDeleteDialogOpen">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Confirmar Eliminación</DialogTitle>
+            </DialogHeader>
+            <DialogDescription>
+                ¿Estás seguro de que deseas eliminar este grupo? Esta acción no se puede deshacer.
+            </DialogDescription>
+            <DialogFooter class="mt-4">
+                <Button variant="outline" @click="closeDeleteDialog">Cancelar</Button>
+                <Button variant="destructive" @click="confirmDeleteGroup">Eliminar</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 </template>

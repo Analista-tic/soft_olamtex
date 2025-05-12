@@ -11,6 +11,7 @@ use App\Models\ProductSheet\ProductSheet;
 use App\Models\ProductSheet\Programmer;
 use App\Models\ProductSheet\Section;
 use App\Models\ProductSheet\World;
+use App\Models\ProductSheet\FabricBase; // Cambiar Base a FabricBase
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -25,18 +26,25 @@ class ProgrammerController extends Controller
         $groups = Group::all();
         $brands = Brand::all();
         $worlds = World::all();
-        $bases = Base::all();
-        
-        $productSheets = ProductSheet::with('section', 'group', 'brand', 'world', 'base')->where('status', 'complete')->get(); // Obtener todos los ProductSheet
-        $destination = Destination::all(); // Obtener todos los destinos
+        $fabricBases = FabricBase::all(); // Cambiar bases a fabricBases
+        $yarnBases = FabricBase::all(); // Añadir yarnBases
+
+        $productSheets = ProductSheet::with('section', 'group', 'brand', 'world', 'fabricBase')
+            ->where('status', 'complete')
+            ->get();
+
+        $destination = Destination::all();
+
+        // Asegurarse de que los datos sean arreglos antes de pasarlos a la vista
         return Inertia::render('Programmers/Index', [
-            'productSheets' => $productSheets,
-            'destinations' => $destination,
-            'sections' => $sections,
-            'groups' => $groups,
-            'brands' => $brands,
-            'worlds' => $worlds,
-            'bases' => $bases,
+            'productSheets' => $productSheets ?? [],
+            'destinations' => $destination ?? [],
+            'sections' => $sections ?? [],
+            'groups' => $groups ?? [],
+            'brands' => $brands ?? [],
+            'worlds' => $worlds ?? [],
+            'fabricBases' => $fabricBases ?? [], // Cambiar bases a fabricBases
+            'yarnBases' => $yarnBases ?? [], // Añadir yarnBases
         ]);
     }
 

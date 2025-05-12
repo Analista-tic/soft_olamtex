@@ -8,8 +8,8 @@ import { useAuthStore } from '@/stores/auth';
 import { type NavGroupItem, type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import { BookOpen, ChartNoAxesCombined, Cog, Database, Folder, LayoutGrid, PencilRuler } from 'lucide-vue-next';
-import AppLogo from './AppLogo.vue';
 import { computed, onMounted } from 'vue';
+import AppLogo from './AppLogo.vue';
 
 const auth = useAuthStore();
 
@@ -62,27 +62,27 @@ const navMainGroup: NavGroupItem[] = [
         ],
     },
     {
-        title: 'Comercial',
-        href: '/comercial/sabana-productos',
-        icon: ChartNoAxesCombined,
-        isActive: false,
-        items: [
-            {
-                title: 'Sabana de Productos',
-                href: '/comercial/sabana-productos',
-                permission: 'ver sabana productos', // Permiso necesario para este subitem
-            },
-        ],
-    },
-    {
         title: 'Diseño',
         href: '/diseno/programador',
         icon: PencilRuler,
         isActive: false,
         items: [
             {
+                title: 'Sabana de Productos',
+                href: '/diseno/sabana-productos',
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+        ],
+    },
+    {
+        title: 'Comercial',
+        href: '/comercial/sabana-productos',
+        icon: ChartNoAxesCombined,
+        isActive: false,
+        items: [
+            {
                 title: 'Programador',
-                href: '/diseno/programador',
+                href: '/comercial/programador',
                 permission: 'ver programador', // Permiso necesario para este subitem
             },
         ],
@@ -100,24 +100,26 @@ const filteredMainNavItems = computed(() =>
 );
 
 // Filtrar los grupos de navegación principales según permisos de los subítems
-const filteredNavMainGroup = computed(() =>
-    navMainGroup
-        .map((group) => {
-            // Filtrar los subítems según los permisos del usuario
-            const visibleItems = group.items?.filter((item) => {
-                // Verificar si el permiso está definido antes de llamar a auth.can
-                return item.permission ? auth.can(item.permission) : false;
-            }) || [];
+const filteredNavMainGroup = computed(
+    () =>
+        navMainGroup
+            .map((group) => {
+                // Filtrar los subítems según los permisos del usuario
+                const visibleItems =
+                    group.items?.filter((item) => {
+                        // Verificar si el permiso está definido antes de llamar a auth.can
+                        return item.permission ? auth.can(item.permission) : false;
+                    }) || [];
 
-            // Si no hay subítems visibles, no mostrar el grupo principal
-            if (visibleItems.length === 0) return null;
+                // Si no hay subítems visibles, no mostrar el grupo principal
+                if (visibleItems.length === 0) return null;
 
-            return {
-                ...group,
-                items: visibleItems, // Asignar solo los subítems visibles
-            };
-        })
-        .filter(Boolean) as NavGroupItem[], // Asegurar el tipado correcto
+                return {
+                    ...group,
+                    items: visibleItems, // Asignar solo los subítems visibles
+                };
+            })
+            .filter(Boolean) as NavGroupItem[], // Asegurar el tipado correcto
 );
 </script>
 

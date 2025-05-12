@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('dv')->nullable(); // DV
             $table->string('full_name'); // Nombre completo o razón social
             $table->string('person_type'); // Tipo de persona
-            $table->string('category'); // Categoría proveedor/cliente
+            $table->json('groups')->nullable(); // Cambiar subgroups a groups
             $table->string('municipality')->nullable(); // Municipio
             $table->string('department')->nullable(); // Departamento
             $table->text('address')->nullable(); // Dirección
@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('phone')->nullable(); // Teléfono
             $table->json('additional_contacts')->nullable(); // Contactos adicionales
             $table->timestamps();
+            $table->softDeletes(); // Para manejar eliminaciones suaves
         });
     }
 
