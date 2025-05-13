@@ -51,7 +51,7 @@ const addContact = () => {
         contactErrors.value.push(validateContact({ name: '', email: '', phone: '' }));
     } else {
         alert('Por favor, complete todos los campos antes de agregar un nuevo contacto.');
-        contactErrors.value = internalContacts.value.map((contact) => validateContact(contact)); // Actualizar errores
+        contactErrors.value = internalContacts.value.map((contact) => validateContact(contact));
     }
 };
 

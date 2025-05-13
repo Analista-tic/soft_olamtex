@@ -22,6 +22,7 @@ import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { ref, onMounted, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import type { AxiosError } from 'axios';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -95,10 +96,12 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
         await axios({ method, url, data: contactData });
         fetchContacts();
         closeDialog();
-    } catch (error) {
+    } catch (err) {
+        const error = err as AxiosError;
         if (error.response && error.response.status === 422) {
-            const validationErrors = error.response.data.errors;
-            alert(`Error de validación: ${Object.values(validationErrors).join(', ')}`);
+            const responseData = error.response.data as { errors: Record<string, string[]> };
+            const validationErrors = responseData.errors;
+            alert(`Error de validación: ${Object.values(validationErrors).flat().join(', ')}`);
         } else {
             console.error('Error al guardar el contacto:', error);
         }
