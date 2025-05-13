@@ -20,6 +20,7 @@ class Contact extends Model
         'email',
         'phone',
         'additional_contacts',
+        'branches',
     ];
 
     // Mutador para asegurarse de que additional_contacts se almacene como JSON
@@ -42,6 +43,18 @@ class Contact extends Model
 
     // Accesor para decodificar groups al obtenerlo
     public function getGroupsAttribute($value)
+    {
+        return json_decode($value, true);
+    }
+
+    // Mutador para asegurarse de que branches se almacene como JSON
+    public function setBranchesAttribute($value)
+    {
+        $this->attributes['branches'] = json_encode($value);
+    }
+
+    // Accesor para decodificar branches al obtenerlo
+    public function getBranchesAttribute($value)
     {
         return json_decode($value, true);
     }

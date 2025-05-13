@@ -1,143 +1,92 @@
 <script setup lang="ts">
+import InputField from '@/components/InputField.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import Button from '@/components/ui/button/Button.vue';
 import { PlusCircle } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 
-// Components
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import EditButton from '@/components/common/EditButton.vue';
-import InputField from '@/components/InputField.vue';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
-
-interface AdditionalContact {
-    name: string;
-    phone: string;
-    email: string;
-}
-
 const props = defineProps<{
-    additionalContacts: AdditionalContact[];
+    additionalContacts: { name: string; email: string; phone: string }[];
 }>();
 
 const emit = defineEmits<{
-    (e: 'update:additionalContacts', updatedContacts: AdditionalContact[]): void;
+    (e: 'update:additionalContacts', updatedContacts: { name: string; email: string; phone: string }[]): void;
 }>();
 
-// Estado del diálogo y contacto en edición
-const isDialogOpen = ref(false);
-const editingContact = ref<AdditionalContact>({ name: '', phone: '', email: '' });
-const editingContactIndex = ref<number | null>(null);
+// Estado interno para los contactos adicionales
+const internalContacts = ref([...props.additionalContacts]);
 
-// Métodos para manejar contactos
+// Validar que todos los campos de los contactos estén llenos
+const validateContact = (contact: { name: string; email: string; phone: string }) => {
+    const errors = {
+        name: !contact.name.trim() ? 'El nombre es obligatorio.' : '',
+        email: !contact.email.trim() ? 'El correo es obligatorio.' : '',
+        phone: !contact.phone.trim() ? 'El teléfono es obligatorio.' : '',
+    };
+    return errors;
+};
+
+// Obtener errores para todos los contactos
+const contactErrors = ref(internalContacts.value.map((contact) => validateContact(contact)));
+
+// Sincronizar cambios con el padre
+watch(
+    internalContacts,
+    (newContacts) => {
+        contactErrors.value = newContacts.map((contact) => validateContact(contact));
+        emit('update:additionalContacts', newContacts);
+    },
+    { deep: true },
+);
+
+// Validar que todos los campos de los contactos estén llenos
+const areContactsValid = () => {
+    return internalContacts.value.every((contact) => contact.name.trim() && contact.email.trim() && contact.phone.trim());
+};
+
+// Modificar la función para agregar un contacto adicional solo si los campos actuales son válidos
 const addContact = () => {
-    editingContact.value = { name: '', phone: '', email: '' };
-    editingContactIndex.value = null;
-    isDialogOpen.value = true;
-};
-
-const editContact = (index: number) => {
-    editingContact.value = { ...props.additionalContacts[index] };
-    editingContactIndex.value = index;
-    isDialogOpen.value = true;
-};
-
-const saveContact = () => {
-    if (!editingContact.value.name.trim()) {
-        return; // Validación básica
-    }
-
-    const updatedContacts = [...props.additionalContacts];
-
-    if (editingContactIndex.value === null) {
-        // Añadir nuevo contacto
-        updatedContacts.push({ ...editingContact.value });
+    if (areContactsValid()) {
+        internalContacts.value.push({ name: '', email: '', phone: '' });
+        contactErrors.value.push(validateContact({ name: '', email: '', phone: '' }));
     } else {
-        // Editar contacto existente
-        updatedContacts[editingContactIndex.value] = { ...editingContact.value };
+        alert('Por favor, complete todos los campos antes de agregar un nuevo contacto.');
+        contactErrors.value = internalContacts.value.map((contact) => validateContact(contact)); // Actualizar errores
     }
-
-    emit('update:additionalContacts', updatedContacts);
-    closeDialog();
 };
 
+// Eliminar un contacto adicional y sus errores
 const removeContact = (index: number) => {
-    const updatedContacts = props.additionalContacts.filter((_, i) => i !== index);
-    emit('update:additionalContacts', updatedContacts);
+    internalContacts.value.splice(index, 1);
+    contactErrors.value.splice(index, 1);
 };
-
-const closeDialog = () => {
-    isDialogOpen.value = false;
-};
-
-// Resetear el formulario cuando se cierra el diálogo
-watch(isDialogOpen, (isOpen) => {
-    if (!isOpen) {
-        editingContact.value = { name: '', phone: '', email: '' };
-        editingContactIndex.value = null;
-    }
-});
 </script>
 
 <template>
-    <div class="space-y-4">
-        <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold">Contactos Adicionales</h3>
-            <Button @click="addContact" variant="default" size="sm">
-                <PlusCircle class="mr-2 h-4 w-4" />
-                Nuevo Contacto
-            </Button>
+    <div class="mt-2">
+        <div class="flex justify-end">
+            <Button @click="addContact" variant="default" size="sm"><PlusCircle class="h-4 w-4" />Agregar contacto</Button>
         </div>
-
-        <div v-if="additionalContacts.length" class="overflow-hidden rounded-lg border">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead class="w-[30%]">Nombre</TableHead>
-                        <TableHead class="w-[30%]">Teléfono</TableHead>
-                        <TableHead class="w-[30%]">Correo</TableHead>
-                        <TableHead class="w-[10%] text-right">Acciones</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    <TableRow v-for="(contact, index) in additionalContacts" :key="index">
-                        <TableCell>{{ contact.name }}</TableCell>
-                        <TableCell>{{ contact.phone }}</TableCell>
-                        <TableCell>{{ contact.email }}</TableCell>
-                        <TableCell class="flex justify-end space-x-2">
-                            <EditButton @click="editContact(index)" />
-                            <DeleteButton @click="removeContact(index)" />
-                        </TableCell>
-                    </TableRow>
-                </TableBody>
-            </Table>
-        </div>
-
-        <div v-else class="rounded-lg border py-8 text-center text-gray-500">No hay contactos adicionales registrados.</div>
-
-        <Dialog v-model:open="isDialogOpen" :close-on-outside-click="false">
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>
-                        {{ editingContactIndex === null ? 'Añadir Contacto' : 'Editar Contacto' }}
-                    </DialogTitle>
-                    <DialogDescription>
-                        Completa los campos para {{ editingContactIndex === null ? 'añadir' : 'editar' }} un contacto adicional.
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div class="grid gap-4 py-4">
-                    <InputField v-model="editingContact.name" label="Nombre" placeholder="Nombre completo" required />
-                    <InputField v-model="editingContact.phone" label="Teléfono" placeholder="Número de teléfono" type="tel" />
-                    <InputField v-model="editingContact.email" label="Correo" placeholder="Correo electrónico" type="email" />
+        <div v-for="(contact, index) in internalContacts" :key="index" class="p-2">
+            <div class="flex items-center gap-4">
+                <InputField v-model="contact.name" label="Nombre del contacto" placeholder="Nombre" required :error="contactErrors[index]?.name" />
+                <InputField
+                    v-model="contact.email"
+                    label="Correo electrónico"
+                    type="email"
+                    placeholder="Correo electrónico"
+                    required
+                    :error="contactErrors[index]?.email"
+                />
+                <InputField v-model="contact.phone" label="Teléfono" placeholder="Teléfono" required :error="contactErrors[index]?.phone" />
+                <div class="text-right">
+                    <DeleteButton @click="removeContact(index)">Eliminar contacto</DeleteButton>
                 </div>
-
-                <DialogFooter>
-                    <Button variant="outline" @click="closeDialog"> Cancelar </Button>
-                    <Button type="button" @click="saveContact"> Guardar </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            </div>
+        </div>
     </div>
 </template>
+
+<style scoped>
+/* Agregar estilos específicos si es necesario */
+</style>

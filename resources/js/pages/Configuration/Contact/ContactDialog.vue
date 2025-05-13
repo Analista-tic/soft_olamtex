@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { AdditionalContact, Contact } from '@/types';
+import type { Branch, AdditionalContact, Contact } from '@/types';
 import { computed, ref, watch } from 'vue';
 import AdditionalContactsList from './AdditionalContactsList.vue';
 import ContactForm from './ContactForm.vue';
 import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'; // Importar tabs de shadcn
+import BranchesList from './BranchesList.vue'; // Componente para manejar sucursales
 
+// Extender el tipo Contact para incluir las propiedades adicionales
+interface ExtendedContact extends Contact {
+    branches?: Branch[];
+    additional_contacts?: AdditionalContact[];
+}
+
+// Cambiar el tipo de `contactData` y `form` para usar ExtendedContact
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
-    contactData: Partial<Contact>;
+    contactData: Partial<ExtendedContact>;
 }>();
 
 const emit = defineEmits<{
@@ -23,9 +32,10 @@ const emit = defineEmits<{
 const internalIsOpen = ref(props.isOpen);
 
 // Formulario reactivo con valores iniciales
-const form = ref<Partial<Contact>>({
+const form = ref<Partial<ExtendedContact>>({
     ...props.contactData,
     additional_contacts: props.contactData.additional_contacts ?? [],
+    branches: props.contactData.branches ?? [],
 });
 
 // Título del diálogo basado en el tipo
@@ -70,7 +80,16 @@ const submitForm = async () => {
             return;
         }
 
-        emit('submit', {
+        // Validar contactos adicionales
+        const invalidAdditionalContacts = form.value.additional_contacts?.some(
+            (contact) => !contact.name?.trim() || !contact.email?.trim()
+        );
+        if (invalidAdditionalContacts) {
+            errors.value.additional_contacts = ['Todos los contactos adicionales deben tener nombre y correo válidos.'];
+            return;
+        }
+
+        await emit('submit', {
             ...form.value,
             additional_contacts: form.value.additional_contacts ?? [], // Asegurar que se envíen los contactos adicionales
         });
@@ -93,11 +112,17 @@ const updateAdditionalContacts = (contacts: AdditionalContact[]) => {
     form.value.additional_contacts = contacts;
     emit('update:contactData', { ...form.value });
 };
+
+// Estado interno para las sucursales
+const updateBranches = (branches: any[]) => {
+    form.value.branches = branches;
+    emit('update:contactData', { ...form.value });
+};
 </script>
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent class="max-w-3xl max-h-screen overflow-y-auto p-10">
+        <DialogContent class="max-w-3xl h-screen flex flex-col">
             <DialogHeader>
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription>
@@ -105,19 +130,39 @@ const updateAdditionalContacts = (contacts: AdditionalContact[]) => {
                 </DialogDescription>
             </DialogHeader>
 
-            <!-- Formulario principal del contacto -->
-            <ContactForm v-model:form="form" class="border-b pb-6" />
+            <!-- Pestañas -->
+            <Tabs defaultValue="basic-info" class="flex-1 overflow-y-auto px-2">
+                <TabsList class="flex justify-center space-x-4">
+                    <TabsTrigger value="basic-info" class="flex-1 text-center py-2">Información básica</TabsTrigger>
+                    <TabsTrigger value="additional-info" class="flex-1 text-center py-2">Datos adicionales</TabsTrigger>
+                    <TabsTrigger value="branches" class="flex-1 text-center py-2">Sucursales</TabsTrigger>
+                </TabsList>
 
-            <!-- Lista de contactos adicionales -->
-            <AdditionalContactsList
-                :additionalContacts="form.additional_contacts ?? []"
-                @update:additionalContacts="updateAdditionalContacts"
-            />
+                <TabsContent value="basic-info">
+                    <ContactForm v-model:form="form" :errors="errors" class="border-b pb-6" />
+                </TabsContent>
 
+                <TabsContent value="additional-info">
+                    <AdditionalContactsList
+                        :additionalContacts="form.additional_contacts ?? []"
+                        @update:additionalContacts="updateAdditionalContacts"
+                    />
+                    <p v-if="errors.additional_contacts" class="text-red-500 text-sm mt-2">
+                        {{ errors.additional_contacts[0] }}
+                    </p>
+                </TabsContent>
+
+                <TabsContent value="branches">
+                    <BranchesList
+                        :branches="form.branches ?? []"
+                        @update:branches="updateBranches"
+                    />
+                </TabsContent>
+            </Tabs>
 
             <DialogFooter class="mt-4">
-                <Button variant="outline" @click="closeDialog"> Cancelar </Button>
-                <Button @click="submitForm">
+                <Button variant="outline" class="text-sm px-3 py-1" @click="closeDialog"> Cancelar </Button>
+                <Button class="text-sm px-3 py-1" @click="submitForm">
                     {{ dialogType === 'create' ? 'Crear' : 'Guardar' }}
                 </Button>
             </DialogFooter>
@@ -127,4 +172,16 @@ const updateAdditionalContacts = (contacts: AdditionalContact[]) => {
 
 <style scoped>
 /* Estilos específicos si son necesarios */
+.tabs-list {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.tabs-trigger {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem 1rem;
+    font-size: 1.1rem;
+}
 </style>

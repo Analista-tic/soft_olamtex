@@ -56,12 +56,39 @@ class ContactController extends Controller
             'additional_contacts.*.name' => 'required_with:additional_contacts|string|max:255',
             'additional_contacts.*.phone' => 'nullable|string|max:20',
             'additional_contacts.*.email' => 'nullable|email|max:255',
+            'branches' => 'nullable|array',
+            'branches.*.name' => 'required_with:branches|string|max:255',
+            'branches.*.address' => 'nullable|string|max:255',
+            'branches.*.phone' => 'nullable|string|max:20',
+        ], [
+            'additional_contacts.*.name.required_with' => 'El nombre del contacto adicional es obligatorio.',
+            'additional_contacts.*.email.email' => 'El correo del contacto adicional debe ser válido.',
+            'branches.*.name.required_with' => 'El nombre de la sucursal es obligatorio.',
         ]);
 
         try {
-            // Asegurarse de que additional_contacts sea un array válido
+            // Validar que no haya contactos adicionales duplicados
+            $uniqueEmails = collect($validated['additional_contacts'] ?? [])
+                ->pluck('email')
+                ->filter()
+                ->unique();
+            if ($uniqueEmails->count() !== count($validated['additional_contacts'] ?? [])) {
+                return response()->json(['message' => 'Los correos de los contactos adicionales deben ser únicos.'], 422);
+            }
+
+            // Validar que no haya sucursales duplicadas
+            $uniqueBranchNames = collect($validated['branches'] ?? [])
+                ->pluck('name')
+                ->filter()
+                ->unique();
+            if ($uniqueBranchNames->count() !== count($validated['branches'] ?? [])) {
+                return response()->json(['message' => 'Los nombres de las sucursales deben ser únicos.'], 422);
+            }
+
+            // Asegurarse de que additional_contacts y branches sean arrays válidos
             $validated['additional_contacts'] = $validated['additional_contacts'] ?? [];
             $validated['groups'] = $validated['groups'] ?? [];
+            $validated['branches'] = $validated['branches'] ?? [];
 
             Contact::create($validated);
             return response()->json(['message' => 'Contacto creado exitosamente.']);
@@ -95,12 +122,39 @@ class ContactController extends Controller
             'additional_contacts.*.name' => 'required_with:additional_contacts|string|max:255',
             'additional_contacts.*.phone' => 'nullable|string|max:20',
             'additional_contacts.*.email' => 'nullable|email|max:255',
+            'branches' => 'nullable|array',
+            'branches.*.name' => 'required_with:branches|string|max:255',
+            'branches.*.address' => 'nullable|string|max:255',
+            'branches.*.phone' => 'nullable|string|max:20',
+        ], [
+            'additional_contacts.*.name.required_with' => 'El nombre del contacto adicional es obligatorio.',
+            'additional_contacts.*.email.email' => 'El correo del contacto adicional debe ser válido.',
+            'branches.*.name.required_with' => 'El nombre de la sucursal es obligatorio.',
         ]);
 
         try {
-            // Asegurarse de que additional_contacts sea un array válido
+            // Validar que no haya contactos adicionales duplicados
+            $uniqueEmails = collect($validated['additional_contacts'] ?? [])
+                ->pluck('email')
+                ->filter()
+                ->unique();
+            if ($uniqueEmails->count() !== count($validated['additional_contacts'] ?? [])) {
+                return response()->json(['message' => 'Los correos de los contactos adicionales deben ser únicos.'], 422);
+            }
+
+            // Validar que no haya sucursales duplicadas
+            $uniqueBranchNames = collect($validated['branches'] ?? [])
+                ->pluck('name')
+                ->filter()
+                ->unique();
+            if ($uniqueBranchNames->count() !== count($validated['branches'] ?? [])) {
+                return response()->json(['message' => 'Los nombres de las sucursales deben ser únicos.'], 422);
+            }
+
+            // Asegurarse de que additional_contacts y branches sean arrays válidos
             $validated['additional_contacts'] = $validated['additional_contacts'] ?? [];
             $validated['groups'] = $validated['groups'] ?? [];
+            $validated['branches'] = $validated['branches'] ?? [];
 
             $contact->update($validated); // Actualizar el contacto con los datos validados
             return response()->json(['message' => 'Contacto actualizado exitosamente.']);

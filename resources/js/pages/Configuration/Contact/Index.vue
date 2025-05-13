@@ -96,7 +96,12 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
         fetchContacts();
         closeDialog();
     } catch (error) {
-        console.error('Error al guardar el contacto:', error);
+        if (error.response && error.response.status === 422) {
+            const validationErrors = error.response.data.errors;
+            alert(`Error de validación: ${Object.values(validationErrors).join(', ')}`);
+        } else {
+            console.error('Error al guardar el contacto:', error);
+        }
     }
 }
 

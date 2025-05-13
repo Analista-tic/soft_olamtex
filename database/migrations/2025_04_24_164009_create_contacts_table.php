@@ -23,6 +23,7 @@ return new class extends Migration
             $table->string('email')->unique(); // Correo electrónico
             $table->string('phone')->nullable(); // Teléfono
             $table->json('additional_contacts')->nullable(); // Contactos adicionales
+            $table->json('branches')->nullable(); // Sucursales
             $table->timestamps();
             $table->softDeletes(); // Para manejar eliminaciones suaves
         });

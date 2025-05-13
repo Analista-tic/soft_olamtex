@@ -152,3 +152,38 @@ export interface Contact {
     created_at?: string;
     updated_at?: string;
 }
+
+// Tipos para los componentes de UI
+export interface DeleteButtonProps {
+    disabled?: boolean;
+    onClick: () => void;
+}
+
+export interface CreateButtonProps {
+    disabled?: boolean;
+    onClick: () => void;
+}
+
+// Tipos para BranchesList
+export interface Branch {
+    name: string;
+    address: string;
+    phone: string;
+}
+
+export interface BranchesListProps {
+    branches: Branch[];
+    onUpdateBranches: (updatedBranches: Branch[]) => void;
+}
+
+// Tipos para AdditionalContactsList
+export interface AdditionalContact {
+    name: string;
+    phone: string;
+    email: string;
+}
+
+export interface AdditionalContactsListProps {
+    additionalContacts: AdditionalContact[];
+    onUpdateAdditionalContacts: (updatedContacts: AdditionalContact[]) => void;
+}
