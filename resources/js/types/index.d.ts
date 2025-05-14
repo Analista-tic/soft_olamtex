@@ -187,3 +187,9 @@ export interface AdditionalContactsListProps {
     additionalContacts: AdditionalContact[];
     onUpdateAdditionalContacts: (updatedContacts: AdditionalContact[]) => void;
 }
+
+export interface Warehouse {
+    id: number | undefined;
+    name: string; // Renombrado de nombre a name
+    observation: string; // Renombrado de ubicacion a observation
+}

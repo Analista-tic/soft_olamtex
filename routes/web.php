@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Common\ContactController;
-use App\Http\Controllers\Inventory\FabricOrderController;
 use App\Http\Controllers\Settings\BaseFabricsController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
@@ -14,6 +13,8 @@ use App\Http\Controllers\Settings\RoleController;
 use App\Http\Controllers\Settings\FabricProviderController;
 use App\Http\Controllers\Common\CategoryGroupController;
 use App\Http\Controllers\Common\CategorySubGroupController;
+use App\Http\Controllers\Common\BodegaController;
+use App\Http\Controllers\Common\WarehouseController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -135,7 +136,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('subgrupos/{subgroup}', [CategorySubGroupController::class, 'destroy'])->name('subgroups.destroy'); // Nueva ruta para eliminar
         Route::delete('grupos/{group}', [CategoryGroupController::class, 'destroy'])->name('groups.destroy'); // Nueva ruta para eliminar
     });
-
     // === CONTACTOS ===
     Route::prefix('contactos')->group(function () {
         Route::get('/', [ContactController::class, 'index'])->name('index');
@@ -144,6 +144,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/{contact}', [ContactController::class, 'show'])->name('show');
         Route::put('/{contact}', [ContactController::class, 'update'])->name('update');
         Route::delete('/{contact}', [ContactController::class, 'destroy'])->name('destroy');
+    });
+
+    // === WAREHOUSES ===
+    Route::prefix('bodegas')->name('warehouses.')->group(function () {
+        Route::get('/', [WarehouseController::class, 'index'])->name('index');
+        Route::get('/data', [WarehouseController::class, 'getData'])->name('getData');
+        Route::post('/', [WarehouseController::class, 'store'])->name('store');
+        Route::get('/{warehouse}', [WarehouseController::class, 'show'])->name('show');
+        Route::put('/{warehouse}', [WarehouseController::class, 'update'])->name('update');
+        Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->name('destroy');
     });
 });
 

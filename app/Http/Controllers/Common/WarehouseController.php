@@ -1,0 +1,69 @@
+<?php
+
+namespace App\Http\Controllers\Common;
+
+use App\Http\Controllers\Controller;
+use App\Models\Common\Warehouse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+
+class WarehouseController extends Controller
+{
+    public function index()
+    {
+        return Inertia::render('Configuration/Warehouse/Index', [
+            'warehouses' => Warehouse::all(),
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255', // Renombrado de nombre a name
+            'observation' => 'required|string|max:255', // Renombrado de observacion a observation
+        ]);
+
+        return Warehouse::create($request->all());
+    }
+
+    public function show($id)
+    {
+        return Warehouse::findOrFail($id);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $warehouse = Warehouse::findOrFail($id);
+        $warehouse->update($request->all());
+
+        return $warehouse;
+    }
+
+    public function destroy($id)
+    {
+        $warehouse = Warehouse::findOrFail($id);
+        $warehouse->delete();
+
+        return response()->noContent();
+    }
+
+    /**
+     * Obtener bodegas con paginación y búsqueda.
+     */
+    public function getData(Request $request)
+    {
+        $query = Warehouse::query();
+
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where('name', 'like', "%{$search}%")
+                  ->orWhere('observation', 'like', "%{$search}%");
+        }
+
+        $perPage = $request->input('per_page', 10);
+
+        $warehouses = $query->orderBy('id', 'desc')->paginate($perPage);
+
+        return response()->json($warehouses);
+    }
+}

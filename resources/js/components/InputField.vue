@@ -53,8 +53,10 @@ const formattedValue = computed({
             localModelValue.value = isNaN(numericValue) ? 0 : numericValue;
         } else if (props.type === 'email') {
             localModelValue.value = value.trim(); // Asegurar que el valor sea un email válido
+        } else if (props.type === 'text' || !props.type) {
+            localModelValue.value = value; // Permitir cualquier carácter
         } else {
-            localModelValue.value = value.replace(/[^a-zA-Z0-9\s]/g, ''); // Asegurar que solo texto válido sea aceptado
+            localModelValue.value = value.replace(/[^a-zA-Z0-9\s-]/g, ''); // Permitir letras, números, espacios y guiones
         }
     },
 });
@@ -72,7 +74,7 @@ function togglePasswordVisibility() {
         <div class="relative">
             <Input
                 :id="label"
-                :type="isPasswordVisible ? 'text' : (props.type === 'password' ? 'password' : props.type || 'text')"
+                :type="isPasswordVisible ? 'text' : (props.type ? (props.type === 'password' ? 'password' : props.type) : 'text')"
                 v-model="formattedValue" 
                 :placeholder="placeholder"
                 :readonly="readonly"

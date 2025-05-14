@@ -24,6 +24,7 @@ const modules = [
         description: 'Parametrizar y Configurar Campos de Inventario.',
         options: [
             { name: 'Categorias', href: 'categorias/subgrupos' },
+            { name: 'Bodegas', href: '/bodegas' },
         ],
     },
     {
