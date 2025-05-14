@@ -193,3 +193,20 @@ export interface Warehouse {
     name: string; // Renombrado de nombre a name
     observation: string; // Renombrado de ubicacion a observation
 }
+
+export interface Color {
+    id: number | undefined;
+    name: string;
+    rgb_value: string;
+}
+
+export interface ColorDialogProps {
+    open: boolean;
+    dialogType: 'create' | 'edit';
+    form: Color;
+    loading?: boolean;
+    // Métodos de emisión
+    'onUpdate:open'?: (value: boolean) => void;
+    onSubmit?: (value: Color) => void;
+    onCancel?: () => void;
+}

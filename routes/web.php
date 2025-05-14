@@ -15,6 +15,7 @@ use App\Http\Controllers\Common\CategoryGroupController;
 use App\Http\Controllers\Common\CategorySubGroupController;
 use App\Http\Controllers\Common\BodegaController;
 use App\Http\Controllers\Common\WarehouseController;
+use App\Http\Controllers\Common\ColorController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -155,6 +156,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/{warehouse}', [WarehouseController::class, 'update'])->name('update');
         Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->name('destroy');
     });
+
+    // === COLORS ===
+    Route::prefix('colores')->name('colors.')->group(function () {
+        Route::get('/', [ColorController::class, 'index'])->name('index');
+        Route::get('/data', [ColorController::class, 'getData'])->name('getData');
+        Route::post('/', [ColorController::class, 'store'])->name('store');
+        Route::get('/{color}', [ColorController::class, 'show'])->name('show');
+        Route::put('/{color}', [ColorController::class, 'update'])->name('update');
+        Route::delete('/{color}', [ColorController::class, 'destroy'])->name('destroy');
+    });
+
 });
 
 
