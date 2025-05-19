@@ -23,6 +23,7 @@ const modules = [
         title: 'Inventario', // Título mejorado
         description: 'Parametrizar y Configurar Campos de Inventario.',
         options: [
+            { name: 'Articulos', href: '/articulos' },
             { name: 'Categorias', href: 'categorias/subgrupos' },
             { name: 'Bodegas', href: '/bodegas' },
         ],

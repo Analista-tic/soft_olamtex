@@ -12,4 +12,9 @@ class CategorySubGroup extends Model
     {
         return $this->belongsTo(CategoryGroup::class);
     }
+
+    public function articles()
+    {
+        return $this->hasMany(\App\Models\Inventory\Article::class, 'category_sub_group_id');
+    }
 }

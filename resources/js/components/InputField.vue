@@ -9,7 +9,7 @@ interface Props {
     placeholder?: string;
     required?: boolean;
     modelValue?: string | number; // Hacer que modelValue sea opcional
-    type?: 'text' | 'password' | 'number' | 'integer' | 'currency' | 'email'; // Agregar soporte para email
+    type?: 'text' | 'password' | 'number' | 'currency' | 'email'; // Eliminar 'integer'
     readonly?: boolean;
 }
 
@@ -34,29 +34,22 @@ const formattedValue = computed({
                 ? localModelValue.value.toString()
                 : parseFloat(localModelValue.value.toString()).toString();
         }
-        if (props.type === 'integer' && localModelValue.value != null) {
-            return typeof localModelValue.value === 'number'
-                ? Math.floor(localModelValue.value).toString()
-                : parseInt(localModelValue.value.toString(), 10).toString();
-        }
         return localModelValue.value ?? '';
     },
     set(value: string) {
+        const safeValue = value != null ? String(value) : '';
         if (props.type === 'currency') {
-            const numericValue = parseFloat(value.replace(/[^0-9]/g, ''));
+            const numericValue = parseFloat(safeValue.replace(/[^0-9]/g, ''));
             localModelValue.value = isNaN(numericValue) ? 0 : numericValue;
-        } else if (props.type === 'integer') {
-            const intValue = parseInt(value.replace(/[^0-9]/g, ''), 10); // Eliminar letras y permitir solo números enteros
-            localModelValue.value = isNaN(intValue) ? 0 : intValue;
         } else if (props.type === 'number') {
-            const numericValue = parseFloat(value.replace(/[^0-9.]/g, '')); // Eliminar letras y permitir números decimales
+            const numericValue = parseFloat(safeValue.replace(/[^0-9.]/g, ''));
             localModelValue.value = isNaN(numericValue) ? 0 : numericValue;
         } else if (props.type === 'email') {
-            localModelValue.value = value.trim(); // Asegurar que el valor sea un email válido
+            localModelValue.value = safeValue.trim();
         } else if (props.type === 'text' || !props.type) {
-            localModelValue.value = value; // Permitir cualquier carácter
+            localModelValue.value = safeValue;
         } else {
-            localModelValue.value = value.replace(/[^a-zA-Z0-9\s-]/g, ''); // Permitir letras, números, espacios y guiones
+            localModelValue.value = safeValue.replace(/[^a-zA-Z0-9\s-]/g, '');
         }
     },
 });
@@ -75,12 +68,12 @@ function togglePasswordVisibility() {
             <Input
                 :id="label"
                 :type="isPasswordVisible ? 'text' : (props.type ? (props.type === 'password' ? 'password' : props.type) : 'text')"
-                v-model="formattedValue" 
+                v-model="formattedValue"
                 :placeholder="placeholder"
                 :readonly="readonly"
                 :step="props.type === 'number' ? '0.01' : undefined"
-                :inputmode="props.type === 'integer' ? 'numeric' : (props.type === 'number' ? 'decimal' : (props.type === 'email' ? 'email' : undefined))"
-                class="h-8 pr-5"
+                :inputmode="props.type === 'number' ? 'decimal' : (props.type === 'email' ? 'email' : undefined)"
+                class="h-9.5 pr-5"
             />
             <button
                 v-if="props.type === 'password'"

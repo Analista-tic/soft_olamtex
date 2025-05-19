@@ -10,4 +10,9 @@ class Warehouse extends Model
     use HasFactory;
 
     protected $fillable = ['name', 'observation']; // Renombrado de nombre y ubicacion
+
+    public function articles()
+    {
+        return $this->hasMany(\App\Models\Inventory\Article::class);
+    }
 }

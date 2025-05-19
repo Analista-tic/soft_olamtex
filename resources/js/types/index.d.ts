@@ -111,6 +111,21 @@ export interface FabricOrderItem {
     price: number; // Cambiado a solo número
 }
 
+// Tipos de Inventario
+// ====================
+
+export interface Warehouse {
+    id: number | undefined;
+    name: string;
+    observation: string;
+}
+
+export interface Color {
+    id: number | undefined;
+    name: string;
+    rgb_value: string;
+}
+
 export interface CategoryGroup {
     id: number;
     name: string;
@@ -121,8 +136,29 @@ export interface CategoryGroup {
 export interface CategorySubGroup {
     id: number;
     name: string;
-    category_group_id: number | null; // Permitir null
-    category_group?: CategoryGroup; // Relación opcional con CategoryGroup
+    category_group_id: number | null;
+    category_group?: CategoryGroup;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface Article {
+    id: number;
+    warehouse_id: number;
+    warehouse?: Warehouse;
+    category_sub_group_id: number;
+    category_sub_group?: CategorySubGroup;
+    color_id: number;
+    color?: Color;
+    name: string; // <-- Añadido
+    img?: string;
+    impuesto: number;
+    stock_min: number;
+    stock_max: number;
+    bar_code?: string;
+    negative_movement: boolean | number;
+    description: string;
+    extra_fields?: Record<string, any>;
     created_at?: string;
     updated_at?: string;
 }
@@ -186,18 +222,6 @@ export interface AdditionalContact {
 export interface AdditionalContactsListProps {
     additionalContacts: AdditionalContact[];
     onUpdateAdditionalContacts: (updatedContacts: AdditionalContact[]) => void;
-}
-
-export interface Warehouse {
-    id: number | undefined;
-    name: string; // Renombrado de nombre a name
-    observation: string; // Renombrado de ubicacion a observation
-}
-
-export interface Color {
-    id: number | undefined;
-    name: string;
-    rgb_value: string;
 }
 
 export interface ColorDialogProps {

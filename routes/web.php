@@ -16,6 +16,7 @@ use App\Http\Controllers\Common\CategorySubGroupController;
 use App\Http\Controllers\Common\BodegaController;
 use App\Http\Controllers\Common\WarehouseController;
 use App\Http\Controllers\Common\ColorController;
+use App\Http\Controllers\Inventory\ArticleController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -166,6 +167,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/{color}', [ColorController::class, 'update'])->name('update');
         Route::delete('/{color}', [ColorController::class, 'destroy'])->name('destroy');
     });
+
+    // === ARTICLES ===
+    Route::get('articulos', [ArticleController::class, 'index']); // Vista Inertia
+    Route::get('articulos/data', [ArticleController::class, 'getData']); // Para axios, paginación y búsqueda
+    Route::get('articulos/{id}', [ArticleController::class, 'show']);
+    Route::post('articulos', [ArticleController::class, 'store']);
+    Route::put('articulos/{id}', [ArticleController::class, 'update']);
+    Route::delete('articulos/{id}', [ArticleController::class, 'destroy']);
 
 });
 

@@ -13,4 +13,9 @@ class Color extends Model
         'name',
         'rgb_value',
     ];
+
+    public function articles()
+    {
+        return $this->hasMany(\App\Models\Inventory\Article::class);
+    }
 }
