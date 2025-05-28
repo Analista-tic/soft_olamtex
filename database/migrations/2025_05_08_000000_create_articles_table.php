@@ -14,6 +14,7 @@ class CreateArticlesTable extends Migration
             $table->foreignId('category_sub_group_id')->constrained();
             $table->foreignId('color_id')->constrained();
             $table->string('name');
+            $table->string('reference')->unique();
             $table->string('img')->nullable();
             $table->decimal('impuesto', 8, 2)->default(0);
             $table->integer('stock_min')->default(0);

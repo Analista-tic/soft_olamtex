@@ -38,8 +38,8 @@ function removeItem(item: string | number) {
 <template>
     <div class="grid w-full items-center gap-1">
         <Label>{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
-        <Select v-model="localModelValue" :multiple="multiple" :placeholder="placeholder || `Selecciona ${label.toLowerCase()}`">
-            <SelectTrigger :class="{ 'flex-nowrap': multiple }" class="fixed-width h-auto w-full">
+        <Select  v-model="localModelValue" :multiple="multiple" :placeholder="placeholder || `Selecciona ${label.toLowerCase()}`">
+            <SelectTrigger :class="{ 'flex-nowrap': multiple }" class="fixed-width h-auto w-full border-gray-300">
                 <div v-if="multiple" class="selected-items">
                     <div v-for="item in localModelValue" :key="item" class="selected-tag">
                         <span class="selected-tag-text">

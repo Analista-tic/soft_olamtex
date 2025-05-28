@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Color } from '@/types';
+import { ref, watch } from 'vue';
 import { ColorPicker } from 'vue3-colorpicker';
 import 'vue3-colorpicker/style.css';
 
@@ -22,9 +22,12 @@ const emit = defineEmits<{
 
 const localForm = ref<Color>({ ...props.form });
 
-watch(() => props.form, (newVal) => {
-    localForm.value = { ...newVal };
-});
+watch(
+    () => props.form,
+    (newVal) => {
+        localForm.value = { ...newVal };
+    },
+);
 
 function handleClose() {
     emit('update:open', false);
@@ -38,7 +41,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-        <DialogContent class="max-w-xs w-full">
+        <DialogContent class="w-full max-w-xs">
             <DialogHeader>
                 <DialogTitle>
                     {{ props.dialogType === 'create' ? 'Crear Color' : 'Editar Color' }}
@@ -47,8 +50,15 @@ function handleSubmit() {
             <div class="space-y-4">
                 <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre del color" />
                 <!-- Selector visual de color -->
-                <label class="block text-sm font-medium mb-1">Seleccionar color</label>
-                <ColorPicker is-widget format="rgb" v-model:pureColor="localForm.rgb_value" />
+                <label class="mb-1 block text-sm font-medium">Seleccionar color</label>
+                <ColorPicker
+                    picker-type="chrome"
+                    is-widget
+                    v-model:pureColor="localForm.rgb_value"
+                    format="rgb"
+                    disable-history
+                    disable-alpha
+                />
             </div>
             <DialogFooter>
                 <Button variant="outline" @click="handleClose">Cancelar</Button>

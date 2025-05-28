@@ -234,3 +234,29 @@ export interface ColorDialogProps {
     onSubmit?: (value: Color) => void;
     onCancel?: () => void;
 }
+
+// Tipos para Órdenes de Compra (Gastos)
+export interface PurchaseOrderItem {
+    id?: number;
+    article_id: number | null;
+    article?: Article;
+    price: number;
+    tax: number;
+    quantity: number;
+    description?: string;
+    total: number;
+    total_tax?: number; // Añadido para el total de IVA/impuesto
+}
+
+export interface PurchaseOrder {
+    id?: number;
+    contact_id: number | null;
+    contact?: Contact;
+    date: string;
+    delivery_date: string;
+    supplier_order_number: string;
+    description?: string;
+    items: PurchaseOrderItem[];
+    created_at?: string;
+    updated_at?: string;
+}

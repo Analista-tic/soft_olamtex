@@ -17,6 +17,7 @@ use App\Http\Controllers\Common\BodegaController;
 use App\Http\Controllers\Common\WarehouseController;
 use App\Http\Controllers\Common\ColorController;
 use App\Http\Controllers\Inventory\ArticleController;
+use App\Http\Controllers\Expenses\PurchaseOrderController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -175,6 +176,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('articulos', [ArticleController::class, 'store']);
     Route::put('articulos/{id}', [ArticleController::class, 'update']);
     Route::delete('articulos/{id}', [ArticleController::class, 'destroy']);
+
+    // === ORDENES DE COMPRA (GASTOS) ===
+    Route::prefix('gastos/ordenes-compra')->name('expenses.purchase-orders.')->group(function () {
+        Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+        Route::get('/data', [PurchaseOrderController::class, 'getData'])->name('getData');
+        Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
+        Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show');
+        Route::put('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('update');
+        Route::delete('/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
+    });
 
 });
 

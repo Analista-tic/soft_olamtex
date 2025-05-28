@@ -7,7 +7,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, Sid
 import { useAuthStore } from '@/stores/auth';
 import { type NavGroupItem, type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, ChartNoAxesCombined, Cog, Database, Folder, LayoutGrid, PencilRuler } from 'lucide-vue-next';
+import { BookOpen, ChartNoAxesCombined, Cog, Database, Folder, LayoutGrid, PencilRuler, CircleDollarSign } from 'lucide-vue-next';
 import { computed, onMounted } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -49,15 +49,33 @@ const footerNavItems: NavItem[] = [
 // Definición de los grupos de navegación principales
 const navMainGroup: NavGroupItem[] = [
     {
+        title: 'Gastos',
+        href: '/gastos/ordenes-compra',
+        icon: CircleDollarSign,
+        isActive: false,
+        items: [
+            {
+                title: 'Ordenes de Compra',
+                href: '/gastos/ordenes-compra',
+                permission: 'ver telas',
+            },
+        ],
+    },
+    {
         title: 'Inventario',
         href: '#',
         icon: Database,
         isActive: false,
         items: [
             {
+                title: 'Ordenes de Compra',
+                href: '/inventario/ordenes-compra',
+                permission: 'ver telas',
+            },
+            {
                 title: 'Telas',
                 href: '/inventario/telas',
-                permission: 'ver telas', // Permiso necesario para este subitem
+                permission: 'ver telas',
             },
         ],
     },

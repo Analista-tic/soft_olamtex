@@ -11,6 +11,7 @@ interface Props {
     modelValue?: string | number; // Hacer que modelValue sea opcional
     type?: 'text' | 'password' | 'number' | 'currency' | 'email'; // Eliminar 'integer'
     readonly?: boolean;
+    textarea?: boolean; // NUEVO: permite usar textarea
 }
 
 const props = defineProps<Props>();
@@ -65,25 +66,37 @@ function togglePasswordVisibility() {
     <div class="grid w-full items-center gap-1.5">
         <Label>{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
         <div class="relative">
-            <Input
-                :id="label"
-                :type="isPasswordVisible ? 'text' : (props.type ? (props.type === 'password' ? 'password' : props.type) : 'text')"
-                v-model="formattedValue"
-                :placeholder="placeholder"
-                :readonly="readonly"
-                :step="props.type === 'number' ? '0.01' : undefined"
-                :inputmode="props.type === 'number' ? 'decimal' : (props.type === 'email' ? 'email' : undefined)"
-                class="h-9.5 pr-5"
-            />
-            <button
-                v-if="props.type === 'password'"
-                type="button"
-                class="absolute inset-y-0 right-0 flex items-center px-2"
-                @click="togglePasswordVisibility"
-            >
-                <Eye v-if="!isPasswordVisible" class="h-5 w-5 text-gray-500" />
-                <EyeOff v-else class="h-5 w-5 text-gray-500" />
-            </button>
+            <template v-if="!props.textarea">
+                <Input
+                    :id="label"
+                    :type="isPasswordVisible ? 'text' : (props.type ? (props.type === 'password' ? 'password' : props.type) : 'text')"
+                    v-model="formattedValue"
+                    :placeholder="placeholder"
+                    :readonly="readonly"
+                    :step="props.type === 'number' ? '0.01' : undefined"
+                    :inputmode="props.type === 'number' ? 'decimal' : (props.type === 'email' ? 'email' : undefined)"
+                    class="h-9.5 pr-5"
+                />
+                <button
+                    v-if="props.type === 'password'"
+                    type="button"
+                    class="absolute inset-y-0 right-0 flex items-center px-2"
+                    @click="togglePasswordVisibility"
+                >
+                    <Eye v-if="!isPasswordVisible" class="h-5 w-5 text-gray-500" />
+                    <EyeOff v-else class="h-5 w-5 text-gray-500" />
+                </button>
+            </template>
+            <template v-else>
+                <textarea
+                    :id="label"
+                    v-model="formattedValue"
+                    :placeholder="placeholder"
+                    :readonly="readonly"
+                    :rows="4"
+                    class="block w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring"
+                ></textarea>
+            </template>
         </div>
     </div>
 </template>
