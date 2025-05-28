@@ -7,6 +7,9 @@ use App\Models\Expenses\PurchaseOrder;
 use App\Models\Expenses\PurchaseOrderItem;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Mail;
+use Barryvdh\DomPDF\Facade\Pdf as DomPDF;
+use App\Mail\PurchaseOrderMail;
 
 class PurchaseOrderController extends Controller
 {
@@ -108,7 +111,6 @@ class PurchaseOrderController extends Controller
             'supplier_order_number' => 'required|string|max:255',
             'description' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.id' => 'sometimes|exists:purchase_order_items,id',
             'items.*.article_id' => 'required|exists:articles,id',
             'items.*.price' => 'required|numeric',
             'items.*.tax' => 'required|numeric',
@@ -152,5 +154,28 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->delete();
 
         return response()->json(['message' => 'Purchase order deleted.']);
+    }
+
+    public function enviarCorreoPdf(PurchaseOrder $purchaseOrder)
+    {
+        $purchaseOrder->load(['contact', 'items.article']);
+
+        // Validar que el proveedor tenga email
+        if (empty($purchaseOrder->contact->email)) {
+            return response()->json(['message' => 'El proveedor no tiene correo electrónico registrado.'], 422);
+        }
+
+        // Generar PDF
+        $pdf = DomPDF::loadView('pdf.purchase_order', ['order' => $purchaseOrder]);
+
+        try {
+            Mail::to($purchaseOrder->contact->email)
+                ->send(new PurchaseOrderMail($purchaseOrder, $pdf->output()));
+
+            return response()->json(['message' => 'Correo enviado correctamente.']);
+        } catch (\Exception $e) {
+            \Log::error('Error enviando correo de orden de compra: ' . $e->getMessage());
+            return response()->json(['message' => 'Error enviando el correo: ' . $e->getMessage()], 500);
+        }
     }
 }

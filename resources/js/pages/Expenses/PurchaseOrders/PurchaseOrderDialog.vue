@@ -27,6 +27,7 @@ const contacts = ref<Contact[]>([]);
 const isLoading = ref(false);
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
+const isSendingMail = ref(false);
 
 // Cálculos de totales
 const subtotal = computed(() =>
@@ -109,15 +110,23 @@ async function fetchNextOrderId() {
     }
 }
 
-async function handleSubmit() {
+async function handleSubmit(sendMail = false) {
     if (!validateForm()) return;
     isLoading.value = true;
+    isSendingMail.value = sendMail;
     const formToSend = { ...localForm.value };
     if (props.dialogType === 'create') delete formToSend.id;
-    const url = props.dialogType === 'create' ? '/gastos/ordenes-compra' : `/gastos/ordenes-compra/${localForm.value.id}`;
+    const url = props.dialogType === 'create'
+        ? '/gastos/ordenes-compra'
+        : `/gastos/ordenes-compra/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
-        await axios({ method, url, data: formToSend });
+        const { data } = await axios({ method, url, data: formToSend });
+        if (sendMail) {
+            // Llama al endpoint para enviar el correo con PDF
+            await axios.post(`/gastos/ordenes-compra/${data.data.id}/enviar-correo-pdf`);
+            alert('Orden guardada y enviada por correo correctamente.');
+        }
         emit('refresh');
         dialogOpen.value = false;
     } catch (e) {
@@ -125,6 +134,7 @@ async function handleSubmit() {
         console.error(e);
     } finally {
         isLoading.value = false;
+        isSendingMail.value = false;
     }
 }
 
@@ -165,10 +175,11 @@ watch(dialogOpen, (isOpen) => {
                 <DialogDescription>Completa los campos y añade los ítems de la orden.</DialogDescription>
             </DialogHeader>
 
+            <!-- Corrige el uso de @submit.prevent y :class -->
             <form
-                @submit.prevent="handleSubmit"
-                class="space-y-6"
+                @submit.prevent="handleSubmit()"
                 :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingOrderId }"
+                class="space-y-6"
             >
                 <!-- Cabecera -->
                 <div class="grid grid-cols-3 items-start gap-4">
@@ -203,13 +214,13 @@ watch(dialogOpen, (isOpen) => {
                     <InputField
                         :key="String(localForm.contact_id ?? '')"
                         label="Número de identificación"
-                        :modelValue="contactIdNumber"
+                        :value="contactIdNumber"
                         readonly
                     />
                     <InputField
                         :key="String(localForm.contact_id ?? '') + '-phone'"
                         label="Número de contacto"
-                        :modelValue="contactPhone"
+                        :value="contactPhone"
                         readonly
                     />
                 </div>
@@ -276,8 +287,21 @@ watch(dialogOpen, (isOpen) => {
                 <!-- Botones -->
                 <DialogFooter class="mt-4 flex justify-end gap-4">
                     <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
-                    <Button variant="default" type="submit" :disabled="isLoading">
-                        {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar y enviar a proveedor' }}
+                    <Button
+                        variant="default"
+                        type="submit"
+                        :disabled="isLoading || isSendingMail"
+                        @click.prevent="handleSubmit(false)"
+                    >
+                        {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                    </Button>
+                    <Button
+                        variant="default"
+                        type="button"
+                        :disabled="isLoading || isSendingMail"
+                        @click.prevent="handleSubmit(true)"
+                    >
+                        {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
                     </Button>
                 </DialogFooter>
             </form>

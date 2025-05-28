@@ -9,6 +9,7 @@ interface Props {
     placeholder?: string;
     required?: boolean;
     modelValue?: string | number; // Hacer que modelValue sea opcional
+    value?: string | number; // NUEVO: para soportar :value
     type?: 'text' | 'password' | 'number' | 'currency' | 'email'; // Eliminar 'integer'
     readonly?: boolean;
     textarea?: boolean; // NUEVO: permite usar textarea
@@ -55,6 +56,14 @@ const formattedValue = computed({
     },
 });
 
+// NUEVO: computed para mostrar el valor correcto en modo readonly
+const displayValue = computed(() => {
+    if (props.readonly && props.value !== undefined) {
+        return props.value;
+    }
+    return formattedValue.value;
+});
+
 watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
 
 function togglePasswordVisibility() {
@@ -70,7 +79,7 @@ function togglePasswordVisibility() {
                 <Input
                     :id="label"
                     :type="isPasswordVisible ? 'text' : (props.type ? (props.type === 'password' ? 'password' : props.type) : 'text')"
-                    v-model="formattedValue"
+                    v-model="displayValue"
                     :placeholder="placeholder"
                     :readonly="readonly"
                     :step="props.type === 'number' ? '0.01' : undefined"
@@ -90,7 +99,7 @@ function togglePasswordVisibility() {
             <template v-else>
                 <textarea
                     :id="label"
-                    v-model="formattedValue"
+                    v-model="displayValue"
                     :placeholder="placeholder"
                     :readonly="readonly"
                     :rows="4"

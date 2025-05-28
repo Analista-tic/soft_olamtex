@@ -185,6 +185,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show');
         Route::put('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('update');
         Route::delete('/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
+        Route::post('/{purchaseOrder}/enviar-correo-pdf', [PurchaseOrderController::class, 'enviarCorreoPdf']);
     });
 
 });
