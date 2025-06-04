@@ -260,3 +260,30 @@ export interface PurchaseOrder {
     created_at?: string;
     updated_at?: string;
 }
+
+export interface PurchaseInvoiceItem {
+    id?: number;
+    purchase_invoice_id?: number;
+    article_id: number | null;
+    article?: Article;
+    price: number;
+    tax: number;
+    quantity: number;
+    description?: string;
+    total: number;
+    total_tax?: number;
+}
+
+export interface PurchaseInvoice {
+    id?: number;
+    contact_id: number | null;
+    contact?: Contact;
+    date: string;
+    delivery_date: string;
+    supplier_invoice_number?: string;
+    description?: string;
+    status?: string;
+    items: PurchaseInvoiceItem[];
+    created_at?: string;
+    updated_at?: string;
+}

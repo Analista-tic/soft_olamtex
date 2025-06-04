@@ -18,24 +18,37 @@ const localModelValue = ref<string | number | undefined>(props.modelValue);
 
 const formattedValue = computed({
     get() {
-        if (localModelValue.value != null) {
-            return typeof localModelValue.value === 'number'
-                ? Math.floor(localModelValue.value).toString()
-                : parseInt(localModelValue.value.toString(), 10).toString();
+        if (localModelValue.value != null && localModelValue.value !== '') {
+            // Convierte a string para evitar errores
+            const strValue = String(localModelValue.value);
+            // Permite cualquier cantidad de dígitos
+            if (!/^\d+$/.test(strValue)) return '';
+            return strValue;
         }
         return '';
     },
     set(value: string) {
-        const onlyDigits = value != null ? value.replace(/[^0-9]/g, '') : '';
-        localModelValue.value = onlyDigits === '' ? '' : Number(onlyDigits);
+        // Permite cualquier cantidad de dígitos
+        const onlyDigits = typeof value === 'string' ? value.replace(/[^0-9]/g, '') : '';
+        localModelValue.value = onlyDigits;
     },
 });
 
 function handleBlur(e: Event) {
     const target = e.target as HTMLInputElement;
-    const onlyDigits = target.value.replace(/[^0-9]/g, '');
-    localModelValue.value = onlyDigits === '' ? '' : Number(onlyDigits);
+    const onlyDigits = typeof target.value === 'string' ? target.value.replace(/[^0-9]/g, '') : '';
+    localModelValue.value = onlyDigits;
     emit('update:modelValue', localModelValue.value);
+}
+
+function handleInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const onlyDigits = target.value.replace(/[^0-9]/g, '');
+    // Si el valor cambia, actualiza el input y el modelo local
+    if (target.value !== onlyDigits) {
+        target.value = onlyDigits;
+    }
+    localModelValue.value = onlyDigits;
 }
 
 watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
@@ -47,12 +60,13 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
         <div class="relative">
             <Input
                 :id="label"
-                type="number"
+                type="text"
                 v-model="formattedValue"
                 :placeholder="placeholder"
                 :readonly="readonly"
                 inputmode="numeric"
                 class="h-8 pr-5"
+                @input="handleInput"
                 @blur="handleBlur"
             />
         </div>

@@ -8,6 +8,7 @@ import type { Contact, PurchaseOrder } from '@/types';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
+import TextareaField from '@/components/TextareaField.vue'; // <-- Importa el nuevo componente
 
 // Props y emits
 const props = defineProps<{
@@ -31,12 +32,12 @@ const isSendingMail = ref(false);
 
 // Cálculos de totales
 const subtotal = computed(() =>
-    (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0)
+    (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total) || 0, 0), 0)
 );
 const iva = computed(() =>
-    (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0)
+    (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total_tax) || 0, 0), 0)
 );
-const total = computed(() => subtotal.value + iva.value);
+const total = computed(() => Math.max(subtotal.value, 0) + Math.max(iva.value, 0));
 
 // Computed para datos del contacto seleccionado
 const selectedContactData = computed(() => {
@@ -214,13 +215,13 @@ watch(dialogOpen, (isOpen) => {
                     <InputField
                         :key="String(localForm.contact_id ?? '')"
                         label="Número de identificación"
-                        :value="contactIdNumber"
+                        :modelValue="contactIdNumber"
                         readonly
                     />
                     <InputField
                         :key="String(localForm.contact_id ?? '') + '-phone'"
                         label="Número de contacto"
-                        :value="contactPhone"
+                        :modelValue="contactPhone"
                         readonly
                     />
                 </div>
@@ -276,10 +277,9 @@ watch(dialogOpen, (isOpen) => {
 
                 <!-- Observaciones -->
                 <div>
-                    <InputField
+                    <TextareaField
                         v-model="localForm.description"
                         label="Observación"
-                        textarea
                         placeholder="Agrega aquí observaciones adicionales para la orden de compra"
                     />
                 </div>
@@ -289,7 +289,7 @@ watch(dialogOpen, (isOpen) => {
                     <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
                     <Button
                         variant="default"
-                        type="submit"
+                        type="button"
                         :disabled="isLoading || isSendingMail"
                         @click.prevent="handleSubmit(false)"
                     >

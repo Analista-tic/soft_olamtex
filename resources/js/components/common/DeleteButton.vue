@@ -11,6 +11,7 @@ defineProps<{
     <button
         :class="['flex items-center text-gray-500 hover:text-red-500 transition-colors duration-200']"
         @click="onClick"
+        type="button"
     >
         <Trash :class="['w-4 h-4', customClass]" />
     </button>

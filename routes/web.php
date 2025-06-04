@@ -18,6 +18,7 @@ use App\Http\Controllers\Common\WarehouseController;
 use App\Http\Controllers\Common\ColorController;
 use App\Http\Controllers\Inventory\ArticleController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
+use App\Http\Controllers\Expenses\PurchaseInvoiceController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -177,17 +178,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('articulos/{id}', [ArticleController::class, 'update']);
     Route::delete('articulos/{id}', [ArticleController::class, 'destroy']);
 
-    // === ORDENES DE COMPRA (GASTOS) ===
-    Route::prefix('gastos/ordenes-compra')->name('expenses.purchase-orders.')->group(function () {
-        Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
-        Route::get('/data', [PurchaseOrderController::class, 'getData'])->name('getData');
-        Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
-        Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show');
-        Route::put('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('update');
-        Route::delete('/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
-        Route::post('/{purchaseOrder}/enviar-correo-pdf', [PurchaseOrderController::class, 'enviarCorreoPdf']);
-    });
+    // === GASTOS (AGRUPADO) ===
+    Route::prefix('gastos')->group(function () {
+        // === ORDENES DE COMPRA ===
+        Route::prefix('ordenes-compra')->name('expenses.purchase-orders.')->group(function () {
+            Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+            Route::get('/data', [PurchaseOrderController::class, 'getData'])->name('getData');
+            Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
+            Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show');
+            Route::put('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('update');
+            Route::delete('/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
+            Route::post('/{purchaseOrder}/enviar-correo-pdf', [PurchaseOrderController::class, 'enviarCorreoPdf']);
+        });
 
+        // === FACTURAS DE COMPRA ===
+        Route::prefix('facturas-compra')->name('expenses.purchase-invoices.')->group(function () {
+            Route::get('/', [PurchaseInvoiceController::class, 'index'])->name('index');
+            Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData'); // <-- Cambiado a getData
+            Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store');
+            Route::get('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show'])->name('show');
+            Route::put('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'update'])->name('update');
+            Route::delete('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
+            // Route::post('/{purchaseInvoice}/enviar-correo-pdf', [PurchaseInvoiceController::class, 'enviarCorreoPdf']);
+        });
+    });
 });
 
 
