@@ -10,7 +10,8 @@ class CreatePurchaseInvoicesTable extends Migration
     {
         Schema::create('purchase_invoices', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('contact_id');
+            $table->foreignId('contact_id')->constrained();
+            $table->foreignId('purchase_order_id')->constrained();
             $table->date('date');
             $table->date('delivery_date')->nullable();
             $table->string('supplier_invoice_number')->nullable();
@@ -18,8 +19,6 @@ class CreatePurchaseInvoicesTable extends Migration
             $table->string('status')->nullable();
             $table->timestamps();
             $table->softDeletes();
-
-            $table->foreign('contact_id')->references('id')->on('contacts');
         });
     }
 

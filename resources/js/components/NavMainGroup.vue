@@ -34,38 +34,49 @@ function isRouteActive(href: string): boolean {
 <template>
     <SidebarGroup>
         <SidebarMenu>
-            <Collapsible
-                v-for="item in items"
-                :key="item.title"
-                as-child
-                :default-open="item.isActive || isRouteActive(item.href)"
-                class="group/collapsible"
-            >
-                <SidebarMenuItem>
-                    <CollapsibleTrigger as-child>
-                        <SidebarMenuButton :tooltip="item.title" :class="{ active: isRouteActive(item.href) }">
-                            <component v-if="item.icon" :is="item.icon" />
+            <template v-for="item in items" :key="item.title">
+                <!-- Si tiene subitems, es desplegable -->
+                <Collapsible
+                    v-if="item.items && item.items.length"
+                    as-child
+                    :default-open="item.isActive || isRouteActive(item.href)"
+                    class="group/collapsible"
+                >
+                    <SidebarMenuItem>
+                        <CollapsibleTrigger as-child>
+                            <SidebarMenuButton :tooltip="item.title" :class="{ active: isRouteActive(item.href) }">
+                                <component v-if="item.icon" :is="item.icon" />
+                                <span>{{ item.title }}</span>
+                                <ChevronRight class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                            </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                            <SidebarMenuSub>
+                                <SidebarMenuSubItem
+                                    v-for="subItem in item.items"
+                                    :key="subItem.title"
+                                    :class="{ active: isRouteActive(subItem.href) }"
+                                >
+                                    <SidebarMenuSubButton as-child size="md">
+                                        <Link :href="subItem.href">
+                                            <span>{{ subItem.title }}</span>
+                                        </Link>
+                                    </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                            </SidebarMenuSub>
+                        </CollapsibleContent>
+                    </SidebarMenuItem>
+                </Collapsible>
+                <!-- Si NO tiene subitems, es un solo botón -->
+                <SidebarMenuItem v-else>
+                    <SidebarMenuButton as-child :tooltip="item.title" :class="{ active: isRouteActive(item.href) }">
+                        <Link :href="item.href">
+                            <component :is="item.icon" />
                             <span>{{ item.title }}</span>
-                            <ChevronRight class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                        </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                        <SidebarMenuSub>
-                            <SidebarMenuSubItem
-                                v-for="subItem in item.items"
-                                :key="subItem.title"
-                                :class="{ active: isRouteActive(subItem.href) }"
-                            >
-                                <SidebarMenuSubButton as-child>
-                                    <Link :href="subItem.href">
-                                        <span>{{ subItem.title }}</span>
-                                    </Link>
-                                </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                        </SidebarMenuSub>
-                    </CollapsibleContent>
+                        </Link>
+                    </SidebarMenuButton>
                 </SidebarMenuItem>
-            </Collapsible>
+            </template>
         </SidebarMenu>
     </SidebarGroup>
 </template>

@@ -24,6 +24,7 @@ class PurchaseInvoiceController extends Controller
     {
         $data = $request->validate([
             'contact_id' => 'required|exists:contacts,id',
+            'purchase_order_id' => 'nullable|exists:purchase_orders,id', // Nuevo campo validado
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',
             'supplier_invoice_number' => 'nullable|string|max:255',
@@ -47,6 +48,15 @@ class PurchaseInvoiceController extends Controller
             }
         }
 
+        // Si viene una orden de compra, actualiza su estado a "converted"
+        if (!empty($data['purchase_order_id'])) {
+            $order = \App\Models\Expenses\PurchaseOrder::find($data['purchase_order_id']);
+            if ($order) {
+                $order->status = 'converted';
+                $order->save();
+            }
+        }
+
         return response()->json(['data' => $invoice->load('items', 'contact')], 201);
     }
 
@@ -56,6 +66,7 @@ class PurchaseInvoiceController extends Controller
 
         $data = $request->validate([
             'contact_id' => 'required|exists:contacts,id',
+            'purchase_order_id' => 'nullable|exists:purchase_orders,id', // Nuevo campo validado
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',
             'supplier_invoice_number' => 'nullable|string|max:255',
@@ -79,6 +90,15 @@ class PurchaseInvoiceController extends Controller
         if (!empty($data['items'])) {
             foreach ($data['items'] as $item) {
                 $invoice->items()->create($item);
+            }
+        }
+
+        // Si viene una orden de compra, actualiza su estado a "converted"
+        if (!empty($data['purchase_order_id'])) {
+            $order = \App\Models\Expenses\PurchaseOrder::find($data['purchase_order_id']);
+            if ($order) {
+                $order->status = 'converted';
+                $order->save();
             }
         }
 

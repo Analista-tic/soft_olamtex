@@ -150,8 +150,7 @@ async function sendOrderByEmail(order: PurchaseOrder) {
                         :options="[
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
-                            { id: 'approved', name: 'Aprobado' },
-                            { id: 'rejected', name: 'Rechazado' }
+                            { id: 'invoiced', name: 'Facturada' },
                         ]"
                     />
                 </div>

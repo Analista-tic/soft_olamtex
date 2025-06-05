@@ -12,6 +12,7 @@ class PurchaseInvoice extends Model
 
     protected $fillable = [
         'contact_id',
+        'purchase_order_id',
         'date',
         'delivery_date',
         'supplier_invoice_number',
@@ -27,5 +28,10 @@ class PurchaseInvoice extends Model
     public function contact()
     {
         return $this->belongsTo(\App\Models\Common\Contact::class);
+    }
+
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class);
     }
 }

@@ -28,7 +28,6 @@ const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
 const isLoadingInvoiceId = ref(false);
 
-// NUEVO: Estado para órdenes de compra
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
 
@@ -38,25 +37,17 @@ const subtotal = computed(() =>
 const iva = computed(() =>
     (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0)
 );
-const total = computed(() => {
-    const sub = Number(subtotal.value) || 0;
-    const tax = Number(iva.value) || 0;
-    return sub + tax;
-});
+const total = computed(() => Number(subtotal.value) + Number(iva.value));
 
-const selectedContactData = computed(() => {
-    if (!localForm.value.contact_id) return null;
-    // Siempre compara como número
-    return contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null;
-});
+const selectedContactData = computed(() =>
+    contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null
+);
 
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 
 const id = computed(() => {
-    if (props.dialogType === 'edit') {
-        return props.form?.id?.toString() || localForm.value.id?.toString() || '';
-    }
+    if (props.dialogType === 'edit') return props.form?.id?.toString() || '';
     if (isLoadingInvoiceId.value) return 'Cargando...';
     if (nextInvoiceId.value == null) return '';
     return nextInvoiceId.value.toString();
@@ -75,15 +66,13 @@ function createDefaultForm(): Partial<PurchaseInvoice> {
 }
 
 function resetForm() {
-    localForm.value = props.form && typeof props.form === 'object' && Object.keys(props.form).length > 0
-        ? { ...props.form }
+    localForm.value = props.form && Object.keys(props.form).length > 0
+        ? JSON.parse(JSON.stringify(props.form))
         : createDefaultForm();
     if (!Array.isArray(localForm.value.items)) localForm.value.items = [];
 }
 
 async function fetchContacts() {
-    console.log('obteniendo contectos');
-    
     try {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
         let contactsArray: Contact[] = [];
@@ -94,17 +83,11 @@ async function fetchContacts() {
         } else if (Array.isArray(response.data)) {
             contactsArray = response.data;
         }
-        // Filtra solo proveedores (insensible a mayúsculas/minúsculas)
-        contacts.value = [
-            ...contactsArray.filter(
-                (c: Contact) =>
-                    typeof c.contact_type === 'string' &&
-                    c.contact_type.toLowerCase() === 'proveedor'
-            ),
-        ];
-    } catch (e) {
+        contacts.value = contactsArray.filter(
+            (c: Contact) => typeof c.contact_type === 'string' && c.contact_type.toLowerCase() === 'proveedor'
+        );
+    } catch {
         contacts.value = [];
-        console.error('Error fetching contacts:', e);
     }
 }
 
@@ -116,47 +99,63 @@ async function fetchNextInvoiceId() {
         });
         const lastId = Array.isArray(data.data) && data.data.length > 0 ? Number(data.data[0].id) : 0;
         nextInvoiceId.value = lastId + 1;
-    } catch (e) {
+    } catch {
         nextInvoiceId.value = 1;
-        console.error('Error fetching next invoice ID:', e);
     } finally {
         isLoadingInvoiceId.value = false;
     }
 }
 
-// NUEVO: Obtener órdenes de compra del proveedor seleccionado
-async function fetchPurchaseOrdersForSupplier(supplierId: number) {
+async function fetchPendingPurchaseOrders() {
     purchaseOrders.value = [];
     selectedPurchaseOrderId.value = null;
-    if (!supplierId) return;
     try {
-        // Corrige la URL para usar la ruta de órdenes de compra de gastos
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { provider_id: supplierId, per_page: 100 }, // <-- Cambiado a provider_id
+            params: { status: 'pending', per_page: 1000 },
         });
         purchaseOrders.value = data.data || [];
-    } catch (e) {
+    } catch {
         purchaseOrders.value = [];
-        console.error('Error fetching purchase orders:', e);
     }
 }
 
-// NUEVO: Cargar datos de la orden seleccionada en el formulario de factura
 async function loadPurchaseOrderToInvoice(orderId: number) {
     const order = purchaseOrders.value.find((o) => Number(o.id) === Number(orderId));
     if (!order) return;
-    localForm.value.items = [];
-    localForm.value.items = (order.items || []).map((item: any) => ({
-        article_id: item.article_id,
-        article_name: item.article_name,
-        quantity: Number(item.quantity) || 0,
-        price: Number(item.price) || 0,
-        total: Number(item.total) || 0,
-        total_tax: Number(item.total_tax) || 0,
-        description: item.description || '',
-        tax: Number(item.tax) || 0,
-    }));
+    // Asegura que los contactos estén cargados antes de setear el proveedor
+    if (!contacts.value.length) await fetchContacts();
+    // Setea el proveedor solo si existe en la lista de contactos
+    const foundContact = contacts.value.find(c => Number(c.id) === Number(order.contact_id));
+    console.log('Found contact:', foundContact);
+    
+    if (foundContact) {
+        localForm.value.contact_id = Number(order.contact_id);
+    } else {
+        localForm.value.contact_id = null;
+    }
+    console.log('Local form contact_id:', localForm.value.contact_id);
+    
+    // Setea el número de pedido del proveedor si existe
+    localForm.value.supplier_invoice_number = order.supplier_order_number || '';
+    
+    
+    // Setea otras propiedades
+    localForm.value.date = order.date || '';
+    localForm.value.delivery_date = order.delivery_date || '';
     localForm.value.description = order.description || '';
+    localForm.value.items = Array.isArray(order.items)
+        ? order.items.map((item: any) => ({
+            article_id: item.article_id,
+            article_name: item.article_name,
+            quantity: Number(item.quantity) || 0,
+            price: Number(item.price) || 0,
+            total: Number(item.total) || 0,
+            total_tax: Number(item.total_tax) || 0,
+            description: item.description || '',
+            tax: Number(item.tax) || 0,
+        }))
+        : [];
+    selectedPurchaseOrderId.value = Number(orderId);
 }
 
 async function handleSubmit(sendMail = false) {
@@ -177,9 +176,8 @@ async function handleSubmit(sendMail = false) {
         }
         emit('refresh');
         dialogOpen.value = false;
-    } catch (e) {
+    } catch {
         alert('Error al guardar la factura. Por favor intente nuevamente.');
-        console.error(e);
     } finally {
         isLoading.value = false;
         isSendingMail.value = false;
@@ -202,36 +200,24 @@ function validateForm(): boolean {
     return true;
 }
 
-// Convierte siempre contact_id a número y carga órdenes de compra
 watch(
     () => localForm.value.contact_id,
-    async (val) => {
-        if (typeof val === 'string' && val !== '') {
+    (val) => {
+        if (val !== null && typeof val !== 'number' && val !== '') {
             localForm.value.contact_id = Number(val);
-        }
-        // NUEVO: Cargar órdenes de compra del proveedor seleccionado
-        if (localForm.value.contact_id) {
-            await fetchPurchaseOrdersForSupplier(Number(localForm.value.contact_id));
-        } else {
-            purchaseOrders.value = [];
-            selectedPurchaseOrderId.value = null;
         }
     }
 );
 
-// NUEVO: Cargar datos de la orden seleccionada
 watch(selectedPurchaseOrderId, (orderId) => {
     if (orderId) loadPurchaseOrderToInvoice(orderId);
 });
 
-// Asegura que los contactos se cargan si el diálogo ya está abierto al montar el componente
 onMounted(async () => {
     if (props.isOpen) {
         await fetchContacts();
         resetForm();
-        if (localForm.value.contact_id) {
-            await fetchPurchaseOrdersForSupplier(Number(localForm.value.contact_id));
-        }
+        await fetchPendingPurchaseOrders();
         if (props.dialogType === 'create') {
             nextInvoiceId.value = null;
             await fetchNextInvoiceId();
@@ -246,12 +232,17 @@ watch(
         if (isOpen) {
             await fetchContacts();
             resetForm();
-            if (localForm.value.contact_id) {
-                await fetchPurchaseOrdersForSupplier(Number(localForm.value.contact_id));
-            }
+            await fetchPendingPurchaseOrders();
             if (props.dialogType === 'create') {
                 nextInvoiceId.value = null;
                 await fetchNextInvoiceId();
+                selectedPurchaseOrderId.value = null;
+            } else if (props.dialogType === 'edit') {
+                if (props.form && (props.form as any).purchase_order_id) {
+                    selectedPurchaseOrderId.value = Number((props.form as any).purchase_order_id);
+                } else {
+                    selectedPurchaseOrderId.value = null;
+                }
             }
         }
     },
@@ -269,6 +260,17 @@ watch(dialogOpen, (isOpen) => {
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
                 <DialogDescription>Completa los campos y añade los ítems de la factura.</DialogDescription>
             </DialogHeader>
+            <div class="flex justify-end mb-2">
+                <div class="w-64">
+                    <SelectField
+                        v-model="selectedPurchaseOrderId"
+                        label="Orden de Compra pendiente"
+                        :options="purchaseOrders.map((o) => ({ id: o.id, name: `#${o.id} - ${o.contact.full_name || ''}` }))"
+                        placeholder="Seleccione una orden de compra"
+                        :key="purchaseOrders.length"
+                    />
+                </div>
+            </div>
             <form
                 @submit.prevent="handleSubmit()"
                 :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }"
@@ -284,7 +286,7 @@ watch(dialogOpen, (isOpen) => {
                         />
                         <span v-else-if="dialogType === 'create' && isLoadingInvoiceId" class="text-gray-400">Cargando...</span>
                     </div>
-                    <div class="flex h-full items-center justify-center rounded p-4">
+                    <div class="flex h-full items-center justify-center rounded p-4 relative">
                         <img src="/images/olamtex.png" alt="Logo Olamtex" class="max-h-12 object-contain" />
                     </div>
                     <div>
@@ -298,10 +300,10 @@ watch(dialogOpen, (isOpen) => {
                     <SelectField
                         v-model="localForm.contact_id"
                         label="Proveedor"
-                        :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
+                        :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
                         :disabled="contacts.length === 0"
                         required
-                        :key="contacts.length"
+                        :key="contacts.length + '-' + localForm.contact_id"
                     />
                     <InputField
                         :key="`idnumber-${localForm.contact_id ?? ''}`"
@@ -320,14 +322,6 @@ watch(dialogOpen, (isOpen) => {
                     <InputDate v-model="localForm.date" label="Fecha de factura" required />
                     <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
                     <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
-                </div>
-                <div v-if="localForm.contact_id && purchaseOrders.length" class="mb-2">
-                    <SelectField
-                        v-model="selectedPurchaseOrderId"
-                        label="Cargar datos de Orden de Compra"
-                        :options="purchaseOrders.map((o) => ({ id: o.id, name: `#${o.id} - ${o.description || ''}` }))"
-                        placeholder="Seleccione una orden de compra"
-                    />
                 </div>
                 <div>
                     <PurchaseInvoiceItemsTable :items="localForm.items || []" @update:items="(items) => (localForm.items = items)" />

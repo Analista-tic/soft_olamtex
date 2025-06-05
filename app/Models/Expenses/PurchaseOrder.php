@@ -28,4 +28,9 @@ class PurchaseOrder extends Model
     {
         return $this->belongsTo(\App\Models\Common\Contact::class);
     }
+
+    public function invoice()
+    {
+        return $this->hasOne(PurchaseInvoice::class);
+    }
 }

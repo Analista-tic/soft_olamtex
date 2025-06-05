@@ -7,7 +7,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, Sid
 import { useAuthStore } from '@/stores/auth';
 import { type NavGroupItem, type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, ChartNoAxesCombined, Cog, Database, Folder, LayoutGrid, PencilRuler, CircleDollarSign } from 'lucide-vue-next';
+import { BookOpen, ChartNoAxesCombined, Cog, BanknoteArrowDown, Database, Folder, FolderKanban, Folders, LayoutGrid, Shell, UsersRound } from 'lucide-vue-next';
 import { computed, onMounted } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -24,11 +24,6 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: '/dashboard',
         icon: LayoutGrid,
-    },
-    {
-        title: 'Configuración',
-        href: '/configuracion',
-        icon: Cog,
     },
 ];
 
@@ -51,20 +46,31 @@ const navMainGroup: NavGroupItem[] = [
     {
         title: 'Gastos',
         href: '/gastos/ordenes-compra',
-        icon: CircleDollarSign,
+        icon: BanknoteArrowDown,
         isActive: false,
         items: [
             {
-                title: 'Ordenes de Compra',
+                title: 'Orden de Compra',
                 href: '/gastos/ordenes-compra',
                 permission: 'ver telas',
             },
             {
-                title: 'Facturas de Compra',
+                title: 'Factura de Compra',
+                href: '/gastos/facturas-compra',
+                permission: 'ver telas',
+            },
+            {
+                title: 'Factura de Compra Tela',
                 href: '/gastos/facturas-compra',
                 permission: 'ver telas',
             },
         ],
+    },
+    {
+        title: 'Contactos',
+        href: '/contactos',
+        icon: UsersRound,
+        isActive: false,
     },
     {
         title: 'Inventario',
@@ -73,21 +79,59 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
         items: [
             {
-                title: 'Ordenes de Compra',
-                href: '/inventario/ordenes-compra',
+                title: 'Gestion de Articulos',
+                href: '/articulos',
                 permission: 'ver telas',
             },
             {
-                title: 'Telas',
-                href: '/inventario/telas',
+                title: 'Inventario de Articulos',
+                href: '#',
+                permission: 'ver telas',
+            },
+            {
+                title: 'Ajuste de Inventario',
+                href: '#',
+                permission: 'ver telas',
+            },
+            {
+                title: 'Gestión de Bodegas',
+                href: '/bodegas',
+                permission: 'ver telas',
+            },
+            {
+                title: 'Gestión de Categorías',
+                href: '/categorias/subgrupos',
                 permission: 'ver telas',
             },
         ],
     },
     {
-        title: 'Diseño',
-        href: '/diseno/programador',
-        icon: PencilRuler,
+        title: 'Kardex de Telas',
+        href: '#',
+        icon: Shell,
+        isActive: false,
+        items: [
+            {
+                title: 'Inventario Telas por Rollo',
+                href: '#',
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+            {
+                title: 'Salida de Telas por Orden',
+                href: '#',
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+            {
+                title: 'Inventario Retazos',
+                href: '#',
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+        ],
+    },
+    {
+        title: 'Ficha Técnica',
+        href: '#',
+        icon: Folders,
         isActive: false,
         items: [
             {
@@ -95,20 +139,47 @@ const navMainGroup: NavGroupItem[] = [
                 href: '/diseno/sabana-productos',
                 permission: 'ver sabana productos', // Permiso necesario para este subitem
             },
-        ],
-    },
-    {
-        title: 'Comercial',
-        href: '/comercial/sabana-productos',
-        icon: ChartNoAxesCombined,
-        isActive: false,
-        items: [
             {
                 title: 'Programador',
                 href: '/comercial/programador',
                 permission: 'ver programador', // Permiso necesario para este subitem
             },
         ],
+    },
+    {
+        title: 'Control de Producción',
+        href: '#',
+        icon: ChartNoAxesCombined,
+        isActive: false,
+        items: [
+            {
+                title: 'Ordenes de Producción',
+                href: '',
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+            {
+                title: 'Control de Lotes',
+                href: '',
+                permission: 'ver programador', // Permiso necesario para este subitem
+            },
+            {
+                title: 'Cuentas de Cobro UP',
+                href: '',
+                permission: 'ver programador', // Permiso necesario para este subitem
+            },
+        ],
+    },
+    {
+        title: 'Listados Operacionales',
+        href: '#',
+        icon: FolderKanban,
+        isActive: false,
+    },
+    {
+        title: 'Configuración',
+        href: '/configuracion',
+        icon: Cog,
+        isActive: false,
     },
 ];
 
@@ -127,22 +198,26 @@ const filteredNavMainGroup = computed(
     () =>
         navMainGroup
             .map((group) => {
+                // Si no tiene subítems, mostrar el grupo tal cual
+                if (!group.items || group.items.length === 0) {
+                    return group;
+                }
                 // Filtrar los subítems según los permisos del usuario
                 const visibleItems =
-                    group.items?.filter((item) => {
-                        // Verificar si el permiso está definido antes de llamar a auth.can
+                    group.items.filter((item) => {
                         return item.permission ? auth.can(item.permission) : false;
                     }) || [];
-
-                // Si no hay subítems visibles, no mostrar el grupo principal
-                if (visibleItems.length === 0) return null;
-
+                // Si no hay subítems visibles, mostrar el grupo sin items (para que NavMainGroup lo pinte como botón simple)
                 return {
                     ...group,
-                    items: visibleItems, // Asignar solo los subítems visibles
+                    items: visibleItems,
                 };
             })
-            .filter(Boolean) as NavGroupItem[], // Asegurar el tipado correcto
+            .filter(
+                (group) =>
+                    // Mostrar si tiene subítems visibles o si no tiene subítems definidos
+                    group && (group.items === undefined || group.items.length > 0),
+            ) as NavGroupItem[],
 );
 </script>
 

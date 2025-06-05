@@ -15,7 +15,7 @@ class CreatePurchaseOrdersTable extends Migration
             $table->date('delivery_date')->nullable();
             $table->string('supplier_order_number')->nullable();
             $table->text('description')->nullable();
-            $table->enum('status', ['pending', 'converted'])->default('pending');
+            $table->enum('status', ['pending', 'invoiced'])->default('pending');
             $table->timestamps();
             $table->softDeletes();
         });

@@ -28,8 +28,8 @@ class PurchaseOrderController extends Controller
         }
 
         // FILTRO POR ESTADO
-        if ($request->has('status') && $request->status && $request->status !== 'all') {
-            $query->where('status', $request->status);
+        if ($request->has('status') && $request->status && strtolower($request->status) !== 'all') {
+            $query->where('status', strtolower($request->status));
         }
 
         // FILTRO POR PROVEEDOR
