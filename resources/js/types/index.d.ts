@@ -159,14 +159,15 @@ export interface Article {
     name: string;
     reference: string;
     img?: string;
-    impuesto: number;
+    tax: number; // Cambiado de 'impuesto' a 'tax'
     stock_min: number;
     stock_max: number;
     bar_code?: string;
     negative_movement: boolean | number;
     description: string;
-    extra_fields?: ExtraFields;
+    extra_fields?: ExtraFields | string;
     status: boolean;
+    unit_measure?: string; // Añadido correctamente
     created_at?: string;
     updated_at?: string;
 }

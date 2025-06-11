@@ -11,14 +11,10 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { Article } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Ban, CheckCircle, PlusCircle, Search } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
+import { Ban, CheckCircle, Download, PlusCircle, Search, Upload } from 'lucide-vue-next';
+import { onMounted, ref, watch, reactive } from 'vue';
 import ArticleDialog from './ArticleDialog.vue';
-
-// Tipado para las opciones del SelectField
-import type { Option } from '@/types';
-
-type StatusOption = Option;
+import BulkUploadDialog from './BulkUploadDialog.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
@@ -35,14 +31,17 @@ const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
-const statusOptions: StatusOption[] = [
-    { id: 'all', name: 'Todos' }, // Cambia '' por 'all'
-    { id: '1', name: 'Habilitados' },
-    { id: '0', name: 'Deshabilitados' },
-];
-const statusFilter = ref<string>('all'); // Cambia '' por 'all'
+
+const statusFilter = ref<string>('all');
 const isStatusDialogOpen = ref(false);
 const articleToToggleStatus = ref<Article | null>(null);
+const isBulkDialogOpen = ref(false);
+
+const statusOptions = ref([
+    reactive({ id: 'all', name: 'Todos' }),
+    reactive({ id: '1', name: 'Habilitados' }),
+    reactive({ id: '0', name: 'Deshabilitados' })
+]);
 
 function openDialog(type: 'create' | 'edit', article: Article | null = null) {
     dialogType.value = type;
@@ -54,7 +53,6 @@ function openDialog(type: 'create' | 'edit', article: Article | null = null) {
               category_sub_group_id: undefined,
               color_id: undefined,
               img: '',
-              impuesto: 0,
               stock_min: 0,
               stock_max: 0,
               bar_code: '',
@@ -92,7 +90,13 @@ async function toggleStatus() {
     isStatusDialogOpen.value = false;
 }
 
-// Modificar fetchArticles para convertir 'all' en ''
+function openBulkDialog() {
+    isBulkDialogOpen.value = true;
+}
+function closeBulkDialog() {
+    isBulkDialogOpen.value = false;
+}
+
 async function fetchArticles(page = 1, search = '', status = 'all') {
     const params: any = { page, per_page: itemsPerPage, search };
     if (status !== 'all') {
@@ -114,6 +118,10 @@ watch(statusFilter, (newStatus) => {
 onMounted(() => {
     fetchArticles();
 });
+
+function exportArticlesExcel() {
+    window.open('/articulos/exportar-excel', '_blank');
+}
 </script>
 
 <template>
@@ -122,7 +130,17 @@ onMounted(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Artículos</h1>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="h-4 w-4" /> Crear Nuevo Artículo</Button>
+                <div class="flex gap-2">
+                    <Button @click="openDialog('create')" variant="default" size="sm">
+                        <PlusCircle class="h-4 w-4" /> Crear Nuevo Artículo
+                    </Button>
+                    <Button @click="openBulkDialog" variant="secondary" size="sm">
+                        <Upload class="h-4 w-4" /> Carga Masiva
+                    </Button>
+                    <Button @click="exportArticlesExcel" variant="secondary" size="sm">
+                        <Download class="h-4 w-4" /> Exportar a Excel
+                    </Button>
+                </div>
             </div>
             <!-- FILTROS: UNA SOLA FILA -->
             <div class="flex items-end gap-4 mb-2 flex-wrap">
@@ -148,11 +166,7 @@ onMounted(() => {
                         <TableRow>
                             <TableHead>ID</TableHead>
                             <TableHead>Nombre</TableHead>
-                            <TableHead>Bodega</TableHead>
-                            <TableHead>Subgrupo</TableHead>
-                            <TableHead>Color</TableHead>
-                            <TableHead>Stock Min</TableHead>
-                            <TableHead>Stock Max</TableHead>
+                            <TableHead>Referencia</TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
@@ -162,18 +176,14 @@ onMounted(() => {
                         <TableRow v-for="article in articles" :key="article.id" class="text-center">
                             <TableCell>{{ article.id }}</TableCell>
                             <TableCell>{{ article.name }}</TableCell>
-                            <TableCell>{{ article.warehouse?.name }}</TableCell>
-                            <TableCell>{{ article.category_sub_group?.name }}</TableCell>
-                            <TableCell>{{ article.color?.name }}</TableCell>
-                            <TableCell>{{ article.stock_min }}</TableCell>
-                            <TableCell>{{ article.stock_max }}</TableCell>
+                            <TableCell>{{ article.reference }}</TableCell>
                             <TableCell>{{ article.description }}</TableCell>
                             <TableCell>
                                 <StatusBadge :text="article.status ? 'Habilitado' : 'Deshabilitado'" :type="article.status ? 'green' : 'red'" />
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', article)" />
-                                <DeleteButton :onClick="() => confirmDeleteArticle(article)" />
+                                <EditButton @click="openDialog('edit', article)" />
+                                <DeleteButton @click="confirmDeleteArticle(article)" />
                                 <button
                                     :class="[
                                         'inline-flex items-center justify-center text-gray-500',
@@ -233,5 +243,6 @@ onMounted(() => {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+        <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchArticles" />
     </AppLayout>
 </template>

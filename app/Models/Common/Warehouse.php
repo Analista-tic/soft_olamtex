@@ -13,6 +13,15 @@ class Warehouse extends Model
 
     public function articles()
     {
-        return $this->hasMany(\App\Models\Inventory\Article::class);
+        return $this->belongsToMany(\App\Models\Inventory\Article::class, 'warehouse_article')
+            ->withPivot(['quantity', 'stock_min', 'stock_max'])
+            ->withTimestamps();
+    }
+
+    public function warehouses()
+    {
+        return $this->belongsToMany(\App\Models\Common\Warehouse::class, 'warehouse_article')
+            ->withPivot(['quantity', 'stock_min', 'stock_max'])
+            ->withTimestamps();
     }
 }

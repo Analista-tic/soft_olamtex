@@ -26,10 +26,9 @@ const opcionesCampos: Record<string, string[]> = {
     'Mundo': [],
     'Sección': [],
     'Grupo': [],
-    // Campos estáticos
-    'Líneas': ['Línea 1', 'Línea 2'],
-    'Tipo puntera': ['Tipo 1', 'Tipo 2'],
-    'Talla': ['XS', 'S', 'M', 'L', 'XL'],
+    'Líneas': ['Línea 1', 'Línea 2', 'Línea 3', 'Línea 4', 'Línea 5'],
+    'Tipo puntera': ['Redonda', 'Cuadrada', 'Puntiaguda', 'Abierta', 'Cerrada'],
+    'Talla': ['XS', 'S', 'M', 'L', 'XL', 'XXL', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45'],
 };
 
 const selectedExtraField = ref('');

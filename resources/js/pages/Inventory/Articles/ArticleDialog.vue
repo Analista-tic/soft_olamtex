@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import ExtraFieldsForm from '@/pages/Inventory/Articles/ExtraFieldsForm.vue';
+// Importación de componentes y utilidades
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -9,38 +9,58 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
+import ExtraFieldsForm from '@/pages/Inventory/Articles/ExtraFieldsForm.vue';
 import type { Article, CategorySubGroup, Color, ExtraFields, Warehouse } from '@/types';
 import axios from 'axios';
-import { Image } from 'lucide-vue-next';
+import { Image, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
+// Props y eventos
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
     form: Partial<Article>;
 }>();
-
 const emit = defineEmits(['close', 'refresh']);
 
-const localForm = ref<Partial<Article>>({ 
+// Estado reactivo principal
+const localForm = ref<Partial<Article>>({
     ...props.form,
-    reference: props.form.reference || '' // Asegura que reference esté inicializado
+    reference: props.form.reference || '',
 });
-
 const warehouses = ref<Warehouse[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
 const colors = ref<Color[]>([]);
-
 const imageFile = ref<File | null>(null);
 const errors = ref<Record<string, string[]>>({});
-
-const extraFieldNames = ['Base tela', 'Base hilaza', 'Campo adicional', 'Marca', 'Mundo', 'Líneas', 'Tipo puntera', 'Talla', 'Medida'];
+const extraFieldNames = [
+    'Base tela', 'Base hilaza', 'Campo adicional', 'Marca', 'Mundo', 'Líneas', 'Tipo puntera', 'Talla', 'Medida'
+];
 const extraFields = ref<ExtraFields>({});
-
 const nameField = ref('');
 const imagePreview = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
 
+// Unidades de medida
+const unitMeasures = [
+    { id: 'cm', name: 'Centímetro (cm)' },
+    { id: 'mm', name: 'Milímetro (mm)' },
+    { id: 'm', name: 'Metro (m)' },
+    { id: 'in', name: 'Pulgada (in)' },
+    { id: 'ft', name: 'Pie (ft)' },
+    { id: 'yd', name: 'Yarda (yd)' },
+    { id: 'kg', name: 'Kilogramo (kg)' },
+    { id: 'g', name: 'Gramo (g)' },
+    { id: 'lb', name: 'Libra (lb)' },
+    { id: 'oz', name: 'Onza (oz)' },
+    { id: 'l', name: 'Litro (l)' },
+    { id: 'ml', name: 'Mililitro (ml)' },
+    { id: 'unidad', name: 'Unidad' }
+];
+const unitMeasure = ref(props.form.unit_measure ?? unitMeasures[0].id);
+
+// Carga de catálogos y datos iniciales
 async function fetchWarehouses() {
     try {
         const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
@@ -49,7 +69,6 @@ async function fetchWarehouses() {
         console.error('Error al obtener las bodegas:', error);
     }
 }
-
 async function fetchCategorySubGroups() {
     try {
         const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
@@ -58,7 +77,6 @@ async function fetchCategorySubGroups() {
         console.error('Error al obtener los subgrupos:', error);
     }
 }
-
 async function fetchColors() {
     try {
         const { data } = await axios.get('/colores/data', { params: { per_page: 1000 } });
@@ -68,6 +86,44 @@ async function fetchColors() {
     }
 }
 
+// Opciones para campos adicionales (reactivo y dinámico)
+const extraFieldOptions = ref<Record<string, { id: string; name: string }[]>>({
+    'Base tela': [],
+    'Base hilaza': [],
+    'Marca': [],
+    'Mundo': [],
+    'Sección': [],
+    'Grupo': [],
+    'Líneas': [],
+    'Tipo puntera': [],
+    'Talla': [],
+});
+
+// Carga de catálogos para campos adicionales
+async function fetchExtraFieldOptions() {
+    const catalogos = [
+        { campo: 'Sección', url: '/catalogos/sections' },
+        { campo: 'Grupo', url: '/catalogos/groups' },
+        { campo: 'Marca', url: '/catalogos/brands' },
+        { campo: 'Mundo', url: '/catalogos/worlds' },
+        { campo: 'Base tela', url: '/catalogos/fabric-bases' },
+        { campo: 'Base hilaza', url: '/catalogos/yarn-bases' },
+    ];
+    for (const cat of catalogos) {
+        try {
+            const res = await axios.get(cat.url);
+            extraFieldOptions.value[cat.campo] = res.data.data.map((item: any) => ({
+                id: item.id?.toString() ?? item.name,
+                name: item.name,
+            }));
+        } catch (e) {
+            console.log(`Error al cargar opciones para ${cat.campo}:`, e);
+            extraFieldOptions.value[cat.campo] = [];
+        }
+    }
+}
+
+// Rellena los campos extra desde el objeto recibido
 function fillExtraFields(obj: any) {
     extraFields.value = {};
     if (obj && typeof obj === 'object') {
@@ -79,48 +135,106 @@ function fillExtraFields(obj: any) {
     }
 }
 
-onMounted(() => {
-    fetchWarehouses();
-    fetchCategorySubGroups();
-    fetchColors();
+// Carga inicial de datos al montar el componente
+onMounted(async () => {
+    await Promise.all([
+        fetchWarehouses(),
+        fetchCategorySubGroups(),
+        fetchColors(),
+        fetchExtraFieldOptions()
+    ]);
     fillExtraFields(props.form.extra_fields);
+    if (props.form.id) {
+        await fetchWarehouseStocks(props.form.id);
+    }
 });
 
+// Carga de stocks por bodega para el artículo
+async function fetchWarehouseStocks(articleId: number) {
+    try {
+        const { data } = await axios.get(`/articulos/${articleId}/warehouses`);
+        warehouseStocks.value = data.map((w: any) => ({
+            warehouse_id: w.id,
+            name: w.name,
+            quantity: w.pivot.quantity,
+            stock_min: w.pivot.stock_min,
+            stock_max: w.pivot.stock_max,
+        }));
+    } catch (e) {
+        console.log(e);
+        warehouseStocks.value = [];
+    }
+}
+
+// Devuelve bodegas disponibles para seleccionar (evita duplicados)
+function availableWarehouses(idx?: number) {
+    const usedIds = warehouseStocks.value
+        .map((ws, i) => (i !== idx ? ws.warehouse_id : null))
+        .filter((id): id is number => typeof id === 'number');
+    return [...warehouses.value]
+        .filter((w) => typeof w.id === 'number' && !usedIds.includes(w.id))
+        .map((w) => ({
+            id: String(w.id),
+            name: w.name
+        }));
+}
+
+// Agrega/quita bodegas al detalle de inventario
+function addWarehouseStock() {
+    warehouseStocks.value.push({
+        warehouse_id: 0,
+        name: '',
+        quantity: 0,
+        stock_min: 0,
+        stock_max: 0,
+    });
+}
+function removeWarehouseStock(idx: number) {
+    warehouseStocks.value.splice(idx, 1);
+}
+function updateWarehouseName(idx: number) {
+    const warehouseId = warehouseStocks.value[idx].warehouse_id;
+    const warehouse = warehouses.value.find((w) => w.id === warehouseId);
+    warehouseStocks.value[idx].name = warehouse ? warehouse.name : '';
+}
+
+// Sincronización de props y estado local
 watch(
     () => props.form,
     (newVal) => {
-        localForm.value = { 
+        localForm.value = {
             ...newVal,
-            reference: newVal.reference || '' // Asegura que reference esté definido
+            reference: newVal.reference || '',
         };
         fillExtraFields(newVal.extra_fields);
         imageFile.value = null;
         updateNameField();
     },
-    { deep: true }
+    { deep: true },
 );
-
 watch(
     () => props.isOpen,
     (val) => {
         dialogOpen.value = val;
         if (val) {
-            localForm.value = { 
+            localForm.value = {
                 ...props.form,
-                reference: props.form.reference || '' 
+                reference: props.form.reference || '',
             };
             fillExtraFields(props.form.extra_fields);
             imageFile.value = null;
             resetErrors();
             updateNameField();
         }
-    }
+    },
 );
 
+// Limpia errores de validación
 function resetErrors() {
     errors.value = {};
 }
 
+// Maneja el envío del formulario
 async function handleSubmit() {
     resetErrors();
     const extraFieldsToSend: Record<string, string> = {};
@@ -130,24 +244,27 @@ async function handleSubmit() {
         }
     });
     const orderedExtraFields = Object.fromEntries(Object.entries(extraFieldsToSend).sort());
-
     updateNameField(orderedExtraFields);
 
-    const nm = localForm.value.negative_movement;
-    const negativeMovementValue = nm === true || nm === 1 || (typeof nm === 'string' && (nm === '1' || nm === 'true')) ? 1 : 0;
-
-    const formData = new FormData();
-    Object.entries({
+    // Prepara el formulario para enviar
+    const cleanForm: any = {
         ...localForm.value,
+        category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
+        color_id: Number(localForm.value.color_id) || undefined,
+        tax: Number(localForm.value.tax) || 0,
+        negative_movement: localForm.value.negative_movement,
+        bar_code: localForm.value.bar_code || '',
+        description: localForm.value.description || '',
+        reference: localForm.value.reference || '',
         extra_fields: Object.keys(orderedExtraFields).length ? JSON.stringify(orderedExtraFields) : null,
         name: nameField.value,
-    }).forEach(([key, value]) => {
+        unit_measure: unitMeasure.value,
+    };
+
+    const formData = new FormData();
+    Object.entries(cleanForm).forEach(([key, value]) => {
         if (key === 'negative_movement') {
-            formData.append(key, String(negativeMovementValue));
-        } else if (key === 'extra_fields' && value !== null) {
-            formData.append(key, value as string);
-        } else if (typeof value === 'object' && value !== null) {
-            formData.append(key, JSON.stringify(value));
+            formData.append(key, String(value === true || value === 1 || value === '1' || value === 'true' ? 1 : 0));
         } else if (value !== undefined && value !== null) {
             formData.append(key, value as any);
         }
@@ -155,10 +272,10 @@ async function handleSubmit() {
     if (imageFile.value) {
         formData.append('image', imageFile.value);
     }
+    formData.append('warehouses', JSON.stringify(warehouseStocks.value.filter((w) => w.warehouse_id)));
 
     const url = props.dialogType === 'create' ? '/articulos' : `/articulos/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'POST';
-
     if (props.dialogType === 'edit') {
         formData.append('_method', 'PUT');
     }
@@ -173,27 +290,29 @@ async function handleSubmit() {
         emit('refresh');
         emit('close');
     } catch (error: any) {
+        console.error('Error al guardar el artículo:', error, error?.response?.data);
         errors.value = error.response?.data?.errors || {
             general: [error.response?.data?.message || 'Ocurrió un error inesperado al guardar el artículo.'],
         };
-        if (!error.response?.data?.errors) console.error('Error al guardar el artículo:', error);
     }
 }
 
+// Estado de apertura del diálogo
 const dialogOpen = ref(props.isOpen);
-
 watch(
     () => props.isOpen,
     (val) => {
         dialogOpen.value = val;
-    }
+    },
 );
 
+// Cierre del diálogo
 function handleClose() {
     dialogOpen.value = false;
     emit('close');
 }
 
+// Computed para el switch de movimiento negativo
 const negativeMovementBool = computed({
     get() {
         return localForm.value.negative_movement === 1 || localForm.value.negative_movement === true;
@@ -203,9 +322,14 @@ const negativeMovementBool = computed({
     },
 });
 
+// Actualiza el campo nombre automáticamente
 function updateNameField(orderedFields?: Record<string, string>): void {
-    const subGroup = categorySubGroups.value.find((sg) => sg.id === localForm.value.category_sub_group_id);
-    const color = colors.value.find((c) => c.id === localForm.value.color_id);
+    const subGroup = categorySubGroups.value.find(
+        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id)
+    );
+    const color = colors.value.find(
+        (c) => String(c.id) === String(localForm.value.color_id)
+    );
     const extrasObj: Record<string, string> =
         orderedFields ??
         Object.fromEntries(
@@ -219,6 +343,7 @@ function updateNameField(orderedFields?: Record<string, string>): void {
     localForm.value.name = nameField.value;
 }
 
+// Previsualización de imagen
 watch(imageFile, (file) => {
     if (file) {
         const reader = new FileReader();
@@ -234,7 +359,6 @@ watch(imageFile, (file) => {
         }
     }
 });
-
 watch(
     () => localForm.value.img,
     (img) => {
@@ -245,9 +369,10 @@ watch(
                 imagePreview.value = null;
             }
         }
-    }
+    },
 );
 
+// Actualiza nombre cuando cambian selects/campos extra
 watch(
     [
         () => localForm.value.category_sub_group_id,
@@ -258,10 +383,10 @@ watch(
     { immediate: true }
 );
 
+// Manejo de input de archivo
 function triggerFileInput() {
     fileInputRef.value?.click();
 }
-
 function handleFileChange(e: Event) {
     const input = e.target as HTMLInputElement;
     const files = input.files;
@@ -283,9 +408,9 @@ function handleFileChange(e: Event) {
                 </DialogDescription>
             </DialogHeader>
 
-            <form @submit.prevent="handleSubmit" class="space-y-2">
+            <form @submit.prevent="handleSubmit" class="space-y-4">
                 <div class="grid grid-cols-1 gap-2 md:grid-cols-4">
-                    <div class="flex flex-col gap-4 space-y-2 md:col-span-3">
+                    <div class="flex flex-col gap-4 md:col-span-3">
                         <!-- Nombre -->
                         <div>
                             <Label>Nombre</Label>
@@ -294,28 +419,69 @@ function handleFileChange(e: Event) {
                         <!-- Grupo principal -->
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <SelectField
-                                v-model="localForm.warehouse_id"
-                                label="Bodega"
-                                :options="warehouses.map((w) => ({ id: w.id ?? '', name: w.name }))"
-                                required
-                            />
-                            <SelectField
                                 v-model="localForm.category_sub_group_id"
                                 label="Subgrupo"
-                                :options="categorySubGroups.map((sg) => ({ id: sg.id ?? '', name: sg.name }))"
+                                :options="categorySubGroups.map((sg) => ({ id: String(sg.id ?? ''), name: sg.name }))"
                                 required
                             />
                             <SelectField
                                 v-model="localForm.color_id"
                                 label="Color"
-                                :options="colors.map((c) => ({ id: c.id ?? '', name: c.name }))"
+                                :options="colors.map((c) => ({ id: String(c.id ?? ''), name: c.name }))"
                                 required
                             />
+                            <InputIntegerField v-model="localForm.tax" label="Impuesto" type="number" />
                         </div>
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            <InputIntegerField v-model="localForm.impuesto" label="Impuesto" type="number" />
-                            <InputIntegerField v-model="localForm.stock_min" label="Stock Mínimo" type="integer" />
-                            <InputIntegerField v-model="localForm.stock_max" label="Stock Máximo" type="integer" />
+                        <!-- Bodegas y Stock -->
+                        <div class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900">
+                            <div class="mb-2 flex items-center justify-between">
+                                <span class="text-sm font-semibold">Detalle de Inventario</span>
+                                <button
+                                    type="button"
+                                    class="rounded-full p-1 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                                    @click="addWarehouseStock"
+                                    :disabled="availableWarehouses().length === 0"
+                                    title="Agregar Bodega"
+                                >
+                                    <Plus class="h-5 w-5 text-primary" />
+                                </button>
+                            </div>
+                            <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 flex flex-col sm:flex-row sm:items-center gap-2 rounded-md bg-gray-50 dark:bg-gray-800 p-2">
+                                <div class="flex-1 min-w-[150px]">
+                                    <Label class="text-xs mb-1">Bodega</Label>
+                                    <SelectField
+                                        v-model="ws.warehouse_id"
+                                        label=""
+                                        :options="availableWarehouses(idx).map((w) => ({ id: String(w.id ?? ''), name: w.name }))"
+                                        @change="updateWarehouseName(idx)"
+                                        class="w-full"
+                                        placeholder="Bodega"
+                                    />
+                                </div>
+                                <div class="flex gap-2 flex-1">
+                                    <div class="flex flex-col w-full">
+                                        <Label class="text-xs mb-1">Cantidad</Label>
+                                        <InputIntegerField v-model="ws.quantity" label="" type="number" class="w-full" placeholder="Cantidad" />
+                                    </div>
+                                    <div class="flex flex-col w-full">
+                                        <Label class="text-xs mb-1"> Cantidad Min</Label>
+                                        <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" />
+                                    </div>
+                                    <div class="flex flex-col w-full">
+                                        <Label class="text-xs mb-1"> Cantidad Max</Label>
+                                        <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" />
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="rounded-full p-1 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                    @click="removeWarehouseStock(idx)"
+                                    title="Quitar"
+                                >
+                                    <Trash2 class="h-5 w-5 text-red-500" />
+                                </button>
+                            </div>
+                            <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
                         </div>
                     </div>
                     <!-- Previsualización de imagen con dropzone -->
@@ -352,20 +518,22 @@ function handleFileChange(e: Event) {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
-                    <div class="md:col-span-2">
-                        <InputField 
-                            v-model="localForm.bar_code" 
-                            label="Código de Barras" 
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-4 mb-3">
+                    <div class="md:col-span-1">
+                        <SelectField
+                            v-model="unitMeasure"
+                            label="Unidad de Medida"
+                            :options="unitMeasures"
+                            option-label="name"
+                            option-value="id"
+                            required
                         />
                     </div>
                     <div class="md:col-span-1">
-                        <InputField 
-                            v-model="localForm.reference" 
-                            label="Referencia" 
-                            required
-                            :disabled="false"
-                        />
+                        <InputField v-model="localForm.bar_code" label="Código de Barras" />
+                    </div>
+                    <div class="md:col-span-1">
+                        <InputField v-model="localForm.reference" label="Referencia" required :disabled="false" />
                     </div>
                     <div class="flex items-center md:col-span-1">
                         <SwitchField v-model="negativeMovementBool" label="Movimiento Negativo" />
@@ -378,7 +546,11 @@ function handleFileChange(e: Event) {
                 </div>
 
                 <!-- Campos adicionales -->
-                <ExtraFieldsForm :extra-field-names="extraFieldNames" v-model:extra-fields="extraFields" />
+                <ExtraFieldsForm
+                    :extra-field-names="extraFieldNames"
+                    v-model:extra-fields="extraFields"
+                    :extra-field-options="extraFieldOptions"
+                />
 
                 <!-- Footer -->
                 <DialogFooter class="mt-6 flex flex-col-reverse gap-2 md:flex-row md:justify-end">

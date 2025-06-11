@@ -72,19 +72,29 @@ class ExampleDataSeeder extends Seeder
 
         // Insertar artículo de ejemplo (ajustado a los campos reales)
         $articleId = DB::table('articles')->insertGetId([
-            'warehouse_id' => $warehouseId,
             'category_sub_group_id' => $categorySubGroupId,
             'color_id' => $colorId,
             'name' => 'Artículo de prueba',
             'reference' => 'ART-001',
             'img' => null,
-            'impuesto' => 19.00,
-            'stock_min' => 10,
-            'stock_max' => 200,
+            'tax' => 19.00, // Cambiado de 'impuesto' a 'tax'
             'bar_code' => 'ART-001',
             'negative_movement' => false,
             'description' => 'Descripción de artículo de prueba',
             'extra_fields' => null,
+            'status' => true,
+            // 'unit_measure' => 'm', // Descomenta solo si existe la columna en la BD
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Insertar relación en warehouse_article para stock y bodega
+        DB::table('warehouse_article')->insert([
+            'warehouse_id' => $warehouseId,
+            'article_id' => $articleId,
+            'quantity' => 100,
+            'stock_min' => 10,
+            'stock_max' => 200,
             'created_at' => now(),
             'updated_at' => now(),
         ]);

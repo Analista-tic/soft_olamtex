@@ -4,19 +4,15 @@ namespace App\Models\Inventory;
 
 use App\Models\Common\CategorySubGroup;
 use App\Models\Common\Color;
-use App\Models\Common\Warehouse;
 use Illuminate\Database\Eloquent\Model;
 
 class Article extends Model
 {
     protected $fillable = [
-        'warehouse_id',
         'category_sub_group_id',
         'color_id',
         'img',
-        'impuesto',
-        'stock_min',
-        'stock_max',
+        'tax', // Cambiado de 'impuesto' a 'tax'
         'bar_code',
         'negative_movement',
         'description',
@@ -24,6 +20,7 @@ class Article extends Model
         'name',
         'reference',
         'status',
+        'unit_measure', // EN: unidad de medida
     ];
 
     protected $casts = [
@@ -57,9 +54,32 @@ class Article extends Model
     }
 
     // Relaciones
-    public function warehouse()
+    public function warehouses()
     {
-        return $this->belongsTo(Warehouse::class);
+        return $this->belongsToMany(\App\Models\Common\Warehouse::class, 'warehouse_article')
+            ->withPivot(['quantity', 'stock_min', 'stock_max'])
+            ->withTimestamps();
+    }
+
+    public function getWarehouseStocks()
+    {
+        return $this->warehouses()->get();
+    }
+
+    public function setWarehouseStock($warehouseId, $quantity, $stockMin, $stockMax)
+    {
+        $this->warehouses()->syncWithoutDetaching([
+            $warehouseId => [
+                'quantity' => $quantity,
+                'stock_min' => $stockMin,
+                'stock_max' => $stockMax,
+            ]
+        ]);
+    }
+
+    public function removeWarehouse($warehouseId)
+    {
+        $this->warehouses()->detach($warehouseId);
     }
 
     public function categorySubGroup()

@@ -1,7 +1,14 @@
 <?php
 
 use App\Http\Controllers\Common\ContactController;
-use App\Http\Controllers\Settings\BaseFabricsController;
+use App\Http\Controllers\Expenses\PurchaseInvoiceController;
+use App\Http\Controllers\Expenses\PurchaseOrderController;
+use App\Http\Controllers\ProductSheet\BrandController;
+use App\Http\Controllers\ProductSheet\FabricBaseController;
+use App\Http\Controllers\ProductSheet\GroupController;
+use App\Http\Controllers\ProductSheet\SectionController;
+use App\Http\Controllers\ProductSheet\WorldController;
+use App\Http\Controllers\ProductSheet\YarnBaseController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -10,21 +17,11 @@ use App\Http\Controllers\ProductSheet\ProductSheetController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\Settings\RoleController;
-use App\Http\Controllers\Settings\FabricProviderController;
 use App\Http\Controllers\Common\CategoryGroupController;
 use App\Http\Controllers\Common\CategorySubGroupController;
-use App\Http\Controllers\Common\BodegaController;
 use App\Http\Controllers\Common\WarehouseController;
 use App\Http\Controllers\Common\ColorController;
 use App\Http\Controllers\Inventory\ArticleController;
-use App\Http\Controllers\Expenses\PurchaseOrderController;
-use App\Http\Controllers\Expenses\PurchaseInvoiceController;
-use App\Http\Controllers\ProductSheet\SectionController;
-use App\Http\Controllers\ProductSheet\GroupController;
-use App\Http\Controllers\ProductSheet\BrandController;
-use App\Http\Controllers\ProductSheet\WorldController;
-use App\Http\Controllers\ProductSheet\FabricBaseController;
-use App\Http\Controllers\ProductSheet\YarnBaseController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -177,13 +174,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // === ARTICLES ===
-    Route::get('articulos', [ArticleController::class, 'index']); // Vista Inertia
-    Route::get('articulos/data', [ArticleController::class, 'getData']); // Para axios, paginación y búsqueda
+    // Asegúrate de que esta línea esté exactamente así y no esté duplicada
+    Route::get('articulos/descargar-plantilla', [ArticleController::class, 'downloadTemplate'])
+        ->name('articulos.descargar-plantilla');
+    // Nueva ruta para exportar artículos en Excel
+    Route::get('articulos/exportar-excel', [ArticleController::class, 'exportExcel'])->name('articulos.exportar-excel');
+    Route::get('articulos', [ArticleController::class, 'index']);
+    Route::get('articulos/data', [ArticleController::class, 'getData']);
+    Route::post('articulos/carga-masiva', [ArticleController::class, 'bulkUpload']);
     Route::get('articulos/{id}', [ArticleController::class, 'show']);
     Route::post('articulos', [ArticleController::class, 'store']);
     Route::put('articulos/{id}', [ArticleController::class, 'update']);
     Route::delete('articulos/{id}', [ArticleController::class, 'destroy']);
-    Route::post('articulos/{id}/toggle-status', [ArticleController::class, 'toggleStatus']); // <-- Añade esta línea
+    Route::post('articulos/{id}/toggle-status', [ArticleController::class, 'toggleStatus']);
 
     // === GASTOS (AGRUPADO) ===
     Route::prefix('gastos')->group(function () {
