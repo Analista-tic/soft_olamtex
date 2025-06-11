@@ -38,6 +38,8 @@ class ArticleController extends Controller
                 'negative_movement' => 'required',
                 'description' => 'required|string',
                 'extra_fields' => 'nullable',
+                'reference' => 'required|string|unique:articles,reference', // Cambia a required
+                'status' => 'sometimes|boolean',
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -54,7 +56,8 @@ class ArticleController extends Controller
         // Procesar imagen si existe
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('articles', 'public');
-            $data['img'] = Storage::url($path);
+            // Guardar solo el path relativo, NO Storage::url($path)
+            $data['img'] = $path;
         }
 
         // Procesar extra_fields como array asociativo
@@ -74,6 +77,12 @@ class ArticleController extends Controller
         $colorName = optional(\App\Models\Common\Color::find($data['color_id']))->name ?? '';
         $extrasString = implode(' ', array_filter(array_map('trim', array_values($extraFields))));
         $data['name'] = trim("$subGroupName $extrasString $colorName");
+
+        // No generar referencia automáticamente, solo guardar la del frontend
+
+        if (!isset($data['status'])) {
+            $data['status'] = true;
+        }
 
         $article = Article::create($data);
 
@@ -105,6 +114,8 @@ class ArticleController extends Controller
                 'negative_movement' => 'sometimes',
                 'description' => 'sometimes|string',
                 'extra_fields' => 'nullable',
+                'reference' => 'required|string|unique:articles,reference,' . $article->id, // Cambia a required
+                'status' => 'sometimes|boolean',
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -121,7 +132,8 @@ class ArticleController extends Controller
         // Procesar imagen si existe
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('articles', 'public');
-            $data['img'] = Storage::url($path);
+            // Guardar solo el path relativo, NO Storage::url($path)
+            $data['img'] = $path;
         }
 
         // Procesar extra_fields como array asociativo
@@ -147,6 +159,8 @@ class ArticleController extends Controller
         $colorName = optional(\App\Models\Common\Color::find($colorId))->name ?? '';
         $extrasString = implode(' ', array_filter(array_map('trim', array_values($extraFields))));
         $data['name'] = trim("$subGroupName $extrasString $colorName");
+
+        // No generar referencia automáticamente, solo guardar la del frontend
 
         $article->update($data);
         return $article;
@@ -178,6 +192,11 @@ class ArticleController extends Controller
                       $c->where('name', 'like', "%$search%");
                   });
             });
+        }
+
+        // Filtrar por estado si se proporciona
+        if ($request->has('status') && $request->status !== '') {
+            $query->where('status', (bool)$request->status);
         }
 
         $perPage = $request->input('per_page', 10);
@@ -218,9 +237,27 @@ class ArticleController extends Controller
             });
         }
 
+        // Filtrar por estado si se proporciona
+        if ($request->has('status') && $request->status !== '') {
+            $query->where('status', (bool)$request->status);
+        }
+
         $perPage = $request->input('per_page', 10);
         $articles = $query->paginate($perPage);
 
         return response()->json($articles);
+    }
+
+    // Nuevo método para cambiar el estado
+    public function toggleStatus($id)
+    {
+        $article = Article::findOrFail($id);
+        $article->status = !$article->status;
+        $article->save();
+
+        return response()->json([
+            'status' => $article->status,
+            'message' => $article->status ? 'Artículo habilitado' : 'Artículo deshabilitado'
+        ]);
     }
 }

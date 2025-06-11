@@ -1,17 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { PlusCircle, Search } from 'lucide-vue-next';
-import Input from '@/components/ui/input/Input.vue';
-import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import ArticleDialog from './ArticleDialog.vue';
-import axios from 'axios';
+import EditButton from '@/components/common/EditButton.vue';
+import StatusBadge from '@/components/common/StatusBadge.vue';
+import SelectField from '@/components/SelectField.vue';
+import Button from '@/components/ui/button/Button.vue';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Input from '@/components/ui/input/Input.vue';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import AppLayout from '@/layouts/AppLayout.vue';
 import type { Article } from '@/types';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Ban, CheckCircle, PlusCircle, Search } from 'lucide-vue-next';
+import { onMounted, ref, watch } from 'vue';
+import ArticleDialog from './ArticleDialog.vue';
+
+// Tipado para las opciones del SelectField
+import type { Option } from '@/types';
+
+type StatusOption = Option;
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
@@ -28,6 +35,14 @@ const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
+const statusOptions: StatusOption[] = [
+    { id: 'all', name: 'Todos' }, // Cambia '' por 'all'
+    { id: '1', name: 'Habilitados' },
+    { id: '0', name: 'Deshabilitados' },
+];
+const statusFilter = ref<string>('all'); // Cambia '' por 'all'
+const isStatusDialogOpen = ref(false);
+const articleToToggleStatus = ref<Article | null>(null);
 
 function openDialog(type: 'create' | 'edit', article: Article | null = null) {
     dialogType.value = type;
@@ -35,18 +50,18 @@ function openDialog(type: 'create' | 'edit', article: Article | null = null) {
     form.value = article
         ? { ...article }
         : {
-            warehouse_id: undefined,
-            category_sub_group_id: undefined,
-            color_id: undefined,
-            img: '',
-            impuesto: 0,
-            stock_min: 0,
-            stock_max: 0,
-            bar_code: '',
-            negative_movement: false,
-            description: '',
-            extra_fields: {},
-        };
+              warehouse_id: undefined,
+              category_sub_group_id: undefined,
+              color_id: undefined,
+              img: '',
+              impuesto: 0,
+              stock_min: 0,
+              stock_max: 0,
+              bar_code: '',
+              negative_movement: false,
+              description: '',
+              extra_fields: {},
+          };
 }
 
 function closeDialog() {
@@ -65,17 +80,35 @@ async function deleteArticle() {
     isDeleteDialogOpen.value = false;
 }
 
-async function fetchArticles(page = 1, search = '') {
-    const response = await axios.get('/articulos/data', {
-        params: { page, per_page: itemsPerPage, search },
-    });
+function openStatusDialog(article: Article) {
+    articleToToggleStatus.value = article;
+    isStatusDialogOpen.value = true;
+}
+
+async function toggleStatus() {
+    if (!articleToToggleStatus.value) return;
+    await axios.post(`/articulos/${articleToToggleStatus.value.id}/toggle-status`);
+    fetchArticles(currentPage.value, searchQuery.value, statusFilter.value);
+    isStatusDialogOpen.value = false;
+}
+
+// Modificar fetchArticles para convertir 'all' en ''
+async function fetchArticles(page = 1, search = '', status = 'all') {
+    const params: any = { page, per_page: itemsPerPage, search };
+    if (status !== 'all') {
+        params.status = status;
+    }
+    const response = await axios.get('/articulos/data', { params });
     articles.value = response.data.data;
     totalItems.value = response.data.total;
     currentPage.value = response.data.current_page;
 }
 
 watch(searchQuery, (newQuery) => {
-    fetchArticles(1, newQuery);
+    fetchArticles(1, newQuery, statusFilter.value);
+});
+watch(statusFilter, (newStatus) => {
+    fetchArticles(1, searchQuery.value, newStatus);
 });
 
 onMounted(() => {
@@ -89,15 +122,25 @@ onMounted(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Artículos</h1>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Artículo</Button>
+                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="h-4 w-4" /> Crear Nuevo Artículo</Button>
             </div>
-            <div class="relative flex items-center gap-4">
-                <div class="relative w-full max-w-sm">
+            <!-- FILTROS: UNA SOLA FILA -->
+            <div class="flex items-end gap-4 mb-2 flex-wrap">
+                <div class="relative max-w-xs flex-1 min-w-[220px]">
                     <Input v-model="searchQuery" placeholder="Buscar artículo" class="h-8 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
                 </div>
+                <div class="min-w-[180px]">
+                    <SelectField
+                        v-model="statusFilter"
+                        label="Estado"
+                        :options="statusOptions"
+                        placeholder="Estado"
+                    />
+                </div>
+                <!-- Puedes agregar más filtros aquí siguiendo el mismo patrón visual -->
             </div>
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
@@ -111,6 +154,7 @@ onMounted(() => {
                             <TableHead>Stock Min</TableHead>
                             <TableHead>Stock Max</TableHead>
                             <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -124,33 +168,68 @@ onMounted(() => {
                             <TableCell>{{ article.stock_min }}</TableCell>
                             <TableCell>{{ article.stock_max }}</TableCell>
                             <TableCell>{{ article.description }}</TableCell>
+                            <TableCell>
+                                <StatusBadge :text="article.status ? 'Habilitado' : 'Deshabilitado'" :type="article.status ? 'green' : 'red'" />
+                            </TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', article)" />
                                 <DeleteButton :onClick="() => confirmDeleteArticle(article)" />
+                                <button
+                                    :class="[
+                                        'inline-flex items-center justify-center text-gray-500',
+                                        article.status ? 'hover:text-red-600' : 'hover:text-green-500',
+                                    ]"
+                                    title="Habilitar/Deshabilitar"
+                                    @click="openStatusDialog(article)"
+                                    type="button"
+                                >
+                                    <Ban v-if="article.status" class="h-4 w-4" />
+                                    <CheckCircle v-else class="h-4 w-4" />
+                                </button>
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
             </div>
         </div>
-        <ArticleDialog
-            :isOpen="isDialogOpen"
-            :dialogType="dialogType"
-            :form="form"
-            @close="closeDialog"
-            @refresh="fetchArticles"
-        />
+        <ArticleDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="fetchArticles" />
         <Dialog v-model:open="isDeleteDialogOpen">
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Confirmar eliminación</DialogTitle>
-                    <DialogDescription>
-                        ¿Estás seguro de que deseas eliminar este artículo? Esta acción no se puede deshacer.
-                    </DialogDescription>
+                    <DialogDescription> ¿Estás seguro de que deseas eliminar este artículo? Esta acción no se puede deshacer. </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
                     <Button variant="outline" @click="isDeleteDialogOpen = false">Cancelar</Button>
                     <Button variant="destructive" @click="deleteArticle">Eliminar</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        <!-- Diálogo de confirmación para habilitar/deshabilitar -->
+        <Dialog v-model:open="isStatusDialogOpen">
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle> {{ articleToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} artículo </DialogTitle>
+                    <DialogDescription>
+                        ¿Estás seguro de que deseas
+                        {{ articleToToggleStatus?.status ? 'deshabilitar' : 'habilitar' }}
+                        este artículo?
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <button type="button" class="mr-2 rounded border px-3 py-1" @click="isStatusDialogOpen = false">Cancelar</button>
+                    <button
+                        type="button"
+                        :class="[
+                            'inline-flex items-center rounded px-3 py-1',
+                            articleToToggleStatus?.status ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-green-600 text-white hover:bg-green-700',
+                        ]"
+                        @click="toggleStatus"
+                    >
+                        <Ban v-if="articleToToggleStatus?.status" class="mr-1 h-4 w-4" />
+                        <CheckCircle v-else class="mr-1 h-4 w-4" />
+                        {{ articleToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }}
+                    </button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

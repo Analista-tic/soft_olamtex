@@ -21,16 +21,19 @@ class Article extends Model
         'negative_movement',
         'description',
         'extra_fields',
-        'name'
+        'name',
+        'reference',
+        'status',
     ];
 
     protected $casts = [
         'extra_fields' => 'array',
         'negative_movement' => 'integer',
+        'status' => 'boolean',
     ];
 
     /**
-     * Mutador para guardar extra_fields como JSON.
+     * Mutador para guardar extra_fields como SON.
      */
     public function setExtraFieldsAttribute($value)
     {

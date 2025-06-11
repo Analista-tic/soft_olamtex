@@ -1,17 +1,17 @@
 <script setup lang="ts">
-// Importaciones de componentes y utilidades
-import DeleteButton from '@/components/common/DeleteButton.vue';
+import ExtraFieldsForm from '@/pages/Inventory/Articles/ExtraFieldsForm.vue';
 import InputField from '@/components/InputField.vue';
-import inputInteguerField from '@/components/InputIntegerField.vue';
+import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
 import SwitchField from '@/components/SwitchField.vue';
+import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import type { Article, CategorySubGroup, Color, Warehouse } from '@/types';
+import type { Article, CategorySubGroup, Color, ExtraFields, Warehouse } from '@/types';
 import axios from 'axios';
+import { Image } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -22,7 +22,10 @@ const props = defineProps<{
 
 const emit = defineEmits(['close', 'refresh']);
 
-const localForm = ref<Partial<Article>>({ ...props.form });
+const localForm = ref<Partial<Article>>({ 
+    ...props.form,
+    reference: props.form.reference || '' // Asegura que reference esté inicializado
+});
 
 const warehouses = ref<Warehouse[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
@@ -32,12 +35,11 @@ const imageFile = ref<File | null>(null);
 const errors = ref<Record<string, string[]>>({});
 
 const extraFieldNames = ['Base tela', 'Base hilaza', 'Campo adicional', 'Marca', 'Mundo', 'Líneas', 'Tipo puntera', 'Talla', 'Medida'];
+const extraFields = ref<ExtraFields>({});
 
-const extraFields = ref<Record<string, string>>({});
-
-const selectedExtraField = ref('');
-const extraFieldValue = ref('');
 const nameField = ref('');
+const imagePreview = ref<string | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 
 async function fetchWarehouses() {
     try {
@@ -87,11 +89,15 @@ onMounted(() => {
 watch(
     () => props.form,
     (newVal) => {
-        localForm.value = { ...newVal };
+        localForm.value = { 
+            ...newVal,
+            reference: newVal.reference || '' // Asegura que reference esté definido
+        };
         fillExtraFields(newVal.extra_fields);
         imageFile.value = null;
         updateNameField();
     },
+    { deep: true }
 );
 
 watch(
@@ -99,29 +105,16 @@ watch(
     (val) => {
         dialogOpen.value = val;
         if (val) {
-            // Al abrir el diálogo, reinicializa el formulario local y limpia errores/imagen
-            localForm.value = { ...props.form };
+            localForm.value = { 
+                ...props.form,
+                reference: props.form.reference || '' 
+            };
             fillExtraFields(props.form.extra_fields);
             imageFile.value = null;
             resetErrors();
             updateNameField();
         }
-    },
-);
-
-// Sincroniza el formulario local y los campos adicionales al abrir el diálogo o cambiar el artículo
-watch(
-    [() => props.isOpen, () => props.form],
-    ([isOpen, form]) => {
-        if (isOpen) {
-            localForm.value = { ...form };
-            fillExtraFields(form.extra_fields);
-            imageFile.value = null;
-            resetErrors();
-            updateNameField();
-        }
-    },
-    { immediate: true },
+    }
 );
 
 function resetErrors() {
@@ -130,7 +123,6 @@ function resetErrors() {
 
 async function handleSubmit() {
     resetErrors();
-    // Solo campos con valor y ordenados
     const extraFieldsToSend: Record<string, string> = {};
     extraFieldNames.forEach((key) => {
         if (extraFields.value[key] && String(extraFields.value[key]).trim() !== '') {
@@ -141,7 +133,6 @@ async function handleSubmit() {
 
     updateNameField(orderedExtraFields);
 
-    // Corrige la comparación de negative_movement para evitar comparar tipos incompatibles
     const nm = localForm.value.negative_movement;
     const negativeMovementValue = nm === true || nm === 1 || (typeof nm === 'string' && (nm === '1' || nm === 'true')) ? 1 : 0;
 
@@ -166,9 +157,8 @@ async function handleSubmit() {
     }
 
     const url = props.dialogType === 'create' ? '/articulos' : `/articulos/${localForm.value.id}`;
-    const method = props.dialogType === 'create' ? 'POST' : 'POST'; // Forzar POST para PUT con FormData
+    const method = props.dialogType === 'create' ? 'POST' : 'POST';
 
-    // Si es edición, agregar _method=PUT para Laravel
     if (props.dialogType === 'edit') {
         formData.append('_method', 'PUT');
     }
@@ -196,7 +186,7 @@ watch(
     () => props.isOpen,
     (val) => {
         dialogOpen.value = val;
-    },
+    }
 );
 
 function handleClose() {
@@ -212,18 +202,6 @@ const negativeMovementBool = computed({
         localForm.value.negative_movement = val ? 1 : 0;
     },
 });
-
-function addExtraField() {
-    if (selectedExtraField.value && extraFieldValue.value.trim() !== '' && !extraFields.value[selectedExtraField.value]) {
-        extraFields.value[selectedExtraField.value] = extraFieldValue.value.trim();
-        selectedExtraField.value = '';
-        extraFieldValue.value = '';
-    }
-}
-
-function removeExtraField(field: string) {
-    delete extraFields.value[field];
-}
 
 function updateNameField(orderedFields?: Record<string, string>): void {
     const subGroup = categorySubGroups.value.find((sg) => sg.id === localForm.value.category_sub_group_id);
@@ -241,6 +219,35 @@ function updateNameField(orderedFields?: Record<string, string>): void {
     localForm.value.name = nameField.value;
 }
 
+watch(imageFile, (file) => {
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imagePreview.value = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+    } else {
+        if (typeof localForm.value.img === 'string' && localForm.value.img.trim() !== '') {
+            imagePreview.value = `/storage/${localForm.value.img.replace(/^\/?storage\//, '')}`;
+        } else {
+            imagePreview.value = null;
+        }
+    }
+});
+
+watch(
+    () => localForm.value.img,
+    (img) => {
+        if (!imageFile.value) {
+            if (typeof img === 'string' && img.trim() !== '') {
+                imagePreview.value = `/storage/${img.replace(/^\/?storage\//, '')}`;
+            } else {
+                imagePreview.value = null;
+            }
+        }
+    }
+);
+
 watch(
     [
         () => localForm.value.category_sub_group_id,
@@ -248,8 +255,18 @@ watch(
         () => extraFieldNames.map((key) => extraFields.value[key]).join('|'),
     ],
     () => updateNameField(),
-    { immediate: true },
+    { immediate: true }
 );
+
+function triggerFileInput() {
+    fileInputRef.value?.click();
+}
+
+function handleFileChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = input.files;
+    imageFile.value = files && files.length > 0 ? files.item(0) : null;
+}
 </script>
 
 <template>
@@ -266,125 +283,102 @@ watch(
                 </DialogDescription>
             </DialogHeader>
 
-            <form @submit.prevent="handleSubmit" class="space-y-6">
-                <!-- Nombre -->
-                <div>
-                    <Label>Nombre</Label>
-                    <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
+            <form @submit.prevent="handleSubmit" class="space-y-2">
+                <div class="grid grid-cols-1 gap-2 md:grid-cols-4">
+                    <div class="flex flex-col gap-4 space-y-2 md:col-span-3">
+                        <!-- Nombre -->
+                        <div>
+                            <Label>Nombre</Label>
+                            <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
+                        </div>
+                        <!-- Grupo principal -->
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <SelectField
+                                v-model="localForm.warehouse_id"
+                                label="Bodega"
+                                :options="warehouses.map((w) => ({ id: w.id ?? '', name: w.name }))"
+                                required
+                            />
+                            <SelectField
+                                v-model="localForm.category_sub_group_id"
+                                label="Subgrupo"
+                                :options="categorySubGroups.map((sg) => ({ id: sg.id ?? '', name: sg.name }))"
+                                required
+                            />
+                            <SelectField
+                                v-model="localForm.color_id"
+                                label="Color"
+                                :options="colors.map((c) => ({ id: c.id ?? '', name: c.name }))"
+                                required
+                            />
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <InputIntegerField v-model="localForm.impuesto" label="Impuesto" type="number" />
+                            <InputIntegerField v-model="localForm.stock_min" label="Stock Mínimo" type="integer" />
+                            <InputIntegerField v-model="localForm.stock_max" label="Stock Máximo" type="integer" />
+                        </div>
+                    </div>
+                    <!-- Previsualización de imagen con dropzone -->
+                    <div class="flex flex-col items-center justify-center px-2 md:row-span-3">
+                        <div class="flex w-full flex-col items-center">
+                            <Label class="mb-1 block text-sm font-medium">Imagen</Label>
+                            <input ref="fileInputRef" type="file" accept="image/*" class="hidden" @change="handleFileChange" />
+                            <div
+                                class="relative flex h-52 w-full cursor-pointer flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition hover:border-blue-400"
+                                @click="triggerFileInput"
+                                style="min-width: 0; position: relative"
+                            >
+                                <template v-if="imagePreview">
+                                    <div class="relative h-52 w-full">
+                                        <img
+                                            :src="imagePreview"
+                                            alt="Previsualización"
+                                            class="h-57 w-full rounded object-contain"
+                                            style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
+                                        />
+                                    </div>
+                                    <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
+                                        Cambiar imagen
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="z-10 flex h-full w-full flex-col items-center justify-center">
+                                        <Image class="mb-2 h-12 w-12 text-gray-400" />
+                                        <span class="text-sm text-gray-500">Haz clic para subir imagen</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Grupo principal -->
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <SelectField
-                        v-model="localForm.warehouse_id"
-                        label="Bodega"
-                        :options="warehouses.map((w) => ({ id: w.id ?? '', name: w.name }))"
-                        required
-                    />
-                    <SelectField
-                        v-model="localForm.category_sub_group_id"
-                        label="Subgrupo"
-                        :options="categorySubGroups.map((sg) => ({ id: sg.id ?? '', name: sg.name }))"
-                        required
-                    />
-                    <SelectField
-                        v-model="localForm.color_id"
-                        label="Color"
-                        :options="colors.map((c) => ({ id: c.id ?? '', name: c.name }))"
-                        required
-                    />
-                </div>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <inputInteguerField v-model="localForm.impuesto" label="Impuesto" type="number" />
-                    <inputInteguerField v-model="localForm.stock_min" label="Stock Mínimo" type="integer" />
-                    <inputInteguerField v-model="localForm.stock_max" label="Stock Máximo" type="integer" />
-                </div>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
                     <div class="md:col-span-2">
-                        <InputField v-model="localForm.bar_code" label="Código de Barras" />
+                        <InputField 
+                            v-model="localForm.bar_code" 
+                            label="Código de Barras" 
+                        />
                     </div>
-                    <div class="flex items-center">
+                    <div class="md:col-span-1">
+                        <InputField 
+                            v-model="localForm.reference" 
+                            label="Referencia" 
+                            required
+                            :disabled="false"
+                        />
+                    </div>
+                    <div class="flex items-center md:col-span-1">
                         <SwitchField v-model="negativeMovementBool" label="Movimiento Negativo" />
                     </div>
                 </div>
 
-                <!-- Descripción e Imagen -->
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <InputField v-model="localForm.description" label="Descripción" />
-                    <div>
-                        <Label class="mb-1 block text-sm font-medium">Imagen</Label>
-                        <Input
-                            type="file"
-                            accept="image/*"
-                            @change="
-                                (e: Event) => {
-                                    const input = e.target as HTMLInputElement;
-                                    const files = input.files;
-                                    imageFile = files && files.length > 0 ? files.item(0) : null;
-                                }
-                            "
-                        />
-                        <div v-if="typeof localForm.img === 'string' && localForm.img" class="mt-2">
-                            <img :src="localForm.img" alt="Imagen subida" class="max-h-24 rounded" />
-                            <div class="break-all text-xs text-gray-500">{{ localForm.img }}</div>
-                        </div>
-                    </div>
+                <!-- Descripción -->
+                <div class="">
+                    <TextareaField v-model="localForm.description" label="Descripción" />
                 </div>
 
                 <!-- Campos adicionales -->
-                <div>
-                    <label class="mb-2 block font-semibold">Campos Adicionales</label>
-                    <div class="flex flex-col items-end gap-2 md:flex-row">
-                        <div class="flex-1">
-                            <SelectField
-                                v-model="selectedExtraField"
-                                label="Campo"
-                                :options="extraFieldNames.filter((f) => !extraFields[f]).map((f) => ({ id: f, name: f }))"
-                                placeholder="Selecciona un campo"
-                                :disabled="extraFieldNames.filter((f) => !extraFields[f]).length === 0"
-                            />
-                        </div>
-                        <div class="flex-1">
-                            <InputField
-                                label="Valor"
-                                type="text"
-                                v-model="extraFieldValue"
-                                :disabled="!selectedExtraField"
-                                placeholder="Ingrese valor"
-                            />
-                        </div>
-                        <Button
-                            type="button"
-                            variant="default"
-                            class="h-9"
-                            :disabled="!selectedExtraField || !extraFieldValue.trim() || !!extraFields[selectedExtraField]"
-                            @click="addExtraField"
-                        >
-                            Añadir
-                        </Button>
-                    </div>
-
-                    <div class="mt-2 overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                            </TableHeader>
-                            <TableBody>
-                                <TableRow v-for="(value, field) in extraFields" :key="field" class="transition hover:bg-gray-50">
-                                    <TableCell class="px-4 py-2 font-medium text-gray-800">{{ field }}</TableCell>
-                                    <TableCell class="px-4 py-2 text-gray-600">{{ value }}</TableCell>
-                                    <TableCell class="px-4 py-2">
-                                        <DeleteButton class="ml-2" @click="removeExtraField(field)" title="Quitar" />
-                                    </TableCell>
-                                </TableRow>
-                                <TableRow v-if="Object.keys(extraFields).length === 0">
-                                    <TableCell colspan="3" class="px-4 py-2 text-center text-gray-400">
-                                        No hay campos adicionales agregados.
-                                    </TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </div>
-                </div>
+                <ExtraFieldsForm :extra-field-names="extraFieldNames" v-model:extra-fields="extraFields" />
 
                 <!-- Footer -->
                 <DialogFooter class="mt-6 flex flex-col-reverse gap-2 md:flex-row md:justify-end">

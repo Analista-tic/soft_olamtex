@@ -23,6 +23,7 @@ class CreateArticlesTable extends Migration
             $table->boolean('negative_movement')->default(false);
             $table->string('description');
             $table->json('extra_fields')->nullable();
+            $table->boolean('status')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });

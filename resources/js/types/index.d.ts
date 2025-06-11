@@ -142,6 +142,12 @@ export interface CategorySubGroup {
     updated_at?: string;
 }
 
+// Tipos para SelectField y opciones de select
+export interface Option {
+    id: string | number;
+    name: string;
+}
+
 export interface Article {
     id: number;
     warehouse_id: number;
@@ -150,7 +156,8 @@ export interface Article {
     category_sub_group?: CategorySubGroup;
     color_id: number;
     color?: Color;
-    name: string; // <-- Añadido
+    name: string;
+    reference: string;
     img?: string;
     impuesto: number;
     stock_min: number;
@@ -158,7 +165,8 @@ export interface Article {
     bar_code?: string;
     negative_movement: boolean | number;
     description: string;
-    extra_fields?: Record<string, any>;
+    extra_fields?: ExtraFields;
+    status: boolean;
     created_at?: string;
     updated_at?: string;
 }
@@ -286,4 +294,9 @@ export interface PurchaseInvoice {
     items: PurchaseInvoiceItem[];
     created_at?: string;
     updated_at?: string;
+}
+
+// Tipos para campos adicionales de artículos
+export interface ExtraFields {
+    [key: string]: string;
 }

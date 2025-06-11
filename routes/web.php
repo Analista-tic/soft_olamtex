@@ -19,6 +19,12 @@ use App\Http\Controllers\Common\ColorController;
 use App\Http\Controllers\Inventory\ArticleController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceController;
+use App\Http\Controllers\ProductSheet\SectionController;
+use App\Http\Controllers\ProductSheet\GroupController;
+use App\Http\Controllers\ProductSheet\BrandController;
+use App\Http\Controllers\ProductSheet\WorldController;
+use App\Http\Controllers\ProductSheet\FabricBaseController;
+use App\Http\Controllers\ProductSheet\YarnBaseController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -177,6 +183,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('articulos', [ArticleController::class, 'store']);
     Route::put('articulos/{id}', [ArticleController::class, 'update']);
     Route::delete('articulos/{id}', [ArticleController::class, 'destroy']);
+    Route::post('articulos/{id}/toggle-status', [ArticleController::class, 'toggleStatus']); // <-- Añade esta línea
 
     // === GASTOS (AGRUPADO) ===
     Route::prefix('gastos')->group(function () {
@@ -202,6 +209,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             // Route::post('/{purchaseInvoice}/enviar-correo-pdf', [PurchaseInvoiceController::class, 'enviarCorreoPdf']);
         });
     });
+
+    // === Catálogos para campos parametrizables ===
+    Route::get('catalogos/sections', [SectionController::class, 'data']);
+    Route::get('catalogos/groups', [GroupController::class, 'data']);
+    Route::get('catalogos/brands', [BrandController::class, 'data']);
+    Route::get('catalogos/worlds', [WorldController::class, 'data']);
+    Route::get('catalogos/fabric-bases', [FabricBaseController::class, 'data']);
+    Route::get('catalogos/yarn-bases', [YarnBaseController::class, 'data']);
 });
 
 
