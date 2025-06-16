@@ -295,6 +295,7 @@ export interface PurchaseInvoice {
     items: PurchaseInvoiceItem[];
     created_at?: string;
     updated_at?: string;
+    purchase_order_id?: number | null;
 }
 
 // Tipos para campos adicionales de artículos

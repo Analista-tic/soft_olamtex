@@ -24,7 +24,7 @@ class PurchaseInvoiceController extends Controller
     {
         $data = $request->validate([
             'contact_id' => 'required|exists:contacts,id',
-            'purchase_order_id' => 'nullable|exists:purchase_orders,id', // Nuevo campo validado
+            'purchase_order_id' => 'nullable|exists:purchase_orders,id',
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',
             'supplier_invoice_number' => 'nullable|string|max:255',
@@ -40,6 +40,11 @@ class PurchaseInvoiceController extends Controller
             'items.*.total_tax' => 'nullable|numeric',
         ]);
 
+        // Solo incluye purchase_order_id si tiene valor válido
+        if (empty($data['purchase_order_id'])) {
+            unset($data['purchase_order_id']);
+        }
+
         $invoice = PurchaseInvoice::create($data);
 
         if (!empty($data['items'])) {
@@ -48,11 +53,12 @@ class PurchaseInvoiceController extends Controller
             }
         }
 
-        // Si viene una orden de compra, actualiza su estado a "converted"
-        if (!empty($data['purchase_order_id'])) {
-            $order = \App\Models\Expenses\PurchaseOrder::find($data['purchase_order_id']);
+        // Actualiza el estado de la orden de compra si corresponde
+        if (!empty($data['purchase_order_id'] ?? $request->purchase_order_id)) {
+            $orderId = $data['purchase_order_id'] ?? $request->purchase_order_id;
+            $order = \App\Models\Expenses\PurchaseOrder::find($orderId);
             if ($order) {
-                $order->status = 'converted';
+                $order->status = 'invoiced'; // Usa el valor permitido por tu ENUM
                 $order->save();
             }
         }
@@ -66,7 +72,7 @@ class PurchaseInvoiceController extends Controller
 
         $data = $request->validate([
             'contact_id' => 'required|exists:contacts,id',
-            'purchase_order_id' => 'nullable|exists:purchase_orders,id', // Nuevo campo validado
+            'purchase_order_id' => 'nullable|exists:purchase_orders,id',
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',
             'supplier_invoice_number' => 'nullable|string|max:255',
@@ -83,6 +89,11 @@ class PurchaseInvoiceController extends Controller
             'items.*.total_tax' => 'nullable|numeric',
         ]);
 
+        // Solo incluye purchase_order_id si tiene valor válido
+        if (empty($data['purchase_order_id'])) {
+            unset($data['purchase_order_id']);
+        }
+
         $invoice->update($data);
 
         // Actualizar items (simple: borrar y volver a crear)
@@ -93,11 +104,12 @@ class PurchaseInvoiceController extends Controller
             }
         }
 
-        // Si viene una orden de compra, actualiza su estado a "converted"
-        if (!empty($data['purchase_order_id'])) {
-            $order = \App\Models\Expenses\PurchaseOrder::find($data['purchase_order_id']);
+        // Actualiza el estado de la orden de compra si corresponde
+        if (!empty($data['purchase_order_id'] ?? $request->purchase_order_id)) {
+            $orderId = $data['purchase_order_id'] ?? $request->purchase_order_id;
+            $order = \App\Models\Expenses\PurchaseOrder::find($orderId);
             if ($order) {
-                $order->status = 'converted';
+                $order->status = 'invoiced'; // Usa el valor permitido por tu ENUM
                 $order->save();
             }
         }
@@ -116,7 +128,6 @@ class PurchaseInvoiceController extends Controller
     public function getData(Request $request)
     {
         $query = PurchaseInvoice::with('contact', 'items');
-        // Filtros básicos
         if ($request->has('search') && $request->search) {
             $query->whereHas('contact', function ($q) use ($request) {
                 $q->where('full_name', 'like', '%' . $request->search . '%');

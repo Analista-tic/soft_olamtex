@@ -98,19 +98,18 @@ watch(
         <Table>
             <TableHeader>
                 <TableRow class="text-center">
-                    <TableCell>Artículo</TableCell>
+                    <TableCell class="min-w-[180px]">Artículo</TableCell>
                     <TableCell>Precio</TableCell>
                     <TableCell>Impuesto (%)</TableCell>
                     <TableCell>Cantidad</TableCell>
                     <TableCell>Descripción</TableCell>
                     <TableCell>Total</TableCell>
-                    <TableCell>Total + Impuesto</TableCell>
                     <TableCell>Acciones</TableCell>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
-                    <TableCell class="p-0 px-1">
+                    <TableCell class="p-0 px-1 min-w-[250px]">
                         <SelectField
                             v-model="item.article_id"
                             :options="articles.map(a => ({ id: a.id, name: a.name }))"
@@ -147,9 +146,6 @@ watch(
                     </TableCell>
                     <TableCell class="p-1">
                         {{ Number(item.total || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}
-                    </TableCell>
-                    <TableCell class="p-1">
-                        {{ Number((item.total || 0) + (item.total_tax || 0)).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}
                     </TableCell>
                     <TableCell class="p-1">
                         <div class="flex justify-center">

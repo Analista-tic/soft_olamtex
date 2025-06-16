@@ -29,6 +29,13 @@ const modules = [
         ],
     },
     {
+        title: 'Impuestos',
+        description: 'Parametrizar y Configurar Impuestos.',
+        options: [
+            { name: 'Retenciones', href: '/retenciones' },
+        ],
+    },
+    {
         title: 'Accesos y Permisos', // Título mejorado
         description: 'Administra usuarios, roles y permisos de acceso.',
         options: [

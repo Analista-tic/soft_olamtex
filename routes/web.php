@@ -22,6 +22,7 @@ use App\Http\Controllers\Common\CategorySubGroupController;
 use App\Http\Controllers\Common\WarehouseController;
 use App\Http\Controllers\Common\ColorController;
 use App\Http\Controllers\Inventory\ArticleController;
+use App\Http\Controllers\Settings\RetentionController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -220,6 +221,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('catalogos/worlds', [WorldController::class, 'data']);
     Route::get('catalogos/fabric-bases', [FabricBaseController::class, 'data']);
     Route::get('catalogos/yarn-bases', [YarnBaseController::class, 'data']);
+
+    // === RETENCIONES ===
+    Route::prefix('retenciones')->group(function () {
+        Route::get('/', [RetentionController::class, 'index'])->name('retentions.index');
+        Route::get('/data', [RetentionController::class, 'data']);
+        Route::get('/{id}', [RetentionController::class, 'show'])->name('retentions.show');
+        Route::post('/', [RetentionController::class, 'store'])->name('retentions.store');
+        Route::put('/{id}', [RetentionController::class, 'update'])->name('retentions.update');
+        Route::delete('/{id}', [RetentionController::class, 'destroy'])->name('retentions.destroy');
+    });
 });
 
 

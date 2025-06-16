@@ -16,7 +16,7 @@ class CreatePurchaseInvoicesTable extends Migration
             $table->date('delivery_date')->nullable();
             $table->string('supplier_invoice_number')->nullable();
             $table->text('description')->nullable();
-            $table->string('status')->nullable();
+            $table->enum('status', ['pending', 'approved', 'rejected'])->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

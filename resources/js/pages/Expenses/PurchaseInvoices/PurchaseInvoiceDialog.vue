@@ -2,13 +2,13 @@
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Contact, PurchaseInvoice } from '@/types';
 import axios from 'axios';
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
-import TextareaField from '@/components/TextareaField.vue';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -31,17 +31,11 @@ const isLoadingInvoiceId = ref(false);
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
 
-const subtotal = computed(() =>
-    (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0)
-);
-const iva = computed(() =>
-    (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0)
-);
+const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
+const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
 
-const selectedContactData = computed(() =>
-    contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null
-);
+const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
 
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
@@ -62,13 +56,12 @@ function createDefaultForm(): Partial<PurchaseInvoice> {
         description: '',
         items: [],
         id: undefined,
+        purchase_order_id: null,
     };
 }
 
 function resetForm() {
-    localForm.value = props.form && Object.keys(props.form).length > 0
-        ? JSON.parse(JSON.stringify(props.form))
-        : createDefaultForm();
+    localForm.value = props.form && Object.keys(props.form).length > 0 ? JSON.parse(JSON.stringify(props.form)) : createDefaultForm();
     if (!Array.isArray(localForm.value.items)) localForm.value.items = [];
 }
 
@@ -83,9 +76,7 @@ async function fetchContacts() {
         } else if (Array.isArray(response.data)) {
             contactsArray = response.data;
         }
-        contacts.value = contactsArray.filter(
-            (c: Contact) => typeof c.contact_type === 'string' && c.contact_type.toLowerCase() === 'proveedor'
-        );
+        contacts.value = contactsArray.filter((c: Contact) => typeof c.contact_type === 'string' && c.contact_type.toLowerCase() === 'proveedor');
     } catch {
         contacts.value = [];
     }
@@ -122,40 +113,27 @@ async function fetchPendingPurchaseOrders() {
 async function loadPurchaseOrderToInvoice(orderId: number) {
     const order = purchaseOrders.value.find((o) => Number(o.id) === Number(orderId));
     if (!order) return;
-    // Asegura que los contactos estén cargados antes de setear el proveedor
     if (!contacts.value.length) await fetchContacts();
-    // Setea el proveedor solo si existe en la lista de contactos
-    const foundContact = contacts.value.find(c => Number(c.id) === Number(order.contact_id));
-    console.log('Found contact:', foundContact);
-    
-    if (foundContact) {
-        localForm.value.contact_id = Number(order.contact_id);
-    } else {
-        localForm.value.contact_id = null;
-    }
-    console.log('Local form contact_id:', localForm.value.contact_id);
-    
-    // Setea el número de pedido del proveedor si existe
+    const foundContact = contacts.value.find((c) => Number(c.id) === Number(order.contact_id));
+    localForm.value.contact_id = foundContact ? Number(order.contact_id) : null;
     localForm.value.supplier_invoice_number = order.supplier_order_number || '';
-    
-    
-    // Setea otras propiedades
     localForm.value.date = order.date || '';
     localForm.value.delivery_date = order.delivery_date || '';
     localForm.value.description = order.description || '';
     localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
-            article_id: item.article_id,
-            article_name: item.article_name,
-            quantity: Number(item.quantity) || 0,
-            price: Number(item.price) || 0,
-            total: Number(item.total) || 0,
-            total_tax: Number(item.total_tax) || 0,
-            description: item.description || '',
-            tax: Number(item.tax) || 0,
-        }))
+              article_id: item.article_id,
+              article_name: item.article_name,
+              quantity: Number(item.quantity) || 0,
+              price: Number(item.price) || 0,
+              total: Number(item.total) || 0,
+              total_tax: Number(item.total_tax) || 0,
+              description: item.description || '',
+              tax: Number(item.tax) || 0,
+          }))
         : [];
     selectedPurchaseOrderId.value = Number(orderId);
+    localForm.value.purchase_order_id = Number(orderId);
 }
 
 async function handleSubmit(sendMail = false) {
@@ -163,10 +141,12 @@ async function handleSubmit(sendMail = false) {
     isLoading.value = true;
     isSendingMail.value = sendMail;
     const formToSend = { ...localForm.value };
+    // Solo envía purchase_order_id si tiene valor válido
+    if (!formToSend.purchase_order_id) {
+        delete formToSend.purchase_order_id;
+    }
     if (props.dialogType === 'create') delete formToSend.id;
-    const url = props.dialogType === 'create'
-        ? '/gastos/facturas-compra'
-        : `/gastos/facturas-compra/${localForm.value.id}`;
+    const url = props.dialogType === 'create' ? '/gastos/facturas-compra' : `/gastos/facturas-compra/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
         const { data } = await axios({ method, url, data: formToSend });
@@ -206,11 +186,15 @@ watch(
         if (val !== null && typeof val !== 'number' && val !== '') {
             localForm.value.contact_id = Number(val);
         }
-    }
+    },
 );
 
 watch(selectedPurchaseOrderId, (orderId) => {
-    if (orderId) loadPurchaseOrderToInvoice(orderId);
+    if (orderId) {
+        loadPurchaseOrderToInvoice(orderId);
+    } else {
+        localForm.value.purchase_order_id = null;
+    }
 });
 
 onMounted(async () => {
@@ -258,18 +242,26 @@ watch(dialogOpen, (isOpen) => {
         <DialogContent class="max-h-screen overflow-y-auto sm:max-w-5xl">
             <DialogHeader>
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
-                <DialogDescription>Completa los campos y añade los ítems de la factura.</DialogDescription>
+                <DialogDescription>
+                    <div class="flex items-center justify-between gap-4">
+                        <span>
+                            Completa los campos y añade los ítems de la factura.<br>
+                            <span class="">Si tienes una orden de compra pendiente, elígela aquí para cargar sus datos automáticamente.</span>
+                        </span>
+                        <div class="w-80">
+                            <SelectField
+                                v-model="selectedPurchaseOrderId"
+                                label="Orden de Compra pendiente"
+                                :options="purchaseOrders.map((o) => ({ id: o.id, name: `#${o.id} - ${o.contact.full_name || ''}` }))"
+                                :placeholder="purchaseOrders.length === 0 ? 'No hay órdenes de compra pendientes' : 'Elige una orden de compra pendiente'"
+                                :key="purchaseOrders.length"
+                            />
+                        </div>
+                    </div>
+                </DialogDescription>
             </DialogHeader>
-            <div class="flex justify-end mb-2">
-                <div class="w-64">
-                    <SelectField
-                        v-model="selectedPurchaseOrderId"
-                        label="Orden de Compra pendiente"
-                        :options="purchaseOrders.map((o) => ({ id: o.id, name: `#${o.id} - ${o.contact.full_name || ''}` }))"
-                        placeholder="Seleccione una orden de compra"
-                        :key="purchaseOrders.length"
-                    />
-                </div>
+            <div class="mb-2 flex justify-end">
+                <div class="w-64"></div>
             </div>
             <form
                 @submit.prevent="handleSubmit()"
@@ -286,7 +278,7 @@ watch(dialogOpen, (isOpen) => {
                         />
                         <span v-else-if="dialogType === 'create' && isLoadingInvoiceId" class="text-gray-400">Cargando...</span>
                     </div>
-                    <div class="flex h-full items-center justify-center rounded p-4 relative">
+                    <div class="relative flex h-full items-center justify-center rounded p-4">
                         <img src="/images/olamtex.png" alt="Logo Olamtex" class="max-h-12 object-contain" />
                     </div>
                     <div>
@@ -311,12 +303,7 @@ watch(dialogOpen, (isOpen) => {
                         :modelValue="contactIdNumber"
                         readonly
                     />
-                    <InputField
-                        :key="`phone-${localForm.contact_id ?? ''}`"
-                        label="Número de contacto"
-                        :modelValue="contactPhone"
-                        readonly
-                    />
+                    <InputField :key="`phone-${localForm.contact_id ?? ''}`" label="Número de contacto" :modelValue="contactPhone" readonly />
                 </div>
                 <div class="grid grid-cols-3 gap-4">
                     <InputDate v-model="localForm.date" label="Fecha de factura" required />
@@ -326,7 +313,7 @@ watch(dialogOpen, (isOpen) => {
                 <div>
                     <PurchaseInvoiceItemsTable :items="localForm.items || []" @update:items="(items) => (localForm.items = items)" />
                 </div>
-                <div class="flex flex-col items-end space-y-0 text-sm">
+                <div class="flex flex-col items-end space-y-0 text-sm w-full">
                     <div class="flex gap-5">
                         <div class="flex flex-col items-end">
                             <span class="font-semibold">Subtotal:</span>
@@ -370,20 +357,10 @@ watch(dialogOpen, (isOpen) => {
                 </div>
                 <DialogFooter class="mt-4 flex justify-end gap-4">
                     <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
-                    <Button
-                        variant="default"
-                        type="button"
-                        :disabled="isLoading || isSendingMail"
-                        @click.prevent="handleSubmit(false)"
-                    >
+                    <Button variant="default" type="button" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(false)">
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                     </Button>
-                    <Button
-                        variant="default"
-                        type="button"
-                        :disabled="isLoading || isSendingMail"
-                        @click.prevent="handleSubmit(true)"
-                    >
+                    <Button variant="default" type="button" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(true)">
                         {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
                     </Button>
                 </DialogFooter>

@@ -118,7 +118,7 @@ function print() {
                             </table>
                         </div>
                     </div>
-                    <div class="flex flex-col items-end space-y-0 text-sm mb-4 mt-2">
+                    <div class="flex flex-col items-end space-y-0 text-sm w-full mb-4 mt-2">
                         <div class="flex gap-1">
                             <div class="flex flex-col items-end">
                                 <span class="font-semibold">Subtotal:</span>

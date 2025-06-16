@@ -89,7 +89,9 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         date_to: dateTo.value,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
-    if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
+    if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
+        params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
+    }
     try {
         const response = await axios.get('/gastos/facturas-compra/data', { params });
         invoices.value = Array.isArray(response.data.data)
@@ -197,10 +199,10 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
                     />
                 </div>
                 <div class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" placeholder="Desde" />
+                    <InputDate v-model="dateFrom" label="Desde" />
                 </div>
                 <div class="min-w-[140px]">
-                    <InputDate v-model="dateTo" placeholder="Hasta" />
+                    <InputDate v-model="dateTo" label="Hasta" />
                 </div>
             </div>
             <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">

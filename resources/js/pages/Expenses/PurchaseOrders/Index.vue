@@ -163,10 +163,10 @@ async function sendOrderByEmail(order: PurchaseOrder) {
                     />
                 </div>
                 <div class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" placeholder="Desde" />
+                    <InputDate v-model="dateFrom" label="Desde" placeholder="Desde" />
                 </div>
                 <div class="min-w-[140px]">
-                    <InputDate v-model="dateTo" placeholder="Hasta" />
+                    <InputDate v-model="dateTo" label="Hasta" placeholder="Hasta" />
                 </div>
             </div>
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
