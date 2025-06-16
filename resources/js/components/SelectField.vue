@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { Label } from '@/components/ui/label';
 
 interface Option {
     id: number | string;
@@ -50,11 +51,11 @@ function onSelectChange(event: Event) {
 </script>
 
 <template>
-    <div class="grid w-full items-center gap-1">
-        <label class="font-medium text-sm">
+    <div class="grid w-full items-center gap-1.5">
+        <Label>
             {{ label }}
             <span v-if="required" class="text-red-500">*</span>
-        </label>
+        </Label>
         <div class="relative">
             <div v-if="multiple && Array.isArray(localModelValue)" class="selected-items mb-1">
                 <div v-for="item in localModelValue" :key="item" class="selected-tag">
@@ -67,7 +68,7 @@ function onSelectChange(event: Event) {
             <select
                 :multiple="multiple"
                 :required="required"
-                class="fixed-width h-auto w-full border border-gray-300 rounded-md px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white appearance-none"
+                class="h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
                 :placeholder="placeholder || `Selecciona ${label.toLowerCase()}`"
                 @change="onSelectChange"
                 v-model="localModelValue"

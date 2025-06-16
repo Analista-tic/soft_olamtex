@@ -91,7 +91,7 @@ function togglePasswordVisibility() {
                 :readonly="readonly"
                 :step="props.type === 'number' ? '0.01' : undefined"
                 :inputmode="props.type === 'number' ? 'decimal' : (props.type === 'email' ? 'email' : undefined)"
-                class="h-9.5 pr-5"
+                class="h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
             />
             <Input
                 :id="label"
@@ -102,7 +102,7 @@ function togglePasswordVisibility() {
                 :readonly="true"
                 :step="props.type === 'number' ? '0.01' : undefined"
                 :inputmode="props.type === 'number' ? 'decimal' : (props.type === 'email' ? 'email' : undefined)"
-                class="h-9.5 pr-5"
+                class="h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
             />
             <button
                 v-if="props.type === 'password'"
