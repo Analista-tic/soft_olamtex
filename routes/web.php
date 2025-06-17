@@ -23,6 +23,7 @@ use App\Http\Controllers\Common\WarehouseController;
 use App\Http\Controllers\Common\ColorController;
 use App\Http\Controllers\Inventory\ArticleController;
 use App\Http\Controllers\Settings\RetentionController;
+use App\Http\Controllers\Common\TaxController;
 
 Route::get('/', fn() => redirect('login'))->name('home');
 
@@ -230,6 +231,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/', [RetentionController::class, 'store'])->name('retentions.store');
         Route::put('/{id}', [RetentionController::class, 'update'])->name('retentions.update');
         Route::delete('/{id}', [RetentionController::class, 'destroy'])->name('retentions.destroy');
+    });
+
+    // === TAXES ===
+    Route::prefix('impuestos')->group(function () {
+        Route::get('/', [TaxController::class, 'index'])->name('taxes.index');
+        Route::get('/data', [TaxController::class, 'data']);
+        Route::get('/{id}', [TaxController::class, 'show'])->name('taxes.show');
+        Route::post('/', [TaxController::class, 'store'])->name('taxes.store');
+        Route::put('/{id}', [TaxController::class, 'update'])->name('taxes.update');
+        Route::delete('/{id}', action: [TaxController::class, 'destroy'])->name('taxes.destroy');
+        Route::post('/{id}/toggle-status', [TaxController::class, 'toggleStatus'])->name('taxes.toggle-status');
     });
 });
 

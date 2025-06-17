@@ -33,6 +33,7 @@ const modules = [
         description: 'Parametrizar y Configurar Impuestos.',
         options: [
             { name: 'Retenciones', href: '/retenciones' },
+            { name: 'Impuestos', href: '/impuestos' },
         ],
     },
     {

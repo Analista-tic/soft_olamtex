@@ -41,6 +41,7 @@ const nameField = ref('');
 const imagePreview = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
+const taxes = ref<any[]>([]);
 
 // Unidades de medida
 const unitMeasures = [
@@ -84,6 +85,10 @@ async function fetchColors() {
     } catch (error) {
         console.error('Error al obtener los colores:', error);
     }
+}
+async function fetchTaxes() {
+    const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
+    taxes.value = (data.data ?? []).filter((t: any) => t.status);
 }
 
 // Opciones para campos adicionales (reactivo y dinámico)
@@ -141,6 +146,7 @@ onMounted(async () => {
         fetchWarehouses(),
         fetchCategorySubGroups(),
         fetchColors(),
+        fetchTaxes(),
         fetchExtraFieldOptions()
     ]);
     fillExtraFields(props.form.extra_fields);
@@ -205,6 +211,9 @@ watch(
         localForm.value = {
             ...newVal,
             reference: newVal.reference || '',
+            tax: typeof newVal.tax === 'object' && newVal.tax !== null
+                ? newVal.tax
+                : null
         };
         fillExtraFields(newVal.extra_fields);
         imageFile.value = null;
@@ -251,7 +260,15 @@ async function handleSubmit() {
         ...localForm.value,
         category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
         color_id: Number(localForm.value.color_id) || undefined,
-        tax: Number(localForm.value.tax) || 0,
+        tax_id:
+            localForm.value.tax_id !== undefined &&
+            localForm.value.tax_id !== null &&
+            String(localForm.value.tax_id) !== ''
+                ? Number(localForm.value.tax_id)
+                : undefined,
+        tax: localForm.value.tax && typeof localForm.value.tax === 'object'
+            ? Number(localForm.value.tax.percentage)
+            : 0,
         negative_movement: localForm.value.negative_movement,
         bar_code: localForm.value.bar_code || '',
         description: localForm.value.description || '',
@@ -259,11 +276,14 @@ async function handleSubmit() {
         extra_fields: Object.keys(orderedExtraFields).length ? JSON.stringify(orderedExtraFields) : null,
         name: nameField.value,
         unit_measure: unitMeasure.value,
+        status: typeof localForm.value.status === 'boolean'
+            ? (localForm.value.status ? 1 : 0)
+            : (localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true ? 1 : 0),
     };
 
     const formData = new FormData();
     Object.entries(cleanForm).forEach(([key, value]) => {
-        if (key === 'negative_movement') {
+        if (key === 'negative_movement' || key === 'status') {
             formData.append(key, String(value === true || value === 1 || value === '1' || value === 'true' ? 1 : 0));
         } else if (value !== undefined && value !== null) {
             formData.append(key, value as any);
@@ -392,6 +412,15 @@ function handleFileChange(e: Event) {
     const files = input.files;
     imageFile.value = files && files.length > 0 ? files.item(0) : null;
 }
+
+// Actualiza tax_id y tax (objeto) automáticamente al cambiar tax_id
+watch(
+    () => localForm.value.tax_id,
+    (taxId) => {
+        const taxObj = taxes.value.find(t => String(t.id) === String(taxId));
+        localForm.value.tax = taxObj || null;
+    }
+);
 </script>
 
 <template>
@@ -430,7 +459,12 @@ function handleFileChange(e: Event) {
                                 :options="colors.map((c) => ({ id: String(c.id ?? ''), name: c.name }))"
                                 required
                             />
-                            <InputIntegerField v-model="localForm.tax" label="Impuesto" type="number" />
+                            <SelectField
+                                v-model="localForm.tax_id"
+                                label="Impuesto"
+                                :options="taxes.map(t => ({ id: t.id, name: `${t.name} (${Math.trunc(t.percentage)}%)` }))"
+                                required
+                            />
                         </div>
                         <!-- Bodegas y Stock -->
                         <div class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900">

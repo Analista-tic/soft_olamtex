@@ -1,35 +1,37 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
-import { Button } from '@/components/ui/button';
+import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import axios from 'axios';
 import type { Article, PurchaseInvoiceItem } from '@/types';
+import axios from 'axios';
 import { CirclePlus } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 
-const props = defineProps<{
-    items: PurchaseInvoiceItem[];
-}>();
+const props = defineProps<{ items: PurchaseInvoiceItem[] }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseInvoiceItem[]>([]);
 const articles = ref<Article[]>([]);
+
+const articleMap = computed(() => new Map<number, Article>(articles.value.map((a) => [a.id, a])));
 
 watch(
     () => props.items,
     (val) => {
         if (JSON.stringify(val) !== JSON.stringify(localItems.value)) {
             localItems.value = Array.isArray(val)
-                ? val.map(item => ({
-                    ...item,
-                    tax: Number(item.tax) || 0
-                }))
+                ? val.map((item) => ({
+                      ...item,
+                      tax: Number(item.tax) || 0,
+                      price: Number(item.price) || 0,
+                      quantity: Number(item.quantity) || 0,
+                  }))
                 : [];
         }
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 async function fetchArticles() {
@@ -37,9 +39,7 @@ async function fetchArticles() {
     articles.value = res.data.data;
 }
 
-onMounted(() => {
-    fetchArticles();
-});
+onMounted(fetchArticles);
 
 function addItem() {
     localItems.value.push({
@@ -50,102 +50,107 @@ function addItem() {
         description: '',
         total: 0,
         total_tax: 0,
-        // Asegura que los campos requeridos estén presentes
     });
 }
 
 function removeItem(idx: number) {
-    if (idx >= 0 && idx < localItems.value.length) {
-        localItems.value.splice(idx, 1);
-    }
+    localItems.value.splice(idx, 1);
+    emit('update:items', localItems.value);
 }
 
-function updateTotal(item: PurchaseInvoiceItem) {
-    item.tax = Number(item.tax) || 0;
-    item.price = Math.round(Number(item.price) || 0);
-    item.quantity = Math.round(Number(item.quantity) || 0);
-    item.total = item.price * item.quantity;
-    item.total_tax = Math.round(item.price * (item.tax / 100) * item.quantity);
+function calcTotals(item: PurchaseInvoiceItem) {
+    const price = Number(item.price) || 0;
+    const quantity = Number(item.quantity) || 0;
+    const tax = Number(item.tax) || 0;
+
+    item.total = Math.round(price * quantity);
+    item.total_tax = Math.round(price * (tax / 100) * quantity);
+}
+
+function setTaxFromArticle(item: PurchaseInvoiceItem) {
+    const articleId = Number(item.article_id);
+    const article = articleMap.value.get(articleId);
+    item.tax = article?.tax?.percentage ?? 0;
 }
 
 watch(
     localItems,
     (val) => {
         val.forEach((item) => {
-            item.tax = Number(item.tax) || 0;
+            item.tax = isNaN(Number(item.tax)) ? 0 : Number(item.tax);
             item.price = Number(item.price) || 0;
             item.quantity = Number(item.quantity) || 0;
-            updateTotal(item);
+
+            if (!(item as any).__watching) {
+                (item as any).__watching = true;
+                watch(
+                    () => item.article_id,
+                    () => {
+                        setTaxFromArticle(item);
+                        calcTotals(item);
+                        emit('update:items', localItems.value);
+                    },
+                    { immediate: true },
+                );
+            }
+
+            calcTotals(item);
         });
-        // Solo emite si realmente cambió el array
-        if (
-            val.length !== props.items.length ||
-            val.some((item, idx) => JSON.stringify(item) !== JSON.stringify(props.items[idx]))
-        ) {
+
+        if (val.length !== props.items.length || val.some((item, idx) => JSON.stringify(item) !== JSON.stringify(props.items[idx]))) {
             emit('update:items', val);
         }
     },
-    { deep: true, immediate: true }
+    { deep: true, immediate: true },
 );
 </script>
 
 <template>
     <div>
-        <div class="flex justify-between items-center mb-2">
+        <div class="mb-2 flex items-center justify-between">
             <span class="font-semibold">Items de la Factura</span>
-            <Button type="button" variant="default" size="sm" @click="addItem"><CirclePlus/>Añadir Item</Button>
+            <Button type="button" variant="default" size="sm" @click="addItem"> <CirclePlus /> Añadir Item </Button>
         </div>
+
         <Table>
             <TableHeader>
                 <TableRow class="text-center">
-                    <TableCell class="min-w-[180px]">Artículo</TableCell>
+                    <TableCell class="min-w-[120px]">Artículo</TableCell>
                     <TableCell>Precio</TableCell>
-                    <TableCell>Impuesto (%)</TableCell>
+                    <TableCell class="w-[80px] min-w-[60px]">Impuesto (%)</TableCell>
                     <TableCell>Cantidad</TableCell>
                     <TableCell>Descripción</TableCell>
                     <TableCell>Total</TableCell>
                     <TableCell>Acciones</TableCell>
                 </TableRow>
             </TableHeader>
+
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
-                    <TableCell class="p-0 px-1 min-w-[250px]">
-                        <SelectField
-                            v-model="item.article_id"
-                            :options="articles.map(a => ({ id: a.id, name: a.name }))"
-                            label=""
-                        />
+                    <TableCell class="min-w-[120px] p-0 px-1">
+                        <SelectField v-model="item.article_id" :options="articles.map((a) => ({ id: a.id, name: a.name }))" label="" />
                     </TableCell>
                     <TableCell class="p-1">
-                        <InputField
-                            v-model="item.price"
-                            type="currency"
-                            label=""
-                            :min="0"
-                            :step="1"
-                            :decimals="0"
-                            @input="updateTotal(item)"
-                        />
+                        <InputField v-model="item.price" type="currency" label="" :min="0" :step="1" :decimals="0" @input="calcTotals(item)" />
+                    </TableCell>
+                    <TableCell class="w-[80px] min-w-[60px] p-1">
+                        <InputField v-model="item.tax" type="number" label="" :readonly="true" :disabled="true" />
                     </TableCell>
                     <TableCell class="p-1">
-                        <SelectField
-                            v-model="item.tax"
-                            :options=" [
-                                { id: 0, name: '0%' },
-                                { id: 19, name: '19%' }
-                            ]"
-                            label=""
-                            @update:modelValue="updateTotal(item)"
-                        />
-                    </TableCell>
-                    <TableCell class="p-1">
-                        <InputField v-model="item.quantity" type="number" label="" @input="updateTotal(item)" />
+                        <InputField v-model="item.quantity" type="number" label="" @input="calcTotals(item)" />
                     </TableCell>
                     <TableCell class="p-1">
                         <InputField v-model="item.description" label="" />
                     </TableCell>
                     <TableCell class="p-1">
-                        {{ Number(item.total || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}
+                        {{
+                            Number(item.total || 0).toLocaleString('es-CO', {
+                                style: 'currency',
+                                currency: 'COP',
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0,
+                            })
+                        }}
                     </TableCell>
                     <TableCell class="p-1">
                         <div class="flex justify-center">
@@ -153,8 +158,9 @@ watch(
                         </div>
                     </TableCell>
                 </TableRow>
+
                 <TableRow v-if="localItems.length === 0">
-                    <TableCell colspan="8" class="text-center text-gray-400">No hay items agregados.</TableCell>
+                    <TableCell colspan="8" class="text-center text-gray-400"> No hay items agregados. </TableCell>
                 </TableRow>
             </TableBody>
         </Table>

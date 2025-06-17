@@ -15,7 +15,7 @@ class CreateArticlesTable extends Migration
             $table->string('name');
             $table->string('reference')->nullable();
             $table->string('img')->nullable();
-            $table->decimal('tax', 8, 2)->default(0); // Cambiado de 'impuesto' a 'tax'
+            $table->foreignId('tax_id')->constrained();
             $table->string('bar_code')->nullable();
             $table->boolean('negative_movement')->default(false);
             $table->string('description');

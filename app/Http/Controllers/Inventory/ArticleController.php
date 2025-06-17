@@ -28,13 +28,13 @@ class ArticleController extends Controller
     {
         return Inertia::render('Inventory/Articles/Index', [
             // 'articles' => Article::with(['warehouse', 'categorySubGroup', 'color'])->get(),
-            'articles' => Article::with(['categorySubGroup', 'color'])->get(),
+            'articles' => Article::with(['categorySubGroup', 'color', 'tax'])->get(),
         ]);
     }
 
     public function show($id)
     {
-        return Article::findOrFail($id);
+        return Article::with(['categorySubGroup', 'color', 'tax'])->findOrFail($id);
     }
 
     public function store(Request $request)
@@ -44,7 +44,8 @@ class ArticleController extends Controller
                 'category_sub_group_id' => 'required|integer',
                 'color_id' => 'required|integer',
                 'img' => 'nullable|string',
-                'tax' => 'required|numeric', // Cambiado de 'impuesto' a 'tax'
+                'tax_id' => 'nullable|integer', // <-- Añadido
+                'tax' => 'required|numeric',
                 'bar_code' => 'nullable|string',
                 'negative_movement' => 'required',
                 'description' => 'required|string',
@@ -130,7 +131,8 @@ class ArticleController extends Controller
                 'category_sub_group_id' => 'sometimes|integer',
                 'color_id' => 'sometimes|integer',
                 'img' => 'nullable|string',
-                'tax' => 'sometimes|numeric', // Cambiado de 'impuesto' a 'tax'
+                'tax_id' => 'nullable|integer', // <-- Añadido
+                'tax' => 'sometimes|numeric',
                 'bar_code' => 'nullable|string',
                 'negative_movement' => 'sometimes',
                 'description' => 'sometimes|string',
@@ -210,8 +212,7 @@ class ArticleController extends Controller
 
     public function getData(Request $request)
     {
-        // $query = Article::with(['warehouse', 'categorySubGroup', 'color']);
-        $query = Article::with(['categorySubGroup', 'color']);
+        $query = Article::with(['categorySubGroup', 'color', 'tax']); // <-- Añadido 'tax'
 
         if ($request->has('search') && trim($request->search) !== '') {
             $search = $request->search;
@@ -253,8 +254,7 @@ class ArticleController extends Controller
 
     public function apiIndex(Request $request)
     {
-        // $query = Article::with(['warehouse', 'categorySubGroup', 'color']);
-        $query = Article::with(['categorySubGroup', 'color']);
+        $query = Article::with(['categorySubGroup', 'color', 'tax']);
 
         if ($request->has('search') && trim($request->search) !== '') {
             $search = $request->search;

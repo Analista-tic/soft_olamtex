@@ -11,7 +11,7 @@ class CreatePurchaseOrdersTable extends Migration
         Schema::create('purchase_orders', function (Blueprint $table) {
             $table->id();
             $table->foreignId('contact_id')->constrained();
-            $table->date(column: 'date');
+            $table->date('date');
             $table->date('delivery_date')->nullable();
             $table->string('supplier_order_number')->nullable();
             $table->text('description')->nullable();

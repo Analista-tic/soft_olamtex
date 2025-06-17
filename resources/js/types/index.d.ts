@@ -148,6 +148,16 @@ export interface Option {
     name: string;
 }
 
+// Añade la interfaz Tax
+export interface Tax {
+    id: number;
+    name: string;
+    percentage: number;
+    status: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface Article {
     id: number;
     warehouse_id: number;
@@ -156,10 +166,11 @@ export interface Article {
     category_sub_group?: CategorySubGroup;
     color_id: number;
     color?: Color;
+    tax_id?: number | null; // Nuevo campo para la relación
+    tax?: Tax | null;       // Relación con el objeto Tax
     name: string;
     reference: string;
     img?: string;
-    tax: number; // Cambiado de 'impuesto' a 'tax'
     stock_min: number;
     stock_max: number;
     bar_code?: string;

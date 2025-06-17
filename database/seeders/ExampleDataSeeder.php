@@ -70,14 +70,52 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
+        // Insertar impuestos (taxes) de ejemplo si no existen
+        $tax19Id = DB::table('taxes')->insertGetId([
+            'name' => 'IVA 19%',
+            'percentage' => 19,
+            'status' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $tax0Id = DB::table('taxes')->insertGetId([
+            'name' => 'Exento',
+            'percentage' => 0,
+            'status' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Insertar retenciones (retentions) de ejemplo si no existen
+        // Depuración: revisa que los campos requeridos existan en la migración
+        // Si tienes más campos obligatorios, agrégalos aquí
+        DB::table('retentions')->insert([
+            [
+                'name' => 'Retefuente',
+                'percent' => 2.5,
+                'type' => 'fuente', // Debe coincidir con los valores válidos de tu sistema
+                'status' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'name' => 'ReteICA',
+                'percent' => 1.0,
+                'type' => 'ica', // Debe coincidir con los valores válidos de tu sistema
+                'status' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
         // Insertar artículo de ejemplo (ajustado a los campos reales)
         $articleId = DB::table('articles')->insertGetId([
             'category_sub_group_id' => $categorySubGroupId,
             'color_id' => $colorId,
+            'tax_id' => $tax19Id, // Relación con tabla taxes
             'name' => 'Artículo de prueba',
             'reference' => 'ART-001',
             'img' => null,
-            'tax' => 19.00, // Cambiado de 'impuesto' a 'tax'
             'bar_code' => 'ART-001',
             'negative_movement' => false,
             'description' => 'Descripción de artículo de prueba',
