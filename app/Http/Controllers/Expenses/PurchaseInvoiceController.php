@@ -36,6 +36,9 @@ class PurchaseInvoiceController extends Controller
             'items.*.tax' => 'nullable|numeric',
             'items.*.quantity' => 'required|numeric',
             'items.*.description' => 'nullable|string',
+            'items.*.supplier_code' => 'nullable|string',
+            'items.*.supplier_color' => 'nullable|string',
+            'items.*.order_width' => 'nullable|string',
             'items.*.total' => 'nullable|numeric',
             'items.*.total_tax' => 'nullable|numeric',
         ]);
@@ -85,6 +88,9 @@ class PurchaseInvoiceController extends Controller
             'items.*.tax' => 'nullable|numeric',
             'items.*.quantity' => 'required|numeric',
             'items.*.description' => 'nullable|string',
+            'items.*.supplier_code' => 'nullable|string',
+            'items.*.supplier_color' => 'nullable|string',
+            'items.*.order_width' => 'nullable|string',
             'items.*.total' => 'nullable|numeric',
             'items.*.total_tax' => 'nullable|numeric',
         ]);
@@ -145,7 +151,8 @@ class PurchaseInvoiceController extends Controller
         if ($request->has('provider_id') && $request->provider_id && $request->provider_id !== 'all') {
             $query->where('contact_id', $request->provider_id);
         }
-        $invoices = $query->orderByDesc('date')->paginate($request->per_page ?? 20);
+        // Ordenar por fecha descendente y luego por id descendente
+        $invoices = $query->orderByDesc('date')->orderByDesc('id')->paginate($request->per_page ?? 20);
         return response()->json([
             'data' => $invoices->items(),
             'total' => $invoices->total(),

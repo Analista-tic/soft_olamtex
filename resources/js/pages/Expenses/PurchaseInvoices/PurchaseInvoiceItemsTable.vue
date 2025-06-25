@@ -27,6 +27,9 @@ watch(
                       tax: Number(item.tax) || 0,
                       price: Number(item.price) || 0,
                       quantity: Number(item.quantity) || 0,
+                      supplier_code: item.supplier_code || '',
+                      supplier_color: item.supplier_color || '',
+                      order_width: typeof item.order_width === 'number' ? item.order_width : Number(item.order_width) || 0,
                   }))
                 : [];
         }
@@ -50,6 +53,9 @@ function addItem() {
         description: '',
         total: 0,
         total_tax: 0,
+        supplier_code: '',
+        supplier_color: '',
+        order_width: 0,
     });
 }
 

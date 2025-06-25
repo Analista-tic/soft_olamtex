@@ -18,6 +18,11 @@ class PurchaseInvoice extends Model
         'supplier_invoice_number',
         'description',
         'status',
+        'withholdings',
+    ];
+
+    protected $casts = [
+        'withholdings' => 'array',
     ];
 
     public function items()

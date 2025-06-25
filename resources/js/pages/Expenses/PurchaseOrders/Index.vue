@@ -9,7 +9,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { PurchaseOrder } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Printer, Search, Mail } from 'lucide-vue-next';
+import { PlusCircle, Printer, Search, Mail, ReceiptText } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
@@ -34,6 +34,7 @@ const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const orderToPrint = ref<PurchaseOrder | null>(null);
 const isSendingMail = ref(false);
+const isConverting = ref<number | null>(null);
 
 // NUEVOS FILTROS
 const statusFilter = ref('all');
@@ -124,6 +125,25 @@ async function sendOrderByEmail(order: PurchaseOrder) {
         isSendingMail.value = false;
     }
 }
+
+async function convertToInvoice(order: PurchaseOrder) {
+    if (isConverting.value !== null) return;
+    isConverting.value = order.id ?? null; // order.id nunca debería ser undefined, pero por seguridad
+    try {
+        await axios.post(`/gastos/ordenes-compra/${order.id}/convert-to-invoice`);
+        alert('Orden convertida en factura correctamente.');
+        fetchOrders(currentPage.value, searchQuery.value);
+    } catch (e: any) {
+        // Validación específica del mensaje de error
+        if (e?.response?.data?.error_code === 'ORDER_ALREADY_INVOICED') {
+            alert('Esta orden de compra ya tiene una factura asociada.');
+        } else {
+            alert(e?.response?.data?.message || 'Error al convertir en factura.');
+        }
+    } finally {
+        isConverting.value = null;
+    }
+}
 </script>
 
 <template>
@@ -173,7 +193,7 @@ async function sendOrderByEmail(order: PurchaseOrder) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>ID</TableHead>
+                            <TableHead>#Orden</TableHead>
                             <TableHead>Proveedor</TableHead>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Número Orden</TableHead>
@@ -191,11 +211,12 @@ async function sendOrderByEmail(order: PurchaseOrder) {
                             <TableCell>{{ order.delivery_date }}</TableCell>
                             <TableCell>{{ order.description }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', order)" />
-                                <DeleteButton :onClick="() => confirmDeleteOrder(order)" />
+                                <EditButton :onClick="() => openDialog('edit', order)" title="Editar orden" />
+                                <DeleteButton :onClick="() => confirmDeleteOrder(order)" title="Eliminar orden" />
                                 <button
                                     :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-green-500']"
                                     @click="openPrintDialog(order)"
+                                    title="Imprimir orden"
                                 >
                                     <Printer class="h-4 w-4" />
                                 </button>
@@ -203,9 +224,22 @@ async function sendOrderByEmail(order: PurchaseOrder) {
                                     :disabled="isSendingMail"
                                     :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600', isSendingMail && 'opacity-50 cursor-not-allowed']"
                                     @click="sendOrderByEmail(order)"
-                                    title="Enviar por correo"
+                                    title="Enviar orden por correo"
                                 >
                                     <Mail class="h-4 w-4" />
+                                </button>
+                                <!-- Botón Convertir en Factura: solo si no está facturada -->
+                                <button
+                                    v-if="order.status !== 'converted'"
+                                    :disabled="isConverting === order.id"
+                                    :class="[
+                                        'flex items-center text-gray-500 transition-colors duration-200 hover:text-green-600',
+                                        isConverting === order.id && 'opacity-50 cursor-not-allowed'
+                                    ]"
+                                    @click="convertToInvoice(order)"
+                                    title="Convertir esta orden en factura"
+                                >
+                                    <ReceiptText class="h-4 w-4"/>
                                 </button>
                             </TableCell>
                         </TableRow>

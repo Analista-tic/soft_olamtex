@@ -16,7 +16,15 @@ class PurchaseOrderItem extends Model
         'tax',
         'quantity',
         'description',
+        'supplier_code',
+        'supplier_color',
+        'order_width',
         'total',
+        'email_sent',
+    ];
+
+    protected $casts = [
+        'order_width' => 'float',
     ];
 
     public function purchaseOrder()

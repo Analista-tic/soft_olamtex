@@ -17,6 +17,7 @@ class PurchaseOrder extends Model
         'supplier_order_number',
         'description',
         'status',
+        'email_sent',
     ];
 
     public function items()

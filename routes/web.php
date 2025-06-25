@@ -201,6 +201,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('update');
             Route::delete('/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
             Route::post('/{purchaseOrder}/enviar-correo-pdf', [PurchaseOrderController::class, 'enviarCorreoPdf']);
+            // Update route to use English function name
+            Route::post('/{purchaseOrder}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice']);
         });
 
         // === FACTURAS DE COMPRA ===

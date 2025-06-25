@@ -9,6 +9,7 @@ import type { Contact, PurchaseInvoice } from '@/types';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
+import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -57,12 +58,14 @@ function createDefaultForm(): Partial<PurchaseInvoice> {
         items: [],
         id: undefined,
         purchase_order_id: null,
+        withholdings: [], // <-- Añadido
     };
 }
 
 function resetForm() {
     localForm.value = props.form && Object.keys(props.form).length > 0 ? JSON.parse(JSON.stringify(props.form)) : createDefaultForm();
     if (!Array.isArray(localForm.value.items)) localForm.value.items = [];
+    if (!Array.isArray(localForm.value.withholdings)) localForm.value.withholdings = [];
 }
 
 async function fetchContacts() {
@@ -239,7 +242,7 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-h-screen overflow-y-auto sm:max-w-5xl">
+        <DialogContent class="max-h-screen overflow-y-auto sm:max-w-7xl">
             <DialogHeader>
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
                 <DialogDescription>
@@ -248,7 +251,8 @@ watch(dialogOpen, (isOpen) => {
                             Completa los campos y añade los ítems de la factura.<br>
                             <span class="">Si tienes una orden de compra pendiente, elígela aquí para cargar sus datos automáticamente.</span>
                         </span>
-                        <div class="w-80">
+                        <!-- Solo mostrar el selector de orden de compra si es 'create' -->
+                        <div class="w-80" v-if="dialogType === 'create'">
                             <SelectField
                                 v-model="selectedPurchaseOrderId"
                                 label="Orden de Compra pendiente"
@@ -313,38 +317,47 @@ watch(dialogOpen, (isOpen) => {
                 <div>
                     <PurchaseInvoiceItemsTable :items="localForm.items || []" @update:items="(items) => (localForm.items = items)" />
                 </div>
-                <div class="flex flex-col items-end space-y-0 text-sm w-full">
-                    <div class="flex gap-5">
-                        <div class="flex flex-col items-end">
-                            <span class="font-semibold">Subtotal:</span>
-                            <span class="font-semibold">IVA total:</span>
-                            <span class="font-semibold">Total factura de compra:</span>
-                        </div>
-                        <div class="flex min-w-[140px] flex-col items-start text-right">
-                            <span>{{
-                                Number(subtotal || 0).toLocaleString('es-CO', {
-                                    style: 'currency',
-                                    currency: 'COP',
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0,
-                                })
-                            }}</span>
-                            <span>{{
-                                Number(iva || 0).toLocaleString('es-CO', {
-                                    style: 'currency',
-                                    currency: 'COP',
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0,
-                                })
-                            }}</span>
-                            <span class="font-bold">{{
-                                Number(total || 0).toLocaleString('es-CO', {
-                                    style: 'currency',
-                                    currency: 'COP',
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0,
-                                })
-                            }}</span>
+                <!-- Bloque para las retenciones -->
+                <div class="grid grid-cols-2 gap-6 items-start">
+                    <div>
+                        <PurchaseInvoiceWithholdingsTable
+                            :modelValue="localForm.withholdings || []"
+                            @update:modelValue="val => localForm.withholdings = val"
+                        />
+                    </div>
+                    <div class="flex flex-col items-end space-y-0 text-sm w-full">
+                        <div class="flex gap-5">
+                            <div class="flex flex-col items-end">
+                                <span class="font-semibold">Subtotal:</span>
+                                <span class="font-semibold">IVA total:</span>
+                                <span class="font-semibold">Total factura de compra:</span>
+                            </div>
+                            <div class="flex min-w-[140px] flex-col items-start text-right">
+                                <span>{{
+                                    Number(subtotal || 0).toLocaleString('es-CO', {
+                                        style: 'currency',
+                                        currency: 'COP',
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0,
+                                    })
+                                }}</span>
+                                <span>{{
+                                    Number(iva || 0).toLocaleString('es-CO', {
+                                        style: 'currency',
+                                        currency: 'COP',
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0,
+                                    })
+                                }}</span>
+                                <span class="font-bold">{{
+                                    Number(total || 0).toLocaleString('es-CO', {
+                                        style: 'currency',
+                                        currency: 'COP',
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0,
+                                    })
+                                }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>

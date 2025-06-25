@@ -45,7 +45,8 @@ class PurchaseOrderController extends Controller
             $query->whereDate('date', '<=', $request->date_to);
         }
 
-        $orders = $query->orderBy('id', 'desc')->paginate($request->input('per_page', 10));
+        // Ordenar por fecha descendente y luego por id descendente
+        $orders = $query->orderByDesc('date')->orderByDesc('id')->paginate($request->input('per_page', 10));
 
         return response()->json($orders);
     }
@@ -64,8 +65,11 @@ class PurchaseOrderController extends Controller
             'items.*.tax' => 'required|numeric',
             'items.*.quantity' => 'required|numeric',
             'items.*.description' => 'nullable|string',
+            'items.*.supplier_code' => 'nullable|string',
+            'items.*.supplier_color' => 'nullable|string',
+            'items.*.order_width' => 'nullable|string',
             'items.*.total' => 'required|numeric',
-            'status' => 'sometimes|in:pending,converted',
+            'status' => 'sometimes|in:pending,invoiced',
         ]);
 
         $orderData = [
@@ -74,6 +78,7 @@ class PurchaseOrderController extends Controller
             'delivery_date' => $validated['delivery_date'],
             'supplier_order_number' => $validated['supplier_order_number'],
             'description' => $validated['description'] ?? null,
+            'status' => $validated['status'] ?? 'pending', // <-- Valor por defecto
         ];
 
         $order = PurchaseOrder::create($orderData);
@@ -85,6 +90,9 @@ class PurchaseOrderController extends Controller
                 'tax' => $item['tax'],
                 'quantity' => $item['quantity'],
                 'description' => $item['description'] ?? null,
+                'supplier_code' => $item['supplier_code'] ?? null,
+                'supplier_color' => $item['supplier_color'] ?? null,
+                'order_width' => $item['order_width'] ?? null,
                 'total' => $item['total'],
             ]);
         }
@@ -116,8 +124,11 @@ class PurchaseOrderController extends Controller
             'items.*.tax' => 'required|numeric',
             'items.*.quantity' => 'required|numeric',
             'items.*.description' => 'nullable|string',
+            'items.*.supplier_code' => 'nullable|string',
+            'items.*.supplier_color' => 'nullable|string',
+            'items.*.order_width' => 'nullable|string',
             'items.*.total' => 'required|numeric',
-            'status' => 'sometimes|in:pending,converted',
+            'status' => 'sometimes|in:pending,invoiced',
         ]);
 
         $orderData = [
@@ -126,6 +137,7 @@ class PurchaseOrderController extends Controller
             'delivery_date' => $validated['delivery_date'],
             'supplier_order_number' => $validated['supplier_order_number'],
             'description' => $validated['description'] ?? null,
+            'status' => $validated['status'] ?? 'pending', // <-- Valor por defecto
         ];
 
         $purchaseOrder->update($orderData);
@@ -138,6 +150,9 @@ class PurchaseOrderController extends Controller
                 'tax' => $item['tax'],
                 'quantity' => $item['quantity'],
                 'description' => $item['description'] ?? null,
+                'supplier_code' => $item['supplier_code'] ?? null,
+                'supplier_color' => $item['supplier_color'] ?? null,
+                'order_width' => $item['order_width'] ?? null,
                 'total' => $item['total'],
             ]);
         }
@@ -172,10 +187,63 @@ class PurchaseOrderController extends Controller
             Mail::to($purchaseOrder->contact->email)
                 ->send(new PurchaseOrderMail($purchaseOrder, $pdf->output()));
 
+            // Marcar como enviado
+            $purchaseOrder->email_sent = true;
+            $purchaseOrder->save();
+
             return response()->json(['message' => 'Correo enviado correctamente.']);
         } catch (\Exception $e) {
             \Log::error('Error enviando correo de orden de compra: ' . $e->getMessage());
             return response()->json(['message' => 'Error enviando el correo: ' . $e->getMessage()], 500);
         }
+    }
+
+    public function convertToInvoice(PurchaseOrder $purchaseOrder)
+    {
+        $purchaseOrder->load(['contact', 'items', 'invoice']); // <-- Asegura que la relación 'invoice' esté cargada
+
+        // Check if already has an associated invoice
+        if ($purchaseOrder->invoice) {
+            return response()->json([
+                'message' => 'Esta orden de compra ya tiene una factura asociada.',
+                'error_code' => 'ORDER_ALREADY_INVOICED'
+            ], 422);
+        }
+
+        // Create the purchase invoice
+        $invoice = \App\Models\Expenses\PurchaseInvoice::create([
+            'contact_id' => $purchaseOrder->contact_id,
+            'purchase_order_id' => $purchaseOrder->id,
+            'date' => $purchaseOrder->date,
+            'delivery_date' => $purchaseOrder->delivery_date,
+            'supplier_invoice_number' => $purchaseOrder->supplier_order_number,
+            'description' => $purchaseOrder->description,
+            'status' => 'pending',
+        ]);
+
+        // Copy items
+        foreach ($purchaseOrder->items as $item) {
+            $invoice->items()->create([
+                'article_id' => $item->article_id,
+                'price' => $item->price,
+                'tax' => $item->tax,
+                'quantity' => $item->quantity,
+                'description' => $item->description,
+                'supplier_code' => $item->supplier_code,
+                'supplier_color' => $item->supplier_color,
+                'order_width' => $item->order_width,
+                'total' => $item->total,
+                'total_tax' => isset($item->total_tax) ? $item->total_tax : 0,
+            ]);
+        }
+
+        // Cambia el status a 'invoiced' en vez de 'converted'
+        $purchaseOrder->status = 'invoiced';
+        $purchaseOrder->save();
+
+        return response()->json([
+            'message' => 'Purchase order successfully converted to invoice.',
+            'data' => $invoice->load('items', 'contact')
+        ]);
     }
 }

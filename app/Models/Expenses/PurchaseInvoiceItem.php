@@ -16,8 +16,15 @@ class PurchaseInvoiceItem extends Model
         'tax',
         'quantity',
         'description',
+        'supplier_code',
+        'supplier_color',
+        'order_width',
         'total',
         'total_tax',
+    ];
+
+    protected $casts = [
+        'order_width' => 'float',
     ];
 
     public function purchaseInvoice()

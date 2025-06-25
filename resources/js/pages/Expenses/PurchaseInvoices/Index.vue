@@ -209,7 +209,8 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>ID</TableHead>
+                            <TableHead>#Factura</TableHead>
+                            <TableHead>#Orden</TableHead>
                             <TableHead>Proveedor</TableHead>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Número Factura</TableHead>
@@ -221,6 +222,7 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
                     <TableBody>
                         <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
                             <TableCell>{{ invoice.id }}</TableCell>
+                            <TableCell>{{ invoice.purchase_order_id }}</TableCell>
                             <TableCell>{{ invoice.contact?.full_name }}</TableCell>
                             <TableCell>{{ invoice.date }}</TableCell>
                             <TableCell>{{ invoice.supplier_invoice_number }}</TableCell>

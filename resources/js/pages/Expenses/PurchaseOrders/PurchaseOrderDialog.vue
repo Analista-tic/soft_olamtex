@@ -116,6 +116,7 @@ async function handleSubmit(sendMail = false) {
     isLoading.value = true;
     isSendingMail.value = sendMail;
     const formToSend = { ...localForm.value };
+    if ('status' in formToSend) delete formToSend.status; // Asegura que no se envía status
     if (props.dialogType === 'create') delete formToSend.id;
     const url = props.dialogType === 'create'
         ? '/gastos/ordenes-compra'
@@ -170,13 +171,11 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-h-screen overflow-y-auto sm:max-w-5xl">
+        <DialogContent class="max-h-screen overflow-y-auto sm:max-w-7xl">
             <DialogHeader>
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
                 <DialogDescription>Completa los campos y añade los ítems de la orden.</DialogDescription>
             </DialogHeader>
-
-            <!-- Corrige el uso de @submit.prevent y :class -->
             <form
                 @submit.prevent="handleSubmit()"
                 :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingOrderId }"

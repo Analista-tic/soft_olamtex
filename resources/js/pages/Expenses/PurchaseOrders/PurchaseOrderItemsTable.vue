@@ -27,6 +27,9 @@ watch(
                       tax: Number(item.tax) || 0,
                       price: Number(item.price) || 0,
                       quantity: Number(item.quantity) || 0,
+                      supplier_code: item.supplier_code || '',
+                      supplier_color: item.supplier_color || '',
+                      order_width: typeof item.order_width === 'number' ? item.order_width : Number(item.order_width) || 0,
                   }))
                 : [];
         }
@@ -41,6 +44,12 @@ async function fetchArticles() {
 
 onMounted(fetchArticles);
 
+function isTela(item: PurchaseOrderItem) {
+    const articleId = Number(item.article_id);
+    const article = articleMap.value.get(articleId);
+    return article?.category_sub_group?.name?.toLowerCase() === 'tela';
+}
+
 function addItem() {
     const newItem: PurchaseOrderItem = {
         article_id: null,
@@ -50,6 +59,9 @@ function addItem() {
         description: '',
         total: 0,
         total_tax: 0,
+        supplier_code: '',
+        supplier_color: '',
+        order_width: 0,
     };
 
     localItems.value.push(newItem);
@@ -123,6 +135,10 @@ watch(
                     <TableCell>Impuesto (%)</TableCell>
                     <TableCell>Cantidad</TableCell>
                     <TableCell>Descripción</TableCell>
+                    <!-- Campos extra para tela -->
+                    <TableCell v-if="localItems.some(isTela)">Código proveedor</TableCell>
+                    <TableCell v-if="localItems.some(isTela)">Color proveedor</TableCell>
+                    <TableCell v-if="localItems.some(isTela)">Ancho pedido</TableCell>
                     <TableCell>Total</TableCell>
                     <TableCell>Acciones</TableCell>
                 </TableRow>
@@ -145,6 +161,16 @@ watch(
                     <TableCell class="p-1">
                         <InputField v-model="item.description" label="" />
                     </TableCell>
+                    <!-- Campos extra solo si es tela -->
+                    <TableCell v-if="isTela(item)" class="p-1">
+                        <InputField v-model="item.supplier_code" label="" placeholder="Código proveedor" />
+                    </TableCell>
+                    <TableCell v-if="isTela(item)" class="p-1">
+                        <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" />
+                    </TableCell>
+                    <TableCell v-if="isTela(item)" class="p-1">
+                        <InputField v-model="item.order_width" type="number" label="" placeholder="Ancho pedido" step="any" />
+                    </TableCell>
                     <TableCell class="p-1">
                         {{
                             Number(item.total || 0).toLocaleString('es-CO', {
@@ -163,7 +189,7 @@ watch(
                 </TableRow>
 
                 <TableRow v-if="localItems.length === 0">
-                    <TableCell colspan="8" class="text-center text-gray-400"> No hay items agregados. </TableCell>
+                    <TableCell :colspan="localItems.some(isTela) ? 11 : 8" class="text-center text-gray-400"> No hay items agregados. </TableCell>
                 </TableRow>
             </TableBody>
         </Table>

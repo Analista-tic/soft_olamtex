@@ -16,6 +16,10 @@ class CreatePurchaseOrderItemsTable extends Migration
             $table->decimal('tax', 8, 2)->nullable();
             $table->integer('quantity');
             $table->text('description')->nullable();
+            // Campos adicionales para tela
+            $table->string('supplier_code')->nullable();
+            $table->string('supplier_color')->nullable();
+            $table->float('order_width')->nullable();
             $table->decimal('total', 15, 2);
             $table->timestamps();
         });
