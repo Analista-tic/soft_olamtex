@@ -36,6 +36,15 @@ const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item)
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
 
+// Cálculo de retenciones y total a pagar usando los valores actuales del componente de retenciones
+const retencionesTotal = computed(() =>
+    (localForm.value.withholdings || []).reduce(
+        (acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100),
+        0
+    )
+);
+const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
+
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
 
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
@@ -63,10 +72,27 @@ function createDefaultForm(): Partial<PurchaseInvoice> {
 }
 
 function resetForm() {
-    localForm.value = props.form && Object.keys(props.form).length > 0 ? JSON.parse(JSON.stringify(props.form)) : createDefaultForm();
-    if (!Array.isArray(localForm.value.items)) localForm.value.items = [];
-    if (!Array.isArray(localForm.value.withholdings)) localForm.value.withholdings = [];
+    // Si es edición, clona el form recibido y asegura arrays válidos
+    if (props.form && Object.keys(props.form).length > 0) {
+        const formCopy = JSON.parse(JSON.stringify(props.form));
+        if (!Array.isArray(formCopy.items)) formCopy.items = [];
+        if (!Array.isArray(formCopy.withholdings)) formCopy.withholdings = [];
+        localForm.value = formCopy;
+    } else {
+        localForm.value = createDefaultForm();
+    }
 }
+
+// Sincroniza localForm con props.form al cambiar el form recibido (por ejemplo, al editar otra factura)
+watch(
+    () => props.form,
+    () => {
+        if (props.dialogType === 'edit' && dialogOpen.value) {
+            resetForm();
+        }
+    },
+    { deep: true }
+);
 
 async function fetchContacts() {
     try {
@@ -126,13 +152,20 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
               article_id: item.article_id,
-              article_name: item.article_name,
+              article: item.article, // si viene el objeto completo
               quantity: Number(item.quantity) || 0,
               price: Number(item.price) || 0,
               total: Number(item.total) || 0,
               total_tax: Number(item.total_tax) || 0,
               description: item.description || '',
               tax: Number(item.tax) || 0,
+              supplier_code: item.supplier_code || '',
+              supplier_color: item.supplier_color || '',
+              order_width: typeof item.order_width === 'number' ? item.order_width : Number(item.order_width) || 0,
+              created_at: item.created_at || '',
+              updated_at: item.updated_at || '',
+              // Guarda el ítem original para autocompletado en la tabla de factura
+              original_order_item: { ...item }
           }))
         : [];
     selectedPurchaseOrderId.value = Number(orderId);
@@ -149,6 +182,10 @@ async function handleSubmit(sendMail = false) {
         delete formToSend.purchase_order_id;
     }
     if (props.dialogType === 'create') delete formToSend.id;
+    // Asegura que withholdings sea array (no undefined)
+    if (!Array.isArray(formToSend.withholdings)) {
+        formToSend.withholdings = [];
+    }
     const url = props.dialogType === 'create' ? '/gastos/facturas-compra' : `/gastos/facturas-compra/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
@@ -225,6 +262,7 @@ watch(
                 await fetchNextInvoiceId();
                 selectedPurchaseOrderId.value = null;
             } else if (props.dialogType === 'edit') {
+                // Asegura que selectedPurchaseOrderId se sincronice correctamente al editar
                 if (props.form && (props.form as any).purchase_order_id) {
                     selectedPurchaseOrderId.value = Number((props.form as any).purchase_order_id);
                 } else {
@@ -317,8 +355,8 @@ watch(dialogOpen, (isOpen) => {
                 <div>
                     <PurchaseInvoiceItemsTable :items="localForm.items || []" @update:items="(items) => (localForm.items = items)" />
                 </div>
-                <!-- Bloque para las retenciones -->
-                <div class="grid grid-cols-2 gap-6 items-start">
+                <!-- Bloque para las retenciones y resumen de totales -->
+                <div class="grid grid-cols-2 gap-6 items-start pt-10">
                     <div>
                         <PurchaseInvoiceWithholdingsTable
                             :modelValue="localForm.withholdings || []"
@@ -326,13 +364,10 @@ watch(dialogOpen, (isOpen) => {
                         />
                     </div>
                     <div class="flex flex-col items-end space-y-0 text-sm w-full">
-                        <div class="flex gap-5">
-                            <div class="flex flex-col items-end">
-                                <span class="font-semibold">Subtotal:</span>
-                                <span class="font-semibold">IVA total:</span>
-                                <span class="font-semibold">Total factura de compra:</span>
-                            </div>
-                            <div class="flex min-w-[140px] flex-col items-start text-right">
+                        <!-- Resumen de totales con estilos simplificados -->
+                        <div class="w-full max-w-xs bg-white rounded p-2 space-y-1">
+                            <div class="flex justify-between items-center">
+                                <span class="font-semibold text-gray-700">Subtotal</span>
                                 <span>{{
                                     Number(subtotal || 0).toLocaleString('es-CO', {
                                         style: 'currency',
@@ -341,6 +376,9 @@ watch(dialogOpen, (isOpen) => {
                                         maximumFractionDigits: 0,
                                     })
                                 }}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="font-semibold text-gray-700">IVA 19%</span>
                                 <span>{{
                                     Number(iva || 0).toLocaleString('es-CO', {
                                         style: 'currency',
@@ -349,8 +387,47 @@ watch(dialogOpen, (isOpen) => {
                                         maximumFractionDigits: 0,
                                     })
                                 }}</span>
-                                <span class="font-bold">{{
+                            </div>
+                            <div class="flex justify-between items-center pt-1">
+                                <span class="font-bold text-gray-800">Total orden de compra</span>
+                                <span class="font-bold text-gray-800">{{
                                     Number(total || 0).toLocaleString('es-CO', {
+                                        style: 'currency',
+                                        currency: 'COP',
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0,
+                                    })
+                                }}</span>
+                            </div>
+                            <!-- Mostrar cada retención individual -->
+                            <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-600">- {{ w.name }}</span>
+                                    <span class="text-red-700">-{{
+                                        ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100).toLocaleString('es-CO', {
+                                            style: 'currency',
+                                            currency: 'COP',
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0,
+                                        })
+                                    }}</span>
+                                </div>
+                            </template>
+                            <div v-if="(localForm.withholdings || []).length" class="flex justify-between items-center pt-1">
+                                <span class="font-semibold text-gray-700">Total retenciones</span>
+                                <span class="text-red-700">{{
+                                    Number(retencionesTotal || 0).toLocaleString('es-CO', {
+                                        style: 'currency',
+                                        currency: 'COP',
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0,
+                                    })
+                                }}</span>
+                            </div>
+                            <div class="flex justify-between items-center pt-2 mt-1">
+                                <span class="font-bold text-lg text-green-700">Total a pagar</span>
+                                <span class="font-bold text-lg text-green-700">{{
+                                    Number(totalPagar || 0).toLocaleString('es-CO', {
                                         style: 'currency',
                                         currency: 'COP',
                                         minimumFractionDigits: 0,

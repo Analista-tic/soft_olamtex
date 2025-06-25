@@ -265,8 +265,7 @@ export interface PurchaseOrderItem {
     quantity: number;
     description?: string;
     total: number;
-    total_tax?: number; // Añadido para el total de IVA/impuesto
-    // Campos adicionales para artículos tipo "tela"
+    total_tax?: number;
     supplier_code?: string;
     supplier_color?: string;
     order_width?: number;
@@ -283,7 +282,14 @@ export interface PurchaseOrder {
     items: PurchaseOrderItem[];
     created_at?: string;
     updated_at?: string;
-    status?: string; // <-- Añadido para tipado correcto
+    status?: string;
+}
+
+// Interfaz para una retención de factura de compra
+export interface PurchaseInvoiceWithholding {
+    name: string;
+    percentage: number;
+    base_amount: number;
 }
 
 export interface PurchaseInvoiceItem {
@@ -291,16 +297,16 @@ export interface PurchaseInvoiceItem {
     purchase_invoice_id?: number;
     article_id: number | null;
     article?: Article;
-    price: number;
+    price: number | '';
     tax: number;
-    quantity: number;
+    quantity: number | '';
     description?: string;
     total: number;
     total_tax?: number;
-    // Campos adicionales para artículos tipo "tela"
     supplier_code?: string;
     supplier_color?: string;
-    order_width?: number;
+    order_width?: string; //
+    original_order_item?: PurchaseOrderItem;
 }
 
 export interface PurchaseInvoice {
@@ -316,11 +322,7 @@ export interface PurchaseInvoice {
     created_at?: string;
     updated_at?: string;
     purchase_order_id?: number | null;
-    withholdings?: {
-        name: string;
-        percentage: number;
-        base_amount: number;
-    }[]; // <-- Corregido el tipado aquí
+    withholdings?: PurchaseInvoiceWithholding[]; // Usar el tipo correcto aquí
 }
 
 // Tipos para campos adicionales de artículos

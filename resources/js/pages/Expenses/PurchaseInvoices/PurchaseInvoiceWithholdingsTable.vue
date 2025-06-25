@@ -4,20 +4,18 @@ import axios from 'axios';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
+import { CirclePlus } from 'lucide-vue-next';
+import type { PurchaseInvoiceWithholding } from '@/types'; // Importa el tipo correcto
+import DeleteButton from '@/components/common/DeleteButton.vue';
 
-// Cambia el nombre del componente y asegúrate de que los props y emits sean genéricos y reutilizables
 defineOptions({ name: 'WithholdingTable' });
 
 const props = defineProps<{
-    modelValue: {
-        name: string;
-        percentage: number;
-        base_amount: number;
-    }[];
+    modelValue: PurchaseInvoiceWithholding[];
 }>();
 const emit = defineEmits(['update:modelValue']);
 
-const localWithholdings = ref(
+const localWithholdings = ref<PurchaseInvoiceWithholding[]>(
     Array.isArray(props.modelValue)
         ? props.modelValue.map(w => ({ ...w }))
         : []
@@ -28,14 +26,7 @@ const retentions = ref<{ id: number; name: string; percentage: number }[]>([]);
 async function fetchRetentions() {
     try {
         const { data } = await axios.get('/retenciones/data');
-        let retentionsArray = [];
-        if (Array.isArray(data?.data)) {
-            retentionsArray = data.data;
-        } else if (Array.isArray(data)) {
-            retentionsArray = data;
-        } else {
-            retentionsArray = [];
-        }
+        const retentionsArray = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
         retentions.value = retentionsArray.map((r: any) => ({
             id: r.id,
             name: r.name,
@@ -58,11 +49,8 @@ watch(
     { immediate: true }
 );
 
-// Elimino el watcher de localWithholdings
-
 function addWithholding() {
-    const newList = [...localWithholdings.value, { name: '', percentage: 0, base_amount: 0 }];
-    emit('update:modelValue', newList);
+    emit('update:modelValue', [...localWithholdings.value, { name: '', percentage: 0, base_amount: 0 }]);
 }
 function removeWithholding(idx: number) {
     const newList = localWithholdings.value.slice();
@@ -74,45 +62,64 @@ function removeWithholding(idx: number) {
 <template>
     <div>
         <div class="mb-2 flex items-center justify-between">
-            <span class="font-semibold text-sm">Retenciones</span>
-            <Button type="button" variant="outline" size="sm" @click="addWithholding">+</Button>
+            <span class="font-semibold text-xs">Retenciones</span>
+            <Button type="button" variant="default" size="sm" @click="addWithholding" class="text-xs">
+                <CirclePlus /> Añadir Retención
+            </Button>
         </div>
-        <table class="min-w-full text-xs border rounded">
+        <table class="min-w-full text-xs rounded">
             <thead>
                 <tr>
-                    <th class="p-1">Nombre</th>
-                    <th class="p-1 w-20">%</th>
+                    <th class="p-1 w-32">Nombre</th>
                     <th class="p-1 w-24">Base</th>
-                    <th class="p-1 w-10"></th>
+                    <th class="p-1 w-24">Valor</th>
+                    <th class="p-1 w-8"></th>
                 </tr>
             </thead>
             <tbody>
                 <tr v-for="(withholding, idx) in localWithholdings" :key="idx">
-                    <td class="p-1">
+                    <td class="px-1">
                         <SelectField
                             v-model="withholding.name"
-                            :options="retentions.map(r => ({ id: r.name, name: r.name }))"
+                            :options="retentions.map(r => ({ id: r.name, name: `${r.name} (${r.percentage}%)` }))"
                             label=""
                             placeholder="Retención"
-                            size="sm"
+                            size="xs"
+                            class="text-xs"
                             @update:modelValue="(val) => {
                                 const found = retentions.find(r => r.name === val);
                                 if (found) withholding.percentage = found.percentage;
+                                emit('update:modelValue', localWithholdings);
                             }"
                         />
                     </td>
-                    <td class="p-1">
-                        <InputField v-model="withholding.percentage" type="number" label="" min="0" step="0.01" readonly size="sm" />
+                    <td class="px-1">
+                        <InputField
+                            v-model="withholding.base_amount"
+                            type="currency"
+                            label=""
+                            size="xs"
+                            class="text-xs"
+                            @update:modelValue="() => emit('update:modelValue', localWithholdings)"
+                        />
                     </td>
-                    <td class="p-1">
-                        <InputField v-model="withholding.base_amount" type="number" label="" min="0" step="0.01" size="sm" />
+                    <td class="px-1">
+                        <InputField
+                            :modelValue="((Number(withholding.base_amount) || 0) * (Number(withholding.percentage) || 0) / 100)"
+                            type="currency"
+                            label=""
+                            size="xs"
+                            class="text-xs"
+                            readonly
+                            tabindex="-1"
+                        />
                     </td>
-                    <td class="p-1">
-                        <Button type="button" size="sm" variant="destructive" @click="removeWithholding(idx)">×</Button>
+                    <td class="px-1">
+                        <DeleteButton type="button" size="sm" variant="destructive" @click="removeWithholding(idx)"></DeleteButton>
                     </td>
                 </tr>
                 <tr v-if="localWithholdings.length === 0">
-                    <td colspan="4" class="text-center text-gray-400">No hay retenciones.</td>
+                    <td colspan="5" class="text-center text-gray-400">No hay retenciones.</td>
                 </tr>
             </tbody>
         </table>

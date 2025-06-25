@@ -41,12 +41,20 @@ class PurchaseInvoiceController extends Controller
             'items.*.order_width' => 'nullable|string',
             'items.*.total' => 'nullable|numeric',
             'items.*.total_tax' => 'nullable|numeric',
+            // Añadir validación para withholdings
+            'withholdings' => 'nullable|array',
+            'withholdings.*.name' => 'required_with:withholdings|string',
+            'withholdings.*.percentage' => 'required_with:withholdings|numeric',
+            'withholdings.*.base_amount' => 'required_with:withholdings|numeric',
         ]);
 
         // Solo incluye purchase_order_id si tiene valor válido
         if (empty($data['purchase_order_id'])) {
             unset($data['purchase_order_id']);
         }
+
+        // Asegura que withholdings sea array o null
+        $data['withholdings'] = $data['withholdings'] ?? [];
 
         $invoice = PurchaseInvoice::create($data);
 
@@ -93,12 +101,20 @@ class PurchaseInvoiceController extends Controller
             'items.*.order_width' => 'nullable|string',
             'items.*.total' => 'nullable|numeric',
             'items.*.total_tax' => 'nullable|numeric',
+            // Añadir validación para withholdings
+            'withholdings' => 'nullable|array',
+            'withholdings.*.name' => 'required_with:withholdings|string',
+            'withholdings.*.percentage' => 'required_with:withholdings|numeric',
+            'withholdings.*.base_amount' => 'required_with:withholdings|numeric',
         ]);
 
         // Solo incluye purchase_order_id si tiene valor válido
         if (empty($data['purchase_order_id'])) {
             unset($data['purchase_order_id']);
         }
+
+        // Asegura que withholdings sea array o null
+        $data['withholdings'] = $data['withholdings'] ?? [];
 
         $invoice->update($data);
 
