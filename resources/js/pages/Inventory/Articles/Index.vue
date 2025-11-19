@@ -43,6 +43,10 @@ const statusOptions = ref([
     reactive({ id: '0', name: 'Deshabilitados' })
 ]);
 
+//Variables reactivas para mensajes de éxito y error
+const successMessage = ref<string>('');
+const errorMessage = ref<string>('');
+
 function openDialog(type: 'create' | 'edit', article: Article | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
@@ -76,7 +80,30 @@ async function deleteArticle() {
     await axios.delete(`/articulos/${articleToDelete.value.id}`);
     fetchArticles();
     isDeleteDialogOpen.value = false;
+    // Mensaje de éxito para eliminación
+    successMessage.value = 'El contacto se eliminó correctamente.';
+    errorMessage.value = '';
+    setTimeout(() => {
+        successMessage.value = '';
+    }, 4000);
 }
+
+function handleDialogRefresh() {
+    fetchArticles(currentPage.value, searchQuery.value, statusFilter.value);
+
+    // Mensaje de éxito según si fue crear o editar
+    successMessage.value =
+        dialogType.value === 'create'
+            ? 'El artículo se creó correctamente.'
+            : 'El artículo se actualizó correctamente.';
+
+    errorMessage.value = '';
+
+    setTimeout(() => {
+        successMessage.value = '';
+    }, 4000);
+}
+
 
 function openStatusDialog(article: Article) {
     articleToToggleStatus.value = article;
@@ -130,6 +157,23 @@ function exportArticlesExcel() {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Artículos</h1>
+                <!-- Aviso de éxito -->
+                <div v-if="successMessage" class="flex items-start justify-between gap-3 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-green-800 shadow-sm
+                        transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2">
+                    <div class="flex-1">
+                        <p class="font-semibold">Operación exitosa</p>
+                        <p class="text-sm">{{ successMessage }}</p>
+                    </div>
+                </div>
+
+                <!-- Aviso de error -->
+                <div v-if="errorMessage" class="flex items-start justify-between gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800 shadow-sm
+                        transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2">
+                    <div class="flex-1">
+                        <p class="font-semibold">Error</p>
+                        <p class="text-sm">{{ errorMessage }}</p>
+                    </div>
+                </div>
                 <div class="flex gap-2">
                     <Button @click="openDialog('create')" variant="default" size="sm">
                         <PlusCircle class="h-4 w-4" /> Crear Nuevo Artículo
@@ -202,7 +246,7 @@ function exportArticlesExcel() {
                 </Table>
             </div>
         </div>
-        <ArticleDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="fetchArticles" />
+        <ArticleDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="handleDialogRefresh" />
         <Dialog v-model:open="isDeleteDialogOpen">
             <DialogContent>
                 <DialogHeader>

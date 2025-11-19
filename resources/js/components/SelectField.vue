@@ -1,25 +1,26 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Label } from '@/components/ui/label';
-
-interface Option {
-    id: number | string;
-    name: string;
-}
+import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
+import type { Option } from '@/types'; // Importa Option del index de tipado
 
 interface Props {
     label: string;
     options: Option[];
     required?: boolean;
-    modelValue: number | string | (number | string)[] | undefined | null;
+    modelValue: Option['id'] | Option['id'][] | undefined | null;
     multiple?: boolean;
     placeholder?: string;
 }
 
 const props = defineProps<Props>();
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits<{
+    (e: 'update:modelValue', value: Option['id'] | Option['id'][] | undefined | null): void;
+}>();
 
-const localModelValue = ref<string | number | (string | number)[]>(props.modelValue ?? (props.multiple ? [] : ''));
+const localModelValue = ref<Option['id'] | Option['id'][]>(
+    props.modelValue ?? (props.multiple ? [] : '')
+);
 
 // Sincronizar con el valor externo si cambia
 watch(() => props.modelValue, (newVal) => {
@@ -32,21 +33,22 @@ watch(localModelValue, (newValue) => {
 });
 
 // Eliminar un elemento seleccionado en modo múltiple
-function removeItem(item: string | number) {
+function removeItem(item: Option['id']) {
     if (Array.isArray(localModelValue.value)) {
         localModelValue.value = localModelValue.value.filter((i) => i !== item);
     }
 }
 
-// Manejar cambios en el select
-function onSelectChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    if (props.multiple) {
-        const selected = Array.from(target.selectedOptions).map(opt => opt.value);
-        localModelValue.value = selected;
-    } else {
-        localModelValue.value = target.value;
+const selectedOptions = computed<Option[] | Option | null>(() => {
+    if (props.multiple && Array.isArray(localModelValue.value)) {
+        // Solo si es array se usa includes
+        return props.options.filter(opt => (localModelValue.value as Array<Option['id']>).includes(opt.id));
     }
+    return props.options.find(opt => opt.id == localModelValue.value) || null;
+});
+
+function handleChange(val: Option['id'] | Option['id'][]) {
+    localModelValue.value = val;
 }
 </script>
 
@@ -56,7 +58,7 @@ function onSelectChange(event: Event) {
             {{ label }}
             <span v-if="required" class="text-red-500">*</span>
         </Label>
-        <div class="relative">
+        <div class="relative w-full">
             <div v-if="multiple && Array.isArray(localModelValue)" class="selected-items mb-1">
                 <div v-for="item in localModelValue" :key="item" class="selected-tag">
                     <span class="selected-tag-text">
@@ -65,52 +67,88 @@ function onSelectChange(event: Event) {
                     <button type="button" class="remove-tag" @click="removeItem(item)">×</button>
                 </div>
             </div>
-            <select
+            <Listbox
+                :modelValue="localModelValue"
                 :multiple="multiple"
-                :required="required"
-                class="h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
-                :placeholder="placeholder || `Selecciona ${label.toLowerCase()}`"
-                @change="onSelectChange"
-                v-model="localModelValue"
+                @update:modelValue="handleChange"
+                class="w-full"
             >
-                <option
-                    v-if="!multiple"
-                    disabled
-                    value=""
-                    class="text-gray-400 bg-white"
-                >
-                    {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
-                </option>
-                <option
-                    v-for="option in options"
-                    :key="option.id"
-                    :value="option.id"
-                    :class="[
-                        multiple
-                            ? Array.isArray(localModelValue) && localModelValue.includes(option.id)
-                                ? 'font-semibold'
-                                : 'bg-white text-gray-700'
-                            : localModelValue == option.id
-                                ? 'font-semibold'
-                                : 'bg-white text-gray-700'
-                    ]"
-                >
-                    {{ option.name }}
-                </option>
-            </select>
-            <!-- Icono de flecha personalizado -->
-            <svg v-if="!multiple" class="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
+                <div class="relative inline-block w-full">
+                    <ListboxButton
+                        class="h-10 pr-8 min-w-[12rem] w-full max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none flex items-center justify-between"
+                        style="position: static;"
+                    >
+                        <span v-if="multiple && Array.isArray(localModelValue) && localModelValue.length === 0" class="text-gray-400">
+                            {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
+                        </span>
+                        <span v-else-if="!multiple && !localModelValue" class="text-gray-400">
+                            {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
+                        </span>
+                        <span v-else :class="multiple ? 'truncate-selected' : ''">
+                            <template v-if="multiple">
+                                <span
+                                    v-for="opt in (selectedOptions as Option[])" 
+                                    :key="opt.id" 
+                                    class="mr-1 truncate-selected-item"
+                                >
+                                    {{ opt.name }}
+                                </span>
+                            </template>
+                            <template v-else>
+                                {{ (selectedOptions as Option)?.name }}
+                            </template>
+                        </span>
+                        <svg class="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </ListboxButton>
+                    <ListboxOptions 
+                        class="absolute z-10 mt-1 min-w-[12rem] w-full max-w-full bg-gray-50 shadow-2xl max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm"
+                        style="position: absolute; overflow: visible; max-height: none; box-shadow: 0 8px 32px 0 rgba(31, 41, 55, 0.25), 0 1.5px 6px 0 rgba(0,0,0,0.10);"
+                    >
+                        <ListboxOption
+                            v-if="!multiple"
+                            :value="''"
+                            disabled
+                            class="text-gray-400 bg-white cursor-default select-none relative py-2 pl-3 pr-9"
+                        >
+                            {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
+                        </ListboxOption>
+                        <ListboxOption
+                            v-for="option in options"
+                            :key="option.id"
+                            :value="option.id"
+                        >
+                            <template #default="{ active, selected }">
+                                <div
+                                    :class="[
+                                        active ? 'text-white bg-blue-600' : 'text-gray-900',
+                                        'cursor-pointer select-none relative py-2 pl-3 pr-9'
+                                    ]"
+                                >
+                                    <span :class="selected ? 'font-semibold' : 'font-normal'">
+                                        {{ option.name }}
+                                    </span>
+                                    <span
+                                        v-if="selected"
+                                        class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600"
+                                    >
+                                        <!-- check icon -->
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </span>
+                                </div>
+                            </template>
+                        </ListboxOption>
+                    </ListboxOptions>
+                </div>
+            </Listbox>
         </div>
     </div>
 </template>
 
 <style scoped>
-.fixed-width {
-    width: 100%;
-}
-
 .selected-items {
     display: flex;
     flex-wrap: wrap;
@@ -119,6 +157,7 @@ function onSelectChange(event: Event) {
     border-radius: 0.375rem;
     max-height: 6rem;
     overflow-y: auto;
+    width: 100%;
 }
 
 .selected-tag {
@@ -151,5 +190,24 @@ function onSelectChange(event: Event) {
 
 .remove-tag:hover {
     color: #6b7280;
+}
+
+.truncate-selected {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    min-width: 0;
+    width: 100%;
+    justify-content: flex-start;
+    direction: ltr;
+}
+.truncate-selected-item {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 7rem;
+    display: inline-block;
+    vertical-align: bottom;
+    direction: ltr;
 }
 </style>

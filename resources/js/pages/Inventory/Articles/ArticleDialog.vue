@@ -292,7 +292,12 @@ async function handleSubmit() {
     if (imageFile.value) {
         formData.append('image', imageFile.value);
     }
-    formData.append('warehouses', JSON.stringify(warehouseStocks.value.filter((w) => w.warehouse_id)));
+    formData.append('warehouses', JSON.stringify(warehouseStocks.value.filter((w) => Number(w.warehouse_id)).map((w) => ({
+        warehouse_id: Number(w.warehouse_id),
+        quantity: Number(w.quantity),
+        stock_min: Number(w.stock_min),
+        stock_max: Number(w.stock_max),
+    }))));
 
     const url = props.dialogType === 'create' ? '/articulos' : `/articulos/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'POST';
@@ -422,6 +427,7 @@ watch(
     }
 );
 </script>
+
 
 <template>
     <Dialog :open="dialogOpen" @update:open="handleClose">

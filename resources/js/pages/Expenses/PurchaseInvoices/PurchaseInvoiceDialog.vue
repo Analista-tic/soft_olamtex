@@ -11,6 +11,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 
+// Props y eventos del diálogo
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
@@ -21,6 +22,7 @@ const emit = defineEmits<{
     (e: 'refresh'): void;
 }>();
 
+// Estados reactivos principales
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<Partial<PurchaseInvoice>>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
@@ -32,11 +34,12 @@ const isLoadingInvoiceId = ref(false);
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
 
+// Cálculos de totales
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
 
-// Cálculo de retenciones y total a pagar usando los valores actuales del componente de retenciones
+// Cálculo de retenciones y total a pagar
 const retencionesTotal = computed(() =>
     (localForm.value.withholdings || []).reduce(
         (acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100),
@@ -45,11 +48,12 @@ const retencionesTotal = computed(() =>
 );
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
 
+// Datos del proveedor seleccionado
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
-
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 
+// ID de la factura (nuevo o edición)
 const id = computed(() => {
     if (props.dialogType === 'edit') return props.form?.id?.toString() || '';
     if (isLoadingInvoiceId.value) return 'Cargando...';
@@ -57,6 +61,7 @@ const id = computed(() => {
     return nextInvoiceId.value.toString();
 });
 
+// Crea un formulario vacío por defecto
 function createDefaultForm(): Partial<PurchaseInvoice> {
     return {
         contact_id: null,
@@ -67,23 +72,39 @@ function createDefaultForm(): Partial<PurchaseInvoice> {
         items: [],
         id: undefined,
         purchase_order_id: null,
-        withholdings: [], // <-- Añadido
+        withholdings: [],
     };
 }
 
+// Convierte una fecha en formato ISO o yyyy-MM-dd a yyyy-MM-dd para el input tipo date
+function toDateInputValue(dateStr: string | undefined | null): string {
+    if (!dateStr) return '';
+    // Si ya está en formato yyyy-MM-dd, retornar igual
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    // Si es formato ISO, convertir
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${d.getFullYear()}-${month}-${day}`;
+}
+
+// Restaura el formulario local según el modo (nuevo o edición)
 function resetForm() {
-    // Si es edición, clona el form recibido y asegura arrays válidos
     if (props.form && Object.keys(props.form).length > 0) {
         const formCopy = JSON.parse(JSON.stringify(props.form));
         if (!Array.isArray(formCopy.items)) formCopy.items = [];
         if (!Array.isArray(formCopy.withholdings)) formCopy.withholdings = [];
+        // Normaliza fechas para los inputs tipo date
+        formCopy.date = toDateInputValue(formCopy.date);
+        formCopy.delivery_date = toDateInputValue(formCopy.delivery_date);
         localForm.value = formCopy;
     } else {
         localForm.value = createDefaultForm();
     }
 }
 
-// Sincroniza localForm con props.form al cambiar el form recibido (por ejemplo, al editar otra factura)
+// Sincroniza el formulario local cuando cambian los props de edición
 watch(
     () => props.form,
     () => {
@@ -94,6 +115,7 @@ watch(
     { deep: true }
 );
 
+// Obtiene los proveedores desde la API
 async function fetchContacts() {
     try {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
@@ -111,6 +133,7 @@ async function fetchContacts() {
     }
 }
 
+// Obtiene el siguiente ID de factura sugerido
 async function fetchNextInvoiceId() {
     isLoadingInvoiceId.value = true;
     try {
@@ -126,6 +149,7 @@ async function fetchNextInvoiceId() {
     }
 }
 
+// Obtiene las órdenes de compra pendientes
 async function fetchPendingPurchaseOrders() {
     purchaseOrders.value = [];
     selectedPurchaseOrderId.value = null;
@@ -139,6 +163,7 @@ async function fetchPendingPurchaseOrders() {
     }
 }
 
+// Carga los datos de una orden de compra seleccionada al formulario
 async function loadPurchaseOrderToInvoice(orderId: number) {
     const order = purchaseOrders.value.find((o) => Number(o.id) === Number(orderId));
     if (!order) return;
@@ -152,7 +177,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
               article_id: item.article_id,
-              article: item.article, // si viene el objeto completo
+              article: item.article,
               quantity: Number(item.quantity) || 0,
               price: Number(item.price) || 0,
               total: Number(item.total) || 0,
@@ -161,10 +186,9 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
               tax: Number(item.tax) || 0,
               supplier_code: item.supplier_code || '',
               supplier_color: item.supplier_color || '',
-              order_width: typeof item.order_width === 'number' ? item.order_width : Number(item.order_width) || 0,
+              order_width: item.order_width ? String(item.order_width) : '',
               created_at: item.created_at || '',
               updated_at: item.updated_at || '',
-              // Guarda el ítem original para autocompletado en la tabla de factura
               original_order_item: { ...item }
           }))
         : [];
@@ -172,17 +196,16 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.purchase_order_id = Number(orderId);
 }
 
+// Envía el formulario (guardar o guardar y enviar por correo)
 async function handleSubmit(sendMail = false) {
     if (!validateForm()) return;
     isLoading.value = true;
     isSendingMail.value = sendMail;
     const formToSend = { ...localForm.value };
-    // Solo envía purchase_order_id si tiene valor válido
     if (!formToSend.purchase_order_id) {
         delete formToSend.purchase_order_id;
     }
     if (props.dialogType === 'create') delete formToSend.id;
-    // Asegura que withholdings sea array (no undefined)
     if (!Array.isArray(formToSend.withholdings)) {
         formToSend.withholdings = [];
     }
@@ -204,6 +227,7 @@ async function handleSubmit(sendMail = false) {
     }
 }
 
+// Validación básica del formulario
 function validateForm(): boolean {
     if (!localForm.value.contact_id) {
         alert('Por favor seleccione un proveedor');
@@ -220,6 +244,7 @@ function validateForm(): boolean {
     return true;
 }
 
+// Convierte contact_id a número si es necesario
 watch(
     () => localForm.value.contact_id,
     (val) => {
@@ -229,6 +254,7 @@ watch(
     },
 );
 
+// Carga la orden de compra seleccionada
 watch(selectedPurchaseOrderId, (orderId) => {
     if (orderId) {
         loadPurchaseOrderToInvoice(orderId);
@@ -237,6 +263,7 @@ watch(selectedPurchaseOrderId, (orderId) => {
     }
 });
 
+// Inicialización al montar el componente
 onMounted(async () => {
     if (props.isOpen) {
         await fetchContacts();
@@ -249,6 +276,7 @@ onMounted(async () => {
     }
 });
 
+// Sincroniza el estado cuando se abre/cierra el diálogo
 watch(
     () => props.isOpen,
     async (isOpen) => {
@@ -262,7 +290,6 @@ watch(
                 await fetchNextInvoiceId();
                 selectedPurchaseOrderId.value = null;
             } else if (props.dialogType === 'edit') {
-                // Asegura que selectedPurchaseOrderId se sincronice correctamente al editar
                 if (props.form && (props.form as any).purchase_order_id) {
                     selectedPurchaseOrderId.value = Number((props.form as any).purchase_order_id);
                 } else {
@@ -273,6 +300,7 @@ watch(
     },
 );
 
+// Emite evento de cierre cuando se cierra el diálogo
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) emit('close');
 });
@@ -289,7 +317,6 @@ watch(dialogOpen, (isOpen) => {
                             Completa los campos y añade los ítems de la factura.<br>
                             <span class="">Si tienes una orden de compra pendiente, elígela aquí para cargar sus datos automáticamente.</span>
                         </span>
-                        <!-- Solo mostrar el selector de orden de compra si es 'create' -->
                         <div class="w-80" v-if="dialogType === 'create'">
                             <SelectField
                                 v-model="selectedPurchaseOrderId"
@@ -353,9 +380,12 @@ watch(dialogOpen, (isOpen) => {
                     <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
                 </div>
                 <div>
-                    <PurchaseInvoiceItemsTable :items="localForm.items || []" @update:items="(items) => (localForm.items = items)" />
+                    <PurchaseInvoiceItemsTable 
+                        :items="localForm.items || []" 
+                        :isCreating="dialogType === 'create'"
+                        @update:items="(items) => (localForm.items = items)" 
+                    />
                 </div>
-                <!-- Bloque para las retenciones y resumen de totales -->
                 <div class="grid grid-cols-2 gap-6 items-start pt-10">
                     <div>
                         <PurchaseInvoiceWithholdingsTable
@@ -364,7 +394,6 @@ watch(dialogOpen, (isOpen) => {
                         />
                     </div>
                     <div class="flex flex-col items-end space-y-0 text-sm w-full">
-                        <!-- Resumen de totales con estilos simplificados -->
                         <div class="w-full max-w-xs bg-white rounded p-2 space-y-1">
                             <div class="flex justify-between items-center">
                                 <span class="font-semibold text-gray-700">Subtotal</span>
@@ -399,7 +428,6 @@ watch(dialogOpen, (isOpen) => {
                                     })
                                 }}</span>
                             </div>
-                            <!-- Mostrar cada retención individual -->
                             <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
                                 <div class="flex justify-between items-center">
                                     <span class="text-gray-600">- {{ w.name }}</span>

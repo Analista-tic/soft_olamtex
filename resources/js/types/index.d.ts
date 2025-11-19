@@ -169,6 +169,7 @@ export interface Article {
     tax_id?: number | null; // Nuevo campo para la relación
     tax?: Tax | null;       // Relación con el objeto Tax
     name: string;
+    code: string; // Agregado: propiedad code faltante
     reference: string;
     img?: string;
     stock_min: number;
@@ -297,15 +298,15 @@ export interface PurchaseInvoiceItem {
     purchase_invoice_id?: number;
     article_id: number | null;
     article?: Article;
-    price: number | '';
+    price: number | string | '';
     tax: number;
-    quantity: number | '';
+    quantity: number | string | '';
     description?: string;
     total: number;
     total_tax?: number;
     supplier_code?: string;
     supplier_color?: string;
-    order_width?: string; //
+    order_width?: string;
     original_order_item?: PurchaseOrderItem;
 }
 
@@ -328,4 +329,24 @@ export interface PurchaseInvoice {
 // Tipos para campos adicionales de artículos
 export interface ExtraFields {
     [key: string]: string;
+}
+
+// Tipos para Rollos de Tela (Kardex)
+export interface FabricRoll {
+    id: number;
+    roll_number: string;
+    purchase_invoice_item_id: number;
+    purchase_invoice_item?: PurchaseInvoiceItem;
+    quantity: number;
+    roll_width?: number;
+    location?: string;
+    description?: string;
+    tolerance_status?: string;
+    partial_output: number;
+    actual_output: number;
+    entry_date: string;
+    available_quantity: number; // Computed attribute
+    is_depleted: boolean; // Computed attribute
+    created_at?: string;
+    updated_at?: string;
 }

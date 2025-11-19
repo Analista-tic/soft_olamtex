@@ -23,6 +23,7 @@ import { PlusCircle, Search } from 'lucide-vue-next';
 import { ref, onMounted, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import type { AxiosError } from 'axios';
+import SelectField from '@/components/SelectField.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -56,6 +57,16 @@ const selectedGroup = ref<string | null>(null); // Filtro por grupo
 const subgroups = ref<{ id: string; name: string }[]>([]); // Lista de subgrupos
 const groups = ref<{ id: string; name: string }[]>([]); // Lista de grupos
 
+const contactTypeOptions = [
+    { id: 'Proveedor', name: 'Proveedor' },
+    { id: 'Cliente', name: 'Cliente' },
+    { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' }
+];
+
+//Variables reactivas para mensajes de éxito y error
+const successMessage = ref<string>('');
+const errorMessage = ref<string>('');
+
 // Funciones con tipado explícito
 function openDialog(type: 'create' | 'edit', contact: Contact | null = null): void {
     dialogType.value = type;
@@ -83,6 +94,12 @@ async function deleteContact(): Promise<void> {
         await axios.delete(`/contactos/${contactToDelete.value.id}`);
         fetchContacts();
         isDeleteDialogOpen.value = false;
+        // Mensaje de éxito para eliminación
+        successMessage.value = 'El contacto se eliminó correctamente.';
+        errorMessage.value = '';
+        setTimeout(() => {
+            successMessage.value = '';
+        }, 4000);
     } catch (error) {
         console.error('Error al eliminar el contacto:', error);
     }
@@ -96,6 +113,15 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
         await axios({ method, url, data: contactData });
         fetchContacts();
         closeDialog();
+        //Mensaje de éxito
+        successMessage.value =
+            dialogType.value === 'create'
+                ? 'El contacto se creó correctamente.'
+                : 'El contacto se actualizó correctamente.';
+        errorMessage.value = '';
+        setTimeout(() => {
+            successMessage.value = '';
+        }, 4000);
     } catch (err) {
         const error = err as AxiosError;
         if (error.response && error.response.status === 422) {
@@ -170,8 +196,26 @@ onMounted(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Contactos</h1>
+                <!-- Aviso de éxito -->
+                <div v-if="successMessage" class="flex items-start justify-between gap-3 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-green-800 shadow-sm
+                        transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2">
+                    <div class="flex-1">
+                        <p class="font-semibold">Operación exitosa</p>
+                        <p class="text-sm">{{ successMessage }}</p>
+                    </div>
+                </div>
+
+                <!-- Aviso de error -->
+                <div v-if="errorMessage" class="flex items-start justify-between gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800 shadow-sm
+                        transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2">
+                    <div class="flex-1">
+                        <p class="font-semibold">Error</p>
+                        <p class="text-sm">{{ errorMessage }}</p>
+                    </div>
+                </div>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/>Nuevo Contacto</Button>
             </div>
+            
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
                     <Input id="search_contact" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-8 w-full pl-10" />
@@ -180,22 +224,22 @@ onMounted(() => {
                     </span>
                 </div>
                 <div class="relative w-full max-w-xs">
-                    <select v-model="selectedContactType" class="h-8 w-full border rounded-md">
-                        <option :value="null">Todos los tipos</option>
-                        <option v-for="option in [ { id: 'Proveedor', name: 'Proveedor' }, { id: 'Cliente', name: 'Cliente' }, { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' } ]" 
-                                :key="option.id" 
-                                :value="option.id">
-                            {{ option.name }}
-                        </option>
-                    </select>
+                    <SelectField
+                        v-model="selectedContactType"
+                        :options="contactTypeOptions"
+                        label="Tipo de contacto"
+                        placeholder="Todos los tipos"
+                        :required="false"
+                    />
                 </div>
                 <div class="relative w-full max-w-xs">
-                    <select v-model="selectedGroup" class="h-8 w-full border rounded-md">
-                        <option :value="null">Todos los grupos</option>
-                        <option v-for="group in groups" :key="group.id" :value="group.id">
-                            {{ group.name }}
-                        </option>
-                    </select>
+                    <SelectField
+                        v-model="selectedGroup"
+                        :options="groups"
+                        label="Grupo"
+                        placeholder="Todos los grupos"
+                        :required="false"
+                    />
                 </div>
             </div>
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">

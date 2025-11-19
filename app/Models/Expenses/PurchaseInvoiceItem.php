@@ -24,7 +24,7 @@ class PurchaseInvoiceItem extends Model
     ];
 
     protected $casts = [
-        'order_width' => 'float',
+        // 'order_width' => 'float', // Comentado/removido
     ];
 
     public function purchaseInvoice()

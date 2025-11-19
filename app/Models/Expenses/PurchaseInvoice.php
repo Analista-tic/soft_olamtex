@@ -5,6 +5,9 @@ namespace App\Models\Expenses;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\Common\Contact;
 
 class PurchaseInvoice extends Model
 {
@@ -22,20 +25,22 @@ class PurchaseInvoice extends Model
     ];
 
     protected $casts = [
+        'date' => 'date',
+        'delivery_date' => 'date',
         'withholdings' => 'array',
     ];
 
-    public function items()
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(Contact::class);
+    }
+
+    public function items(): HasMany
     {
         return $this->hasMany(PurchaseInvoiceItem::class);
     }
 
-    public function contact()
-    {
-        return $this->belongsTo(\App\Models\Common\Contact::class);
-    }
-
-    public function purchaseOrder()
+    public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class);
     }

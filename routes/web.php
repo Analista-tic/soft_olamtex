@@ -25,13 +25,17 @@ use App\Http\Controllers\Inventory\ArticleController;
 use App\Http\Controllers\Settings\RetentionController;
 use App\Http\Controllers\Common\TaxController;
 
+// Página principal
 Route::get('/', fn() => redirect('login'))->name('home');
 
+// Dashboard
 Route::get('dashboard', fn() => Inertia::render('Dashboard'))
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
+// Rutas protegidas por autenticación y verificación
 Route::middleware(['auth', 'verified'])->group(function () {
+    // Usuario autenticado
     Route::get('user', function () {
         $user = Auth::user();
         return response()->json([
@@ -41,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('user');
 
+    // Perfil
     Route::get('profile', fn() => Inertia::render('Profile'))->name('profile');
 
     // === COMERCIAL ===
@@ -48,7 +53,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])
             ->middleware('permission:ver sabana productos')
             ->name('product-sheets.getData');
-
         Route::get('sabana-productos', [ProductSheetController::class, 'index'])
             ->middleware('permission:ver sabana productos')
             ->name('sabana-productos.index');
@@ -71,7 +75,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('programmers', [ProgrammerController::class, 'getData'])
             ->middleware('permission:ver programador')
             ->name('programmers.getData');
-
         Route::get('programador', [ProgrammerController::class, 'index'])
             ->middleware('permission:ver programador')
             ->name('programador.index');
@@ -135,20 +138,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('roles.destroy');
 
     // === CATEGORIAS ===
-    Route::prefix('categorias')->group(function () {
+    Route::prefix('categorias')->name('categorias.')->group(function () {
         Route::get('grupos', [CategoryGroupController::class, 'getData'])->name('groups.getData');
         Route::post('grupos', [CategoryGroupController::class, 'store'])->name('groups.store');
         Route::get('subgrupos', [CategorySubGroupController::class, 'index'])->name('subgroups.create');
         Route::get('subgrupos-data', [CategorySubGroupController::class, 'getData'])->name('subgroups.getData');
         Route::post('subgrupos', [CategorySubGroupController::class, 'store'])->name('subgroups.store');
         Route::put('subgrupos/{subgroup}', [CategorySubGroupController::class, 'update'])->name('subgroups.update');
-        Route::delete('subgrupos/{subgroup}', [CategorySubGroupController::class, 'destroy'])->name('subgroups.destroy'); // Nueva ruta para eliminar
-        Route::delete('grupos/{group}', [CategoryGroupController::class, 'destroy'])->name('groups.destroy'); // Nueva ruta para eliminar
+        Route::delete('subgrupos/{subgroup}', [CategorySubGroupController::class, 'destroy'])->name('subgroups.destroy');
+        Route::delete('grupos/{group}', [CategoryGroupController::class, 'destroy'])->name('groups.destroy');
     });
+
     // === CONTACTOS ===
-    Route::prefix('contactos')->group(function () {
+    Route::prefix('contactos')->name('contactos.')->group(function () {
         Route::get('/', [ContactController::class, 'index'])->name('index');
-        Route::get('/data', [ContactController::class, 'getData'])->name('getData'); // Asegurarse de que esta ruta exista
+        Route::get('/data', [ContactController::class, 'getData'])->name('getData');
         Route::post('/', [ContactController::class, 'store'])->name('store');
         Route::get('/{contact}', [ContactController::class, 'show'])->name('show');
         Route::put('/{contact}', [ContactController::class, 'update'])->name('update');
@@ -161,6 +165,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/data', [WarehouseController::class, 'getData'])->name('getData');
         Route::post('/', [WarehouseController::class, 'store'])->name('store');
         Route::get('/{warehouse}', [WarehouseController::class, 'show'])->name('show');
+        Route::get('/{id}/warehouses', [ArticleController::class, 'getWarehouses'])->name('warehouses');
         Route::put('/{warehouse}', [WarehouseController::class, 'update'])->name('update');
         Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->name('destroy');
     });
@@ -176,24 +181,36 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // === ARTICLES ===
-    // Asegúrate de que esta línea esté exactamente así y no esté duplicada
-    Route::get('articulos/descargar-plantilla', [ArticleController::class, 'downloadTemplate'])
-        ->name('articulos.descargar-plantilla');
-    // Nueva ruta para exportar artículos en Excel
-    Route::get('articulos/exportar-excel', [ArticleController::class, 'exportExcel'])->name('articulos.exportar-excel');
-    Route::get('articulos', [ArticleController::class, 'index']);
-    Route::get('articulos/data', [ArticleController::class, 'getData']);
-    Route::post('articulos/carga-masiva', [ArticleController::class, 'bulkUpload']);
-    Route::get('articulos/{id}', [ArticleController::class, 'show']);
-    Route::post('articulos', [ArticleController::class, 'store']);
-    Route::put('articulos/{id}', [ArticleController::class, 'update']);
-    Route::delete('articulos/{id}', [ArticleController::class, 'destroy']);
-    Route::post('articulos/{id}/toggle-status', [ArticleController::class, 'toggleStatus']);
+    Route::prefix('articulos')->name('articulos.')->group(function () {
+        Route::get('/descargar-plantilla', [ArticleController::class, 'downloadTemplate'])->name('descargar-plantilla');
+        Route::get('/exportar-excel', [ArticleController::class, 'exportExcel'])->name('exportar-excel');
+        Route::get('/', [ArticleController::class, 'index'])->name('index');
+        Route::get('/data', [ArticleController::class, 'getData'])->name('data');
+        Route::post('/carga-masiva', [ArticleController::class, 'bulkUpload'])->name('carga-masiva');
+        Route::get('/{id}', [ArticleController::class, 'show'])->name('show');
+        Route::post('/', [ArticleController::class, 'store'])->name('store');
+        Route::put('/{id}', [ArticleController::class, 'update'])->name('update');
+        Route::delete('/{id}', [ArticleController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/toggle-status', [ArticleController::class, 'toggleStatus'])->name('toggle-status');
+    });
+
+    // === FABRIC ROLLS ===
+    Route::prefix('rollos-tela')->name('fabric-rolls.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'index'])->name('index');
+        Route::get('/crear', [App\Http\Controllers\Inventory\FabricRollController::class, 'create'])->name('create');
+        Route::get('/data', [App\Http\Controllers\Inventory\FabricRollController::class, 'getData'])->name('getData');
+        Route::post('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'store'])->name('store');
+        Route::get('/{fabricRoll}', [App\Http\Controllers\Inventory\FabricRollController::class, 'show'])->name('show');
+        Route::get('/{fabricRoll}/editar', [App\Http\Controllers\Inventory\FabricRollController::class, 'edit'])->name('edit');
+        Route::put('/{fabricRoll}', [App\Http\Controllers\Inventory\FabricRollController::class, 'update'])->name('update');
+        Route::delete('/{fabricRoll}', [App\Http\Controllers\Inventory\FabricRollController::class, 'destroy'])->name('destroy');
+        Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Inventory\FabricRollController::class, 'updateOutput'])->name('update-output');
+    });
 
     // === GASTOS (AGRUPADO) ===
-    Route::prefix('gastos')->group(function () {
+    Route::prefix('gastos')->name('gastos.')->group(function () {
         // === ORDENES DE COMPRA ===
-        Route::prefix('ordenes-compra')->name('expenses.purchase-orders.')->group(function () {
+        Route::prefix('ordenes-compra')->name('purchase-orders.')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
             Route::get('/data', [PurchaseOrderController::class, 'getData'])->name('getData');
             Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
@@ -201,19 +218,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('update');
             Route::delete('/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
             Route::post('/{purchaseOrder}/enviar-correo-pdf', [PurchaseOrderController::class, 'enviarCorreoPdf']);
-            // Update route to use English function name
             Route::post('/{purchaseOrder}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice']);
         });
 
         // === FACTURAS DE COMPRA ===
-        Route::prefix('facturas-compra')->name('expenses.purchase-invoices.')->group(function () {
+        Route::prefix('facturas-compra')->name('purchase-invoices.')->group(function () {
             Route::get('/', [PurchaseInvoiceController::class, 'index'])->name('index');
-            Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData'); // <-- Cambiado a getData
+            Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
             Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store');
             Route::get('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show'])->name('show');
             Route::put('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'update'])->name('update');
             Route::delete('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
-            // Route::post('/{purchaseInvoice}/enviar-correo-pdf', [PurchaseInvoiceController::class, 'enviarCorreoPdf']);
         });
     });
 
@@ -226,27 +241,41 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('catalogos/yarn-bases', [YarnBaseController::class, 'data']);
 
     // === RETENCIONES ===
-    Route::prefix('retenciones')->group(function () {
-        Route::get('/', [RetentionController::class, 'index'])->name('retentions.index');
-        Route::get('/data', [RetentionController::class, 'data']);
-        Route::get('/{id}', [RetentionController::class, 'show'])->name('retentions.show');
-        Route::post('/', [RetentionController::class, 'store'])->name('retentions.store');
-        Route::put('/{id}', [RetentionController::class, 'update'])->name('retentions.update');
-        Route::delete('/{id}', [RetentionController::class, 'destroy'])->name('retentions.destroy');
+    Route::prefix('retenciones')->name('retenciones.')->group(function () {
+        Route::get('/', [RetentionController::class, 'index'])->name('index');
+        Route::get('/data', [RetentionController::class, 'data'])->name('data');
+        Route::get('/{id}', [RetentionController::class, 'show'])->name('show');
+        Route::post('/', [RetentionController::class, 'store'])->name('store');
+        Route::put('/{id}', [RetentionController::class, 'update'])->name('update');
+        Route::delete('/{id}', [RetentionController::class, 'destroy'])->name('destroy');
     });
 
     // === TAXES ===
-    Route::prefix('impuestos')->group(function () {
-        Route::get('/', [TaxController::class, 'index'])->name('taxes.index');
-        Route::get('/data', [TaxController::class, 'data']);
-        Route::get('/{id}', [TaxController::class, 'show'])->name('taxes.show');
-        Route::post('/', [TaxController::class, 'store'])->name('taxes.store');
-        Route::put('/{id}', [TaxController::class, 'update'])->name('taxes.update');
-        Route::delete('/{id}', action: [TaxController::class, 'destroy'])->name('taxes.destroy');
-        Route::post('/{id}/toggle-status', [TaxController::class, 'toggleStatus'])->name('taxes.toggle-status');
+    Route::prefix('impuestos')->name('impuestos.')->group(function () {
+        Route::get('/', [TaxController::class, 'index'])->name('index');
+        Route::get('/data', [TaxController::class, 'data'])->name('data');
+        Route::get('/{id}', [TaxController::class, 'show'])->name('show');
+        Route::post('/', [TaxController::class, 'store'])->name('store');
+        Route::put('/{id}', [TaxController::class, 'update'])->name('update');
+        Route::delete('/{id}', [TaxController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/toggle-status', [TaxController::class, 'toggleStatus'])->name('toggle-status');
     });
+
+    // === KARDEX TELAS ===
+    Route::prefix('kardex-telas')->name('kardex-telas.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'kardex'])->name('index');
+        Route::prefix('recepcion')->name('reception.')->group(function () {
+            Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'reception'])->name('index');
+            Route::get('/{invoice}', [App\Http\Controllers\Inventory\FabricRollController::class, 'receptionShow'])->name('show');
+            Route::patch('/{invoice}/aprobar', [App\Http\Controllers\Inventory\FabricRollController::class, 'approveReception'])->name('approve');
+            Route::patch('/{invoice}/rechazar', [App\Http\Controllers\Inventory\FabricRollController::class, 'rejectReception'])->name('reject');
+        });
+        Route::post('/rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'storeFromReception'])->name('rollos.store');
+        Route::get('/rollos/item/{itemId}', [App\Http\Controllers\Inventory\FabricRollController::class, 'getByInvoiceItem'])->name('rollos.by-item');
+    });
+
+    Route::get('inventario/articulos', [ArticleController::class, 'listView'])->name('listado');
+
 });
 
-
-require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';

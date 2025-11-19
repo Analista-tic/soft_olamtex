@@ -7,9 +7,9 @@ import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { PurchaseInvoice } from '@/types';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Printer, Search, Mail } from 'lucide-vue-next';
+import { PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
@@ -160,6 +160,16 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
         isSendingMail.value = false;
     }
 }
+
+function goToReception(invoice: PurchaseInvoice) {
+    // Navegar a la página de recepción con el ID de la factura
+    router.visit(`/kardex-telas/recepcion/${invoice.id}`);
+}
+
+function viewInvoiceDetails(invoice: PurchaseInvoice) {
+    // Abrir el dialog de edición en modo solo lectura
+    openDialog('edit', invoice);
+}
 </script>
 
 <template>
@@ -168,9 +178,18 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Facturas de Compra</h1>
-                <Button @click="openDialog('create')" variant="default" size="sm">
-                    <PlusCircle class="h-4 w-4" /> Nueva Factura
-                </Button>
+                <div class="flex gap-2">
+                    <Button 
+                        @click="router.visit('/kardex-telas/recepcion')" 
+                        variant="outline" 
+                        size="sm"
+                    >
+                        <Package class="h-4 w-4" /> Ver Todas las Recepciones
+                    </Button>
+                    <Button @click="openDialog('create')" variant="default" size="sm">
+                        <PlusCircle class="h-4 w-4" /> Nueva Factura
+                    </Button>
+                </div>
             </div>
             <div class="flex items-end gap-4 mb-2 flex-wrap">
                 <div class="relative max-w-xs flex-1 min-w-[220px]">
@@ -215,36 +234,76 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
                             <TableHead>Fecha</TableHead>
                             <TableHead>Número Factura</TableHead>
                             <TableHead>Entrega</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                            <TableCell>{{ invoice.id }}</TableCell>
-                            <TableCell>{{ invoice.purchase_order_id }}</TableCell>
+                            <TableCell class="font-medium">{{ invoice.id }}</TableCell>
+                            <TableCell>{{ invoice.purchase_order_id || '-' }}</TableCell>
                             <TableCell>{{ invoice.contact?.full_name }}</TableCell>
                             <TableCell>{{ invoice.date }}</TableCell>
-                            <TableCell>{{ invoice.supplier_invoice_number }}</TableCell>
+                            <TableCell>{{ invoice.supplier_invoice_number || '-' }}</TableCell>
                             <TableCell>{{ invoice.delivery_date }}</TableCell>
-                            <TableCell>{{ invoice.description }}</TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', invoice)" />
-                                <DeleteButton :onClick="() => confirmDeleteInvoice(invoice)" />
-                                <button
-                                    :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-green-500']"
-                                    @click="openPrintDialog(invoice)"
+                            <TableCell>
+                                <span 
+                                    v-if="invoice.status"
+                                    :class="[
+                                        'px-2 py-1 rounded-full text-xs font-medium',
+                                        invoice.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                        invoice.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                        invoice.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                        'bg-gray-100 text-gray-800'
+                                    ]"
                                 >
-                                    <Printer class="h-4 w-4" />
-                                </button>
-                                <button
-                                    :disabled="isSendingMail"
-                                    :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600', isSendingMail && 'opacity-50 cursor-not-allowed']"
-                                    @click="sendInvoiceByEmail(invoice)"
-                                    title="Enviar por correo"
-                                >
-                                    <Mail class="h-4 w-4" />
-                                </button>
+                                    {{ 
+                                        invoice.status === 'pending' ? 'Pendiente' :
+                                        invoice.status === 'approved' ? 'Aprobado' :
+                                        invoice.status === 'rejected' ? 'Rechazado' :
+                                        'Sin estado'
+                                    }}
+                                </span>
+                                <span v-else class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    Pendiente
+                                </span>
+                            </TableCell>
+                            <TableCell class="max-w-32 truncate">{{ invoice.description || '-' }}</TableCell>
+                            <TableCell>
+                                <div class="flex justify-center gap-1 flex-wrap">
+                                    <button
+                                        class="flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600"
+                                        @click="viewInvoiceDetails(invoice)"
+                                        title="Ver detalles"
+                                    >
+                                        <Eye class="h-4 w-4" />
+                                    </button>
+                                    <EditButton :onClick="() => openDialog('edit', invoice)" />
+                                    <button
+                                        class="flex items-center text-gray-500 transition-colors duration-200 hover:text-purple-600"
+                                        @click="goToReception(invoice)"
+                                        title="Ir a recepción"
+                                    >
+                                        <Package class="h-4 w-4" />
+                                    </button>
+                                    <DeleteButton :onClick="() => confirmDeleteInvoice(invoice)" />
+                                    <button
+                                        :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-green-500']"
+                                        @click="openPrintDialog(invoice)"
+                                        title="Imprimir"
+                                    >
+                                        <Printer class="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        :disabled="isSendingMail"
+                                        :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600', isSendingMail && 'opacity-50 cursor-not-allowed']"
+                                        @click="sendInvoiceByEmail(invoice)"
+                                        title="Enviar por correo"
+                                    >
+                                        <Mail class="h-4 w-4" />
+                                    </button>
+                                </div>
                             </TableCell>
                         </TableRow>
                     </TableBody>

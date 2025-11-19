@@ -179,7 +179,7 @@ async function convertToInvoice(order: PurchaseOrder) {
                     <SelectField
                         v-model="providerFilter"
                         label="Proveedor"
-                        :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map(prov => ({ id: String(prov.id), name: prov.full_name }))]"
+                        :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map((prov: { id: number; full_name: string }) => ({ id: String(prov.id), name: prov.full_name }))]"
                     />
                 </div>
                 <div class="min-w-[140px]">

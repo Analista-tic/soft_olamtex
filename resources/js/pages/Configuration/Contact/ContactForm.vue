@@ -6,7 +6,8 @@ import axios from 'axios';
 import type { Contact } from '@/types';
 
 const props = defineProps<{
-    form: Partial<Contact>;
+    // Hacemos opcional y permisivo para evitar errores de tipado aquí.
+    form?: Partial<Contact> | Record<string, any>;
 }>();
 
 const emit = defineEmits<{
@@ -14,7 +15,26 @@ const emit = defineEmits<{
 }>();
 
 // Crear un objeto interno para manejar los datos del formulario
-const internalForm = ref<Partial<Contact>>({ ...props.form }); // Asegurar el tipo correcto
+// const internalForm = ref<Partial<Contact>>({ ...props.form }); // Asegurar el tipo correcto
+
+// Defaults para evitar errores cuando props.form sea undefined
+const defaultForm: Partial<Contact> = {
+	contact_type: '',
+	id_type: '',
+	id_number: '',
+	dv: '',
+	full_name: '',
+	person_type: '',
+	groups: [],
+	municipality: '',
+	department: '',
+	address: '',
+	email: '',
+	phone: '',
+};
+
+// Inicializar de forma segura: merge de defaults con el prop (si existe)
+const internalForm = ref<Partial<Contact>>(Object.assign({}, defaultForm, props.form || {}));
 
 // Sincronizar el objeto interno con el prop `form` sin causar recursividad
 watch(
@@ -80,7 +100,8 @@ onMounted(() => {
 
 const errors = ref<Record<string, string[]>>({}); // Manejo de errores
 
-const validateField = (field: keyof Contact) => {
+// Usar string aquí evita errores si la clave no está exactamente en la interfaz Contact.
+const validateField = (field: string) => {
     if (errors.value[field]) {
         delete errors.value[field];
     }
@@ -150,7 +171,7 @@ const validateField = (field: keyof Contact) => {
                 type="email"
                 required
                 placeholder="Correo electrónico"
-                :error="errors.email?.[0]"
+                :error="!!errors.email?.[0]"
                 @input="validateField('email')"
             />
             <InputField v-model="internalForm.phone" label="Teléfono" placeholder="Teléfono" />

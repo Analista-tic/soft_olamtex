@@ -121,13 +121,18 @@ watch(
 </script>
 
 <template>
-    <div>
+    <div
+        style="overflow: visible; max-height: none;" 
+        class="w-full"
+    >
         <div class="mb-2 flex items-center justify-between">
             <span class="font-semibold">Items de la Orden</span>
             <Button type="button" variant="default" size="sm" @click="addItem"> <CirclePlus /> Añadir Item </Button>
         </div>
 
-        <Table>
+        <Table
+            style="overflow: visible; max-height: none;"
+        >
             <TableHeader>
                 <TableRow class="text-center">
                     <TableCell class="min-w-[120px]">Artículo</TableCell>

@@ -229,7 +229,7 @@ watch(dialogOpen, (isOpen) => {
                 <div class="grid grid-cols-3 gap-4">
                     <InputDate v-model="localForm.date" label="Fecha de creación" required />
                     <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
-                    <InputField v-model="localForm.supplier_order_number" label="# pedido proveedor" />
+                    <InputField v-model="localForm.supplier_order_number" label="# Pedido Proveedor" />
                 </div>
 
                 <!-- Ítems -->

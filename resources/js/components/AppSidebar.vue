@@ -85,7 +85,7 @@ const navMainGroup: NavGroupItem[] = [
             },
             {
                 title: 'Inventario de Articulos',
-                href: '#',
+                href: '/inventario/articulos',
                 permission: 'ver telas',
             },
             {

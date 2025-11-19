@@ -12,6 +12,7 @@ interface Props {
     value?: string | number;
     type?: 'text' | 'password' | 'number' | 'currency' | 'email';
     readonly?: boolean;
+    error?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -48,9 +49,7 @@ const formattedValue = computed({
                 : numericValue.toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
         }
         if (props.type === 'number' && value != null) {
-            return typeof value === 'number'
-                ? value.toString()
-                : parseFloat(value.toString()).toString();
+            return value.toString();
         }
         return value ?? '';
     },
@@ -61,8 +60,15 @@ const formattedValue = computed({
             const numericValue = parseFloat(safeValue.replace(/[^0-9]/g, ''));
             localModelValue.value = isNaN(numericValue) ? 0 : numericValue;
         } else if (props.type === 'number') {
-            const numericValue = parseFloat(safeValue.replace(/[^0-9.]/g, ''));
-            localModelValue.value = isNaN(numericValue) ? 0 : numericValue;
+            // Permitir números decimales, incluyendo valores parciales como "1."
+            const cleanValue = safeValue.replace(/[^0-9.]/g, '');
+            // Permitir solo un punto decimal
+            const parts = cleanValue.split('.');
+            if (parts.length > 2) {
+                localModelValue.value = parts[0] + '.' + parts.slice(1).join('');
+            } else {
+                localModelValue.value = cleanValue;
+            }
         } else if (props.type === 'email') {
             localModelValue.value = safeValue.trim();
         } else if (props.type === 'text' || !props.type) {
@@ -91,7 +97,10 @@ function togglePasswordVisibility() {
                 :readonly="readonly"
                 :step="props.type === 'number' ? '0.01' : undefined"
                 :inputmode="props.type === 'number' ? 'decimal' : (props.type === 'email' ? 'email' : undefined)"
-                class="h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                :class="[
+                    'h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50',
+                    error ? 'border-red-500 ring-1 ring-red-400 focus:ring-red-500 focus:border-red-500' : ''
+                ]"
             />
             <Input
                 :id="label"
@@ -102,7 +111,10 @@ function togglePasswordVisibility() {
                 :readonly="true"
                 :step="props.type === 'number' ? '0.01' : undefined"
                 :inputmode="props.type === 'number' ? 'decimal' : (props.type === 'email' ? 'email' : undefined)"
-                class="h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                :class="[
+                    'h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50',
+                    error ? 'border-red-500 ring-1 ring-red-400 focus:ring-red-500 focus:border-red-500' : ''
+                ]"
             />
             <button
                 v-if="props.type === 'password'"

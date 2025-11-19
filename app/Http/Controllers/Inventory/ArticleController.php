@@ -206,6 +206,7 @@ class ArticleController extends Controller
     public function destroy($id)
     {
         $article = Article::findOrFail($id);
+        $article->warehouses()->detach();
         $article->delete();
         return response()->noContent();
     }
@@ -304,7 +305,15 @@ class ArticleController extends Controller
 
         // Extra fields (Español, para la plantilla)
         $extraFieldNames = [
-            'Base tela', 'Base hilaza', 'Campo adicional', 'Marca', 'Mundo', 'Líneas', 'Tipo puntera', 'Talla', 'Medida'
+            'Base tela',
+            'Base hilaza',
+            'Campo adicional',
+            'Marca',
+            'Mundo',
+            'Líneas',
+            'Tipo puntera',
+            'Talla',
+            'Medida'
         ];
 
         // Encabezados en español y mayúscula
@@ -399,7 +408,21 @@ class ArticleController extends Controller
 
         // Hoja: Unidades de medida
         $unitMeasures = [
-            'cm', 'm', 'mm', 'kg', 'g', 'lb', 'oz', 'l', 'ml', 'unidad', 'par', 'docena', 'rollo', 'caja', 'bolsa'
+            'cm',
+            'm',
+            'mm',
+            'kg',
+            'g',
+            'lb',
+            'oz',
+            'l',
+            'ml',
+            'unidad',
+            'par',
+            'docena',
+            'rollo',
+            'caja',
+            'bolsa'
         ];
         $unitSheet = $spreadsheet->createSheet();
         $unitSheet->setTitle('Unidades');
@@ -703,7 +726,15 @@ class ArticleController extends Controller
 
         // Campos extra_fields que se guardarán como array/JSON
         $extraFieldsKeys = [
-            'BASE TELA', 'BASE HILAZA', 'CAMPO ADICIONAL', 'MARCA', 'MUNDO', 'LÍNEAS', 'TIPO PUNTERA', 'TALLA', 'MEDIDA'
+            'BASE TELA',
+            'BASE HILAZA',
+            'CAMPO ADICIONAL',
+            'MARCA',
+            'MUNDO',
+            'LÍNEAS',
+            'TIPO PUNTERA',
+            'TALLA',
+            'MEDIDA'
         ];
 
         foreach ($rows as $rowNum => $row) {
@@ -885,5 +916,12 @@ class ArticleController extends Controller
         $writer->save($tempFile);
 
         return response()->download($tempFile, $fileName)->deleteFileAfterSend(true);
+    }
+
+    public function listView()
+    {
+        return Inertia::render('Inventory/Articles/List', [
+            'articles' => Article::with(['categorySubGroup', 'color', 'tax'])->get(),
+        ]);
     }
 }

@@ -9,7 +9,10 @@ import axios from 'axios';
 import { CirclePlus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
-const props = defineProps<{ items: PurchaseInvoiceItem[] }>();
+const props = defineProps<{ 
+    items: PurchaseInvoiceItem[]; 
+    isCreating?: boolean; 
+}>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseInvoiceItem[]>([]);
@@ -24,8 +27,9 @@ watch(
             localItems.value = Array.isArray(val)
                 ? val.map((item) => ({
                       ...item,
-                      price: '', // Dejar vacío al cargar desde props
-                      quantity: '', // Dejar vacío para confirmar cantidad
+                      // Para crear: campos vacíos, para editar: preservar valores existentes
+                      price: props.isCreating ? '' : (item.price ?? ''),
+                      quantity: props.isCreating ? '' : (item.quantity ?? ''),
                       tax: Number(item.tax) || 0,
                       supplier_code: item.supplier_code || '',
                       supplier_color: item.supplier_color || '',
@@ -49,15 +53,15 @@ onMounted(fetchArticles);
 function addItem() {
     localItems.value.push({
         article_id: null,
-        price: '', // Dejar vacío para confirmar
+        price: '', // Siempre vacío para nuevos items
         tax: 0,
-        quantity: '', // Dejar vacío para confirmar cantidad
+        quantity: '', // Siempre vacío para nuevos items
         description: '',
         total: 0,
         total_tax: 0,
         supplier_code: '',
         supplier_color: '',
-        order_width: '', // <-- Ahora string
+        order_width: '',
     });
 }
 
@@ -95,9 +99,9 @@ function getSuggestedQuantity(item: PurchaseInvoiceItem): number | null {
 }
 
 function calcTotals(item: PurchaseInvoiceItem) {
-    // Si el campo está vacío, no calcular total
+    // Si el campo está vacío o es null/undefined, usar 0 para el cálculo
     const price = item.price === '' || item.price === null || item.price === undefined ? 0 : Number(item.price);
-    const quantity = Number(item.quantity) || 0;
+    const quantity = item.quantity === '' || item.quantity === null || item.quantity === undefined ? 0 : Number(item.quantity);
     const tax = Number(item.tax) || 0;
     item.total = Math.round(price * quantity);
     item.total_tax = Math.round(price * (tax / 100) * quantity);
@@ -126,8 +130,6 @@ watch(
     (val) => {
         val.forEach((item) => {
             item.tax = isNaN(Number(item.tax)) ? 0 : Number(item.tax);
-            item.price = Number(item.price) || 0;
-            item.quantity = Number(item.quantity) || 0;
 
             if (!(item as any).__watching) {
                 (item as any).__watching = true;
@@ -152,6 +154,19 @@ watch(
     },
     { deep: true, immediate: true },
 );
+
+// Funciones de validación
+function isPriceDifferent(item: PurchaseInvoiceItem): boolean {
+    const suggested = getSuggestedPrice(item);
+    if (suggested === null) return false;
+    return Number(item.price) !== Number(suggested);
+}
+
+function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
+    const suggested = getSuggestedQuantity(item);
+    if (suggested === null) return false;
+    return Number(item.quantity) !== Number(suggested);
+}
 </script>
 
 <template>
@@ -183,7 +198,7 @@ watch(
                         <SelectField v-model="item.article_id" :options="articles.map((a) => ({ id: a.id, name: a.name }))" label="" />
                     </TableCell>
                     <TableCell class="p-1 align-top">
-                        <div class="flex flex-col items-start justify-start h-full">
+                        <div class="flex flex-col items-start justify-start h-full w-full">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -192,6 +207,7 @@ watch(
                                 :step="1"
                                 :decimals="0"
                                 @input="calcTotals(item)"
+                                :error="isPriceDifferent(item)"
                             />
                             <div v-if="getSuggestedPrice(item) !== null" class="text-xs text-gray-500 mt-1">
                                 Valor real: {{
@@ -209,12 +225,13 @@ watch(
                         <InputField v-model="item.tax" type="number" label="" :readonly="true" :disabled="true" />
                     </TableCell>
                     <TableCell class="p-1 align-top">
-                        <div class="flex flex-col items-start justify-start h-full">
+                        <div class="flex flex-col items-start justify-start h-full w-full">
                             <InputField
                                 v-model="item.quantity"
                                 type="number"
                                 label=""
                                 @input="calcTotals(item)"
+                                :error="isQuantityDifferent(item)"
                             />
                             <div v-if="getSuggestedQuantity(item) !== null" class="text-xs text-gray-500 mt-1">
                                 Cantidad real: {{
