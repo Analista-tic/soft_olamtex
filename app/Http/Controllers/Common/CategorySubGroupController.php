@@ -81,8 +81,23 @@ class CategorySubGroupController extends Controller
 
     public function destroy(CategorySubGroup $subgroup)
     {
-        $subgroup->delete();
+        try {
+            $subgroup->delete();
 
-        return redirect()->route('subgroups.create')->with('success', 'Subgrupo eliminado exitosamente.');
+            return response()->json([
+                'success' => true,
+                'message' => 'Subgrupo eliminado exitosamente.',
+            ]);
+        } catch (\Throwable $e) {
+            // Registrar el error en el log y devolver respuesta JSON con estado 500
+            logger()->error('Error eliminando subgrupo: ' . $e->getMessage(), [
+                'id' => $subgroup->id ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error eliminando subgrupo.',
+            ], 500);
+        }
     }
 }

@@ -15,6 +15,7 @@ import { Ban, CheckCircle, Download, PlusCircle, Search, Upload } from 'lucide-v
 import { onMounted, ref, watch, reactive } from 'vue';
 import ArticleDialog from './ArticleDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
+import AlertBox from '@/components/AlertBox.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
@@ -80,30 +81,22 @@ async function deleteArticle() {
     await axios.delete(`/articulos/${articleToDelete.value.id}`);
     fetchArticles();
     isDeleteDialogOpen.value = false;
-    // Mensaje de éxito para eliminación
-    successMessage.value = 'El contacto se eliminó correctamente.';
+    successMessage.value = 'El articulo se eliminó correctamente.';
     errorMessage.value = '';
-    setTimeout(() => {
-        successMessage.value = '';
-    }, 4000);
+
 }
 
 function handleDialogRefresh() {
-    fetchArticles(currentPage.value, searchQuery.value, statusFilter.value);
+  fetchArticles(currentPage.value, searchQuery.value, statusFilter.value);
 
-    // Mensaje de éxito según si fue crear o editar
-    successMessage.value =
-        dialogType.value === 'create'
-            ? 'El artículo se creó correctamente.'
-            : 'El artículo se actualizó correctamente.';
+  if (dialogType.value === 'create') {
+    successMessage.value = 'El articulo se creó correctamente.';
+  } else {
+    successMessage.value = 'El articulo se actualizó correctamente.';
+  }
 
-    errorMessage.value = '';
-
-    setTimeout(() => {
-        successMessage.value = '';
-    }, 4000);
+  errorMessage.value = '';
 }
-
 
 function openStatusDialog(article: Article) {
     articleToToggleStatus.value = article;
@@ -154,26 +147,26 @@ function exportArticlesExcel() {
 <template>
     <Head title="Gestión de Artículos" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+        <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+            <div class="pointer-events-none absolute left-1/2 top-4 z-20 flex -translate-x-1/2 flex-col gap-2">
+                <AlertBox
+                    v-if="successMessage"
+                    type="success"
+                    :message="successMessage"
+                    class="pointer-events-auto"
+                    @close="successMessage = ''"
+                />
+                <AlertBox
+                    v-if="errorMessage"
+                    type="error"
+                    title="Error"
+                    :message="errorMessage"
+                    class="pointer-events-auto"
+                    @close="errorMessage = ''"
+                />
+            </div>
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Artículos</h1>
-                <!-- Aviso de éxito -->
-                <div v-if="successMessage" class="flex items-start justify-between gap-3 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-green-800 shadow-sm
-                        transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2">
-                    <div class="flex-1">
-                        <p class="font-semibold">Operación exitosa</p>
-                        <p class="text-sm">{{ successMessage }}</p>
-                    </div>
-                </div>
-
-                <!-- Aviso de error -->
-                <div v-if="errorMessage" class="flex items-start justify-between gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800 shadow-sm
-                        transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2">
-                    <div class="flex-1">
-                        <p class="font-semibold">Error</p>
-                        <p class="text-sm">{{ errorMessage }}</p>
-                    </div>
-                </div>
                 <div class="flex gap-2">
                     <Button @click="openDialog('create')" variant="default" size="sm">
                         <PlusCircle class="h-4 w-4" /> Crear Nuevo Artículo

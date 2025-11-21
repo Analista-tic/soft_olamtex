@@ -274,7 +274,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/rollos/item/{itemId}', [App\Http\Controllers\Inventory\FabricRollController::class, 'getByInvoiceItem'])->name('rollos.by-item');
     });
 
+    // === INVENTARIO ===
     Route::get('inventario/articulos', [ArticleController::class, 'listView'])->name('listado');
+    Route::get('inventario/ajuste-inventario', [ArticleController::class, 'adjustmentView'])->name('inventario.ajuste-inventario');
+    Route::get('inventario/ajuste-inventario/crear', function () {
+        return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
+    })->name('inventario.ajuste-inventario.create');
+    // Route::prefix('ajustes-inventario')->name('ajustes-inventario.')->group(function () {
+    // Route::get('/data', [InventoryAdjustmentController::class, 'getData'])->name('data'); // para la tabla
+    // Route::get('/', [InventoryAdjustmentController::class, 'index'])->name('index');      // listado simple o redirección
+    // Route::get('/{id}', [InventoryAdjustmentController::class, 'show'])->name('show');   // ver un ajuste
+    // Route::post('/', [InventoryAdjustmentController::class, 'store'])->name('store');    // guardar nuevo
+    // Route::put('/{id}', [InventoryAdjustmentController::class, 'update'])->name('update');
+    // Route::delete('/{id}', [InventoryAdjustmentController::class, 'destroy'])->name('destroy');
+    //});
 
 });
 

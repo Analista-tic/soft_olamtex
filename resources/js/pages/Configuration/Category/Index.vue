@@ -73,6 +73,8 @@ function closeDialog(): void {
 
 function confirmDeleteSubGroup(subGroup: CategorySubGroup): void {
     subGroupToDelete.value = subGroup;
+    console.log(subGroupToDelete.value);
+    
     isDeleteDialogOpen.value = true;
 }
 
@@ -80,7 +82,7 @@ async function deleteSubGroup(): Promise<void> {
     if (!subGroupToDelete.value) return;
 
     try {
-        await axios.delete(`/subgrupos/${subGroupToDelete.value.id}`);
+        await axios.delete(`/categorias/subgrupos/${subGroupToDelete.value.id}`);
         fetchSubGroups();
         isDeleteDialogOpen.value = false;
     } catch (error) {
@@ -143,6 +145,8 @@ onMounted(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Subgrupos</h1>
+                <!-- Aviso de éxito -->
+                
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Subgrupo</Button>
             </div>
             <div class="relative flex items-center gap-4">

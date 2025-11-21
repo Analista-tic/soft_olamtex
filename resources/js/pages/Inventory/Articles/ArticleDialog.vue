@@ -14,14 +14,15 @@ import type { Article, CategorySubGroup, Color, ExtraFields, Warehouse } from '@
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import AlertBox from '@/components/AlertBox.vue';
 
 // Props y eventos
 const props = defineProps<{
     isOpen: boolean;
-    dialogType: 'create' | 'edit';
+    dialogType: 'create' | 'edit' | 'view';
     form: Partial<Article>;
 }>();
-const emit = defineEmits(['close', 'refresh']);
+const emit = defineEmits(['close', 'refresh', 'saved', 'error']);
 
 // Estado reactivo principal
 const localForm = ref<Partial<Article>>({
@@ -60,6 +61,8 @@ const unitMeasures = [
     { id: 'unidad', name: 'Unidad' }
 ];
 const unitMeasure = ref(props.form.unit_measure ?? unitMeasures[0].id);
+const alertMessage = ref<string>('');
+const isViewMode = computed(() => props.dialogType === 'view');
 
 // Carga de catálogos y datos iniciales
 async function fetchWarehouses() {
@@ -246,6 +249,30 @@ function resetErrors() {
 // Maneja el envío del formulario
 async function handleSubmit() {
     resetErrors();
+    alertMessage.value = '';
+    const requiredErrors: string[] = [];
+
+    // Validaciones de campos obligatorios
+    if (!localForm.value.category_sub_group_id) {
+        requiredErrors.push('Subgrupo');
+    }
+    if (!localForm.value.color_id) {
+        requiredErrors.push('Color');
+    }
+    if (!localForm.value.tax_id && localForm.value.tax_id !== 0) {
+        requiredErrors.push('Impuesto');
+    }
+    if (!unitMeasure.value) {
+        requiredErrors.push('Unidad de medida');
+    }
+    if (!localForm.value.reference || String(localForm.value.reference).trim() === '') {
+        requiredErrors.push('Referencia');
+    }
+    if (requiredErrors.length > 0) {
+        alertMessage.value = `Por favor, completa todos los campos obligatorios: ${requiredErrors.join(', ')}.`;
+        return;
+    }
+
     const extraFieldsToSend: Record<string, string> = {};
     extraFieldNames.forEach((key) => {
         if (extraFields.value[key] && String(extraFields.value[key]).trim() !== '') {
@@ -304,6 +331,7 @@ async function handleSubmit() {
     if (props.dialogType === 'edit') {
         formData.append('_method', 'PUT');
     }
+    if (props.dialogType === 'view') return;
 
     try {
         await axios({
@@ -314,11 +342,11 @@ async function handleSubmit() {
         });
         emit('refresh');
         emit('close');
+        emit('saved', props.dialogType)
     } catch (error: any) {
         console.error('Error al guardar el artículo:', error, error?.response?.data);
-        errors.value = error.response?.data?.errors || {
-            general: [error.response?.data?.message || 'Ocurrió un error inesperado al guardar el artículo.'],
-        };
+        const msg = error.response?.data?.message || 'Ocurrió un error inesperado al guardar el artículo.';
+        emit('error', msg);
     }
 }
 
@@ -432,170 +460,337 @@ watch(
 <template>
     <Dialog :open="dialogOpen" @update:open="handleClose">
         <DialogContent class="flex h-full max-h-[100dvh] min-h-0 w-full flex-1 flex-col overflow-y-auto p-6 sm:max-w-4xl">
+            <transition name="fade">
+                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2">
+                    <AlertBox
+                        type="error"
+                        title="Error"
+                        :message="alertMessage"
+                        class="pointer-events-auto"
+                        @close="alertMessage = ''"
+                    />
+                </div>
+            </transition>
             <DialogHeader class="mb-4">
                 <DialogTitle>
-                    {{ dialogType === 'create' ? 'Crear Artículo' : 'Editar Artículo' }}
+                {{
+                    dialogType === 'create'
+                    ? 'Crear Artículo'
+                    : dialogType === 'edit'
+                        ? 'Editar Artículo'
+                        : 'Detalle del Artículo'
+                }}
                 </DialogTitle>
+
                 <DialogDescription>
-                    {{
-                        dialogType === 'create' ? 'Complete los campos para crear un nuevo artículo.' : 'Edite los campos del artículo seleccionado.'
-                    }}
+                {{
+                    dialogType === 'create'
+                    ? 'Complete los campos para crear un nuevo artículo.'
+                    : dialogType === 'edit'
+                        ? 'Edite los campos del artículo seleccionado.'
+                        : 'Visualice la información del artículo.'
+                }}
                 </DialogDescription>
+
             </DialogHeader>
 
-            <form @submit.prevent="handleSubmit" class="space-y-4">
-                <div class="grid grid-cols-1 gap-2 md:grid-cols-4">
-                    <div class="flex flex-col gap-4 md:col-span-3">
-                        <!-- Nombre -->
-                        <div>
-                            <Label>Nombre</Label>
-                            <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
-                        </div>
-                        <!-- Grupo principal -->
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            <SelectField
-                                v-model="localForm.category_sub_group_id"
-                                label="Subgrupo"
-                                :options="categorySubGroups.map((sg) => ({ id: String(sg.id ?? ''), name: sg.name }))"
-                                required
-                            />
-                            <SelectField
-                                v-model="localForm.color_id"
-                                label="Color"
-                                :options="colors.map((c) => ({ id: String(c.id ?? ''), name: c.name }))"
-                                required
-                            />
-                            <SelectField
-                                v-model="localForm.tax_id"
-                                label="Impuesto"
-                                :options="taxes.map(t => ({ id: t.id, name: `${t.name} (${Math.trunc(t.percentage)}%)` }))"
-                                required
-                            />
-                        </div>
-                        <!-- Bodegas y Stock -->
-                        <div class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900">
-                            <div class="mb-2 flex items-center justify-between">
-                                <span class="text-sm font-semibold">Detalle de Inventario</span>
-                                <button
-                                    type="button"
-                                    class="rounded-full p-1 transition hover:bg-gray-100 dark:hover:bg-gray-800"
-                                    @click="addWarehouseStock"
-                                    :disabled="availableWarehouses().length === 0"
-                                    title="Agregar Bodega"
-                                >
-                                    <Plus class="h-5 w-5 text-primary" />
-                                </button>
+            <form @submit.prevent="handleSubmit">
+                <!-- Todo el formulario se deshabilita automáticamente en modo vista -->
+                <fieldset :disabled="isViewMode" class="space-y-4">
+                    <!-- PRIMERA SECCIÓN: nombre, grupo principal, bodegas + imagen -->
+                    <div class="grid grid-cols-1 gap-2 md:grid-cols-4">
+                        <div class="flex flex-col gap-4 md:col-span-3">
+                            <!-- Nombre -->
+                            <div>
+                                <Label>Nombre</Label>
+                                <Input
+                                    v-model="nameField"
+                                    label="Nombre"
+                                    readonly
+                                    class="mt-1"
+                                    placeholder="Nombre autocompletado"
+                                />
                             </div>
-                            <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 flex flex-col sm:flex-row sm:items-center gap-2 rounded-md bg-gray-50 dark:bg-gray-800 p-2">
-                                <div class="flex-1 min-w-[150px]">
-                                    <Label class="text-xs mb-1">Bodega</Label>
+
+                            <!-- Grupo principal -->
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                <template v-if="isViewMode">
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Subgrupo</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{
+                                                categorySubGroups.find(
+                                                    (sg) => String(sg.id) === String(localForm.category_sub_group_id)
+                                                )?.name || '-'
+                                            }}
+                                        </div>
+                                    </div>
+
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Color</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{
+                                                colors.find(
+                                                    (c) => String(c.id) === String(localForm.color_id)
+                                                )?.name || '-'
+                                            }}
+                                        </div>
+                                    </div>
+
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Impuesto</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{
+                                                taxes.find((t) => String(t.id) === String(localForm.tax_id))
+                                                    ? `${taxes.find((t) => String(t.id) === String(localForm.tax_id)).name}
+                                                    (${Math.trunc(taxes.find((t) => String(t.id) === String(localForm.tax_id)).percentage)}%)`
+                                                    : '-'
+                                            }}
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <template v-else>
                                     <SelectField
-                                        v-model="ws.warehouse_id"
-                                        label=""
-                                        :options="availableWarehouses(idx).map((w) => ({ id: String(w.id ?? ''), name: w.name }))"
-                                        @change="updateWarehouseName(idx)"
-                                        class="w-full"
-                                        placeholder="Bodega"
+                                        v-model="localForm.category_sub_group_id"
+                                        label="Subgrupo"
+                                        :options="categorySubGroups.map((sg) => ({ id: String(sg.id ?? ''), name: sg.name }))"
+                                        required
                                     />
-                                </div>
-                                <div class="flex gap-2 flex-1">
-                                    <div class="flex flex-col w-full">
-                                        <Label class="text-xs mb-1">Cantidad</Label>
-                                        <InputIntegerField v-model="ws.quantity" label="" type="number" class="w-full" placeholder="Cantidad" />
-                                    </div>
-                                    <div class="flex flex-col w-full">
-                                        <Label class="text-xs mb-1"> Cantidad Min</Label>
-                                        <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" />
-                                    </div>
-                                    <div class="flex flex-col w-full">
-                                        <Label class="text-xs mb-1"> Cantidad Max</Label>
-                                        <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" />
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    class="rounded-full p-1 transition hover:bg-red-100 dark:hover:bg-red-900"
-                                    @click="removeWarehouseStock(idx)"
-                                    title="Quitar"
-                                >
-                                    <Trash2 class="h-5 w-5 text-red-500" />
-                                </button>
+                                    <SelectField
+                                        v-model="localForm.color_id"
+                                        label="Color"
+                                        :options="colors.map((c) => ({ id: String(c.id ?? ''), name: c.name }))"
+                                        required
+                                    />
+                                    <SelectField
+                                        v-model="localForm.tax_id"
+                                        label="Impuesto"
+                                        :options="taxes.map((t) => ({
+                                            id: t.id,
+                                            name: `${t.name} (${Math.trunc(t.percentage)}%)`,
+                                        }))"
+                                        required
+                                    />
+                                </template>
                             </div>
-                            <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
-                        </div>
-                    </div>
-                    <!-- Previsualización de imagen con dropzone -->
-                    <div class="flex flex-col items-center justify-center px-2 md:row-span-3">
-                        <div class="flex w-full flex-col items-center">
-                            <Label class="mb-1 block text-sm font-medium">Imagen</Label>
-                            <input ref="fileInputRef" type="file" accept="image/*" class="hidden" @change="handleFileChange" />
+
+                            <!-- Bodegas y Stock -->
                             <div
-                                class="relative flex h-52 w-full cursor-pointer flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition hover:border-blue-400"
-                                @click="triggerFileInput"
-                                style="min-width: 0; position: relative"
+                                class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
                             >
-                                <template v-if="imagePreview">
-                                    <div class="relative h-52 w-full">
-                                        <img
-                                            :src="imagePreview"
-                                            alt="Previsualización"
-                                            class="h-57 w-full rounded object-contain"
-                                            style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
+                                <div class="mb-2 flex items-center justify-between">
+                                    <span class="text-sm font-semibold">Detalle de Inventario</span>
+                                    <button
+                                        v-if="!isViewMode"
+                                        type="button"
+                                        class="rounded-full p-1 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                                        @click="addWarehouseStock"
+                                        :disabled="availableWarehouses().length === 0"
+                                        title="Agregar Bodega"
+                                    >
+                                        <Plus class="h-5 w-5 text-primary" />
+                                    </button>
+                                </div>
+
+                                <div
+                                    v-for="(ws, idx) in warehouseStocks"
+                                    :key="idx"
+                                    class="mb-2 flex flex-col gap-2 rounded-md bg-gray-50 p-2 dark:bg-gray-800 sm:flex-row sm:items-center"
+                                >
+                                    <div class="min-w-[150px] flex-1">
+                                        <Label class="mb-1 text-xs">Bodega</Label>
+                                        <SelectField
+                                            v-model="ws.warehouse_id"
+                                            label=""
+                                            :options="availableWarehouses(idx).map((w) => ({
+                                                id: String(w.id ?? ''),
+                                                name: w.name,
+                                            }))"
+                                            @change="updateWarehouseName(idx)"
+                                            class="w-full"
+                                            placeholder="Bodega"
                                         />
                                     </div>
-                                    <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
-                                        Cambiar imagen
+                                    <div class="flex flex-1 gap-2">
+                                        <div class="flex w-full flex-col">
+                                            <Label class="mb-1 text-xs">Cantidad</Label>
+                                            <InputIntegerField
+                                                v-model="ws.quantity"
+                                                label=""
+                                                type="number"
+                                                class="w-full"
+                                                placeholder="Cantidad"
+                                            />
+                                        </div>
+                                        <div class="flex w-full flex-col">
+                                            <Label class="mb-1 text-xs">Cantidad Min</Label>
+                                            <InputIntegerField
+                                                v-model="ws.stock_min"
+                                                label=""
+                                                type="number"
+                                                class="w-full"
+                                                placeholder="Min"
+                                            />
+                                        </div>
+                                        <div class="flex w-full flex-col">
+                                            <Label class="mb-1 text-xs">Cantidad Max</Label>
+                                            <InputIntegerField
+                                                v-model="ws.stock_max"
+                                                label=""
+                                                type="number"
+                                                class="w-full"
+                                                placeholder="Max"
+                                            />
+                                        </div>
                                     </div>
-                                </template>
-                                <template v-else>
-                                    <div class="z-10 flex h-full w-full flex-col items-center justify-center">
-                                        <Image class="mb-2 h-12 w-12 text-gray-400" />
-                                        <span class="text-sm text-gray-500">Haz clic para subir imagen</span>
-                                    </div>
-                                </template>
+                                    <button
+                                        v-if="!isViewMode"
+                                        type="button"
+                                        class="rounded-full p-1 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                        @click="removeWarehouseStock(idx)"
+                                        title="Quitar"
+                                    >
+                                        <Trash2 class="h-5 w-5 text-red-500" />
+                                    </button>
+
+                                </div>
+
+                                <div
+                                    v-if="warehouseStocks.length === 0"
+                                    class="px-2 py-1 text-xs text-gray-400"
+                                >
+                                    No hay bodegas asociadas.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Previsualización de imagen con dropzone -->
+                        <div class="flex flex-col items-center justify-center px-2 md:row-span-3">
+                            <div class="flex w-full flex-col items-center">
+                                <Label class="mb-1 block text-sm font-medium">Imagen</Label>
+
+                                <!-- input file (se deshabilita por el fieldset + prop) -->
+                                <input
+                                    ref="fileInputRef"
+                                    type="file"
+                                    accept="image/*"
+                                    class="hidden"
+                                    :disabled="isViewMode"
+                                    @change="handleFileChange"
+                                />
+
+                                <div
+                                    :class="[
+                                        'relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition',
+                                        isViewMode ? 'cursor-default' : 'cursor-pointer hover:border-blue-400',
+                                    ]"
+                                    @click="!isViewMode && triggerFileInput()"
+                                    style="min-width: 0; position: relative"
+                                >
+                                    <template v-if="imagePreview">
+                                        <div class="relative h-52 w-full">
+                                            <img
+                                                :src="imagePreview"
+                                                alt="Previsualización"
+                                                class="h-57 w-full rounded object-contain"
+                                                style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
+                                            />
+                                        </div>
+                                        <div
+                                            class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
+                                        >
+                                            {{ isViewMode ? 'Imagen del artículo' : 'Cambiar imagen' }}
+                                        </div>
+                                    </template>
+
+                                    <template v-else>
+                                        <div
+                                            class="z-10 flex h-full w-full flex-col items-center justify-center"
+                                        >
+                                            <Image class="mb-2 h-12 w-12 text-gray-400" />
+                                            <span class="text-sm text-gray-500">
+                                                {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
+                                            </span>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-4 mb-3">
-                    <div class="md:col-span-1">
-                        <SelectField
-                            v-model="unitMeasure"
-                            label="Unidad de Medida"
-                            :options="unitMeasures"
-                            option-label="name"
-                            option-value="id"
-                            required
-                        />
-                    </div>
-                    <div class="md:col-span-1">
-                        <InputField v-model="localForm.bar_code" label="Código de Barras" />
-                    </div>
-                    <div class="md:col-span-1">
-                        <InputField v-model="localForm.reference" label="Referencia" required :disabled="false" />
-                    </div>
-                    <div class="flex items-center md:col-span-1">
-                        <SwitchField v-model="negativeMovementBool" label="Movimiento Negativo" />
-                    </div>
-                </div>
+                    <!-- SEGUNDA SECCIÓN: unidad, código, referencia, movimiento -->
+                    <div class="mb-3 grid grid-cols-1 gap-4 md:grid-cols-4">
+                        <div class="md:col-span-1">
+                            <template v-if="isViewMode">
+                                <Label>Unidad de Medida</Label>
+                                <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                    {{
+                                        unitMeasures.find((u) => u.id === unitMeasure)?.name ||
+                                        unitMeasure
+                                    }}
+                                </div>
+                            </template>
+                            <template v-else>
+                                <SelectField
+                                    v-model="unitMeasure"
+                                    label="Unidad de Medida"
+                                    :options="unitMeasures"
+                                    option-label="name"
+                                    option-value="id"
+                                    required
+                                />
+                            </template>
+                        </div>
 
-                <!-- Descripción -->
-                <div class="">
-                    <TextareaField v-model="localForm.description" label="Descripción" />
-                </div>
+                        <div class="md:col-span-1">
+                            <InputField v-model="localForm.bar_code" label="Código de Barras" />
+                        </div>
+                        <div class="md:col-span-1">
+                            <InputField
+                                v-model="localForm.reference"
+                                label="Referencia"
+                                required
+                            />
+                        </div>
+                        <div class="flex items-center md:col-span-1">
+                            <SwitchField
+                                v-model="negativeMovementBool"
+                                label="Movimiento Negativo"
+                            />
+                        </div>
+                    </div>
 
-                <!-- Campos adicionales -->
-                <ExtraFieldsForm
-                    :extra-field-names="extraFieldNames"
-                    v-model:extra-fields="extraFields"
-                    :extra-field-options="extraFieldOptions"
-                />
+                    <!-- Descripción -->
+                    <div>
+                        <TextareaField v-model="localForm.description" label="Descripción" />
+                    </div>
 
-                <!-- Footer -->
+                    <!-- Campos adicionales -->
+                    <ExtraFieldsForm
+                        :extra-field-names="extraFieldNames"
+                        v-model:extra-fields="extraFields"
+                        :extra-field-options="extraFieldOptions"
+                        :readonly="isViewMode"
+                    />
+                </fieldset>
+
+                <!-- FOOTER (este NO se deshabilita nunca) -->
                 <DialogFooter class="mt-6 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
-                    <Button variant="outline" type="button" @click="handleClose" class="w-full md:w-auto">Cancelar</Button>
-                    <Button variant="default" type="submit" class="w-full md:w-auto">
+                    <Button
+                        variant="outline"
+                        type="button"
+                        @click="handleClose"
+                        class="w-full md:w-auto"
+                    >
+                        {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
+                    </Button>
+                    <Button
+                        v-if="dialogType !== 'view'"
+                        variant="default"
+                        type="submit"
+                        class="w-full md:w-auto"
+                    >
                         {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                     </Button>
                 </DialogFooter>

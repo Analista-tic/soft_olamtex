@@ -924,4 +924,10 @@ class ArticleController extends Controller
             'articles' => Article::with(['categorySubGroup', 'color', 'tax'])->get(),
         ]);
     }
+
+    public function adjustmentView()
+    {
+        return Inertia::render('Inventory/Articles/InventoryAdjustment');
+    }
+
 }

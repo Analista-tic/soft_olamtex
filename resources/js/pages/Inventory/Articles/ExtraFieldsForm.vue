@@ -10,7 +10,8 @@ import axios from 'axios';
 
 const props = defineProps<{
     extraFieldNames: string[],
-    extraFields: ExtraFields
+    extraFields: ExtraFields,
+    readonly?: boolean;
 }>();
 const emit = defineEmits(['update:extraFields']);
 
@@ -137,7 +138,11 @@ onMounted(async () => {
 <template>
     <div>
         <label class="mb-2 block font-semibold">Campos Adicionales</label>
-        <div class="flex flex-col items-end gap-2 md:flex-row">
+
+        <div
+            v-if="!readonly"
+            class="flex flex-col items-end gap-2 md:flex-row"
+        >
             <div class="flex-1">
                 <SelectField
                     v-model="selectedExtraField"
@@ -198,19 +203,39 @@ onMounted(async () => {
                 Añadir
             </Button>
         </div>
+
         <div class="mt-2 overflow-x-auto">
             <Table>
                 <TableHeader />
                 <TableBody>
-                    <TableRow v-for="(value, field) in localExtraFields" :key="field" class="transition hover:bg-gray-50">
-                        <TableCell class="px-4 py-2 font-medium text-gray-800">{{ field }}</TableCell>
-                        <TableCell class="px-4 py-2 text-gray-600">{{ value }}</TableCell>
-                        <TableCell class="px-4 py-2">
-                            <DeleteButton class="ml-2" @click="removeExtraField(String(field))" title="Quitar" />
+                    <TableRow
+                        v-for="(value, field) in localExtraFields"
+                        :key="field"
+                        class="transition hover:bg-gray-50"
+                    >
+                        <TableCell class="px-4 py-2 font-medium text-gray-800">
+                            {{ field }}
+                        </TableCell>
+                        <TableCell class="px-4 py-2 text-gray-600">
+                            {{ value }}
+                        </TableCell>
+                        <TableCell
+                            v-if="!readonly"
+                            class="px-4 py-2"
+                        >
+                            <DeleteButton
+                                class="ml-2"
+                                @click="removeExtraField(String(field))"
+                                title="Quitar"
+                            />
                         </TableCell>
                     </TableRow>
+
                     <TableRow v-if="Object.keys(localExtraFields).length === 0">
-                        <TableCell colspan="3" class="px-4 py-2 text-center text-gray-400">
+                        <TableCell
+                            :colspan="readonly ? 2 : 3"
+                            class="px-4 py-2 text-center text-gray-400"
+                        >
                             No hay campos adicionales agregados.
                         </TableCell>
                     </TableRow>

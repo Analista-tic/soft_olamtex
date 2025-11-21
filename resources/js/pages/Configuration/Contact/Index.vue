@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BreadcrumbItem, Contact } from '@/types'; // Importar tipos centralizados
+import { BreadcrumbItem, Contact } from '@/types';
 import EditButton from '@/components/common/EditButton.vue';
 import ContactDialog from './ContactDialog.vue';
 import { Button } from '@/components/ui/button';
@@ -18,12 +18,12 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
+import axios, { type AxiosError } from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { ref, onMounted, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import type { AxiosError } from 'axios';
 import SelectField from '@/components/SelectField.vue';
+import AlertBox from '@/components/AlertBox.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -36,7 +36,7 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-// Variables reactivas con tipado explícito
+// Variables reactivas
 const contacts = ref<Contact[]>([]);
 const contactToDelete = ref<Contact | null>(null);
 const isDialogOpen = ref<boolean>(false);
@@ -51,23 +51,21 @@ const form = ref<Partial<Contact>>({
 const currentPage = ref<number>(1);
 const itemsPerPage = 10;
 const totalItems = ref<number>(0);
-const searchQuery = ref<string>(''); // Campo de búsqueda
-const selectedContactType = ref<string | null>(null); // Filtro por tipo de contacto
-const selectedGroup = ref<string | null>(null); // Filtro por grupo
-const subgroups = ref<{ id: string; name: string }[]>([]); // Lista de subgrupos
-const groups = ref<{ id: string; name: string }[]>([]); // Lista de grupos
+const searchQuery = ref<string>('');
+const selectedContactType = ref<string | null>(null);
+const selectedGroup = ref<string | null>(null);
+const subgroups = ref<{ id: string; name: string }[]>([]);
+const groups = ref<{ id: string; name: string }[]>([]);
 
 const contactTypeOptions = [
     { id: 'Proveedor', name: 'Proveedor' },
     { id: 'Cliente', name: 'Cliente' },
-    { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' }
+    { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' },
 ];
 
-//Variables reactivas para mensajes de éxito y error
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 
-// Funciones con tipado explícito
 function openDialog(type: 'create' | 'edit', contact: Contact | null = null): void {
     dialogType.value = type;
     isDialogOpen.value = true;
@@ -89,19 +87,15 @@ function confirmDeleteContact(contact: Contact): void {
 
 async function deleteContact(): Promise<void> {
     if (!contactToDelete.value) return;
-
     try {
         await axios.delete(`/contactos/${contactToDelete.value.id}`);
-        fetchContacts();
+        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value, selectedGroup.value);
         isDeleteDialogOpen.value = false;
-        // Mensaje de éxito para eliminación
         successMessage.value = 'El contacto se eliminó correctamente.';
         errorMessage.value = '';
-        setTimeout(() => {
-            successMessage.value = '';
-        }, 4000);
     } catch (error) {
         console.error('Error al eliminar el contacto:', error);
+        errorMessage.value = 'Ocurrió un error al eliminar el contacto.';
     }
 }
 
@@ -111,17 +105,10 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
 
     try {
         await axios({ method, url, data: contactData });
-        fetchContacts();
+        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value, selectedGroup.value);
         closeDialog();
-        //Mensaje de éxito
-        successMessage.value =
-            dialogType.value === 'create'
-                ? 'El contacto se creó correctamente.'
-                : 'El contacto se actualizó correctamente.';
+        successMessage.value = 'El contacto se guardó correctamente.';
         errorMessage.value = '';
-        setTimeout(() => {
-            successMessage.value = '';
-        }, 4000);
     } catch (err) {
         const error = err as AxiosError;
         if (error.response && error.response.status === 422) {
@@ -130,11 +117,17 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
             alert(`Error de validación: ${Object.values(validationErrors).flat().join(', ')}`);
         } else {
             console.error('Error al guardar el contacto:', error);
+            errorMessage.value = 'Ocurrió un error al guardar el contacto.';
         }
     }
 }
 
-async function fetchContacts(page: number = 1, search: string = '', contactType: string | null = null, groupId: string | null = null): Promise<void> {
+async function fetchContacts(
+    page: number = 1,
+    search: string = '',
+    contactType: string | null = null,
+    groupId: string | null = null
+): Promise<void> {
     try {
         const response = await axios.get('/contactos/data', {
             params: {
@@ -142,7 +135,7 @@ async function fetchContacts(page: number = 1, search: string = '', contactType:
                 per_page: itemsPerPage,
                 search,
                 contact_type: contactType,
-                group_id: groupId, // Cambiar subgroup_id a group_id
+                group_id: groupId,
             },
         });
 
@@ -151,13 +144,19 @@ async function fetchContacts(page: number = 1, search: string = '', contactType:
         currentPage.value = response.data.current_page;
     } catch (error) {
         console.error('Error al obtener los contactos:', error);
+        errorMessage.value = 'Ocurrió un error al cargar los contactos.';
     }
 }
 
 async function loadSubgroups() {
     try {
-        const response = await axios.get('categorias/subgrupos'); // Endpoint para obtener subgrupos
-        subgroups.value = response.data;
+        const response = await axios.get('/categorias/subgrupos-data', {
+            params: { per_page: 1000 },
+        });
+        subgroups.value = (response.data.data ?? []).map((sg: any) => ({
+            id: String(sg.id),
+            name: sg.name,
+        }));
     } catch (error) {
         console.error('Error al cargar los subgrupos:', error);
     }
@@ -165,8 +164,13 @@ async function loadSubgroups() {
 
 async function loadGroups() {
     try {
-        const response = await axios.get('categorias/grupos'); // Endpoint para obtener grupos
-        groups.value = response.data;
+        const response = await axios.get('/categorias/grupos', {
+            params: { per_page: 1000 },
+        });
+        groups.value = (response.data.data ?? []).map((g: any) => ({
+            id: String(g.id),
+            name: g.name,
+        }));
     } catch (error) {
         console.error('Error al cargar los grupos:', error);
     }
@@ -177,48 +181,57 @@ function handlePageChange(newPage: number): void {
     fetchContacts(newPage, searchQuery.value, selectedContactType.value, selectedGroup.value);
 }
 
-// Observadores con tipado explícito
-watch([searchQuery, selectedContactType, selectedGroup], ([newQuery, newType, newGroup]: [string, string | null, string | null]) => {
-    fetchContacts(1, newQuery, newType, newGroup);
-});
+watch(
+    [searchQuery, selectedContactType, selectedGroup],
+    ([newQuery, newType, newGroup]: [string, string | null, string | null]) => {
+        fetchContacts(1, newQuery, newType, newGroup);
+    }
+);
 
-// Llamada inicial al montar el componente
 onMounted(() => {
     fetchContacts();
-    loadSubgroups(); // Cargar subgrupos al montar
-    loadGroups(); // Cargar grupos al montar
+    loadSubgroups();
+    loadGroups();
 });
 </script>
 
 <template>
     <Head title="Gestión de Contactos" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+        <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+            <div class="pointer-events-none absolute left-1/2 top-4 z-20 flex -translate-x-1/2 flex-col gap-2">
+                <AlertBox
+                    v-if="successMessage"
+                    type="success"
+                    :message="successMessage"
+                    class="pointer-events-auto"
+                    @close="successMessage = ''"
+                />
+                <AlertBox
+                    v-if="errorMessage"
+                    type="error"
+                    title="Error"
+                    :message="errorMessage"
+                    class="pointer-events-auto"
+                    @close="errorMessage = ''"
+                />
+            </div>
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Contactos</h1>
-                <!-- Aviso de éxito -->
-                <div v-if="successMessage" class="flex items-start justify-between gap-3 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-green-800 shadow-sm
-                        transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2">
-                    <div class="flex-1">
-                        <p class="font-semibold">Operación exitosa</p>
-                        <p class="text-sm">{{ successMessage }}</p>
-                    </div>
-                </div>
-
-                <!-- Aviso de error -->
-                <div v-if="errorMessage" class="flex items-start justify-between gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800 shadow-sm
-                        transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2">
-                    <div class="flex-1">
-                        <p class="font-semibold">Error</p>
-                        <p class="text-sm">{{ errorMessage }}</p>
-                    </div>
-                </div>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/>Nuevo Contacto</Button>
+                <Button @click="openDialog('create')" variant="default" size="sm">
+                    <PlusCircle class="w-4 h-4" /> Nuevo Contacto
+                </Button>
             </div>
-            
+
+            <!-- Filtros -->
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search_contact" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-8 w-full pl-10" />
+                    <Input
+                        id="search_contact"
+                        v-model="searchQuery"
+                        placeholder="Buscar por nombre o email"
+                        class="h-8 w-full pl-10"
+                    />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
@@ -242,6 +255,8 @@ onMounted(() => {
                     />
                 </div>
             </div>
+
+            <!-- Tabla -->
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
@@ -268,6 +283,8 @@ onMounted(() => {
                         </TableRow>
                     </TableBody>
                 </Table>
+
+                <!-- Paginación -->
                 <Pagination
                     class="mt-5 flex justify-center"
                     :items-per-page="itemsPerPage"
@@ -283,7 +300,11 @@ onMounted(() => {
 
                         <template v-for="(item, index) in items">
                             <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button class="h-6 w-6 p-0" :variant="item.value === currentPage ? 'default' : 'outline'" @click="handlePageChange(item.value)">
+                                <Button
+                                    class="h-6 w-6 p-0"
+                                    :variant="item.value === currentPage ? 'default' : 'outline'"
+                                    @click="handlePageChange(item.value)"
+                                >
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>
@@ -305,7 +326,7 @@ onMounted(() => {
         :contactData="form"
         @close="closeDialog"
         @submit="submitForm"
-        @update:contactData="(updatedData) => form = updatedData"
+        @update:contactData="(updatedData) => (form = updatedData)"
     />
 
     <!-- Dialog para Confirmar Eliminación -->

@@ -4,10 +4,8 @@ import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, watch } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Input from '@/components/ui/input/Input.vue';
-import { PlusCircle, Search } from 'lucide-vue-next';
 import StatusBadge from '@/components/common/StatusBadge.vue';
-import EditButton from '@/components/common/EditButton.vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
+import ArticleDialog from './ArticleDialog.vue';
 import { Button } from '@/components/ui/button';
 import {
     Pagination,
@@ -20,17 +18,23 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import axios from 'axios';
+import { Article } from '@/types';
+import ViewButton from '@/components/common/ViewButton.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
     { title: 'Listado de Artículos', href: '/inventario/articulos' },
 ];
 
-const articles = ref([]);
+const articles = ref<Article[]>([]);
 const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
+
+const dialogType = ref<'view'>('view');
+const isDialogOpen = ref(false);
+const form = ref<Partial<Article>>({});
 
 async function fetchArticles(page = 1, search = '') {
     const params = { page, per_page: itemsPerPage, search };
@@ -52,6 +56,17 @@ function handlePageChange(newPage: number) {
     currentPage.value = newPage;
     fetchArticles(newPage, searchQuery.value);
 }
+
+function openDialog(article: Article) {
+    dialogType.value = 'view';
+    isDialogOpen.value = true;
+    form.value = { ...article };
+}
+
+function closeDialog() {
+    isDialogOpen.value = false;
+}
+
 </script>
 
 <template>
@@ -60,9 +75,6 @@ function handlePageChange(newPage: number) {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Listado de Artículos</h1>
-                <Button variant="default" size="sm">
-                    <PlusCircle class="h-4 w-4" /> Nuevo Artículo
-                </Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
@@ -101,8 +113,7 @@ function handlePageChange(newPage: number) {
                                 <StatusBadge :status="article.status" />
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => {}" />
-                                <DeleteButton :onClick="() => {}" />
+                                <ViewButton :onClick="() => openDialog(article)" />
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="articles.length === 0">
@@ -136,5 +147,6 @@ function handlePageChange(newPage: number) {
                 </Pagination>
             </div>
         </div>
+        <ArticleDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="fetchArticles(currentPage, searchQuery)" />
     </AppLayout>
 </template>

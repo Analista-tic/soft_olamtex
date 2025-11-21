@@ -90,7 +90,7 @@ const navMainGroup: NavGroupItem[] = [
             },
             {
                 title: 'Ajuste de Inventario',
-                href: '#',
+                href: '/inventario/ajuste-inventario',
                 permission: 'ver telas',
             },
             {

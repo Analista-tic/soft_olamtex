@@ -30,6 +30,8 @@ const emit = defineEmits<{
 
 // Estado interno del diálogo
 const internalIsOpen = ref(props.isOpen);
+const additionalContactsListRef = ref<InstanceType<typeof AdditionalContactsList> | null>(null);
+const branchesListRef = ref<InstanceType<typeof BranchesList> | null>(null);
 
 // Formulario reactivo con valores iniciales
 const form = ref<Partial<ExtendedContact>>({
@@ -88,6 +90,14 @@ const submitForm = async () => {
             errors.value.additional_contacts = ['Todos los contactos adicionales deben tener nombre y correo válidos.'];
             return;
         }
+        if (hasDuplicateAdditionalContacts()) {
+            additionalContactsListRef.value?.showDuplicateAlert();
+            return;
+        }
+        if (hasDuplicateBranches()) {
+            branchesListRef.value?.showDuplicateAlert();
+            return;
+        }
 
         await emit('submit', {
             ...form.value,
@@ -106,6 +116,52 @@ const handleErrors = (errorResponse: any) => {
         console.error('Error inesperado:', errorResponse);
     }
 };
+
+const hasDuplicateAdditionalContacts = () => {
+    const contacts = form.value.additional_contacts ?? [];
+
+    const seen = new Set<string>();
+
+    for (const c of contacts) {
+        const name = (c.name ?? '').trim().toLowerCase();
+        const email = (c.email ?? '').trim().toLowerCase();
+        const phone = (c.phone ?? '').trim();
+
+        // ignorar líneas totalmente vacías por si acaso
+        if (!name && !email && !phone) continue;
+
+        const key = `${name}|${email}|${phone}`;
+        if (seen.has(key)) {
+            return true; // ya había uno igual
+        }
+        seen.add(key);
+    }
+
+    return false;
+};
+
+const hasDuplicateBranches = () => {
+    const branches = form.value.branches ?? [];
+
+    const seen = new Set<string>();
+
+    for (const b of branches) {
+        const name = (b.name ?? '').trim().toLowerCase();
+        const address = (b.address ?? '').trim().toLowerCase();
+        const phone = (b.phone ?? '').trim();
+
+        if (!name && !address && !phone) continue;
+
+        const key = `${name}|${address}|${phone}`;
+        if (seen.has(key)) {
+            return true;
+        }
+        seen.add(key);
+    }
+
+    return false;
+};
+
 
 // Actualizar contactos adicionales
 const updateAdditionalContacts = (contacts: AdditionalContact[]) => {
@@ -144,6 +200,7 @@ const updateBranches = (branches: any[]) => {
 
                 <TabsContent value="additional-info">
                     <AdditionalContactsList
+                        ref="additionalContactsListRef"
                         :additionalContacts="form.additional_contacts ?? []"
                         @update:additionalContacts="updateAdditionalContacts"
                     />
@@ -154,6 +211,7 @@ const updateBranches = (branches: any[]) => {
 
                 <TabsContent value="branches">
                     <BranchesList
+                        ref="branchesListRef"
                         :branches="form.branches ?? []"
                         @update:branches="updateBranches"
                     />
