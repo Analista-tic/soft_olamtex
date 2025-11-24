@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted  } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Label from '@/components/ui/label/Label.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2 } from 'lucide-vue-next';
+import { Plus } from 'lucide-vue-next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import type { Article } from '@/types';
 
 const { isOpen } = defineProps<{
   isOpen: boolean;
@@ -36,6 +37,8 @@ const observation = ref<string>('');
 const productionOrder = ref<string>('');
 const taxes = ref<any[]>([]);
 const dateInputRef = ref<HTMLInputElement | null>(null);
+const articles = ref<Article[]>([]);
+const alertMessage = ref<string>('');
 
 const lines = ref<Line[]>([
     { id: 1, article: '', price: 0, tax: 0, quantity: 0, description: '' },
@@ -55,18 +58,23 @@ async function fetchTaxes() {
   }
 }
 
+async function fetchArticles() {
+  try {
+    const response = await axios.get('/articulos/data', {
+      params: { per_page: 1000, status: 1 }, // solo habilitados, ajusta si quieres
+    });
+    articles.value = response.data?.data ?? [];
+  } catch (e) {
+    console.error('Error cargando artículos', e);
+    articles.value = [];
+  }
+}
+
 onMounted(() => {
   fetchTaxes();
+  fetchArticles();
 });
 
-const alertMessage = ref<string>('');
-const company = {
-  name: 'Demo S.A.S.',
-  nit: '000.000.000-0',
-  email: 'demo@empresa.com',
-};
-// const props = defineProps<{ company: { name: string; nit: string; email: string } }>();
-// const company = props.company;
 
 function addLine() {
     const nextId = lines.value.length ? Math.max(...lines.value.map(l => l.id)) + 1 : 1;
@@ -145,20 +153,11 @@ function handleSubmit() {
         return;
     }
 
-    console.log('Guardar', {
-        documentNumber: documentNumber.value,
-        adjustmentType: adjustmentType.value,
-        date: date.value,
-        observation: observation.value,
-        productionOrder: productionOrder.value,
-        lines: lines.value,
-        subtotal: subtotal.value,
-        iva: ivaTotal.value,
-        total: totalAdjustment.value,
-    });
-
+    
     emit('close');
 }
+
+
 </script>
 
 <template>
@@ -194,56 +193,52 @@ function handleSubmit() {
                             <Input v-model="documentNumber" class="mt-1" readonly />
                             <p class="mt-1 text-xs text-muted-foreground"></p>
                         </div>
-
-                        <div
-                            class="flex items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground"
-                        >
-                            Espacio para logo
+                        <div class="relative flex h-full items-center justify-center rounded p-4">
+                            <img
+                            src="/images/olamtex.png"
+                            alt="Logo empresa"
+                            class="max-h-12 object-contain"
+                            />
                         </div>
-
-                        <div class="space-y-1 text-sm">
-                            <p class="font-semibold">{{ company.name }}</p>
-                            <p>Razón social: {{ company.name }}</p>
-                            <p>NIT: {{ company.nit }}</p>
-                            <p>Correo: {{ company.email }}</p>
-                        </div>
+                        <div>
+                        <div class=" font-semibold">Datos empresa</div>
+                        <p class="text-xs">Razón Social: <span class="font-normal">OLAMTEX S.A.S.</span></p>
+                        <p class="text-xs">NIT: <span class="font-normal">900123456-7</span></p>
+                        <p class="text-xs">Correo: <span class="font-normal">info@olamtex.com</span></p>
                     </div>
-
-                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-12 items-end">
-                        <div class="md:col-span-4">
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3 items-end">
+                        <div>
                             <SelectField
-                                v-model="adjustmentType"
-                                label="Tipo de ajuste"
-                                :options="adjustmentTypeOptions"
-                                placeholder="Selecciona tipo de ajuste"
-                                required
+                            v-model="adjustmentType"
+                            label="Tipo de ajuste"
+                            :options="adjustmentTypeOptions"
+                            placeholder="Selecciona tipo de ajuste"
+                            required
                             />
                         </div>
 
-                        <div class="md:col-span-3">
+                        <div>
                             <Label>
-                                Fecha <span class="text-destructive">*</span>
+                            Fecha <span class="text-destructive">*</span>
                             </Label>
                             <Input
-                                ref="dateInputRef"
-                                v-model="date"
-                                type="date"
-                                class="w-full"
-                                required
+                            ref="dateInputRef"
+                            v-model="date"
+                            type="date"
+                            class="w-full"
+                            required
                             />
                         </div>
-
-
-                        <div class="md:col-span-5">
+                        <div>
                             <Label>Observación</Label>
                             <Input
-                                v-model="observation"
-                                class="mt-1"
-                                placeholder="Ingrese una observación"
+                            v-model="observation"
+                            class="mt-1"
+                            placeholder="Ingrese una observación"
                             />
                         </div>
                     </div>
-
                     <div class="mt-4">
                         <Label>Orden de producción</Label>
                         <Input
@@ -291,11 +286,26 @@ function handleSubmit() {
                                 <TableBody>
                                     <TableRow v-for="line in lines" :key="line.id">
                                     <TableCell>
-                                        <Input
-                                        v-model="line.article"
-                                        placeholder="Artículo"
-                                        class="h-8 w-full"
-                                        />
+                                        <Select
+                                            :modelValue="line.article ?? ''"
+                                            @update:modelValue="val => (line.article = val)"
+                                        >
+                                            <SelectTrigger class="h-8 w-full">
+                                            <SelectValue placeholder="Artículo" />
+                                            </SelectTrigger>
+
+                                            <SelectContent>
+                                            <SelectItem
+                                                v-for="article in articles"
+                                                :key="article.id"
+                                                :value="String(article.id)"
+                                            >
+                                                <!-- Texto que ve el usuario en el combo -->
+                                                {{ article.name }}
+                                                <span v-if="article.reference"> ({{ article.reference }})</span>
+                                            </SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </TableCell>
 
                                     <TableCell>
