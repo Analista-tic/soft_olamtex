@@ -270,6 +270,8 @@ async function handleSubmit() {
     }
     if (requiredErrors.length > 0) {
         alertMessage.value = `Por favor, completa todos los campos obligatorios: ${requiredErrors.join(', ')}.`;
+        const dialogEl = document.querySelector('[role="dialog"]');
+        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
         return;
     }
 
@@ -495,12 +497,9 @@ watch(
             </DialogHeader>
 
             <form @submit.prevent="handleSubmit">
-                <!-- Todo el formulario se deshabilita automáticamente en modo vista -->
                 <fieldset :disabled="isViewMode" class="space-y-4">
-                    <!-- PRIMERA SECCIÓN: nombre, grupo principal, bodegas + imagen -->
                     <div class="grid grid-cols-1 gap-2 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
-                            <!-- Nombre -->
                             <div>
                                 <Label>Nombre</Label>
                                 <Input
@@ -512,7 +511,6 @@ watch(
                                 />
                             </div>
 
-                            <!-- Grupo principal -->
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                                 <template v-if="isViewMode">
                                     <div class="flex flex-col gap-1">
@@ -575,7 +573,6 @@ watch(
                                 </template>
                             </div>
 
-                            <!-- Bodegas y Stock -->
                             <div
                                 class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
                             >
@@ -775,7 +772,7 @@ watch(
                     />
                 </fieldset>
 
-                <!-- FOOTER (este NO se deshabilita nunca) -->
+                <!-- FOOTER -->
                 <DialogFooter class="mt-6 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
                     <Button
                         variant="outline"

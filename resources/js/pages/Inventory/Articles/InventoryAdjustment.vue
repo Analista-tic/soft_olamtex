@@ -5,6 +5,7 @@ import { ref } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
+import { PlusCircle } from 'lucide-vue-next';
 
 import InventoryAdjustmentForm from './InventoryAdjustmentForm.vue';
 
@@ -84,7 +85,7 @@ function closeAdjustmentForm() {
         <h1 class="text-lg font-bold">Ajuste de Inventario</h1>
 
         <Button size="sm" class="flex items-center gap-1" @click="openCreateAdjustment">
-          Crear ajuste
+          <PlusCircle class="h-4 w-4" /> Crear ajuste
         </Button>
       </div>
 
@@ -138,33 +139,45 @@ function closeAdjustmentForm() {
         </Table>
 
         <Pagination
-            class="mt-5 flex justify-center"
-            :items-per-page="itemsPerPage"
-            :total="totalItems"
-            :sibling-count="1"
-            show-edges
-            v-model:current-page="currentPage"
-            @page-changed="handlePageChange"
+          class="mt-5 flex justify-center"
+          :items-per-page="itemsPerPage"
+          :total="totalItems"
+          :sibling-count="1"
+          show-edges
+          v-model:current-page="currentPage"
+          @page-changed="handlePageChange"
         >
-            <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                <PaginationFirst />
-                <PaginationPrev />
-                <template v-for="item in items" :key="item.type + String(item.value ?? '')">
-                    <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                        <Button
-                            class="h-6 w-6 p-0"
-                            :variant="item.value === currentPage ? 'default' : 'outline'"
-                            @click="handlePageChange(item.value as number)"
-                        >
-                            {{ item.value }}
-                        </Button>
-                    </PaginationListItem>
-                    <PaginationEllipsis v-else />
-                </template>
-                <PaginationNext />
-                <PaginationLast />
-            </PaginationList>
+          <PaginationList v-slot="{ items }" class="flex items-center gap-1">
+            <PaginationFirst />
+            <PaginationPrev />
+
+            <template
+              v-for="(item, index) in items"
+              :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`"
+            >
+              <!-- Caso páginas -->
+              <PaginationListItem
+                v-if="item.type === 'page'"
+                :value="item.value"
+                as-child
+              >
+                <Button
+                  class="h-6 w-6 p-0"
+                  :variant="item.value === currentPage ? 'default' : 'outline'"
+                  @click="handlePageChange(item.value as number)"
+                >
+                  {{ item.value }}
+                </Button>
+              </PaginationListItem>
+              <PaginationEllipsis v-else />
+            </template>
+
+            <PaginationNext />
+            <PaginationLast />
+          </PaginationList>
+
         </Pagination>
+
       </div>
     </div>
 
