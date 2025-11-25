@@ -2,9 +2,9 @@
 import { ref, watch, computed } from 'vue';
 import { Label } from '@/components/ui/label';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
-import type { Option } from '@/types'; // Importa Option del index de tipado
+import type { Option } from '@/types';
 
-interface Props {
+const props = withDefaults(defineProps<{
     label: string;
     options: Option[];
     required?: boolean;
@@ -12,9 +12,17 @@ interface Props {
     multiple?: boolean;
     placeholder?: string;
     disabled?: boolean;
-}
+    searchable?: boolean;
+    searchPlaceholder?: string;
+}>(), {
+    required: false,
+    multiple: false,
+    placeholder: '',
+    disabled: false,
+    searchable: true,
+    searchPlaceholder: 'Buscar...',
+});
 
-const props = defineProps<Props>();
 const emit = defineEmits<{
     (e: 'update:modelValue', value: Option['id'] | Option['id'][] | undefined | null): void;
 }>();
@@ -23,14 +31,25 @@ const localModelValue = ref<Option['id'] | Option['id'][]>(
     props.modelValue ?? (props.multiple ? [] : '')
 );
 
-// Sincronizar con el valor externo si cambia
-watch(() => props.modelValue, (newVal) => {
-    localModelValue.value = newVal ?? (props.multiple ? [] : '');
-});
+// Mantener sincronía con el valor externo si cambia desde el padre
+watch(
+    () => props.modelValue,
+    (newVal) => {
+        localModelValue.value = newVal ?? (props.multiple ? [] : '');
+    }
+);
 
 // Emitir cambios al padre
 watch(localModelValue, (newValue) => {
     emit('update:modelValue', newValue);
+});
+
+// Búsqueda local dentro del dropdown
+const searchTerm = ref('');
+const filteredOptions = computed(() => {
+    const term = searchTerm.value.trim().toLowerCase();
+    if (!term) return props.options;
+    return props.options.filter((opt) => opt.name.toLowerCase().includes(term));
 });
 
 // Eliminar un elemento seleccionado en modo múltiple
@@ -42,10 +61,9 @@ function removeItem(item: Option['id']) {
 
 const selectedOptions = computed<Option[] | Option | null>(() => {
     if (props.multiple && Array.isArray(localModelValue.value)) {
-        // Solo si es array se usa includes
-        return props.options.filter(opt => (localModelValue.value as Array<Option['id']>).includes(opt.id));
+        return props.options.filter((opt) => (localModelValue.value as Array<Option['id']>).includes(opt.id));
     }
-    return props.options.find(opt => opt.id == localModelValue.value) || null;
+    return props.options.find((opt) => opt.id == localModelValue.value) || null;
 });
 
 function handleChange(val: Option['id'] | Option['id'][]) {
@@ -110,6 +128,17 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                         class="absolute z-10 mt-1 min-w-[12rem] w-full max-w-full bg-gray-50 shadow-2xl max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm"
                         style="position: absolute; overflow: visible; max-height: none; box-shadow: 0 8px 32px 0 rgba(31, 41, 55, 0.25), 0 1.5px 6px 0 rgba(0,0,0,0.10);"
                     >
+                        <div v-if="searchable" class="sticky top-0 z-10 bg-white px-2 pb-2">
+                            <input
+                                v-model="searchTerm"
+                                type="text"
+                                :placeholder="searchPlaceholder"
+                                class="w-full rounded-md border border-input px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                @keydown.stop
+                                @keyup.stop
+                                @click.stop
+                            />
+                        </div>
                         <ListboxOption
                             v-if="!multiple"
                             :value="''"
@@ -119,7 +148,7 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                             {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
                         </ListboxOption>
                         <ListboxOption
-                            v-for="option in options"
+                            v-for="option in filteredOptions"
                             :key="option.id"
                             :value="option.id"
                         >
@@ -137,7 +166,6 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                                         v-if="selected"
                                         class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600"
                                     >
-                                        <!-- check icon -->
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
@@ -145,6 +173,12 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                                 </div>
                             </template>
                         </ListboxOption>
+                        <div
+                            v-if="filteredOptions.length === 0"
+                            class="px-3 py-2 text-sm text-gray-500"
+                        >
+                            No se encontraron opciones.
+                        </div>
                     </ListboxOptions>
                 </div>
             </Listbox>

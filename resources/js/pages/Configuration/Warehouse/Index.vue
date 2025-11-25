@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { ref, onMounted, watch } from 'vue';
 import { BreadcrumbItem } from '@/types';
-import type { Warehouse } from '@/types'; // Importar el tipo Warehouse
-import EditButton from '@/components/common/EditButton.vue';
+import type { Warehouse } from '@/types';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { PlusCircle, Search } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
@@ -17,35 +20,29 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import { PlusCircle, Search } from 'lucide-vue-next';
-import { ref, onMounted, watch } from 'vue';
+import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import WarehouseDialog from './WarehouseDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Configuración',
-        href: '/configuracion',
-    },
-    {
-        title: 'Bodegas',
-        href: '/bodegas',
-    },
+    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Bodegas', href: '/bodegas' },
 ];
 
-const warehouses = ref<Warehouse[]>([]); // Warehouses list
-const warehouseToDelete = ref<Warehouse | null>(null); // Warehouse to delete
+const warehouses = ref<Warehouse[]>([]);
+const warehouseToDelete = ref<Warehouse | null>(null);
 const isDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<Warehouse>({
     id: undefined,
-    name: '', // Renombrado de nombre a name
-    observation: '', // Renombrado de ubicacion a observation
+    name: '',
+    observation: '',
 });
 const isSubmitting = ref(false);
+const successMessage = ref('');
+const errorMessage = ref('');
 
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -55,11 +52,9 @@ const searchQuery = ref('');
 function openDialog(type: 'create' | 'edit', warehouse: Warehouse | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
-    if (type === 'edit' && warehouse) {
-        form.value = { ...warehouse };
-    } else {
-        form.value = { id: undefined, name: '', observation: '' }; // Renombrado de nombre y ubicacion
-    }
+    form.value = type === 'edit' && warehouse
+        ? { ...warehouse }
+        : { id: undefined, name: '', observation: '' };
 }
 
 function closeDialog() {
@@ -73,13 +68,15 @@ function confirmDeleteWarehouse(warehouse: Warehouse) {
 
 async function deleteWarehouse() {
     if (!warehouseToDelete.value) return;
-
     try {
         await axios.delete(`/bodegas/${warehouseToDelete.value.id}`);
+        successMessage.value = 'Bodega eliminada correctamente.';
         fetchWarehouses();
-        isDeleteDialogOpen.value = false;
     } catch (error) {
+        errorMessage.value = 'Error al eliminar la bodega.';
         console.error('Error al eliminar el warehouse:', error);
+    } finally {
+        isDeleteDialogOpen.value = false;
     }
 }
 
@@ -89,10 +86,17 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
 
     try {
+        if (!warehouseData.name || String(warehouseData.name).trim() === '') {
+            errorMessage.value = 'El nombre es obligatorio.';
+            return;
+        }
         await axios({ method, url, data: warehouseData });
+        successMessage.value = dialogType.value === 'create' ? 'Bodega creada correctamente.' : 'Bodega actualizada correctamente.';
         fetchWarehouses();
         closeDialog();
+        errorMessage.value = '';
     } catch (error) {
+        errorMessage.value = 'Error al guardar la bodega.';
         console.error('Error al guardar el warehouse:', error);
     } finally {
         isSubmitting.value = false;
@@ -102,13 +106,8 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
 async function fetchWarehouses(page = 1, search = '') {
     try {
         const response = await axios.get('/bodegas/data', {
-            params: {
-                page,
-                per_page: itemsPerPage,
-                search,
-            },
+            params: { page, per_page: itemsPerPage, search },
         });
-
         warehouses.value = response.data.data;
         totalItems.value = response.data.total;
         currentPage.value = response.data.current_page;
@@ -132,12 +131,19 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Gestión de Warehouses" />
+    <Head title="Gestión de bodegas" />
     <AppLayout :breadcrumbs="breadcrumbs">
+        <AlertStack
+            :successMessage="successMessage"
+            :errorMessage="errorMessage"
+            class="mb-2"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Bodegas</h1>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nueva Bodega</Button>
+                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Crear Nueva Bodega</Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
@@ -152,16 +158,16 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Id</TableHead>
-                            <TableHead>Nombre</TableHead> <!-- Renombrado de Nombre a Name -->
-                            <TableHead>Observación</TableHead> <!-- Renombrado de Ubicación a Observation -->
+                            <TableHead>Nombre</TableHead>
+                            <TableHead>Observación</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="(warehouse, index) in warehouses" :key="warehouse.id ?? `warehouse-${index}`">
                             <TableCell class="font-medium">{{ warehouse.id }}</TableCell>
-                            <TableCell class="font-medium">{{ warehouse.name }}</TableCell> <!-- Renombrado de nombre a name -->
-                            <TableCell>{{ warehouse.observation }}</TableCell> <!-- Renombrado de ubicacion a observation -->
+                            <TableCell class="font-medium">{{ warehouse.name }}</TableCell>
+                            <TableCell>{{ warehouse.observation }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', warehouse)" />
                                 <DeleteButton :onClick="() => confirmDeleteWarehouse(warehouse)" />
@@ -181,7 +187,6 @@ onMounted(() => {
                     <PaginationList v-slot="{ items }" class="flex items-center gap-1">
                         <PaginationFirst />
                         <PaginationPrev />
-
                         <template v-for="(item, index) in items">
                             <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
                                 <Button class="h-6 w-6 p-0" :variant="item.value === currentPage ? 'default' : 'outline'" @click="handlePageChange(item.value)">
@@ -190,7 +195,6 @@ onMounted(() => {
                             </PaginationListItem>
                             <PaginationEllipsis v-else :key="item.type" :index="index" />
                         </template>
-
                         <PaginationNext />
                         <PaginationLast />
                     </PaginationList>
@@ -208,13 +212,12 @@ onMounted(() => {
             @cancel="closeDialog"
         />
 
-        <!-- Dialog para Confirmar Eliminación -->
         <Dialog v-model:open="isDeleteDialogOpen">
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Confirmar eliminación</DialogTitle>
                     <DialogDescription>
-                        ¿Estás seguro de que deseas eliminar este warehouse? Esta acción no se puede deshacer.
+                        ¿Estás seguro de que deseas eliminar esta bodega? Esta acción no se puede deshacer.
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

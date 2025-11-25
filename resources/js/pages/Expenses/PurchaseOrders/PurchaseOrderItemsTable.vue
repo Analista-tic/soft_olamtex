@@ -8,14 +8,17 @@ import type { Article, PurchaseOrderItem } from '@/types';
 import axios from 'axios';
 import { CirclePlus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import type { Tax } from '@/types';
 
 const props = defineProps<{ items: PurchaseOrderItem[] }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseOrderItem[]>([]);
 const articles = ref<Article[]>([]);
+const taxes = ref<Tax[]>([]);
 
 const articleMap = computed(() => new Map<number, Article>(articles.value.map((a) => [a.id, a])));
+const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
 
 watch(
     () => props.items,
@@ -42,7 +45,15 @@ async function fetchArticles() {
     articles.value = res.data.data;
 }
 
-onMounted(fetchArticles);
+async function fetchTaxes() {
+    const res = await axios.get('/impuestos/data', { params: { per_page: 1000 } });
+    taxes.value = Array.isArray(res.data?.data) ? res.data.data : [];
+}
+
+onMounted(() => {
+    fetchArticles();
+    fetchTaxes();
+});
 
 function isTela(item: PurchaseOrderItem) {
     const articleId = Number(item.article_id);
@@ -68,6 +79,10 @@ function addItem() {
 }
 
 function removeItem(idx: number) {
+    if (localItems.value.length <= 1) {
+        // Mantener al menos un ítem obligatorio
+        return;
+    }
     localItems.value.splice(idx, 1);
     emit('update:items', localItems.value);
 }
@@ -130,9 +145,9 @@ watch(
             <Button type="button" variant="default" size="sm" @click="addItem"> <CirclePlus /> Añadir Item </Button>
         </div>
 
-        <Table
-            style="overflow: visible; max-height: none;"
-        >
+    <Table
+        style="overflow: visible; max-height: none;"
+    >
             <TableHeader>
                 <TableRow class="text-center">
                     <TableCell class="min-w-[120px]">Artículo</TableCell>
@@ -158,7 +173,12 @@ watch(
                         <InputField v-model="item.price" type="currency" label="" @input="calcTotals(item)" />
                     </TableCell>
                     <TableCell class="p-1">
-                        <InputField v-model="item.tax" type="number" label="" :readonly="true" :disabled="true" />
+                        <SelectField
+                            v-model="item.tax"
+                            :options="taxOptions"
+                            label=""
+                            @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
+                        />
                     </TableCell>
                     <TableCell class="p-1">
                         <InputField v-model="item.quantity" type="number" label="" @input="calcTotals(item)" />
@@ -188,7 +208,7 @@ watch(
                     </TableCell>
                     <TableCell class="p-1">
                         <div class="flex justify-center">
-                            <DeleteButton @click="removeItem(idx)" />
+                            <DeleteButton v-if="localItems.length > 1" @click="removeItem(idx)" />
                         </div>
                     </TableCell>
                 </TableRow>

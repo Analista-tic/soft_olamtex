@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
@@ -13,6 +13,7 @@ import { PlusCircle, Search } from 'lucide-vue-next';
 import TaxDialog from './TaxDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import {
     Dialog,
     DialogContent,
@@ -34,6 +35,8 @@ const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<any>({ id: undefined, name: '', percentage: 0, status: true });
 const isSubmitting = ref(false);
+const successMessage = ref('');
+const errorMessage = ref('');
 
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -57,19 +60,31 @@ function confirmDeleteTax(tax: any) {
 
 async function deleteTax() {
     if (!taxToDelete.value) return;
-    await axios.delete(`/impuestos/${taxToDelete.value.id}`);
-    fetchTaxes();
-    isDeleteDialogOpen.value = false;
+    try {
+        await axios.delete(`/impuestos/${taxToDelete.value.id}`);
+        successMessage.value = 'Impuesto eliminado correctamente.';
+        fetchTaxes();
+    } catch (e) {
+        errorMessage.value = 'Error al eliminar el impuesto.';
+    } finally {
+        isDeleteDialogOpen.value = false;
+    }
 }
 
 async function handleDialogSubmit(taxData: any) {
     isSubmitting.value = true;
     const url = dialogType.value === 'create' ? '/impuestos' : `/impuestos/${taxData.id}`;
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
-    await axios({ method, url, data: taxData });
-    fetchTaxes();
-    closeDialog();
-    isSubmitting.value = false;
+    try {
+        await axios({ method, url, data: taxData });
+        successMessage.value = dialogType.value === 'create' ? 'Impuesto creado correctamente.' : 'Impuesto actualizado correctamente.';
+        fetchTaxes();
+        closeDialog();
+    } catch (e) {
+        errorMessage.value = 'Debes completar los campos obligatorios marcados con *.';
+    } finally {
+        isSubmitting.value = false;
+    }
 }
 
 async function fetchTaxes(page = 1, search = '') {
@@ -91,11 +106,18 @@ onMounted(() => fetchTaxes());
 </script>
 
 <template>
-    <Head title="Gestión de Impuestos" />
+    <Head title="Gestión de impuestos" />
     <AppLayout :breadcrumbs="breadcrumbs">
+        <AlertStack
+            :successMessage="successMessage"
+            :errorMessage="errorMessage"
+            class="mb-2"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Impuestos</h1>
+                <h1 class="text-lg font-bold">Gestión de impuestos</h1>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Nuevo Impuesto</Button>
             </div>
             <div class="relative flex items-center gap-4">
@@ -181,3 +203,15 @@ onMounted(() => fetchTaxes());
         </Dialog>
     </AppLayout>
 </template>
+
+
+
+
+
+
+
+
+
+
+
+

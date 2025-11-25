@@ -15,6 +15,7 @@ import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -30,6 +31,7 @@ const breadcrumbs = [
 const invoices = ref<PurchaseInvoice[]>([]);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
+const isDialogReadOnly = ref(false);
 const form = ref<Partial<PurchaseInvoice>>({});
 const invoiceToDelete = ref<PurchaseInvoice | null>(null);
 const isDeleteDialogOpen = ref(false);
@@ -40,6 +42,8 @@ const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const invoiceToPrint = ref<PurchaseInvoice | null>(null);
 const isSendingMail = ref(false);
+const successMessage = ref('');
+const errorMessage = ref('');
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
@@ -57,14 +61,18 @@ async function fetchProviders() {
     }
 }
 
-function openDialog(type: 'create' | 'edit', invoice: PurchaseInvoice | null = null) {
+function openDialog(type: 'create' | 'edit', invoice: PurchaseInvoice | null = null, readOnly = false) {
     dialogType.value = type;
+    isDialogReadOnly.value = readOnly;
     isDialogOpen.value = true;
     // Asegura el tipado correcto y evita referencias reactivas no deseadas
     form.value = invoice ? JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice> : {};
+    successMessage.value = '';
+    errorMessage.value = '';
 }
 
 function closeDialog() {
+    isDialogReadOnly.value = false;
     isDialogOpen.value = false;
 }
 
@@ -77,9 +85,11 @@ async function deleteInvoice(): Promise<void> {
     if (!invoiceToDelete.value) return;
     try {
         await axios.delete(`/gastos/facturas-compra/${invoiceToDelete.value.id}`);
+        successMessage.value = 'Factura eliminada correctamente.';
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
         console.log('Error al eliminar factura:', e);
+        errorMessage.value = 'Error al eliminar la factura.';
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -159,9 +169,9 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
     isSendingMail.value = true;
     try {
         await axios.post(`/gastos/facturas-compra/${invoice.id}/enviar-correo`);
-        alert('Factura enviada por correo correctamente.');
+        successMessage.value = 'Factura enviada por correo correctamente.';
     } catch {
-        alert('Error al enviar el correo.');
+        errorMessage.value = 'Error al enviar el correo.';
     } finally {
         isSendingMail.value = false;
     }
@@ -174,13 +184,31 @@ function goToReception(invoice: PurchaseInvoice) {
 
 function viewInvoiceDetails(invoice: PurchaseInvoice) {
     // Abrir el dialog de edición en modo solo lectura
-    openDialog('edit', invoice);
+    openDialog('edit', invoice, true);
+}
+
+function handleDialogRefresh(message?: string) {
+    successMessage.value = message || 'Factura guardada correctamente.';
+    errorMessage.value = '';
+    fetchInvoices(currentPage.value, searchQuery.value);
+    isDialogOpen.value = false;
+}
+
+function handleDialogError(message?: string) {
+    errorMessage.value = message || 'Error al guardar la factura.';
+    successMessage.value = '';
 }
 </script>
 
 <template>
     <Head title="Facturas de Compra" />
     <AppLayout :breadcrumbs="breadcrumbs">
+        <AlertStack
+            :successMessage="successMessage"
+            :errorMessage="errorMessage"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Facturas de Compra</h1>
@@ -323,8 +351,10 @@ function viewInvoiceDetails(invoice: PurchaseInvoice) {
             :isOpen="isDialogOpen"
             :dialogType="dialogType"
             :form="form"
+            :readOnly="isDialogReadOnly"
             @close="closeDialog"
-            @refresh="fetchInvoices"
+            @refresh="handleDialogRefresh"
+            @error="handleDialogError"
         />
         <PurchaseInvoicePrintDialog
             v-if="isPrintDialogOpen"

@@ -15,12 +15,8 @@ import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import AlertStack from '@/components/common/AlertStack.vue';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos/ordenes-compra' },
@@ -41,6 +37,8 @@ const isPrintDialogOpen = ref(false);
 const orderToPrint = ref<PurchaseOrder | null>(null);
 const isSendingMail = ref(false);
 const isConverting = ref<number | null>(null);
+const successMessage = ref('');
+const errorMessage = ref('');
 
 // NUEVOS FILTROS
 const statusFilter = ref('all');
@@ -59,6 +57,8 @@ function openDialog(type: 'create' | 'edit', order: PurchaseOrder | null = null)
     dialogType.value = type;
     isDialogOpen.value = true;
     form.value = order ? { ...order } : {};
+    successMessage.value = '';
+    errorMessage.value = '';
 }
 
 function closeDialog() {
@@ -72,9 +72,15 @@ function confirmDeleteOrder(order: PurchaseOrder) {
 
 async function deleteOrder() {
     if (!orderToDelete.value) return;
-    await axios.delete(`/gastos/ordenes-compra/${orderToDelete.value.id}`);
-    fetchOrders();
-    isDeleteDialogOpen.value = false;
+    try {
+        await axios.delete(`/gastos/ordenes-compra/${orderToDelete.value.id}`);
+        successMessage.value = 'Orden eliminada correctamente.';
+        fetchOrders(currentPage.value, searchQuery.value);
+    } catch {
+        errorMessage.value = 'Error al eliminar la orden.';
+    } finally {
+        isDeleteDialogOpen.value = false;
+    }
 }
 
 async function fetchOrders(page = 1, search = '') {
@@ -123,10 +129,10 @@ async function sendOrderByEmail(order: PurchaseOrder) {
     isSendingMail.value = true;
     try {
         await axios.post(`/gastos/ordenes-compra/${order.id}/enviar-correo`);
-        alert('Orden enviada por correo correctamente.');
+        successMessage.value = 'Orden enviada por correo correctamente.';
     } catch (e) {
         console.log('e', e);
-        alert('Error al enviar el correo.');
+        errorMessage.value = 'Error al enviar el correo.';
     } finally {
         isSendingMail.value = false;
     }
@@ -137,24 +143,42 @@ async function convertToInvoice(order: PurchaseOrder) {
     isConverting.value = order.id ?? null; // order.id nunca debería ser undefined, pero por seguridad
     try {
         await axios.post(`/gastos/ordenes-compra/${order.id}/convert-to-invoice`);
-        alert('Orden convertida en factura correctamente.');
+        successMessage.value = 'Orden convertida en factura correctamente.';
         fetchOrders(currentPage.value, searchQuery.value);
     } catch (e: any) {
         // Validación específica del mensaje de error
         if (e?.response?.data?.error_code === 'ORDER_ALREADY_INVOICED') {
-            alert('Esta orden de compra ya tiene una factura asociada.');
+            errorMessage.value = 'Esta orden de compra ya tiene una factura asociada.';
         } else {
-            alert(e?.response?.data?.message || 'Error al convertir en factura.');
+            errorMessage.value = e?.response?.data?.message || 'Error al convertir en factura.';
         }
     } finally {
         isConverting.value = null;
     }
+}
+
+function handleDialogRefresh(message?: string) {
+    successMessage.value = message || 'Orden guardada correctamente.';
+    errorMessage.value = '';
+    fetchOrders(currentPage.value, searchQuery.value);
+    isDialogOpen.value = false;
+}
+
+function handleDialogError(message?: string) {
+    errorMessage.value = message || 'Error al guardar la orden.';
+    successMessage.value = '';
 }
 </script>
 
 <template>
     <Head title="Órdenes de Compra" />
     <AppLayout :breadcrumbs="breadcrumbs">
+        <AlertStack
+            :successMessage="successMessage"
+            :errorMessage="errorMessage"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Órdenes de Compra</h1>
@@ -255,7 +279,14 @@ async function convertToInvoice(order: PurchaseOrder) {
                 </Table>
             </div>
         </div>
-        <PurchaseOrderDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="fetchOrders" />
+        <PurchaseOrderDialog
+            :isOpen="isDialogOpen"
+            :dialogType="dialogType"
+            :form="form"
+            @close="closeDialog"
+            @refresh="handleDialogRefresh"
+            @error="handleDialogError"
+        />
         <PurchaseOrderPrintDialog :isOpen="isPrintDialogOpen" :order="orderToPrint" @close="isPrintDialogOpen = false" />
         <Dialog v-model:open="isDeleteDialogOpen">
             <DialogContent>

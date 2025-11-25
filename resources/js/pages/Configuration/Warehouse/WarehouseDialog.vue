@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
@@ -43,8 +43,8 @@ function handleSubmit() {
                 </DialogTitle>
             </DialogHeader>
             <div class="space-y-4">
-                <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre" />
-                <InputField label="Obsevación" v-model="localForm.observation" placeholder="Observación" />
+                <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre" required />
+                <InputField label="Observación" v-model="localForm.observation" placeholder="Observación" />
             </div>
             <DialogFooter>
                 <Button variant="outline" @click="handleClose">Cancel</Button>
@@ -55,3 +55,9 @@ function handleSubmit() {
         </DialogContent>
     </Dialog>
 </template>
+
+
+
+
+
+

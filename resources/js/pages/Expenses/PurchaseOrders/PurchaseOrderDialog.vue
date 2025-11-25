@@ -18,7 +18,8 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
-    (e: 'refresh'): void;
+    (e: 'refresh', message?: string): void;
+    (e: 'error', message?: string): void;
 }>();
 
 // Estado
@@ -80,9 +81,27 @@ function createDefaultForm(): Partial<PurchaseOrder> {
     };
 }
 
+function createEmptyItem() {
+    return {
+        article_id: null,
+        price: 0,
+        tax: 0,
+        quantity: 1,
+        description: '',
+        total: 0,
+        total_tax: 0,
+        supplier_code: '',
+        supplier_color: '',
+        order_width: 0,
+    };
+}
+
 function resetForm() {
     localForm.value = props.form?.id ? { ...props.form } : createDefaultForm();
     if (!localForm.value.items) localForm.value.items = [];
+    if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
+        localForm.value.items = [createEmptyItem()];
+    }
 }
 
 async function fetchContacts() {
@@ -115,7 +134,22 @@ async function handleSubmit(sendMail = false) {
     if (!validateForm()) return;
     isLoading.value = true;
     isSendingMail.value = sendMail;
-    const formToSend = { ...localForm.value };
+    const formToSend: any = { ...localForm.value };
+    formToSend.contact_id = formToSend.contact_id ? Number(formToSend.contact_id) : null;
+    formToSend.items = Array.isArray(localForm.value.items)
+        ? localForm.value.items.map((item: any) => ({
+              ...item,
+              article_id: item.article_id ? Number(item.article_id) : null,
+              price: Number(item.price) || 0,
+              quantity: Number(item.quantity) || 0,
+              tax: Number(item.tax) || 0,
+              // El backend espera string en order_width; envía cadena vacía si no hay valor
+              order_width:
+                  item.order_width === undefined || item.order_width === null || item.order_width === ''
+                      ? ''
+                      : String(item.order_width),
+          }))
+        : [];
     if ('status' in formToSend) delete formToSend.status; // Asegura que no se envía status
     if (props.dialogType === 'create') delete formToSend.id;
     const url = props.dialogType === 'create'
@@ -127,13 +161,18 @@ async function handleSubmit(sendMail = false) {
         if (sendMail) {
             // Llama al endpoint para enviar el correo con PDF
             await axios.post(`/gastos/ordenes-compra/${data.data.id}/enviar-correo-pdf`);
-            alert('Orden guardada y enviada por correo correctamente.');
+            emit('refresh', 'Orden guardada y enviada por correo correctamente.');
+        } else {
+            emit('refresh', props.dialogType === 'create' ? 'Orden creada correctamente.' : 'Orden actualizada correctamente.');
         }
-        emit('refresh');
         dialogOpen.value = false;
     } catch (e) {
-        alert('Error al guardar la orden. Por favor intente nuevamente.');
-        console.error(e);
+        const serverMessage =
+            (e as any)?.response?.data?.message ||
+            Object.values((e as any)?.response?.data?.errors || {})?.flat()?.[0] ||
+            'Error al guardar la orden. Por favor intente nuevamente.';
+        emit('error', serverMessage);
+        console.error('Error guardando orden:', e);
     } finally {
         isLoading.value = false;
         isSendingMail.value = false;
@@ -153,8 +192,25 @@ function validateForm(): boolean {
         alert('La orden debe contener al menos un ítem');
         return false;
     }
+    const invalidItem = (localForm.value.items || []).find(
+        (item) => !item.article_id || Number(item.quantity) <= 0 || Number(item.price) <= 0,
+    );
+    if (invalidItem) {
+        alert('Cada ítem debe tener artículo, cantidad y precio mayor a 0.');
+        return false;
+    }
     return true;
 }
+
+// Normaliza contact_id a número para evitar errores 422
+watch(
+    () => localForm.value.contact_id,
+    (val) => {
+        if (val !== null && val !== undefined && typeof val !== 'number') {
+            localForm.value.contact_id = Number(val);
+        }
+    },
+);
 
 // Sincronización de apertura/cierre del diálogo
 watch(
@@ -217,12 +273,14 @@ watch(dialogOpen, (isOpen) => {
                         label="Número de identificación"
                         :modelValue="contactIdNumber"
                         readonly
+                        :disabled="true"
                     />
                     <InputField
                         :key="String(localForm.contact_id ?? '') + '-phone'"
                         label="Número de contacto"
                         :modelValue="contactPhone"
                         readonly
+                        :disabled="true"
                     />
                 </div>
 
@@ -282,7 +340,10 @@ watch(dialogOpen, (isOpen) => {
                         label="Observación"
                         placeholder="Agrega aquí observaciones adicionales para la orden de compra"
                     />
-                </div>`r`n`r`n                </div>`r`n`r`n                <!-- Botones -->
+                </div>
+
+                </div>
+                <!-- Botones -->
                 <DialogFooter class="mt-4 flex justify-end gap-4">
                     <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
                     <Button

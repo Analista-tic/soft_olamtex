@@ -5,6 +5,7 @@ import type { Branch, AdditionalContact, Contact } from '@/types';
 import { computed, ref, watch } from 'vue';
 import AdditionalContactsList from './AdditionalContactsList.vue';
 import ContactForm from './ContactForm.vue';
+import AlertBox from '@/components/AlertBox.vue';
 import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'; // Importar tabs de shadcn
 import BranchesList from './BranchesList.vue'; // Componente para manejar sucursales
@@ -73,9 +74,44 @@ const closeDialog = () => {
 };
 
 const errors = ref<Record<string, string[]>>({}); // Manejo de errores
+const showEmptyAlert = ref(false);
+
+const areRequiredFieldsEmpty = () => {
+    const requiredFields: (keyof Partial<Contact>)[] = [
+        'contact_type',
+        'groups',
+        'id_type',
+        'id_number',
+        'full_name',
+        'person_type',
+        'department',
+        'email',
+    ];
+
+    const isEmptyValue = (value: unknown) => {
+        if (Array.isArray(value)) {
+            return value.length === 0;
+        }
+        if (value === null || value === undefined) {
+            return true;
+        }
+        if (typeof value === 'string') {
+            return value.trim() === '';
+        }
+        return false;
+    };
+
+    return requiredFields.every((field) => isEmptyValue((form.value as any)[field]));
+};
 
 const submitForm = async () => {
     try {
+        // Aviso temprano si todos los campos obligatorios están vacíos
+        if (areRequiredFieldsEmpty()) {
+            showEmptyAlert.value = true;
+            return;
+        }
+
         // Validación básica antes de emitir
         if (!form.value.full_name?.trim()) {
             errors.value.full_name = ['El nombre completo es obligatorio.'];
@@ -186,8 +222,16 @@ const updateBranches = (branches: any[]) => {
                 </DialogDescription>
             </DialogHeader>
 
+            <div v-if="showEmptyAlert" class="absolute -top-26 left-1/2 z-20 w-full max-w-xl -translate-x-1/2">
+                <AlertBox
+                    type="warning"
+                    title="Campos obligatorios"
+                    message="Se debe completar todos los campos obligatorios."
+                    @close="showEmptyAlert = false"
+                />
+            </div>
             <!-- Pestañas -->
-            <Tabs defaultValue="basic-info" class="flex-1 overflow-y-auto px-2">
+            <Tabs defaultValue="basic-info" class="flex-1 overflow-y-auto px-2 pt-1">
                 <TabsList class="flex justify-center space-x-4">
                     <TabsTrigger value="basic-info" class="flex-1 text-center py-2">Información básica</TabsTrigger>
                     <TabsTrigger value="additional-info" class="flex-1 text-center py-2">Datos adicionales</TabsTrigger>

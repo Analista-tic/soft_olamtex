@@ -8,6 +8,7 @@ import type { Article, PurchaseInvoiceItem } from '@/types';
 import axios from 'axios';
 import { CirclePlus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import type { Tax } from '@/types';
 
 const props = defineProps<{ 
     items: PurchaseInvoiceItem[]; 
@@ -18,9 +19,11 @@ const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseInvoiceItem[]>([]);
 const articles = ref<Article[]>([]);
+const taxes = ref<Tax[]>([]);
 const isReadOnly = computed(() => !!props.isReadOnly);
 
 const articleMap = computed(() => new Map<number, Article>(articles.value.map((a) => [a.id, a])));
+const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
 
 watch(
     () => props.items,
@@ -50,7 +53,15 @@ async function fetchArticles() {
     articles.value = res.data.data;
 }
 
-onMounted(fetchArticles);
+async function fetchTaxes() {
+    const res = await axios.get('/impuestos/data', { params: { per_page: 1000 } });
+    taxes.value = Array.isArray(res.data?.data) ? res.data.data : [];
+}
+
+onMounted(() => {
+    fetchArticles();
+    fetchTaxes();
+});
 
 function addItem() {
     localItems.value.push({
@@ -68,6 +79,9 @@ function addItem() {
 }
 
 function removeItem(idx: number) {
+    if (localItems.value.length <= 1) {
+        return;
+    }
     localItems.value.splice(idx, 1);
     emit('update:items', localItems.value);
 }
@@ -172,7 +186,10 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
 </script>
 
 <template>
-    <div>
+    <div
+        style="overflow: visible; max-height: none;"
+        class="w-full"
+    >
         <div class="mb-2 flex items-center justify-between">
             <span class="font-semibold">Items de la Factura</span>
             <Button
@@ -186,7 +203,9 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
             </Button>
         </div>
 
-        <Table>
+        <Table
+            style="overflow: visible; max-height: none;"
+        >
             <TableHeader>
                 <TableRow class="text-center">
                     <TableCell class="min-w-[120px]">Artículo</TableCell>
@@ -239,7 +258,13 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                         </div>
                     </TableCell>
                     <TableCell class="w-[80px] min-w-[60px] p-1 align-top">
-                        <InputField v-model="item.tax" type="number" label="" :readonly="true" :disabled="true" />
+                        <SelectField
+                            v-model="item.tax"
+                            :options="taxOptions"
+                            label=""
+                            :disabled="isReadOnly"
+                            @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
+                        />
                     </TableCell>
                     <TableCell class="p-1 align-top">
                         <div class="flex flex-col items-start justify-start h-full w-full">
@@ -303,7 +328,7 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                     </TableCell>
                     <TableCell class="p-1">
                         <div class="flex justify-center">
-                            <DeleteButton v-if="!isReadOnly" @click="removeItem(idx)" />
+                            <DeleteButton v-if="!isReadOnly && localItems.length > 1" @click="removeItem(idx)" />
                         </div>
                     </TableCell>
                 </TableRow>

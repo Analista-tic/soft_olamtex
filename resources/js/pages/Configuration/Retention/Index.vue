@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
@@ -6,6 +6,7 @@ import {
     Pagination, PaginationList, PaginationListItem, PaginationFirst, PaginationPrev, PaginationNext, PaginationLast, PaginationEllipsis
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -13,6 +14,7 @@ import { PlusCircle, Search } from 'lucide-vue-next';
 import RetentionDialog from './RetentionDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 
 const breadcrumbs = [
     { title: 'Configuración', href: '/configuracion' },
@@ -26,6 +28,8 @@ const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<any>({ id: undefined, name: '', percent: 0, type: '', description: '', status: 'active' });
 const isSubmitting = ref(false);
+const successMessage = ref('');
+const errorMessage = ref('');
 
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -49,19 +53,31 @@ function confirmDeleteRetention(retention: any) {
 
 async function deleteRetention() {
     if (!retentionToDelete.value) return;
-    await axios.delete(`/retenciones/${retentionToDelete.value.id}`);
-    fetchRetentions();
-    isDeleteDialogOpen.value = false;
+    try {
+        await axios.delete(`/retenciones/${retentionToDelete.value.id}`);
+        successMessage.value = 'Retención eliminada correctamente.';
+        fetchRetentions();
+    } catch {
+        errorMessage.value = 'Error al eliminar la retención.';
+    } finally {
+        isDeleteDialogOpen.value = false;
+    }
 }
 
 async function handleDialogSubmit(retentionData: any) {
     isSubmitting.value = true;
     const url = dialogType.value === 'create' ? '/retenciones' : `/retenciones/${retentionData.id}`;
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
-    await axios({ method, url, data: retentionData });
-    fetchRetentions();
-    closeDialog();
-    isSubmitting.value = false;
+    try {
+        await axios({ method, url, data: retentionData });
+        successMessage.value = dialogType.value === 'create' ? 'Retención creada correctamente.' : 'Retención actualizada correctamente.';
+        fetchRetentions();
+        closeDialog();
+    } catch {
+        errorMessage.value = 'Debes completar los campos obligatorios marcados con *.';
+    } finally {
+        isSubmitting.value = false;
+    }
 }
 
 async function fetchRetentions(page = 1, search = '') {
@@ -83,12 +99,19 @@ onMounted(() => fetchRetentions());
 </script>
 
 <template>
-    <Head title="Gestión de Retenciones" />
+    <Head title="Gestión de retenciones" />
     <AppLayout :breadcrumbs="breadcrumbs">
+        <AlertStack
+            :successMessage="successMessage"
+            :errorMessage="errorMessage"
+            class="mb-2"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Retenciones</h1>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Nueva Retención</Button>
+                <h1 class="text-lg font-bold">Gestión de retenciones</h1>
+                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Nueva Retención</Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
@@ -177,3 +200,9 @@ onMounted(() => fetchRetentions());
         </Dialog>
     </AppLayout>
 </template>
+
+
+
+
+
+
