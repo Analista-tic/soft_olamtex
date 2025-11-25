@@ -9,12 +9,18 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { PurchaseOrder } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Printer, Search, Mail, ReceiptText } from 'lucide-vue-next';
+import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos/ordenes-compra' },
@@ -213,34 +219,36 @@ async function convertToInvoice(order: PurchaseOrder) {
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', order)" title="Editar orden" />
                                 <DeleteButton :onClick="() => confirmDeleteOrder(order)" title="Eliminar orden" />
-                                <button
-                                    :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-green-500']"
-                                    @click="openPrintDialog(order)"
-                                    title="Imprimir orden"
-                                >
-                                    <Printer class="h-4 w-4" />
-                                </button>
-                                <button
-                                    :disabled="isSendingMail"
-                                    :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600', isSendingMail && 'opacity-50 cursor-not-allowed']"
-                                    @click="sendOrderByEmail(order)"
-                                    title="Enviar orden por correo"
-                                >
-                                    <Mail class="h-4 w-4" />
-                                </button>
-                                <!-- Botón Convertir en Factura: solo si no está facturada -->
-                                <button
-                                    v-if="order.status !== 'converted'"
-                                    :disabled="isConverting === order.id"
-                                    :class="[
-                                        'flex items-center text-gray-500 transition-colors duration-200 hover:text-green-600',
-                                        isConverting === order.id && 'opacity-50 cursor-not-allowed'
-                                    ]"
-                                    @click="convertToInvoice(order)"
-                                    title="Convertir esta orden en factura"
-                                >
-                                    <ReceiptText class="h-4 w-4"/>
-                                </button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger as-child>
+                                        <Button variant="ghost" size="icon" class="h-8 w-8 p-0">
+                                            <MoreVertical class="h-4 w-4" />
+                                            <span class="sr-only">Acciones</span>
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" class="w-48">
+                                        <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(order)">
+                                            <Printer class="h-4 w-4" /> Imprimir
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            class="cursor-pointer gap-2"
+                                            :class="isSendingMail ? 'opacity-60 cursor-not-allowed' : ''"
+                                            :disabled="isSendingMail"
+                                            @click="sendOrderByEmail(order)"
+                                        >
+                                            <Mail class="h-4 w-4" /> Enviar al correo
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            v-if="order.status !== 'converted'"
+                                            class="cursor-pointer gap-2"
+                                            :class="isConverting === order.id ? 'opacity-60 cursor-not-allowed' : ''"
+                                            :disabled="isConverting === order.id"
+                                            @click="convertToInvoice(order)"
+                                        >
+                                            <ReceiptText class="h-4 w-4" /> Convertir en factura
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </TableCell>
                         </TableRow>
                     </TableBody>

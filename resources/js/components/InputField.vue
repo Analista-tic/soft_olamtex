@@ -12,6 +12,7 @@ interface Props {
   value?: string | number;
   type?: 'text' | 'password' | 'number' | 'currency' | 'email';
   readonly?: boolean;
+  disabled?: boolean;
   error?: string | boolean;
 }
 
@@ -116,6 +117,7 @@ function togglePasswordVisibility() {
         "
         :placeholder="placeholder"
         :readonly="readonly"
+        :disabled="disabled"
         :step="props.type === 'number' ? '0.01' : undefined"
         :inputmode="
           props.type === 'number'
@@ -139,14 +141,15 @@ function togglePasswordVisibility() {
         :type="
           isPasswordVisible
             ? 'text'
-            : props.type
+          : props.type
             ? props.type === 'password'
               ? 'password'
               : props.type
             : 'text'
         "
         :placeholder="placeholder"
-        :readonly="true"
+        :readonly="readonly ?? true"
+        :disabled="disabled"
         :step="props.type === 'number' ? '0.01' : undefined"
         :inputmode="
           props.type === 'number'

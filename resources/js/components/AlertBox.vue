@@ -19,10 +19,7 @@ const typeClasses: Record<string, string> = {
   warning: 'border-yellow-300 bg-yellow-50 text-yellow-800',
 };
 
-const alertClass = computed(() => {
-  const base = typeClasses[props.type ?? 'info'] ?? typeClasses.info;
-  return base;
-});
+const alertClass = computed(() => typeClasses[props.type ?? 'info'] ?? typeClasses.info);
 
 let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -34,9 +31,7 @@ watch(
 
     const ms = props.autoCloseMs ?? 4000;
     if (ms > 0) {
-      timeoutId = setTimeout(() => {
-        emit('close');
-      }, ms);
+      timeoutId = setTimeout(() => emit('close'), ms);
     }
   },
   { immediate: true }
@@ -49,13 +44,12 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="flex items-start justify-between gap-3 rounded-lg border px-4 py-3 shadow-sm
-           transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2"
+    class="flex items-start justify-between gap-3 rounded-lg border px-4 py-3 shadow-sm transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2"
     :class="alertClass"
   >
     <div class="flex-1">
       <p class="font-semibold">
-        {{ title || (type === 'success' ? 'Operación exitosa' : type === 'error' ? 'Error' : '') }}
+        {{ title || (type === 'success' ? 'Operacion exitosa' : type === 'error' ? 'Error' : '') }}
       </p>
       <p class="text-sm">
         <slot>{{ message }}</slot>
@@ -65,8 +59,9 @@ onBeforeUnmount(() => {
       type="button"
       class="ml-2 text-xs font-bold opacity-70 hover:opacity-100"
       @click="emit('close')"
+      aria-label="Cerrar alerta"
     >
-      ✕
+      X
     </button>
   </div>
 </template>

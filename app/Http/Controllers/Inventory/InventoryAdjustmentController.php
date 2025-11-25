@@ -9,6 +9,7 @@ use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Common\Warehouse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class InventoryAdjustmentController extends Controller
@@ -73,6 +74,8 @@ class InventoryAdjustmentController extends Controller
      */
     public function store(Request $request)
     {
+        $movementReasons = $this->movementReasons();
+
         if ($request->has('lines') && is_string($request->input('lines'))) {
             $decoded = json_decode($request->input('lines'), true);
             if (json_last_error() === JSON_ERROR_NONE) {
@@ -82,9 +85,15 @@ class InventoryAdjustmentController extends Controller
 
         try {
             $data = $request->validate([
-                'document_number'      => 'nullable|string|max:255',
+                'document_number'      => [
+                    'nullable',
+                    'string',
+                    'max:255',
+                    Rule::unique('inventory_adjustments', 'document_number'),
+                ],
                 'date'                 => 'required|date',
                 'type'                 => 'required|in:entrada,salida',
+                'movement_reason'      => ['required', Rule::in(array_keys($movementReasons))],
                 'observation'          => 'nullable|string',
                 'production_order'     => 'nullable|string|max:255',
                 'subtotal'             => 'nullable|numeric',
@@ -105,6 +114,7 @@ class InventoryAdjustmentController extends Controller
             ], 422);
         }
 
+        $data['type'] = $movementReasons[$data['movement_reason']] ?? $data['type'];
         $subtotal = 0;
         $ivaTotal = 0;
         foreach ($data['lines'] as $line) {
@@ -131,10 +141,13 @@ class InventoryAdjustmentController extends Controller
                 ->keyBy('id');
 
             $adjustment = DB::transaction(function () use ($data, $articles) {
+                $documentNumber = $data['document_number'] ?: $this->generateDocumentNumber();
+
                 $adjustment = InventoryAdjustment::create([
-                    'document_number'  => $data['document_number'],
+                    'document_number'  => $documentNumber,
                     'date'             => $data['date'],
                     'type'             => $data['type'],
+                    'movement_reason'  => $data['movement_reason'],
                     'observation'      => $data['observation'] ?? null,
                     'production_order' => $data['production_order'] ?? null,
                     'subtotal'         => $data['subtotal'],
@@ -199,6 +212,7 @@ class InventoryAdjustmentController extends Controller
     public function update(Request $request, $id)
     {
         $adjustment = InventoryAdjustment::findOrFail($id);
+        $movementReasons = $this->movementReasons();
 
         if ($request->has('lines') && is_string($request->input('lines'))) {
             $decoded = json_decode($request->input('lines'), true);
@@ -209,9 +223,15 @@ class InventoryAdjustmentController extends Controller
 
         try {
             $data = $request->validate([
-                'document_number'      => 'nullable|string|max:255',
+                'document_number'      => [
+                    'nullable',
+                    'string',
+                    'max:255',
+                    Rule::unique('inventory_adjustments', 'document_number')->ignore($adjustment->id),
+                ],
                 'date'                 => 'required|date',
                 'type'                 => 'required|in:entrada,salida',
+                'movement_reason'      => ['required', Rule::in(array_keys($movementReasons))],
                 'observation'          => 'nullable|string',
                 'production_order'     => 'nullable|string|max:255',
                 'lines'                => 'required|array|min:1',
@@ -229,6 +249,7 @@ class InventoryAdjustmentController extends Controller
             ], 422);
         }
 
+        $data['type'] = $movementReasons[$data['movement_reason']] ?? $data['type'];
         $subtotal = 0;
         $ivaTotal = 0;
         foreach ($data['lines'] as $line) {
@@ -255,6 +276,8 @@ class InventoryAdjustmentController extends Controller
                 ->keyBy('id');
 
             $adjustment = DB::transaction(function () use ($adjustment, $data, $articles) {
+                $documentNumber = $data['document_number'] ?: ($adjustment->document_number ?? $this->generateDocumentNumber());
+
                 // Revertir lineas previas
                 foreach ($adjustment->lines as $oldLine) {
                     $article = $articles[$oldLine->article_id] ?? Article::find($oldLine->article_id);
@@ -266,9 +289,10 @@ class InventoryAdjustmentController extends Controller
                 }
 
                 $adjustment->update([
-                    'document_number'  => $data['document_number'],
+                    'document_number'  => $documentNumber,
                     'date'             => $data['date'],
                     'type'             => $data['type'],
+                    'movement_reason'  => $data['movement_reason'],
                     'observation'      => $data['observation'] ?? null,
                     'production_order' => $data['production_order'] ?? null,
                     'subtotal'         => $data['subtotal'],
@@ -422,5 +446,60 @@ class InventoryAdjustmentController extends Controller
             $payload['created_at'] = now();
             DB::table('warehouse_article')->insert($payload);
         }
+    }
+
+    /**
+     * Genera un numero consecutivo unico para el ajuste de inventario.
+     */
+    private function generateDocumentNumber(): string
+    {
+        $prefix = 'AJI';
+        $year = now()->format('Y');
+        $sequenceLength = 6;
+
+        $lastNumber = InventoryAdjustment::whereNotNull('document_number')
+            ->where('document_number', 'like', "{$prefix}-{$year}-%")
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->value('document_number');
+
+        $next = 1;
+        if ($lastNumber && preg_match("/^{$prefix}-{$year}-(\\d{{$sequenceLength}})$/", $lastNumber, $matches)) {
+            $next = (int) $matches[1] + 1;
+        }
+
+        $sequence = str_pad((string) $next, $sequenceLength, '0', STR_PAD_LEFT);
+
+        return "{$prefix}-{$year}-{$sequence}";
+    }
+
+    /**
+     * Devuelve el siguiente numero consecutivo sugerido (para mostrar en el formulario).
+     */
+    public function nextNumber()
+    {
+        $next = DB::transaction(fn() => $this->generateDocumentNumber());
+
+        return response()->json(['document_number' => $next]);
+    }
+
+    /**
+     * Mapeo de motivos de ajuste a tipo de movimiento (entrada/salida).
+     */
+    private function movementReasons(): array
+    {
+        return [
+            'entrada_sin_factura' => 'entrada',
+            'en_bodega_para_despacho' => 'entrada',
+            'salida_insumos_orden_produccion' => 'salida',
+            'salida_insumos_otras_areas' => 'salida',
+            'salida_papeleria' => 'salida',
+            'salida_aseo' => 'salida',
+            'salida_ajustar_inventario' => 'salida',
+            'devolucion_proveedor' => 'salida',
+            // Compatibilidad
+            'entrada' => 'entrada',
+            'salida' => 'salida',
+        ];
     }
 }

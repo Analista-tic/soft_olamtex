@@ -11,6 +11,7 @@ interface Props {
     modelValue: Option['id'] | Option['id'][] | undefined | null;
     multiple?: boolean;
     placeholder?: string;
+    disabled?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -70,6 +71,7 @@ function handleChange(val: Option['id'] | Option['id'][]) {
             <Listbox
                 :modelValue="localModelValue"
                 :multiple="multiple"
+                :disabled="disabled"
                 @update:modelValue="handleChange"
                 class="w-full"
             >
@@ -77,6 +79,8 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                     <ListboxButton
                         class="h-10 pr-8 min-w-[12rem] w-full max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none flex items-center justify-between"
                         style="position: static;"
+                        :disabled="disabled"
+                        :class="disabled ? 'pointer-events-none opacity-60' : ''"
                     >
                         <span v-if="multiple && Array.isArray(localModelValue) && localModelValue.length === 0" class="text-gray-400">
                             {{ placeholder || `Selecciona ${label.toLowerCase()}` }}

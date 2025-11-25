@@ -15,7 +15,7 @@ import { Ban, CheckCircle, Download, PlusCircle, Search, Upload } from 'lucide-v
 import { onMounted, ref, watch, reactive } from 'vue';
 import ArticleDialog from './ArticleDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
@@ -148,23 +148,14 @@ function exportArticlesExcel() {
     <Head title="Gestión de Artículos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <div class="pointer-events-none absolute left-1/2 top-4 z-20 flex -translate-x-1/2 flex-col gap-2">
-                <AlertBox
-                    v-if="successMessage"
-                    type="success"
-                    :message="successMessage"
-                    class="pointer-events-auto"
-                    @close="successMessage = ''"
-                />
-                <AlertBox
-                    v-if="errorMessage"
-                    type="error"
-                    title="Error"
-                    :message="errorMessage"
-                    class="pointer-events-auto"
-                    @close="errorMessage = ''"
-                />
-            </div>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                success-title="Éxito"
+                error-title="Error"
+                @close-success="successMessage = ''"
+                @close-error="errorMessage = ''"
+            />
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de Artículos</h1>
                 <div class="flex gap-2">

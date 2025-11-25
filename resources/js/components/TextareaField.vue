@@ -9,6 +9,7 @@ interface Props {
     modelValue?: string;
     value?: string;
     readonly?: boolean;
+    disabled?: boolean;
     rows?: number;
 }
 
@@ -32,6 +33,7 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
             v-model="localModelValue"
             :placeholder="placeholder"
             :readonly="readonly"
+            :disabled="disabled"
             :rows="rows || 4"
             class="block w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring"
         ></textarea>

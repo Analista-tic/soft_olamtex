@@ -23,7 +23,7 @@ import { PlusCircle, Search } from 'lucide-vue-next';
 import { ref, onMounted, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import SelectField from '@/components/SelectField.vue';
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -199,21 +199,15 @@ onMounted(() => {
     <Head title="Gestión de Contactos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <div class="pointer-events-none absolute left-1/2 top-4 z-20 flex -translate-x-1/2 flex-col gap-2">
-                <AlertBox
-                    v-if="successMessage"
-                    type="success"
-                    :message="successMessage"
-                    class="pointer-events-auto"
-                    @close="successMessage = ''"
-                />
-                <AlertBox
-                    v-if="errorMessage"
-                    type="error"
-                    title="Error"
-                    :message="errorMessage"
-                    class="pointer-events-auto"
-                    @close="errorMessage = ''"
+            <div
+             class="pointer-events-none absolute left-1/2 top-4 z-20 flex -translate-x-1/2 flex-col gap-2">
+                <AlertStack
+                    :success-message="successMessage"
+                    :error-message="errorMessage"
+                    success-title="Éxito"
+                    error-title="Error"
+                    @close-success="successMessage = ''"
+                    @close-error="errorMessage = ''"
                 />
             </div>
             <div class="flex items-center justify-between">

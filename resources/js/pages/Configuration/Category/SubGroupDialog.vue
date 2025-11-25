@@ -18,7 +18,11 @@ const props = defineProps<{
     groups: CategoryGroup[];
 }>();
 
-const emit = defineEmits(['close', 'submit']);
+const emit = defineEmits<{
+    (e: 'close'): void;
+    (e: 'submit', payload: Partial<CategorySubGroup> & { subgroups?: Partial<CategorySubGroup>[] }): void;
+    (e: 'notify', payload: { type: 'success' | 'error'; message: string }): void;
+}>();
 
 const internalIsOpen = ref(props.isOpen);
 
@@ -73,11 +77,8 @@ async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
 
 async function deleteGroup(groupId: number) {
     try {
-        const confirmed = await confirmDialog('¿Estás seguro de que deseas eliminar este grupo?');
-        if (!confirmed) return;
-
         const response = await axios.delete(`/categorias/grupos/${groupId}`);
-        alert(response.data.message); // Mostrar el mensaje del servidor
+        emit('notify', { type: 'success', message: response.data?.message || 'Grupo eliminado correctamente.' });
 
         localGroups.value = localGroups.value.filter(group => group.id !== groupId);
 
@@ -87,19 +88,12 @@ async function deleteGroup(groupId: number) {
         }
     } catch (error: unknown) {
         if (axios.isAxiosError(error) && error.response?.data?.message) {
-            alert(error.response.data.message); // Mostrar el mensaje de error del servidor
+            emit('notify', { type: 'error', message: error.response.data.message });
         } else {
             console.error('Error al eliminar el grupo:', error);
-            alert('Ocurrió un error al intentar eliminar el grupo. Por favor, inténtalo de nuevo.');
+            emit('notify', { type: 'error', message: 'Ocurrió un error al intentar eliminar el grupo. Por favor, inténtalo de nuevo.' });
         }
     }
-}
-
-async function confirmDialog(message: string): Promise<boolean> {
-    return new Promise((resolve) => {
-        const confirmed = window.confirm(message);
-        resolve(confirmed);
-    });
 }
 
 const isGroupDialogOpen = ref(false);

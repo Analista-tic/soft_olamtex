@@ -15,6 +15,7 @@ class InventoryAdjustment extends Model
         'document_number',
         'date',
         'type',             // 'entrada' | 'salida'
+        'movement_reason',
         'observation',
         'production_order',
         'subtotal',

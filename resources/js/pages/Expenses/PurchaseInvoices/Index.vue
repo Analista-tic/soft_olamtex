@@ -9,12 +9,18 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { PurchaseInvoice } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
+import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos/facturas-compra' },
@@ -280,29 +286,31 @@ function viewInvoiceDetails(invoice: PurchaseInvoice) {
                                         <Eye class="h-4 w-4" />
                                     </button>
                                     <EditButton :onClick="() => openDialog('edit', invoice)" />
-                                    <button
-                                        class="flex items-center text-gray-500 transition-colors duration-200 hover:text-purple-600"
-                                        @click="goToReception(invoice)"
-                                        title="Ir a recepción"
-                                    >
-                                        <Package class="h-4 w-4" />
-                                    </button>
                                     <DeleteButton :onClick="() => confirmDeleteInvoice(invoice)" />
-                                    <button
-                                        :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-green-500']"
-                                        @click="openPrintDialog(invoice)"
-                                        title="Imprimir"
-                                    >
-                                        <Printer class="h-4 w-4" />
-                                    </button>
-                                    <button
-                                        :disabled="isSendingMail"
-                                        :class="['flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600', isSendingMail && 'opacity-50 cursor-not-allowed']"
-                                        @click="sendInvoiceByEmail(invoice)"
-                                        title="Enviar por correo"
-                                    >
-                                        <Mail class="h-4 w-4" />
-                                    </button>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger as-child>
+                                            <Button variant="ghost" size="icon" class="h-8 w-8 p-0">
+                                                <MoreVertical class="h-4 w-4" />
+                                                <span class="sr-only">Acciones</span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" class="w-48">
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(invoice)">
+                                                <Printer class="h-4 w-4" /> Imprimir
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception(invoice)">
+                                                <Package class="h-4 w-4" /> Ir a recepción
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                class="cursor-pointer gap-2"
+                                                :class="isSendingMail ? 'opacity-60 cursor-not-allowed' : ''"
+                                                :disabled="isSendingMail"
+                                                @click="sendInvoiceByEmail(invoice)"
+                                            >
+                                                <Mail class="h-4 w-4" /> Enviar al correo
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             </TableCell>
                         </TableRow>

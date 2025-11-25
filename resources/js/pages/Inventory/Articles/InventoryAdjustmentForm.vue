@@ -34,7 +34,7 @@ type Line = {
 };
 
 const documentNumber = ref<string>('Automatico');
-const adjustmentType = ref<'entrada' | 'salida' | ''>('');
+const adjustmentType = ref<string>('');
 const date = ref<string>('');
 const observation = ref<string>('');
 const productionOrder = ref<string>('');
@@ -48,8 +48,14 @@ const lines = ref<Line[]>([
 ]);
 
 const adjustmentTypeOptions = [
-  { id: 'entrada', name: 'Entrada de inventario' },
-  { id: 'salida', name: 'Salida de inventario' },
+  { id: 'entrada_sin_factura', name: 'Entrada de inventario sin factura', direction: 'entrada' },
+  { id: 'en_bodega_para_despacho', name: 'En bodega para despacho', direction: 'entrada' },
+  { id: 'salida_insumos_orden_produccion', name: 'Salida de insumos para orden de producción', direction: 'salida' },
+  { id: 'salida_insumos_otras_areas', name: 'Salida insumos otras áreas', direction: 'salida' },
+  { id: 'salida_papeleria', name: 'Salida papelería', direction: 'salida' },
+  { id: 'salida_aseo', name: 'Salida aseo', direction: 'salida' },
+  { id: 'salida_ajustar_inventario', name: 'Salida para ajustar inventario', direction: 'salida' },
+  { id: 'devolucion_proveedor', name: 'Devolución proveedor', direction: 'salida' },
 ];
 
 async function fetchTaxes() {
@@ -88,9 +94,19 @@ function resetForm() {
   alertMessage.value = '';
 }
 
+async function loadDocumentNumber() {
+  documentNumber.value = 'Cargando...';
+  try {
+    const { data } = await axios.get('/ajustes-inventario/next-number');
+    documentNumber.value = data?.document_number || 'Automatico';
+  } catch {
+    documentNumber.value = 'Automatico';
+  }
+}
+
 function fillFromAdjustment(data: any) {
   documentNumber.value = data.document_number || 'Automatico';
-  adjustmentType.value = data.type || '';
+  adjustmentType.value = data.movement_reason || data.type || '';
   date.value = data.date ? String(data.date).slice(0, 10) : '';
   observation.value = data.observation || '';
   productionOrder.value = data.production_order || '';
@@ -121,6 +137,7 @@ watch(
       }
     } else {
       resetForm();
+      await loadDocumentNumber();
     }
   }
 );
@@ -165,6 +182,15 @@ const ivaTotal = computed(() =>
 
 const totalAdjustment = computed(() => subtotal.value + ivaTotal.value);
 
+const normalizeTaxValue = (value: number | string | null | undefined) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? String(num) : '';
+};
+
+const getDirectionByType = (typeId: string): 'entrada' | 'salida' => {
+  const found = adjustmentTypeOptions.find(opt => opt.id === typeId);
+  return (found?.direction as 'entrada' | 'salida') || 'entrada';
+};
 async function handleSubmit() {
   alertMessage.value = '';
   const requiredErrors: string[] = [];
@@ -175,7 +201,6 @@ async function handleSubmit() {
   if (!date.value) {
     requiredErrors.push('Fecha');
   }
-
   if (!lines.value.length) {
     requiredErrors.push('Al menos una linea de detalle');
   } else {
@@ -201,7 +226,8 @@ async function handleSubmit() {
   const payload = {
     document_number: documentNumber.value === 'Automatico' ? null : documentNumber.value,
     date: date.value,
-    type: adjustmentType.value as 'entrada' | 'salida',
+    type: getDirectionByType(adjustmentType.value),
+    movement_reason: adjustmentType.value || null,
     observation: observation.value || null,
     production_order: productionOrder.value || null,
     subtotal: subtotal.value,
@@ -265,7 +291,12 @@ async function handleSubmit() {
           <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <Label># Documento</Label>
-              <Input v-model="documentNumber" class="mt-1" readonly />
+              <Input
+                v-model="documentNumber"
+                class="mt-1 pointer-events-none select-none"
+                readonly
+                tabindex="-1"
+              />
             </div>
             <div class="relative flex h-full items-center justify-center rounded p-4">
               <img
@@ -357,7 +388,7 @@ async function handleSubmit() {
                 </TableHeader>
 
                 <TableBody>
-                  <TableRow v-for="line in lines" :key="line.id">
+                  <TableRow v-for="(line, idx) in lines" :key="line.id">
                     <TableCell>
                       <Select
                         :modelValue="line.articleId ? String(line.articleId) : ''"
@@ -393,7 +424,7 @@ async function handleSubmit() {
 
                     <TableCell>
                       <Select
-                        :modelValue="String(line.tax)"
+                        :modelValue="normalizeTaxValue(line.tax)"
                         @update:modelValue="val => (line.tax = Number(val))"
                       >
                         <SelectTrigger class="h-8 w-full">
@@ -404,7 +435,7 @@ async function handleSubmit() {
                           <SelectItem
                             v-for="tax in taxes"
                             :key="tax.id"
-                            :value="String(tax.percentage)"
+                            :value="normalizeTaxValue(tax.percentage)"
                           >
                             {{ tax.name }} ({{ Math.trunc(tax.percentage) }}%)
                           </SelectItem>
@@ -437,6 +468,7 @@ async function handleSubmit() {
 
                     <TableCell class="text-center">
                       <DeleteButton
+                        v-if="lines.length > 1 && idx > 0"
                         class="mx-auto"
                         title="Eliminar"
                         @click="removeLine(line.id)"

@@ -285,6 +285,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('ajustes-inventario')->name('ajustes-inventario.')->group(function () {
         Route::get('/data', [InventoryAdjustmentController::class, 'getData'])->name('data');   // para la tabla
         Route::get('/', [InventoryAdjustmentController::class, 'index'])->name('index');        // opcional
+        Route::get('/next-number', [InventoryAdjustmentController::class, 'nextNumber'])->name('next-number'); // siguiente consecutivo
         Route::get('/{id}', [InventoryAdjustmentController::class, 'show'])->name('show');      // ver un ajuste
         Route::post('/', [InventoryAdjustmentController::class, 'store'])->name('store');       // guardar nuevo
         Route::put('/{id}', [InventoryAdjustmentController::class, 'update'])->name('update');  // actualizar

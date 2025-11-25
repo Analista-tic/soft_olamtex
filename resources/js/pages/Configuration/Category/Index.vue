@@ -22,6 +22,7 @@ import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { ref, onMounted, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -55,6 +56,8 @@ const itemsPerPage = 10;
 const totalItems = ref<number>(0);
 const searchQuery = ref<string>(''); // Campo de búsqueda
 const selectedGroup = ref<number | null | undefined>(null); // Filtro por grupo
+const successMessage = ref<string>('');
+const errorMessage = ref<string>('');
 
 // Funciones con tipado explícito
 function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
@@ -85,8 +88,12 @@ async function deleteSubGroup(): Promise<void> {
         await axios.delete(`/categorias/subgrupos/${subGroupToDelete.value.id}`);
         fetchSubGroups();
         isDeleteDialogOpen.value = false;
+        successMessage.value = 'El subgrupo se eliminó correctamente.';
+        errorMessage.value = '';
     } catch (error) {
         console.error('Error al eliminar el subgrupo:', error);
+        errorMessage.value = 'Error al eliminar el subgrupo.';
+        successMessage.value = '';
     }
 }
 
@@ -98,8 +105,14 @@ async function submitForm(subGroupData: Partial<CategorySubGroup>): Promise<void
         await axios({ method, url, data: subGroupData });
         fetchSubGroups();
         closeDialog();
+        successMessage.value = dialogType.value === 'create'
+            ? 'El subgrupo se creó correctamente.'
+            : 'El subgrupo se actualizó correctamente.';
+        errorMessage.value = '';
     } catch (error) {
         console.error('Error al guardar el subgrupo:', error);
+        errorMessage.value = 'Error al guardar el subgrupo.';
+        successMessage.value = '';
     }
 }
 
@@ -149,6 +162,14 @@ onMounted(() => {
                 
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Subgrupo</Button>
             </div>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                success-title="Éxito"
+                error-title="Error"
+                @close-success="successMessage = ''"
+                @close-error="errorMessage = ''"
+            />
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
                     <Input id="search_subgroup" v-model="searchQuery" placeholder="Buscar por nombre" class="h-8 w-full pl-10" />
@@ -225,6 +246,7 @@ onMounted(() => {
         :groups="props.groups"
         @close="closeDialog"
         @submit="submitForm"
+        @notify="(payload) => { if (payload.type === 'success') { successMessage = payload.message; errorMessage = ''; } else { errorMessage = payload.message; successMessage = ''; } }"
     />
 
     <!-- Dialog para Confirmar Eliminación -->

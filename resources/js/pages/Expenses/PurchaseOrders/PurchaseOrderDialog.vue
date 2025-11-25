@@ -171,7 +171,7 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-h-screen overflow-y-auto sm:max-w-7xl">
+        <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
             <DialogHeader>
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
                 <DialogDescription>Completa los campos y añade los ítems de la orden.</DialogDescription>
@@ -181,6 +181,7 @@ watch(dialogOpen, (isOpen) => {
                 :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingOrderId }"
                 class="space-y-6"
             >
+                <div class="rounded-xl border border-sidebar-border/70 bg-white p-4 dark:border-sidebar-border space-y-4">
                 <!-- Cabecera -->
                 <div class="grid grid-cols-3 items-start gap-4">
                     <div>
@@ -281,9 +282,7 @@ watch(dialogOpen, (isOpen) => {
                         label="Observación"
                         placeholder="Agrega aquí observaciones adicionales para la orden de compra"
                     />
-                </div>
-
-                <!-- Botones -->
+                </div>`r`n`r`n                </div>`r`n`r`n                <!-- Botones -->
                 <DialogFooter class="mt-4 flex justify-end gap-4">
                     <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
                     <Button
@@ -307,3 +306,5 @@ watch(dialogOpen, (isOpen) => {
         </DialogContent>
     </Dialog>
 </template>
+
+

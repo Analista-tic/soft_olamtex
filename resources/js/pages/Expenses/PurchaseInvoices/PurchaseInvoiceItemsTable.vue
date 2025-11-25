@@ -12,11 +12,13 @@ import { computed, onMounted, ref, watch } from 'vue';
 const props = defineProps<{ 
     items: PurchaseInvoiceItem[]; 
     isCreating?: boolean; 
+    isReadOnly?: boolean;
 }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseInvoiceItem[]>([]);
 const articles = ref<Article[]>([]);
+const isReadOnly = computed(() => !!props.isReadOnly);
 
 const articleMap = computed(() => new Map<number, Article>(articles.value.map((a) => [a.id, a])));
 
@@ -173,7 +175,15 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
     <div>
         <div class="mb-2 flex items-center justify-between">
             <span class="font-semibold">Items de la Factura</span>
-            <Button type="button" variant="default" size="sm" @click="addItem"> <CirclePlus /> Añadir Item </Button>
+            <Button
+                v-if="!isReadOnly"
+                type="button"
+                variant="default"
+                size="sm"
+                @click="addItem"
+            >
+                <CirclePlus /> Añadir Item
+            </Button>
         </div>
 
         <Table>
@@ -195,7 +205,12 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
                     <TableCell class="min-w-[120px] p-1 px-1 align-top">
-                        <SelectField v-model="item.article_id" :options="articles.map((a) => ({ id: a.id, name: a.name }))" label="" />
+                        <SelectField
+                            v-model="item.article_id"
+                            :options="articles.map((a) => ({ id: a.id, name: a.name }))"
+                            label=""
+                            :disabled="isReadOnly"
+                        />
                     </TableCell>
                     <TableCell class="p-1 align-top">
                         <div class="flex flex-col items-start justify-start h-full w-full">
@@ -208,6 +223,8 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                                 :decimals="0"
                                 @input="calcTotals(item)"
                                 :error="isPriceDifferent(item)"
+                                :readonly="isReadOnly"
+                                :disabled="isReadOnly"
                             />
                             <div v-if="getSuggestedPrice(item) !== null" class="text-xs text-gray-500 mt-1">
                                 Valor real: {{
@@ -232,6 +249,8 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                                 label=""
                                 @input="calcTotals(item)"
                                 :error="isQuantityDifferent(item)"
+                                :readonly="isReadOnly"
+                                :disabled="isReadOnly"
                             />
                             <div v-if="getSuggestedQuantity(item) !== null" class="text-xs text-gray-500 mt-1">
                                 Cantidad real: {{
@@ -241,7 +260,7 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                         </div>
                     </TableCell>
                     <TableCell class="p-1 align-top">
-                        <InputField v-model="item.description" label="" />
+                        <InputField v-model="item.description" label="" :readonly="isReadOnly" :disabled="isReadOnly" />
                     </TableCell>
                     <!-- Campos extra solo si es tela -->
                     <TableCell v-if="isTela(item)" class="p-1 align-top">
