@@ -16,6 +16,7 @@ const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
     form: Partial<PurchaseInvoice>;
+    readOnly?: boolean;
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
@@ -30,6 +31,7 @@ const isLoading = ref(false);
 const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
 const isLoadingInvoiceId = ref(false);
+const isReadOnly = computed(() => !!props.readOnly);
 
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
@@ -198,6 +200,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
 
 // Envía el formulario (guardar o guardar y enviar por correo)
 async function handleSubmit(sendMail = false) {
+    if (isReadOnly.value) return;
     if (!validateForm()) return;
     isLoading.value = true;
     isSendingMail.value = sendMail;
@@ -363,6 +366,7 @@ watch(dialogOpen, (isOpen) => {
                         label="Proveedor"
                         :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
                         :disabled="contacts.length === 0"
+                        :disabled="contacts.length === 0 || isReadOnly"
                         required
                         :key="contacts.length + '-' + localForm.contact_id"
                     />

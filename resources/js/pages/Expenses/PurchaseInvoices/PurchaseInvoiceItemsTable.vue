@@ -264,13 +264,32 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                     </TableCell>
                     <!-- Campos extra solo si es tela -->
                     <TableCell v-if="isTela(item)" class="p-1 align-top">
-                        <InputField v-model="item.supplier_code" label="" placeholder="Código proveedor" />
+                        <InputField
+                            v-model="item.supplier_code"
+                            label=""
+                            placeholder="Código proveedor"
+                            :readonly="isReadOnly"
+                            :disabled="isReadOnly"
+                        />
                     </TableCell>
                     <TableCell v-if="isTela(item)" class="p-1 align-top">
-                        <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" />
+                        <InputField
+                            v-model="item.supplier_color"
+                            label=""
+                            placeholder="Color proveedor"
+                            :readonly="isReadOnly"
+                            :disabled="isReadOnly"
+                        />
                     </TableCell>
                     <TableCell v-if="isTela(item)" class="p-1 align-top">
-                        <InputField v-model="item.order_width" type="text" label="" placeholder="Ancho pedido" />
+                        <InputField
+                            v-model="item.order_width"
+                            type="text"
+                            label=""
+                            placeholder="Ancho pedido"
+                            :readonly="isReadOnly"
+                            :disabled="isReadOnly"
+                        />
                     </TableCell>
                     <TableCell class="p-1 pb-4 align-center text-center">
                         {{
@@ -284,7 +303,7 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                     </TableCell>
                     <TableCell class="p-1">
                         <div class="flex justify-center">
-                            <DeleteButton @click="removeItem(idx)" />
+                            <DeleteButton v-if="!isReadOnly" @click="removeItem(idx)" />
                         </div>
                     </TableCell>
                 </TableRow>

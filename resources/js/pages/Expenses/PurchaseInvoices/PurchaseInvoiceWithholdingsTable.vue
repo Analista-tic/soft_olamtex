@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, computed } from 'vue';
 import axios from 'axios';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -12,6 +12,7 @@ defineOptions({ name: 'WithholdingTable' });
 
 const props = defineProps<{
     modelValue: PurchaseInvoiceWithholding[];
+    isReadOnly?: boolean;
 }>();
 const emit = defineEmits(['update:modelValue']);
 
@@ -22,6 +23,7 @@ const localWithholdings = ref<PurchaseInvoiceWithholding[]>(
 );
 
 const retentions = ref<{ id: number; name: string; percentage: number }[]>([]);
+const isReadOnly = computed(() => !!props.isReadOnly);
 
 async function fetchRetentions() {
     try {
@@ -50,9 +52,11 @@ watch(
 );
 
 function addWithholding() {
+    if (isReadOnly.value) return;
     emit('update:modelValue', [...localWithholdings.value, { name: '', percentage: 0, base_amount: 0 }]);
 }
 function removeWithholding(idx: number) {
+    if (isReadOnly.value) return;
     const newList = localWithholdings.value.slice();
     newList.splice(idx, 1);
     emit('update:modelValue', newList);
@@ -63,7 +67,14 @@ function removeWithholding(idx: number) {
     <div>
         <div class="mb-2 flex items-center justify-between">
             <span class="font-semibold text-xs">Retenciones</span>
-            <Button type="button" variant="default" size="sm" @click="addWithholding" class="text-xs">
+            <Button
+                v-if="!isReadOnly"
+                type="button"
+                variant="default"
+                size="sm"
+                @click="addWithholding"
+                class="text-xs"
+            >
                 <CirclePlus /> Añadir Retención
             </Button>
         </div>
@@ -86,6 +97,7 @@ function removeWithholding(idx: number) {
                             placeholder="Retención"
                             size="xs"
                             class="text-xs"
+                            :disabled="isReadOnly"
                             @update:modelValue="(val) => {
                                 const found = retentions.find(r => r.name === val);
                                 if (found) withholding.percentage = found.percentage;
@@ -100,6 +112,8 @@ function removeWithholding(idx: number) {
                             label=""
                             size="xs"
                             class="text-xs"
+                            :readonly="isReadOnly"
+                            :disabled="isReadOnly"
                             @update:modelValue="() => emit('update:modelValue', localWithholdings)"
                         />
                     </td>
@@ -115,7 +129,13 @@ function removeWithholding(idx: number) {
                         />
                     </td>
                     <td class="px-1">
-                        <DeleteButton type="button" size="sm" variant="destructive" @click="removeWithholding(idx)"></DeleteButton>
+                        <DeleteButton
+                            v-if="!isReadOnly"
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            @click="removeWithholding(idx)"
+                        />
                     </td>
                 </tr>
                 <tr v-if="localWithholdings.length === 0">
