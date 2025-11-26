@@ -37,6 +37,7 @@ const selectedPurchaseOrderId = ref<number | null>(null);
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const originalFormSnapshot = ref<string>('');
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -113,6 +114,7 @@ function resetForm() {
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
     }
+    originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
 watch(
@@ -203,6 +205,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     }
     selectedPurchaseOrderId.value = Number(orderId);
     localForm.value.purchase_order_id = Number(orderId);
+    originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
 const scrollToDialogTop = () => {
@@ -216,12 +219,31 @@ const setErrorMessage = (msg: string, type: 'success' | 'error' | 'info' | 'warn
     scrollToDialogTop();
 };
 
+const stableStringify = (value: any): string => {
+    const normalize = (val: any): any => {
+        if (Array.isArray(val)) return val.map((v) => normalize(v));
+        if (val && typeof val === 'object') {
+            return Object.keys(val)
+                .sort()
+                .reduce((acc: any, key) => {
+                    acc[key] = normalize(val[key]);
+                    return acc;
+                }, {} as Record<string, unknown>);
+        }
+        return val;
+    };
+    return JSON.stringify(normalize(value));
+};
+
 async function handleSubmit(sendMail = false) {
     if (isReadOnly.value) return;
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
     if (!validateForm()) return;
+    if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value) {
+        return;
+    }
     isLoading.value = true;
     isSendingMail.value = sendMail;
     const formToSend = { ...localForm.value };
@@ -356,6 +378,7 @@ watch(dialogOpen, (isOpen) => {
                 :error-message="errorMessage"
                 success-title="Éxito"
                 error-title="Error"
+                :error-type="errorType"
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />

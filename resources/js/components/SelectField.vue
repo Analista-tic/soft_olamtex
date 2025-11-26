@@ -14,6 +14,7 @@ const props = withDefaults(defineProps<{
     disabled?: boolean;
     searchable?: boolean;
     searchPlaceholder?: string;
+    showPlaceholderOption?: boolean;
 }>(), {
     required: false,
     multiple: false,
@@ -21,6 +22,7 @@ const props = withDefaults(defineProps<{
     disabled: false,
     searchable: true,
     searchPlaceholder: 'Buscar...',
+    showPlaceholderOption: true,
 });
 
 const emit = defineEmits<{
@@ -140,13 +142,16 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                             />
                         </div>
                         <ListboxOption
-                            v-if="!multiple"
+                            v-if="!multiple && showPlaceholderOption"
                             :value="''"
                             disabled
                             class="text-gray-400 bg-white cursor-default select-none relative py-2 pl-3 pr-9"
                         >
                             {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
                         </ListboxOption>
+                        <div v-if="$slots.header" class="border-b border-gray-200 bg-white px-2 pb-2 pt-2">
+                            <slot name="header" />
+                        </div>
                         <ListboxOption
                             v-for="option in filteredOptions"
                             :key="option.id"
@@ -178,6 +183,9 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                             class="px-3 py-2 text-sm text-gray-500"
                         >
                             No se encontraron opciones.
+                        </div>
+                        <div v-if="$slots.footer" class="mt-1 border-t border-gray-200 bg-white px-2 pb-2 pt-2">
+                            <slot name="footer" />
                         </div>
                     </ListboxOptions>
                 </div>

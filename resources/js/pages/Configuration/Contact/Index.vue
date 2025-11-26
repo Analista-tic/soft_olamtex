@@ -26,21 +26,14 @@ import SelectField from '@/components/SelectField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Configuración',
-        href: '/configuracion',
-    },
-    {
-        title: 'Contactos',
-        href: '/contactos',
-    },
+    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Contactos', href: '/contactos' },
 ];
 
-// Variables reactivas
 const contacts = ref<Contact[]>([]);
 const contactToDelete = ref<Contact | null>(null);
-const isDialogOpen = ref<boolean>(false);
-const isDeleteDialogOpen = ref<boolean>(false);
+const isDialogOpen = ref(false);
+const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<Partial<Contact>>({
     id: undefined,
@@ -48,13 +41,12 @@ const form = ref<Partial<Contact>>({
     email: '',
     phone: '',
 });
-const currentPage = ref<number>(1);
+const currentPage = ref(1);
 const itemsPerPage = 10;
-const totalItems = ref<number>(0);
-const searchQuery = ref<string>('');
+const totalItems = ref(0);
+const searchQuery = ref('');
 const selectedContactType = ref<string | null>(null);
 const selectedGroup = ref<string | null>(null);
-const subgroups = ref<{ id: string; name: string }[]>([]);
 const groups = ref<{ id: string; name: string }[]>([]);
 
 const contactTypeOptions = [
@@ -63,17 +55,61 @@ const contactTypeOptions = [
     { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' },
 ];
 
-const successMessage = ref<string>('');
-const errorMessage = ref<string>('');
+const successMessage = ref('');
+const errorMessage = ref('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+
+const fieldLabels: Record<string, string> = {
+    email: 'Correo electronico',
+    id_number: 'Numero de identificacion',
+    contact_type: 'Tipo de contacto',
+    groups: 'Categoria proveedor/cliente',
+    id_type: 'Tipo de identificacion',
+    full_name: 'Nombre completo o razon social',
+    person_type: 'Tipo de persona',
+    department: 'Departamento',
+    municipality: 'Municipio',
+};
+
+const translateValidationMessage = (field: string, msg: string): string => {
+    const lower = msg.toLowerCase();
+    const label = fieldLabels[field] || 'Campo';
+    if (lower.includes('email') && lower.includes('already been taken')) {
+        return 'El correo electronico ya está registrado.';
+    }
+    if ((lower.includes('id') || lower.includes('number')) && lower.includes('already been taken')) {
+        return 'El numero de identificacion ya está registrado.';
+    }
+    if (field === 'email' && lower.includes('único')) {
+        return 'El correo electronico ya está registrado.';
+    }
+    if (field === 'id_number' && lower.includes('único')) {
+        return 'El numero de identificacion ya está registrado.';
+    }
+    if (lower.includes('required')) {
+        return `${label}: es obligatorio.`;
+    }
+    if (lower.includes('has already been taken')) {
+        return 'Este valor ya está registrado.';
+    }
+    return msg;
+};
+
+const setError = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') => {
+    errorMessage.value = message;
+    errorType.value = type;
+};
+
+const clearMessages = () => {
+    successMessage.value = '';
+    setError('', 'error');
+};
 
 function openDialog(type: 'create' | 'edit', contact: Contact | null = null): void {
     dialogType.value = type;
     isDialogOpen.value = true;
-    if (type === 'edit' && contact) {
-        form.value = { ...contact };
-    } else {
-        form.value = { id: undefined, full_name: '', email: '', phone: '' };
-    }
+    clearMessages();
+    form.value = type === 'edit' && contact ? { ...contact } : { id: undefined, full_name: '', email: '', phone: '' };
 }
 
 function closeDialog(): void {
@@ -92,10 +128,10 @@ async function deleteContact(): Promise<void> {
         await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value, selectedGroup.value);
         isDeleteDialogOpen.value = false;
         successMessage.value = 'El contacto se eliminó correctamente.';
-        errorMessage.value = '';
+        setError('', 'error');
     } catch (error) {
         console.error('Error al eliminar el contacto:', error);
-        errorMessage.value = 'Ocurrió un error al eliminar el contacto.';
+        setError('Ocurrió un error al eliminar el contacto.', 'error');
     }
 }
 
@@ -108,16 +144,19 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
         await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value, selectedGroup.value);
         closeDialog();
         successMessage.value = 'El contacto se guardó correctamente.';
-        errorMessage.value = '';
+        setError('', 'error');
     } catch (err) {
         const error = err as AxiosError;
         if (error.response && error.response.status === 422) {
             const responseData = error.response.data as { errors: Record<string, string[]> };
             const validationErrors = responseData.errors;
-            alert(`Error de validación: ${Object.values(validationErrors).flat().join(', ')}`);
+            const translated = Object.entries(validationErrors)
+                .flatMap(([field, msgs]) => (msgs as string[]).map((m) => translateValidationMessage(field, m)))
+                .join('. ');
+            setError(translated || 'Error de validación.', 'warning');
         } else {
             console.error('Error al guardar el contacto:', error);
-            errorMessage.value = 'Ocurrió un error al guardar el contacto.';
+            setError('Ocurrió un error al guardar el contacto.', 'error');
         }
     }
 }
@@ -126,17 +165,11 @@ async function fetchContacts(
     page: number = 1,
     search: string = '',
     contactType: string | null = null,
-    groupId: string | null = null
+    groupId: string | null = null,
 ): Promise<void> {
     try {
         const response = await axios.get('/contactos/data', {
-            params: {
-                page,
-                per_page: itemsPerPage,
-                search,
-                contact_type: contactType,
-                group_id: groupId,
-            },
+            params: { page, per_page: itemsPerPage, search, contact_type: contactType, group_id: groupId },
         });
 
         contacts.value = response.data.data;
@@ -144,29 +177,13 @@ async function fetchContacts(
         currentPage.value = response.data.current_page;
     } catch (error) {
         console.error('Error al obtener los contactos:', error);
-        errorMessage.value = 'Ocurrió un error al cargar los contactos.';
-    }
-}
-
-async function loadSubgroups() {
-    try {
-        const response = await axios.get('/categorias/subgrupos-data', {
-            params: { per_page: 1000 },
-        });
-        subgroups.value = (response.data.data ?? []).map((sg: any) => ({
-            id: String(sg.id),
-            name: sg.name,
-        }));
-    } catch (error) {
-        console.error('Error al cargar los subgrupos:', error);
+        setError('Ocurrió un error al cargar los contactos.', 'error');
     }
 }
 
 async function loadGroups() {
     try {
-        const response = await axios.get('/categorias/grupos', {
-            params: { per_page: 1000 },
-        });
+        const response = await axios.get('/categorias/grupos', { params: { per_page: 1000 } });
         groups.value = (response.data.data ?? []).map((g: any) => ({
             id: String(g.id),
             name: g.name,
@@ -185,12 +202,11 @@ watch(
     [searchQuery, selectedContactType, selectedGroup],
     ([newQuery, newType, newGroup]: [string, string | null, string | null]) => {
         fetchContacts(1, newQuery, newType, newGroup);
-    }
+    },
 );
 
 onMounted(() => {
     fetchContacts();
-    loadSubgroups();
     loadGroups();
 });
 </script>
@@ -199,13 +215,13 @@ onMounted(() => {
     <Head title="Gestión de Contactos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <div
-             class="pointer-events-none absolute left-1/2 top-4 z-20 flex -translate-x-1/2 flex-col gap-2">
+            <div class="pointer-events-none absolute left-1/2 top-4 z-20 flex -translate-x-1/2 flex-col gap-2">
                 <AlertStack
                     :success-message="successMessage"
                     :error-message="errorMessage"
                     success-title="Éxito"
                     error-title="Error"
+                    :error-type="errorType"
                     @close-success="successMessage = ''"
                     @close-error="errorMessage = ''"
                 />
@@ -313,17 +329,17 @@ onMounted(() => {
         </div>
     </AppLayout>
 
-    <!-- Dialog para Crear/Editar Contacto -->
     <ContactDialog
         :isOpen="isDialogOpen"
         :dialogType="dialogType"
         :contactData="form"
+        :external-error="errorMessage"
+        :external-error-type="errorType"
         @close="closeDialog"
         @submit="submitForm"
         @update:contactData="(updatedData) => (form = updatedData)"
     />
 
-    <!-- Dialog para Confirmar Eliminación -->
     <Dialog v-model:open="isDeleteDialogOpen">
         <DialogContent>
             <DialogHeader>

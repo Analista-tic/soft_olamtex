@@ -4,7 +4,7 @@ import axios from 'axios';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { CirclePlus } from 'lucide-vue-next';
+import { CirclePlus, Plus } from 'lucide-vue-next';
 import type { PurchaseInvoiceWithholding } from '@/types';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import RetentionDialog from '@/pages/Configuration/Retention/RetentionDialog.vue';
@@ -39,6 +39,7 @@ const retentionDialogForm = ref<any>({
     status: 'active',
 });
 const successMessage = ref('');
+const retentionSelectKey = ref(0);
 
 async function fetchRetentions() {
     try {
@@ -71,7 +72,6 @@ function addWithholding() {
 
 function removeWithholding(idx: number) {
     if (isReadOnly.value) return;
-    if (localWithholdings.value.length <= 1) return;
     const newList = localWithholdings.value.slice();
     newList.splice(idx, 1);
     emit('update:modelValue', newList);
@@ -87,6 +87,12 @@ function openRetentionDialog() {
         status: 'active',
     };
     retentionDialogOpen.value = true;
+}
+
+function openRetentionDialogFromDropdown() {
+    openRetentionDialog();
+    // Forzar el cierre/redibujo del select
+    retentionSelectKey.value += 1;
 }
 
 async function handleRetentionSubmit(formData: any) {
@@ -137,16 +143,6 @@ async function handleRetentionSubmit(formData: any) {
                 >
                     <CirclePlus /> Añadir Retención
                 </Button>
-                <Button
-                    v-if="!isReadOnly"
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    class="text-xs"
-                    @click="openRetentionDialog"
-                >
-                    Nueva retención
-                </Button>
             </div>
         </div>
         <div class="min-w-full text-xs rounded" v-if="localWithholdings.length">
@@ -169,13 +165,28 @@ async function handleRetentionSubmit(formData: any) {
                                 placeholder="Retención"
                                 size="xs"
                                 class="text-xs flex-1"
+                                :key="`${retentionSelectKey}-${idx}`"
                                 :disabled="isReadOnly"
+                                :showPlaceholderOption="false"
                                 @update:modelValue="(val) => {
                                     const found = retentions.find(r => r.name === val);
                                     if (found) withholding.percentage = found.percentage;
                                     emit('update:modelValue', localWithholdings);
                                 }"
-                            />
+                            >
+                                <template #header>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        class="w-full justify-center text-xs"
+                                        @click.stop="openRetentionDialogFromDropdown"
+                                    >
+                                        <Plus class="mr-2 h-4 w-4" />
+                                        Nueva retención
+                                    </Button>
+                                </template>
+                            </SelectField>
                         </td>
                         <td class="px-1">
                             <InputField
@@ -202,7 +213,7 @@ async function handleRetentionSubmit(formData: any) {
                         </td>
                         <td class="px-1">
                             <DeleteButton
-                                v-if="!isReadOnly && localWithholdings.length > 1"
+                                v-if="!isReadOnly"
                                 type="button"
                                 size="sm"
                                 variant="destructive"

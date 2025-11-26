@@ -166,9 +166,11 @@ async function convertToInvoice(order: PurchaseOrder) {
 }
 
 function handleDialogRefresh(message?: string) {
-    successMessage.value = message || 'Orden guardada correctamente.';
-    errorMessage.value = '';
-    errorType.value = 'error';
+    if (message) {
+        successMessage.value = message;
+        errorMessage.value = '';
+        errorType.value = 'error';
+    }
     fetchOrders(currentPage.value, searchQuery.value);
     isDialogOpen.value = false;
 }

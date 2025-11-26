@@ -1,5 +1,5 @@
-<script setup lang="ts">
-// Importación de componentes y utilidades
+﻿<script setup lang="ts">
+// Importaci├│n de componentes y utilidades
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -65,7 +65,7 @@ const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isViewMode = computed(() => props.dialogType === 'view');
 
-// Carga de catálogos y datos iniciales
+// Carga de cat├ílogos y datos iniciales
 async function fetchWarehouses() {
     try {
         const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
@@ -247,6 +247,19 @@ function resetErrors() {
     errors.value = {};
 }
 
+const buildErrorMessage = (err: any): string => {
+    const resp = err?.response?.data;
+    const validation = resp?.errors;
+    if (validation && typeof validation === 'object') {
+        const joined = Object.values(validation)
+            .flat()
+            .filter(Boolean)
+            .join('. ');
+        if (joined.trim()) return joined;
+    }
+    return resp?.message || 'Ocurrió un error inesperado al guardar el artículo.';
+};
+
 // Maneja el envío del formulario
 async function handleSubmit() {
     resetErrors();
@@ -303,7 +316,7 @@ async function handleSubmit() {
             : 0,
         negative_movement: localForm.value.negative_movement,
         bar_code: localForm.value.bar_code || '',
-        description: localForm.value.description || '',
+        description: (localForm.value.description || '').trim() || 'N/A',
         reference: localForm.value.reference || '',
         extra_fields: Object.keys(orderedExtraFields).length ? JSON.stringify(orderedExtraFields) : null,
         name: nameField.value,
@@ -314,10 +327,16 @@ async function handleSubmit() {
     };
 
     const formData = new FormData();
+    const optionalStringFields = new Set(['bar_code', 'description']);
     Object.entries(cleanForm).forEach(([key, value]) => {
         if (key === 'negative_movement' || key === 'status') {
             formData.append(key, String(value === true || value === 1 || value === '1' || value === 'true' ? 1 : 0));
-        } else if (value !== undefined && value !== null) {
+            return;
+        }
+        if (typeof value === 'string' && optionalStringFields.has(key) && value.trim() === '') {
+            return; // no enviar strings vacíos en campos opcionales
+        }
+        if (value !== undefined && value !== null) {
             formData.append(key, value as any);
         }
     });
@@ -347,10 +366,14 @@ async function handleSubmit() {
         });
         emit('refresh');
         emit('close');
-        emit('saved', props.dialogType)
+        emit('saved', props.dialogType);
     } catch (error: any) {
-        console.error('Error al guardar el artículo:', error, error?.response?.data);
-        const msg = error.response?.data?.message || 'Ocurrió un error inesperado al guardar el artículo.';
+        console.error('Error al guardar el articulo:', error, error?.response?.data);
+        const msg = buildErrorMessage(error);
+        alertType.value = error?.response?.data?.errors ? 'warning' : 'error';
+        alertMessage.value = msg;
+        const dialogEl = document.querySelector('[role="dialog"]');
+        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
         emit('error', msg);
     }
 }
@@ -692,7 +715,7 @@ watch(
                                         <div class="relative h-52 w-full">
                                             <img
                                                 :src="imagePreview"
-                                                alt="Previsualización"
+                                                alt="Previsualizaci├│n"
                                                 class="h-57 w-full rounded object-contain"
                                                 style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
                                             />
@@ -700,7 +723,7 @@ watch(
                                         <div
                                             class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
                                         >
-                                            {{ isViewMode ? 'Imagen del artículo' : 'Cambiar imagen' }}
+                                            {{ isViewMode ? 'Imagen del art├¡culo' : 'Cambiar imagen' }}
                                         </div>
                                     </template>
 
@@ -798,3 +821,8 @@ watch(
         </DialogContent>
     </Dialog>
 </template>
+
+
+
+
+

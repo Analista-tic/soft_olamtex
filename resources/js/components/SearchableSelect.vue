@@ -97,6 +97,9 @@ function handleInputFocus() {
             :disabled="props.disabled"
         />
         <div v-if="isOpen" class="options-container">
+            <div v-if="$slots.header" class="border-b border-gray-200 bg-white px-2 py-2">
+                <slot name="header" />
+            </div>
             <div 
                 v-for="option in filteredOptions" 
                 :key="option.id" 
@@ -104,6 +107,9 @@ function handleInputFocus() {
                 @click="selectOption(option)"
             >
                 {{ option.name }}
+            </div>
+            <div v-if="$slots.footer" class="border-t border-gray-200 bg-white px-2 py-2">
+                <slot name="footer" />
             </div>
         </div>
     </div>

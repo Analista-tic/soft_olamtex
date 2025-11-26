@@ -77,7 +77,7 @@ async function handleDialogSubmit(retentionData: any) {
         closeDialog();
     } catch {
         errorType.value = 'warning';
-        errorMessage.value = 'Debes completar los campos obligatorios marcados con *.';
+        errorMessage.value = 'Debes completar los campos obligatorios.';
     } finally {
         isSubmitting.value = false;
     }

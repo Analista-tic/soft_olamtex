@@ -7,9 +7,8 @@ import SearchableSelect from '@/components/SearchableSelect.vue';
 import { CategoryGroup, CategorySubGroup } from '@/types';
 import { Button } from '@/components/ui/button';
 import GroupDialog from './GroupDialog.vue';
-import CreateButton from '@/components/common/CreateButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import { Trash } from 'lucide-vue-next';
+import { Trash, Plus } from 'lucide-vue-next';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -53,6 +52,7 @@ watch(
 );
 
 const localGroups = ref<CategoryGroup[]>([...props.groups]);
+const groupSelectKey = ref(0);
 
 watch(
     () => props.groups,
@@ -100,6 +100,12 @@ const isGroupDialogOpen = ref(false);
 
 function openGroupDialog() {
     isGroupDialogOpen.value = true;
+}
+
+function openGroupDialogFromDropdown() {
+    openGroupDialog();
+    // Forzar cierre/redibujado del dropdown
+    groupSelectKey.value += 1;
 }
 
 function closeGroupDialog() {
@@ -169,8 +175,21 @@ async function confirmDeleteGroup() {
                         v-model="form.category_group_id"
                         required
                         searchable
-                    />
-                    <CreateButton class="flex items-center justify-center" @click="openGroupDialog" />
+                        :key="groupSelectKey"
+                    >
+                        <template #header>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                class="w-full justify-center text-xs"
+                                @click.stop="openGroupDialogFromDropdown"
+                            >
+                                <Plus class="mr-2 h-4 w-4" />
+                                Nuevo grupo
+                            </Button>
+                        </template>
+                    </SearchableSelect>
                     <DeleteButton class="flex items-center justify-center" customClass="w-6 h-6 mt-5" @click="() => form.category_group_id !== null && form.category_group_id !== undefined && openDeleteDialog(form.category_group_id)" :disabled="!form.category_group_id"/>
                 </div>
                 <div class="flex items-end">

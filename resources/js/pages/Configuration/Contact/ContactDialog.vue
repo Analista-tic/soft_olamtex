@@ -21,6 +21,8 @@ const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
     contactData: Partial<ExtendedContact>;
+    externalError?: string;
+    externalErrorType?: 'success' | 'error' | 'info' | 'warning';
 }>();
 
 const emit = defineEmits<{
@@ -51,6 +53,9 @@ watch(
         internalIsOpen.value = newValue;
         if (newValue) {
             resetForm();
+            showEmptyAlert.value = false;
+            alertMessage.value = '';
+            errors.value = {};
         }
     },
 );
@@ -75,6 +80,56 @@ const closeDialog = () => {
 
 const errors = ref<Record<string, string[]>>({}); // Manejo de errores
 const showEmptyAlert = ref(false);
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+
+const fieldLabels: Record<string, string> = {
+    email: 'Correo electrónico',
+    id_number: 'Número de identificación',
+    contact_type: 'Tipo de contacto',
+    groups: 'Categoría proveedor/cliente',
+    id_type: 'Tipo de identificación',
+    full_name: 'Nombre completo o razón social',
+    person_type: 'Tipo de persona',
+    department: 'Departamento',
+    municipality: 'Municipio',
+};
+
+const translateValidationMessage = (field: string, msg: string): string => {
+    const lower = msg.toLowerCase();
+    const label = fieldLabels[field] || 'Campo';
+    if (lower.includes('email') && lower.includes('already been taken')) {
+        return 'El correo electrónico ya está registrado.';
+    }
+    if ((lower.includes('id') || lower.includes('number')) && lower.includes('already been taken')) {
+        return 'El número de identificación ya está registrado.';
+    }
+    if (field === 'email' && lower.includes('único')) {
+        return 'El correo electrónico ya está registrado.';
+    }
+    if (field === 'id_number' && lower.includes('único')) {
+        return 'El número de identificación ya está registrado.';
+    }
+    if (lower.includes('required')) {
+        return `${label}: es obligatorio.`;
+    }
+    if (lower.includes('has already been taken')) {
+        return 'Este valor ya está registrado.';
+    }
+    return msg;
+};
+
+watch(
+    () => props.externalError,
+    (msg) => {
+        if (msg) {
+            alertType.value = props.externalErrorType || 'warning';
+            alertMessage.value = msg;
+            const dialogEl = document.querySelector('[role="dialog"]');
+            dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    },
+);
 
 const areRequiredFieldsEmpty = () => {
     const requiredFields: (keyof Partial<Contact>)[] = [
@@ -148,11 +203,21 @@ const submitForm = async () => {
 };
 
 const handleErrors = (errorResponse: any) => {
-    if (errorResponse.response?.data?.errors) {
-        errors.value = errorResponse.response.data.errors;
-    } else {
-        console.error('Error inesperado:', errorResponse);
+    const validationErrors = errorResponse?.response?.data?.errors;
+    if (validationErrors) {
+        errors.value = validationErrors;
+        const translated = Object.entries(validationErrors)
+            .flatMap(([field, msgs]) => (msgs as string[]).map((m) => translateValidationMessage(field, m)))
+            .join('. ');
+        alertType.value = 'warning';
+        alertMessage.value = translated || 'Error de validación.';
+        const dialogEl = document.querySelector('[role="dialog"]');
+        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
     }
+    alertType.value = 'error';
+    alertMessage.value = 'Ocurrió un error inesperado. Intenta nuevamente.';
+    console.error('Error inesperado:', errorResponse);
 };
 
 const hasDuplicateAdditionalContacts = () => {
@@ -223,6 +288,21 @@ const updateBranches = (branches: any[]) => {
                     Completa los campos para {{ dialogType === 'create' ? 'crear' : 'editar' }} un contacto. Haz clic en guardar cuando termines.
                 </DialogDescription>
             </DialogHeader>
+
+            <transition name="fade">
+                <div
+                    v-if="alertMessage"
+                    class="pointer-events-none absolute left-1/2 top-4 z-20 w-full max-w-xl -translate-x-1/2"
+                >
+                    <AlertBox
+                        :type="alertType"
+                        :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
+                        :message="alertMessage"
+                        class="pointer-events-auto"
+                        @close="alertMessage = ''"
+                    />
+                </div>
+            </transition>
 
             <div v-if="showEmptyAlert" class="absolute -top-26 left-1/2 z-20 w-full max-w-xl -translate-x-1/2">
                 <AlertBox

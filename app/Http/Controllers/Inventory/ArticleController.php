@@ -65,7 +65,7 @@ class ArticleController extends Controller
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'OcurriÃ³ un error inesperado al procesar la solicitud.',
+                'message' => 'Ocurrió un error inesperado al procesar la solicitud.',
                 'errors' => [],
             ], 500);
         }
@@ -147,12 +147,12 @@ class ArticleController extends Controller
             ]);
         } catch (ValidationException $e) {
             return response()->json([
-                'message' => 'Errores de validaciÃ³n',
+                'message' => 'Errores de validación',
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'OcurriÃ³ un error inesperado al procesar la solicitud.',
+                'message' => 'Ocurrió un error inesperado al procesar la solicitud.',
                 'errors' => [],
             ], 500);
         }
@@ -367,7 +367,7 @@ class ArticleController extends Controller
             'Campo adicional',
             'Marca',
             'Mundo',
-            'LÃ­neas',
+            'Líneas',
             'Tipo puntera',
             'Talla',
             'Medida'
@@ -378,14 +378,14 @@ class ArticleController extends Controller
             'SUBGRUPO',
             'COLOR',
             'IMPUesta (%)',
-            'CÃ“DIGO DE BARRAS',
-            'DESCRIPCIÃ“N',
+            'CÓDIGO DE BARRAS',
+            'DESCRIPCIÓN',
             'BASE TELA',
             'BASE HILAZA',
             'CAMPO ADICIONAL',
             'MARCA',
             'MUNDO',
-            'LÃNEAS',
+            'LÍNEAS',
             'TIPO PUNTERA',
             'TALLA',
             'MEDIDA',
@@ -399,19 +399,19 @@ class ArticleController extends Controller
             'CAMISETA', // SUBGRUPO
             'ROJO',     // COLOR
             '19',       // IMPUesta
-            '123456',   // CÃ“DIGO DE BARRAS
-            'Ejemplo de articulo', // DESCRIPCIÃ“N
-            'AlgodÃ³n',  // BASE TELA
+            '123456',   // CÓDIGO DE BARRAS
+            'Ejemplo de articulo', // DESCRIPCIÓN
+            'Algodón',  // BASE TELA
             'Hilaza 20',// BASE HILAZA
             'Adicional',// CAMPO ADICIONAL
             'Nike',     // MARCA
             'Mundo 1',  // MUNDO
-            'LÃ­nea A',  // LÃNEAS
+            'Línea A',  // LÍNEAS
             'Redonda',  // TIPO PUNTERA
             'M',        // TALLA
             '42',       // MEDIDA
             'cm',       // UNIDAD DE MEDIDA
-            '',         // NOMBRE (fÃ³rmula, se sobrescribe abajo)
+            '',         // NOMBRE (formula, se sobrescribe abajo)
             'REF001',   // REFERENCIA
         ];
 
@@ -424,12 +424,12 @@ class ArticleController extends Controller
         $headerColEnd = $mainSheet->getHighestaolumn(1);
         $mainSheet->getStyle("A1:{$headerColEnd}1")->getFont()->setBold(true);
 
-        // Ajustar el ancho de las columnas automÃ¡ticamente al texto
+        // Ajustar el ancho de las columnas automaticamente al texto
         foreach (range('A', $headerColEnd) as $col) {
             $mainSheet->getColumnDimension($col)->setAutoSize(true);
         }
 
-        // FÃ³rmula para autocompletar el nombre igual que en el frontend
+        // Formula para autocompletar el nombre igual que en el frontend
         $colLetters = range('A', 'Z');
         $unidadColIdx = array_search('UNIDAD DE MEDIDA', $headers); // 15 (P)
         $nombreColIdx = array_search('NOMBRE', $headers); // 16 (Q)
@@ -438,7 +438,7 @@ class ArticleController extends Controller
             $formula .= ' & IF(' . $colLetters[$i] . '2<>""," " & ' . $colLetters[$i] . '2,"")';
         }
         $formula .= ' & IF(B2<>""," " & B2,"")';
-        // Asignar la fÃ³rmula en la columna correcta de "NOMBRE"
+        // Asignar la formula en la columna correcta de "NOMBRE"
         if ($nombreColIdx !== false && isset($colLetters[$nombreColIdx])) {
             $mainSheet->setCellValue($colLetters[$nombreColIdx] . '2', $formula);
         }
@@ -528,7 +528,7 @@ class ArticleController extends Controller
             }
         }
 
-        // ValidaciÃ³n para color
+        // Validacion para color
         if ($colorLastRow >= 2) {
             $validationColor = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
             $validationColor->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
@@ -543,7 +543,7 @@ class ArticleController extends Controller
             }
         }
 
-        // ValidaciÃ³n para unidad de medida
+        // Validacion para unidad de medida
         $unitColIdx = array_search('UNIDAD DE MEDIDA', $headers);
         if ($unitColIdx !== false && isset($colLetters[$unitColIdx])) {
             $unitCol = $colLetters[$unitColIdx];
@@ -580,14 +580,14 @@ class ArticleController extends Controller
                 }
                 $mainSheet->getColumnDimension($col)->setAutoSize(true);
             }
-            // Para 'LÃ­neas', 'Talla', 'Medida' no se agrega validaciÃ³n, quedan abiertos
+            // Para 'Lí­neas', 'Talla', 'Medida' no se agrega validación, quedan abiertos
         }
 
         $spreadsheet->setActiveSheetIndex(0);
 
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
 
-        // Esperar si el archivo esta¡ siendo usado por otro proceso (mÃ¡ximo 5 intentos)
+        // Esperar si el archivo esta siendo usado por otro proceso (maximo 5 intentos)
         $maxAttempts = 5;
         $attempt = 0;
         $waitMs = 200;
@@ -605,7 +605,7 @@ class ArticleController extends Controller
                 'path' => $filePath
             ]);
             return response()->json([
-                'message' => 'No se pudo guardar la plantilla Excel. Intente cerrar el archivo si esta¡ abierto y vuelva a intentarlo.',
+                'message' => 'No se pudo guardar la plantilla Excel. Intente cerrar el archivo si está abierto y vuelva a intentarlo.',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -650,7 +650,7 @@ class ArticleController extends Controller
                 '1234567890123', // bar_code
                 '1', // negative_movement
                 'Ejemplo de articulo', // description
-                '{"talla":"M","material":"algodÃ³n"}', // extra_fields
+                '{"talla":"M","material":"algodón"}', // extra_fields
                 'Nombre generado', // name
                 'REF001', // reference
                 '1' // status
@@ -707,7 +707,7 @@ class ArticleController extends Controller
             }
         }
 
-        // Esperar si el archivo esta¡ siendo usado por otro proceso (mÃ¡ximo 5 intentos)
+        // Esperar si el archivo está siendo usado por otro proceso (maximo 5 intentos)
         $maxAttempts = 5;
         $attempt = 0;
         $waitMs = 200;
@@ -764,15 +764,15 @@ class ArticleController extends Controller
             'SUBGRUPO' => 'category_sub_group_id',
             'COLOR' => 'color_id',
             'IMPUesta (%)' => 'tax',
-            'CÃ“DIGO DE BARRAS' => 'bar_code',
+            'CÓDIGO DE BARRAS' => 'bar_code',
             'MOVIMIENTO NEGATIVO' => 'negative_movement',
-            'DESCRIPCIÃ“N' => 'description',
+            'DESCRIPCIÓN' => 'description',
             'BASE TELA' => 'base_tela',
             'BASE HILAZA' => 'base_hilaza',
             'CAMPO ADICIONAL' => 'campo_adicional',
             'MARCA' => 'marca',
             'MUNDO' => 'mundo',
-            'LÃNEAS' => 'lineas',
+            'LÍNEAS' => 'lineas',
             'TIPO PUNTERA' => 'tipo_puntera',
             'TALLA' => 'talla',
             'MEDIDA' => 'medida',
@@ -781,14 +781,14 @@ class ArticleController extends Controller
             'REFERENCIA' => 'reference',
         ];
 
-        // Campos extra_fields que se guardarÃ¡n como array/JSON
+        // Campos extra_fields que se guardaron como array/JSON
         $extraFieldsKeys = [
             'BASE TELA',
             'BASE HILAZA',
             'CAMPO ADICIONAL',
             'MARCA',
             'MUNDO',
-            'LÃNEAS',
+            'LÍNEAS',
             'TIPO PUNTERA',
             'TALLA',
             'MEDIDA'
@@ -836,7 +836,7 @@ class ArticleController extends Controller
                 $articleData = [
                     'category_sub_group_id' => $subGroup->id,
                     'color_id' => $color->id,
-                    // 'impuesta' o 'tax' segÃºn tu base de datos, si no existe ninguno, omite esta campo
+                    // 'impuesta' o 'tax' segun tu base de datos, si no existe ninguno, omite esta campo
                     // 'unit_measure' eliminado porque no existe en la tabla
                     'bar_code' => $rowData['CÃ“DIGO DE BARRAS'] ?? null,
                     'negative_movement' => filter_var($rowData['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
@@ -860,7 +860,7 @@ class ArticleController extends Controller
 
         if ($inserted === 0 && !empty($errors)) {
             return response()->json([
-                'message' => 'No se pudo insertar ningÃºn articulo. Errores: ' . implode('; ', $errors)
+                'message' => 'No se pudo insertar ningun articulo. Errores: ' . implode('; ', $errors)
             ], 422);
         }
 
@@ -871,14 +871,14 @@ class ArticleController extends Controller
         ]);
     }
 
-    // Nuevo mÃ©todo para obtener bodegas y stock de un articulo
+    // Nuevo metodo para obtener bodegas y stock de un articulo
     public function getWarehouses($id)
     {
         $article = Article::findOrFail($id);
         return response()->json($article->getWarehousestacks());
     }
 
-    // Nuevo mÃ©todo para actualizar stock de un articulo en una bodega
+    // Nuevo metodo para actualizar stock de un articulo en una bodega
     public function updateWarehousestack(Request $request, $id)
     {
         $article = Article::findOrFail($id);
@@ -897,7 +897,7 @@ class ArticleController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // Nuevo mÃ©todo para eliminar la relaciÃ³n con una bodega
+    // Nuevo mÃ©todo para eliminar la relación con una bodega
     public function detachWarehouse($id, $warehouseId)
     {
         $article = Article::findOrFail($id);
@@ -919,14 +919,14 @@ class ArticleController extends Controller
             'SUBGRUPO',
             'COLOR',
             'IMPUesta (%)',
-            'CÃ“DIGO DE BARRAS',
-            'DESCRIPCIÃ“N',
+            'CÓDIGO DE BARRAS',
+            'DESCRIPCIÓN',
             'BASE TELA',
             'BASE HILAZA',
             'CAMPO ADICIONAL',
             'MARCA',
             'MUNDO',
-            'LÃNEAS',
+            'LÍNEAS',
             'TIPO PUNTERA',
             'TALLA',
             'MEDIDA',
@@ -944,14 +944,14 @@ class ArticleController extends Controller
             $sheet->setCellValue("A$rowNum", optional($article->categorySubGroup)->name); // SUBGRUPO
             $sheet->setCellValue("B$rowNum", optional($article->color)->name); // COLOR
             $sheet->setCellValue("C$rowNum", $article->tax); // IMPUesta (%)
-            $sheet->setCellValue("D$rowNum", $article->bar_code); // CÃ“DIGO DE BARRAS
-            $sheet->setCellValue("E$rowNum", $article->description); // DESCRIPCIÃ“N
+            $sheet->setCellValue("D$rowNum", $article->bar_code); // CÓDIGO DE BARRAS
+            $sheet->setCellValue("E$rowNum", $article->description); // DESCRIPCIÓN
             $sheet->setCellValue("F$rowNum", $extra['BASE TELA'] ?? ''); // BASE TELA
             $sheet->setCellValue("G$rowNum", $extra['BASE HILAZA'] ?? ''); // BASE HILAZA
             $sheet->setCellValue("H$rowNum", $extra['CAMPO ADICIONAL'] ?? ''); // CAMPO ADICIONAL
             $sheet->setCellValue("I$rowNum", $extra['MARCA'] ?? ''); // MARCA
             $sheet->setCellValue("J$rowNum", $extra['MUNDO'] ?? ''); // MUNDO
-            $sheet->setCellValue("K$rowNum", $extra['LÃNEAS'] ?? ''); // LÃNEAS
+            $sheet->setCellValue("K$rowNum", $extra['LÍNEAS'] ?? ''); // LÍNEAS
             $sheet->setCellValue("L$rowNum", $extra['TIPO PUNTERA'] ?? ''); // TIPO PUNTERA
             $sheet->setCellValue("M$rowNum", $extra['TALLA'] ?? ''); // TALLA
             $sheet->setCellValue("N$rowNum", $extra['MEDIDA'] ?? ''); // MEDIDA

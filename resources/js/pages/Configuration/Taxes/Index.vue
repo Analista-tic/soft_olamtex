@@ -65,7 +65,7 @@ async function deleteTax() {
         await axios.delete(`/impuestos/${taxToDelete.value.id}`);
         successMessage.value = 'Impuesto eliminado correctamente.';
         fetchTaxes();
-    } catch (e) {
+    } catch {
         errorType.value = 'error';
         errorMessage.value = 'Error al eliminar el impuesto.';
     } finally {
@@ -82,9 +82,9 @@ async function handleDialogSubmit(taxData: any) {
         successMessage.value = dialogType.value === 'create' ? 'Impuesto creado correctamente.' : 'Impuesto actualizado correctamente.';
         fetchTaxes();
         closeDialog();
-    } catch (e) {
+    } catch {
         errorType.value = 'warning';
-        errorMessage.value = 'Debes completar los campos obligatorios marcados con *.';
+        errorMessage.value = 'Debes completar los campos obligatorios.';
     } finally {
         isSubmitting.value = false;
     }

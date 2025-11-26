@@ -196,8 +196,11 @@ function viewInvoiceDetails(invoice: PurchaseInvoice) {
 }
 
 function handleDialogRefresh(message?: string) {
-    successMessage.value = message || 'Factura guardada correctamente.';
-    errorMessage.value = '';
+    if (message) {
+        successMessage.value = message;
+        errorMessage.value = '';
+        errorType.value = 'error';
+    }
     fetchInvoices(currentPage.value, searchQuery.value);
     isDialogOpen.value = false;
 }
