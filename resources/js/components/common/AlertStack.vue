@@ -7,6 +7,7 @@ const props = defineProps<{
   errorMessage?: string;
   successTitle?: string;
   errorTitle?: string;
+  errorType?: 'success' | 'error' | 'info' | 'warning';
   class?: string;
 }>();
 
@@ -34,7 +35,7 @@ const hasAny = computed(() => !!props.successMessage || !!props.errorMessage);
     />
     <AlertBox
       v-if="props.errorMessage"
-      type="error"
+      :type="props.errorType || 'error'"
       :title="errorTitle || 'Error'"
       :message="props.errorMessage"
       class="pointer-events-auto"

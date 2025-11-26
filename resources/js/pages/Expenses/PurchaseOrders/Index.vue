@@ -39,6 +39,7 @@ const isSendingMail = ref(false);
 const isConverting = ref<number | null>(null);
 const successMessage = ref('');
 const errorMessage = ref('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 // NUEVOS FILTROS
 const statusFilter = ref('all');
@@ -59,6 +60,7 @@ function openDialog(type: 'create' | 'edit', order: PurchaseOrder | null = null)
     form.value = order ? { ...order } : {};
     successMessage.value = '';
     errorMessage.value = '';
+    errorType.value = 'error';
 }
 
 function closeDialog() {
@@ -70,6 +72,12 @@ function confirmDeleteOrder(order: PurchaseOrder) {
     isDeleteDialogOpen.value = true;
 }
 
+const warningMatcher = (msg: string) => /obligatori|complet[ao]s? los campos/i.test(msg);
+const setErrorMessage = (msg: string) => {
+    errorType.value = warningMatcher(msg) ? 'warning' : 'error';
+    errorMessage.value = msg;
+};
+
 async function deleteOrder() {
     if (!orderToDelete.value) return;
     try {
@@ -77,7 +85,7 @@ async function deleteOrder() {
         successMessage.value = 'Orden eliminada correctamente.';
         fetchOrders(currentPage.value, searchQuery.value);
     } catch {
-        errorMessage.value = 'Error al eliminar la orden.';
+        setErrorMessage('Error al eliminar la orden.');
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -132,7 +140,7 @@ async function sendOrderByEmail(order: PurchaseOrder) {
         successMessage.value = 'Orden enviada por correo correctamente.';
     } catch (e) {
         console.log('e', e);
-        errorMessage.value = 'Error al enviar el correo.';
+        setErrorMessage('Error al enviar el correo.');
     } finally {
         isSendingMail.value = false;
     }
@@ -148,9 +156,9 @@ async function convertToInvoice(order: PurchaseOrder) {
     } catch (e: any) {
         // Validación específica del mensaje de error
         if (e?.response?.data?.error_code === 'ORDER_ALREADY_INVOICED') {
-            errorMessage.value = 'Esta orden de compra ya tiene una factura asociada.';
+            setErrorMessage('Esta orden de compra ya tiene una factura asociada.');
         } else {
-            errorMessage.value = e?.response?.data?.message || 'Error al convertir en factura.';
+            setErrorMessage(e?.response?.data?.message || 'Error al convertir en factura.');
         }
     } finally {
         isConverting.value = null;
@@ -160,12 +168,13 @@ async function convertToInvoice(order: PurchaseOrder) {
 function handleDialogRefresh(message?: string) {
     successMessage.value = message || 'Orden guardada correctamente.';
     errorMessage.value = '';
+    errorType.value = 'error';
     fetchOrders(currentPage.value, searchQuery.value);
     isDialogOpen.value = false;
 }
 
 function handleDialogError(message?: string) {
-    errorMessage.value = message || 'Error al guardar la orden.';
+    setErrorMessage(message || 'Error al guardar la orden.');
     successMessage.value = '';
 }
 </script>
@@ -176,6 +185,7 @@ function handleDialogError(message?: string) {
         <AlertStack
             :successMessage="successMessage"
             :errorMessage="errorMessage"
+            :errorType="errorType"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
         />
@@ -302,3 +312,4 @@ function handleDialogError(message?: string) {
         </Dialog>
     </AppLayout>
 </template>
+

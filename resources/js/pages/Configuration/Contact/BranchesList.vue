@@ -19,6 +19,7 @@ const internalBranches = ref([...props.branches]);
 
 // Mensaje de alerta
 const alertMessage = ref<string>('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 // Validar que todos los campos de la sucursal estén llenos
 const validateBranch = (branch: { name: string; address: string; phone: string }) => {
@@ -53,6 +54,7 @@ watch(
         branchErrors.value = newBranches.map((branch) => validateBranch(branch));
 
         if (hasDuplicateBranch(newBranches)) {
+            alertType.value = 'error';
             alertMessage.value = 'Ya existe una sucursal con el mismo nombre, dirección y teléfono.';
         } else if (
             alertMessage.value === 'Ya existe una sucursal con el mismo nombre, dirección y teléfono.'
@@ -68,10 +70,7 @@ watch(
 // Validar que todos los campos estén llenos
 const areBranchesValid = () => {
     return internalBranches.value.every(
-        (branch) =>
-            branch.name.trim() &&
-            branch.address.trim() &&
-            branch.phone.trim(),
+        (branch) => branch.name.trim() && branch.address.trim() && branch.phone.trim(),
     );
 };
 
@@ -79,6 +78,7 @@ const areBranchesValid = () => {
 const addBranch = () => {
     // Primero: todos los campos actuales llenos
     if (!areBranchesValid()) {
+        alertType.value = 'warning';
         alertMessage.value = 'Por favor, complete todos los campos antes de agregar una nueva sucursal.';
         branchErrors.value = internalBranches.value.map((branch) => validateBranch(branch));
         return;
@@ -86,13 +86,14 @@ const addBranch = () => {
 
     // Segundo: que no haya duplicados
     if (hasDuplicateBranch(internalBranches.value)) {
+        alertType.value = 'error';
         alertMessage.value = 'Ya existe una sucursal con el mismo nombre, dirección y teléfono.';
         return;
     }
 
     internalBranches.value.push({ name: '', address: '', phone: '' });
     branchErrors.value.push(validateBranch({ name: '', address: '', phone: '' }));
-    alertMessage.value = ''; // limpiamos alerta si había
+    alertMessage.value = ''; // limpiamos alerta si habia
 };
 
 // Eliminar una sucursal
@@ -102,6 +103,7 @@ const removeBranch = (index: number) => {
 };
 
 const showDuplicateAlertFn = () => {
+    alertType.value = 'error';
     alertMessage.value = 'Ya existe una sucursal con el mismo nombre, dirección y teléfono.';
 };
 
@@ -118,8 +120,8 @@ defineExpose({
                 class="absolute -top-26 left-1/2 z-20 w-full max-w-xl -translate-x-1/2"
             >
                 <AlertBox
-                    type="error"
-                    title="Error"
+                    :type="alertType"
+                    :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
                     :message="alertMessage"
                     @close="alertMessage = ''"
                 />
@@ -164,5 +166,5 @@ defineExpose({
 </template>
 
 <style scoped>
-/* Agregar estilos específicos si es necesario */
+/* Agregar estilos especificos si es necesario */
 </style>

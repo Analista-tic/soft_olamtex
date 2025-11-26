@@ -30,6 +30,7 @@ const form = ref<any>({ id: undefined, name: '', percent: 0, type: '', descripti
 const isSubmitting = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -58,6 +59,7 @@ async function deleteRetention() {
         successMessage.value = 'Retención eliminada correctamente.';
         fetchRetentions();
     } catch {
+        errorType.value = 'error';
         errorMessage.value = 'Error al eliminar la retención.';
     } finally {
         isDeleteDialogOpen.value = false;
@@ -74,6 +76,7 @@ async function handleDialogSubmit(retentionData: any) {
         fetchRetentions();
         closeDialog();
     } catch {
+        errorType.value = 'warning';
         errorMessage.value = 'Debes completar los campos obligatorios marcados con *.';
     } finally {
         isSubmitting.value = false;
@@ -104,6 +107,7 @@ onMounted(() => fetchRetentions());
         <AlertStack
             :successMessage="successMessage"
             :errorMessage="errorMessage"
+            :errorType="errorType"
             class="mb-2"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"

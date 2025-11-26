@@ -19,6 +19,7 @@ const internalContacts = ref([...props.additionalContacts]);
 
 // Mensaje de alerta (cajita roja arriba del form)
 const alertMessage = ref<string>('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 // Validar que todos los campos de los contactos estén llenos
 const validateContact = (contact: { name: string; email: string; phone: string }) => {
@@ -52,6 +53,7 @@ watch(
     (newContacts) => {
         contactErrors.value = newContacts.map((contact) => validateContact(contact));
         if (hasDuplicateContact(newContacts)) {
+            alertType.value = 'error';
             alertMessage.value = 'Ya existe un contacto con el mismo nombre, correo y teléfono.';
         } else if (
             alertMessage.value === 'Ya existe un contacto con el mismo nombre, correo y teléfono.'
@@ -75,6 +77,7 @@ const areContactsValid = () => {
 const addContact = () => {
     // Primero: todos los campos llenos
     if (!areContactsValid()) {
+        alertType.value = 'warning';
         alertMessage.value = 'Por favor, complete todos los campos antes de agregar un nuevo contacto.';
         contactErrors.value = internalContacts.value.map((contact) => validateContact(contact));
         return;
@@ -82,12 +85,13 @@ const addContact = () => {
 
     // Segundo: que no haya duplicados
     if (hasDuplicateContact(internalContacts.value)) {
+        alertType.value = 'error';
         alertMessage.value = 'Ya existe un contacto con el mismo nombre, correo y teléfono.';
         return;
     }
     internalContacts.value.push({ name: '', email: '', phone: '' });
     contactErrors.value.push(validateContact({ name: '', email: '', phone: '' }));
-    alertMessage.value = ''; // limpiamos alerta si había
+    alertMessage.value = ''; // limpiamos alerta si habia
 };
 
 // Eliminar un contacto adicional y sus errores
@@ -97,6 +101,7 @@ const removeContact = (index: number) => {
 };
 
 const showDuplicateAlertFn = () => {
+    alertType.value = 'error';
     alertMessage.value = 'Ya existe un contacto con el mismo nombre, correo y teléfono.';
 };
 
@@ -110,8 +115,8 @@ defineExpose({
         <transition name="fade">
             <div v-if="alertMessage" class="absolute -top-26 left-1/2 z-20 w-full max-w-xl -translate-x-1/2">
                 <AlertBox
-                    type="error"
-                    title="Error"
+                    :type="alertType"
+                    :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
                     :message="alertMessage"
                     @close="alertMessage = ''"
                 />
@@ -157,5 +162,5 @@ defineExpose({
 </template>
 
 <style scoped>
-/* Agregar estilos específicos si es necesario */
+/* Agregar estilos especificos si es necesario */
 </style>

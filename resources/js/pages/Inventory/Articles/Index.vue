@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
@@ -78,21 +78,26 @@ function confirmDeleteArticle(article: Article) {
 
 async function deleteArticle() {
     if (!articleToDelete.value) return;
-    await axios.delete(`/articulos/${articleToDelete.value.id}`);
-    fetchArticles();
-    isDeleteDialogOpen.value = false;
-    successMessage.value = 'El articulo se eliminó correctamente.';
-    errorMessage.value = '';
-
+    try {
+        await axios.delete(`/articulos/${articleToDelete.value.id}`);
+        fetchArticles();
+        isDeleteDialogOpen.value = false;
+        successMessage.value = "El artículo se eliminó correctamente.";
+        errorMessage.value = "";
+    } catch (e) {
+        const message = e?.response?.data?.message ?? "No se pudo eliminar el artículo.";
+        errorMessage.value = message;
+        successMessage.value = "";
+    }
 }
 
 function handleDialogRefresh() {
   fetchArticles(currentPage.value, searchQuery.value, statusFilter.value);
 
   if (dialogType.value === 'create') {
-    successMessage.value = 'El articulo se creó correctamente.';
+    successMessage.value = 'El artículo se creó correctamente.';
   } else {
-    successMessage.value = 'El articulo se actualizó correctamente.';
+    successMessage.value = 'El artículo se actualizó correctamente.';
   }
 
   errorMessage.value = '';
@@ -235,7 +240,7 @@ function exportArticlesExcel() {
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Confirmar eliminación</DialogTitle>
-                    <DialogDescription> ¿Estás seguro de que deseas eliminar este artículo? Esta acción no se puede deshacer. </DialogDescription>
+                    <DialogDescription> ¿Estás seguro de que deseas eliminar este Artículo? Esta acción no se puede deshacer. </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
                     <Button variant="outline" @click="isDeleteDialogOpen = false">Cancelar</Button>
@@ -247,11 +252,11 @@ function exportArticlesExcel() {
         <Dialog v-model:open="isStatusDialogOpen">
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle> {{ articleToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} artículo </DialogTitle>
+                    <DialogTitle> {{ articleToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} Artículo </DialogTitle>
                     <DialogDescription>
                         ¿Estás seguro de que deseas
                         {{ articleToToggleStatus?.status ? 'deshabilitar' : 'habilitar' }}
-                        este artículo?
+                        este artÃ­culo?
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -274,3 +279,8 @@ function exportArticlesExcel() {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchArticles" />
     </AppLayout>
 </template>
+
+
+
+
+

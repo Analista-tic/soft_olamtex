@@ -1,8 +1,9 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Contact, PurchaseInvoice } from '@/types';
@@ -11,7 +12,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 
-// Props y eventos del digílogo
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
@@ -24,7 +24,6 @@ const emit = defineEmits<{
     (e: 'error', message?: string): void;
 }>();
 
-// Estados reactivos principales
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<Partial<PurchaseInvoice>>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
@@ -33,30 +32,27 @@ const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
 const isLoadingInvoiceId = ref(false);
 const isReadOnly = computed(() => !!props.readOnly);
-
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
+const successMessage = ref<string>('');
+const errorMessage = ref<string>('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
-// Calculos de totales
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
-
-// Calculo de retenciones y total a pagar
 const retencionesTotal = computed(() =>
     (localForm.value.withholdings || []).reduce(
         (acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100),
-        0
-    )
+        0,
+    ),
 );
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
 
-// Datos del proveedor seleccionado
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 
-// ID de la factura (nuevo o edición)
 const id = computed(() => {
     if (props.dialogType === 'edit') return props.form?.id?.toString() || '';
     if (isLoadingInvoiceId.value) return 'Cargando...';
@@ -64,7 +60,6 @@ const id = computed(() => {
     return nextInvoiceId.value.toString();
 });
 
-// Crea un formulario vacio por defecto
 function createDefaultForm(): Partial<PurchaseInvoice> {
     return {
         contact_id: null,
@@ -94,12 +89,9 @@ function createEmptyItem() {
     };
 }
 
-// Convierte una fecha en formato ISO o yyyy-MM-dd a yyyy-MM-dd para el input tipo date
 function toDateInputValue(dateStr: string | undefined | null): string {
     if (!dateStr) return '';
-    // Si ya est├í en formato yyyy-MM-dd, retornar igual
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-    // Si es formato ISO, convertir
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
     const month = (d.getMonth() + 1).toString().padStart(2, '0');
@@ -107,13 +99,11 @@ function toDateInputValue(dateStr: string | undefined | null): string {
     return `${d.getFullYear()}-${month}-${day}`;
 }
 
-// Restaura el formulario local según el modo (nuevo o edición)
 function resetForm() {
     if (props.form && Object.keys(props.form).length > 0) {
         const formCopy = JSON.parse(JSON.stringify(props.form));
         if (!Array.isArray(formCopy.items)) formCopy.items = [];
         if (!Array.isArray(formCopy.withholdings)) formCopy.withholdings = [];
-        // Normaliza fechas para los inputs tipo date
         formCopy.date = toDateInputValue(formCopy.date);
         formCopy.delivery_date = toDateInputValue(formCopy.delivery_date);
         localForm.value = formCopy;
@@ -125,7 +115,6 @@ function resetForm() {
     }
 }
 
-// Sincroniza el formulario local cuando cambian los props de edición
 watch(
     () => props.form,
     () => {
@@ -133,10 +122,9 @@ watch(
             resetForm();
         }
     },
-    { deep: true }
+    { deep: true },
 );
 
-// Obtiene los proveedores desde la API
 async function fetchContacts() {
     try {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
@@ -154,7 +142,6 @@ async function fetchContacts() {
     }
 }
 
-// Obtiene el siguiente ID de factura sugerido
 async function fetchNextInvoiceId() {
     isLoadingInvoiceId.value = true;
     try {
@@ -170,7 +157,6 @@ async function fetchNextInvoiceId() {
     }
 }
 
-// Obtiene las ordenes de compra pendientes
 async function fetchPendingPurchaseOrders() {
     purchaseOrders.value = [];
     selectedPurchaseOrderId.value = null;
@@ -184,7 +170,6 @@ async function fetchPendingPurchaseOrders() {
     }
 }
 
-// Carga los datos de una orden de compra seleccionada al formulario
 async function loadPurchaseOrderToInvoice(orderId: number) {
     const order = purchaseOrders.value.find((o) => Number(o.id) === Number(orderId));
     if (!order) return;
@@ -198,19 +183,19 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
               article_id: item.article_id,
-              article: item.article,
-              quantity: Number(item.quantity) || 0,
-              price: Number(item.price) || 0,
-              total: Number(item.total) || 0,
-              total_tax: Number(item.total_tax) || 0,
+              price: item.price || '',
+              tax: item.tax || 0,
+              quantity: item.quantity || '',
               description: item.description || '',
-              tax: Number(item.tax) || 0,
+              total: item.total || 0,
+              total_tax: item.total_tax || 0,
               supplier_code: item.supplier_code || '',
               supplier_color: item.supplier_color || '',
-              order_width: item.order_width ? String(item.order_width) : '',
+              order_width: item.order_width || '',
+              id: item.id,
               created_at: item.created_at || '',
               updated_at: item.updated_at || '',
-              original_order_item: { ...item }
+              original_order_item: { ...item },
           }))
         : [];
     if (!localForm.value.items.length) {
@@ -220,9 +205,22 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.purchase_order_id = Number(orderId);
 }
 
-// Envía el formulario (guardar o guardar y enviar por correo)
+const scrollToDialogTop = () => {
+    const dialogEl = document.querySelector('[role="dialog"]');
+    dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+const setErrorMessage = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') => {
+    errorType.value = type;
+    errorMessage.value = msg;
+    scrollToDialogTop();
+};
+
 async function handleSubmit(sendMail = false) {
     if (isReadOnly.value) return;
+    successMessage.value = '';
+    errorMessage.value = '';
+    errorType.value = 'error';
     if (!validateForm()) return;
     isLoading.value = true;
     isSendingMail.value = sendMail;
@@ -243,6 +241,9 @@ async function handleSubmit(sendMail = false) {
             emit('refresh', 'Factura guardada y enviada por correo correctamente.');
         } else {
             emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
+            successMessage.value = props.dialogType === 'create'
+                ? 'Factura creada correctamente.'
+                : 'Factura actualizada correctamente.';
         }
         dialogOpen.value = false;
     } catch (e: any) {
@@ -250,31 +251,47 @@ async function handleSubmit(sendMail = false) {
             e?.response?.data?.message ||
             Object.values(e?.response?.data?.errors || {})?.flat()?.[0] ||
             'Error al guardar la factura. Por favor intente nuevamente.';
-        emit('error', serverMessage);
+        setErrorMessage(serverMessage);
     } finally {
         isLoading.value = false;
         isSendingMail.value = false;
     }
 }
 
-// Validacion basica del formulario
 function validateForm(): boolean {
+    const errs: string[] = [];
+    const items = localForm.value.items || [];
+
     if (!localForm.value.contact_id) {
-        alert('Por favor seleccione un proveedor');
-        return false;
+        errs.push('Por favor seleccione un proveedor.');
     }
     if (!localForm.value.date || !localForm.value.delivery_date) {
-        alert('Por favor complete las fechas requeridas');
+        errs.push('Por favor complete las fechas requeridas.');
+    }
+    if (!items.length) {
+        errs.push('La factura debe contener al menos un ítem.');
+    }
+    const invalidItems = items.filter(
+        (it) =>
+            !it.article_id ||
+            it.article_id === '' ||
+            it.price === '' ||
+            it.quantity === '' ||
+            Number(it.price) <= 0 ||
+            Number(it.quantity) <= 0,
+    );
+    if (invalidItems.length > 0) {
+        errs.push('Cada ítem debe tener artículo, precio y cantidad mayores a cero.');
+    }
+
+    if (errs.length) {
+        setErrorMessage(errs[0], 'warning');
         return false;
     }
-    if (!localForm.value.items?.length) {
-        alert('La factura debe contener al menos un ├¡tem');
-        return false;
-    }
+
     return true;
 }
 
-// Convierte contact_id a numero si es necesario
 watch(
     () => localForm.value.contact_id,
     (val) => {
@@ -284,7 +301,6 @@ watch(
     },
 );
 
-// Carga la orden de compra seleccionada
 watch(selectedPurchaseOrderId, (orderId) => {
     if (orderId) {
         loadPurchaseOrderToInvoice(orderId);
@@ -293,7 +309,6 @@ watch(selectedPurchaseOrderId, (orderId) => {
     }
 });
 
-// Inicializacion al montar el componente
 onMounted(async () => {
     if (props.isOpen) {
         await fetchContacts();
@@ -306,7 +321,6 @@ onMounted(async () => {
     }
 });
 
-// Sincroniza el estado cuando se abre/cierra
 watch(
     () => props.isOpen,
     async (isOpen) => {
@@ -318,19 +332,11 @@ watch(
             if (props.dialogType === 'create') {
                 nextInvoiceId.value = null;
                 await fetchNextInvoiceId();
-                selectedPurchaseOrderId.value = null;
-            } else if (props.dialogType === 'edit') {
-                if (props.form && (props.form as any).purchase_order_id) {
-                    selectedPurchaseOrderId.value = Number((props.form as any).purchase_order_id);
-                } else {
-                    selectedPurchaseOrderId.value = null;
-                }
             }
         }
     },
 );
 
-// Emite evento de cierre cuando se cierra
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) emit('close');
 });
@@ -345,6 +351,14 @@ watch(dialogOpen, (isOpen) => {
                     Completa los campos y añade los ítems de la factura.
                 </DialogDescription>
             </DialogHeader>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                success-title="Éxito"
+                error-title="Error"
+                @close-success="successMessage = ''"
+                @close-error="errorMessage = ''"
+            />
             <div class="mb-2 flex justify-end">
                 <div class="w-64"></div>
             </div>
@@ -374,28 +388,28 @@ watch(dialogOpen, (isOpen) => {
                     </div>
                 </div>
                 <div class="grid grid-cols-3 gap-4">
-                        <SelectField
-                            v-model="localForm.contact_id"
-                            label="Proveedor"
-                            :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
-                            :disabled="isReadOnly"
-                            required
-                            :key="contacts.length + '-' + localForm.contact_id"
-                        />
-                        <InputField
-                            :key="`idnumber-${localForm.contact_id ?? ''}`"
-                            label="Número de identificación"
-                            :modelValue="contactIdNumber"
-                            readonly
-                            :disabled="true"
-                        />
-                        <InputField
-                            :key="`phone-${localForm.contact_id ?? ''}`"
-                            label="Número de contacto"
-                            :modelValue="contactPhone"
-                            readonly
-                            :disabled="true"
-                        />
+                    <SelectField
+                        v-model="localForm.contact_id"
+                        label="Proveedor"
+                        :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
+                        :disabled="isReadOnly"
+                        required
+                        :key="contacts.length + '-' + localForm.contact_id"
+                    />
+                    <InputField
+                        :key="`idnumber-${localForm.contact_id ?? ''}`"
+                        label="Número de identificación"
+                        :modelValue="contactIdNumber"
+                        readonly
+                        :disabled="true"
+                    />
+                    <InputField
+                        :key="`phone-${localForm.contact_id ?? ''}`"
+                        label="Número de contacto"
+                        :modelValue="contactPhone"
+                        readonly
+                        :disabled="true"
+                    />
                 </div>
                 <div class="grid grid-cols-3 gap-4">
                     <InputDate v-model="localForm.date" label="Fecha de factura" required />
@@ -403,17 +417,17 @@ watch(dialogOpen, (isOpen) => {
                     <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
                 </div>
                 <div>
-                    <PurchaseInvoiceItemsTable 
-                        :items="localForm.items || []" 
+                    <PurchaseInvoiceItemsTable
+                        :items="localForm.items || []"
                         :isCreating="dialogType === 'create'"
-                        @update:items="(items) => (localForm.items = items)" 
+                        @update:items="(items) => (localForm.items = items)"
                     />
                 </div>
                 <div class="space-y-4 pt-6">
                     <div class="rounded border border-sidebar-border/70 bg-white p-3">
                         <PurchaseInvoiceWithholdingsTable
                             :modelValue="localForm.withholdings || []"
-                            @update:modelValue="val => localForm.withholdings = val"
+                            @update:modelValue="(val) => (localForm.withholdings = val)"
                         />
                     </div>
                     <div class="flex flex-col items-end space-y-0 text-sm w-full">
@@ -464,20 +478,9 @@ watch(dialogOpen, (isOpen) => {
                                     }}</span>
                                 </div>
                             </template>
-                            <div v-if="(localForm.withholdings || []).length" class="flex justify-between items-center pt-1">
-                                <span class="font-semibold text-gray-700">Total retenciones</span>
-                                <span class="text-red-700">{{
-                                    Number(retencionesTotal || 0).toLocaleString('es-CO', {
-                                        style: 'currency',
-                                        currency: 'COP',
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0,
-                                    })
-                                }}</span>
-                            </div>
-                            <div class="flex justify-between items-center pt-2 mt-1">
-                                <span class="font-bold text-lg text-green-700">Total a pagar</span>
-                                <span class="font-bold text-lg text-green-700">{{
+                            <div class="flex justify-between items-center pt-2 mt-1 border-t border-gray-200">
+                                <span class="font-bold text-gray-900">Total a pagar</span>
+                                <span class="font-bold text-green-700">{{
                                     Number(totalPagar || 0).toLocaleString('es-CO', {
                                         style: 'currency',
                                         currency: 'COP',
@@ -490,13 +493,9 @@ watch(dialogOpen, (isOpen) => {
                     </div>
                 </div>
                 <div>
-                    <TextareaField
-                        v-model="localForm.description"
-                        label="Observación"
-                        placeholder="Agrega aquí observaciones adicionales para la factura de compra"
-                    />
+                    <TextareaField v-model="localForm.description" label="Observación" />
                 </div>
-                <DialogFooter class="mt-4 flex justify-end gap-4">
+                <DialogFooter class="gap-2">
                     <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
                     <Button variant="default" type="button" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(false)">
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}

@@ -62,6 +62,7 @@ const unitMeasures = [
 ];
 const unitMeasure = ref(props.form.unit_measure ?? unitMeasures[0].id);
 const alertMessage = ref<string>('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isViewMode = computed(() => props.dialogType === 'view');
 
 // Carga de catálogos y datos iniciales
@@ -250,6 +251,7 @@ function resetErrors() {
 async function handleSubmit() {
     resetErrors();
     alertMessage.value = '';
+    alertType.value = 'error';
     const requiredErrors: string[] = [];
 
     // Validaciones de campos obligatorios
@@ -269,6 +271,7 @@ async function handleSubmit() {
         requiredErrors.push('Referencia');
     }
     if (requiredErrors.length > 0) {
+        alertType.value = 'warning';
         alertMessage.value = `Por favor, completa todos los campos obligatorios: ${requiredErrors.join(', ')}.`;
         const dialogEl = document.querySelector('[role="dialog"]');
         dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -465,8 +468,8 @@ watch(
             <transition name="fade">
                 <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2">
                     <AlertBox
-                        type="error"
-                        title="Error"
+                        :type="alertType"
+                        :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
                         :message="alertMessage"
                         class="pointer-events-auto"
                         @close="alertMessage = ''"

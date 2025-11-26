@@ -41,6 +41,7 @@ const productionOrder = ref<string>('');
 const taxes = ref<any[]>([]);
 const articles = ref<Article[]>([]);
 const alertMessage = ref<string>('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isSubmitting = ref(false);
 
 const lines = ref<Line[]>([
@@ -92,6 +93,7 @@ function resetForm() {
   productionOrder.value = '';
   lines.value = [{ id: 1, articleId: null, price: 0, tax: 0, quantity: 1, description: '' }];
   alertMessage.value = '';
+  alertType.value = 'error';
 }
 
 async function loadDocumentNumber() {
@@ -127,11 +129,13 @@ watch(
   async (open) => {
     if (!open) return;
     alertMessage.value = '';
+    alertType.value = 'error';
     if (props.dialogType === 'edit' && props.adjustment?.id) {
       try {
         const { data } = await axios.get(`/ajustes-inventario/${props.adjustment.id}`);
         fillFromAdjustment(data);
       } catch {
+        alertType.value = 'error';
         alertMessage.value = 'No se pudo cargar el ajuste seleccionado.';
         resetForm();
       }
@@ -193,6 +197,7 @@ const getDirectionByType = (typeId: string): 'entrada' | 'salida' => {
 };
 async function handleSubmit() {
   alertMessage.value = '';
+  alertType.value = 'error';
   const requiredErrors: string[] = [];
 
   if (!adjustmentType.value) {
@@ -219,7 +224,10 @@ async function handleSubmit() {
 
   if (requiredErrors.length > 0) {
     const unique = Array.from(new Set(requiredErrors));
+    alertType.value = 'warning';
     alertMessage.value = 'Por favor completa todos los campos obligatorios marcados con (*). ' + `Campos incompletos: ${unique.join(', ')}.`;
+    const dialogEl = document.querySelector('[role="dialog"]');
+    dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
 
@@ -254,6 +262,7 @@ async function handleSubmit() {
     emit('close');
   } catch (error: any) {
     const responseMessage = error?.response?.data?.message || 'No se pudo guardar el ajuste.';
+    alertType.value = 'error';
     alertMessage.value = responseMessage;
   } finally {
     isSubmitting.value = false;
@@ -277,8 +286,8 @@ async function handleSubmit() {
           class="pointer-events-none absolute left-1/2 top-6 z-30 w-full max-w-xl -translate-x-1/2"
         >
           <AlertBox
-            type="error"
-            title="Error"
+            :type="alertType"
+            :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
             :message="alertMessage"
             class="pointer-events-auto"
             @close="alertMessage = ''"

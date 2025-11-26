@@ -109,6 +109,8 @@ const submitForm = async () => {
         // Aviso temprano si todos los campos obligatorios están vacíos
         if (areRequiredFieldsEmpty()) {
             showEmptyAlert.value = true;
+            const dialogEl = document.querySelector('[role="dialog"]');
+            dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
             return;
         }
 

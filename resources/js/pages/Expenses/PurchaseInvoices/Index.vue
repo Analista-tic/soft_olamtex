@@ -44,6 +44,7 @@ const invoiceToPrint = ref<PurchaseInvoice | null>(null);
 const isSendingMail = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
@@ -69,6 +70,7 @@ function openDialog(type: 'create' | 'edit', invoice: PurchaseInvoice | null = n
     form.value = invoice ? JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice> : {};
     successMessage.value = '';
     errorMessage.value = '';
+    errorType.value = 'error';
 }
 
 function closeDialog() {
@@ -81,6 +83,12 @@ function confirmDeleteInvoice(invoice: PurchaseInvoice) {
     isDeleteDialogOpen.value = true;
 }
 
+const warningMatcher = (msg: string) => /obligatori|complet[ao]s? los campos/i.test(msg);
+const setErrorMessage = (msg: string) => {
+    errorType.value = warningMatcher(msg) ? 'warning' : 'error';
+    errorMessage.value = msg;
+};
+
 async function deleteInvoice(): Promise<void> {
     if (!invoiceToDelete.value) return;
     try {
@@ -89,7 +97,7 @@ async function deleteInvoice(): Promise<void> {
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
         console.log('Error al eliminar factura:', e);
-        errorMessage.value = 'Error al eliminar la factura.';
+        setErrorMessage('Error al eliminar la factura.');
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -171,7 +179,7 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
         await axios.post(`/gastos/facturas-compra/${invoice.id}/enviar-correo`);
         successMessage.value = 'Factura enviada por correo correctamente.';
     } catch {
-        errorMessage.value = 'Error al enviar el correo.';
+        setErrorMessage('Error al enviar el correo.');
     } finally {
         isSendingMail.value = false;
     }
@@ -195,7 +203,7 @@ function handleDialogRefresh(message?: string) {
 }
 
 function handleDialogError(message?: string) {
-    errorMessage.value = message || 'Error al guardar la factura.';
+    setErrorMessage(message || 'Error al guardar la factura.');
     successMessage.value = '';
 }
 </script>
@@ -206,6 +214,7 @@ function handleDialogError(message?: string) {
         <AlertStack
             :successMessage="successMessage"
             :errorMessage="errorMessage"
+            :errorType="errorType"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
         />

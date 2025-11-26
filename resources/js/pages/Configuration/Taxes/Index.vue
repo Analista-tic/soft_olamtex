@@ -37,6 +37,7 @@ const form = ref<any>({ id: undefined, name: '', percentage: 0, status: true });
 const isSubmitting = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -65,6 +66,7 @@ async function deleteTax() {
         successMessage.value = 'Impuesto eliminado correctamente.';
         fetchTaxes();
     } catch (e) {
+        errorType.value = 'error';
         errorMessage.value = 'Error al eliminar el impuesto.';
     } finally {
         isDeleteDialogOpen.value = false;
@@ -81,6 +83,7 @@ async function handleDialogSubmit(taxData: any) {
         fetchTaxes();
         closeDialog();
     } catch (e) {
+        errorType.value = 'warning';
         errorMessage.value = 'Debes completar los campos obligatorios marcados con *.';
     } finally {
         isSubmitting.value = false;
@@ -111,6 +114,7 @@ onMounted(() => fetchTaxes());
         <AlertStack
             :successMessage="successMessage"
             :errorMessage="errorMessage"
+            :errorType="errorType"
             class="mb-2"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
@@ -203,8 +207,6 @@ onMounted(() => fetchTaxes());
         </Dialog>
     </AppLayout>
 </template>
-
-
 
 
 
