@@ -43,15 +43,30 @@ const form = ref<Warehouse>({
 const isSubmitting = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
 
+const setError = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') => {
+    if (message) {
+        successMessage.value = '';
+    }
+    errorMessage.value = message;
+    errorType.value = type;
+};
+
+const clearMessages = () => {
+    successMessage.value = '';
+    setError('');
+};
+
 function openDialog(type: 'create' | 'edit', warehouse: Warehouse | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
+    clearMessages();
     form.value = type === 'edit' && warehouse
         ? { ...warehouse }
         : { id: undefined, name: '', observation: '' };
@@ -71,9 +86,10 @@ async function deleteWarehouse() {
     try {
         await axios.delete(`/bodegas/${warehouseToDelete.value.id}`);
         successMessage.value = 'Bodega eliminada correctamente.';
+        setError('');
         fetchWarehouses();
     } catch (error) {
-        errorMessage.value = 'Error al eliminar la bodega.';
+        setError('Error al eliminar la bodega.');
         console.error('Error al eliminar el warehouse:', error);
     } finally {
         isDeleteDialogOpen.value = false;
@@ -81,22 +97,28 @@ async function deleteWarehouse() {
 }
 
 async function handleDialogSubmit(warehouseData: Warehouse) {
+    const trimmedName = warehouseData.name?.trim() ?? '';
+    if (!trimmedName) {
+        setError('El nombre es obligatorio.', 'warning');
+        return;
+    }
     isSubmitting.value = true;
     const url = dialogType.value === 'create' ? '/bodegas' : `/bodegas/${warehouseData.id}`;
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
 
     try {
-        if (!warehouseData.name || String(warehouseData.name).trim() === '') {
-            errorMessage.value = 'El nombre es obligatorio.';
-            return;
-        }
-        await axios({ method, url, data: warehouseData });
+        await axios({ method, url, data: { ...warehouseData, name: trimmedName } });
         successMessage.value = dialogType.value === 'create' ? 'Bodega creada correctamente.' : 'Bodega actualizada correctamente.';
         fetchWarehouses();
         closeDialog();
-        errorMessage.value = '';
-    } catch (error) {
-        errorMessage.value = 'Error al guardar la bodega.';
+        setError('');
+    } catch (error: any) {
+        const status = error?.response?.status;
+        if (status === 422 && error?.response?.data?.message) {
+            setError(error.response.data.message, 'warning');
+        } else {
+            setError('Error al guardar la bodega.');
+        }
         console.error('Error al guardar el warehouse:', error);
     } finally {
         isSubmitting.value = false;
@@ -113,6 +135,7 @@ async function fetchWarehouses(page = 1, search = '') {
         currentPage.value = response.data.current_page;
     } catch (error) {
         console.error('Error al obtener los warehouses:', error);
+        setError('Error al obtener las bodegas.');
     }
 }
 
@@ -134,9 +157,11 @@ onMounted(() => {
     <Head title="Gestión de bodegas" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
-            :successMessage="successMessage"
-            :errorMessage="errorMessage"
-            class="mb-2"
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            success-title="Operacion exitosa"
+            error-title="Aviso"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
         />

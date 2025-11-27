@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Label from '@/components/ui/label/Label.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -28,6 +27,7 @@ type Line = {
   id: number;
   articleId: number | null;
   price: number;
+  taxId: number | null;
   tax: number;
   quantity: number;
   description: string;
@@ -46,7 +46,7 @@ const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isSubmitting = ref(false);
 
 const lines = ref<Line[]>([
-  { id: 1, articleId: null, price: 0, tax: 0, quantity: 1, description: '' },
+  { id: 1, articleId: null, price: 0, taxId: null, tax: 0, quantity: 1, description: '' },
 ]);
 
 const adjustmentTypeOptions = [
@@ -60,10 +60,24 @@ const adjustmentTypeOptions = [
   { id: 'devolucion_proveedor', name: 'Devolución proveedor', direction: 'salida' },
 ];
 
+const articleSelectOptions = computed(() =>
+  articles.value.map(article => ({
+    id: article.id,
+    name: article.reference ? `${article.name} (${article.reference})` : article.name,
+  })),
+);
+
+const taxSelectOptions = computed(() =>
+  taxes.value.map(tax => ({
+    id: tax.id,
+    name: `${tax.name} (${Math.trunc(Number(tax.percentage) || 0)}%)`,
+  })),
+);
+
 async function fetchTaxes() {
   try {
-    const { data } = await axios.get('/impuestos/data', { params: { per_page: 100 } });
-    taxes.value = data.data ?? [];
+    const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
+    taxes.value = (data.data ?? []).filter((t: any) => t.status);
   } catch (e) {
     console.error('Error cargando impuestos', e);
   }
@@ -92,7 +106,7 @@ function resetForm() {
   date.value = '';
   observation.value = '';
   productionOrder.value = '';
-  lines.value = [{ id: 1, articleId: null, price: 0, tax: 0, quantity: 1, description: '' }];
+  lines.value = [{ id: 1, articleId: null, price: 0, taxId: null, tax: 0, quantity: 1, description: '' }];
   alertMessage.value = '';
    alertDetails.value = [];
   alertType.value = 'error';
@@ -119,17 +133,19 @@ function fillFromAdjustment(data: any) {
         id: idx + 1,
         articleId: Number(line.article_id),
         price: Number(line.price) || 0,
+        taxId: line.tax_id ?? line.taxId ?? null,
         tax: Number(line.tax) || 0,
         quantity: Number(line.quantity) || 0,
         description: line.description || '',
       }))
-    : [{ id: 1, articleId: null, price: 0, tax: 0, quantity: 1, description: '' }];
+    : [{ id: 1, articleId: null, price: 0, taxId: null, tax: 0, quantity: 1, description: '' }];
 }
 
 watch(
   () => props.isOpen,
   async (open) => {
     if (!open) return;
+    fetchTaxes();
     alertMessage.value = '';
     alertDetails.value = [];
     alertType.value = 'error';
@@ -155,6 +171,7 @@ function addLine() {
     id: nextId,
     articleId: null,
     price: 0,
+    taxId: null,
     tax: 0,
     quantity: 1,
     description: '',
@@ -188,11 +205,6 @@ const ivaTotal = computed(() =>
 );
 
 const totalAdjustment = computed(() => subtotal.value + ivaTotal.value);
-
-const normalizeTaxValue = (value: number | string | null | undefined) => {
-  const num = Number(value);
-  return Number.isFinite(num) ? String(num) : '';
-};
 
 const getDirectionByType = (typeId: string): 'entrada' | 'salida' => {
   const found = adjustmentTypeOptions.find(opt => opt.id === typeId);
@@ -251,6 +263,7 @@ async function handleSubmit() {
       warehouse_id: null,
       price: line.price ?? 0,
       tax: line.tax ?? 0,
+      tax_id: line.taxId ?? null,
       quantity: line.quantity ?? 0,
       description: line.description || null,
     })),
@@ -398,112 +411,82 @@ async function handleSubmit() {
               </Button>
             </div>
 
-            <div class="overflow-x-auto rounded-lg border">
-              <Table class="min-w-full text-center table-fixed">
+            <div class="overflow-x-auto rounded-lg border" style="overflow: visible; max-height: none;">
+              <Table class="min-w-full text-center" style="overflow: visible; max-height: none;">
                 <TableHeader>
-                  <TableRow>
-                    <TableHead class="w-[18%]">
-                      Articulo <span class="text-destructive">*</span>
-                    </TableHead>
-                    <TableHead class="w-[18%]">
-                      Precio <span class="text-destructive">*</span>
-                    </TableHead>
-                    <TableHead class="w-[18%]">
-                      Impuesto
-                    </TableHead>
-                    <TableHead class="w-[18%]">
-                      Cantidad <span class="text-destructive">*</span>
-                    </TableHead>
-                    <TableHead class="w-[18%]">
-                      Descripcion
-                    </TableHead>
-                    <TableHead class="w-[8%]">
-                      Total
-                    </TableHead>
-                    <TableHead class="w-[4%]"></TableHead>
+                  <TableRow class="text-center">
+                    <TableHead class="min-w-[150px]">Articulo <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[120px]">Precio <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[140px]">Impuesto</TableHead>
+                    <TableHead class="min-w-[110px]">Cantidad <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[160px]">Descripcion</TableHead>
+                    <TableHead class="min-w-[90px]">Total</TableHead>
+                    <TableHead class="w-[60px]"></TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
                   <TableRow v-for="(line, idx) in lines" :key="line.id">
-                    <TableCell>
-                      <Select
-                        :modelValue="line.articleId ? String(line.articleId) : ''"
-                        @update:modelValue="val => { line.articleId = val ? Number(val) : null; }"
-                      >
-                        <SelectTrigger class="h-8 w-full">
-                          <SelectValue placeholder="Articulo" />
-                        </SelectTrigger>
-
-                        <SelectContent>
-                          <SelectItem
-                            v-for="article in articles"
-                            :key="article.id"
-                            :value="String(article.id)"
-                          >
-                            {{ article.name }}
-                            <span v-if="article.reference"> ({{ article.reference }})</span>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <TableCell class="p-1">
+                      <SelectField
+                        v-model="line.articleId"
+                        :options="articleSelectOptions"
+                        label=""
+                        placeholder="Selecciona"
+                        class="w-full"
+                      />
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell class="p-1">
                       <Input
                         v-model.number="line.price"
                         type="number"
                         min="0"
                         step="0.01"
                         placeholder="0.00"
-                        class="h-8 w-full"
+                        class="h-10 w-full"
                       />
                     </TableCell>
 
-                    <TableCell>
-                      <Select
-                        :modelValue="normalizeTaxValue(line.tax)"
-                        @update:modelValue="val => (line.tax = Number(val))"
-                      >
-                        <SelectTrigger class="h-8 w-full">
-                          <SelectValue placeholder="%" />
-                        </SelectTrigger>
-
-                        <SelectContent>
-                          <SelectItem
-                            v-for="tax in taxes"
-                            :key="tax.id"
-                            :value="normalizeTaxValue(tax.percentage)"
-                          >
-                            {{ tax.name }} ({{ Math.trunc(tax.percentage) }}%)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <TableCell class="p-1">
+                      <SelectField
+                        v-model="line.taxId"
+                        :options="taxSelectOptions"
+                        label=""
+                        placeholder="Selecciona"
+                        class="w-full"
+                        @update:modelValue="val => {
+                          const selected = taxes.find(t => String(t.id) === String(val));
+                          line.taxId = selected ? selected.id : null;
+                          line.tax = selected ? Number(selected.percentage) : 0;
+                        }"
+                      />
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell class="p-1">
                       <Input
                         v-model.number="line.quantity"
                         type="number"
                         min="1"
                         step="1"
                         placeholder="0"
-                        class="h-8 w-full"
+                        class="h-10 w-full"
                       />
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell class="p-1">
                       <Input
                         v-model="line.description"
                         placeholder="Descripcion"
-                        class="h-8 w-full"
+                        class="h-10 w-full"
                       />
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell class="p-1">
                       {{ lineTotal(line).toFixed(2) }}
                     </TableCell>
 
-                    <TableCell class="text-center">
+                    <TableCell class="p-1 text-center">
                       <DeleteButton
                         v-if="lines.length > 1 && idx > 0"
                         class="mx-auto"

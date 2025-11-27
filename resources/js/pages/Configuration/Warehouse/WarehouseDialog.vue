@@ -36,7 +36,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent>
+	        <DialogContent>
             <DialogHeader>
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear Bodega' : 'Editar Bodega' }}
@@ -52,7 +52,7 @@ function handleSubmit() {
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                 </Button>
             </DialogFooter>
-        </DialogContent>
+	        </DialogContent>
     </Dialog>
 </template>
 

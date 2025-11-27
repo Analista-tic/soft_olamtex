@@ -54,8 +54,8 @@ async function fetchArticles() {
 }
 
 async function fetchTaxes() {
-    const res = await axios.get('/impuestos/data', { params: { per_page: 1000 } });
-    taxes.value = Array.isArray(res.data?.data) ? res.data.data : [];
+    const res = await axios.get('/impuestos/data', { params: { per_page: 1000, status: true } });
+    taxes.value = Array.isArray(res.data?.data) ? res.data.data.filter((t: any) => t.status) : [];
 }
 
 onMounted(() => {
