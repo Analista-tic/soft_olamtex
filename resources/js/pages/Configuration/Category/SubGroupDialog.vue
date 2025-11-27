@@ -182,7 +182,7 @@ async function confirmDeleteGroup() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                class="w-full justify-center text-xs"
+                                class="w-full justify-center text-xs bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
                                 @click.stop="openGroupDialogFromDropdown"
                             >
                                 <Plus class="mr-2 h-4 w-4" />

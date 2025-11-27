@@ -385,11 +385,13 @@ watch(dialogOpen, (isOpen) => {
             <div class="mb-2 flex justify-end">
                 <div class="w-64"></div>
             </div>
-            <form
-                @submit.prevent="handleSubmit()"
-                :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }"
-                class="space-y-6"
-            >
+              <form
+                  @submit.prevent="handleSubmit()"
+                  :class="{
+                      'pointer-events-none': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly
+                  }"
+                  class="space-y-6"
+              >
                 <div class="grid grid-cols-3 items-start gap-4">
                     <div>
                         <InputField
@@ -443,6 +445,7 @@ watch(dialogOpen, (isOpen) => {
                     <PurchaseInvoiceItemsTable
                         :items="localForm.items || []"
                         :isCreating="dialogType === 'create'"
+                        :isReadOnly="isReadOnly"
                         @update:items="(items) => (localForm.items = items)"
                     />
                 </div>
@@ -451,6 +454,7 @@ watch(dialogOpen, (isOpen) => {
                         <PurchaseInvoiceWithholdingsTable
                             :modelValue="localForm.withholdings || []"
                             @update:modelValue="(val) => (localForm.withholdings = val)"
+                            :isReadOnly="isReadOnly"
                         />
                     </div>
                     <div class="flex flex-col items-end space-y-0 text-sm w-full">

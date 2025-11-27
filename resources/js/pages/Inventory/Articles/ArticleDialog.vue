@@ -631,26 +631,26 @@ watch(
                                 <div
                                     v-for="(ws, idx) in warehouseStocks"
                                     :key="idx"
-                                    class="mb-2 flex flex-col gap-2 rounded-md bg-gray-50 p-2 dark:bg-gray-800 sm:flex-row sm:items-center"
+                                    class="mb-2 rounded-md bg-gray-50 p-2 dark:bg-gray-800"
                                 >
-                                    <div class="min-w-[150px] flex-1">
-                                        <Label class="mb-1 text-xs">Bodega</Label>
-                                        <SelectField
-                                            v-model="ws.warehouse_id"
-                                            label=""
-                                            :options="availableWarehouses(idx).map((w) => ({
-                                                id: String(w.id ?? ''),
-                                                name: w.name,
-                                            }))"
-                                            @change="updateWarehouseName(idx)"
-                                            class="w-full"
-                                            placeholder="Bodega"
-                                            :searchable="false"
-                                        />
-                                    </div>
-                                    <div class="flex flex-1 gap-2">
-                                        <div class="flex w-full flex-col">
-                                            <Label class="mb-1 text-xs">Cantidad</Label>
+                                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-[220px,1fr,1fr,1fr,auto] sm:items-end">
+                                        <div class="flex h-full flex-col justify-between gap-1">
+                                            <Label class="text-xs">Bodega</Label>
+                                            <SelectField
+                                                v-model="ws.warehouse_id"
+                                                label=""
+                                                :options="availableWarehouses(idx).map((w) => ({
+                                                    id: String(w.id ?? ''),
+                                                    name: w.name,
+                                                }))"
+                                                @change="updateWarehouseName(idx)"
+                                                class="w-full"
+                                                placeholder="Bodega"
+                                                :searchable="false"
+                                            />
+                                        </div>
+                                        <div class="flex h-full flex-col justify-between gap-1">
+                                            <Label class="text-xs">Cantidad</Label>
                                             <InputIntegerField
                                                 v-model="ws.quantity"
                                                 label=""
@@ -659,8 +659,8 @@ watch(
                                                 placeholder="Cantidad"
                                             />
                                         </div>
-                                        <div class="flex w-full flex-col">
-                                            <Label class="mb-1 text-xs">Cantidad Min</Label>
+                                        <div class="flex h-full flex-col justify-between gap-1">
+                                            <Label class="text-xs">Cantidad Min</Label>
                                             <InputIntegerField
                                                 v-model="ws.stock_min"
                                                 label=""
@@ -669,8 +669,8 @@ watch(
                                                 placeholder="Min"
                                             />
                                         </div>
-                                        <div class="flex w-full flex-col">
-                                            <Label class="mb-1 text-xs">Cantidad Max</Label>
+                                        <div class="flex h-full flex-col justify-between gap-1">
+                                            <Label class="text-xs">Cantidad Max</Label>
                                             <InputIntegerField
                                                 v-model="ws.stock_max"
                                                 label=""
@@ -679,17 +679,18 @@ watch(
                                                 placeholder="Max"
                                             />
                                         </div>
+                                        <div class="flex items-base justify-end">
+                                            <button
+                                                v-if="!isViewMode"
+                                                type="button"
+                                                class="rounded-full p-1 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                                @click="removeWarehouseStock(idx)"
+                                                title="Quitar"
+                                            >
+                                                <Trash2 class="h-5 w-5 text-red-500" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <button
-                                        v-if="!isViewMode"
-                                        type="button"
-                                        class="rounded-full p-1 transition hover:bg-red-100 dark:hover:bg-red-900"
-                                        @click="removeWarehouseStock(idx)"
-                                        title="Quitar"
-                                    >
-                                        <Trash2 class="h-5 w-5 text-red-500" />
-                                    </button>
-
                                 </div>
 
                                 <div
