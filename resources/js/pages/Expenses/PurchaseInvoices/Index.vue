@@ -51,6 +51,7 @@ const providerFilter = ref('all');
 const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
+const purchaseOrdersMap = ref<Record<number, string>>({});
 
 async function fetchProviders() {
     try {
@@ -131,6 +132,23 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     }
 }
 
+async function fetchPurchaseOrdersMap() {
+    try {
+        const { data } = await axios.get('/gastos/ordenes-compra/data', { params: { per_page: 1000 } });
+        const orders = Array.isArray(data?.data) ? data.data : [];
+        purchaseOrdersMap.value = orders.reduce((acc: Record<number, string>, order: any) => {
+            const id = Number(order.id);
+            if (!Number.isNaN(id)) {
+                acc[id] = order.supplier_order_number || order.order_number || String(id);
+            }
+            return acc;
+        }, {});
+    } catch (e) {
+        console.log('Error al cargar ordenes de compra:', e);
+        purchaseOrdersMap.value = {};
+    }
+}
+
 // Watcher único para filtros y búsqueda
 watch(
     [statusFilter, providerFilter, dateFrom, dateTo, searchQuery],
@@ -162,6 +180,7 @@ watch(currentPage, (newPage, oldPage) => {
 onMounted(() => {
     fetchInvoices();
     fetchProviders();
+    fetchPurchaseOrdersMap();
 });
 
 function openPrintDialog(invoice: PurchaseInvoice) {
@@ -209,6 +228,14 @@ function handleDialogError(message?: string) {
     setErrorMessage(message || 'Error al guardar la factura.');
     successMessage.value = '';
 }
+
+const orderDisplay = (invoice: PurchaseInvoice) =>
+    purchaseOrdersMap.value[invoice.purchase_order_id as number] ||
+    (invoice as any)?.purchase_order?.supplier_order_number ||
+    (invoice as any)?.purchase_order?.order_number ||
+    invoice.purchase_order_id ||
+    (invoice as any)?.purchase_order?.id ||
+    '-';
 </script>
 
 <template>
@@ -288,7 +315,7 @@ function handleDialogError(message?: string) {
                     <TableBody>
                         <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
                             <TableCell class="font-medium">{{ invoice.id }}</TableCell>
-                            <TableCell>{{ invoice.purchase_order_id || '-' }}</TableCell>
+                            <TableCell>{{ orderDisplay(invoice) }}</TableCell>
                             <TableCell>{{ invoice.contact?.full_name }}</TableCell>
                             <TableCell>{{ invoice.date }}</TableCell>
                             <TableCell>{{ invoice.supplier_invoice_number || '-' }}</TableCell>
