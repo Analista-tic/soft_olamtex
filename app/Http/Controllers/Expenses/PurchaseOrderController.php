@@ -243,7 +243,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order successfully converted to invoice.',
-            'data' => $invoice->load('items', 'contact')
+            'data' => $invoice->load('items', 'contact', 'purchaseOrder')
         ]);
     }
 }

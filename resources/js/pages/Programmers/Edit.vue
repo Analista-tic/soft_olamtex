@@ -235,12 +235,12 @@ async function saveChanges() {
                     />
                 </div>
                 <div>
-                    <InputField 
-                        type="integer" 
-                        v-model="programmerUnits" 
+                    <InputField
+                        type="number"
+                        v-model="programmerUnits"
                         label="Unidades"
-                        placeholder="Unds. a programar" 
-                        :class="{ 'border-red-500': !programmer.units }" 
+                        placeholder="Unds. a programar"
+                        :class="{ 'border-red-500': !programmer.units }"
                     />
                 </div>
                 <div>

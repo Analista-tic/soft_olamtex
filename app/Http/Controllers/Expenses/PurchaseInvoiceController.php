@@ -25,7 +25,8 @@ class PurchaseInvoiceController extends Controller
     {
         try {
             $invoice = PurchaseInvoice::with([
-                'contact', 
+                'contact',
+                'purchaseOrder',
                 'items.article.warehouses',
                 'items.article.categorySubGroup.categoryGroup',
                 'items.article.color',
@@ -70,7 +71,7 @@ class PurchaseInvoiceController extends Controller
         // Actualiza el estado de la orden de compra si corresponde
         $this->updatePurchaseOrderStatus($data['purchase_order_id'] ?? $request->purchase_order_id);
 
-        return response()->json(['data' => $invoice->load('items', 'contact')], 201);
+        return response()->json(['data' => $invoice->load('items', 'contact', 'purchaseOrder')], 201);
     }
 
     /**
@@ -95,7 +96,7 @@ class PurchaseInvoiceController extends Controller
         // Actualiza el estado de la orden de compra si corresponde
         $this->updatePurchaseOrderStatus($data['purchase_order_id'] ?? $request->purchase_order_id);
 
-        return response()->json(['data' => $invoice->load('items', 'contact')]);
+        return response()->json(['data' => $invoice->load('items', 'contact', 'purchaseOrder')]);
     }
 
     /**
@@ -115,7 +116,8 @@ class PurchaseInvoiceController extends Controller
     public function getData(Request $request)
     {
         $query = PurchaseInvoice::with([
-            'contact', 
+            'contact',
+            'purchaseOrder',
             'items.article.warehouses',
             'items.article.categorySubGroup.categoryGroup',
             'items.article.color',
