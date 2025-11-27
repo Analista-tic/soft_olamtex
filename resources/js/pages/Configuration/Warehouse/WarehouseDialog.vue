@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
@@ -20,9 +20,12 @@ const emit = defineEmits<{
 
 const localForm = ref<Warehouse>({ ...props.form });
 
-watch(() => props.form, (newVal) => {
-    localForm.value = { ...newVal };
-});
+watch(
+    () => props.form,
+    (newVal) => {
+        localForm.value = { ...newVal };
+    },
+);
 
 function handleClose() {
     emit('update:open', false);
@@ -36,7 +39,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-	        <DialogContent>
+        <DialogContent>
             <DialogHeader>
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear Bodega' : 'Editar Bodega' }}
@@ -44,7 +47,7 @@ function handleSubmit() {
             </DialogHeader>
             <div class="space-y-4">
                 <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre" required />
-                <InputField label="Observación" v-model="localForm.observation" placeholder="Observación" />
+                <InputField label="Observacion" v-model="localForm.observation" placeholder="Observacion" required />
             </div>
             <DialogFooter>
                 <Button variant="outline" @click="handleClose">Cancel</Button>
@@ -52,12 +55,6 @@ function handleSubmit() {
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                 </Button>
             </DialogFooter>
-	        </DialogContent>
+        </DialogContent>
     </Dialog>
 </template>
-
-
-
-
-
-

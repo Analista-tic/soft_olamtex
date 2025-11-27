@@ -98,8 +98,16 @@ async function deleteWarehouse() {
 
 async function handleDialogSubmit(warehouseData: Warehouse) {
     const trimmedName = warehouseData.name?.trim() ?? '';
-    if (!trimmedName) {
-        setError('El nombre es obligatorio.', 'warning');
+    const trimmedObservation = warehouseData.observation?.trim() ?? '';
+    if (!trimmedName || !trimmedObservation) {
+        setError(!trimmedName ? 'El nombre es obligatorio.' : 'La observacion es obligatoria.', 'warning');
+        return;
+    }
+    const alreadyExists = warehouses.value.some(
+        (w) => w.name?.trim().toLowerCase() === trimmedName.toLowerCase() && w.id !== warehouseData.id,
+    );
+    if (alreadyExists) {
+        setError('Ya existe una bodega con ese nombre.', 'warning');
         return;
     }
     isSubmitting.value = true;
@@ -107,15 +115,26 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
 
     try {
-        await axios({ method, url, data: { ...warehouseData, name: trimmedName } });
+        await axios({ method, url, data: { ...warehouseData, name: trimmedName, observation: trimmedObservation } });
         successMessage.value = dialogType.value === 'create' ? 'Bodega creada correctamente.' : 'Bodega actualizada correctamente.';
         fetchWarehouses();
         closeDialog();
         setError('');
     } catch (error: any) {
         const status = error?.response?.status;
-        if (status === 422 && error?.response?.data?.message) {
-            setError(error.response.data.message, 'warning');
+        const rawMessage: string | undefined = error?.response?.data?.message;
+        const validationErrors: Record<string, string[]> | undefined = error?.response?.data?.errors;
+        if (status === 422) {
+            const lower = (rawMessage || '').toLowerCase();
+            if (validationErrors?.name?.length || lower.includes('already') || lower.includes('taken')) {
+                setError('Ya existe una bodega con ese nombre.', 'warning');
+            } else if (lower.includes('observation') && lower.includes('required')) {
+                setError('La observacion es obligatoria.', 'warning');
+            } else if (rawMessage) {
+                setError(rawMessage, 'warning');
+            } else {
+                setError('Completa los campos obligatorios.', 'warning');
+            }
         } else {
             setError('Error al guardar la bodega.');
         }
