@@ -421,7 +421,7 @@ class ArticleController extends Controller
         $mainSheet->fromArray([$headers, $exampleRow], '', 'A1');
 
         // Poner los encabezados en negrita
-        $headerColEnd = $mainSheet->getHighestaolumn(1);
+        $headerColEnd = $mainSheet->getHighestColumn(1);
         $mainSheet->getStyle("A1:{$headerColEnd}1")->getFont()->setBold(true);
 
         // Ajustar el ancho de las columnas automaticamente al texto
@@ -565,7 +565,7 @@ class ArticleController extends Controller
         foreach ($extraFieldNames as $idx => $fieldName) {
             if (isset($extraFieldOptions[$fieldName])) {
                 $sheet = $spreadsheet->getSheetByName($fieldName);
-                $lastRow = $sheet->getHighestaow();
+                $lastRow = $sheet->getHighestRow();
                 $col = $colLetters[6 + $idx];
                 $validation = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
                 $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
@@ -875,7 +875,7 @@ class ArticleController extends Controller
     public function getWarehouses($id)
     {
         $article = Article::findOrFail($id);
-        return response()->json($article->getWarehousestacks());
+        return response()->json($article->getWarehouseStocks());
     }
 
     // Nuevo metodo para actualizar stock de un articulo en una bodega
@@ -888,7 +888,7 @@ class ArticleController extends Controller
             'stock_min' => 'required|integer',
             'stock_max' => 'required|integer',
         ]);
-        $article->setWarehousestack(
+        $article->setWarehouseStock(
             $request->warehouse_id,
             $request->quantity,
             $request->stock_min,
@@ -962,7 +962,7 @@ class ArticleController extends Controller
         }
 
         // Ajustar ancho de columnas
-        foreach (range('A', $sheet->getHighestaolumn()) as $col) {
+        foreach (range('A', $sheet->getHighestColumn()) as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -988,8 +988,6 @@ class ArticleController extends Controller
     }
 
 }
-
-
 
 
 

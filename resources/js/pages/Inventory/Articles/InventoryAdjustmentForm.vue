@@ -41,6 +41,7 @@ const productionOrder = ref<string>('');
 const taxes = ref<any[]>([]);
 const articles = ref<Article[]>([]);
 const alertMessage = ref<string>('');
+const alertDetails = ref<string[]>([]);
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isSubmitting = ref(false);
 
@@ -61,8 +62,8 @@ const adjustmentTypeOptions = [
 
 async function fetchTaxes() {
   try {
-    const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
-    taxes.value = (data.data ?? []).filter((t: any) => t.status);
+    const { data } = await axios.get('/impuestos/data', { params: { per_page: 100 } });
+    taxes.value = data.data ?? [];
   } catch (e) {
     console.error('Error cargando impuestos', e);
   }
@@ -93,6 +94,7 @@ function resetForm() {
   productionOrder.value = '';
   lines.value = [{ id: 1, articleId: null, price: 0, tax: 0, quantity: 1, description: '' }];
   alertMessage.value = '';
+   alertDetails.value = [];
   alertType.value = 'error';
 }
 
@@ -129,6 +131,7 @@ watch(
   async (open) => {
     if (!open) return;
     alertMessage.value = '';
+    alertDetails.value = [];
     alertType.value = 'error';
     if (props.dialogType === 'edit' && props.adjustment?.id) {
       try {
@@ -197,6 +200,7 @@ const getDirectionByType = (typeId: string): 'entrada' | 'salida' => {
 };
 async function handleSubmit() {
   alertMessage.value = '';
+  alertDetails.value = [];
   alertType.value = 'error';
   const requiredErrors: string[] = [];
 
@@ -225,7 +229,8 @@ async function handleSubmit() {
   if (requiredErrors.length > 0) {
     const unique = Array.from(new Set(requiredErrors));
     alertType.value = 'warning';
-    alertMessage.value = 'Por favor completa todos los campos obligatorios marcados con (*). ' + `Campos incompletos: ${unique.join(', ')}.`;
+    alertMessage.value = `Por favor completa todos los campos obligatorios: ${unique.join(', ')}.`;
+    alertDetails.value = [];
     const dialogEl = document.querySelector('[role="dialog"]');
     dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
     return;
@@ -255,15 +260,30 @@ async function handleSubmit() {
     isSubmitting.value = true;
     if (props.dialogType === 'edit' && props.adjustment?.id) {
       await axios.put(`/ajustes-inventario/${props.adjustment.id}`, payload);
+      alertType.value = 'success';
+      alertMessage.value = 'Ajuste actualizado correctamente.';
     } else {
       await axios.post('/ajustes-inventario', payload);
+      alertType.value = 'success';
+      alertMessage.value = 'Ajuste creado correctamente.';
     }
+    alertDetails.value = [];
     emit('saved');
     emit('close');
   } catch (error: any) {
     const responseMessage = error?.response?.data?.message || 'No se pudo guardar el ajuste.';
-    alertType.value = 'error';
-    alertMessage.value = responseMessage;
+    const responseErrors = error?.response?.data?.errors;
+    // Si hay validaciones del backend, mostramos solo un bloque de advertencia con la lista
+    alertType.value = 'warning';
+    const mergedErrors = responseErrors
+      ? Array.from(new Set(Object.values(responseErrors).flat().map((msg: any) => String(msg))))
+      : [];
+    alertMessage.value = mergedErrors.length
+      ? `${responseMessage}: ${mergedErrors.join(', ')}`
+      : responseMessage;
+    alertDetails.value = [];
+    const dialogEl = document.querySelector('[role="dialog"]');
+    dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
   } finally {
     isSubmitting.value = false;
   }
@@ -287,11 +307,19 @@ async function handleSubmit() {
         >
           <AlertBox
             :type="alertType"
-            :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
+            :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : 'Error'"
             :message="alertMessage"
             class="pointer-events-auto"
             @close="alertMessage = ''"
           />
+          <div
+            v-if="alertDetails.length"
+            class="pointer-events-auto mt-2 p-1 text-sm text-amber-900"
+          >
+            <ul class="list-disc ps-5">
+              <li v-for="(item, idx) in alertDetails" :key="idx">{{ item }}</li>
+            </ul>
+          </div>
         </div>
       </transition>
 

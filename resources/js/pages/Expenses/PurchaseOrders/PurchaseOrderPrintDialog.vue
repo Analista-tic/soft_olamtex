@@ -40,8 +40,7 @@ function print() {
 <template>
     <Dialog v-model:open="dialogOpen">
         <DialogContent
-            class="max-h-screen overflow-y-auto sm:max-w-5xl print:!max-w-none print:!w-[210mm] print:!h-[297mm] print:!rounded-none print:!border-0 print:!shadow-none print:!p-0"
-            :style="{ minHeight: '297mm', minWidth: '210mm' }"
+            class="max-h-screen overflow-y-auto sm:max-w-5xl min-h-[297mm] min-w-[210mm] print:!max-w-none print:!w-[210mm] print:!h-[297mm] print:!rounded-none print:!border-0 print:!shadow-none print:!p-0"
         >
             <DialogHeader class="print:hidden">
                 <DialogTitle>Orden de Compra</DialogTitle>

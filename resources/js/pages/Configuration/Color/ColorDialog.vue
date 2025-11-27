@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Color } from '@/types';
 import { ref, watch } from 'vue';
 import { ColorPicker } from 'vue3-colorpicker';
@@ -46,6 +46,7 @@ function handleSubmit() {
                 <DialogTitle>
                     {{ props.dialogType === 'create' ? 'Crear Color' : 'Editar Color' }}
                 </DialogTitle>
+                <DialogDescription>Ingresa el nombre y selecciona el color.</DialogDescription>
             </DialogHeader>
             <div class="space-y-4">
                 <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre del color" />

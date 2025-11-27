@@ -79,13 +79,12 @@ function print() {
 <template>
   <Dialog v-model:open="dialogOpen">
     <DialogContent
-      class="max-h-screen overflow-y-auto sm:max-w-5xl print:!max-w-none print:!w-[210mm] print:!h-[297mm] print:!rounded-none print:!border-0 print:!shadow-none print:!p-0"
-      :style="{ minHeight: '297mm', minWidth: '210mm' }"
+      class="max-h-screen overflow-y-auto sm:max-w-5xl min-h-[297mm] min-w-[210mm] print:!max-w-none print:!w-[210mm] print:!h-[297mm] print:!rounded-none print:!border-0 print:!shadow-none print:!p-0"
     >
       <DialogHeader class="print:hidden">
         <DialogTitle>Ajuste de Inventario</DialogTitle>
       </DialogHeader>
-      <div class="p-4 print:p-12 print:bg-white print:h-[297mm] print:w-[210mm] flex flex-col justify-between" style="min-height: 277mm;">
+      <div class="p-4 print:p-12 print:bg-white print:h-[297mm] print:w-[210mm] flex flex-col justify-between min-h-[277mm]">
         <div>
           <div class="grid grid-cols-3 items-start gap-4 mb-4">
             <div>
