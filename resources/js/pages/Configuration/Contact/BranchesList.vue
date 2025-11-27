@@ -93,7 +93,7 @@ const addBranch = () => {
 
     internalBranches.value.push({ name: '', address: '', phone: '' });
     branchErrors.value.push(validateBranch({ name: '', address: '', phone: '' }));
-    alertMessage.value = ''; // limpiamos alerta si habia
+    alertMessage.value = ''; // limpiamos alerta si había
 };
 
 // Eliminar una sucursal
@@ -166,5 +166,5 @@ defineExpose({
 </template>
 
 <style scoped>
-/* Agregar estilos especificos si es necesario */
+/* Agregar estilos específicos si es necesario */
 </style>

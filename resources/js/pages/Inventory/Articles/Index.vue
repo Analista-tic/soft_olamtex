@@ -178,7 +178,7 @@ function exportArticlesExcel() {
             <!-- FILTROS: UNA SOLA FILA -->
             <div class="flex items-end gap-4 mb-2 flex-wrap">
                 <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input v-model="searchQuery" placeholder="Buscar artículo" class="h-8 w-full pl-10" />
+                    <Input v-model="searchQuery" placeholder="Buscar artículo" class="h-10 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
@@ -256,7 +256,7 @@ function exportArticlesExcel() {
                     <DialogDescription>
                         ¿Estás seguro de que deseas
                         {{ articleToToggleStatus?.status ? 'deshabilitar' : 'habilitar' }}
-                        este artÃ­culo?
+                        este artículo?
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -279,6 +279,7 @@ function exportArticlesExcel() {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchArticles" />
     </AppLayout>
 </template>
+
 
 
 

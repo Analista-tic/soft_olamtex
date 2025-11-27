@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
 import EditButton from '@/components/common/EditButton.vue'; // Importar el botón de editar
 import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
@@ -181,7 +181,7 @@ onMounted(async () => {
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-8 w-full pl-10" />
+                    <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
@@ -318,3 +318,4 @@ onMounted(async () => {
         </AlertDialogContent>
     </AlertDialog>
 </template>
+

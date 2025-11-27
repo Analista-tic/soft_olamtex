@@ -176,7 +176,7 @@ onMounted(() => {
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search_color" v-model="searchQuery" placeholder="Buscar por nombre" class="h-8 w-full pl-10" />
+                    <Input id="search_color" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
@@ -263,5 +263,6 @@ onMounted(() => {
         </Dialog>
     </AppLayout>
 </template>
+
 
 

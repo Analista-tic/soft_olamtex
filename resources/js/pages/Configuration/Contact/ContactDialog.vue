@@ -177,7 +177,7 @@ const submitForm = async () => {
 
         // Validar contactos adicionales
         const invalidAdditionalContacts = form.value.additional_contacts?.some(
-            (contact) => !contact.name?.trim() || !contact.email?.trim()
+            (contact) => !contact.name?.trim() || !contact.email?.trim(),
         );
         if (invalidAdditionalContacts) {
             errors.value.additional_contacts = ['Todos los contactos adicionales deben tener nombre y correo válidos.'];
@@ -265,7 +265,6 @@ const hasDuplicateBranches = () => {
     return false;
 };
 
-
 // Actualizar contactos adicionales
 const updateAdditionalContacts = (contacts: AdditionalContact[]) => {
     form.value.additional_contacts = contacts;
@@ -285,7 +284,8 @@ const updateBranches = (branches: any[]) => {
             <DialogHeader>
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription>
-                    Completa los campos para {{ dialogType === 'create' ? 'crear' : 'editar' }} un contacto. Haz clic en guardar cuando termines.
+                    Completa los campos para {{ dialogType === 'create' ? 'crear' : 'editar' }} un contacto. Haz
+                    clic en {{ dialogType === 'create' ? 'crear' : 'actualizar' }} cuando termines.
                 </DialogDescription>
             </DialogHeader>
 
@@ -316,7 +316,7 @@ const updateBranches = (branches: any[]) => {
             <Tabs defaultValue="basic-info" class="flex-1 overflow-y-auto px-2 pt-1">
                 <TabsList class="flex justify-center space-x-4">
                     <TabsTrigger value="basic-info" class="flex-1 text-center py-2">Información básica</TabsTrigger>
-                    <TabsTrigger value="additional-info" class="flex-1 text-center py-2">Datos adicionales</TabsTrigger>
+                    <TabsTrigger value="additional-info" class="flex-1 text-center py-2">Contactos adicionales</TabsTrigger>
                     <TabsTrigger value="branches" class="flex-1 text-center py-2">Sucursales</TabsTrigger>
                 </TabsList>
 
@@ -347,7 +347,7 @@ const updateBranches = (branches: any[]) => {
             <DialogFooter class="mt-4">
                 <Button variant="outline" class="text-sm px-3 py-1" @click="closeDialog"> Cancelar </Button>
                 <Button class="text-sm px-3 py-1" @click="submitForm">
-                    {{ dialogType === 'create' ? 'Crear' : 'Guardar' }}
+                    {{ dialogType === 'create' ? 'Crear' : 'Actualizar' }}
                 </Button>
             </DialogFooter>
         </DialogContent>

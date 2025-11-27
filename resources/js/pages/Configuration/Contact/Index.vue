@@ -46,8 +46,6 @@ const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
 const selectedContactType = ref<string | null>(null);
-const selectedGroup = ref<string | null>(null);
-const groups = ref<{ id: string; name: string }[]>([]);
 
 const contactTypeOptions = [
     { id: 'Proveedor', name: 'Proveedor' },
@@ -60,12 +58,12 @@ const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 const fieldLabels: Record<string, string> = {
-    email: 'Correo electronico',
-    id_number: 'Numero de identificacion',
+    email: 'Correo electrónico',
+    id_number: 'Número de identificación',
     contact_type: 'Tipo de contacto',
-    groups: 'Categoria proveedor/cliente',
-    id_type: 'Tipo de identificacion',
-    full_name: 'Nombre completo o razon social',
+    groups: 'Categoría proveedor/cliente',
+    id_type: 'Tipo de identificación',
+    full_name: 'Nombre completo o razón social',
     person_type: 'Tipo de persona',
     department: 'Departamento',
     municipality: 'Municipio',
@@ -75,16 +73,16 @@ const translateValidationMessage = (field: string, msg: string): string => {
     const lower = msg.toLowerCase();
     const label = fieldLabels[field] || 'Campo';
     if (lower.includes('email') && lower.includes('already been taken')) {
-        return 'El correo electronico ya está registrado.';
+        return 'El correo electrónico ya está registrado.';
     }
     if ((lower.includes('id') || lower.includes('number')) && lower.includes('already been taken')) {
-        return 'El numero de identificacion ya está registrado.';
+        return 'El número de identificación ya está registrado.';
     }
     if (field === 'email' && lower.includes('único')) {
-        return 'El correo electronico ya está registrado.';
+        return 'El correo electrónico ya está registrado.';
     }
     if (field === 'id_number' && lower.includes('único')) {
-        return 'El numero de identificacion ya está registrado.';
+        return 'El número de identificación ya está registrado.';
     }
     if (lower.includes('required')) {
         return `${label}: es obligatorio.`;
@@ -125,7 +123,7 @@ async function deleteContact(): Promise<void> {
     if (!contactToDelete.value) return;
     try {
         await axios.delete(`/contactos/${contactToDelete.value.id}`);
-        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value, selectedGroup.value);
+        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value);
         isDeleteDialogOpen.value = false;
         successMessage.value = 'El contacto se eliminó correctamente.';
         setError('', 'error');
@@ -141,9 +139,12 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
 
     try {
         await axios({ method, url, data: contactData });
-        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value, selectedGroup.value);
+        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value);
         closeDialog();
-        successMessage.value = 'El contacto se guardó correctamente.';
+        successMessage.value =
+            dialogType.value === 'create'
+                ? 'El contacto se guardó correctamente.'
+                : 'El contacto se actualizó correctamente.';
         setError('', 'error');
     } catch (err) {
         const error = err as AxiosError;
@@ -165,11 +166,10 @@ async function fetchContacts(
     page: number = 1,
     search: string = '',
     contactType: string | null = null,
-    groupId: string | null = null,
 ): Promise<void> {
     try {
         const response = await axios.get('/contactos/data', {
-            params: { page, per_page: itemsPerPage, search, contact_type: contactType, group_id: groupId },
+            params: { page, per_page: itemsPerPage, search, contact_type: contactType },
         });
 
         contacts.value = response.data.data;
@@ -181,33 +181,20 @@ async function fetchContacts(
     }
 }
 
-async function loadGroups() {
-    try {
-        const response = await axios.get('/categorias/grupos', { params: { per_page: 1000 } });
-        groups.value = (response.data.data ?? []).map((g: any) => ({
-            id: String(g.id),
-            name: g.name,
-        }));
-    } catch (error) {
-        console.error('Error al cargar los grupos:', error);
-    }
-}
-
 function handlePageChange(newPage: number): void {
     currentPage.value = newPage;
-    fetchContacts(newPage, searchQuery.value, selectedContactType.value, selectedGroup.value);
+    fetchContacts(newPage, searchQuery.value, selectedContactType.value);
 }
 
 watch(
-    [searchQuery, selectedContactType, selectedGroup],
-    ([newQuery, newType, newGroup]: [string, string | null, string | null]) => {
-        fetchContacts(1, newQuery, newType, newGroup);
+    [searchQuery, selectedContactType],
+    ([newQuery, newType]: [string, string | null]) => {
+        fetchContacts(1, newQuery, newType);
     },
 );
 
 onMounted(() => {
     fetchContacts();
-    loadGroups();
 });
 </script>
 
@@ -234,33 +221,24 @@ onMounted(() => {
             </div>
 
             <!-- Filtros -->
-            <div class="relative flex items-center gap-4">
-                <div class="relative w-full max-w-sm">
+            <div class="relative flex items-end gap-4 flex-wrap">
+                <div class="relative max-w-xs flex-1 min-w-[220px]">
                     <Input
                         id="search_contact"
                         v-model="searchQuery"
                         placeholder="Buscar por nombre o email"
-                        class="h-8 w-full pl-10"
+                        class="h-10 w-full pl-10"
                     />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
                 </div>
-                <div class="relative w-full max-w-xs">
+                <div class="relative max-w-xs flex-1 min-w-[220px]">
                     <SelectField
                         v-model="selectedContactType"
                         :options="contactTypeOptions"
                         label="Tipo de contacto"
                         placeholder="Todos los tipos"
-                        :required="false"
-                    />
-                </div>
-                <div class="relative w-full max-w-xs">
-                    <SelectField
-                        v-model="selectedGroup"
-                        :options="groups"
-                        label="Grupo"
-                        placeholder="Todos los grupos"
                         :required="false"
                     />
                 </div>

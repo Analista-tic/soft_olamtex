@@ -36,7 +36,7 @@ const contactErrors = ref(internalContacts.value.map((contact) => validateContac
 
 // Función para detectar duplicados (nombre + correo + teléfono)
 const hasDuplicateContact = (
-    contacts: { name: string; email: string; phone: string }[]
+    contacts: { name: string; email: string; phone: string }[],
 ): boolean => {
     const seen = new Set<string>();
     for (const c of contacts) {
@@ -54,9 +54,9 @@ watch(
         contactErrors.value = newContacts.map((contact) => validateContact(contact));
         if (hasDuplicateContact(newContacts)) {
             alertType.value = 'error';
-            alertMessage.value = 'Ya existe un contacto con el mismo nombre, correo y teléfono.';
+            alertMessage.value = 'Ya existe un contacto adicional con el mismo nombre, correo y teléfono.';
         } else if (
-            alertMessage.value === 'Ya existe un contacto con el mismo nombre, correo y teléfono.'
+            alertMessage.value === 'Ya existe un contacto adicional con el mismo nombre, correo y teléfono.'
         ) {
             alertMessage.value = '';
         }
@@ -69,7 +69,7 @@ watch(
 // Validar que todos los campos de los contactos estén llenos
 const areContactsValid = () => {
     return internalContacts.value.every(
-        (contact) => contact.name.trim() && contact.email.trim() && contact.phone.trim()
+        (contact) => contact.name.trim() && contact.email.trim() && contact.phone.trim(),
     );
 };
 
@@ -78,7 +78,7 @@ const addContact = () => {
     // Primero: todos los campos llenos
     if (!areContactsValid()) {
         alertType.value = 'warning';
-        alertMessage.value = 'Por favor, complete todos los campos antes de agregar un nuevo contacto.';
+        alertMessage.value = 'Por favor, complete todos los campos antes de agregar un contacto adicional.';
         contactErrors.value = internalContacts.value.map((contact) => validateContact(contact));
         return;
     }
@@ -91,7 +91,7 @@ const addContact = () => {
     }
     internalContacts.value.push({ name: '', email: '', phone: '' });
     contactErrors.value.push(validateContact({ name: '', email: '', phone: '' }));
-    alertMessage.value = ''; // limpiamos alerta si habia
+    alertMessage.value = ''; // limpiamos alerta si había
 };
 
 // Eliminar un contacto adicional y sus errores
@@ -102,7 +102,7 @@ const removeContact = (index: number) => {
 
 const showDuplicateAlertFn = () => {
     alertType.value = 'error';
-    alertMessage.value = 'Ya existe un contacto con el mismo nombre, correo y teléfono.';
+    alertMessage.value = 'Ya existe un contacto adicional con el mismo nombre, correo y teléfono.';
 };
 
 defineExpose({
@@ -162,5 +162,5 @@ defineExpose({
 </template>
 
 <style scoped>
-/* Agregar estilos especificos si es necesario */
+/* Agregar estilos específicos si es necesario */
 </style>

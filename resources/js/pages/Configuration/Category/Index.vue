@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { BreadcrumbItem, CategoryGroup, CategorySubGroup } from '@/types'; // Importar los tipos centralizados
 import EditButton from '@/components/common/EditButton.vue';
 import SubGroupDialog from './SubGroupDialog.vue';
@@ -172,7 +172,7 @@ onMounted(() => {
             />
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search_subgroup" v-model="searchQuery" placeholder="Buscar por nombre" class="h-8 w-full pl-10" />
+                    <Input id="search_subgroup" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
@@ -265,3 +265,4 @@ onMounted(() => {
         </DialogContent>
     </Dialog>
 </template>
+

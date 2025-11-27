@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import type { Article } from '@/types';
+import type { Article, Warehouse } from '@/types';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -26,6 +26,8 @@ const emit = defineEmits<{
 type Line = {
   id: number;
   articleId: number | null;
+  movementReason: string;
+  warehouseId: number | null;
   price: number;
   taxId: number | null;
   tax: number;
@@ -40,13 +42,15 @@ const observation = ref<string>('');
 const productionOrder = ref<string>('');
 const taxes = ref<any[]>([]);
 const articles = ref<Article[]>([]);
+const warehouses = ref<Warehouse[]>([]);
+const selectedWarehouseId = ref<number | null>(null);
 const alertMessage = ref<string>('');
 const alertDetails = ref<string[]>([]);
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isSubmitting = ref(false);
 
 const lines = ref<Line[]>([
-  { id: 1, articleId: null, price: 0, taxId: null, tax: 0, quantity: 1, description: '' },
+  { id: 1, articleId: null, movementReason: '', warehouseId: null, price: 0, taxId: null, tax: 0, quantity: 1, description: '' },
 ]);
 
 const adjustmentTypeOptions = [
@@ -74,6 +78,13 @@ const taxSelectOptions = computed(() =>
   })),
 );
 
+const warehouseSelectOptions = computed(() =>
+  warehouses.value.map(w => ({
+    id: w.id,
+    name: w.name,
+  })),
+);
+
 async function fetchTaxes() {
   try {
     const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
@@ -95,9 +106,32 @@ async function fetchArticles() {
   }
 }
 
+async function fetchWarehouses() {
+  try {
+    const { data } = await axios.get('/bodegas/data', {
+      params: { per_page: 200, page: 1 },
+    });
+    warehouses.value = data?.data ?? [];
+    if (!selectedWarehouseId.value && warehouses.value.length) {
+      selectedWarehouseId.value = warehouses.value[0].id ?? null;
+    }
+  } catch (e) {
+    console.error('Error cargando bodegas', e);
+    warehouses.value = [];
+  }
+}
+
 onMounted(() => {
   fetchTaxes();
   fetchArticles();
+  fetchWarehouses();
+});
+
+watch(selectedWarehouseId, (val) => {
+  lines.value = lines.value.map(line => ({
+    ...line,
+    warehouseId: line.warehouseId ?? val ?? null,
+  }));
 });
 
 function resetForm() {
@@ -106,7 +140,18 @@ function resetForm() {
   date.value = '';
   observation.value = '';
   productionOrder.value = '';
-  lines.value = [{ id: 1, articleId: null, price: 0, taxId: null, tax: 0, quantity: 1, description: '' }];
+  selectedWarehouseId.value = warehouses.value[0]?.id ?? null;
+  lines.value = [{
+    id: 1,
+    articleId: null,
+    movementReason: adjustmentType.value || '',
+    warehouseId: selectedWarehouseId.value,
+    price: 0,
+    taxId: null,
+    tax: 0,
+    quantity: 1,
+    description: '',
+  }];
   alertMessage.value = '';
    alertDetails.value = [];
   alertType.value = 'error';
@@ -128,17 +173,31 @@ function fillFromAdjustment(data: any) {
   date.value = data.date ? String(data.date).slice(0, 10) : '';
   observation.value = data.observation || '';
   productionOrder.value = data.production_order || '';
+  const firstLineWarehouse = Array.isArray(data.lines) && data.lines.length ? data.lines[0].warehouse_id ?? null : null;
+  selectedWarehouseId.value = firstLineWarehouse ?? selectedWarehouseId.value ?? warehouses.value[0]?.id ?? null;
   lines.value = Array.isArray(data.lines)
     ? data.lines.map((line: any, idx: number) => ({
         id: idx + 1,
         articleId: Number(line.article_id),
+        movementReason: data.movement_reason || data.type || adjustmentType.value || '',
+        warehouseId: line.warehouse_id ?? null,
         price: Number(line.price) || 0,
         taxId: line.tax_id ?? line.taxId ?? null,
         tax: Number(line.tax) || 0,
         quantity: Number(line.quantity) || 0,
         description: line.description || '',
       }))
-    : [{ id: 1, articleId: null, price: 0, taxId: null, tax: 0, quantity: 1, description: '' }];
+    : [{
+      id: 1,
+      articleId: null,
+      movementReason: adjustmentType.value || '',
+      warehouseId: selectedWarehouseId.value,
+      price: 0,
+      taxId: null,
+      tax: 0,
+      quantity: 1,
+      description: '',
+    }];
 }
 
 watch(
@@ -146,6 +205,7 @@ watch(
   async (open) => {
     if (!open) return;
     fetchTaxes();
+    fetchWarehouses();
     alertMessage.value = '';
     alertDetails.value = [];
     alertType.value = 'error';
@@ -170,6 +230,8 @@ function addLine() {
   lines.value.push({
     id: nextId,
     articleId: null,
+    movementReason: adjustmentType.value || '',
+    warehouseId: selectedWarehouseId.value,
     price: 0,
     taxId: null,
     tax: 0,
@@ -217,10 +279,13 @@ async function handleSubmit() {
   const requiredErrors: string[] = [];
 
   if (!adjustmentType.value) {
-    requiredErrors.push('Tipo de ajuste');
+    adjustmentType.value = adjustmentTypeOptions[0]?.id || 'entrada_sin_factura';
   }
   if (!date.value) {
     requiredErrors.push('Fecha');
+  }
+  if (!selectedWarehouseId.value) {
+    requiredErrors.push('Bodega');
   }
   if (!lines.value.length) {
     requiredErrors.push('Al menos una linea de detalle');
@@ -228,6 +293,9 @@ async function handleSubmit() {
     lines.value.forEach((line) => {
       if (!line.articleId) {
         requiredErrors.push('Articulo');
+      }
+      if (!line.warehouseId && !selectedWarehouseId.value) {
+        requiredErrors.push('Bodega');
       }
       if (!line.quantity || line.quantity <= 0) {
         requiredErrors.push('Cantidad');
@@ -260,7 +328,8 @@ async function handleSubmit() {
     total: totalAdjustment.value,
     lines: lines.value.map(line => ({
       article_id: line.articleId,
-      warehouse_id: null,
+      warehouse_id: line.warehouseId || selectedWarehouseId.value,
+      movement_reason: line.movementReason || adjustmentType.value || null,
       price: line.price ?? 0,
       tax: line.tax ?? 0,
       tax_id: line.taxId ?? null,
@@ -305,7 +374,7 @@ async function handleSubmit() {
 
 <template>
   <Dialog :open="isOpen" @update:open="emit('close')">
-    <DialogContent class="max-w-5xl max-h-[90vh] overflow-y-auto">
+    <DialogContent class="max-w-[167vh] max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{{ props.dialogType === 'edit' ? 'Editar ajuste de inventario' : 'Nuevo ajuste de inventario' }}</DialogTitle>
         <DialogDescription>
@@ -365,10 +434,11 @@ async function handleSubmit() {
           <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3 items-end">
             <div>
               <SelectField
-                v-model="adjustmentType"
-                label="Tipo de ajuste"
-                :options="adjustmentTypeOptions"
-                placeholder="Selecciona tipo de ajuste"
+                v-model="selectedWarehouseId"
+                label="Bodega"
+                :options="warehouseSelectOptions"
+                placeholder="Selecciona bodega"
+                :searchable="false"
                 required
               />
             </div>
@@ -415,7 +485,8 @@ async function handleSubmit() {
               <Table class="min-w-full text-center" style="overflow: visible; max-height: none;">
                 <TableHeader>
                   <TableRow class="text-center">
-                    <TableHead class="min-w-[150px]">Articulo <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[150px] text-left">Articulo <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[160px] text-left">Tipo de ajuste</TableHead>
                     <TableHead class="min-w-[120px]">Precio <span class="text-destructive">*</span></TableHead>
                     <TableHead class="min-w-[140px]">Impuesto</TableHead>
                     <TableHead class="min-w-[110px]">Cantidad <span class="text-destructive">*</span></TableHead>
@@ -427,10 +498,20 @@ async function handleSubmit() {
 
                 <TableBody>
                   <TableRow v-for="(line, idx) in lines" :key="line.id">
-                    <TableCell class="p-1">
+                    <TableCell class="p-1 text-left">
                       <SelectField
                         v-model="line.articleId"
                         :options="articleSelectOptions"
+                        label=""
+                        placeholder="Selecciona"
+                        class="w-full"
+                      />
+                    </TableCell>
+
+                    <TableCell class="p-1 text-left">
+                      <SelectField
+                        v-model="line.movementReason"
+                        :options="adjustmentTypeOptions"
                         label=""
                         placeholder="Selecciona"
                         class="w-full"
@@ -497,7 +578,7 @@ async function handleSubmit() {
                   </TableRow>
 
                   <TableRow v-if="lines.length === 0">
-                    <TableCell colspan="7" class="text-center text-gray-400">
+                    <TableCell colspan="8" class="text-center text-gray-400">
                       No hay lineas agregadas.
                     </TableCell>
                   </TableRow>

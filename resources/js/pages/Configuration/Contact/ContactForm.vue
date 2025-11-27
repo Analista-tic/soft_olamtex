@@ -14,23 +14,20 @@ const emit = defineEmits<{
     (e: 'update:form', updatedForm: Partial<Contact>): void;
 }>();
 
-// Crear un objeto interno para manejar los datos del formulario
-// const internalForm = ref<Partial<Contact>>({ ...props.form }); // Asegurar el tipo correcto
-
 // Defaults para evitar errores cuando props.form sea undefined
 const defaultForm: Partial<Contact> = {
-	contact_type: '',
-	id_type: '',
-	id_number: '',
-	dv: '',
-	full_name: '',
-	person_type: '',
-	groups: [],
-	municipality: '',
-	department: '',
-	address: '',
-	email: '',
-	phone: '',
+    contact_type: '',
+    id_type: '',
+    id_number: '',
+    dv: '',
+    full_name: '',
+    person_type: '',
+    groups: [],
+    municipality: '',
+    department: '',
+    address: '',
+    email: '',
+    phone: '',
 };
 
 // Inicializar de forma segura: merge de defaults con el prop (si existe)
@@ -44,7 +41,7 @@ watch(
             internalForm.value = { ...newForm };
         }
     },
-    { deep: true }
+    { deep: true },
 );
 
 // Emitir actualizaciones al padre cuando cambie el objeto interno
@@ -55,7 +52,7 @@ watch(
             emit('update:form', updatedForm); // Emitir el formulario actualizado
         }
     },
-    { deep: true }
+    { deep: true },
 );
 
 const colombiaData = ref<{ id: string; name: string; municipalities: string[] }[]>([]);
@@ -72,12 +69,6 @@ async function loadColombiaData() {
         console.error('Error al cargar los datos de Colombia:', error);
     }
 }
-
-const filteredMunicipalities = computed(() => {
-    const selectedDepartment = internalForm.value.department;
-    const department = colombiaData.value.find((d) => d.id === selectedDepartment);
-    return department ? department.municipalities : []; // Retornar municipios o un arreglo vacío
-});
 
 const groups = ref<{ id: string; name: string }[]>([]); // Lista de grupos
 
@@ -100,6 +91,33 @@ onMounted(() => {
 
 const errors = ref<Record<string, string[]>>({}); // Manejo de errores
 
+// Opciones combinadas "Municipio, Departamento"
+const locationOptions = computed(() =>
+    colombiaData.value.flatMap((department) =>
+        (department.municipalities || []).map((municipality: string) => ({
+            id: `${municipality}||${department.id}`,
+            name: `${municipality}, ${department.name}`,
+        })),
+    ),
+);
+
+const locationValue = computed({
+    get() {
+        if (!internalForm.value.municipality || !internalForm.value.department) return '';
+        return `${internalForm.value.municipality}||${internalForm.value.department}`;
+    },
+    set(val: string | undefined) {
+        if (!val) {
+            internalForm.value.municipality = '';
+            internalForm.value.department = '';
+            return;
+        }
+        const [municipality, department] = val.split('||');
+        internalForm.value.municipality = municipality || '';
+        internalForm.value.department = department || '';
+    },
+});
+
 // Usar string aquí evita errores si la clave no está exactamente en la interfaz Contact.
 const validateField = (field: string) => {
     if (errors.value[field]) {
@@ -114,8 +132,13 @@ const validateField = (field: string) => {
             v-model="internalForm.contact_type"
             label="Tipo de contacto"
             required
-            :options="[ { id: 'Proveedor', name: 'Proveedor' }, { id: 'Cliente', name: 'Cliente' }, { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' } ]"
+            :options="[
+                { id: 'Proveedor', name: 'Proveedor' },
+                { id: 'Cliente', name: 'Cliente' },
+                { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' },
+            ]"
             :error="errors.contact_type?.[0]"
+            :searchable="false"
             @input="validateField('contact_type')"
         />
         <SelectField
@@ -131,38 +154,62 @@ const validateField = (field: string) => {
             v-model="internalForm.id_type"
             label="Tipo de identificación"
             required
-            :options="[ { id: 'NIT', name: 'NIT - Número de identificación tributaria' }, { id: 'CC', name: 'CC - Cédula de ciudadanía' }, { id: 'NIT de otro país', name: 'NIT de otro país' }, { id: 'PP', name: 'PP - Pasaporte' }, { id: 'PEP', name: 'PEP - Permiso especial de permanencia' }, { id: 'DIE', name: 'DIE - Documento de identificación extranjero' }, { id: 'CE', name: 'CE - Cédula de extranjería' }, { id: 'TE', name: 'TE - Tarjeta de extranjería' }, { id: 'TI', name: 'TI - Tarjeta de identidad' }, { id: 'RC', name: 'RC - Registro civil' }, { id: 'NUIP', name: 'NUIP - Número único de identificación personal' }, { id: 'PPT', name: 'PPT - Permiso de protección temporal' } ]"
+            :options="[
+                { id: 'NIT', name: 'NIT - Número de identificación tributaria' },
+                { id: 'CC', name: 'CC - Cédula de ciudadanía' },
+                { id: 'NIT de otro país', name: 'NIT de otro país' },
+                { id: 'PP', name: 'PP - Pasaporte' },
+                { id: 'PEP', name: 'PEP - Permiso especial de permanencia' },
+                { id: 'DIE', name: 'DIE - Documento de identificación extranjero' },
+                { id: 'CE', name: 'CE - Cédula de extranjería' },
+                { id: 'TE', name: 'TE - Tarjeta de extranjería' },
+                { id: 'TI', name: 'TI - Tarjeta de identidad' },
+                { id: 'RC', name: 'RC - Registro civil' },
+                { id: 'NUIP', name: 'NUIP - Número único de identificación personal' },
+                { id: 'PPT', name: 'PPT - Permiso de protección temporal' },
+            ]"
         />
         <div class="grid grid-cols-5 gap-4 mb-4">
             <div class="col-span-4">
-                <InputField v-model="internalForm.id_number" label="Número de identificación" required placeholder="Número de identificación" />
+                <InputField
+                    v-model="internalForm.id_number"
+                    label="Número de identificación"
+                    required
+                    placeholder="Número de identificación"
+                />
             </div>
             <div class="col-span-1">
                 <InputField v-model="internalForm.dv" label="DV" placeholder="DV" />
             </div>
         </div>
-        <InputField v-model="internalForm.full_name" label="Nombre completo o razón social" required placeholder="Nombre completo" class="mb-4" />
+        <InputField
+            v-model="internalForm.full_name"
+            label="Nombre completo o razón social"
+            required
+            placeholder="Nombre completo"
+            class="mb-4"
+        />
         <SelectField
             v-model="internalForm.person_type"
             label="Tipo de persona"
             required
-            :options="[ { id: 'Persona natural', name: 'Persona natural' }, { id: 'Persona jurídica', name: 'Persona jurídica' } ]"
+            :options="[
+                { id: 'Persona natural', name: 'Persona natural' },
+                { id: 'Persona jurídica', name: 'Persona jurídica' },
+            ]"
             class="mb-4"
         />
-        <SelectField
-            v-model="internalForm.department"
-            label="Departamento"
-            required
-            :options="colombiaData.map((department) => ({ id: department.id, name: department.name }))"
-            class="mb-4"
-        />
-        <SelectField
-            v-model="internalForm.municipality"
-            label="Municipio"
-            :options="filteredMunicipalities.map((municipality) => ({ id: municipality, name: municipality }))"
-            :disabled="!internalForm.department"
-            class="mb-4"
-        />
+        <div class="md:col-span-2">
+            <SelectField
+                v-model="locationValue"
+                label="Departamento y municipio"
+                required
+                :options="locationOptions"
+                placeholder="Selecciona municipio y departamento"
+                :error="errors.municipality?.[0] || errors.department?.[0]"
+                @input="() => { validateField('municipality'); validateField('department'); }"
+            />
+        </div>
         <div class="col-span-full grid grid-cols-3 gap-4 mb-4">
             <InputField v-model="internalForm.address" label="Dirección" placeholder="Dirección" />
             <InputField

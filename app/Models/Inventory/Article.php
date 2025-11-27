@@ -5,7 +5,9 @@ namespace App\Models\Inventory;
 use App\Models\Common\CategorySubGroup;
 use App\Models\Common\Color;
 use App\Models\Common\Tax;
+use App\Models\Common\Warehouse;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Article extends Model
 {
@@ -55,13 +57,6 @@ class Article extends Model
     }
 
     // Relaciones
-    public function warehouses()
-    {
-        return $this->belongsToMany(\App\Models\Common\Warehouse::class, 'warehouse_article')
-            ->withPivot(['quantity', 'stock_min', 'stock_max'])
-            ->withTimestamps();
-    }
-
     public function getWarehouseStocks()
     {
         return $this->warehouses()->get();
@@ -96,5 +91,15 @@ class Article extends Model
     public function tax()
     {
         return $this->belongsTo(Tax::class, 'tax_id');
+    }
+
+    /**
+     * Bodegas donde está asignado el artículo con datos de stock en el pivot.
+     */
+    public function warehouses(): BelongsToMany
+    {
+        return $this->belongsToMany(Warehouse::class, 'warehouse_article')
+            ->withPivot(['quantity', 'stock_min', 'stock_max'])
+            ->withTimestamps();
     }
 }

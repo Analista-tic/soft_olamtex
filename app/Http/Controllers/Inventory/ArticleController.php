@@ -31,8 +31,7 @@ class ArticleController extends Controller
     public function index()
     {
         return Inertia::render('Inventory/Articles/Index', [
-            // 'articles' => Article::with(['warehouse', 'categorySubGroup', 'color'])->get(),
-            'articles' => Article::with(['categorySubGroup', 'color', 'tax'])->get(),
+            'articles' => Article::with(['warehouses', 'categorySubGroup', 'color', 'tax'])->get(),
         ]);
     }
 
@@ -48,7 +47,7 @@ class ArticleController extends Controller
                 'category_sub_group_id' => 'required|integer',
                 'color_id' => 'required|integer',
                 'img' => 'nullable|string',
-                'tax_id' => 'nullable|integer', // <-- AÃ±adido
+                'tax_id' => 'nullable|integer',
                 'tax' => 'required|numeric',
                 'bar_code' => 'nullable|string',
                 'negative_movement' => 'required',
@@ -60,7 +59,7 @@ class ArticleController extends Controller
             ]);
         } catch (ValidationException $e) {
             return response()->json([
-                'message' => 'Errores de validaciÃ³n',
+                'message' => 'Errores de validación',
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
@@ -96,7 +95,7 @@ class ArticleController extends Controller
 
         $article = Article::create($data);
 
-        // Relacionar bodegas si se envÃ­a
+        // Relacionar bodegas si se envía
         if ($request->has('warehouses')) {
             $warehouses = $request->input('warehouses');
             if (is_string($warehouses)) {
@@ -135,7 +134,7 @@ class ArticleController extends Controller
                 'category_sub_group_id' => 'sometimes|integer',
                 'color_id' => 'sometimes|integer',
                 'img' => 'nullable|string',
-                'tax_id' => 'nullable|integer', // <-- AÃ±adido
+                'tax_id' => 'nullable|integer', 
                 'tax' => 'sometimes|numeric',
                 'bar_code' => 'nullable|string',
                 'negative_movement' => 'sometimes',
@@ -185,7 +184,7 @@ class ArticleController extends Controller
 
         $article->update($data);
 
-        // Actualizar bodegas si se envÃ­a
+        // Actualizar bodegas si se envía
         if ($request->has('warehouses')) {
             $warehouses = $request->input('warehouses');
             if (is_string($warehouses)) {
@@ -257,7 +256,7 @@ class ArticleController extends Controller
             $article->delete();
             return response()->noContent();
         } catch (QueryException $e) {
-            // Si hay claves forÃ¡neas (ajustes, compras, etc.) informamos y devolvemos 409 en vez de 500
+            // Si hay claves foraneas (ajustes, compras, etc.) informamos y devolvemos 409 en vez de 500
             if ((int) $e->getCode() === 23000) {
                 return response()->json([
                     'message' => 'No se puede eliminar el articulo porque tiene registros relacionados (ajustes de inventario, compras u otros movimientos). Elimine o reasigne esos registros primero.'
@@ -270,7 +269,7 @@ class ArticleController extends Controller
 
     public function getData(Request $request)
     {
-        $query = Article::with(['categorySubGroup', 'color', 'tax']); // <-- AÃ±adido 'tax'
+        $query = Article::with(['categorySubGroup', 'color', 'tax', 'warehouses']);
 
         if ($request->has('search') && trim($request->search) !== '') {
             $search = $request->search;
@@ -312,7 +311,7 @@ class ArticleController extends Controller
 
     public function apiIndex(Request $request)
     {
-        $query = Article::with(['categorySubGroup', 'color', 'tax']);
+        $query = Article::with(['categorySubGroup', 'color', 'tax', 'warehouses']);
 
         if ($request->has('search') && trim($request->search) !== '') {
             $search = $request->search;
@@ -360,7 +359,7 @@ class ArticleController extends Controller
 
         $spreadsheet = new Spreadsheet();
 
-        // Extra fields (EspaÃ±ol, para la plantilla)
+        // Extra fields (Español, para la plantilla)
         $extraFieldNames = [
             'Base tela',
             'Base hilaza',
@@ -373,7 +372,7 @@ class ArticleController extends Controller
             'Medida'
         ];
 
-        // Encabezados en espaÃ±ol y mayÃºscula
+        // Encabezados en español y mayúsculas
         $headers = [
             'SUBGRUPO',
             'COLOR',
@@ -493,7 +492,7 @@ class ArticleController extends Controller
             'Base hilaza' => YarnBase::select('id', 'name')->get()->toArray(),
             'Marca' => Brand::select('id', 'name')->get()->toArray(),
             'Mundo' => World::select('id', 'name')->get()->toArray(),
-            // 'LÃ­neas', 'Talla', 'Medida' quedan abiertos (sin hoja ni validaciÃ³n)
+            // 'Líneas', 'Talla', 'Medida' quedan abiertos (sin hoja ni validación)
         ];
 
         foreach ($extraFieldOptions as $fieldName => $options) {
@@ -513,7 +512,7 @@ class ArticleController extends Controller
 
         $maxValidationRow = 1000;
 
-        // ValidaciÃ³n para subgrupo
+        // Validación para subgrupo
         if ($subGroupLastRow >= 2) {
             $validationSubGroup = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
             $validationSubGroup->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
@@ -580,7 +579,7 @@ class ArticleController extends Controller
                 }
                 $mainSheet->getColumnDimension($col)->setAutoSize(true);
             }
-            // Para 'Lí­neas', 'Talla', 'Medida' no se agrega validación, quedan abiertos
+            // Para 'Líneas', 'Talla', 'Medida' no se agrega validación, quedan abiertos
         }
 
         $spreadsheet->setActiveSheetIndex(0);
@@ -707,7 +706,7 @@ class ArticleController extends Controller
             }
         }
 
-        // Esperar si el archivo está siendo usado por otro proceso (maximo 5 intentos)
+        // Esperar si el archivo está siendo usado por otro proceso (máximo 5 intentos)
         $maxAttempts = 5;
         $attempt = 0;
         $waitMs = 200;
@@ -795,7 +794,7 @@ class ArticleController extends Controller
         ];
 
         foreach ($rows as $rowNum => $row) {
-            // Saltar filas vacÃ­as
+            // Saltar filas vacías
             if (empty(array_filter($row))) {
                 continue;
             }
@@ -838,9 +837,9 @@ class ArticleController extends Controller
                     'color_id' => $color->id,
                     // 'impuesta' o 'tax' segun tu base de datos, si no existe ninguno, omite esta campo
                     // 'unit_measure' eliminado porque no existe en la tabla
-                    'bar_code' => $rowData['CÃ“DIGO DE BARRAS'] ?? null,
+                    'bar_code' => $rowData['CÓDIGO DE BARRAS'] ?? null,
                     'negative_movement' => filter_var($rowData['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
-                    'description' => $rowData['DESCRIPCIÃ“N'] ?? '',
+                    'description' => $rowData['DESCRIPCIÓN'] ?? '',
                     'extra_fields' => $extraFields,
                     'name' => $name,
                     'reference' => $rowData['REFERENCIA'] ?? '',
@@ -897,7 +896,7 @@ class ArticleController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // Nuevo mÃ©todo para eliminar la relación con una bodega
+    // Nuevo método para eliminar la relación con una bodega
     public function detachWarehouse($id, $warehouseId)
     {
         $article = Article::findOrFail($id);
@@ -905,7 +904,7 @@ class ArticleController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // Nueva funciÃ³n para exportar todos los articulos a Excel
+    // Nueva función para exportar todos los articulos a Excel
     public function exportExcel()
     {
         $articles = Article::with(['categorySubGroup', 'color'])->get();
@@ -988,9 +987,6 @@ class ArticleController extends Controller
     }
 
 }
-
-
-
 
 
 

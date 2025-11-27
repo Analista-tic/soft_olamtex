@@ -162,7 +162,7 @@ onMounted(async () => {
 // Carga de stocks por bodega para el artículo
 async function fetchWarehouseStocks(articleId: number) {
     try {
-        const { data } = await axios.get(`/articulos/${articleId}/warehouses`);
+        const { data } = await axios.get(`/bodegas/${articleId}/warehouses`);
         warehouseStocks.value = data.map((w: any) => ({
             warehouse_id: w.id,
             name: w.name,
@@ -224,6 +224,18 @@ watch(
         updateNameField();
     },
     { deep: true },
+);
+watch(
+    () => props.form.id,
+    async (id) => {
+        // Cada vez que cambie el articulo seleccionado (al abrir el modal de editar/ver), recargamos sus bodegas
+        if (id) {
+            await fetchWarehouseStocks(Number(id));
+        } else {
+            warehouseStocks.value = [];
+        }
+    },
+    { immediate: true }
 );
 watch(
     () => props.isOpen,
@@ -633,6 +645,7 @@ watch(
                                             @change="updateWarehouseName(idx)"
                                             class="w-full"
                                             placeholder="Bodega"
+                                            :searchable="false"
                                         />
                                     </div>
                                     <div class="flex flex-1 gap-2">
