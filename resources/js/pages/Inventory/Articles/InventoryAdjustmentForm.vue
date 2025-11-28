@@ -11,6 +11,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import type { Article, Warehouse } from '@/types';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -35,8 +36,25 @@ type Line = {
   description: string;
 };
 
+const defaultMovementReason: 'entrada' | 'salida' = 'entrada';
+
+const adjustmentTypeOptions = [
+  { id: 'entrada', name: 'Entrada', direction: 'entrada' },
+  { id: 'salida', name: 'Salida', direction: 'salida' },
+];
+
+const currencyFormatter = new Intl.NumberFormat('es-CO', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const formatCurrency = (value: number | string | null | undefined) =>
+  currencyFormatter.format(Number(value ?? 0));
+
+const resolveMovementReason = (value?: string): 'entrada' | 'salida' =>
+  value === 'salida' ? 'salida' : defaultMovementReason;
+
 const documentNumber = ref<string>('Automatico');
-const adjustmentType = ref<string>('');
 const date = ref<string>('');
 const observation = ref<string>('');
 const productionOrder = ref<string>('');
@@ -44,25 +62,26 @@ const taxes = ref<any[]>([]);
 const articles = ref<Article[]>([]);
 const warehouses = ref<Warehouse[]>([]);
 const selectedWarehouseId = ref<number | null>(null);
+const lastSelectedWarehouseId = ref<number | null>(null);
 const alertMessage = ref<string>('');
 const alertDetails = ref<string[]>([]);
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isSubmitting = ref(false);
 
 const lines = ref<Line[]>([
-  { id: 1, articleId: null, movementReason: '', warehouseId: null, price: 0, taxId: null, tax: 0, quantity: 1, description: '' },
+  {
+    id: 1,
+    articleId: null,
+    movementReason: defaultMovementReason,
+    warehouseId: null,
+    price: 0,
+    taxId: null,
+    tax: 0,
+    quantity: 1,
+    description: '',
+  },
 ]);
 
-const adjustmentTypeOptions = [
-  { id: 'entrada_sin_factura', name: 'Entrada de inventario sin factura', direction: 'entrada' },
-  { id: 'en_bodega_para_despacho', name: 'En bodega para despacho', direction: 'entrada' },
-  { id: 'salida_insumos_orden_produccion', name: 'Salida de insumos para orden de producción', direction: 'salida' },
-  { id: 'salida_insumos_otras_areas', name: 'Salida insumos otras áreas', direction: 'salida' },
-  { id: 'salida_papeleria', name: 'Salida papelería', direction: 'salida' },
-  { id: 'salida_aseo', name: 'Salida aseo', direction: 'salida' },
-  { id: 'salida_ajustar_inventario', name: 'Salida para ajustar inventario', direction: 'salida' },
-  { id: 'devolucion_proveedor', name: 'Devolución proveedor', direction: 'salida' },
-];
 
 const articleSelectOptions = computed(() =>
   articles.value.map(article => ({
@@ -79,10 +98,12 @@ const taxSelectOptions = computed(() =>
 );
 
 const warehouseSelectOptions = computed(() =>
-  warehouses.value.map(w => ({
-    id: w.id,
-    name: w.name,
-  })),
+  warehouses.value
+    .filter((w): w is Warehouse & { id: number } => typeof w.id === 'number')
+    .map(w => ({
+      id: w.id,
+      name: w.name,
+    })),
 );
 
 async function fetchTaxes() {
@@ -128,15 +149,33 @@ onMounted(() => {
 });
 
 watch(selectedWarehouseId, (val) => {
+  const previous = lastSelectedWarehouseId.value;
+  if (previous === val) {
+    return;
+  }
+
   lines.value = lines.value.map(line => ({
     ...line,
-    warehouseId: line.warehouseId ?? val ?? null,
+    warehouseId: line.warehouseId === previous ? val ?? null : line.warehouseId,
   }));
+
+  lastSelectedWarehouseId.value = val ?? null;
 });
+
+watch(
+  lines,
+  (current) => {
+    current.forEach(line => {
+      if (!line.movementReason) {
+        line.movementReason = defaultMovementReason;
+      }
+    });
+  },
+  { deep: true },
+);
 
 function resetForm() {
   documentNumber.value = 'Automatico';
-  adjustmentType.value = '';
   date.value = '';
   observation.value = '';
   productionOrder.value = '';
@@ -144,7 +183,7 @@ function resetForm() {
   lines.value = [{
     id: 1,
     articleId: null,
-    movementReason: adjustmentType.value || '',
+    movementReason: defaultMovementReason,
     warehouseId: selectedWarehouseId.value,
     price: 0,
     taxId: null,
@@ -153,7 +192,7 @@ function resetForm() {
     description: '',
   }];
   alertMessage.value = '';
-   alertDetails.value = [];
+  alertDetails.value = [];
   alertType.value = 'error';
 }
 
@@ -169,17 +208,17 @@ async function loadDocumentNumber() {
 
 function fillFromAdjustment(data: any) {
   documentNumber.value = data.document_number || 'Automatico';
-  adjustmentType.value = data.movement_reason || data.type || '';
   date.value = data.date ? String(data.date).slice(0, 10) : '';
   observation.value = data.observation || '';
   productionOrder.value = data.production_order || '';
   const firstLineWarehouse = Array.isArray(data.lines) && data.lines.length ? data.lines[0].warehouse_id ?? null : null;
   selectedWarehouseId.value = firstLineWarehouse ?? selectedWarehouseId.value ?? warehouses.value[0]?.id ?? null;
+  const resolvedMovementReason = resolveMovementReason(data.movement_reason || data.type);
   lines.value = Array.isArray(data.lines)
     ? data.lines.map((line: any, idx: number) => ({
         id: idx + 1,
         articleId: Number(line.article_id),
-        movementReason: data.movement_reason || data.type || adjustmentType.value || '',
+        movementReason: resolvedMovementReason,
         warehouseId: line.warehouse_id ?? null,
         price: Number(line.price) || 0,
         taxId: line.tax_id ?? line.taxId ?? null,
@@ -190,7 +229,7 @@ function fillFromAdjustment(data: any) {
     : [{
       id: 1,
       articleId: null,
-      movementReason: adjustmentType.value || '',
+      movementReason: resolvedMovementReason,
       warehouseId: selectedWarehouseId.value,
       price: 0,
       taxId: null,
@@ -230,7 +269,7 @@ function addLine() {
   lines.value.push({
     id: nextId,
     articleId: null,
-    movementReason: adjustmentType.value || '',
+    movementReason: lines.value[0]?.movementReason || defaultMovementReason,
     warehouseId: selectedWarehouseId.value,
     price: 0,
     taxId: null,
@@ -268,19 +307,24 @@ const ivaTotal = computed(() =>
 
 const totalAdjustment = computed(() => subtotal.value + ivaTotal.value);
 
-const getDirectionByType = (typeId: string): 'entrada' | 'salida' => {
-  const found = adjustmentTypeOptions.find(opt => opt.id === typeId);
-  return (found?.direction as 'entrada' | 'salida') || 'entrada';
+type InventoryAdjustmentSavedEventDetail = {
+  articleIds: number[];
 };
+
+function notifyInventoryAdjustmentSaved(articleIds: number[]) {
+  if (typeof window === 'undefined' || !articleIds?.length) return;
+  const detail: InventoryAdjustmentSavedEventDetail = {
+    articleIds,
+  };
+  window.dispatchEvent(new CustomEvent<InventoryAdjustmentSavedEventDetail>('inventory-adjustment-saved', { detail }));
+}
+
 async function handleSubmit() {
   alertMessage.value = '';
   alertDetails.value = [];
   alertType.value = 'error';
   const requiredErrors: string[] = [];
 
-  if (!adjustmentType.value) {
-    adjustmentType.value = adjustmentTypeOptions[0]?.id || 'entrada_sin_factura';
-  }
   if (!date.value) {
     requiredErrors.push('Fecha');
   }
@@ -303,24 +347,37 @@ async function handleSubmit() {
       if (line.price === null || line.price === undefined || line.price < 0) {
         requiredErrors.push('Precio');
       }
+      const trimmedDescription = (line.description ?? '').trim();
+      if (!trimmedDescription) {
+        requiredErrors.push('Descripcion');
+      } else if (trimmedDescription !== line.description) {
+        line.description = trimmedDescription;
+      }
+      if (!line.movementReason) {
+        line.movementReason = defaultMovementReason;
+      }
     });
   }
 
   if (requiredErrors.length > 0) {
     const unique = Array.from(new Set(requiredErrors));
     alertType.value = 'warning';
-    alertMessage.value = `Por favor completa todos los campos obligatorios: ${unique.join(', ')}.`;
+    alertMessage.value = formatRequiredFieldsMessage(
+      'Por favor completa todos los campos obligatorios',
+      unique,
+    );
     alertDetails.value = [];
     const dialogEl = document.querySelector('[role="dialog"]');
     dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
     return;
   }
 
+  const primaryMovementReason = lines.value[0]?.movementReason || defaultMovementReason;
   const payload = {
     document_number: documentNumber.value === 'Automatico' ? null : documentNumber.value,
     date: date.value,
-    type: getDirectionByType(adjustmentType.value),
-    movement_reason: adjustmentType.value || null,
+    type: primaryMovementReason,
+    movement_reason: primaryMovementReason,
     observation: observation.value || null,
     production_order: productionOrder.value || null,
     subtotal: subtotal.value,
@@ -329,7 +386,7 @@ async function handleSubmit() {
     lines: lines.value.map(line => ({
       article_id: line.articleId,
       warehouse_id: line.warehouseId || selectedWarehouseId.value,
-      movement_reason: line.movementReason || adjustmentType.value || null,
+      movement_reason: line.movementReason || primaryMovementReason,
       price: line.price ?? 0,
       tax: line.tax ?? 0,
       tax_id: line.taxId ?? null,
@@ -338,16 +395,26 @@ async function handleSubmit() {
     })),
   };
 
+  let response: any;
   try {
     isSubmitting.value = true;
     if (props.dialogType === 'edit' && props.adjustment?.id) {
-      await axios.put(`/ajustes-inventario/${props.adjustment.id}`, payload);
+      response = await axios.put(`/ajustes-inventario/${props.adjustment.id}`, payload);
       alertType.value = 'success';
       alertMessage.value = 'Ajuste actualizado correctamente.';
     } else {
-      await axios.post('/ajustes-inventario', payload);
+      response = await axios.post('/ajustes-inventario', payload);
       alertType.value = 'success';
       alertMessage.value = 'Ajuste creado correctamente.';
+    }
+    const savedLines = response?.data?.data?.lines;
+    if (Array.isArray(savedLines)) {
+      const articleIds = Array.from(new Set(
+        savedLines
+          .map((line: any) => Number(line.article_id))
+          .filter((id: number) => Number.isFinite(id)),
+      ));
+      notifyInventoryAdjustmentSaved(articleIds);
     }
     alertDetails.value = [];
     emit('saved');
@@ -487,10 +554,12 @@ async function handleSubmit() {
                   <TableRow class="text-center">
                     <TableHead class="min-w-[150px] text-left">Articulo <span class="text-destructive">*</span></TableHead>
                     <TableHead class="min-w-[160px] text-left">Tipo de ajuste</TableHead>
+                    <TableHead class="min-w-[160px] text-left">
+                      Descripcion <span class="text-destructive">*</span>
+                    </TableHead>
                     <TableHead class="min-w-[120px]">Precio <span class="text-destructive">*</span></TableHead>
                     <TableHead class="min-w-[140px]">Impuesto</TableHead>
                     <TableHead class="min-w-[110px]">Cantidad <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[160px]">Descripcion</TableHead>
                     <TableHead class="min-w-[90px]">Total</TableHead>
                     <TableHead class="w-[60px]"></TableHead>
                   </TableRow>
@@ -515,6 +584,15 @@ async function handleSubmit() {
                         label=""
                         placeholder="Selecciona"
                         class="w-full"
+                      />
+                    </TableCell>
+
+                    <TableCell class="p-1">
+                      <Input
+                        v-model="line.description"
+                        placeholder="Descripcion"
+                        required
+                        class="h-10 w-full"
                       />
                     </TableCell>
 
@@ -556,15 +634,7 @@ async function handleSubmit() {
                     </TableCell>
 
                     <TableCell class="p-1">
-                      <Input
-                        v-model="line.description"
-                        placeholder="Descripcion"
-                        class="h-10 w-full"
-                      />
-                    </TableCell>
-
-                    <TableCell class="p-1">
-                      {{ lineTotal(line).toFixed(2) }}
+                      {{ formatCurrency(lineTotal(line)) }}
                     </TableCell>
 
                     <TableCell class="p-1 text-center">
@@ -588,9 +658,9 @@ async function handleSubmit() {
           </div>
 
           <div class="mt-4 flex flex-col items-end gap-1 text-sm">
-            <div>Subtotal: <span class="font-semibold">{{ subtotal.toFixed(2) }}</span></div>
-            <div>IVA total: <span class="font-semibold">{{ ivaTotal.toFixed(2) }}</span></div>
-            <div>Total ajuste: <span class="font-semibold">{{ totalAdjustment.toFixed(2) }}</span></div>
+            <div>Subtotal: <span class="font-semibold">{{ formatCurrency(subtotal) }}</span></div>
+            <div>IVA total: <span class="font-semibold">{{ formatCurrency(ivaTotal) }}</span></div>
+            <div>Total ajuste: <span class="font-semibold">{{ formatCurrency(totalAdjustment) }}</span></div>
           </div>
         </div>
 

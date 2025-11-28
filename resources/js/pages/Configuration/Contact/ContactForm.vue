@@ -127,7 +127,7 @@ const validateField = (field: string) => {
 </script>
 
 <template>
-    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 space-y-4">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
         <SelectField
             v-model="internalForm.contact_type"
             label="Tipo de contacto"
@@ -198,6 +198,7 @@ const validateField = (field: string) => {
                 { id: 'Persona jurídica', name: 'Persona jurídica' },
             ]"
             class="mb-4"
+            :searchable="false"
         />
         <div class="md:col-span-2">
             <SelectField

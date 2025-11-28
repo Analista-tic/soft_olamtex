@@ -16,6 +16,7 @@ import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import { useAlertMessages } from '@/composables/useAlertMessages';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -42,9 +43,24 @@ const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const invoiceToPrint = ref<PurchaseInvoice | null>(null);
 const isSendingMail = ref(false);
-const successMessage = ref('');
-const errorMessage = ref('');
-const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const {
+    successMessage,
+    errorMessage,
+    errorType,
+    showSuccess,
+    showError,
+    clearSuccess,
+    clearError,
+    clearAll,
+} = useAlertMessages({
+    entityLabel: 'Factura',
+    entityArticle: '',
+    successActions: {
+        delete: 'eliminada correctamente.',
+        sendMail: 'enviada por correo correctamente.',
+    },
+    defaultErrorMessage: 'Ocurrio un error al procesar la factura.',
+});
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
@@ -69,9 +85,7 @@ function openDialog(type: 'create' | 'edit', invoice: PurchaseInvoice | null = n
     isDialogOpen.value = true;
     // Asegura el tipado correcto y evita referencias reactivas no deseadas
     form.value = invoice ? JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice> : {};
-    successMessage.value = '';
-    errorMessage.value = '';
-    errorType.value = 'error';
+    clearAll();
 }
 
 function closeDialog() {
@@ -84,21 +98,15 @@ function confirmDeleteInvoice(invoice: PurchaseInvoice) {
     isDeleteDialogOpen.value = true;
 }
 
-const warningMatcher = (msg: string) => /obligatori|complet[ao]s? los campos/i.test(msg);
-const setErrorMessage = (msg: string) => {
-    errorType.value = warningMatcher(msg) ? 'warning' : 'error';
-    errorMessage.value = msg;
-};
-
 async function deleteInvoice(): Promise<void> {
     if (!invoiceToDelete.value) return;
     try {
         await axios.delete(`/gastos/facturas-compra/${invoiceToDelete.value.id}`);
-        successMessage.value = 'Factura eliminada correctamente.';
+        showSuccess('delete');
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
         console.log('Error al eliminar factura:', e);
-        setErrorMessage('Error al eliminar la factura.');
+        showError('Error al eliminar la factura.');
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -196,9 +204,9 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
     isSendingMail.value = true;
     try {
         await axios.post(`/gastos/facturas-compra/${invoice.id}/enviar-correo`);
-        successMessage.value = 'Factura enviada por correo correctamente.';
+        showSuccess('sendMail');
     } catch {
-        setErrorMessage('Error al enviar el correo.');
+        showError('Error al enviar el correo.');
     } finally {
         isSendingMail.value = false;
     }
@@ -216,17 +224,16 @@ function viewInvoiceDetails(invoice: PurchaseInvoice) {
 
 function handleDialogRefresh(message?: string) {
     if (message) {
-        successMessage.value = message;
-        errorMessage.value = '';
-        errorType.value = 'error';
+        clearError();
+        showSuccess(undefined, message);
     }
     fetchInvoices(currentPage.value, searchQuery.value);
     isDialogOpen.value = false;
 }
 
 function handleDialogError(message?: string) {
-    setErrorMessage(message || 'Error al guardar la factura.');
-    successMessage.value = '';
+    showError(message || 'Error al guardar la factura.');
+    clearSuccess();
 }
 
 const orderDisplay = (invoice: PurchaseInvoice) =>
@@ -241,13 +248,13 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
 <template>
     <Head title="Facturas de Compra" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <AlertStack
-            :successMessage="successMessage"
-            :errorMessage="errorMessage"
-            :errorType="errorType"
-            @close-success="successMessage = ''"
-            @close-error="errorMessage = ''"
-        />
+            <AlertStack
+                :successMessage="successMessage"
+                :errorMessage="errorMessage"
+                :errorType="errorType"
+                @close-success="clearSuccess"
+                @close-error="clearError"
+            />
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Facturas de Compra</h1>

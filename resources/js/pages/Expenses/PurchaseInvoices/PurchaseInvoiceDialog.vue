@@ -11,6 +11,7 @@ import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -281,17 +282,31 @@ async function handleSubmit(sendMail = false) {
 }
 
 function validateForm(): boolean {
-    const errs: string[] = [];
     const items = localForm.value.items || [];
+    const missingFields: string[] = [];
 
     if (!localForm.value.contact_id) {
-        errs.push('Por favor seleccione un proveedor.');
+        missingFields.push('Proveedor');
     }
-    if (!localForm.value.date || !localForm.value.delivery_date) {
-        errs.push('Por favor complete las fechas requeridas.');
+    if (!localForm.value.date) {
+        missingFields.push('Fecha factura');
     }
+    if (!localForm.value.delivery_date) {
+        missingFields.push('Fecha entrega');
+    }
+
+    if (missingFields.length) {
+        setErrorMessage(
+            formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields),
+            'warning',
+        );
+        return false;
+    }
+
+    const errors: string[] = [];
+
     if (!items.length) {
-        errs.push('La factura debe contener al menos un ítem.');
+        errors.push('La factura debe contener al menos un ítem.');
     }
     const invalidItems = items.filter(
         (it) =>
@@ -303,11 +318,11 @@ function validateForm(): boolean {
             Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
-        errs.push('Cada ítem debe tener artículo, precio y cantidad mayores a cero.');
+        errors.push('Cada ítem debe tener artículo, precio y cantidad mayores a cero.');
     }
 
-    if (errs.length) {
-        setErrorMessage(errs[0], 'warning');
+    if (errors.length) {
+        setErrorMessage(errors[0], 'warning');
         return false;
     }
 

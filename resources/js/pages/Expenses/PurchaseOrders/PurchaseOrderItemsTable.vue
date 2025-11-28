@@ -150,10 +150,10 @@ watch(
     >
             <TableHeader>
                 <TableRow class="text-center">
-                    <TableCell class="min-w-[120px]">Artículo</TableCell>
-                    <TableCell>Precio</TableCell>
+                    <TableCell class="min-w-[120px]">Artículo <span class="text-destructive">*</span></TableCell>
+                    <TableCell>Precio <span class="text-destructive">*</span></TableCell>
                     <TableCell>Impuesto (%)</TableCell>
-                    <TableCell>Cantidad</TableCell>
+                    <TableCell>Cantidad <span class="text-destructive">*</span></TableCell>
                     <TableCell>Descripción</TableCell>
                     <!-- Campos extra para tela -->
                     <TableCell v-if="localItems.some(isTela)">Código proveedor</TableCell>

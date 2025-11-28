@@ -8,6 +8,7 @@ use App\Models\Inventory\InventoryAdjustment;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Common\Warehouse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -75,129 +76,26 @@ class InventoryAdjustmentController extends Controller
     public function store(Request $request)
     {
         $movementReasons = $this->movementReasons();
-
-        if ($request->has('lines') && is_string($request->input('lines'))) {
-            $decoded = json_decode($request->input('lines'), true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $request->merge(['lines' => $decoded]);
-            }
-        }
+        $this->decodeLinesJson($request);
 
         try {
-            $data = $request->validate([
-                'document_number'      => [
-                    'nullable',
-                    'string',
-                    'max:255',
-                    Rule::unique('inventory_adjustments', 'document_number'),
-                ],
-                'date'                 => 'required|date',
-                'type'                 => 'required|in:entrada,salida',
-                'movement_reason'      => ['required', Rule::in(array_keys($movementReasons))],
-                'observation'          => 'nullable|string',
-                'production_order'     => 'nullable|string|max:255',
-                'subtotal'             => 'nullable|numeric',
-                'iva'                  => 'nullable|numeric',
-                'total'                => 'nullable|numeric',
-                'lines'                => 'required|array|min:1',
-                'lines.*.article_id'   => 'required|integer|exists:articles,id',
-                'lines.*.warehouse_id' => 'nullable|integer|exists:warehouses,id',
-                'lines.*.price'        => 'required|numeric|min:0',
-                'lines.*.tax'          => 'nullable|numeric|min:0',
-                'lines.*.quantity'     => 'required|integer|min:1',
-                'lines.*.description'  => 'nullable|string',
-            ]);
+            $data = $this->validateAdjustment($request, $movementReasons);
         } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Errores de validacion',
-                'errors'  => $e->errors(),
-            ], 422);
+            return $this->validationErrorResponse($e);
         }
 
-        $data['type'] = $movementReasons[$data['movement_reason']] ?? $data['type'];
-        $subtotal = 0;
-        $ivaTotal = 0;
-        foreach ($data['lines'] as $line) {
-            $price = (float) ($line['price'] ?? 0);
-            $qty   = (int) ($line['quantity'] ?? 0);
-            $tax   = (float) ($line['tax'] ?? 0);
-
-            $base = $price * $qty;
-            $taxAmount = $base * $tax / 100;
-
-            $subtotal += $base;
-            $ivaTotal += $taxAmount;
-        }
-
-        $data['document_number'] = $data['document_number'] ?: null;
-        $data['subtotal'] = $subtotal;
-        $data['iva']      = $ivaTotal;
-        $data['total']    = $subtotal + $ivaTotal;
+        $data = $this->preparePayload($data, $movementReasons);
 
         try {
-            $articles = Article::with('warehouses')
-                ->whereIn('id', collect($data['lines'])->pluck('article_id'))
-                ->get()
-                ->keyBy('id');
-
-            $adjustment = DB::transaction(function () use ($data, $articles) {
-                $documentNumber = $data['document_number'] ?: $this->generateDocumentNumber();
-
-                $adjustment = InventoryAdjustment::create([
-                    'document_number'  => $documentNumber,
-                    'date'             => $data['date'],
-                    'type'             => $data['type'],
-                    'movement_reason'  => $data['movement_reason'],
-                    'observation'      => $data['observation'] ?? null,
-                    'production_order' => $data['production_order'] ?? null,
-                    'subtotal'         => $data['subtotal'],
-                    'iva'              => $data['iva'],
-                    'total'            => $data['total'],
-                ]);
-
-                foreach ($data['lines'] as $line) {
-                    $price = (float) ($line['price'] ?? 0);
-                    $qty   = (int) ($line['quantity'] ?? 0);
-                    $tax   = (float) ($line['tax'] ?? 0);
-                    $article = $articles[$line['article_id']] ?? null;
-
-                    if (!$article) {
-                        throw ValidationException::withMessages([
-                            'lines' => ['No se encontro el articulo indicado.'],
-                        ]);
-                    }
-
-                    $warehouseId = $this->resolveWarehouseId($article, $line['warehouse_id'] ?? null);
-
-                    $base = $price * $qty;
-                    $taxAmount = $base * $tax / 100;
-
-                    InventoryAdjustmentLine::create([
-                        'inventory_adjustment_id' => $adjustment->id,
-                        'article_id'              => $line['article_id'],
-                        'warehouse_id'            => $warehouseId,
-                        'price'                   => $price,
-                        'tax'                     => $tax,
-                        'quantity'                => $qty,
-                        'description'             => $line['description'] ?? null,
-                        'line_total'              => $base + $taxAmount,
-                    ]);
-
-                    $this->applyStockMovement($article, $warehouseId, $qty, $data['type']);
-                }
-
-                return $adjustment->load('lines.article');
-            });
+            $articles = $this->fetchArticlesByLines($data['lines']);
+            $adjustment = $this->persistAdjustment($data, $articles, null, $movementReasons);
 
             return response()->json([
                 'message' => 'Ajuste de inventario creado correctamente',
                 'data'    => $adjustment,
             ], 201);
         } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Errores de validacion',
-                'errors'  => $e->errors(),
-            ], 422);
+            return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
             return response()->json([
                 'message' => 'Ocurrio un error al guardar el ajuste de inventario.',
@@ -213,138 +111,26 @@ class InventoryAdjustmentController extends Controller
     {
         $adjustment = InventoryAdjustment::findOrFail($id);
         $movementReasons = $this->movementReasons();
-
-        if ($request->has('lines') && is_string($request->input('lines'))) {
-            $decoded = json_decode($request->input('lines'), true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $request->merge(['lines' => $decoded]);
-            }
-        }
+        $this->decodeLinesJson($request);
 
         try {
-            $data = $request->validate([
-                'document_number'      => [
-                    'nullable',
-                    'string',
-                    'max:255',
-                    Rule::unique('inventory_adjustments', 'document_number')->ignore($adjustment->id),
-                ],
-                'date'                 => 'required|date',
-                'type'                 => 'required|in:entrada,salida',
-                'movement_reason'      => ['required', Rule::in(array_keys($movementReasons))],
-                'observation'          => 'nullable|string',
-                'production_order'     => 'nullable|string|max:255',
-                'lines'                => 'required|array|min:1',
-                'lines.*.article_id'   => 'required|integer|exists:articles,id',
-                'lines.*.warehouse_id' => 'nullable|integer|exists:warehouses,id',
-                'lines.*.price'        => 'required|numeric|min:0',
-                'lines.*.tax'          => 'nullable|numeric|min:0',
-                'lines.*.quantity'     => 'required|integer|min:1',
-                'lines.*.description'  => 'nullable|string',
-            ]);
+            $data = $this->validateAdjustment($request, $movementReasons, $adjustment);
         } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Errores de validacion',
-                'errors'  => $e->errors(),
-            ], 422);
+            return $this->validationErrorResponse($e);
         }
 
-        $data['type'] = $movementReasons[$data['movement_reason']] ?? $data['type'];
-        $subtotal = 0;
-        $ivaTotal = 0;
-        foreach ($data['lines'] as $line) {
-            $price = (float) ($line['price'] ?? 0);
-            $qty   = (int) ($line['quantity'] ?? 0);
-            $tax   = (float) ($line['tax'] ?? 0);
-
-            $base = $price * $qty;
-            $taxAmount = $base * $tax / 100;
-
-            $subtotal += $base;
-            $ivaTotal += $taxAmount;
-        }
-
-        $data['document_number'] = $data['document_number'] ?: null;
-        $data['subtotal'] = $subtotal;
-        $data['iva']      = $ivaTotal;
-        $data['total']    = $subtotal + $ivaTotal;
+        $data = $this->preparePayload($data, $movementReasons);
 
         try {
-            $articles = Article::with('warehouses')
-                ->whereIn('id', collect($data['lines'])->pluck('article_id'))
-                ->get()
-                ->keyBy('id');
-
-            $adjustment = DB::transaction(function () use ($adjustment, $data, $articles) {
-                $documentNumber = $data['document_number'] ?: ($adjustment->document_number ?? $this->generateDocumentNumber());
-
-                // Revertir lineas previas
-                foreach ($adjustment->lines as $oldLine) {
-                    $article = $articles[$oldLine->article_id] ?? Article::find($oldLine->article_id);
-                    if ($article) {
-                        $warehouseId = $this->resolveWarehouseId($article, $oldLine->warehouse_id);
-                        $reverseType = $adjustment->type === 'entrada' ? 'salida' : 'entrada';
-                        $this->applyStockMovement($article, $warehouseId, (int) $oldLine->quantity, $reverseType);
-                    }
-                }
-
-                $adjustment->update([
-                    'document_number'  => $documentNumber,
-                    'date'             => $data['date'],
-                    'type'             => $data['type'],
-                    'movement_reason'  => $data['movement_reason'],
-                    'observation'      => $data['observation'] ?? null,
-                    'production_order' => $data['production_order'] ?? null,
-                    'subtotal'         => $data['subtotal'],
-                    'iva'              => $data['iva'],
-                    'total'            => $data['total'],
-                ]);
-
-                $adjustment->lines()->delete();
-
-                foreach ($data['lines'] as $line) {
-                    $price = (float) ($line['price'] ?? 0);
-                    $qty   = (int) ($line['quantity'] ?? 0);
-                    $tax   = (float) ($line['tax'] ?? 0);
-                    $article = $articles[$line['article_id']] ?? null;
-
-                    if (!$article) {
-                        throw ValidationException::withMessages([
-                            'lines' => ['No se encontro el articulo indicado.'],
-                        ]);
-                    }
-
-                    $warehouseId = $this->resolveWarehouseId($article, $line['warehouse_id'] ?? null);
-
-                    $base = $price * $qty;
-                    $taxAmount = $base * $tax / 100;
-
-                    InventoryAdjustmentLine::create([
-                        'inventory_adjustment_id' => $adjustment->id,
-                        'article_id'              => $line['article_id'],
-                        'warehouse_id'            => $warehouseId,
-                        'price'                   => $price,
-                        'tax'                     => $tax,
-                        'quantity'                => $qty,
-                        'description'             => $line['description'] ?? null,
-                        'line_total'              => $base + $taxAmount,
-                    ]);
-
-                    $this->applyStockMovement($article, $warehouseId, $qty, $data['type']);
-                }
-
-                return $adjustment->load('lines.article');
-            });
+            $articles = $this->fetchArticlesByLines($data['lines']);
+            $updated = $this->persistAdjustment($data, $articles, $adjustment, $movementReasons);
 
             return response()->json([
                 'message' => 'Ajuste de inventario actualizado correctamente',
-                'data'    => $adjustment,
+                'data'    => $updated,
             ]);
         } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Errores de validacion',
-                'errors'  => $e->errors(),
-            ], 422);
+            return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
             return response()->json([
                 'message' => 'Ocurrio un error al actualizar el ajuste de inventario.',
@@ -489,17 +275,192 @@ class InventoryAdjustmentController extends Controller
     private function movementReasons(): array
     {
         return [
-            'entrada_sin_factura' => 'entrada',
-            'en_bodega_para_despacho' => 'entrada',
-            'salida_insumos_orden_produccion' => 'salida',
-            'salida_insumos_otras_areas' => 'salida',
-            'salida_papeleria' => 'salida',
-            'salida_aseo' => 'salida',
-            'salida_ajustar_inventario' => 'salida',
-            'devolucion_proveedor' => 'salida',
-            // Compatibilidad
             'entrada' => 'entrada',
             'salida' => 'salida',
         ];
+    }
+
+    private function decodeLinesJson(Request $request): void
+    {
+        if ($request->has('lines') && is_string($request->input('lines'))) {
+            $decoded = json_decode($request->input('lines'), true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $request->merge(['lines' => $decoded]);
+            }
+        }
+    }
+
+    private function validateAdjustment(Request $request, array $movementReasons, ?InventoryAdjustment $adjustment = null): array
+    {
+        $uniqueRule = Rule::unique('inventory_adjustments', 'document_number');
+        if ($adjustment) {
+            $uniqueRule->ignore($adjustment->id);
+        }
+
+        $rules = [
+            'document_number'      => [
+                'nullable',
+                'string',
+                'max:255',
+                $uniqueRule,
+            ],
+            'date'                 => 'required|date',
+            'type'                 => 'required|in:entrada,salida',
+            'movement_reason'      => ['required', Rule::in(array_keys($movementReasons))],
+            'observation'          => 'nullable|string',
+            'production_order'     => 'nullable|string|max:255',
+            'subtotal'             => 'nullable|numeric',
+            'iva'                  => 'nullable|numeric',
+            'total'                => 'nullable|numeric',
+            'lines'                => 'required|array|min:1',
+            'lines.*.article_id'   => 'required|integer|exists:articles,id',
+            'lines.*.warehouse_id' => 'nullable|integer|exists:warehouses,id',
+            'lines.*.price'        => 'required|numeric|min:0',
+            'lines.*.tax'          => 'nullable|numeric|min:0',
+            'lines.*.quantity'     => 'required|integer|min:1',
+            'lines.*.movement_reason' => ['required', Rule::in(array_keys($movementReasons))],
+            'lines.*.description'  => 'required|string|min:1',
+        ];
+
+        return $request->validate($rules);
+    }
+
+    private function validationErrorResponse(ValidationException $exception)
+    {
+        return response()->json([
+            'message' => 'Errores de validacion',
+            'errors'  => $exception->errors(),
+        ], 422);
+    }
+
+    private function preparePayload(array $data, array $movementReasons): array
+    {
+        $data['type'] = $movementReasons[$data['movement_reason']] ?? $data['type'];
+        $data['document_number'] = $data['document_number'] ?: null;
+
+        [$subtotal, $iva] = $this->calculateTotals($data['lines']);
+        $data['subtotal'] = $subtotal;
+        $data['iva']      = $iva;
+        $data['total']    = $subtotal + $iva;
+
+        return $data;
+    }
+
+    private function calculateTotals(array $lines): array
+    {
+        $subtotal = 0;
+        $ivaTotal = 0;
+
+        foreach ($lines as $line) {
+            $price = (float) ($line['price'] ?? 0);
+            $qty   = (int) ($line['quantity'] ?? 0);
+            $tax   = (float) ($line['tax'] ?? 0);
+
+            $base = $price * $qty;
+            $taxAmount = $base * $tax / 100;
+
+            $subtotal += $base;
+            $ivaTotal += $taxAmount;
+        }
+
+        return [$subtotal, $ivaTotal];
+    }
+
+    private function fetchArticlesByLines(array $lines): Collection
+    {
+        return Article::with('warehouses')
+            ->whereIn('id', collect($lines)->pluck('article_id'))
+            ->get()
+            ->keyBy('id');
+    }
+
+    private function persistAdjustment(array $data, Collection $articles, ?InventoryAdjustment $adjustment = null, array $movementReasons = []): InventoryAdjustment
+    {
+        return DB::transaction(function () use ($data, $articles, $adjustment, $movementReasons) {
+            $documentNumber = $data['document_number'] ?: ($adjustment->document_number ?? $this->generateDocumentNumber());
+
+            if (!$adjustment) {
+                $adjustment = InventoryAdjustment::create([
+                    'document_number'  => $documentNumber,
+                    'date'             => $data['date'],
+                    'type'             => $data['type'],
+                    'movement_reason'  => $data['movement_reason'],
+                    'observation'      => $data['observation'] ?? null,
+                    'production_order' => $data['production_order'] ?? null,
+                    'subtotal'         => $data['subtotal'],
+                    'iva'              => $data['iva'],
+                    'total'            => $data['total'],
+                ]);
+            } else {
+                $this->revertStockForAdjustment($adjustment, $articles);
+
+                $adjustment->update([
+                    'document_number'  => $documentNumber,
+                    'date'             => $data['date'],
+                    'type'             => $data['type'],
+                    'movement_reason'  => $data['movement_reason'],
+                    'observation'      => $data['observation'] ?? null,
+                    'production_order' => $data['production_order'] ?? null,
+                    'subtotal'         => $data['subtotal'],
+                    'iva'              => $data['iva'],
+                    'total'            => $data['total'],
+                ]);
+
+                $adjustment->lines()->delete();
+            }
+
+            $this->syncLinesAndStock($adjustment, $data['lines'], $articles, $movementReasons);
+
+            return $adjustment->load('lines.article');
+        });
+    }
+
+    private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $articles, array $movementReasons): void
+    {
+        foreach ($lines as $line) {
+            $article = $articles[$line['article_id']] ?? null;
+            if (!$article) {
+                throw ValidationException::withMessages([
+                    'lines' => ['No se encontro el articulo indicado.'],
+                ]);
+            }
+
+            $warehouseId = $this->resolveWarehouseId($article, $line['warehouse_id'] ?? null);
+            $lineMovementReason = $line['movement_reason'] ?? $adjustment->movement_reason ?? $adjustment->type;
+            $lineType = $movementReasons[$lineMovementReason] ?? $lineMovementReason ?? 'entrada';
+
+            $price = (float) ($line['price'] ?? 0);
+            $qty   = (int) ($line['quantity'] ?? 0);
+            $tax   = (float) ($line['tax'] ?? 0);
+            $base = $price * $qty;
+            $taxAmount = $base * $tax / 100;
+
+            InventoryAdjustmentLine::create([
+                'inventory_adjustment_id' => $adjustment->id,
+                'article_id'              => $line['article_id'],
+                'warehouse_id'            => $warehouseId,
+                'price'                   => $price,
+                'tax'                     => $tax,
+                'quantity'                => $qty,
+                'description'             => $line['description'] ?? null,
+                'line_total'              => $base + $taxAmount,
+            ]);
+
+            $this->applyStockMovement($article, $warehouseId, $qty, $lineType);
+        }
+    }
+
+    private function revertStockForAdjustment(InventoryAdjustment $adjustment, Collection $articles): void
+    {
+        foreach ($adjustment->lines as $line) {
+            $article = $articles[$line->article_id] ?? Article::find($line->article_id);
+            if (!$article) {
+                continue;
+            }
+
+            $warehouseId = $this->resolveWarehouseId($article, $line->warehouse_id);
+            $reverseType = $adjustment->type === 'entrada' ? 'salida' : 'entrada';
+            $this->applyStockMovement($article, $warehouseId, (int) $line->quantity, $reverseType);
+        }
     }
 }

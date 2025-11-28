@@ -129,7 +129,17 @@ async function deleteContact(): Promise<void> {
         setError('', 'error');
     } catch (error) {
         console.error('Error al eliminar el contacto:', error);
-        setError('Ocurrió un error al eliminar el contacto.', 'error');
+        const axiosError = error as AxiosError;
+        const responseMessage = axiosError.response?.data?.message;
+        if (axiosError.response?.status === 409) {
+            setError(
+                responseMessage ||
+                    'No se puede eliminar el contacto porque tiene relaciones con otros registros.',
+                'warning',
+            );
+            return;
+        }
+        setError(responseMessage || 'Ocurrió un error al eliminar el contacto.', 'error');
     }
 }
 

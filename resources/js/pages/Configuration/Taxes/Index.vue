@@ -14,6 +14,7 @@ import TaxDialog from './TaxDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import {
     Dialog,
     DialogContent,
@@ -84,7 +85,10 @@ async function handleDialogSubmit(taxData: any) {
         closeDialog();
     } catch {
         errorType.value = 'warning';
-        errorMessage.value = 'Debes completar los campos obligatorios.';
+        errorMessage.value = formatRequiredFieldsMessage(
+            'Debes completar los campos obligatorios',
+            ['Nombre', 'Porcentaje', 'Tipo', 'Estado'],
+        );
     } finally {
         isSubmitting.value = false;
     }

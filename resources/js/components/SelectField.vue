@@ -15,6 +15,7 @@ const props = withDefaults(defineProps<{
     searchable?: boolean;
     searchPlaceholder?: string;
     showPlaceholderOption?: boolean;
+    searchThreshold?: number;
 }>(), {
     required: false,
     multiple: false,
@@ -23,6 +24,7 @@ const props = withDefaults(defineProps<{
     searchable: true,
     searchPlaceholder: 'Buscar...',
     showPlaceholderOption: true,
+    searchThreshold: 4,
 });
 
 const emit = defineEmits<{
@@ -48,6 +50,9 @@ watch(localModelValue, (newValue) => {
 
 // Búsqueda local dentro del dropdown
 const searchTerm = ref('');
+const shouldRenderSearch = computed(
+    () => props.searchable && props.options.length > (props.searchThreshold ?? 0),
+);
 const filteredOptions = computed(() => {
     const term = searchTerm.value.trim().toLowerCase();
     if (!term) return props.options;
@@ -117,7 +122,7 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                         class="absolute z-50 mt-1 min-w-[12rem] w-full max-w-full bg-white shadow-2xl rounded-md text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm overflow-hidden"
                         style="position: absolute; max-height: 15rem; background: white; box-shadow: 0 8px 32px 0 rgba(31, 41, 55, 0.25), 0 1.5px 6px 0 rgba(0,0,0,0.10); border: 1px solid #e5e7eb;"
                     >
-                        <div v-if="searchable" class="z-30 bg-white px-3 pb-3 pt-3 shadow-sm border-b border-gray-200">
+                        <div v-if="shouldRenderSearch" class="z-30 bg-white px-3 pb-3 pt-3 shadow-sm border-b border-gray-200">
                             <input
                                 v-model="searchTerm"
                                 type="text"

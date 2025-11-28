@@ -24,6 +24,7 @@ import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import WarehouseDialog from './WarehouseDialog.vue';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Configuración', href: '/configuracion' },
@@ -99,8 +100,11 @@ async function deleteWarehouse() {
 async function handleDialogSubmit(warehouseData: Warehouse) {
     const trimmedName = warehouseData.name?.trim() ?? '';
     const trimmedObservation = warehouseData.observation?.trim() ?? '';
-    if (!trimmedName || !trimmedObservation) {
-        setError(!trimmedName ? 'El nombre es obligatorio.' : 'La observacion es obligatoria.', 'warning');
+    const missingFields: string[] = [];
+    if (!trimmedName) missingFields.push('Nombre');
+    if (!trimmedObservation) missingFields.push('Observación');
+    if (missingFields.length) {
+        setError(formatRequiredFieldsMessage('Completa los campos obligatorios', missingFields), 'warning');
         return;
     }
     const alreadyExists = warehouses.value.some(

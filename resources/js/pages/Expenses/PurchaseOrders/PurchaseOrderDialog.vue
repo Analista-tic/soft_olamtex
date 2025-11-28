@@ -10,6 +10,7 @@ import { computed, ref, watch } from 'vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -202,6 +203,10 @@ async function handleSubmit(sendMail = false) {
             const msg = props.dialogType === 'create' ? 'Orden creada correctamente.' : 'Orden actualizada correctamente.';
             emit('refresh', msg);
             successMessage.value = msg;
+            const createdId = Number(data?.data?.id);
+            if (!Number.isNaN(createdId)) {
+                nextOrderId.value = createdId + 1;
+            }
         }
         dialogOpen.value = false;
     } catch (e) {
@@ -219,27 +224,55 @@ async function handleSubmit(sendMail = false) {
 }
 
 function validateForm(): boolean {
-    const errors: string[] = [];
+    const missingFields: string[] = [];
+
     if (!localForm.value.contact_id) {
-        errors.push('Por favor seleccione un proveedor.');
+        missingFields.push('Proveedor');
     }
-    if (!localForm.value.date || !localForm.value.delivery_date) {
-        errors.push('Por favor complete las fechas requeridas.');
+    if (!localForm.value.date) {
+        missingFields.push('Fecha de orden');
     }
-    if (!localForm.value.items?.length) {
-        errors.push('La orden debe contener al menos un ítem.');
+    if (!localForm.value.delivery_date) {
+        missingFields.push('Fecha de entrega');
     }
-    const invalidItem = (localForm.value.items || []).find(
-        (item) => !item.article_id || Number(item.quantity) <= 0 || Number(item.price) <= 0,
-    );
-    if (invalidItem) {
-        errors.push('Cada ítem debe tener artículo, cantidad y precio mayor a 0.');
+    if (!localForm.value.supplier_order_number || !localForm.value.supplier_order_number.toString().trim()) {
+        missingFields.push('# Pedido Proveedor');
     }
 
-    if (errors.length) {
-        setErrorMessage(errors[0], 'warning');
+    if (missingFields.length) {
+        setErrorMessage(
+            formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields),
+            'warning',
+        );
         return false;
     }
+
+    const items = localForm.value.items || [];
+    if (!items.length) {
+        setErrorMessage('La orden debe contener al menos un ítem.', 'warning');
+        return false;
+    }
+
+    const invalidItem = items.find((item) => {
+        const priceInvalid = item.price === '' || Number(item.price) <= 0;
+        const quantityInvalid = item.quantity === '' || Number(item.quantity) <= 0;
+        const articleInvalid = !item.article_id;
+        return priceInvalid || quantityInvalid || articleInvalid;
+    });
+
+    if (invalidItem) {
+        const missingItemFields: string[] = [];
+        if (!invalidItem.article_id) missingItemFields.push('Artículo');
+        if (invalidItem.price === '' || Number(invalidItem.price) <= 0) missingItemFields.push('Precio');
+        if (invalidItem.quantity === '' || Number(invalidItem.quantity) <= 0) missingItemFields.push('Cantidad');
+
+        setErrorMessage(
+            formatRequiredFieldsMessage('Cada ítem debe tener los siguientes campos', missingItemFields),
+            'warning',
+        );
+        return false;
+    }
+
     return true;
 }
 
@@ -339,7 +372,12 @@ watch(dialogOpen, (isOpen) => {
                     <div class="grid grid-cols-3 gap-4">
                         <InputDate v-model="localForm.date" label="Fecha de creacion" required />
                         <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
-                        <InputField v-model="localForm.supplier_order_number" label="# Pedido Proveedor" />
+                        <InputField
+                            v-model="localForm.supplier_order_number"
+                            label="# Pedido Proveedor"
+                            id="supplier-order"
+                            required
+                        />
                     </div>
 
                     <!-- Items -->

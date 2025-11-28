@@ -13,8 +13,9 @@ import ExtraFieldsForm from '@/pages/Inventory/Articles/ExtraFieldsForm.vue';
 import type { Article, CategorySubGroup, Color, ExtraFields, Warehouse } from '@/types';
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
 // Props y eventos
 const props = defineProps<{
@@ -250,6 +251,11 @@ watch(
             imageFile.value = null;
             resetErrors();
             updateNameField();
+            if (props.form.id) {
+                void fetchWarehouseStocks(Number(props.form.id));
+            } else {
+                warehouseStocks.value = [];
+            }
         }
     },
 );
@@ -297,7 +303,10 @@ async function handleSubmit() {
     }
     if (requiredErrors.length > 0) {
         alertType.value = 'warning';
-        alertMessage.value = `Por favor, completa todos los campos obligatorios: ${requiredErrors.join(', ')}.`;
+        alertMessage.value = formatRequiredFieldsMessage(
+            'Por favor, completa todos los campos obligatorios',
+            requiredErrors,
+        );
         const dialogEl = document.querySelector('[role="dialog"]');
         dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
         return;
@@ -398,6 +407,27 @@ watch(
         dialogOpen.value = val;
     },
 );
+
+const INVENTORY_ADJUSTMENT_SAVED_EVENT = 'inventory-adjustment-saved';
+const handleInventoryAdjustmentSaved = (event: Event) => {
+    const evt = event as CustomEvent<{ articleIds?: number[] }>;
+    const articleIds = (evt?.detail?.articleIds ?? [])
+        .map(id => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+    const currentArticleId = Number(props.form.id);
+    if (!currentArticleId || !articleIds.includes(currentArticleId)) return;
+    if (!dialogOpen.value) return;
+    void fetchWarehouseStocks(currentArticleId);
+};
+
+onMounted(() => {
+    if (typeof window === 'undefined') return;
+    window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
+});
+onBeforeUnmount(() => {
+    if (typeof window === 'undefined') return;
+    window.removeEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
+});
 
 // Cierre del diálogo
 function handleClose() {
@@ -835,8 +865,3 @@ watch(
         </DialogContent>
     </Dialog>
 </template>
-
-
-
-
-

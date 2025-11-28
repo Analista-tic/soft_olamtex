@@ -9,6 +9,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'; // Importar tabs de shadcn
 import BranchesList from './BranchesList.vue'; // Componente para manejar sucursales
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
 // Extender el tipo Contact para incluir las propiedades adicionales
 interface ExtendedContact extends Contact {
@@ -94,6 +95,21 @@ const fieldLabels: Record<string, string> = {
     department: 'Departamento',
     municipality: 'Municipio',
 };
+const requiredFieldKeys: (keyof Partial<Contact>)[] = [
+    'contact_type',
+    'groups',
+    'id_type',
+    'id_number',
+    'full_name',
+    'person_type',
+    'department',
+    'email',
+];
+const requiredFieldLabels = requiredFieldKeys.map((key) => fieldLabels[key as string] || String(key));
+const emptyFieldsMessage = formatRequiredFieldsMessage(
+    'Se debe completar todos los campos obligatorios',
+    requiredFieldLabels,
+);
 
 const translateValidationMessage = (field: string, msg: string): string => {
     const lower = msg.toLowerCase();
@@ -132,17 +148,6 @@ watch(
 );
 
 const areRequiredFieldsEmpty = () => {
-    const requiredFields: (keyof Partial<Contact>)[] = [
-        'contact_type',
-        'groups',
-        'id_type',
-        'id_number',
-        'full_name',
-        'person_type',
-        'department',
-        'email',
-    ];
-
     const isEmptyValue = (value: unknown) => {
         if (Array.isArray(value)) {
             return value.length === 0;
@@ -156,7 +161,7 @@ const areRequiredFieldsEmpty = () => {
         return false;
     };
 
-    return requiredFields.every((field) => isEmptyValue((form.value as any)[field]));
+    return requiredFieldKeys.every((field) => isEmptyValue((form.value as any)[field]));
 };
 
 const submitForm = async () => {
@@ -308,7 +313,7 @@ const updateBranches = (branches: any[]) => {
                 <AlertBox
                     type="warning"
                     title="Campos obligatorios"
-                    message="Se debe completar todos los campos obligatorios."
+                    :message="emptyFieldsMessage"
                     @close="showEmptyAlert = false"
                 />
             </div>

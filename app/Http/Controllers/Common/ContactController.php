@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Common;
 
 use App\Http\Controllers\Controller;
 use App\Models\Common\Contact;
+use App\Models\Expenses\PurchaseInvoice;
+use App\Models\Expenses\PurchaseOrder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -165,8 +168,30 @@ class ContactController extends Controller
 
     public function destroy(Contact $contact)
     {
-        $contact->delete();
+        if ($this->hasActiveAssociations($contact)) {
+            return response()->json(
+                [
+                    'message' =>
+                        'No se puede eliminar el contacto porque tiene facturas u órdenes activas asociadas.',
+                ],
+                409,
+            );
+        }
 
-        return response()->json(['message' => 'Contacto eliminado exitosamente.']);
+        try {
+            $contact->delete();
+            return response()->json(['message' => 'Contacto eliminado exitosamente.']);
+        } catch (QueryException $exception) {
+            report($exception);
+            return response()->json(['message' => 'Error al eliminar el contacto.'], 500);
+        }
+    }
+
+    private function hasActiveAssociations(Contact $contact): bool
+    {
+        $hasOrders = PurchaseOrder::where('contact_id', $contact->id)->whereNull('deleted_at')->exists();
+        $hasInvoices = PurchaseInvoice::where('contact_id', $contact->id)->whereNull('deleted_at')->exists();
+
+        return $hasOrders || $hasInvoices;
     }
 }

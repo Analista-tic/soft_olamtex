@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import {
 
 import InventoryAdjustmentForm from './InventoryAdjustmentForm.vue';
 import InventoryAdjustmentPrintDialog from './InventoryAdjustmentPrintDialog.vue';
+import SelectField from '@/components/SelectField.vue';
 import {
   Pagination,
   PaginationEllipsis,
@@ -35,7 +36,7 @@ type InventoryAdjustment = {
   id: number;
   document_number: string | null;
   date: string;
-  type: string;
+  type: 'entrada' | 'salida';
   movement_reason?: string | null;
   observation?: string | null;
   total: number | string;
@@ -49,6 +50,7 @@ const breadcrumbs = [
 const adjustments = ref<InventoryAdjustment[]>([]);
 const totalItems = ref(0);
 const searchQuery = ref('');
+const typeFilter = ref('all');
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const isAdjustmentFormOpen = ref(false);
@@ -63,28 +65,32 @@ const isConverting = ref<number | null>(null);
 const isPrintDialogOpen = ref(false);
 const adjustmentToPrint = ref<InventoryAdjustment | null>(null);
 
-const adjustmentTypeOptions = [
-  { id: 'entrada_sin_factura', name: 'Entrada de inventario sin factura', direction: 'entrada' },
-  { id: 'en_bodega_para_despacho', name: 'En bodega para despacho', direction: 'entrada' },
-  { id: 'salida_insumos_orden_produccion', name: 'Salida de insumos para orden de producción', direction: 'salida' },
-  { id: 'salida_insumos_otras_areas', name: 'Salida insumos otras áreas', direction: 'salida' },
-  { id: 'salida_papeleria', name: 'Salida papelería', direction: 'salida' },
-  { id: 'salida_aseo', name: 'Salida aseo', direction: 'salida' },
-  { id: 'salida_ajustar_inventario', name: 'Salida para ajustar inventario', direction: 'salida' },
-  { id: 'devolucion_proveedor', name: 'Devolución proveedor', direction: 'salida' },
-  // Compatibilidad con registros anteriores
-  { id: 'entrada', name: 'Entrada', direction: 'entrada' },
-  { id: 'salida', name: 'Salida', direction: 'salida' },
-];
+const adjustmentTypeLabelMap: Record<string, 'Entrada' | 'Salida'> = {
+  entrada: 'Entrada',
+  salida: 'Salida',
+};
 
-const adjustmentTypeMap = adjustmentTypeOptions.reduce<Record<string, string>>((acc, opt) => {
-  acc[opt.id] = opt.name;
-  return acc;
-}, {});
+const currencyFormatter = new Intl.NumberFormat('es-CO', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const formatCurrency = (value: number | string | null | undefined) =>
+  currencyFormatter.format(Number(value ?? 0));
+
+const getAdjustmentTypeLabel = (adjustment: InventoryAdjustment) => {
+  const reason = adjustment.movement_reason ?? adjustment.type;
+  const fallback = adjustment.type === 'salida' ? 'Salida' : 'Entrada';
+  return adjustmentTypeLabelMap[reason as string] ?? fallback;
+};
 
 async function fetchAdjustments(page = 1, search = '') {
+  const params: Record<string, any> = { page, per_page: itemsPerPage, search };
+  if (typeFilter.value !== 'all') {
+    params.type = typeFilter.value;
+  }
   const { data } = await axios.get('/ajustes-inventario/data', {
-    params: { page, per_page: itemsPerPage, search },
+    params,
   });
 
   adjustments.value = data.data ?? [];
@@ -101,6 +107,11 @@ function handleSearch() {
   currentPage.value = 1;
   fetchAdjustments(1, searchQuery.value);
 }
+
+watch(typeFilter, () => {
+  currentPage.value = 1;
+  fetchAdjustments(1, searchQuery.value);
+});
 
 function openCreateAdjustment() {
   dialogType.value = 'create';
@@ -218,20 +229,30 @@ onMounted(() => {
         </Button>
       </div>
 
-      <div class="relative flex items-center gap-2">
-        <div class="relative w-full max-w-sm">
+      <div class="flex items-end gap-4 mb-2 flex-wrap">
+        <div class="relative max-w-xs flex-1 min-w-[220px]">
           <Input
             id="search_adjustment"
             v-model="searchQuery"
             placeholder="Buscar por numero de documento u observacion"
-            class="h-8 w-full"
+            class="h-10 w-full pl-10"
             @keyup.enter="handleSearch"
           />
+          <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+            <Search class="h-5 w-5 text-muted-foreground" />
+          </span>
         </div>
-        <Button size="sm" variant="outline" class="h-8 px-3" @click="handleSearch">
-          <Search class="h-4 w-4" />
-          Buscar
-        </Button>
+        <div class="min-w-[180px]">
+          <SelectField
+            v-model="typeFilter"
+            label="Tipo"
+            :options="[
+              { id: 'all', name: 'Todos los tipos' },
+              { id: 'entrada', name: 'Entrada' },
+              { id: 'salida', name: 'Salida' },
+            ]"
+          />
+        </div>
       </div>
 
       <div
@@ -253,10 +274,10 @@ onMounted(() => {
               <TableCell>{{ adjustment.document_number ?? 'Sin numero' }}</TableCell>
               <TableCell>{{ adjustment.date }}</TableCell>
               <TableCell class="capitalize">
-                {{ adjustmentTypeMap[adjustment.movement_reason as string] || adjustment.type }}
+                {{ getAdjustmentTypeLabel(adjustment) }}
               </TableCell>
               <TableCell>{{ adjustment.observation || '-' }}</TableCell>
-              <TableCell>{{ Number(adjustment.total ?? 0).toFixed(2) }}</TableCell>
+              <TableCell>{{ formatCurrency(adjustment.total) }}</TableCell>
               <TableCell class="flex justify-center gap-1">
                 <EditButton :onClick="() => openEditAdjustment(adjustment)" title="Editar ajuste" />
                 <DeleteButton :onClick="() => confirmDelete(adjustment)" title="Eliminar ajuste" />
