@@ -61,7 +61,7 @@ const navMainGroup: NavGroupItem[] = [
             },
             {
                 title: 'Factura de Compra Tela',
-                href: '/gastos/facturas-compra',
+                href: '/gastos/facturas-compra-tela',
                 permission: 'ver telas',
             },
         ],

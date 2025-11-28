@@ -311,6 +311,10 @@ async function handleSubmit() {
         dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
         return;
     }
+    if (hasNegativeStock.value && !negativeMovementBool.value) {
+        showNegativeMovementWarning();
+        return; // NO se envía el formulario ni se cierra el diálogo
+    }
 
     const extraFieldsToSend: Record<string, string> = {};
     extraFieldNames.forEach((key) => {
@@ -435,15 +439,34 @@ function handleClose() {
     emit('close');
 }
 
-// Computed para el switch de movimiento negativo
-const negativeMovementBool = computed({
-    get() {
-        return localForm.value.negative_movement === 1 || localForm.value.negative_movement === true;
-    },
-    set(val: boolean) {
-        localForm.value.negative_movement = val ? 1 : 0;
-    },
-});
+const NEGATIVE_STOCK_WARNING =
+  'Este artículo tiene cantidades negativas en una o más bodegas. ' +
+  'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
+
+function showNegativeMovementWarning() {
+  alertType.value = 'warning';
+  alertMessage.value = NEGATIVE_STOCK_WARNING;
+
+  const dialogEl = document.querySelector('[role="dialog"]');
+  dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+const hasNegativeStock = computed(() =>
+  warehouseStocks.value.some((w) => Number(w.quantity) < 0)
+);
+
+const negativeMovementBool = computed(() =>
+  localForm.value.negative_movement === 1 ||
+  localForm.value.negative_movement === true
+);
+
+function handleNegativeMovementChange(val: boolean) {
+  if (hasNegativeStock.value && !val) {
+    showNegativeMovementWarning();
+  }
+
+  localForm.value.negative_movement = val ? 1 : 0;
+}
 
 // Actualiza el campo nombre automáticamente
 function updateNameField(orderedFields?: Record<string, string>): void {
@@ -687,6 +710,7 @@ watch(
                                                 type="number"
                                                 class="w-full"
                                                 placeholder="Cantidad"
+                                                :allowNegative="true"  
                                             />
                                         </div>
                                         <div class="flex h-full flex-col justify-between gap-1">
@@ -767,7 +791,7 @@ watch(
                                         <div
                                             class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
                                         >
-                                            {{ isViewMode ? 'Imagen del art├¡culo' : 'Cambiar imagen' }}
+                                            {{ isViewMode ? 'Imagen del artículo' : 'Cambiar imagen' }}
                                         </div>
                                     </template>
 
@@ -822,8 +846,9 @@ watch(
                         </div>
                         <div class="flex items-center md:col-span-1">
                             <SwitchField
-                                v-model="negativeMovementBool"
-                                label="Movimiento Negativo"
+                            :model-value="negativeMovementBool"
+                            @update:modelValue="handleNegativeMovementChange"
+                            label="Movimiento Negativo"
                             />
                         </div>
                     </div>

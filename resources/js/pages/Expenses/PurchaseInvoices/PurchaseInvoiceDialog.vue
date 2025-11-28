@@ -131,15 +131,7 @@ watch(
 async function fetchContacts() {
     try {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
-        let contactsArray: Contact[] = [];
-        if (Array.isArray(response.data?.data?.data)) {
-            contactsArray = response.data.data.data;
-        } else if (Array.isArray(response.data?.data)) {
-            contactsArray = response.data.data;
-        } else if (Array.isArray(response.data)) {
-            contactsArray = response.data;
-        }
-        contacts.value = contactsArray;
+        contacts.value = response.data.data || [];
     } catch {
         contacts.value = [];
     }
@@ -397,16 +389,13 @@ watch(dialogOpen, (isOpen) => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <div class="mb-2 flex justify-end">
-                <div class="w-64"></div>
-            </div>
-              <form
-                  @submit.prevent="handleSubmit()"
-                  :class="{
-                      'pointer-events-none': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly
-                  }"
-                  class="space-y-6"
-              >
+            <form
+                @submit.prevent="handleSubmit()"
+                :class="{
+                    'pointer-events-none': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly
+                }"
+                class="space-y-6"
+            >
                 <div class="grid grid-cols-3 items-start gap-4">
                     <div>
                         <InputField

@@ -231,6 +231,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'update'])->name('update');
             Route::delete('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
         });
+
+        // === FACTURAS DE COMPRA TELAS ===
+        Route::prefix('facturas-compra-telas')->name('purchase-invoices.')->group(function () {
+            Route::get('/', [PurchaseInvoiceController::class, 'Telas'])->name('Telas');
+            Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
+            Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store');
+            Route::get('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show'])->name('show');
+            Route::put('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'update'])->name('update');
+            Route::delete('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
+        });
     });
 
     // === Catálogos para campos parametrizables ===

@@ -210,13 +210,14 @@ class InventoryAdjustmentController extends Controller
         $newQty = $currentQty + ($sign * $quantity);
 
         if ($newQty < 0 && !$article->negative_movement) {
-            throw ValidationException::withMessages([
-                'lines' => ["No hay stock suficiente para el articulo {$article->name} en la bodega seleccionada."],
-            ]);
+            $article->negative_movement = 1;
+            $article->save();
         }
 
+        $quantityToStore = $article->negative_movement ? $newQty : max($newQty, 0);
+
         $payload = [
-            'quantity'   => max($newQty, 0),
+            'quantity'   => $quantityToStore,
             'stock_min'  => $row ? $row->stock_min : 0,
             'stock_max'  => $row ? $row->stock_max : 0,
             'updated_at' => now(),
