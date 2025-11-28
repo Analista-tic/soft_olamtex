@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Common\ContactController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceController;
+use App\Http\Controllers\Expenses\PurchaseInvoiceTelaController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
 use App\Http\Controllers\ProductSheet\BrandController;
 use App\Http\Controllers\ProductSheet\FabricBaseController;
@@ -233,14 +234,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
         // === FACTURAS DE COMPRA TELAS ===
-        Route::prefix('facturas-compra-telas')->name('purchase-invoices.')->group(function () {
-            Route::get('/', [PurchaseInvoiceController::class, 'Telas'])->name('Telas');
-            Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
-            Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store');
-            Route::get('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'show'])->name('show');
-            Route::put('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'update'])->name('update');
-            Route::delete('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
-        });
+        Route::prefix('facturas-compra-telas')->name('purchase-invoices-fabric.')->group(function () {
+            Route::get('/', [PurchaseInvoiceController::class, 'indexFabric'])->name('index');
+            Route::get('/data', [PurchaseInvoiceController::class, 'getDataFabric'])->name('getData');
+            Route::post('/', [PurchaseInvoiceController::class, 'storeFabric'])->name('store');
+            Route::get('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'showFabric'])->name('show');
+            Route::put('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'updateFabric'])->name('update');
+            Route::delete('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroyFabric'])->name('destroy');
+        }); 
     });
 
     // === Catálogos para campos parametrizables ===
