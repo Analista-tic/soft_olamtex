@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { watch, computed, ref } from 'vue';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     SidebarGroup,
@@ -9,10 +10,10 @@ import {
     SidebarMenuSubButton,
     SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { ChevronRight } from 'lucide-vue-next';
 
-defineProps<{
+const props = defineProps<{
     items: {
         title: string;
         href: string;
@@ -24,11 +25,67 @@ defineProps<{
         }[];
     }[];
 }>();
+const items = computed(() => props.items);
 
-// Función para verificar si la ruta actual coincide con la del item
+const page = usePage();
+const currentPath = computed(() => {
+    try {
+        return new URL(page.url ?? window.location.href, window.location.origin).pathname;
+    } catch {
+        return window.location.pathname;
+    }
+});
+
+const normalizeHref = (href: string): string => {
+    if (!href || href === '#') {
+        return '';
+    }
+
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+        try {
+            return new URL(href).pathname;
+        } catch {
+            return href;
+        }
+    }
+
+    return href.startsWith('/') ? href : `/${href}`;
+};
+
+// Verifica si una ruta coincide con la actual
 function isRouteActive(href: string): boolean {
-    return window.location.pathname === href;
+    const normalized = normalizeHref(href);
+    if (!normalized) {
+        return false;
+    }
+
+    return currentPath.value === normalized;
 }
+
+const openGroups = ref<Record<string, boolean>>({});
+
+const updateOpenGroups = () => {
+    const nextState: Record<string, boolean> = { ...openGroups.value };
+
+    items.value.forEach((item) => {
+        const hasActiveItem = isRouteActive(item.href) || Boolean(item.items?.some((sub) => isRouteActive(sub.href)));
+        if (hasActiveItem) {
+            nextState[item.title] = true;
+        }
+    });
+
+    openGroups.value = nextState;
+};
+
+watch(currentPath, updateOpenGroups, { immediate: true });
+watch(items, updateOpenGroups);
+
+const handleOpenChange = (title: string, open: boolean) => {
+    openGroups.value = {
+        ...openGroups.value,
+        [title]: open,
+    };
+};
 </script>
 
 <template>
@@ -39,7 +96,8 @@ function isRouteActive(href: string): boolean {
                 <Collapsible
                     v-if="item.items && item.items.length"
                     as-child
-                    :default-open="item.isActive || isRouteActive(item.href)"
+                    :open="openGroups[item.title] ?? false"
+                    @update:open="(open) => handleOpenChange(item.title, open)"
                     class="group/collapsible"
                 >
                     <SidebarMenuItem>

@@ -194,6 +194,7 @@ const filteredMainNavItems = computed(() =>
 );
 
 // Filtrar los grupos de navegación principales según permisos de los subítems
+const isDev = Boolean((import.meta && (import.meta as any).DEV) || process.env.NODE_ENV === 'development');
 const filteredNavMainGroup = computed(() =>
     navMainGroup
         .map((group) => {
@@ -202,7 +203,10 @@ const filteredNavMainGroup = computed(() =>
                 return group;
             }
 
-            // Filtrar los subítems según los permisos del usuario
+            // En desarrollo, mostrar todos los subítems para facilitar pruebas locales
+            if (isDev) return group;
+
+            // En producción, filtrar los subítems según los permisos del usuario
             const visibleItems = (group.items || []).filter((item) => (item.permission ? auth.can(item.permission) : true));
 
             // Si hay subítems visibles, devolverlos; si no, devolver el grupo sin 'items'

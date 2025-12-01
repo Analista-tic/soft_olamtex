@@ -84,8 +84,14 @@ async function deleteArticle() {
         isDeleteDialogOpen.value = false;
         successMessage.value = "El artículo se eliminó correctamente.";
         errorMessage.value = "";
-    } catch (e) {
-        const message = e?.response?.data?.message ?? "No se pudo eliminar el artículo.";
+    } catch (err: unknown) {
+        let message = "No se pudo eliminar el artículo.";
+        if (axios.isAxiosError(err)) {
+            // err.response puede ser undefined; usar any para acceder a data.message si es necesario
+            message = (err.response?.data as any)?.message ?? message;
+        } else if (err instanceof Error) {
+            message = err.message ?? message;
+        }
         errorMessage.value = message;
         successMessage.value = "";
     }
