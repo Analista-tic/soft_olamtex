@@ -148,7 +148,7 @@ async function fetchContacts() {
 async function fetchNextInvoiceId() {
     isLoadingInvoiceId.value = true;
     try {
-        const { data } = await axios.get('/gastos/facturas-compra/data', {
+        const { data } = await axios.get('/gastos/facturas-compra-tela/data', {
             params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
         });
         const lastId = Array.isArray(data.data) && data.data.length > 0 ? Number(data.data[0].id) : 0;
@@ -201,7 +201,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
               original_order_item: { ...item },
           }))
         : [];
-    if (!localForm.value.items.length) {
+    if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
     }
     selectedPurchaseOrderId.value = Number(orderId);
@@ -255,12 +255,12 @@ async function handleSubmit(sendMail = false) {
     if (!Array.isArray(formToSend.withholdings)) {
         formToSend.withholdings = [];
     }
-    const url = props.dialogType === 'create' ? '/gastos/facturas-compra' : `/gastos/facturas-compra/${localForm.value.id}`;
+    const url = props.dialogType === 'create' ? '/gastos/facturas-compra-tela' : `/gastos/facturas-compra-tela/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
         const { data } = await axios({ method, url, data: formToSend });
         if (sendMail) {
-            await axios.post(`/gastos/facturas-compra/${data.data.id}/enviar-correo`);
+            await axios.post(`/gastos/facturas-compra-tela/${data.data.id}/enviar-correo`);
             emit('refresh', 'Factura guardada y enviada por correo correctamente.');
         } else {
             emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
@@ -282,7 +282,11 @@ async function handleSubmit(sendMail = false) {
 }
 
 function validateForm(): boolean {
-    const items = localForm.value.items || [];
+    function getItems() {
+        return Array.isArray(localForm.value.items) ? localForm.value.items : [];
+    }
+
+    const items = getItems();
     const missingFields: string[] = [];
 
     if (!localForm.value.contact_id) {
@@ -308,17 +312,32 @@ function validateForm(): boolean {
     if (!items.length) {
         errors.push('La factura debe contener al menos un ítem.');
     }
-    const invalidItems = items.filter(
-        (it) =>
-            !it.article_id ||
-            it.article_id === '' ||
-            it.price === '' ||
-            it.quantity === '' ||
-            Number(it.price) <= 0 ||
-            Number(it.quantity) <= 0,
+    const invalidItems = items.filter((it) =>
+        // article_id puede ser number o string; tratar null/undefined/0/'' como inválido
+        it.article_id == null || Number(it.article_id) <= 0 ||
+        it.price === '' ||
+        it.quantity === '' ||
+        Number(it.price) <= 0 ||
+        Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
-        errors.push('Cada ítem debe tener artículo, precio y cantidad mayores a cero.');
+        errors.push('Cada ítem debe tener artículo, precio y cantidad.');
+    }
+
+    // En el diálogo de telas, además validar campos específicos por ítem
+    const itemsMissingFabricFields: Array<{ idx: number; missing: string[] }> = [];
+    items.forEach((it, idx) => {
+        const missing: string[] = [];
+        // Solo validar si el artículo, precio y cantidad están presentes (o bien validar siempre para asegurar)
+        if (!it.supplier_code || String(it.supplier_code).trim() === '') missing.push('Código proveedor');
+        if (!it.supplier_color || String(it.supplier_color).trim() === '') missing.push('Color proveedor');
+        if (!it.order_width || String(it.order_width).trim() === '') missing.push('Ancho pedido');
+        if (missing.length) itemsMissingFabricFields.push({ idx: idx + 1, missing });
+    });
+
+    if (itemsMissingFabricFields.length) {
+        const lines = itemsMissingFabricFields.map(i => `Ítem ${i.idx}: ${i.missing.join(', ')}`);
+        errors.push(`Faltan campos obligatorios en items de telas:\n${lines.join('\n')}`);
     }
 
     if (errors.length) {
@@ -383,7 +402,7 @@ watch(dialogOpen, (isOpen) => {
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
             <DialogHeader>
-                <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
+                <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
                 <DialogDescription>
                     Completa los campos y añade los ítems de la factura.
                 </DialogDescription>
@@ -461,6 +480,7 @@ watch(dialogOpen, (isOpen) => {
                         :items="localForm.items || []"
                         :isCreating="dialogType === 'create'"
                         :isReadOnly="isReadOnly"
+                        :telaMode="true"
                         @update:items="(items) => (localForm.items = items)"
                     />
                 </div>

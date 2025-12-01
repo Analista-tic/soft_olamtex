@@ -11,7 +11,7 @@ import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
-import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
+import PurchaseInvoiceDialogTelas from './PurchaseInvoiceDialogTelas.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
@@ -25,8 +25,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const breadcrumbs = [
-    { title: 'Gastos', href: '/gastos/facturas-compra-telas' },
-    { title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-telas' },
+    { title: 'Gastos', href: '/gastos/facturas-compra-tela' },
+    { title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' },
 ];
 
 const invoices = ref<PurchaseInvoice[]>([]);
@@ -101,7 +101,7 @@ function confirmDeleteInvoice(invoice: PurchaseInvoice) {
 async function deleteInvoice(): Promise<void> {
     if (!invoiceToDelete.value) return;
     try {
-        await axios.delete(`/gastos/facturas-compra/${invoiceToDelete.value.id}`);
+        await axios.delete(`/gastos/facturas-compra-tela/${invoiceToDelete.value.id}`);
         showSuccess('delete');
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
@@ -126,7 +126,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
     try {
-        const response = await axios.get('/gastos/facturas-compra/data', { params });
+        const response = await axios.get('/gastos/facturas-compra-tela/data', { params });
         invoices.value = Array.isArray(response.data.data)
             ? response.data.data
             : Array.isArray(response.data)
@@ -203,7 +203,7 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
     if (isSendingMail.value) return;
     isSendingMail.value = true;
     try {
-        await axios.post(`/gastos/facturas-compra/${invoice.id}/enviar-correo`);
+        await axios.post(`/gastos/facturas-compra-tela/${invoice.id}/enviar-correo`);
         showSuccess('sendMail');
     } catch {
         showError('Error al enviar el correo.');
@@ -257,7 +257,7 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
             />
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Facturas de Compra</h1>
+                <h1 class="text-lg font-bold">Facturas de Compra Tela</h1>
                 <div class="flex gap-2">
                     <Button 
                         @click="router.visit('/kardex-telas/recepcion')" 
@@ -392,7 +392,7 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                 </Table>
             </div>
         </div>
-        <PurchaseInvoiceDialog
+        <PurchaseInvoiceDialogTelas
             v-if="isDialogOpen"
             :isOpen="isDialogOpen"
             :dialogType="dialogType"

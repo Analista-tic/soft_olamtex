@@ -193,6 +193,8 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
               original_order_item: { ...item },
           }))
         : [];
+    // Asegurar que items siempre sea un array antes de leer .length
+    localForm.value.items = localForm.value.items ?? [];
     if (!localForm.value.items.length) {
         localForm.value.items = [createEmptyItem()];
     }
@@ -274,7 +276,11 @@ async function handleSubmit(sendMail = false) {
 }
 
 function validateForm(): boolean {
-    const items = localForm.value.items || [];
+    function getItems() {
+        return Array.isArray(localForm.value.items) ? localForm.value.items : [];
+    }
+
+    const items = getItems();
     const missingFields: string[] = [];
 
     if (!localForm.value.contact_id) {
@@ -300,17 +306,17 @@ function validateForm(): boolean {
     if (!items.length) {
         errors.push('La factura debe contener al menos un ítem.');
     }
-    const invalidItems = items.filter(
-        (it) =>
-            !it.article_id ||
-            it.article_id === '' ||
-            it.price === '' ||
-            it.quantity === '' ||
-            Number(it.price) <= 0 ||
-            Number(it.quantity) <= 0,
+    const invalidItems = items.filter((it) =>
+        // aceptar article_id como number|string|null; considerar inválido null/undefined/empty/<=0
+        it.article_id == null ||
+        Number(it.article_id) <= 0 ||
+        it.price === '' ||
+        it.quantity === '' ||
+        Number(it.price) <= 0 ||
+        Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
-        errors.push('Cada ítem debe tener artículo, precio y cantidad mayores a cero.');
+        errors.push('Cada ítem debe tener artículo, precio y cantidad.');
     }
 
     if (errors.length) {
@@ -450,6 +456,7 @@ watch(dialogOpen, (isOpen) => {
                         :items="localForm.items || []"
                         :isCreating="dialogType === 'create'"
                         :isReadOnly="isReadOnly"
+                        :telaMode="false"
                         @update:items="(items) => (localForm.items = items)"
                     />
                 </div>

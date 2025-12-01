@@ -63,6 +63,8 @@ class PurchaseInvoiceController extends Controller
         // Asegura que withholdings sea array
         $data['withholdings'] = $data['withholdings'] ?? [];
 
+        $data['is_fabric'] = false;
+
         $invoice = PurchaseInvoice::create($data);
 
         // Crea los items asociados
@@ -87,6 +89,7 @@ class PurchaseInvoiceController extends Controller
             unset($data['purchase_order_id']);
         }
         $data['withholdings'] = $data['withholdings'] ?? [];
+        $data['is_fabric'] = false;
 
         $invoice->update($data);
 
@@ -122,7 +125,8 @@ class PurchaseInvoiceController extends Controller
             'items.article.categorySubGroup.categoryGroup',
             'items.article.color',
             'items.article.tax'
-        ]);
+        ])
+        ->where('is_fabric', false);
 
         // Filtros dinámicos
         if ($request->filled('search')) {

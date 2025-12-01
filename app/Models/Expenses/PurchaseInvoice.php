@@ -22,12 +22,14 @@ class PurchaseInvoice extends Model
         'description',
         'status',
         'withholdings',
+        'is_fabric',
     ];
 
     protected $casts = [
         'date' => 'date',
         'delivery_date' => 'date',
         'withholdings' => 'array',
+        'is_fabric' => 'boolean',
     ];
 
     public function contact(): BelongsTo

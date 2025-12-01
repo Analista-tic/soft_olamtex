@@ -64,6 +64,7 @@ class PurchaseInvoiceTelaController extends Controller
 
         // Asegura que withholdings sea array
         $data['withholdings'] = $data['withholdings'] ?? [];
+        $data['is_fabric'] = true;
 
         $invoice = PurchaseInvoice::create($data);
 
@@ -89,6 +90,7 @@ class PurchaseInvoiceTelaController extends Controller
             unset($data['purchase_order_id']);
         }
         $data['withholdings'] = $data['withholdings'] ?? [];
+        $data['is_fabric'] = true;
 
         $invoice->update($data);
 
@@ -124,7 +126,8 @@ class PurchaseInvoiceTelaController extends Controller
             'items.article.categorySubGroup.categoryGroup',
             'items.article.color',
             'items.article.tax'
-        ]);
+        ])
+        ->where('is_fabric', true);
 
         // Filtros dinámicos
         if ($request->filled('search')) {

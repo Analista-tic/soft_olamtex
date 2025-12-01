@@ -234,14 +234,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
 
         // === FACTURAS DE COMPRA TELAS ===
-        Route::prefix('facturas-compra-telas')->name('purchase-invoices-fabric.')->group(function () {
-            Route::get('/', [PurchaseInvoiceController::class, 'indexFabric'])->name('index');
-            Route::get('/data', [PurchaseInvoiceController::class, 'getDataFabric'])->name('getData');
-            Route::post('/', [PurchaseInvoiceController::class, 'storeFabric'])->name('store');
-            Route::get('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'showFabric'])->name('show');
-            Route::put('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'updateFabric'])->name('update');
-            Route::delete('/{purchaseInvoice}', [PurchaseInvoiceController::class, 'destroyFabric'])->name('destroy');
-        }); 
+        Route::prefix('facturas-compra-tela')->name('purchase-invoices-fabric.')->group(function () {
+            Route::get('/', [PurchaseInvoiceTelaController::class, 'indexFabric'])->name('index');
+            Route::get('/data', [PurchaseInvoiceTelaController::class, 'getData'])->name('getData');
+            Route::post('/', [PurchaseInvoiceTelaController::class, 'store'])->name('store');
+            Route::get('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'show'])->name('show');
+            Route::put('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'update'])->name('update');
+            Route::delete('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'destroy'])->name('destroy');
+        });
     });
 
     // === Catálogos para campos parametrizables ===

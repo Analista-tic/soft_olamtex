@@ -14,6 +14,7 @@ const props = defineProps<{
     items: PurchaseInvoiceItem[]; 
     isCreating?: boolean; 
     isReadOnly?: boolean;
+    telaMode?: boolean | null;
 }>();
 const emit = defineEmits(['update:items']);
 
@@ -183,6 +184,51 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
     if (suggested === null) return false;
     return Number(item.quantity) !== Number(suggested);
 }
+
+function isTelaArticle(article: Article): boolean {
+    const name = (article.name ?? '').toLowerCase();
+    return name.includes('tela');
+}
+
+const articleOptions = computed(() => {
+  return articles.value
+    .filter((a) => {
+    const tela = isTelaArticle(a);
+
+      if (props.telaMode === true)  return tela;      // solo telas
+      if (props.telaMode === false) return !tela;     // todos menos telas
+      return true;                                    // sin filtro
+    })
+    .map((a) => ({
+      id: a.id,
+      name: a.name,
+    }));
+});
+
+const shouldShowFabricColumns = computed(() => {
+    if (props.telaMode === true) return true;
+    if (props.telaMode === false) return false;
+    return localItems.value.some(isTela);
+});
+
+const showActionsColumn = computed(() => {
+  return !isReadOnly.value && localItems.value.length > 1;
+});
+
+const totalColumns = computed(() => {
+  let cols = 6; // Artículo, Precio, Impuesto, Cantidad, Descripción, Total
+
+  if (shouldShowFabricColumns.value) {
+    cols += 3; // Código, Color, Ancho
+  }
+
+  if (showActionsColumn.value) {
+    cols += 1; // Acciones
+  }
+
+  return cols;
+});
+
 </script>
 
 <template>
@@ -208,28 +254,41 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
         >
             <TableHeader>
                 <TableRow class="text-center">
-                    <TableCell class="min-w-[120px]">Artículo</TableCell>
-                    <TableCell>Precio</TableCell>
-                    <TableCell class="w-[80px] min-w-[60px]">Impuesto (%)</TableCell>
-                    <TableCell>Cantidad</TableCell>
+                    <TableCell class="min-w-[120px]">Artículo <span class="text-red-600">*</span></TableCell>
+
+                    <TableCell :class="telaMode ? 'w-[140px] min-w-[140px]' : ''">
+                    Precio <span class="text-red-600">*</span>
+                    </TableCell>
+                    <TableCell
+                    :class="[
+                        'min-w-[50px]',
+                        telaMode ? 'w-[50px]' : 'w-[60px]'
+                    ]"
+                    >
+                    Impuesto (%)
+                    </TableCell>
+                    <TableCell>Cantidad <span class="text-red-600">*</span></TableCell>
                     <TableCell>Descripción</TableCell>
                     <!-- Campos extra para tela -->
-                    <TableCell v-if="localItems.some(isTela)">Código proveedor</TableCell>
-                    <TableCell v-if="localItems.some(isTela)">Color proveedor</TableCell>
-                    <TableCell v-if="localItems.some(isTela)">Ancho pedido</TableCell>
+                    <TableCell v-if="shouldShowFabricColumns">Código proveedor <span class="text-red-600">*</span></TableCell>
+                    <TableCell v-if="shouldShowFabricColumns">Color proveedor <span class="text-red-600">*</span></TableCell>
+                    <TableCell v-if="shouldShowFabricColumns">Ancho pedido <span class="text-red-600">*</span></TableCell>
                     <TableCell>Total</TableCell>
-                    <TableCell>Acciones</TableCell>
+                    <TableCell v-if="showActionsColumn">Acciones</TableCell>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
-                    <TableCell class="min-w-[120px] p-1 px-1 align-top">
-                        <SelectField
-                            v-model="item.article_id"
-                            :options="articles.map((a) => ({ id: a.id, name: a.name }))"
-                            label=""
-                            :disabled="isReadOnly"
-                        />
+                    <TableCell class="min-w-[140px] p-1 align-top">
+                        <div class="flex flex-col items-start justify-start h-full w-full">
+                            <SelectField
+                                v-model="item.article_id"
+                                :options="articleOptions"
+                                label=""
+                                placeholder="Selecciona artículo"
+                                :disabled="isReadOnly"
+                            />
+                        </div>
                     </TableCell>
                     <TableCell class="p-1 align-top">
                         <div class="flex flex-col items-start justify-start h-full w-full">
@@ -288,34 +347,35 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                         <InputField v-model="item.description" label="" :readonly="isReadOnly" :disabled="isReadOnly" />
                     </TableCell>
                     <!-- Campos extra solo si es tela -->
-                    <TableCell v-if="isTela(item)" class="p-1 align-top">
+                    <TableCell v-if="shouldShowFabricColumns" class="p-1 align-top">
                         <InputField
                             v-model="item.supplier_code"
                             label=""
                             placeholder="Código proveedor"
-                            :readonly="isReadOnly"
-                            :disabled="isReadOnly"
+                            :readonly="isReadOnly || !isTela(item)"
+                            :disabled="isReadOnly || !isTela(item)"
                         />
                     </TableCell>
-                    <TableCell v-if="isTela(item)" class="p-1 align-top">
+                    <TableCell v-if="shouldShowFabricColumns" class="p-1 align-top">
                         <InputField
                             v-model="item.supplier_color"
                             label=""
                             placeholder="Color proveedor"
-                            :readonly="isReadOnly"
-                            :disabled="isReadOnly"
+                            :readonly="isReadOnly || !isTela(item)"
+                            :disabled="isReadOnly || !isTela(item)"
                         />
                     </TableCell>
-                    <TableCell v-if="isTela(item)" class="p-1 align-top">
+                    <TableCell v-if="shouldShowFabricColumns" class="p-1 align-top">
                         <InputField
                             v-model="item.order_width"
                             type="text"
                             label=""
                             placeholder="Ancho pedido"
-                            :readonly="isReadOnly"
-                            :disabled="isReadOnly"
+                            :readonly="isReadOnly || !isTela(item)"
+                            :disabled="isReadOnly || !isTela(item)"
                         />
                     </TableCell>
+
                     <TableCell class="p-1 pb-4 align-center text-center">
                         {{
                             Number(item.total || 0).toLocaleString('es-CO', {
@@ -326,14 +386,16 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                             })
                         }}
                     </TableCell>
-                    <TableCell class="p-1">
+                    <TableCell v-if="showActionsColumn" class="p-1">
                         <div class="flex justify-center">
-                            <DeleteButton v-if="!isReadOnly && localItems.length > 1" @click="removeItem(idx)" />
+                            <DeleteButton @click="removeItem(idx)" />
                         </div>
                     </TableCell>
                 </TableRow>
                 <TableRow v-if="localItems.length === 0">
-                    <TableCell :colspan="localItems.some(isTela) ? 11 : 8" class="text-center text-gray-400"> No hay items agregados. </TableCell>
+                    <TableCell :colspan="totalColumns" class="text-center text-gray-400">
+                        No hay items agregados.
+                    </TableCell>
                 </TableRow>
             </TableBody>
         </Table>

@@ -61,7 +61,7 @@ const navMainGroup: NavGroupItem[] = [
             },
             {
                 title: 'Factura de Compra Tela',
-                href: '/gastos/facturas-compra-telas',
+                href: '/gastos/facturas-compra-tela',
                 permission: 'ver telas',
             },
         ],
@@ -81,27 +81,27 @@ const navMainGroup: NavGroupItem[] = [
             {
                 title: 'Gestion de Articulos',
                 href: '/articulos',
-                permission: 'ver telas',
+                permission: 'ver articulos',
             },
             {
                 title: 'Inventario de Articulos',
                 href: '/inventario/articulos',
-                permission: 'ver telas',
+                permission: 'ver inventario',
             },
             {
                 title: 'Ajuste de Inventario',
                 href: '/inventario/ajuste-inventario',
-                permission: 'ver telas',
+                permission: 'ver ajustes',
             },
             {
                 title: 'Gestión de Bodegas',
                 href: '/bodegas',
-                permission: 'ver telas',
+                permission: 'ver bodegas',
             },
             {
                 title: 'Gestión de Categorías',
                 href: '/categorias/subgrupos',
-                permission: 'ver telas',
+                permission: 'ver categorías',
             },
         ],
     },
@@ -194,30 +194,23 @@ const filteredMainNavItems = computed(() =>
 );
 
 // Filtrar los grupos de navegación principales según permisos de los subítems
-const filteredNavMainGroup = computed(
-    () =>
-        navMainGroup
-            .map((group) => {
-                // Si no tiene subítems, mostrar el grupo tal cual
-                if (!group.items || group.items.length === 0) {
-                    return group;
-                }
-                // Filtrar los subítems según los permisos del usuario
-                const visibleItems =
-                    group.items.filter((item) => {
-                        return item.permission ? auth.can(item.permission) : false;
-                    }) || [];
-                // Si no hay subítems visibles, mostrar el grupo sin items (para que NavMainGroup lo pinte como botón simple)
-                return {
-                    ...group,
-                    items: visibleItems,
-                };
-            })
-            .filter(
-                (group) =>
-                    // Mostrar si tiene subítems visibles o si no tiene subítems definidos
-                    group && (group.items === undefined || group.items.length > 0),
-            ) as NavGroupItem[],
+const filteredNavMainGroup = computed(() =>
+    navMainGroup
+        .map((group) => {
+            // Si no tiene subítems definidos, devolver el grupo tal cual
+            if (!group.items || group.items.length === 0) {
+                return group;
+            }
+
+            // Filtrar los subítems según los permisos del usuario
+            const visibleItems = (group.items || []).filter((item) => (item.permission ? auth.can(item.permission) : true));
+
+            // Si hay subítems visibles, devolverlos; si no, devolver el grupo sin 'items'
+            // Dejar `items: undefined` ayuda a que el componente de UI lo trate como botón simple
+            return visibleItems.length ? { ...group, items: visibleItems } : { ...group, items: undefined };
+        })
+        // Mantener sólo grupos válidos (grupos sin items o con items visibles)
+        .filter((group) => group && (group.items === undefined || (Array.isArray(group.items) && group.items.length > 0))) as NavGroupItem[],
 );
 </script>
 
