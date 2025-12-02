@@ -11,14 +11,14 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const modules = [
-    {
-        title: 'Empresa', // Título mejorado
-        description: 'Administra usuarios, roles y permisos de acceso.',
-        options: [
-            { name: 'Datos Basicos', href: '' },
-            { name: 'Contactos', href: '/contactos' },
-        ],
-    },
+            {
+                title: 'Empresa', // Título mejorado
+                description: 'Administra usuarios, roles y permisos de acceso.',
+                options: [
+                    { name: 'Datos Basicos', href: '/configuracion/datos-basicos' },
+                    { name: 'Contactos', href: '/contactos' },
+                ],
+            },
     {
         title: 'Inventario', // Título mejorado
         description: 'Parametrizar y Configurar Campos de Inventario.',

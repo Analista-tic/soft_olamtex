@@ -18,6 +18,7 @@ use App\Http\Controllers\ProductSheet\ProductSheetController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\Settings\RoleController;
+use App\Http\Controllers\Settings\CompanySettingsController;
 use App\Http\Controllers\Common\CategoryGroupController;
 use App\Http\Controllers\Common\CategorySubGroupController;
 use App\Http\Controllers\Common\WarehouseController;
@@ -98,6 +99,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')
         ->name('configuration');
+    Route::get('configuracion/datos-basicos', [CompanySettingsController::class, 'edit'])
+        ->middleware('permission:ver usuarios')
+        ->name('configuration.basic-data');
+    Route::patch('configuracion/datos-basicos', [CompanySettingsController::class, 'update'])
+        ->middleware('permission:ver usuarios')
+        ->name('configuration.basic-data.update');
 
     // === USUARIOS ===
     Route::get('users', [UserController::class, 'getData'])
