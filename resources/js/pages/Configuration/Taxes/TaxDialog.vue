@@ -18,12 +18,23 @@ const emit = defineEmits<{
     (e: 'cancel'): void;
 }>();
 
-const localForm = ref<any>({ ...props.form });
+const normalizeStatusValue = (value: unknown): 'true' | 'false' | '' => {
+    if (value === 'false' || value === false) return 'false';
+    if (value === 'true' || value === true) return 'true';
+    return '';
+};
+
+const normalizeForm = (source: any = {}) => ({
+    ...source,
+    status: normalizeStatusValue(source.status),
+});
+
+const localForm = ref<any>(normalizeForm(props.form));
 
 watch(
     () => props.form,
     (newVal) => {
-        localForm.value = { ...newVal };
+        localForm.value = normalizeForm(newVal);
     },
 );
 
@@ -61,6 +72,7 @@ function handleSubmit() {
                     label="Estado"
                     :options="[{id:'true',name:'Activo'},{id:'false',name:'Inactivo'}]"
                     required
+                    placeholder="Estado del impuesto"
                 />
             </div>
             <DialogFooter>

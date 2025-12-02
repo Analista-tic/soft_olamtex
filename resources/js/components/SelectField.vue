@@ -24,7 +24,7 @@ const props = withDefaults(defineProps<{
     searchable: false,
     searchPlaceholder: 'Buscar...',
     showPlaceholderOption: true,
-    searchThreshold: 4,
+    searchThreshold: 5,
 });
 
 const emit = defineEmits<{
@@ -53,10 +53,18 @@ watch(localModelValue, (newValue) => {
 const searchTerm = ref('');
 const searchInputRef = ref<HTMLInputElement | null>(null);
 
+const isSearchEnabled = computed(() => {
+    if (props.searchable) return true;
+    if (props.searchThreshold === 0) return true;
+    return props.options.length > props.searchThreshold;
+});
+
+const shouldShowSearchInput = computed(() => isSearchEnabled.value);
+
 // Emitir búsqueda al componente padre con debounce (solo si searchable es true)
 let searchTimeout: ReturnType<typeof setTimeout>;
 watch(searchTerm, (newVal) => {
-    if (!props.searchable) return;
+    if (!isSearchEnabled.value) return;
     
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => {
@@ -65,7 +73,7 @@ watch(searchTerm, (newVal) => {
 });
 
 const filteredOptions = computed(() => {
-    if (!props.searchable) return props.options;
+    if (!isSearchEnabled.value) return props.options;
     
     const term = searchTerm.value.trim().toLowerCase();
     if (!term) return props.options;
@@ -135,7 +143,7 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                         class="absolute z-50 mt-1 min-w-[12rem] w-full max-w-full bg-white shadow-2xl rounded-md text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm overflow-hidden"
                         style="position: absolute; max-height: 15rem; background: white; box-shadow: 0 8px 32px 0 rgba(31, 41, 55, 0.25), 0 1.5px 6px 0 rgba(0,0,0,0.10); border: 1px solid #e5e7eb;"
                     >
-                        <div v-if="searchable" class="z-30 bg-white px-3 pb-3 pt-3 shadow-sm border-b border-gray-200">
+                        <div v-if="shouldShowSearchInput" class="z-30 bg-white px-3 pb-3 pt-3 shadow-sm border-b border-gray-200">
                             <input
                                 ref="searchInputRef"
                                 v-model="searchTerm"

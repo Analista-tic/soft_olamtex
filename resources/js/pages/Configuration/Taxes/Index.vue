@@ -27,7 +27,7 @@ const taxToDelete = ref<any | null>(null);
 const isDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
-const form = ref<any>({ id: undefined, name: '', percentage: 0, status: true });
+const form = ref<any>({ id: undefined, name: '', percentage: 0, status: '' });
 const isSubmitting = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -43,7 +43,7 @@ function openDialog(type: 'create' | 'edit', tax: any | null = null) {
     isDialogOpen.value = true;
     form.value = type === 'edit' && tax
         ? { ...tax }
-        : { id: undefined, name: '', percentage: 0, status: true };
+        : { id: undefined, name: '', percentage: 0, status: '' };
 }
 
 function closeDialog() { isDialogOpen.value = false; }
@@ -199,7 +199,6 @@ onMounted(() => fetchTaxes());
         />
     </AppLayout>
 </template>
-
 
 
 
