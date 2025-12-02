@@ -21,7 +21,7 @@ const props = withDefaults(defineProps<{
     multiple: false,
     placeholder: '',
     disabled: false,
-    searchable: true,
+    searchable: false,
     searchPlaceholder: 'Buscar...',
     showPlaceholderOption: true,
     searchThreshold: 4,
@@ -29,6 +29,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
     (e: 'update:modelValue', value: Option['id'] | Option['id'][] | undefined | null): void;
+    (e: 'search', searchTerm: string): void;
 }>();
 
 const localModelValue = ref<Option['id'] | Option['id'][]>(
@@ -50,10 +51,22 @@ watch(localModelValue, (newValue) => {
 
 // Búsqueda local dentro del dropdown
 const searchTerm = ref('');
-const shouldRenderSearch = computed(
-    () => props.searchable && props.options.length > (props.searchThreshold ?? 0),
-);
+const searchInputRef = ref<HTMLInputElement | null>(null);
+
+// Emitir búsqueda al componente padre con debounce (solo si searchable es true)
+let searchTimeout: ReturnType<typeof setTimeout>;
+watch(searchTerm, (newVal) => {
+    if (!props.searchable) return;
+    
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        emit('search', newVal);
+    }, 300); // 300ms de debounce
+});
+
 const filteredOptions = computed(() => {
+    if (!props.searchable) return props.options;
+    
     const term = searchTerm.value.trim().toLowerCase();
     if (!term) return props.options;
     return props.options.filter((opt) => opt.name.toLowerCase().includes(term));
@@ -122,8 +135,9 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                         class="absolute z-50 mt-1 min-w-[12rem] w-full max-w-full bg-white shadow-2xl rounded-md text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm overflow-hidden"
                         style="position: absolute; max-height: 15rem; background: white; box-shadow: 0 8px 32px 0 rgba(31, 41, 55, 0.25), 0 1.5px 6px 0 rgba(0,0,0,0.10); border: 1px solid #e5e7eb;"
                     >
-                        <div v-if="shouldRenderSearch" class="z-30 bg-white px-3 pb-3 pt-3 shadow-sm border-b border-gray-200">
+                        <div v-if="searchable" class="z-30 bg-white px-3 pb-3 pt-3 shadow-sm border-b border-gray-200">
                             <input
+                                ref="searchInputRef"
                                 v-model="searchTerm"
                                 type="text"
                                 :placeholder="searchPlaceholder"
@@ -131,6 +145,7 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                                 @keydown.stop
                                 @keyup.stop
                                 @click.stop
+                                autofocus
                             />
                         </div>
                         <div class="max-h-[11.5rem] overflow-y-auto overflow-x-hidden">

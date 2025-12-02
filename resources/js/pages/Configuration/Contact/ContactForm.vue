@@ -4,6 +4,7 @@ import SelectField from '@/components/SelectField.vue';
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import type { Contact } from '@/types';
+import colombiaData from '../../../data/colombia.json';
 
 const props = defineProps<{
     // Hacemos opcional y permisivo para evitar errores de tipado aquí.
@@ -55,20 +56,43 @@ watch(
     { deep: true },
 );
 
-const colombiaData = ref<{ id: string; name: string; municipalities: string[] }[]>([]);
+// Procesar todas las opciones de ubicación una sola vez al cargar el módulo
+// Optimizado: crear estructura de datos eficiente para búsqueda
+const allLocationOptions = colombiaData.flatMap((department: any) =>
+    (department.ciudades || []).map((municipality: string) => ({
+        id: `${municipality}||${department.departamento}`,
+        name: `${municipality}, ${department.departamento}`,
+        searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
+    }))
+);
 
-async function loadColombiaData() {
-    try {
-        const response = await axios.get('https://raw.githubusercontent.com/marcovega/colombia-json/master/colombia.min.json');
-        colombiaData.value = response.data.map((department: any) => ({
-            id: department.departamento, // Usar el nombre del departamento como ID
-            name: department.departamento,
-            municipalities: department.ciudades || [], // Asegurar que siempre sea un arreglo
-        }));
-    } catch (error) {
-        console.error('Error al cargar los datos de Colombia:', error);
+// Usar un array limitado para renderizado inicial rápido
+const locationOptions = ref(allLocationOptions.slice(0, 50));
+const isLoadingLocations = ref(false);
+
+// Función optimizada para búsqueda y actualización de opciones
+const updateLocationOptions = (searchQuery: string = '') => {
+    if (isLoadingLocations.value) return;
+    
+    const query = searchQuery.toLowerCase().trim();
+    
+    if (!query) {
+        // Sin búsqueda: mostrar primeras 50 opciones
+        locationOptions.value = allLocationOptions.slice(0, 50);
+        return;
     }
-}
+    
+    // Con búsqueda: filtrar y limitar a 100 resultados
+    isLoadingLocations.value = true;
+    
+    // Usar setTimeout para no bloquear el UI
+    setTimeout(() => {
+        locationOptions.value = allLocationOptions
+            .filter(opt => opt.searchText.includes(query))
+            .slice(0, 100);
+        isLoadingLocations.value = false;
+    }, 0);
+};
 
 const groups = ref<{ id: string; name: string }[]>([]); // Lista de grupos
 
@@ -85,22 +109,10 @@ async function loadGroups() {
 }
 
 onMounted(() => {
-    loadColombiaData();
     loadGroups(); // Cargar grupos al montar
 });
 
 const errors = ref<Record<string, string[]>>({}); // Manejo de errores
-
-// Opciones combinadas "Municipio, Departamento"
-const locationOptions = computed(() =>
-    colombiaData.value.flatMap((department) =>
-        (department.municipalities || []).map((municipality: string) => ({
-            id: `${municipality}||${department.id}`,
-            name: `${municipality}, ${department.name}`,
-        })),
-    ),
-);
-
 const locationValue = computed({
     get() {
         if (!internalForm.value.municipality || !internalForm.value.department) return '';
@@ -144,6 +156,7 @@ const validateField = (field: string) => {
         <SelectField
             v-model="internalForm.groups"
             label="Categoría proveedor/cliente"
+            :searchable="true"
             required
             multiple
             :options="groups.map((group) => ({ id: group.id, name: group.name }))"
@@ -154,6 +167,7 @@ const validateField = (field: string) => {
             v-model="internalForm.id_type"
             label="Tipo de identificación"
             required
+            :searchable="true"
             :options="[
                 { id: 'NIT', name: 'NIT - Número de identificación tributaria' },
                 { id: 'CC', name: 'CC - Cédula de ciudadanía' },
@@ -199,15 +213,18 @@ const validateField = (field: string) => {
             ]"
             class="mb-4"
             :searchable="false"
-        />
+            />
         <div class="md:col-span-2">
             <SelectField
                 v-model="locationValue"
                 label="Departamento y municipio"
                 required
                 :options="locationOptions"
-                placeholder="Selecciona municipio y departamento"
+                placeholder="Escribe para buscar municipio o departamento..."
                 :error="errors.municipality?.[0] || errors.department?.[0]"
+                :searchable="true"
+                :searchThreshold="0"
+                @search="updateLocationOptions"
                 @input="() => { validateField('municipality'); validateField('department'); }"
             />
         </div>

@@ -2,6 +2,7 @@
 import axios from 'axios';
 import { ref, watch } from 'vue'; // Asegurar que watch esté importado
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import InputField from '@/components/InputField.vue';
 import SearchableSelect from '@/components/SearchableSelect.vue';
 import { CategoryGroup, CategorySubGroup } from '@/types';
@@ -222,18 +223,13 @@ async function confirmDeleteGroup() {
     />
 
     <!-- Diálogo de confirmación para eliminar -->
-    <Dialog v-model:open="isDeleteDialogOpen">
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Confirmar Eliminación</DialogTitle>
-            </DialogHeader>
-            <DialogDescription>
-                ¿Estás seguro de que deseas eliminar este grupo? Esta acción no se puede deshacer.
-            </DialogDescription>
-            <DialogFooter class="mt-4">
-                <Button variant="outline" @click="closeDeleteDialog">Cancelar</Button>
-                <Button variant="destructive" @click="confirmDeleteGroup">Eliminar</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+        v-model:open="isDeleteDialogOpen"
+        title="Confirmar Eliminación"
+        description="¿Estás seguro de que deseas eliminar este grupo? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="confirmDeleteGroup"
+    />
 </template>

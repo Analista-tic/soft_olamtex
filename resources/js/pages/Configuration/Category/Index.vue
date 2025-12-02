@@ -3,7 +3,6 @@ import { BreadcrumbItem, CategoryGroup, CategorySubGroup } from '@/types'; // Im
 import EditButton from '@/components/common/EditButton.vue';
 import SubGroupDialog from './SubGroupDialog.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -23,6 +22,7 @@ import { PlusCircle, Search } from 'lucide-vue-next';
 import { ref, onMounted, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -248,21 +248,13 @@ onMounted(() => {
         @submit="submitForm"
         @notify="(payload) => { if (payload.type === 'success') { successMessage = payload.message; errorMessage = ''; } else { errorMessage = payload.message; successMessage = ''; } }"
     />
-
-    <!-- Dialog para Confirmar Eliminación -->
-    <Dialog v-model:open="isDeleteDialogOpen">
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Confirmar eliminación</DialogTitle>
-                <DialogDescription>
-                    ¿Estás seguro de que deseas eliminar este subgrupo? Esta acción no se puede deshacer.
-                </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-                <Button variant="outline" @click="isDeleteDialogOpen = false">Cancelar</Button>
-                <Button variant="destructive" @click="deleteSubGroup">Eliminar</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+        v-model:open="isDeleteDialogOpen"
+        title="Confirmar eliminación"
+        description="¿Estás seguro de que deseas eliminar este subgrupo? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="deleteSubGroup"
+    />
 </template>
-

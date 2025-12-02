@@ -2,7 +2,7 @@
 // import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -182,18 +182,15 @@ onMounted(fetchRoles);
         </div>
     </AppLayout>
 
-    <Dialog v-model:open="isDeleteDialogOpen">
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Confirmar eliminación</DialogTitle>
-                <DialogDescription>¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-                <Button variant="outline" @click="closeDialog">Cancelar</Button>
-                <Button variant="destructive" @click="deleteUser">Eliminar</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+        v-model:open="isDeleteDialogOpen"
+        title="Confirmar eliminación"
+        description="¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="deleteUser"
+    />
 
     <RoleDialog
         :isOpen="isEditDialogOpen"

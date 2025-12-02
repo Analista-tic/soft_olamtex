@@ -3,7 +3,7 @@ import { BreadcrumbItem, Contact } from '@/types';
 import EditButton from '@/components/common/EditButton.vue';
 import ContactDialog from './ContactDialog.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -129,17 +129,29 @@ async function deleteContact(): Promise<void> {
         setError('', 'error');
     } catch (error) {
         console.error('Error al eliminar el contacto:', error);
-        const axiosError = error as AxiosError;
-        const responseMessage = axiosError.response?.data?.message;
-        if (axiosError.response?.status === 409) {
-            setError(
-                responseMessage ||
-                    'No se puede eliminar el contacto porque tiene relaciones con otros registros.',
-                'warning',
-            );
+
+        // Tipado explícito del payload de error
+        type ApiError = { message?: string };
+
+        // Verificar que es un AxiosError y tiparlo
+        if (axios.isAxiosError(error)) {
+            const axiosError = error as AxiosError<ApiError>;
+            const responseMessage = axiosError.response?.data?.message;
+
+            if (axiosError.response?.status === 409) {
+                setError(
+                    responseMessage ||
+                        'No se puede eliminar el contacto porque tiene relaciones con otros registros.',
+                    'warning',
+                );
+                return;
+            }
+            setError(responseMessage || 'Ocurrió un error al eliminar el contacto.', 'error');
             return;
         }
-        setError(responseMessage || 'Ocurrió un error al eliminar el contacto.', 'error');
+
+        // Fallback para errores no-Axios
+        setError('Ocurrió un error inesperado al eliminar el contacto.', 'error');
     }
 }
 
@@ -328,18 +340,13 @@ onMounted(() => {
         @update:contactData="(updatedData) => (form = updatedData)"
     />
 
-    <Dialog v-model:open="isDeleteDialogOpen">
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Confirmar eliminación</DialogTitle>
-                <DialogDescription>
-                    ¿Estás seguro de que deseas eliminar este contacto? Esta acción no se puede deshacer.
-                </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-                <Button variant="outline" @click="isDeleteDialogOpen = false">Cancelar</Button>
-                <Button variant="destructive" @click="deleteContact">Eliminar</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+        v-model:open="isDeleteDialogOpen"
+        title="Confirmar eliminación"
+        description="¿Estás seguro de que deseas eliminar este contacto? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="deleteContact"
+    />
 </template>

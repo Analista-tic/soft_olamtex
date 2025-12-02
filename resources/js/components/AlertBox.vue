@@ -44,7 +44,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="flex items-start justify-between gap-3 rounded-lg border px-4 py-3 shadow-sm transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2"
+    class="flex w-[320px] items-start justify-between gap-3 rounded-lg border px-4 py-3 shadow-sm transition-all duration-300 ease-out animate-in fade-in slide-in-from-top-2"
     :class="alertClass"
   >
     <div class="flex-1">

@@ -6,7 +6,7 @@ import {
     Pagination, PaginationList, PaginationListItem, PaginationFirst, PaginationPrev, PaginationNext, PaginationLast, PaginationEllipsis
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -192,23 +192,17 @@ onMounted(() => fetchRetentions());
             @submit="handleDialogSubmit"
             @cancel="closeDialog"
         />
-        <Dialog v-model:open="isDeleteDialogOpen">
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Confirmar eliminación</DialogTitle>
-                    <DialogDescription>
-                        ¿Estás seguro de que deseas eliminar esta retención? Esta acción no se puede deshacer.
-                    </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                    <Button variant="outline" @click="isDeleteDialogOpen = false">Cancelar</Button>
-                    <Button variant="destructive" @click="deleteRetention">Eliminar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+            v-model:open="isDeleteDialogOpen"
+            title="Confirmar eliminación"
+            description="¿Estás seguro de que deseas eliminar esta retención? Esta acción no se puede deshacer."
+            confirm-text="Eliminar"
+            cancel-text="Cancelar"
+            :destructive="true"
+            @confirm="deleteRetention"
+        />
     </AppLayout>
 </template>
-
 
 
 

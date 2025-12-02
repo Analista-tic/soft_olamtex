@@ -448,4 +448,3 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
         </Dialog>
     </AppLayout>
 </template>
-

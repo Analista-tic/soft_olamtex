@@ -15,14 +15,7 @@ import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-    DialogDescription
-} from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
     { title: 'Configuración', href: '/configuracion' },
@@ -195,20 +188,15 @@ onMounted(() => fetchTaxes());
             @submit="handleDialogSubmit"
             @cancel="closeDialog"
         />
-        <Dialog v-model:open="isDeleteDialogOpen">
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Confirmar eliminación</DialogTitle>
-                    <DialogDescription>
-                        ¿Estás seguro de que deseas eliminar este impuesto? Esta acción no se puede deshacer.
-                    </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                    <Button variant="outline" @click="isDeleteDialogOpen = false">Cancelar</Button>
-                    <Button variant="destructive" @click="deleteTax">Eliminar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+            v-model:open="isDeleteDialogOpen"
+            title="Confirmar eliminación"
+            description="¿Estás seguro de que deseas eliminar este impuesto? Esta acción no se puede deshacer."
+            confirm-text="Eliminar"
+            cancel-text="Cancelar"
+            :destructive="true"
+            @confirm="deleteTax"
+        />
     </AppLayout>
 </template>
 

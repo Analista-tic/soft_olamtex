@@ -254,8 +254,8 @@ function validateForm(): boolean {
     }
 
     const invalidItem = items.find((item) => {
-        const priceInvalid = item.price === '' || Number(item.price) <= 0;
-        const quantityInvalid = item.quantity === '' || Number(item.quantity) <= 0;
+        const priceInvalid = !item.price || Number(item.price) <= 0;
+        const quantityInvalid = !item.quantity || Number(item.quantity) <= 0;
         const articleInvalid = !item.article_id;
         return priceInvalid || quantityInvalid || articleInvalid;
     });
@@ -263,8 +263,8 @@ function validateForm(): boolean {
     if (invalidItem) {
         const missingItemFields: string[] = [];
         if (!invalidItem.article_id) missingItemFields.push('Artículo');
-        if (invalidItem.price === '' || Number(invalidItem.price) <= 0) missingItemFields.push('Precio');
-        if (invalidItem.quantity === '' || Number(invalidItem.quantity) <= 0) missingItemFields.push('Cantidad');
+        if (!invalidItem.price || Number(invalidItem.price) <= 0) missingItemFields.push('Precio');
+        if (!invalidItem.quantity || Number(invalidItem.quantity) <= 0) missingItemFields.push('Cantidad');
 
         setErrorMessage(
             formatRequiredFieldsMessage('Cada ítem debe tener los siguientes campos', missingItemFields),

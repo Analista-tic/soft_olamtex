@@ -240,9 +240,9 @@ class InventoryAdjustmentController extends Controller
      */
     private function generateDocumentNumber(): string
     {
-        $prefix = 'AJI';
-        $year = now()->format('Y');
-        $sequenceLength = 6;
+        $prefix = 'AJ';
+        $year = now()->format('y');
+        $sequenceLength = 3;
 
         $lastNumber = InventoryAdjustment::whereNotNull('document_number')
             ->where('document_number', 'like', "{$prefix}-{$year}-%")

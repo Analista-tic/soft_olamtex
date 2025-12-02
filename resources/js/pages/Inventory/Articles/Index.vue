@@ -16,7 +16,7 @@ import { onMounted, ref, watch, reactive } from 'vue';
 import ArticleDialog from './ArticleDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/ConfirmDialog.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
@@ -41,8 +41,8 @@ const isBulkDialogOpen = ref(false);
 
 const statusOptions = ref([
     reactive({ id: 'all', name: 'Todos' }),
-    reactive({ id: '1', name: 'Habilitados' }),
-    reactive({ id: '0', name: 'Deshabilitados' })
+    reactive({ id: '0', name: 'Habilitados' }),
+    reactive({ id: '1', name: 'Deshabilitados' })
 ]);
 
 //Variables reactivas para mensajes de éxito y error
@@ -65,6 +65,7 @@ function openDialog(type: 'create' | 'edit', article: Article | null = null) {
               negative_movement: false,
               description: '',
               extra_fields: {},
+              status: true,
           };
 }
 
@@ -256,10 +257,10 @@ function exportArticlesExcel() {
         <Dialog v-model:open="isStatusDialogOpen">
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle> {{ articleToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} Artículo </DialogTitle>
+                    <DialogTitle> {{ articleToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }} Artículo </DialogTitle>
                     <DialogDescription>
                         ¿Estás seguro de que deseas
-                        {{ articleToToggleStatus?.status ? 'deshabilitar' : 'habilitar' }}
+                        {{ articleToToggleStatus?.status ? 'habilitar' : 'deshabilitar' }}
                         este artículo?
                     </DialogDescription>
                 </DialogHeader>
@@ -275,7 +276,7 @@ function exportArticlesExcel() {
                     >
                         <Ban v-if="articleToToggleStatus?.status" class="mr-1 h-4 w-4" />
                         <CheckCircle v-else class="mr-1 h-4 w-4" />
-                        {{ articleToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }}
+                        {{ articleToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }}
                     </button>
                 </DialogFooter>
             </DialogContent>
@@ -283,8 +284,6 @@ function exportArticlesExcel() {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchArticles" />
     </AppLayout>
 </template>
-
-
 
 
 

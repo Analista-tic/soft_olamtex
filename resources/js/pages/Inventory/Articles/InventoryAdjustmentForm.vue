@@ -572,6 +572,7 @@ async function handleSubmit() {
                         v-model="line.articleId"
                         :options="articleSelectOptions"
                         label=""
+                        :searchable=true
                         placeholder="Selecciona"
                         class="w-full"
                       />
