@@ -8,6 +8,7 @@ import { OptionParams, ProductSheet, Programmer } from '@/types';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import AlertBox from '@/components/AlertBox.vue';
 import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
 
 const emit = defineEmits(['programmerCreated']);
@@ -24,6 +25,28 @@ const props = defineProps<{
 }>();
 
 const isDialogOpen = ref(false);
+
+// Alert state
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
+const showAlert = ref(false);
+const dialogInnerRef = ref<HTMLElement | null>(null);
+
+function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    alertMessage.value = message;
+    alertType.value = type;
+    showAlert.value = true;
+    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
+        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert() {
+    alertMessage.value = '';
+    showAlert.value = false;
+}
 
 const lotsForm = ref<Array<Partial<Programmer>>>([]);
 
@@ -68,12 +91,12 @@ const selectedProductSheet = computed(() => {
 
 function generateLots() {
     if (!form.value.lotsCount || form.value.lotsCount <= 0) {
-        alert('Por favor, ingresa una cantidad válida de lotes.');
+        setAlert('Por favor, ingresa una cantidad válida de lotes.', 'warning');
         return;
     }
 
     if (!form.value.productSheetId) {
-        alert('Por favor, selecciona una referencia de ficha de producto.');
+        setAlert('Por favor, selecciona una referencia de ficha de producto.', 'warning');
         return;
     }
 
@@ -108,7 +131,7 @@ function createProgrammer() {
     validateForm();
 
     if (formErrors.value.length > 0) {
-        alert('Por favor, corrige los errores antes de continuar.');
+        setAlert('Por favor, corrige los errores antes de continuar.', 'warning');
         return;
     }
 
@@ -125,14 +148,14 @@ function createProgrammer() {
     axios
         .post('/comercial/programador', { lots: lotsToSend })
         .then(() => {
-            alert('Programadores creados exitosamente.');
+            setAlert('Programadores creados exitosamente.', 'success');
             emit('programmerCreated');
             resetForm(); // Llamar a resetForm para limpiar el formulario
             isDialogOpen.value = false; // Cerrar el diálogo
         })
         .catch(error => {
             console.error('Error al crear los programadores:', error);
-            alert('Hubo un error al crear los programadores.');
+            setAlert('Hubo un error al crear los programadores.', 'error');
         });
 }
 
@@ -150,7 +173,7 @@ const productSheets = ref<ProductSheet[]>(props.productSheets);
 function addProductSheet(response: { success: boolean; message: string; data: ProductSheet } | undefined) {
     if (!response || !response.success || !response.data || !response.data.id) {
         console.error('El ProductSheet creado no es válido:', response);
-        alert('Hubo un problema al crear la ficha de producto. Intenta nuevamente.');
+        setAlert('Hubo un problema al crear la ficha de producto. Intenta nuevamente.', 'error');
         return;
     }
 
@@ -182,7 +205,20 @@ function getTrueSizes(sizes: string | undefined): string {
             <Button variant="default" size="sm"><PlusCircle /> Nuevo Programador</Button>
         </DialogTrigger>
         <DialogContent class="sm:max-w-6xl max-h-screen overflow-y-auto">
-            <DialogHeader>
+            <div ref="dialogInnerRef" class="relative">
+                <transition name="fade">
+                    <div v-if="showAlert && alertMessage" class="pointer-events-none absolute left-1/2 top-4 z-30 w-full max-w-xl -translate-x-1/2">
+                        <AlertBox
+                            :type="alertType"
+                            :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                            :message="alertMessage"
+                            class="pointer-events-auto"
+                            @close="clearAlert"
+                        />
+                    </div>
+                </transition>
+
+                <DialogHeader>
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
             </DialogHeader>
@@ -337,6 +373,7 @@ function getTrueSizes(sizes: string | undefined): string {
                     Guardar
                 </Button>
             </DialogFooter>
+            </div>
         </DialogContent>
     </Dialog>
 </template>

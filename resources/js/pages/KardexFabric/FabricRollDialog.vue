@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { PurchaseInvoiceItem } from '@/types';
 import axios from 'axios';
 import { ref, watch, computed, onMounted } from 'vue';
+import AlertBox from '@/components/AlertBox.vue';
 
 interface FabricRollForm {
     roll_number: string;
@@ -31,6 +32,30 @@ const emit = defineEmits<{
 
 const dialogOpen = ref(props.isOpen);
 const isLoading = ref(false);
+
+// Alert state for the dialog
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
+const showAlert = ref(false);
+const dialogInnerRef = ref<HTMLElement | null>(null);
+
+function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    alertMessage.value = message;
+    alertType.value = type;
+    showAlert.value = true;
+    // scroll to top of dialog if possible
+    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
+        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        const dialogEl = document.querySelector('[role="dialog"]');
+        dialogEl?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert() {
+    alertMessage.value = '';
+    showAlert.value = false;
+}
 
 const form = ref<FabricRollForm>({
     roll_number: '',
@@ -128,9 +153,9 @@ async function handleSubmit() {
         console.error('Error al guardar rollo:', error);
         if (error.response?.data?.errors) {
             const errors = Object.values(error.response.data.errors).flat();
-            alert(`Error: ${errors.join(', ')}`);
+            setAlert(`Error: ${errors.join(', ')}`, 'error');
         } else {
-            alert('Error al guardar el rollo. Por favor intente nuevamente.');
+            setAlert('Error al guardar el rollo. Por favor intente nuevamente.', 'error');
         }
     } finally {
         isLoading.value = false;
@@ -139,19 +164,19 @@ async function handleSubmit() {
 
 function validateForm(): boolean {
     if (!form.value.roll_number.trim()) {
-        alert('Por favor ingrese el número de rollo');
+        setAlert('Por favor ingrese el número de rollo', 'warning');
         return false;
     }
     if (!form.value.quantity || Number(form.value.quantity) <= 0) {
-        alert('Por favor ingrese una cantidad válida');
+        setAlert('Por favor ingrese una cantidad válida', 'warning');
         return false;
     }
     if (!form.value.roll_width || Number(form.value.roll_width) <= 0) {
-        alert('Por favor ingrese un ancho válido');
+        setAlert('Por favor ingrese un ancho válido', 'warning');
         return false;
     }
     if (!form.value.entry_date) {
-        alert('Por favor seleccione la fecha de entrada');
+        setAlert('Por favor seleccione la fecha de entrada', 'warning');
         return false;
     }
     return true;
@@ -217,12 +242,28 @@ function formatDate(dateStr: string) {
 <template>
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-                <DialogTitle>Registrar Rollo de Tela</DialogTitle>
-                <DialogDescription>
-                    Relacione cada rollo al ítem de la orden.
-                </DialogDescription>
-            </DialogHeader>
+                <div ref="dialogInnerRef" class="relative">
+                    <transition name="fade">
+                        <div
+                            v-if="showAlert && alertMessage"
+                            class="pointer-events-none absolute left-1/2 top-4 z-30 w-full max-w-xl -translate-x-1/2"
+                        >
+                            <AlertBox
+                                :type="alertType"
+                                :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                                :message="alertMessage"
+                                class="pointer-events-auto"
+                                @close="clearAlert"
+                            />
+                        </div>
+                    </transition>
+
+                    <DialogHeader>
+                        <DialogTitle>Registrar Rollo de Tela</DialogTitle>
+                        <DialogDescription>
+                            Relacione cada rollo al ítem de la orden.
+                        </DialogDescription>
+                    </DialogHeader>
 
             <!-- Tabs simplificados -->
             <div class="flex gap-2 mb-2">
@@ -367,6 +408,7 @@ function formatDate(dateStr: string) {
                         Cerrar
                     </Button>
                 </DialogFooter>
+            </div>
             </div>
         </DialogContent>
     </Dialog>

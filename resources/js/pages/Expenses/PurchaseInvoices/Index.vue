@@ -94,6 +94,11 @@ function closeDialog() {
 }
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
+    // Evitar petición al servidor si la factura ya está aprobada
+    if (invoice.status === 'approved') {
+        showError('No se puede eliminar una factura que está aprobada.');
+        return;
+    }
     invoiceToDelete.value = invoice;
     isDeleteDialogOpen.value = true;
 }
@@ -106,7 +111,15 @@ async function deleteInvoice(): Promise<void> {
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
         console.log('Error al eliminar factura:', e);
-        showError('Error al eliminar la factura.');
+        const serverMessage = (e as any)?.response?.data?.message;
+        const status = (e as any)?.response?.status;
+        if (serverMessage) {
+            showError(serverMessage);
+        } else if (status === 500) {
+            showError('No se pudo eliminar la factura. Si la factura está aprobada no puede eliminarse o ocurrió un error en el servidor.');
+        } else {
+            showError('Error al eliminar la factura.');
+        }
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -360,7 +373,18 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                                         <Eye class="h-4 w-4" />
                                     </button>
                                     <EditButton :onClick="() => openDialog('edit', invoice)" />
-                                    <DeleteButton :onClick="() => confirmDeleteInvoice(invoice)" />
+                                    <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
+                                         y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
+                                    <DeleteButton
+                                        :onClick="() => {
+                                            if (invoice.status === 'approved') {
+                                                showError('No se puede eliminar una factura que está aprobada.');
+                                            } else {
+                                                confirmDeleteInvoice(invoice);
+                                            }
+                                        }"
+                                        :customClass="invoice.status === 'approved' ? 'opacity-60 cursor-not-allowed' : ''"
+                                    />
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
                                             <Button variant="ghost" size="icon" class="h-8 w-8 p-0">

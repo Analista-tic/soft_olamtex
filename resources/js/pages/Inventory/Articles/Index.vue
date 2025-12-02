@@ -16,6 +16,7 @@ import { onMounted, ref, watch, reactive } from 'vue';
 import ArticleDialog from './ArticleDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
@@ -242,18 +243,15 @@ function exportArticlesExcel() {
             </div>
         </div>
         <ArticleDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="handleDialogRefresh" />
-        <Dialog v-model:open="isDeleteDialogOpen">
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Confirmar eliminación</DialogTitle>
-                    <DialogDescription> ¿Estás seguro de que deseas eliminar este Artículo? Esta acción no se puede deshacer. </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                    <Button variant="outline" @click="isDeleteDialogOpen = false">Cancelar</Button>
-                    <Button variant="destructive" @click="deleteArticle">Eliminar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+            v-model:open="isDeleteDialogOpen"
+            title="Confirmar eliminación"
+            description="¿Estás seguro de que deseas eliminar este Artículo? Esta acción no se puede deshacer."
+            confirm-text="Eliminar"
+            cancel-text="Cancelar"
+            :destructive="true"
+            @confirm="deleteArticle"
+        />
         <!-- Diálogo de confirmación para habilitar/deshabilitar -->
         <Dialog v-model:open="isStatusDialogOpen">
             <DialogContent>

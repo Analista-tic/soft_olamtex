@@ -34,6 +34,7 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
+import AlertBox from '@/components/AlertBox.vue';
 import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -87,6 +88,28 @@ const canCreate = ref(false);
 const canEdit = ref(false);
 const canDelete = ref(false);
 
+// Alert state
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
+const showAlert = ref(false);
+const pageContentRef = ref<HTMLElement | null>(null);
+
+function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    alertMessage.value = message;
+    alertType.value = type;
+    showAlert.value = true;
+    if (pageContentRef.value && typeof pageContentRef.value.scrollTo === 'function') {
+        pageContentRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert() {
+    alertMessage.value = '';
+    showAlert.value = false;
+}
+
 async function loadPermissions() {
     try {
         await authStore.fetchUser(); // Asegurarse de que los datos del usuario estén cargados
@@ -117,7 +140,7 @@ async function deleteProductSheet() {
         isDeleteDialogOpen.value = false;
     } catch (error) {
         console.error('Error al eliminar el product sheet:', error);
-        alert('Hubo un error al eliminar el product sheet.');
+        setAlert('Hubo un error al eliminar el product sheet.', 'error');
     }
 }
 
@@ -155,7 +178,7 @@ function openEditDialog(product: ProductSheet) {
 }
 
 function viewProductSheet(product: ProductSheet) {
-    alert(`Visualizando el producto: ${product.reference}`);
+    setAlert(`Visualizando el producto: ${product.reference}`, 'info');
 }
 
 function openCreateDialog() {
@@ -172,7 +195,21 @@ onMounted(async () => {
 <template>
     <Head title="Sabana de Productos" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+        <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+            <transition name="fade">
+                <div
+                    v-if="showAlert && alertMessage"
+                    class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-xl -translate-x-1/2"
+                >
+                    <AlertBox
+                        :type="alertType"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :message="alertMessage"
+                        class="pointer-events-auto"
+                        @close="clearAlert"
+                    />
+                </div>
+            </transition>
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Lista Sabana de Productos</h1>
                 <Button v-if="canCreate" variant="default" size="sm" @click="openCreateDialog">

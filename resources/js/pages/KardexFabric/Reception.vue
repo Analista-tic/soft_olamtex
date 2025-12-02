@@ -8,7 +8,9 @@ import { Head, usePage } from '@inertiajs/vue3';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import axios from 'axios';
 import { Eye, Search, Check, X, ArrowLeft, Package2 } from 'lucide-vue-next';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { onMounted, ref, watch, computed } from 'vue';
+import AlertBox from '@/components/AlertBox.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
 import FabricRollDialog from './FabricRollDialog.vue';
@@ -34,6 +36,35 @@ const selectedInvoice = ref<PurchaseInvoice | null>(null);
 const isLoadingSpecificInvoice = ref(false);
 const isFabricRollDialogOpen = ref(false);
 const selectedItem = ref<any>(null);
+
+// Estado para AlertBox
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
+const showAlert = ref(false);
+
+// Ref al contenedor principal para poder hacer scroll cuando muestre alertas
+const pageContentRef = ref<HTMLElement | null>(null);
+
+// Dialogo para rechazar recepción
+const isRejectDialogOpen = ref(false);
+const invoiceToReject = ref<PurchaseInvoice | null>(null);
+
+function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    alertMessage.value = message;
+    alertType.value = type;
+    showAlert.value = true;
+    // Scroll al inicio del contenedor si existe
+    if (pageContentRef.value && typeof pageContentRef.value.scrollTo === 'function') {
+        pageContentRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert() {
+    alertMessage.value = '';
+    showAlert.value = false;
+}
 
 const statusFilter = ref('pending');
 const providerFilter = ref('all');
@@ -78,15 +109,15 @@ async function fetchSpecificInvoice(invoiceId: number) {
             console.log('Items de la factura:', selectedInvoice.value?.items);
         } else {
             console.error('Estructura de respuesta inesperada:', response.data);
-            alert('Error: La respuesta del servidor no tiene el formato esperado');
+            setAlert('Error: La respuesta del servidor no tiene el formato esperado', 'error');
         }
     } catch (e: any) {
         console.error('Error al cargar factura específica:', e);
         if (e?.response) {
             console.error('Respuesta del error:', e.response.data);
-            alert(`Error al cargar la factura: ${e.response.data?.message || 'Error desconocido'}`);
+            setAlert(`Error al cargar la factura: ${e.response.data?.message || 'Error desconocido'}`, 'error');
         } else {
-            alert('Error al cargar la factura. Verifique que el ID sea válido.');
+            setAlert('Error al cargar la factura. Verifique que el ID sea válido.', 'error');
         }
     } finally {
         isLoadingSpecificInvoice.value = false;
@@ -116,29 +147,40 @@ async function approveReception(invoice: PurchaseInvoice) {
                 await fetchSpecificInvoice(invoice.id);
             }
         }
-        alert('Recepción aprobada correctamente');
+        setAlert('Recepción aprobada correctamente', 'success');
     } catch (e: any) {
         console.log('Error al aprobar recepción:', e);
-        alert('Error al aprobar la recepción');
+        setAlert('Error al aprobar la recepción', 'error');
     }
 }
 
-async function rejectReception(invoice: PurchaseInvoice) {
-    if (!confirm('¿Está seguro de rechazar esta recepción?')) return;
+function showRejectDialog(invoice: PurchaseInvoice) {
+    invoiceToReject.value = invoice;
+    isRejectDialogOpen.value = true;
+}
+
+async function confirmRejectReception() {
+    const invoice = invoiceToReject.value;
+    if (!invoice) {
+        isRejectDialogOpen.value = false;
+        return;
+    }
     try {
         await axios.patch(`/kardex-telas/recepcion/${invoice.id}/rechazar`);
         if (showInvoicesList.value) {
             await fetchInvoices(currentPage.value, searchQuery.value);
         } else {
-            // Si estamos viendo una factura específica, recargar esa factura
             if (invoice.id && typeof invoice.id === 'number') {
                 await fetchSpecificInvoice(invoice.id);
             }
         }
-        alert('Recepción rechazada');
+        setAlert('Recepción rechazada', 'success');
     } catch (e: any) {
         console.log('Error al rechazar recepción:', e);
-        alert('Error al rechazar la recepción');
+        setAlert('Error al rechazar la recepción', 'error');
+    } finally {
+        isRejectDialogOpen.value = false;
+        invoiceToReject.value = null;
     }
 }
 
@@ -166,6 +208,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         console.log('Error al cargar facturas:', e);
         invoices.value = [];
         totalItems.value = 0;
+        setAlert('Error al cargar facturas', 'error');
     }
 }
 
@@ -252,13 +295,18 @@ function openFabricRollDialog(item: any) {
     isFabricRollDialogOpen.value = true;
 }
 
+function isFabricItem(item: any): boolean {
+    const name = (item?.article?.name || '').toString().toLowerCase();
+    return name.includes('tela');
+}
+
 function closeFabricRollDialog() {
     isFabricRollDialogOpen.value = false;
     selectedItem.value = null;
 }
 
 function onFabricRollSuccess() {
-    alert('Rollo registrado correctamente');
+    setAlert('Rollo registrado correctamente', 'success');
     closeFabricRollDialog();
     // Recargar la factura específica para mostrar los rollos actualizados
     if (selectedInvoice.value && selectedInvoice.value.id && typeof selectedInvoice.value.id === 'number') {
@@ -270,7 +318,21 @@ function onFabricRollSuccess() {
 <template>
     <Head :title="specificInvoiceId ? `Recepción - Factura #${specificInvoiceId}` : 'Recepción de Telas'" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-col gap-4 rounded-xl p-3">
+        <div ref="pageContentRef" class="flex h-full flex-col gap-4 rounded-xl p-3">
+            <transition name="fade">
+                <div
+                    v-if="showAlert && alertMessage"
+                    class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-xl -translate-x-1/2"
+                >
+                    <AlertBox
+                        :type="alertType"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :message="alertMessage"
+                        class="pointer-events-auto"
+                        @close="clearAlert"
+                    />
+                </div>
+            </transition>
             <!-- Header principal -->
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-4">
@@ -391,7 +453,7 @@ function onFabricRollSuccess() {
                                         </button>
                                         <button
                                             class="flex items-center text-gray-500 transition-colors duration-200 hover:text-red-600"
-                                            @click="rejectReception(invoice)"
+                                            @click="showRejectDialog(invoice)"
                                             title="Rechazar recepción"
                                         >
                                             <X class="h-4 w-4" />
@@ -410,7 +472,7 @@ function onFabricRollSuccess() {
                     <!-- Botones de acción en la parte superior -->
                     <div class="flex justify-end gap-3 p-4 bg-gray-50 rounded-lg">
                         <template v-if="selectedInvoice.status === 'pending' || !selectedInvoice.status">
-                            <Button variant="destructive" @click="rejectReception(selectedInvoice)">
+                            <Button variant="destructive" @click="showRejectDialog(selectedInvoice)">
                                 Rechazar Recepción
                             </Button>
                             <Button variant="default" @click="approveReception(selectedInvoice)">
@@ -547,13 +609,15 @@ function onFabricRollSuccess() {
                                             }}
                                         </TableCell>
                                         <TableCell class="py-2">
-                                            <button
-                                                class="flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600"
-                                                @click="openFabricRollDialog(item)"
-                                                title="Registrar rollo"
-                                            >
-                                                <Package2 class="h-4 w-4" />
-                                            </button>
+                                            <template v-if="isFabricItem(item)">
+                                                <button
+                                                    class="flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600"
+                                                    @click="openFabricRollDialog(item)"
+                                                    title="Registrar rollo"
+                                                >
+                                                    <Package2 class="h-4 w-4" />
+                                                </button>
+                                            </template>
                                         </TableCell>
                                     </TableRow>
                                 </TableBody>
@@ -694,7 +758,7 @@ function onFabricRollSuccess() {
                     <!-- Botones de acción en la parte inferior -->
                     <div class="flex justify-end gap-3 p-4 bg-gray-50 rounded-lg">
                         <template v-if="selectedInvoice.status === 'pending' || !selectedInvoice.status">
-                            <Button variant="destructive" @click="rejectReception(selectedInvoice)">
+                            <Button variant="destructive" @click="showRejectDialog(selectedInvoice)">
                                 Rechazar Recepción
                             </Button>
                             <Button variant="default" @click="approveReception(selectedInvoice)">
@@ -704,6 +768,22 @@ function onFabricRollSuccess() {
                     </div>
                 </div>
             </template>
+
+            <!-- Diálogo de confirmación para rechazar recepción -->
+            <Dialog v-model:open="isRejectDialogOpen">
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>¿Está seguro de rechazar esta recepción?</DialogTitle>
+                        <DialogDescription>
+                            Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" @click="isRejectDialogOpen = false">Cancelar</Button>
+                        <Button variant="destructive" @click="confirmRejectReception">Rechazar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <!-- Diálogo para registrar rollos de tela -->
             <FabricRollDialog 

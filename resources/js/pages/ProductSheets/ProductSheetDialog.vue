@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ProductSheet } from '@/types';
 import { ref, watch } from 'vue';
+import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 
 interface Props {
@@ -25,6 +26,28 @@ const props = defineProps<Props & { open: boolean }>(); // Agregar la propiedad 
 const emit = defineEmits(['productSheetSaved', 'update:open']); // Agregar `update:open`
 
 const localDialogOpen = ref(false); // Estado local para el diálogo
+
+// Alert state
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
+const showAlert = ref(false);
+const dialogInnerRef = ref<HTMLElement | null>(null);
+
+function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    alertMessage.value = message;
+    alertType.value = type;
+    showAlert.value = true;
+    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
+        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert() {
+    alertMessage.value = '';
+    showAlert.value = false;
+}
 
 const form = ref<Partial<ProductSheet>>({
     reference: '',
@@ -146,7 +169,7 @@ function determineStatus() {
 
 function saveProductSheet() {
     if (!validateForm()) {
-        alert('Por favor, completa todos los campos requeridos.');
+        setAlert('Por favor, completa todos los campos requeridos.', 'warning');
         return;
     }
 
@@ -161,14 +184,14 @@ function saveProductSheet() {
 
     request
         .then((response) => {
-            alert(`Product sheet ${props.mode === 'edit' ? 'actualizado' : 'creado'} exitosamente.`);
+            setAlert(`Product sheet ${props.mode === 'edit' ? 'actualizado' : 'creado'} exitosamente.`, 'success');
             emit('productSheetSaved', response.data);
             resetForm();
             localDialogOpen.value = false;
         })
         .catch((error) => {
             console.error(`Error al ${props.mode === 'edit' ? 'actualizar' : 'crear'} el product sheet:`, error);
-            alert(`Hubo un error al ${props.mode === 'edit' ? 'actualizar' : 'crear'} el product sheet.`);
+            setAlert(`Hubo un error al ${props.mode === 'edit' ? 'actualizar' : 'crear'} el product sheet.`, 'error');
         });
 }
 
@@ -181,7 +204,7 @@ function validateForm() {
     if (!form.value.fabric_base_id) errors.push('Base es requerida.'); // Cambiar base_id a fabric_base_id
 
     if (errors.length > 0) {
-        alert(errors.join('\n'));
+        setAlert(errors.join('\n'), 'warning');
         return false;
     }
     return true;
@@ -243,7 +266,20 @@ function handleClose() {
 <template>
     <Dialog v-model:open="localDialogOpen" @close="handleClose">
         <DialogContent class="max-h-screen overflow-y-auto sm:max-w-4xl">
-            <DialogHeader>
+            <div ref="dialogInnerRef" class="relative">
+                <transition name="fade">
+                    <div v-if="showAlert && alertMessage" class="pointer-events-none absolute left-1/2 top-4 z-30 w-full max-w-xl -translate-x-1/2">
+                        <AlertBox
+                            :type="alertType"
+                            :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                            :message="alertMessage"
+                            class="pointer-events-auto"
+                            @close="clearAlert"
+                        />
+                    </div>
+                </transition>
+
+                <DialogHeader>
                 <DialogTitle>{{ props.mode === 'edit' ? 'Editar' : 'Crear' }} Sabana de Productos</DialogTitle>
                 <DialogDescription>
                     Completa los campos para {{ props.mode === 'edit' ? 'editar' : 'crear' }} un producto. Haz clic en guardar cuando termines.
@@ -307,6 +343,7 @@ function handleClose() {
                     {{ props.mode === 'edit' ? 'Actualizar' : 'Guardar' }}
                 </Button>
             </DialogFooter>
+            </div>
         </DialogContent>
     </Dialog>
 </template>

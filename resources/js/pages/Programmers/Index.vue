@@ -27,6 +27,7 @@ import { OptionParams, ProductSheet, Programmer, type BreadcrumbItem } from '@/t
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { onMounted, ref, watch } from 'vue';
+import AlertBox from '@/components/AlertBox.vue';
 import { Search } from 'lucide-vue-next';
 import EditProgrammerDialog from './Edit.vue';
 import CreateProgrammerDialog from './Create.vue';
@@ -81,6 +82,28 @@ const props = defineProps<{
 const programmers = ref<Programmer[]>([]);
 const programmerToDelete = ref<Programmer | null>(null);
 const isDialogOpen = ref(false);
+
+// Alert state
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
+const showAlert = ref(false);
+const pageContentRef = ref<HTMLElement | null>(null);
+
+function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    alertMessage.value = message;
+    alertType.value = type;
+    showAlert.value = true;
+    if (pageContentRef.value && typeof pageContentRef.value.scrollTo === 'function') {
+        pageContentRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert() {
+    alertMessage.value = '';
+    showAlert.value = false;
+}
 const editProgrammerDialogRef = ref<InstanceType<typeof EditProgrammerDialog> | null>(null);
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
@@ -109,7 +132,7 @@ async function deleteProgrammer() {
         isDialogOpen.value = false;
     } catch (error) {
         console.error('Error al eliminar el programador:', error);
-        alert('Hubo un error al eliminar el programador.');
+        setAlert('Hubo un error al eliminar el programador.', 'error');
     }
 }
 
@@ -151,7 +174,7 @@ function openEditDialog(programmer: Programmer) {
 }
 
 function viewProgrammer(programmer: Programmer) {
-    alert(`Visualizando el programador: ${programmer.product_sheet?.reference || 'Sin referencia'}`);
+    setAlert(`Visualizando el programador: ${programmer.product_sheet?.reference || 'Sin referencia'}`, 'info');
 }
 
 function handlePageChange(page: number) {
@@ -169,7 +192,21 @@ onMounted(async () => {
 <template>
     <Head title="Comercial/Diseño" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+        <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+            <transition name="fade">
+                <div
+                    v-if="showAlert && alertMessage"
+                    class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-xl -translate-x-1/2"
+                >
+                    <AlertBox
+                        :type="alertType"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :message="alertMessage"
+                        class="pointer-events-auto"
+                        @close="clearAlert"
+                    />
+                </div>
+            </transition>
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Lista Programador</h1>
                 <CreateProgrammerDialog 

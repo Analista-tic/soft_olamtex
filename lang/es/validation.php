@@ -222,6 +222,7 @@ return [
         'name'                     => 'nombre',
         'national_code'            => 'código nacional',
         'number'                   => 'número',
+        'roll_number'              => 'número de rollo',
         'password'                 => 'contraseña',
         'password_confirmation'    => 'confirmación de la contraseña',
         'phone'                    => 'teléfono',
