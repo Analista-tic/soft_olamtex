@@ -575,7 +575,7 @@ onBeforeUnmount(() => {
 
                         <div class="mt-6 rounded-2xl border border-dashed border-gray-200 p-4">
                             <p class="text-sm font-semibold text-slate-700">Logotipo corporativo</p>
-                            <p class="text-xs text-slate-500 mb-3">
+                            <p class="text-xs text-slate-500 m-2">
                                 Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
                             </p>
                             <div class="flex flex-col gap-3">
