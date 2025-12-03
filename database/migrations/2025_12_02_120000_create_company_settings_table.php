@@ -11,18 +11,14 @@ return new class extends Migration
         Schema::create('company_settings', function (Blueprint $table) {
             $table->id();
             $table->string('name')->nullable();
-            $table->string('brand')->nullable();
-            $table->string('document_type')->nullable();
             $table->string('nit')->nullable();
             $table->string('phone')->nullable();
             $table->string('email')->nullable();
             $table->string('accounting_email')->nullable();
             $table->string('website')->nullable();
             $table->string('address')->nullable();
-            $table->string('city')->nullable();
-            $table->string('country')->nullable();
-            $table->string('industry')->nullable();
-            $table->string('currency')->nullable();
+            $table->string('municipality')->nullable();
+            $table->string('department')->nullable();
             $table->text('description')->nullable();
             $table->string('logo_path')->nullable();
             $table->timestamps();

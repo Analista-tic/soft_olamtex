@@ -1,4 +1,5 @@
 <?php
+// app/Models/Settings/CompanySetting.php
 
 namespace App\Models\Settings;
 
@@ -7,22 +8,16 @@ use Illuminate\Support\Facades\Storage;
 
 class CompanySetting extends Model
 {
-    protected $table = 'company_settings';
-
     protected $fillable = [
         'name',
-        'brand',
-        'document_type',
         'nit',
         'phone',
         'email',
         'accounting_email',
         'website',
         'address',
-        'city',
-        'country',
-        'industry',
-        'currency',
+        'municipality',
+        'department',
         'description',
         'logo_path',
     ];
@@ -31,10 +26,8 @@ class CompanySetting extends Model
 
     public function getLogoUrlAttribute(): ?string
     {
-        if (!$this->logo_path) {
-            return null;
-        }
-
-        return Storage::disk('public')->url($this->logo_path);
+        return $this->logo_path
+            ? Storage::url($this->logo_path)
+            : null;
     }
 }

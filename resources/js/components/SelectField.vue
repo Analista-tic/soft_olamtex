@@ -108,7 +108,7 @@ function handleChange(val: Option['id'] | Option['id'][]) {
         >
             <div class="relative inline-block w-full">
                 <ListboxButton
-                    class="pr-8 min-w-[12rem] w-full max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none flex items-start justify-between gap-2"
+                    class="pr-8 min-w-[12rem] w-full max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none flex items-center justify-between gap-2 min-h-[2.75rem]"
                     style="position: static;"
                     :disabled="disabled"
                     :class="disabled ? 'pointer-events-none opacity-60' : ''"

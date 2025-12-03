@@ -217,7 +217,7 @@ const validateField = (field: string) => {
         <div class="md:col-span-2">
             <SelectField
                 v-model="locationValue"
-                label="Departamento y municipio"
+                label="Municipio y departamento"
                 required
                 :options="locationOptions"
                 placeholder="Escribe para buscar municipio o departamento..."
