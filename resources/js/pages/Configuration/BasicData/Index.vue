@@ -420,8 +420,7 @@ onBeforeUnmount(() => {
             <div class="space-y-1">
                 <h1 class="text-2xl font-semibold text-slate-900">Datos básicos</h1>
                 <p class="max-w-2xl text-sm text-slate-500">
-                    Actualiza la información fiscal, de contacto e identidad visual que usa toda la
-                    plataforma.
+                    Actualiza la información de la empresa que usa toda la plataforma.
                 </p>
             </div>
 
