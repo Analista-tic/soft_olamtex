@@ -36,12 +36,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 const navSections = [
     {
         label: 'Perfil',
-        description: 'Datos básicos y fiscales',
+        description: 'Datos básicos de la empresa',
         href: '/configuracion/datos-basicos',
         active: true,
     },
     {
-        label: 'Seguridad',
+        label: 'Accesos y Permisos',
         description: 'Usuarios, roles y accesos',
         href: null,
     },
@@ -51,6 +51,13 @@ const navSections = [
         href: null,
     },
 ];
+
+const navSectionBaseClasses =
+    'flex w-full items-start justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition-colors min-h-[58px] shadow-sm';
+const navSectionActiveClasses = 'border-blue-100 bg-blue-50 text-blue-600';
+const navSectionDefaultClasses =
+    'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800';
+const navSectionDisabledClasses = 'bg-white border-slate-200 text-slate-400 cursor-not-allowed';
 
 const defaultLogo =
     'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 120%22%3E%3Crect width=%22120%22 height=%22120%22 rx=%2216%22 ry=%2216%22 fill=%22%23f0f4f8%22/%3E%3Cpath d=%22M30 40h60v40H30z%22 fill=%22%23ffffff%22 stroke=%22%23d0d7e7%22 stroke-width=%222%22/%3E%3Cpath d=%22M38 48h44M38 56h44M38 64h24%22 stroke=%22%2393a3b8%22 stroke-width=%224%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%2286%22 cy=%2254%22 r=%226%22 fill=%22%23aac9ff%22/%3E%3Cpath d=%22M56 34h14a4 4 0 0 1 4 4v6h-22v-6a4 4 0 0 1 4-4z%22 fill=%22%23a5b6c8%22/%3E%3C/svg%3E';
@@ -418,7 +425,7 @@ onBeforeUnmount(() => {
                 </p>
             </div>
 
-            <div class="grid gap-6 lg:grid-cols-[410px_1fr]">
+            <div class="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)] items-start">
                 <aside class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                     <div class="space-y-3">
                         <div class="relative h-28 w-full overflow-hidden rounded-2xl bg-slate-100">
@@ -449,10 +456,7 @@ onBeforeUnmount(() => {
                                 <Link
                                     v-if="section.href"
                                     :href="section.href"
-                                    class="flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors"
-                                    :class="section.active
-                                        ? 'border-blue-100 bg-blue-50 text-blue-600'
-                                        : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-800'"
+                                    :class="[navSectionBaseClasses, section.active ? navSectionActiveClasses : navSectionDefaultClasses]"
                                     :aria-current="section.active ? 'page' : undefined"
                                 >
                                     <div>
@@ -470,7 +474,7 @@ onBeforeUnmount(() => {
                                     v-else
                                     type="button"
                                     disabled
-                                    class="flex w-full items-center justify-between gap-2 rounded-xl border border-dashed border-slate-200 px-3 py-2 text-left text-sm text-slate-400 transition-colors"
+                                    :class="[navSectionBaseClasses, navSectionDisabledClasses]"
                                     title="Sección en desarrollo"
                                 >
                                     <div>
@@ -540,8 +544,8 @@ onBeforeUnmount(() => {
                             </div>
                         </div>
 
-                        <div class="grid gap-4 md:grid-cols-2 items-start">
-                            <div class="space-y-2">
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div class="space-y-2 flex flex-col h-full justify-end">
                                 <label for="address" class="text-sm font-medium text-slate-700">
                                     Dirección <span class="text-red-500">*</span>
                                 </label>
@@ -551,16 +555,16 @@ onBeforeUnmount(() => {
                                     :class="isFieldMissing('address') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
                                 />
                             </div>
-                            <div class="space-y-2">
+                            <div class="space-y-2 flex flex-col h-full justify-end">
                                 <SelectField
                                     v-model="locationValue"
                                     label="Municipio y departamento"
-                                    placeholder="Escribe para buscar municipio o departamento..."
+                                    required
                                     :options="locationOptions"
+                                    placeholder="Selecciona un municipio o departamento"
                                     :searchable="true"
                                     :searchThreshold="0"
                                     @search="updateLocationOptions"
-                                    required
                                 />
                             </div>
                         </div>

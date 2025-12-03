@@ -87,6 +87,17 @@ const selectedOptions = computed<Option[] | Option | null>(() => {
     return props.options.find((opt) => opt.id == localModelValue.value) || null;
 });
 
+const fallbackLabel = computed(() => {
+    if (props.multiple || !localModelValue.value) return '';
+    const fallback = String(localModelValue.value);
+    if (fallback.includes('||')) {
+        const [municipality, department] = fallback.split('||');
+        const readable = [municipality, department].filter(Boolean).join(', ');
+        return readable || fallback;
+    }
+    return fallback;
+});
+
 function handleChange(val: Option['id'] | Option['id'][]) {
     localModelValue.value = val;
 }
@@ -108,10 +119,11 @@ function handleChange(val: Option['id'] | Option['id'][]) {
         >
             <div class="relative inline-block w-full">
                 <ListboxButton
-                    class="pr-8 min-w-[12rem] w-full max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none flex items-center justify-between gap-2 min-h-[2.75rem]"
-                    style="position: static;"
+                    :class="[
+                        'w-full rounded-md border border-gray-300 px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between gap-2',
+                        disabled ? 'pointer-events-none opacity-60' : ''
+                    ]"
                     :disabled="disabled"
-                    :class="disabled ? 'pointer-events-none opacity-60' : ''"
                 >
                     <span v-if="multiple && Array.isArray(localModelValue) && localModelValue.length === 0" class="text-gray-400">
                         {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
@@ -132,7 +144,7 @@ function handleChange(val: Option['id'] | Option['id'][]) {
                             </div>
                         </template>
                         <template v-else>
-                            {{ (selectedOptions as Option)?.name }}
+                            {{ (selectedOptions as Option)?.name ?? fallbackLabel }}
                         </template>
                     </span>
                         <svg class="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
