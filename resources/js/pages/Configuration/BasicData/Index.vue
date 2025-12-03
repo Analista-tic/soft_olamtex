@@ -8,6 +8,7 @@ import { BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { Image } from 'lucide-vue-next';
 
 interface CompanyData {
     name: string;
@@ -30,14 +31,14 @@ interface CompanyData {
 const props = defineProps<{ company?: Partial<CompanyData> }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'ConfiguraciÃ³n', href: '/configuracion' },
-    { title: 'Datos bÃ¡sicos', href: '/configuracion/datos-basicos' },
+    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Datos básicos', href: '/configuracion/datos-basicos' },
 ];
 
 const navSections = [
     {
         label: 'Perfil',
-        description: 'Datos bÃ¡sicos y fiscales',
+        description: 'Datos básicos y fiscales',
         href: '/configuracion/datos-basicos',
         active: true,
     },
@@ -47,7 +48,7 @@ const navSections = [
         href: null,
     },
     {
-        label: 'PersonalizaciÃ³n',
+        label: 'Personalización',
         description: 'Imagen corporativa',
         href: null,
     },
@@ -85,7 +86,7 @@ const quickFacts = computed(() => [
     { label: 'NIT', value: companyInfo.nit || 'Sin definir' },
     { label: 'Documento', value: companyInfo.document_type || 'Sin definir' },
     {
-        label: 'UbicaciÃ³n',
+        label: 'Ubicación',
         value:
             [companyInfo.city, companyInfo.country].filter(Boolean).join(', ') || 'Sin definir',
     },
@@ -116,7 +117,6 @@ const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isSaving = ref(false);
 const logoFile = ref<File | null>(null);
-let temporaryLogoUrl: string | null = null;
 
 const companyLogo = computed(() => logoPreviewUrl.value ?? companyInfo.logo_url ?? defaultLogo);
 const hasCustomLogo = computed(() => Boolean(logoPreviewUrl.value));
@@ -125,28 +125,35 @@ function triggerLogoUpload(): void {
     iconInputRef.value?.click();
 }
 
+function processSelectedLogo(file: File): void {
+    logoFile.value = file;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        logoPreviewUrl.value = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+}
+
 function handleLogoChange(event: Event): void {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     if (!file) {
         return;
     }
-
-    if (temporaryLogoUrl) {
-        URL.revokeObjectURL(temporaryLogoUrl);
-    }
-
-    temporaryLogoUrl = URL.createObjectURL(file);
-    logoPreviewUrl.value = temporaryLogoUrl;
-    logoFile.value = file;
+    processSelectedLogo(file);
     target.value = '';
 }
 
-function resetLogoPreview(): void {
-    if (temporaryLogoUrl) {
-        URL.revokeObjectURL(temporaryLogoUrl);
-        temporaryLogoUrl = null;
+function handleLogoDrop(event: DragEvent): void {
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) {
+        return;
     }
+    processSelectedLogo(file);
+}
+
+function resetLogoPreview(): void {
     logoPreviewUrl.value = null;
     logoFile.value = null;
 }
@@ -190,9 +197,9 @@ async function saveBasicData(): Promise<void> {
         }
 
         resetLogoPreview();
-        successMessage.value = response.data?.message ?? 'Los datos bÃ¡sicos se actualizaron correctamente.';
+        successMessage.value = response.data?.message ?? 'Los datos básicos se actualizaron correctamente.';
     } catch (error) {
-        console.error('Error guardando datos bÃ¡sicos:', error);
+        console.error('Error guardando datos básicos:', error);
         if (axios.isAxiosError(error) && error.response?.status === 422) {
             const validationErrors = error.response?.data?.errors as Record<string, string[]> | undefined;
             const message = validationErrors
@@ -200,7 +207,7 @@ async function saveBasicData(): Promise<void> {
                 : 'Revisa los campos e intenta nuevamente.';
             setError(message, 'warning');
         } else {
-            setError('No se pudo guardar la informaciÃ³n. Intenta nuevamente.', 'error');
+            setError('No se pudo guardar la información. Intenta nuevamente.', 'error');
         }
     } finally {
         isSaving.value = false;
@@ -226,7 +233,6 @@ onBeforeUnmount(() => {
         />
         <div class="flex flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="space-y-1">
-                <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Empresa · Configuración</p>
                 <h1 class="text-2xl font-semibold text-slate-900">Datos básicos</h1>
                 <p class="max-w-2xl text-sm text-slate-500">
                     Actualiza la información fiscal, de contacto e identidad visual que usa toda la
@@ -371,7 +377,7 @@ onBeforeUnmount(() => {
                         </div>
 
                         <div class="space-y-2">
-                            <label for="description" class="text-sm font-medium text-slate-700">DescripciÃ³n</label>
+                            <label for="description" class="text-sm font-medium text-slate-700">Descripción</label>
                             <Textarea id="description" rows="4" v-model="companyInfo.description" />
                         </div>
 
@@ -386,18 +392,40 @@ onBeforeUnmount(() => {
                     </form>
 
                     <div class="mt-6 rounded-2xl border border-dashed border-gray-200 p-4">
-                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <p class="text-sm font-semibold text-slate-700">Logotipo corporativo</p>
-                                <p class="text-xs text-slate-500">Sube PNG, SVG o JPG de máximo 2 MB.</p>
+                                <p class="text-xs text-slate-500">
+                                    Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
+                                </p>
                             </div>
-                            <div class="flex items-center gap-3">
-                                <div class="h-14 w-14 overflow-hidden rounded-2xl border border-gray-100 bg-slate-50">
-                                    <img
-                                        :src="companyLogo"
-                                        alt="Logotipo de la empresa"
-                                        class="h-full w-full object-cover"
-                                    />
+                            <div class="flex flex-col items-center gap-3 sm:flex-row sm:items-center">
+                                <div class="flex flex-col items-center gap-2">
+                                    <div
+                                        class="relative flex h-32 w-32 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-gray-200 bg-slate-50 transition hover:border-blue-400 sm:h-28 sm:w-28"
+                                        @click="triggerLogoUpload"
+                                        @drop.prevent="handleLogoDrop"
+                                        @dragover.prevent
+                                    >
+                                        <template v-if="logoPreviewUrl">
+                                            <img
+                                                :src="companyLogo"
+                                                alt="Logotipo de la empresa"
+                                                class="h-full w-full object-cover"
+                                            />
+                                            <div class="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-[10px] uppercase tracking-[0.3em] text-white">
+                                                {{ hasCustomLogo ? 'Listo para subir' : 'Sin cambios' }}
+                                            </div>
+                                        </template>
+                                        <template v-else>
+                                            <div class="flex flex-col items-center gap-1 text-xs text-slate-400">
+                                                <Image class="h-5 w-5" />
+                                                <span class="text-xs text-center leading-tight">
+                                                    Haz clic o arrastra una imagen.
+                                                </span>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     <Button type="button" variant="outline" size="sm" @click="triggerLogoUpload">
@@ -428,5 +456,3 @@ onBeforeUnmount(() => {
         </div>
     </AppLayout>
 </template>
-
-

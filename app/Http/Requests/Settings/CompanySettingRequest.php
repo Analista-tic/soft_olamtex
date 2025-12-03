@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace App\Http\Requests\Settings;
 
@@ -32,3 +32,4 @@ class CompanySettingRequest extends FormRequest
         ];
     }
 }
+
