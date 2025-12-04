@@ -425,7 +425,7 @@ watch(dialogOpen, (isOpen) => {
                   :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"
                   class="space-y-6"
               >
-                <div class="rounded-xl border border-sidebar-border/70 bg-white p-4 dark:border-sidebar-border space-y-4">
+                <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
                     <!-- Cabecera -->
                     <div class="grid grid-cols-3 items-start gap-4">
                         <div>
