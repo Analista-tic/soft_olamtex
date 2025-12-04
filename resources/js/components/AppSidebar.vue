@@ -7,7 +7,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, Sid
 import { useAuthStore } from '@/stores/auth';
 import { type NavGroupItem, type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, ChartNoAxesCombined, Cog, BanknoteArrowDown, Database, Folder, FolderKanban, Folders, LayoutGrid, Shell, UsersRound } from 'lucide-vue-next';
+import { BookOpen, ChartNoAxesCombined, Grip , BanknoteArrowDown, Database, Folder, FolderKanban, Folders, LayoutGrid, Shell, UsersRound } from 'lucide-vue-next';
 import { computed, onMounted } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -178,7 +178,7 @@ const navMainGroup: NavGroupItem[] = [
     {
         title: 'Panel administrativo',
         href: '/panel-administrativo',
-        icon: Cog,
+        icon: Grip ,
         isActive: false,
     },
 ];

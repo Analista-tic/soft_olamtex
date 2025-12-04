@@ -49,12 +49,12 @@ const navSections = [
     {
         key: 'empresa',
         label: 'Empresa',
-        description: 'Configuración corporativa y datos fiscales',
+        description: 'Configuración corporativa',
     },
     {
         key: 'perfil',
         label: 'Perfil',
-        description: 'Información que ya existe en la tabla users',
+        description: 'Información de tu cuenta',
         href: '/panel-administrativo/perfil',
     },
     {
@@ -77,10 +77,11 @@ const goToSection = (key: SectionKey) => {
 };
 
 const navSectionBaseClasses =
-    'flex w-full items-start justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition-colors min-h-[58px] shadow-sm';
-const navSectionActiveClasses = 'border-blue-100 bg-blue-50 text-blue-600';
+    'flex w-full items-start justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition-colors min-h-[58px] shadow-sm bg-card border-border dark:border-border';
+const navSectionActiveClasses =
+    'border-blue-100 bg-blue-50 text-blue-600 dark:border-blue-700 dark:bg-blue-600/10 dark:text-blue-300';
 const navSectionDefaultClasses =
-    'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800';
+    'text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-900 dark:hover:text-white';
 
 const defaultLogo =
     'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 120%22%3E%3Crect width=%22120%22 height=%22120%22 rx=%2216%22 ry=%2216%22 fill=%22%23f0f4f8%22/%3E%3Cpath d=%22M30 40h60v40H30z%22 fill=%22%23ffffff%22 stroke=%22%23d0d7e7%22 stroke-width=%222%22/%3E%3Cpath d=%22M38 48h44M38 56h44M38 64h24%22 stroke=%22%2393a3b8%22 stroke-width=%224%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%2286%22 cy=%2254%22 r=%226%22 fill=%22%23aac9ff%22/%3E%3Cpath d=%22M56 34h14a4 4 0 0 1 4 4v6h-22v-6a4 4 0 0 1 4-4z%22 fill=%22%23a5b6c8%22/%3E%3C/svg%3E';
@@ -524,7 +525,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)] items-start">
-                <aside class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <aside class="rounded-2xl border border-border bg-card p-5 shadow-sm">
                     <div class="space-y-3">
                         <div class="relative h-28 w-full overflow-hidden rounded-2xl bg-slate-100">
                             <img
@@ -573,7 +574,7 @@ onBeforeUnmount(() => {
                     </div>
                 </aside>
 
-                <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <section class="rounded-2xl border border-border bg-card p-5 shadow-sm">
                     <div v-if="selectedSection === 'empresa'">
                         <form class="space-y-6" @submit.prevent="saveBasicData">
                                                 <div class="grid gap-4 md:grid-cols-2">
@@ -660,14 +661,14 @@ onBeforeUnmount(() => {
                                                     <Textarea id="description" rows="4" v-model="companyInfo.description" />
                                                 </div>
                         
-                                                <div class="mt-6 rounded-2xl border border-dashed border-gray-200 p-4">
+                                                <div class="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
                                                     <p class="text-sm font-semibold text-slate-700">Logotipo corporativo</p>
                                                     <p class="text-xs text-slate-500 m-2">
                                                         Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
                                                     </p>
                                                     <div class="flex flex-col gap-3">
-                                                        <div
-                                                            class="relative w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-gray-200 bg-slate-50 transition hover:border-blue-400"
+                        <div
+                            class="relative w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted transition hover:border-blue-400 dark:border-border dark:bg-slate-900"
                                                             style="min-height: 9rem;"
                                                             @click="triggerLogoUpload"
                                                             @drop.prevent="handleLogoDrop"

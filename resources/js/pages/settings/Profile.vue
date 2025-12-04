@@ -1,13 +1,24 @@
 <script setup lang="ts">
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+
+import DeleteUser from '@/components/DeleteUser.vue';
+import HeadingSmall from '@/components/HeadingSmall.vue';
+import InputError from '@/components/InputError.vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
-import { Head, usePage } from '@inertiajs/vue3';
-import AlertBox from '@/components/AlertBox.vue';
-import ProfileSection from '@/pages/Configuration/BasicData/Profile.vue';
-import type { SharedData } from '@/types';
-import { ref } from 'vue';
+import { type BreadcrumbItem, type SharedData, type User } from '@/types';
 
-const breadcrumbs = [
+interface Props {
+    mustVerifyEmail: boolean;
+    status?: string;
+}
+
+defineProps<Props>();
+
+const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Profile settings',
         href: '/settings/profile',
@@ -15,52 +26,85 @@ const breadcrumbs = [
 ];
 
 const page = usePage<SharedData>();
-const user = page.props.auth.user;
+const user = page.props.auth.user as User;
 
-const successMessage = ref('');
-const errorMessage = ref('');
-const errorType = ref<'success' | 'error' | 'info' | 'warning'>('success');
+const form = useForm({
+    name: user.name,
+    email: user.email,
+});
 
-const clearAlerts = () => {
-    successMessage.value = '';
-    errorMessage.value = '';
-};
-
-const handleSuccess = (message: string) => {
-    successMessage.value = message;
-    errorMessage.value = '';
-    errorType.value = 'success';
-};
-
-const handleError = (message: string) => {
-    errorMessage.value = message;
-    successMessage.value = '';
-    errorType.value = 'error';
+const submit = () => {
+    form.patch(route('profile.update'), {
+        preserveScroll: true,
+    });
 };
 </script>
 
 <template>
     <AppLayout :breadcrumbs="breadcrumbs">
         <Head title="Profile settings" />
-        <div class="relative flex flex-1 flex-col gap-3">
-            <transition name="fade">
-                <div
-                    v-if="successMessage || errorMessage"
-                    class="pointer-events-none fixed left-1/2 top-4 z-[9999] flex w-full max-w-xl -translate-x-1/2 px-3"
-                >
-                    <AlertBox
-                        class="pointer-events-auto w-full"
-                        :type="errorMessage ? errorType : 'success'"
-                        :message="errorMessage || successMessage"
-                        :title="errorMessage ? 'Error' : '¡Listo!'"
-                        :auto-close-ms="0"
-                        @close="clearAlerts"
-                    />
-                </div>
-            </transition>
-            <SettingsLayout>
-                <ProfileSection :user="user" @success="handleSuccess" @error="handleError" />
-            </SettingsLayout>
-        </div>
+
+        <SettingsLayout>
+            <div class="flex flex-col space-y-6">
+                <HeadingSmall title="Profile information" description="Update your name and email address" />
+
+                <form @submit.prevent="submit" class="space-y-6">
+                    <div class="grid gap-2">
+                        <Label for="name">Name</Label>
+                        <Input id="name" class="mt-1 block w-full" v-model="form.name" required autocomplete="name" placeholder="Full name" />
+                        <InputError class="mt-2" :message="form.errors.name" />
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="email">Email address</Label>
+                        <Input
+                            id="email"
+                            type="email"
+                            class="mt-1 block w-full"
+                            v-model="form.email"
+                            required
+                            autocomplete="username"
+                            placeholder="Email address"
+                        />
+                        <InputError class="mt-2" :message="form.errors.email" />
+                    </div>
+
+                    <div v-if="mustVerifyEmail && !user.email_verified_at">
+                        <p class="-mt-4 text-sm text-muted-foreground">
+                            Your email address is unverified.
+                            <Link
+                                :href="route('verification.send')"
+                                method="post"
+                                as="button"
+                                class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:!decoration-current dark:decoration-neutral-500"
+                            >
+                                Click here to resend the verification email.
+                            </Link>
+                        </p>
+
+                        <div v-if="status === 'verification-link-sent'" class="mt-2 text-sm font-medium text-green-600">
+                            A new verification link has been sent to your email address.
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <Button variant="default" :disabled="form.processing">
+                            Guardar
+                        </Button>
+
+                        <Transition
+                            enter-active-class="transition ease-in-out"
+                            enter-from-class="opacity-0"
+                            leave-active-class="transition ease-in-out"
+                            leave-to-class="opacity-0"
+                        >
+                            <p v-show="form.recentlySuccessful" class="text-sm text-neutral-600">Saved.</p>
+                        </Transition>
+                    </div>
+                </form>
+            </div>
+
+            <DeleteUser />
+        </SettingsLayout>
     </AppLayout>
 </template>

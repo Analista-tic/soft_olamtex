@@ -124,8 +124,9 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
             <div class="relative inline-block w-full">
                 <ListboxButton
                     :class="[
-                'w-full rounded-md border border-gray-300 px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between gap-2 pr-10',
-                        disabled ? 'pointer-events-none opacity-60' : ''
+                        'w-full rounded-md border border-gray-300 bg-white px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between gap-2 pr-10 text-gray-900',
+                        'dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:shadow-none',
+                        disabled ? 'pointer-events-none opacity-60' : '',
                     ]"
                     :disabled="disabled"
                 >
@@ -155,68 +156,79 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
                     </ListboxButton>
-                    <ListboxOptions 
-                        class="absolute z-50 mt-1 min-w-[12rem] w-full max-w-full bg-white shadow-2xl rounded-md text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm overflow-hidden"
-                        style="position: absolute; max-height: 15rem; background: white; box-shadow: 0 8px 32px 0 rgba(31, 41, 55, 0.25), 0 1.5px 6px 0 rgba(0,0,0,0.10); border: 1px solid #e5e7eb;"
+                <ListboxOptions
+                    class="absolute z-50 mt-1 min-w-[12rem] w-full max-w-full rounded-md text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm overflow-hidden bg-white border border-gray-200 shadow-2xl dark:bg-slate-900 dark:border-slate-800 dark:shadow-[0_8px_32px_rgba(0,0,0,0.55)] dark:text-slate-100"
+                    style="max-height: 15rem;"
+                >
+                    <div
+                        v-if="shouldShowSearchInput"
+                        class="z-30 bg-white px-3 pb-3 pt-3 shadow-sm border-b border-gray-200 dark:bg-slate-900 dark:border-slate-800"
                     >
-                        <div v-if="shouldShowSearchInput" class="z-30 bg-white px-3 pb-3 pt-3 shadow-sm border-b border-gray-200">
-                            <input
-                                ref="searchInputRef"
-                                v-model="searchTerm"
-                                type="text"
-                                :placeholder="searchPlaceholder"
-                                class="w-full rounded-md border border-input px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                @keydown.stop
-                                @keyup.stop
-                                @click.stop
-                                autofocus
-                            />
-                        </div>
-                        <div class="max-h-[11.5rem] overflow-y-auto overflow-x-hidden">
-                            <ListboxOption
-                                v-if="!multiple && showPlaceholderOption"
-                                :value="''"
-                                disabled
-                                class="text-gray-400 bg-white cursor-default select-none relative py-2 pl-3 pr-9"
+                        <input
+                            ref="searchInputRef"
+                            v-model="searchTerm"
+                            type="text"
+                            :placeholder="searchPlaceholder"
+                            class="w-full rounded-md border border-input px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-500 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400 dark:border-slate-700"
+                            @keydown.stop
+                            @keyup.stop
+                            @click.stop
+                            autofocus
+                        />
+                    </div>
+                    <div class="max-h-[11.5rem] overflow-y-auto overflow-x-hidden">
+                        <ListboxOption
+                            v-if="!multiple && showPlaceholderOption"
+                            :value="''"
+                            disabled
+                                class="text-gray-400 bg-white cursor-default select-none relative py-2 pl-3 pr-9 dark:bg-slate-900 dark:text-slate-400"
+                        >
+                            {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
+                        </ListboxOption>
+                            <div
+                                v-if="$slots.header"
+                                class="border-b border-gray-200 bg-white px-2 pb-2 pt-2 dark:border-slate-800 dark:bg-slate-900"
                             >
-                                {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
-                            </ListboxOption>
-                            <div v-if="$slots.header" class="border-b border-gray-200 bg-white px-2 pb-2 pt-2">
                                 <slot name="header" />
                             </div>
-                            <ListboxOption
-                                v-for="option in filteredOptions"
-                                :key="option.id"
-                                :value="option.id"
-                            >
-                                <template #default="{ active, selected }">
-                                    <div
-                                        :class="[
-                                            active ? 'text-white bg-blue-600' : 'text-gray-900',
-                                            'cursor-pointer select-none relative py-2 pl-3 pr-9'
-                                        ]"
+                        <ListboxOption
+                            v-for="option in filteredOptions"
+                            :key="option.id"
+                            :value="option.id"
+                        >
+                            <template #default="{ active, selected }">
+                                <div
+                                    :class="[
+                                        'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
+                                        active
+                                            ? 'text-white bg-blue-600 dark:bg-blue-500'
+                                            : 'text-gray-900 dark:text-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800'
+                                    ]"
+                                >
+                                    <span :class="selected ? 'font-semibold' : 'font-normal'">
+                                        {{ option.name }}
+                                    </span>
+                                    <span
+                                        v-if="selected"
+                                        class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600 dark:text-blue-400"
                                     >
-                                        <span :class="selected ? 'font-semibold' : 'font-normal'">
-                                            {{ option.name }}
-                                        </span>
-                                        <span
-                                            v-if="selected"
-                                            class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600"
-                                        >
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                        </span>
-                                    </div>
-                                </template>
-                            </ListboxOption>
-                            <div
-                                v-if="filteredOptions.length === 0"
-                                class="px-3 py-2 text-sm text-gray-500"
-                            >
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </span>
+                                </div>
+                            </template>
+                        </ListboxOption>
+                        <div
+                            v-if="filteredOptions.length === 0"
+                            class="px-3 py-2 text-sm text-gray-500 dark:text-slate-400"
+                        >
                                 No se encontraron opciones.
                             </div>
-                            <div v-if="$slots.footer" class="mt-1 border-t border-gray-200 bg-white px-2 pb-2 pt-2">
+                            <div
+                                v-if="$slots.footer"
+                                class="mt-1 border-t border-gray-200 bg-white px-2 pb-2 pt-2 dark:border-slate-800 dark:bg-slate-900"
+                            >
                                 <slot name="footer" />
                             </div>
                         </div>
@@ -237,6 +249,12 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
     font-size: 0.7rem;
     line-height: 1rem;
     user-select: none;
+}
+
+:global(.dark) .selected-pill {
+    background-color: #1f2937;
+    border-color: #374151;
+    color: #f8fafc;
 }
 
 .truncate-selected {

@@ -51,6 +51,11 @@ const resetProfileForm = () => {
     syncProfileInfo();
 };
 
+const handleCancelEdit = () => {
+    resetProfileForm();
+    exitEditMode();
+};
+
 function saveProfileInfo() {
     profileSaving.value = true;
     resetProfileForm();
@@ -73,6 +78,10 @@ async function deleteProfile() {
 
 const openPasswordModal = () => {
     isPasswordModalOpen.value = true;
+};
+
+const openDeleteDialog = () => {
+    isDeleteDialogOpen.value = true;
 };
 
 const handlePasswordSaved = (message: string) => {
@@ -127,9 +136,9 @@ const handlePasswordError = (message: string) => {
             <Button
                 v-if="isEditingProfile"
                 type="button"
-                variant="ghost"
+                variant="outline"
                 class="text-slate-600"
-                @click="resetProfileForm(); exitEditMode();"
+                @click="handleCancelEdit"
             >
                 Cancelar
             </Button>
@@ -137,20 +146,20 @@ const handlePasswordError = (message: string) => {
                 v-if="!isEditingProfile"
                 type="button"
                 variant="default"
-                class="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 @click="openPasswordModal"
             >
                 Actualizar contraseña
             </Button>
-            <button
+            <Button
                 v-if="!isEditingProfile"
                 type="button"
-                class="inline-flex items-center justify-center rounded-md border border-red-600 bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-60 disabled:pointer-events-none"
-                @click="isDeleteDialogOpen = true"
+                variant="destructive"
+                class="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold shadow-sm transition"
+                @click="openDeleteDialog"
                 :disabled="isDeletingProfile"
             >
                 {{ isDeletingProfile ? 'Eliminando...' : 'Eliminar perfil' }}
-            </button>
+            </Button>
         </div>
         <div
             v-if="!isEditingProfile"
@@ -177,4 +186,3 @@ const handlePasswordError = (message: string) => {
         />
     </form>
 </template>
-
