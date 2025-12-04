@@ -38,9 +38,11 @@ Route::get('dashboard', fn() => Inertia::render('Dashboard'))
 
 // Rutas protegidas por autenticación y verificación
 Route::middleware(['auth', 'verified'])->group(function () {
+    
     // Usuario autenticado
     Route::get('user', function () {
-        $user = Auth::user();
+        $user = Auth::user(); //CONSULTAR USUARIO LOGUEADO
+
         return response()->json([
             'user' => $user,
             'roles' => $user->roles->pluck('name'),
@@ -99,12 +101,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('panel-administrativo', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')
         ->name('panel-administrativo');
-    Route::get('panel-administrativo/datos-basicos', [CompanySettingsController::class, 'edit'])
+    Route::get('panel-administrativo/empresa', [CompanySettingsController::class, 'edit'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.basic-data');
-    Route::patch('panel-administrativo/datos-basicos', [CompanySettingsController::class, 'update'])
+        ->name('panel-administrativo.empresa');
+    Route::get('panel-administrativo/perfil', [CompanySettingsController::class, 'edit'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.basic-data.update');
+        ->name('panel-administrativo.perfil')
+        ->defaults('section', 'perfil');
+    Route::get('panel-administrativo/apariencia', [CompanySettingsController::class, 'edit'])
+        ->middleware('permission:ver usuarios')
+        ->name('panel-administrativo.apariencia')
+        ->defaults('section', 'personalizacion');
+    Route::patch('panel-administrativo/empresa', [CompanySettingsController::class, 'update'])
+        ->middleware('permission:ver usuarios')
+        ->name('panel-administrativo.empresa.update');
 
     // === USUARIOS ===
     Route::get('users', [UserController::class, 'getData'])

@@ -11,6 +11,7 @@ use Spatie\Permission\Models\Role; // Importar el modelo de roles
 
 class UserController extends Controller
 {
+    //ENVIA TODOS LOS USUARIOS A LA VISTA
     public function index()
     {
         $users = User::with('roles.permissions')->get(); // Asegurar que los roles y permisos se carguen correctamente

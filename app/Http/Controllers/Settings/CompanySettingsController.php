@@ -13,12 +13,14 @@ class CompanySettingsController extends Controller
     /**
      * Show the basic data form
      */
-    public function edit()
+    public function edit(Request $request)
     {
         $company = CompanySetting::first();
+        $section = $request->route('section') ?? 'empresa';
 
         return Inertia::render('Configuration/BasicData/Index', [
             'company' => $company,
+            'activeSection' => $section,
         ]);
     }
 

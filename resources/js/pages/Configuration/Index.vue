@@ -15,7 +15,7 @@ const modules = [
                 title: 'Empresa',
                 description: 'Administra usuarios, roles y permisos de acceso.',
                 options: [
-                    { name: 'Datos Basicos', href: '/panel-administrativo/datos-basicos' },
+                    { name: 'Datos Basicos', href: '/panel-administrativo/empresa' },
                     { name: 'Contactos', href: '/contactos' },
                 ],
             },
