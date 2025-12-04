@@ -488,7 +488,7 @@ watch(dialogOpen, (isOpen) => {
                         />
                     </div>
                     <div class="space-y-4 pt-6">
-                        <div class="rounded border border-sidebar-border/70 bg-white p-3">
+                        <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
                             <PurchaseInvoiceWithholdingsTable
                                 :modelValue="localForm.withholdings || []"
                                 @update:modelValue="(val) => (localForm.withholdings = val)"
@@ -496,9 +496,9 @@ watch(dialogOpen, (isOpen) => {
                             />
                         </div>
                         <div class="flex flex-col items-end space-y-0 text-sm w-full">
-                            <div class="w-full max-w-xs bg-white rounded p-2 space-y-1">
+                            <div class="w-full max-w-xs rounded p-2 space-y-1 bg-card text-card-foreground shadow-sm">
                                 <div class="flex justify-between items-center">
-                                    <span class="font-semibold text-gray-700">Subtotal</span>
+                                    <span class="font-semibold text-card-foreground/70">Subtotal</span>
                                     <span>{{
                                         Number(subtotal || 0).toLocaleString('es-CO', {
                                             style: 'currency',
@@ -509,7 +509,7 @@ watch(dialogOpen, (isOpen) => {
                                     }}</span>
                                 </div>
                                 <div class="flex justify-between items-center">
-                                    <span class="font-semibold text-gray-700">IVA 19%</span>
+                                    <span class="font-semibold text-card-foreground/70">IVA 19%</span>
                                     <span>{{
                                         Number(iva || 0).toLocaleString('es-CO', {
                                             style: 'currency',
@@ -520,8 +520,8 @@ watch(dialogOpen, (isOpen) => {
                                     }}</span>
                                 </div>
                                 <div class="flex justify-between items-center pt-1">
-                                    <span class="font-bold text-gray-800">Total orden de compra</span>
-                                    <span class="font-bold text-gray-800">{{
+                                    <span class="font-bold text-card-foreground">Total orden de compra</span>
+                                    <span class="font-bold text-card-foreground">{{
                                         Number(total || 0).toLocaleString('es-CO', {
                                             style: 'currency',
                                             currency: 'COP',
@@ -532,8 +532,8 @@ watch(dialogOpen, (isOpen) => {
                                 </div>
                                 <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
                                     <div class="flex justify-between items-center">
-                                        <span class="text-gray-600">- {{ w.name }}</span>
-                                        <span class="text-red-700">-{{
+                                        <span class="text-card-foreground/60">- {{ w.name }}</span>
+                                        <span class="text-red-500 dark:text-red-400">-{{
                                             ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100).toLocaleString('es-CO', {
                                                 style: 'currency',
                                                 currency: 'COP',
@@ -543,9 +543,9 @@ watch(dialogOpen, (isOpen) => {
                                         }}</span>
                                     </div>
                                 </template>
-                                <div class="flex justify-between items-center pt-2 mt-1 border-t border-gray-200">
-                                    <span class="font-bold text-gray-900">Total a pagar</span>
-                                    <span class="font-bold text-green-700">{{
+                                <div class="flex justify-between items-center pt-2 mt-1 border-t border-border/50">
+                                    <span class="font-bold text-card-foreground">Total a pagar</span>
+                                    <span class="font-bold text-green-500 dark:text-green-400">{{
                                         Number(totalPagar || 0).toLocaleString('es-CO', {
                                             style: 'currency',
                                             currency: 'COP',
