@@ -29,19 +29,19 @@ interface CompanyData {
 const props = defineProps<{ company?: Partial<CompanyData> }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuración', href: '/configuracion' },
-    { title: 'Datos básicos', href: '/configuracion/datos-basicos' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
+    { title: 'Configuración', href: '/panel-administrativo/datos-basicos' },
 ];
 
 const navSections = [
     {
-        label: 'Perfil',
-        description: 'Datos básicos de la empresa',
-        href: '/configuracion/datos-basicos',
+        label: 'Empresa',
+        description: 'Configuración de la empresa',
+        href: '/panel-administrativo/datos-basicos',
         active: true,
     },
     {
-        label: 'Accesos y Permisos',
+        label: 'Perfil',
         description: 'Usuarios, roles y accesos',
         href: null,
     },
@@ -405,7 +405,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head title="Configuración · Datos básicos" />
+    <Head title="Panel Administrativo · Configuración" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :success-message="successMessage"
@@ -418,7 +418,7 @@ onBeforeUnmount(() => {
         />
         <div class="flex flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="space-y-1">
-                <h1 class="text-2xl font-semibold text-slate-900">Datos básicos</h1>
+                <h1 class="text-2xl font-semibold text-slate-900">Configuración</h1>
                 <p class="max-w-2xl text-sm text-slate-500">
                     Actualiza la información de la empresa que usa toda la plataforma.
                 </p>

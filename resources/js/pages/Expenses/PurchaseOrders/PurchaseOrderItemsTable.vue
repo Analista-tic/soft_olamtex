@@ -19,6 +19,18 @@ const taxes = ref<Tax[]>([]);
 
 const articleMap = computed(() => new Map<number, Article>(articles.value.map((a) => [a.id, a])));
 const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
+const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
+const showActionsColumn = computed(() => localItems.value.length > 1);
+const totalColumns = computed(() => {
+    let cols = 6; // Artículo, Precio, Impuesto, Cantidad, Descripción, Total
+    if (shouldShowFabricColumns.value) {
+        cols += 3;
+    }
+    if (showActionsColumn.value) {
+        cols += 1;
+    }
+    return cols;
+});
 
 watch(
     () => props.items,
@@ -150,23 +162,23 @@ watch(
     >
             <TableHeader>
                 <TableRow class="text-center">
-                    <TableCell class="min-w-[120px]">Artículo <span class="text-destructive">*</span></TableCell>
+                    <TableCell>Artículo <span class="text-destructive">*</span></TableCell>
                     <TableCell>Precio <span class="text-destructive">*</span></TableCell>
                     <TableCell>Impuesto (%)</TableCell>
                     <TableCell>Cantidad <span class="text-destructive">*</span></TableCell>
                     <TableCell>Descripción</TableCell>
                     <!-- Campos extra para tela -->
-                    <TableCell v-if="localItems.some(isTela)">Código proveedor</TableCell>
-                    <TableCell v-if="localItems.some(isTela)">Color proveedor</TableCell>
-                    <TableCell v-if="localItems.some(isTela)">Ancho pedido</TableCell>
+                    <TableCell v-if="shouldShowFabricColumns">Código proveedor</TableCell>
+                    <TableCell v-if="shouldShowFabricColumns">Color proveedor</TableCell>
+                    <TableCell v-if="shouldShowFabricColumns">Ancho pedido</TableCell>
                     <TableCell>Total</TableCell>
-                    <TableCell>Acciones</TableCell>
+                    <TableCell v-if="showActionsColumn">Acciones</TableCell>
                 </TableRow>
             </TableHeader>
 
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
-                    <TableCell class="min-w-[120px] p-0 px-1">
+                    <TableCell class="min-w-[270px] p-0 px-1">
                         <SelectField v-model="item.article_id" :options="articles.map((a) => ({ id: a.id, name: a.name }))" label="" />
                     </TableCell>
                     <TableCell class="p-1">
@@ -178,13 +190,14 @@ watch(
                             :options="taxOptions"
                             label=""
                             @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
+                            class="max-w-[350px]"
                         />
                     </TableCell>
                     <TableCell class="p-1">
-                        <InputField v-model="item.quantity" type="number" label="" @input="calcTotals(item)" />
+                        <InputField v-model="item.quantity" type="number" label="" class="max-w-[120px]" @input="calcTotals(item)" />
                     </TableCell>
                     <TableCell class="p-1">
-                        <InputField v-model="item.description" label="" />
+                        <InputField v-model="item.description" label="" class="max-w-[300px]"/>
                     </TableCell>
                     <!-- Campos extra solo si es tela -->
                     <TableCell v-if="isTela(item)" class="p-1">
@@ -206,7 +219,7 @@ watch(
                             })
                         }}
                     </TableCell>
-                    <TableCell class="p-1">
+                    <TableCell v-if="showActionsColumn" class="p-1">
                         <div class="flex justify-center">
                             <DeleteButton v-if="localItems.length > 1" @click="removeItem(idx)" />
                         </div>
@@ -214,7 +227,7 @@ watch(
                 </TableRow>
 
                 <TableRow v-if="localItems.length === 0">
-                    <TableCell :colspan="localItems.some(isTela) ? 11 : 8" class="text-center text-gray-400"> No hay items agregados. </TableCell>
+                    <TableCell :colspan="totalColumns" class="text-center text-gray-400"> No hay items agregados. </TableCell>
                 </TableRow>
             </TableBody>
         </Table>

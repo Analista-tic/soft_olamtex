@@ -101,14 +101,18 @@ const fallbackLabel = computed(() => {
 function handleChange(val: Option['id'] | Option['id'][]) {
     localModelValue.value = val;
 }
+
+const hasLabel = computed(() => Boolean(props.label?.trim()));
 </script>
 
 <template>
     <div class="grid w-full items-center gap-1.5">
-        <Label>
-            {{ label }}
-            <span v-if="required" class="text-red-500">*</span>
-        </Label>
+        <template v-if="hasLabel">
+            <Label>
+                {{ label }}
+                <span v-if="required" class="text-red-500">*</span>
+            </Label>
+        </template>
         <div class="relative w-full">
         <Listbox
             :modelValue="localModelValue"
@@ -120,7 +124,7 @@ function handleChange(val: Option['id'] | Option['id'][]) {
             <div class="relative inline-block w-full">
                 <ListboxButton
                     :class="[
-                        'w-full rounded-md border border-gray-300 px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between gap-2',
+                'w-full rounded-md border border-gray-300 px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between gap-2 pr-10',
                         disabled ? 'pointer-events-none opacity-60' : ''
                     ]"
                     :disabled="disabled"

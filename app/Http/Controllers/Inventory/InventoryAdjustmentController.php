@@ -240,24 +240,23 @@ class InventoryAdjustmentController extends Controller
      */
     private function generateDocumentNumber(): string
     {
-        $prefix = 'AJ';
-        $year = now()->format('y');
+        $prefix = 'OL';
         $sequenceLength = 3;
 
         $lastNumber = InventoryAdjustment::whereNotNull('document_number')
-            ->where('document_number', 'like', "{$prefix}-{$year}-%")
+            ->where('document_number', 'like', "{$prefix}-%")
             ->orderByDesc('id')
             ->lockForUpdate()
             ->value('document_number');
 
         $next = 1;
-        if ($lastNumber && preg_match("/^{$prefix}-{$year}-(\\d{{$sequenceLength}})$/", $lastNumber, $matches)) {
+        if ($lastNumber && preg_match("/^{$prefix}--(\\d{{$sequenceLength}})$/", $lastNumber, $matches)) {
             $next = (int) $matches[1] + 1;
         }
 
         $sequence = str_pad((string) $next, $sequenceLength, '0', STR_PAD_LEFT);
 
-        return "{$prefix}-{$year}-{$sequence}";
+        return "{$prefix}-{$sequence}";
     }
 
     /**

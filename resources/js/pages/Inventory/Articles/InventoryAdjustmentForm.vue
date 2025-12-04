@@ -541,7 +541,7 @@ async function handleSubmit() {
 
           <div class="mt-6">
             <div class="mb-2 flex items-center justify-between">
-              <span class="text-sm font-semibold">Detalle de lineas</span>
+              <span class="text-sm font-semibold">Detalle de inventario</span>
               <Button type="button" variant="outline" size="sm" class="flex items-center gap-1" @click="addLine">
                 <Plus class="h-4 w-4" />
                 Crear linea
@@ -553,7 +553,7 @@ async function handleSubmit() {
                 <TableHeader>
                   <TableRow class="text-center">
                     <TableHead class="min-w-[150px] text-left">Articulo <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[160px] text-left">Tipo de ajuste</TableHead>
+                    <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
                     <TableHead class="min-w-[160px] text-left">
                       Descripcion <span class="text-destructive">*</span>
                     </TableHead>

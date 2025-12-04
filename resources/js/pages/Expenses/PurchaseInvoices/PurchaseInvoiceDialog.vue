@@ -115,7 +115,20 @@ function resetForm() {
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
     }
+    successMessage.value = '';
+    errorMessage.value = '';
+    errorType.value = 'error';
     originalFormSnapshot.value = stableStringify(localForm.value);
+}
+
+async function initializeDialog() {
+    await fetchContacts();
+    resetForm();
+    await fetchPendingPurchaseOrders();
+    if (props.dialogType === 'create') {
+        nextInvoiceId.value = null;
+        await fetchNextInvoiceId();
+    }
 }
 
 watch(
@@ -346,13 +359,7 @@ watch(selectedPurchaseOrderId, (orderId) => {
 
 onMounted(async () => {
     if (props.isOpen) {
-        await fetchContacts();
-        resetForm();
-        await fetchPendingPurchaseOrders();
-        if (props.dialogType === 'create') {
-            nextInvoiceId.value = null;
-            await fetchNextInvoiceId();
-        }
+        await initializeDialog();
     }
 });
 
@@ -361,13 +368,7 @@ watch(
     async (isOpen) => {
         dialogOpen.value = isOpen;
         if (isOpen) {
-            await fetchContacts();
-            resetForm();
-            await fetchPendingPurchaseOrders();
-            if (props.dialogType === 'create') {
-                nextInvoiceId.value = null;
-                await fetchNextInvoiceId();
-            }
+            await initializeDialog();
         }
     },
 );
@@ -379,7 +380,7 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
+        <DialogContent class="max-h-[95vh] overflow-y-auto sm:max-w-6xl">
             <DialogHeader>
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
                 <DialogDescription>
@@ -395,13 +396,15 @@ watch(dialogOpen, (isOpen) => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
+            <div class="mb-2 flex justify-end">
+                <div class="w-64"></div>
+            </div>
             <form
                 @submit.prevent="handleSubmit()"
-                :class="{
-                    'pointer-events-none': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly
-                }"
+                :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"
                 class="space-y-6"
             >
+            <div class="rounded-xl border border-sidebar-border/70 bg-white p-4 dark:border-sidebar-border space-y-4">
                 <div class="grid grid-cols-3 items-start gap-4">
                     <div>
                         <InputField
@@ -533,6 +536,7 @@ watch(dialogOpen, (isOpen) => {
                 <div>
                     <TextareaField v-model="localForm.description" label="Observación" />
                 </div>
+            </div>
                 <DialogFooter class="gap-2">
                     <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
                     <Button variant="default" type="button" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(false)">

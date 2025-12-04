@@ -176,8 +176,8 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
     },
     {
-        title: 'Configuración',
-        href: '/configuracion',
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
         icon: Cog,
         isActive: false,
     },
@@ -186,7 +186,7 @@ const navMainGroup: NavGroupItem[] = [
 // Filtrar los elementos de navegación principales según roles o permisos
 const filteredMainNavItems = computed(() =>
     mainNavItems.filter((item) => {
-        if (item.title === 'Configuración') {
+        if (item.title === 'Panel administrativo') {
             return auth.hasRole('admin'); // Solo visible para administradores
         }
         return true; // Visible para todos los demás

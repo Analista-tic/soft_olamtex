@@ -42,6 +42,8 @@ const errorMessage = computed(() =>
   typeof props.error === 'string' ? props.error : ''
 );
 
+const hasLabel = computed(() => Boolean(props.label?.trim()));
+
 const formattedValue = computed({
   get() {
     const value = isControlled.value ? localModelValue.value : props.value;
@@ -96,10 +98,12 @@ function togglePasswordVisibility() {
 
 <template>
   <div class="grid w-full items-center gap-1.5">
-    <Label>
-      {{ label }}
-      <span v-if="required" class="text-red-500">*</span>
-    </Label>
+    <template v-if="hasLabel">
+      <Label>
+        {{ label }}
+        <span v-if="required" class="text-red-500">*</span>
+      </Label>
+    </template>
 
     <div class="relative">
       <Input

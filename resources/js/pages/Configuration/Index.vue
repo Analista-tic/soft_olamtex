@@ -5,8 +5,8 @@ import { Head, Link } from '@inertiajs/vue3';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Configuración',
-        href: '/configuracion',
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
     },
 ];
 
@@ -15,7 +15,7 @@ const modules = [
                 title: 'Empresa',
                 description: 'Administra usuarios, roles y permisos de acceso.',
                 options: [
-                    { name: 'Datos Basicos', href: '/configuracion/datos-basicos' },
+                    { name: 'Datos Basicos', href: '/panel-administrativo/datos-basicos' },
                     { name: 'Contactos', href: '/contactos' },
                 ],
             },
@@ -80,7 +80,7 @@ const modules = [
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-xl font-bold">Configuraciones</h1>
+                <h1 class="text-xl font-bold">Panel administrativo</h1>
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div

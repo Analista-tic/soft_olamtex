@@ -26,27 +26,105 @@ const isReadOnly = computed(() => !!props.isReadOnly);
 const articleMap = computed(() => new Map<number, Article>(articles.value.map((a) => [a.id, a])));
 const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
 
+const articleOptions = computed(() => {
+    return articles.value
+        .filter((article) => {
+            const isFabric = isTelaArticle(article);
+            if (props.telaMode === true) return isFabric;
+            if (props.telaMode === false) return !isFabric;
+            return true;
+        })
+        .map((article) => ({
+            id: article.id,
+            name: article.name,
+        }));
+});
+
+const shouldShowFabricColumns = computed(() => {
+    if (props.telaMode === true) return true;
+    if (props.telaMode === false) return false;
+    return localItems.value.some(isTela);
+});
+
+const showActionsColumn = computed(() => !isReadOnly.value && localItems.value.length > 1);
+
+const totalColumns = computed(() => {
+    let cols = 6; // Artículo, Precio, Impuesto, Cantidad, Descripción, Total
+    if (shouldShowFabricColumns.value) cols += 3; // Código, Color, Ancho
+    if (showActionsColumn.value) cols += 1;
+    return cols;
+});
+
+function normalizeOrderWidth(value: string | number | null | undefined) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    return String(value);
+}
+
+function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
+    return {
+        ...item,
+        price: props.isCreating ? '' : (item.price ?? ''),
+        quantity: props.isCreating ? '' : (item.quantity ?? ''),
+        tax: Number(item.tax) || 0,
+        supplier_code: item.supplier_code || '',
+        supplier_color: item.supplier_color || '',
+        order_width: normalizeOrderWidth(item.order_width),
+    };
+}
+
+function isTelaArticle(article: Article | null | undefined) {
+    return article?.category_sub_group?.name?.toLowerCase() === 'tela';
+}
+
 watch(
     () => props.items,
     (val) => {
-        if (JSON.stringify(val) !== JSON.stringify(localItems.value)) {
-            localItems.value = Array.isArray(val)
-                ? val.map((item) => ({
-                      ...item,
-                      // Para crear: campos vacíos, para editar: preservar valores existentes
-                      price: props.isCreating ? '' : (item.price ?? ''),
-                      quantity: props.isCreating ? '' : (item.quantity ?? ''),
-                      tax: Number(item.tax) || 0,
-                      supplier_code: item.supplier_code || '',
-                      supplier_color: item.supplier_color || '',
-                      order_width: typeof item.order_width === 'string'
-                        ? item.order_width
-                        : (item.order_width !== undefined && item.order_width !== null ? String(item.order_width) : ''),
-                  }))
-                : [];
+        const normalized = Array.isArray(val) ? val.map((item) => normalizeIncomingItem(item)) : [];
+        if (JSON.stringify(normalized) !== JSON.stringify(localItems.value)) {
+            localItems.value = normalized;
         }
     },
     { immediate: true },
+);
+
+function notifyParent() {
+    const currentItems = localItems.value;
+    const externalItems = Array.isArray(props.items) ? props.items : [];
+    const hasDiff =
+        currentItems.length !== externalItems.length ||
+        currentItems.some((item, idx) => JSON.stringify(item) !== JSON.stringify(externalItems[idx]));
+    if (hasDiff) {
+        emit('update:items', currentItems);
+    }
+}
+
+watch(
+    localItems,
+    (items) => {
+        items.forEach((item) => {
+            item.tax = isNaN(Number(item.tax)) ? 0 : Number(item.tax);
+
+            if (!(item as any).__watching) {
+                (item as any).__watching = true;
+                watch(
+                    () => item.article_id,
+                    () => {
+                        setTaxFromArticle(item);
+                        setFieldsFromOrder(item);
+                        calcTotals(item);
+                        notifyParent();
+                    },
+                    { immediate: true },
+                );
+            }
+
+            calcTotals(item);
+        });
+
+        notifyParent();
+    },
+    { deep: true, immediate: true },
 );
 
 async function fetchArticles() {
@@ -67,9 +145,9 @@ onMounted(() => {
 function addItem() {
     localItems.value.push({
         article_id: null,
-        price: '', // Siempre vacío para nuevos items
+        price: '',
         tax: 0,
-        quantity: '', // Siempre vacío para nuevos items
+        quantity: '',
         description: '',
         total: 0,
         total_tax: 0,
@@ -84,7 +162,7 @@ function removeItem(idx: number) {
         return;
     }
     localItems.value.splice(idx, 1);
-    emit('update:items', localItems.value);
+    notifyParent();
 }
 
 function setTaxFromArticle(item: PurchaseInvoiceItem) {
@@ -116,7 +194,6 @@ function getSuggestedQuantity(item: PurchaseInvoiceItem): number | null {
 }
 
 function calcTotals(item: PurchaseInvoiceItem) {
-    // Si el campo está vacío o es null/undefined, usar 0 para el cálculo
     const price = item.price === '' || item.price === null || item.price === undefined ? 0 : Number(item.price);
     const quantity = item.quantity === '' || item.quantity === null || item.quantity === undefined ? 0 : Number(item.quantity);
     const tax = Number(item.tax) || 0;
@@ -127,7 +204,7 @@ function calcTotals(item: PurchaseInvoiceItem) {
 function isTela(item: PurchaseInvoiceItem) {
     const articleId = Number(item.article_id);
     const article = articleMap.value.get(articleId);
-    return article?.category_sub_group?.name?.toLowerCase() === 'tela';
+    return isTelaArticle(article);
 }
 
 function setFieldsFromOrder(item: PurchaseInvoiceItem) {
@@ -142,37 +219,6 @@ function setFieldsFromOrder(item: PurchaseInvoiceItem) {
     }
 }
 
-watch(
-    localItems,
-    (val) => {
-        val.forEach((item) => {
-            item.tax = isNaN(Number(item.tax)) ? 0 : Number(item.tax);
-
-            if (!(item as any).__watching) {
-                (item as any).__watching = true;
-                watch(
-                    () => item.article_id,
-                    () => {
-                        setTaxFromArticle(item);
-                        setFieldsFromOrder(item);
-                        calcTotals(item);
-                        emit('update:items', localItems.value);
-                    },
-                    { immediate: true },
-                );
-            }
-
-            calcTotals(item);
-        });
-
-        if (val.length !== props.items.length || val.some((item, idx) => JSON.stringify(item) !== JSON.stringify(props.items[idx]))) {
-            emit('update:items', val);
-        }
-    },
-    { deep: true, immediate: true },
-);
-
-// Funciones de validación
 function isPriceDifferent(item: PurchaseInvoiceItem): boolean {
     const suggested = getSuggestedPrice(item);
     if (suggested === null) return false;
@@ -184,50 +230,6 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
     if (suggested === null) return false;
     return Number(item.quantity) !== Number(suggested);
 }
-
-function isTelaArticle(article: Article): boolean {
-    const name = (article.name ?? '').toLowerCase();
-    return name.includes('tela');
-}
-
-const articleOptions = computed(() => {
-  return articles.value
-    .filter((a) => {
-    const tela = isTelaArticle(a);
-
-      if (props.telaMode === true)  return tela;      // solo telas
-      if (props.telaMode === false) return !tela;     // todos menos telas
-      return true;                                    // sin filtro
-    })
-    .map((a) => ({
-      id: a.id,
-      name: a.name,
-    }));
-});
-
-const shouldShowFabricColumns = computed(() => {
-    if (props.telaMode === true) return true;
-    if (props.telaMode === false) return false;
-    return localItems.value.some(isTela);
-});
-
-const showActionsColumn = computed(() => {
-  return !isReadOnly.value && localItems.value.length > 1;
-});
-
-const totalColumns = computed(() => {
-  let cols = 6; // Artículo, Precio, Impuesto, Cantidad, Descripción, Total
-
-  if (shouldShowFabricColumns.value) {
-    cols += 3; // Código, Color, Ancho
-  }
-
-  if (showActionsColumn.value) {
-    cols += 1; // Acciones
-  }
-
-  return cols;
-});
 
 </script>
 
@@ -279,7 +281,7 @@ const totalColumns = computed(() => {
             </TableHeader>
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
-                    <TableCell class="min-w-[140px] p-1 align-top">
+                    <TableCell class="min-w-[270px] p-1 align-top">
                         <div class="flex flex-col items-start justify-start h-full w-full">
                             <SelectField
                                 v-model="item.article_id"
@@ -331,6 +333,7 @@ const totalColumns = computed(() => {
                                 v-model="item.quantity"
                                 type="number"
                                 label=""
+                                class="max-w-[120px]"
                                 @input="calcTotals(item)"
                                 :error="isQuantityDifferent(item)"
                                 :readonly="isReadOnly"

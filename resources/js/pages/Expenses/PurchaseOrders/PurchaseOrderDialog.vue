@@ -299,10 +299,11 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
+        <DialogContent class="max-h-[95vh] overflow-y-auto sm:max-w-6xl">
             <DialogHeader>
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
-                <DialogDescription>Completa los campos y añade los ítems de la orden.</DialogDescription>
+                <DialogDescription>
+                    Completa los campos y añade los ítems de la orden.</DialogDescription>
             </DialogHeader>
             <AlertStack
                 :success-message="successMessage"
@@ -318,7 +319,7 @@ watch(dialogOpen, (isOpen) => {
             </div>
             <form
                 @submit.prevent="handleSubmit()"
-                :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingOrderId }"
+                :class="{'pointer-events-none opacity-50':dialogType === 'create' && isLoadingOrderId}"
                 class="space-y-6"
             >
                 <div class="rounded-xl border border-sidebar-border/70 bg-white p-4 dark:border-sidebar-border space-y-4">

@@ -95,16 +95,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('programador.destroy');
     });
 
-    // === CONFIGURACIÓN ===
-    Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
+    // ===PANEL ADMINISTRATIVO ===
+    Route::get('panel-administrativo', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')
-        ->name('configuration');
-    Route::get('configuracion/datos-basicos', [CompanySettingsController::class, 'edit'])
+        ->name('panel-administrativo');
+    Route::get('panel-administrativo/datos-basicos', [CompanySettingsController::class, 'edit'])
         ->middleware('permission:ver usuarios')
-        ->name('configuration.basic-data');
-    Route::patch('configuracion/datos-basicos', [CompanySettingsController::class, 'update'])
+        ->name('panel-administrativo.basic-data');
+    Route::patch('panel-administrativo/datos-basicos', [CompanySettingsController::class, 'update'])
         ->middleware('permission:ver usuarios')
-        ->name('configuration.basic-data.update');
+        ->name('panel-administrativo.basic-data.update');
 
     // === USUARIOS ===
     Route::get('users', [UserController::class, 'getData'])
