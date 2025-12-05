@@ -71,7 +71,7 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent>
+        <DialogContent class="space-y-6 bg-card text-card-foreground">
             <DialogHeader>
                 <DialogTitle>{{ dialogType === 'create' ? 'Crear Usuario' : 'Editar Usuario' }}</DialogTitle>
                 <DialogDescription>

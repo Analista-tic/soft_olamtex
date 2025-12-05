@@ -86,23 +86,26 @@ const modules = [
                 <div
                     v-for="module in modules"
                     :key="module.title"
-                    class="group relative flex flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-md hover:shadow-lg transition-shadow"
+                    class="group relative flex flex-col rounded-lg border border-border bg-card p-4 shadow-md transition-shadow hover:shadow-lg"
                 >
                     <div
-                        class="text-md font-semibold text-gray-800 group-hover:text-blue-600"
+                        class="text-md font-semibold text-card-foreground group-hover:text-blue-500"
                     >
                         {{ module.title }}
                     </div>
-                    <p class="text-xs text-gray-600">
+                    <p class="text-xs text-muted-foreground mt-1">
                         {{ module.description }}
                     </p>
-                    <ul class="mt-3 text-sm text-gray-600">
+                    <ul class="mt-3 text-sm text-muted-foreground space-y-1">
                         <li
                             v-for="option in module.options"
                             :key="option.name"
-                            class="hover:text-blue-600"
+                            class="hover:text-blue-500 transition-colors"
                         >
-                            <Link :href="option.href" class="block z-10 relative">
+                            <Link
+                                :href="option.href"
+                                class="block z-10 relative text-current"
+                            >
                                 {{ option.name }}
                             </Link>
                         </li>

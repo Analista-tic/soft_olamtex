@@ -178,7 +178,10 @@ onMounted(() => {
                     </span>
                 </div>
                 <div class="relative w-full max-w-xs">
-                    <select v-model="selectedGroup" class="h-8 w-full border rounded-md">
+                    <select
+                        v-model="selectedGroup"
+                        class="h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-card-foreground shadow-sm outline-offset-0 transition focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                    >
                         <option :value="null">Todos los grupos</option>
                         <option v-for="group in props.groups" :key="group.id" :value="group.id">
                             {{ group.name }}

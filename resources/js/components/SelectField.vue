@@ -124,8 +124,7 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
             <div class="relative inline-block w-full">
                 <ListboxButton
                     :class="[
-                        'w-full rounded-md border border-gray-300 bg-white px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between gap-2 pr-10 text-gray-900',
-                        'dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:shadow-none',
+                        'w-full rounded-md border border-border bg-card px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition flex items-center justify-between gap-2 pr-10 text-card-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
                         disabled ? 'pointer-events-none opacity-60' : '',
                     ]"
                     :disabled="disabled"
@@ -152,24 +151,24 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                             {{ (selectedOptions as Option)?.name ?? fallbackLabel }}
                         </template>
                     </span>
-                        <svg class="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <svg class="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground/70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                         </svg>
                     </ListboxButton>
                 <ListboxOptions
-                    class="absolute z-50 mt-1 min-w-[12rem] w-full max-w-full rounded-md text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm overflow-hidden bg-white border border-gray-200 shadow-2xl dark:bg-slate-900 dark:border-slate-800 dark:shadow-[0_8px_32px_rgba(0,0,0,0.55)] dark:text-slate-100"
+                    class="absolute z-50 mt-1 min-w-[12rem] w-full max-w-full rounded-md text-base sm:text-sm overflow-hidden border border-border bg-card shadow-2xl focus:outline-none"
                     style="max-height: 15rem;"
                 >
                     <div
                         v-if="shouldShowSearchInput"
-                        class="z-30 bg-white px-3 pb-3 pt-3 shadow-sm border-b border-gray-200 dark:bg-slate-900 dark:border-slate-800"
+                        class="z-30 bg-muted px-3 pb-3 pt-3 shadow-sm border-b border-border/60"
                     >
                         <input
                             ref="searchInputRef"
                             v-model="searchTerm"
                             type="text"
                             :placeholder="searchPlaceholder"
-                            class="w-full rounded-md border border-input px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-500 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-400 dark:border-slate-700"
+                            class="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-card-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-muted-foreground"
                             @keydown.stop
                             @keyup.stop
                             @click.stop
@@ -181,13 +180,13 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                             v-if="!multiple && showPlaceholderOption"
                             :value="''"
                             disabled
-                                class="text-gray-400 bg-white cursor-default select-none relative py-2 pl-3 pr-9 dark:bg-slate-900 dark:text-slate-400"
+                                class="text-muted-foreground/60 bg-card cursor-default select-none relative py-2 pl-3 pr-9"
                         >
                             {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
                         </ListboxOption>
                             <div
                                 v-if="$slots.header"
-                                class="border-b border-gray-200 bg-white px-2 pb-2 pt-2 dark:border-slate-800 dark:bg-slate-900"
+                            class="border-b border-border/60 bg-muted px-2 pb-2 pt-2"
                             >
                                 <slot name="header" />
                             </div>
@@ -198,20 +197,20 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                         >
                             <template #default="{ active, selected }">
                                 <div
-                                    :class="[
-                                        'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
-                                        active
-                                            ? 'text-white bg-blue-600 dark:bg-blue-500'
-                                            : 'text-gray-900 dark:text-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800'
-                                    ]"
+                                :class="[
+                                    'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
+                                    active
+                                        ? 'text-white bg-blue-600 dark:bg-blue-500'
+                                        : 'text-card-foreground dark:text-card-foreground bg-card hover:bg-muted/60'
+                                ]"
                                 >
                                     <span :class="selected ? 'font-semibold' : 'font-normal'">
                                         {{ option.name }}
                                     </span>
                                     <span
                                         v-if="selected"
-                                        class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600 dark:text-blue-400"
-                                    >
+                            class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600"
+                        >
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                                         </svg>
@@ -221,13 +220,13 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                         </ListboxOption>
                         <div
                             v-if="filteredOptions.length === 0"
-                            class="px-3 py-2 text-sm text-gray-500 dark:text-slate-400"
+                            class="px-3 py-2 text-sm text-muted-foreground/70"
                         >
                                 No se encontraron opciones.
                             </div>
                             <div
                                 v-if="$slots.footer"
-                                class="mt-1 border-t border-gray-200 bg-white px-2 pb-2 pt-2 dark:border-slate-800 dark:bg-slate-900"
+                                class="mt-1 border-t border-border/60 bg-muted px-2 pb-2 pt-2"
                             >
                                 <slot name="footer" />
                             </div>

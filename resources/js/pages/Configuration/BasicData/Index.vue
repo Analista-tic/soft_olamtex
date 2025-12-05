@@ -81,7 +81,7 @@ const navSectionBaseClasses =
 const navSectionActiveClasses =
     'border-blue-100 bg-blue-50 text-blue-600 dark:border-blue-700 dark:bg-blue-600/10 dark:text-blue-300';
 const navSectionDefaultClasses =
-    'text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-900 dark:hover:text-white';
+    'text-muted-foreground/80 hover:border-slate-300 hover:bg-slate-50 hover:text-card-foreground dark:text-muted-foreground/60 dark:hover:border-slate-600 dark:hover:bg-slate-900 dark:hover:text-white';
 
 const defaultLogo =
     'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 120%22%3E%3Crect width=%22120%22 height=%22120%22 rx=%2216%22 ry=%2216%22 fill=%22%23f0f4f8%22/%3E%3Cpath d=%22M30 40h60v40H30z%22 fill=%22%23ffffff%22 stroke=%22%23d0d7e7%22 stroke-width=%222%22/%3E%3Cpath d=%22M38 48h44M38 56h44M38 64h24%22 stroke=%22%2393a3b8%22 stroke-width=%224%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%2286%22 cy=%2254%22 r=%226%22 fill=%22%23aac9ff%22/%3E%3Cpath d=%22M56 34h14a4 4 0 0 1 4 4v6h-22v-6a4 4 0 0 1 4-4z%22 fill=%22%23a5b6c8%22/%3E%3C/svg%3E';
@@ -518,8 +518,8 @@ onBeforeUnmount(() => {
         </transition>
         <div class="flex flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="space-y-1">
-                <h1 class="text-2xl font-semibold text-slate-900">Configuración</h1>
-                <p class="max-w-2xl text-sm text-slate-500">
+                <h1 class="text-2xl font-semibold text-card-foreground">Configuración</h1>
+                <p class="max-w-2xl text-sm text-muted-foreground/70">
                     Actualiza la información de la empresa que usa toda la plataforma.
                 </p>
             </div>
@@ -535,22 +535,22 @@ onBeforeUnmount(() => {
                             />
                         </div>
                         <div class="relative space-y-1">
-                            <p class="text-xs font-semibold uppercase  text-slate-400">Empresa</p>
-                            <h2 class="text-s font-semibold text-slate-900">{{ companyInfo.name || 'Sin nombre' }}</h2>
-                            <p class="text-xs text-slate-500">NIT: {{ companyInfo.nit || '-' }}</p>
-                            <p class="text-xs text-slate-500">
+                            <p class="text-xs font-semibold uppercase text-muted-foreground/70">Empresa</p>
+                            <h2 class="text-s font-semibold text-card-foreground">{{ companyInfo.name || 'Sin nombre' }}</h2>
+                            <p class="text-xs text-muted-foreground/70">NIT: {{ companyInfo.nit || '-' }}</p>
+                            <p class="text-xs text-muted-foreground/70">
                                 Ubicación: {{ companyInfo.address || '-' }}. {{ companyInfo.municipality || '-' }}, {{ companyInfo.department || '-' }}.
                             </p>
-                            <p class="text-xs text-slate-500">Teléfono: {{ companyInfo.phone || '-' }}</p>
+                            <p class="text-xs text-muted-foreground/70">Correo: {{ companyInfo.email || '-' }}</p>
 
                         </div>
                     </div>
 
                     <div class="mt-6 space-y-3">
-                        <div class="text-xs font-semibold uppercase  text-slate-400">
-                            Secciones
-                        </div>
-                        <div class="space-y-2">
+                            <div class="text-xs font-semibold uppercase text-muted-foreground/70">
+                                Secciones
+                            </div>
+                            <div class="space-y-2">
                             <template v-for="section in navSections" :key="section.key">
                                 <button
                                     type="button"
@@ -560,8 +560,8 @@ onBeforeUnmount(() => {
                                     :aria-current="selectedSection === section.key ? 'page' : undefined"
                                 >
                                     <div>
-                                        <p class="font-semibold">{{ section.label }}</p>
-                                        <p class="text-xs text-slate-400">{{ section.description }}</p>
+                                        <p class="font-semibold text-card-foreground">{{ section.label }}</p>
+                                        <p class="text-xs text-muted-foreground/70">{{ section.description }}</p>
                                     </div>
                                     <span
                                         class="text-[10px] font-semibold uppercase tracking-wide text-blue-600"
@@ -577,72 +577,72 @@ onBeforeUnmount(() => {
                 <section class="rounded-2xl border border-border bg-card p-5 shadow-sm">
                     <div v-if="selectedSection === 'empresa'">
                         <form class="space-y-6" @submit.prevent="saveBasicData">
-                                                <div class="grid gap-4 md:grid-cols-2">
-                                                    <div class="space-y-2">
-                                                        <label for="legal-name" class="text-sm font-medium text-slate-700">
-                                                            Nombre <span class="text-red-500">*</span>
-                                                        </label>
-                                                        <Input
-                                                            id="legal-name"
-                                                            v-model="companyInfo.name"
-                                                            :class="isFieldMissing('name') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                                        />
-                                                    </div>
-                                                    <div class="space-y-2">
-                                                        <label for="nit" class="text-sm font-medium text-slate-700">
-                                                            NIT <span class="text-red-500">*</span>
-                                                        </label>
-                                                        <Input
-                                                            id="nit"
-                                                            v-model="companyInfo.nit"
-                                                            :class="isFieldMissing('nit') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                                        />
-                                                    </div>
-                                                </div>
-                        
-                                                <div class="grid gap-4 md:grid-cols-2">
-                                                    <div class="space-y-2">
-                                                        <label for="email" class="text-sm font-medium text-slate-700">
-                                                            Correo corporativo <span class="text-red-500">*</span>
-                                                        </label>
-                                                        <Input
-                                                            id="email"
-                                                            v-model="companyInfo.email"
-                                                            :class="isFieldMissing('email') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                                        />
-                                                    </div>
-                                                    <div class="space-y-2">
-                                                        <label for="accounting-email" class="text-sm font-medium text-slate-700">Correo contable</label>
-                                                        <Input id="accounting-email" v-model="companyInfo.accounting_email" />
-                                                    </div>
-                                                    <div class="space-y-2">
-                                                        <label for="phone" class="text-sm font-medium text-slate-700">
-                                                            Teléfono principal <span class="text-red-500">*</span>
-                                                        </label>
-                                                        <Input
-                                                            id="phone"
-                                                            v-model="companyInfo.phone"
-                                                            :class="isFieldMissing('phone') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                                        />
-                                                    </div>
-                                                    <div class="space-y-2">
-                                                        <label for="website" class="text-sm font-medium text-slate-700">Sitio web</label>
-                                                        <Input id="website" v-model="companyInfo.website" />
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <div class="space-y-2">
+                                <label for="legal-name" class="text-sm font-medium text-card-foreground">
+                                    Nombre <span class="text-red-500">*</span>
+                                </label>
+                                <Input
+                                    id="legal-name"
+                                    v-model="companyInfo.name"
+                                    :class="isFieldMissing('name') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                />
+                            </div>
+                            <div class="space-y-2">
+                                <label for="nit" class="text-sm font-medium text-card-foreground">
+                                    NIT <span class="text-red-500">*</span>
+                                </label>
+                                <Input
+                                    id="nit"
+                                    v-model="companyInfo.nit"
+                                    :class="isFieldMissing('nit') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                />
                                                     </div>
                                                 </div>
                         
                                                 <div class="grid gap-4 md:grid-cols-2">
-                                                    <div class="space-y-2 flex flex-col h-full justify-end">
-                                                        <label for="address" class="text-sm font-medium text-slate-700">
-                                                            Dirección <span class="text-red-500">*</span>
-                                                        </label>
-                                                        <Input
-                                                            id="address"
-                                                            v-model="companyInfo.address"
-                                                            :class="isFieldMissing('address') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                                        />
-                                                    </div>
-                                                    <div class="space-y-2 flex flex-col h-full justify-end">
+                            <div class="space-y-2">
+                                <label for="email" class="text-sm font-medium text-card-foreground">
+                                    Correo corporativo <span class="text-red-500">*</span>
+                                </label>
+                                <Input
+                                    id="email"
+                                    v-model="companyInfo.email"
+                                    :class="isFieldMissing('email') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                />
+                            </div>
+                            <div class="space-y-2">
+                                <label for="accounting-email" class="text-sm font-medium text-card-foreground">Correo contable</label>
+                                <Input id="accounting-email" v-model="companyInfo.accounting_email" />
+                            </div>
+                            <div class="space-y-2">
+                                <label for="phone" class="text-sm font-medium text-card-foreground">
+                                    Teléfono principal <span class="text-red-500">*</span>
+                                </label>
+                                <Input
+                                    id="phone"
+                                    v-model="companyInfo.phone"
+                                    :class="isFieldMissing('phone') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                />
+                            </div>
+                            <div class="space-y-2">
+                                <label for="website" class="text-sm font-medium text-card-foreground">Sitio web</label>
+                                <Input id="website" v-model="companyInfo.website" />
+                            </div>
+                                                </div>
+                        
+                                                <div class="grid gap-4 md:grid-cols-2">
+                            <div class="space-y-2 flex flex-col h-full justify-end">
+                                <label for="address" class="text-sm font-medium text-card-foreground">
+                                    Dirección <span class="text-red-500">*</span>
+                                </label>
+                                <Input
+                                    id="address"
+                                    v-model="companyInfo.address"
+                                    :class="isFieldMissing('address') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                />
+                            </div>
+                            <div class="space-y-2 flex flex-col h-full justify-end">
                                                         <SelectField
                                                             v-model="locationValue"
                                                             label="Municipio y departamento"
@@ -656,17 +656,17 @@ onBeforeUnmount(() => {
                                                     </div>
                                                 </div>
                         
-                                                <div class="space-y-2">
-                                                    <label for="description" class="text-sm font-medium text-slate-700">Descripción</label>
-                                                    <Textarea id="description" rows="4" v-model="companyInfo.description" />
-                                                </div>
-                        
-                                                <div class="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
-                                                    <p class="text-sm font-semibold text-slate-700">Logotipo corporativo</p>
-                                                    <p class="text-xs text-slate-500 m-2">
-                                                        Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
-                                                    </p>
-                                                    <div class="flex flex-col gap-3">
+                        <div class="space-y-2">
+                            <label for="description" class="text-sm font-medium text-card-foreground">Descripción</label>
+                            <Textarea id="description" rows="4" v-model="companyInfo.description" />
+                        </div>
+
+                        <div class="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
+                            <p class="text-sm font-semibold text-card-foreground">Logotipo corporativo</p>
+                            <p class="text-xs text-muted-foreground/70 m-2">
+                                Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
+                            </p>
+                            <div class="flex flex-col gap-3">
                         <div
                             class="relative w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted transition hover:border-blue-400 dark:border-border dark:bg-slate-900"
                                                             style="min-height: 9rem;"
@@ -685,9 +685,9 @@ onBeforeUnmount(() => {
                                                                 </div>
                                                             </template>
                                                             <template v-else>
-                                                                <div class="flex h-full flex-col items-center justify-center gap-1 text-xs text-slate-400">
-                                                                    <Image class="h-20 w-6" />
-                                                                    <span class="text-xs text-center leading-tight">
+                                <div class="flex h-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground/60">
+                                    <Image class="h-20 w-6" />
+                                    <span class="text-xs text-center leading-tight">
                                                                         Haz clic o arrastra una imagen.
                                                                     </span>
                                                                 </div>

@@ -158,28 +158,33 @@ onMounted(() => {
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search_user" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-10 w-full pl-10" />
+                    <Input
+                        id="search_user"
+                        v-model="searchQuery"
+                        placeholder="Buscar por nombre o email"
+                        class="h-10 w-full pl-10 shadow-sm !bg-card !text-card-foreground !border-border focus:!border-blue-500 focus:!ring-blue-500/50"
+                    />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <Table>
+            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-border bg-card shadow-sm text-card-foreground md:min-h-min">
+                <Table class="text-center text-sm text-card-foreground">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Roles</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead class="text-center">Nombre</TableHead>
+                            <TableHead class="text-center">Email</TableHead>
+                            <TableHead class="text-center">Roles</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="(user, index) in users" :key="user.id ?? `user-${index}`">
-                            <TableCell class="font-medium">{{ user.name }}</TableCell>
-                            <TableCell>{{ user.email }}</TableCell>
-                            <TableCell>{{ user.roles?.map(role => role.name).join(', ') }}</TableCell> <!-- Mostrar roles -->
-                            <TableCell class="flex gap-1">
+                            <TableCell class="text-center font-medium">{{ user.name }}</TableCell>
+                            <TableCell class="text-center">{{ user.email }}</TableCell>
+                            <TableCell class="text-center">{{ user.roles?.map(role => role.name).join(', ') }}</TableCell> <!-- Mostrar roles -->
+                            <TableCell class="flex gap-1 justify-center">
                                 <EditButton v-if="canEdit" :onClick="() => openDialog('edit', user)" />
                                 <DeleteButton v-if="canDelete" :onClick="() => confirmDeleteUser(user)" />
                             </TableCell>
@@ -238,4 +243,3 @@ onMounted(() => {
         @confirm="deleteUser"
     />
 </template>
-

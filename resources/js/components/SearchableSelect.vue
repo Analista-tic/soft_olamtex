@@ -87,73 +87,33 @@ function handleInputFocus() {
 
 <template>
     <div class="relative w-full" v-click-outside="closeDropdown">
-        <Label>{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
-        <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="Buscar y seleccionar..." 
-            class="searchable-input"
+        <Label class="mb-1">{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
+        <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar y seleccionar..."
+            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
             @focus="handleInputFocus"
             :disabled="props.disabled"
         />
-        <div v-if="isOpen" class="options-container">
-            <div v-if="$slots.header" class="border-b border-gray-200 bg-white px-2 py-2">
+        <div
+            v-if="isOpen"
+            class="absolute top-full left-0 z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-md border border-border bg-card shadow-lg"
+        >
+            <div v-if="$slots.header" class="border-b border-border/70 bg-muted px-2 py-2">
                 <slot name="header" />
             </div>
-            <div 
-                v-for="option in filteredOptions" 
-                :key="option.id" 
-                class="option-item"
+            <div
+                v-for="option in filteredOptions"
+                :key="option.id"
+                class="px-3 py-2 text-sm text-card-foreground/90 hover:bg-muted/70 cursor-pointer transition-colors"
                 @click="selectOption(option)"
             >
                 {{ option.name }}
             </div>
-            <div v-if="$slots.footer" class="border-t border-gray-200 bg-white px-2 py-2">
+            <div v-if="$slots.footer" class="border-t border-border/70 bg-muted px-2 py-2">
                 <slot name="footer" />
             </div>
         </div>
     </div>
 </template>
-
-<style scoped>
-.searchable-input {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.4rem;
-    font-size: 0.875rem;
-    outline: none;
-    transition: border-color 0.2s;
-}
-
-.searchable-input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-}
-
-.options-container {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    width: 100%;
-    max-height: 10rem;
-    overflow-y: auto;
-    background-color: white;
-    border: 1px solid #d1d5db;
-    border-radius: 0.25rem;
-    z-index: 10;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.option-item {
-    padding: 0.5rem;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    font-size: 0.875rem;
-    color: #374151;
-}
-
-.option-item:hover {
-    background-color: #f3f4f6;
-}
-</style>
