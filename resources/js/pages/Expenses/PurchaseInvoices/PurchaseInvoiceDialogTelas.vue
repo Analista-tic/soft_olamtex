@@ -432,7 +432,7 @@ watch(dialogOpen, (isOpen) => {
                     <div class="grid grid-cols-3 items-start gap-4">
                         <div>
                             <InputField
-                                label="# Orden de Compra"
+                                label="# Factura de Compra Tela"
                                 :modelValue="id"
                                 readonly
                                 v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingInvoiceId && id)"
