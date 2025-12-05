@@ -5,6 +5,8 @@ namespace App\Models\Common;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+use App\Models\Inventory\Item;
+
 class Color extends Model
 {
     use HasFactory;
@@ -14,8 +16,8 @@ class Color extends Model
         'rgb_value',
     ];
 
-    public function articles()
+    public function items()
     {
-        return $this->hasMany(\App\Models\Inventory\Article::class);
+        return $this->hasMany(Item::class);
     }
 }

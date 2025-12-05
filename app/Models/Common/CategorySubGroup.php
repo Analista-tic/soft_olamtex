@@ -4,6 +4,8 @@ namespace App\Models\Common;
 
 use Illuminate\Database\Eloquent\Model;
 
+use App\Models\Inventory\Item;
+
 class CategorySubGroup extends Model
 {
     protected $fillable = ['name', 'category_group_id']; // Ejemplo: "Materia Prima"
@@ -13,8 +15,8 @@ class CategorySubGroup extends Model
         return $this->belongsTo(CategoryGroup::class);
     }
 
-    public function articles()
+    public function items()
     {
-        return $this->hasMany(\App\Models\Inventory\Article::class, 'category_sub_group_id');
+        return $this->hasMany(Item::class, 'category_sub_group_id');
     }
 }

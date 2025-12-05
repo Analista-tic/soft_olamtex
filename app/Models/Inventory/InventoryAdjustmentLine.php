@@ -2,7 +2,7 @@
 
 namespace App\Models\Inventory;
 
-use App\Models\Inventory\Article;
+use App\Models\Inventory\Item;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -40,8 +40,8 @@ class InventoryAdjustmentLine extends Model
         return $this->belongsTo(\App\Models\Common\Warehouse::class);
     }
 
-    public function article()
+    public function item()
     {
-        return $this->belongsTo(Article::class);
+        return $this->belongsTo(Item::class);
     }
 }

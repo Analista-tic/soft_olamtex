@@ -23,7 +23,7 @@ use App\Http\Controllers\Common\CategoryGroupController;
 use App\Http\Controllers\Common\CategorySubGroupController;
 use App\Http\Controllers\Common\WarehouseController;
 use App\Http\Controllers\Common\ColorController;
-use App\Http\Controllers\Inventory\ArticleController;
+use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\Settings\RetentionController;
 use App\Http\Controllers\Common\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
@@ -184,7 +184,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/data', [WarehouseController::class, 'getData'])->name('getData');
         Route::post('/', [WarehouseController::class, 'store'])->name('store');
         Route::get('/{warehouse}', [WarehouseController::class, 'show'])->name('show');
-        Route::get('/{id}/warehouses', [ArticleController::class, 'getWarehouses'])->name('warehouses');
+        Route::get('/{id}/warehouses', [ItemController::class, 'getWarehouses'])->name('warehouses');
         Route::put('/{warehouse}', [WarehouseController::class, 'update'])->name('update');
         Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->name('destroy');
     });
@@ -199,18 +199,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/{color}', [ColorController::class, 'destroy'])->name('destroy');
     });
 
-    // === ARTICLES ===
-    Route::prefix('articulos')->name('articulos.')->group(function () {
-        Route::get('/descargar-plantilla', [ArticleController::class, 'downloadTemplate'])->name('descargar-plantilla');
-        Route::get('/exportar-excel', [ArticleController::class, 'exportExcel'])->name('exportar-excel');
-        Route::get('/', [ArticleController::class, 'index'])->name('index');
-        Route::get('/data', [ArticleController::class, 'getData'])->name('data');
-        Route::post('/carga-masiva', [ArticleController::class, 'bulkUpload'])->name('carga-masiva');
-        Route::get('/{id}', [ArticleController::class, 'show'])->name('show');
-        Route::post('/', [ArticleController::class, 'store'])->name('store');
-        Route::put('/{id}', [ArticleController::class, 'update'])->name('update');
-        Route::delete('/{id}', [ArticleController::class, 'destroy'])->name('destroy');
-        Route::post('/{id}/toggle-status', [ArticleController::class, 'toggleStatus'])->name('toggle-status');
+    // === ITEMS ===
+    Route::prefix('item')->name('item.')->group(function () {
+        Route::get('/descargar-plantilla', [ItemController::class, 'downloadTemplate'])->name('descargar-plantilla');
+        Route::get('/exportar-excel', [ItemController::class, 'exportExcel'])->name('exportar-excel');
+        Route::get('/', [ItemController::class, 'index'])->name('index');
+        Route::get('/data', [ItemController::class, 'getData'])->name('data');
+        Route::post('/carga-masiva', [ItemController::class, 'bulkUpload'])->name('carga-masiva');
+        Route::get('/{id}', [ItemController::class, 'show'])->name('show');
+        Route::post('/', [ItemController::class, 'store'])->name('store');
+        Route::put('/{id}', [ItemController::class, 'update'])->name('update');
+        Route::delete('/{id}', [ItemController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/toggle-status', [ItemController::class, 'toggleStatus'])->name('toggle-status');
     });
 
     // === FABRIC ROLLS ===
@@ -304,8 +304,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // === INVENTARIO ===
-    Route::get('inventario/articulos', [ArticleController::class, 'listView'])->name('listado');
-    Route::get('inventario/ajuste-inventario', [ArticleController::class, 'adjustmentView'])->name('inventario.ajuste-inventario');
+    Route::get('inventario/item', [ItemController::class, 'listView'])->name('listado');
+    Route::get('inventario/ajuste-inventario', [ItemController::class, 'adjustmentView'])->name('inventario.ajuste-inventario');
     Route::get('inventario/ajuste-inventario/crear', function () {
         return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
     })->name('inventario.ajuste-inventario.create');

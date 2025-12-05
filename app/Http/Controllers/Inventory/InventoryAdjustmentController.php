@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\Inventory\Article;
+use App\Models\Inventory\Item;
 use App\Models\Inventory\InventoryAdjustment;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Common\Warehouse;
@@ -66,7 +66,7 @@ class InventoryAdjustmentController extends Controller
      */
     public function show($id)
     {
-        $adjustment = InventoryAdjustment::with(['lines.article', 'lines.warehouse'])->findOrFail($id);
+        $adjustment = InventoryAdjustment::with(['lines.item', 'lines.warehouse'])->findOrFail($id);
         return response()->json($adjustment);
     }
 
@@ -87,8 +87,8 @@ class InventoryAdjustmentController extends Controller
         $data = $this->preparePayload($data, $movementReasons);
 
         try {
-            $articles = $this->fetchArticlesByLines($data['lines']);
-            $adjustment = $this->persistAdjustment($data, $articles, null, $movementReasons);
+            $items = $this->fetchItemsByLines($data['lines']);
+            $adjustment = $this->persistAdjustment($data, $items, null, $movementReasons);
 
             return response()->json([
                 'message' => 'Ajuste de inventario creado correctamente',
@@ -122,8 +122,8 @@ class InventoryAdjustmentController extends Controller
         $data = $this->preparePayload($data, $movementReasons);
 
         try {
-            $articles = $this->fetchArticlesByLines($data['lines']);
-            $updated = $this->persistAdjustment($data, $articles, $adjustment, $movementReasons);
+            $items = $this->fetchItemsByLines($data['lines']);
+            $updated = $this->persistAdjustment($data, $items, $adjustment, $movementReasons);
 
             return response()->json([
                 'message' => 'Ajuste de inventario actualizado correctamente',
@@ -148,11 +148,11 @@ class InventoryAdjustmentController extends Controller
 
         DB::transaction(function () use ($adjustment) {
             foreach ($adjustment->lines as $line) {
-                $article = Article::find($line->article_id);
-                if ($article) {
-                    $warehouseId = $this->resolveWarehouseId($article, $line->warehouse_id);
+                $item = Item::find($line->article_id);
+                if ($item) {
+                    $warehouseId = $this->resolveWarehouseId($item, $line->warehouse_id);
                     $reverseType = $adjustment->type === 'entrada' ? 'salida' : 'entrada';
-                    $this->applyStockMovement($article, $warehouseId, (int) $line->quantity, $reverseType);
+                    $this->applyStockMovement($item, $warehouseId, (int) $line->quantity, $reverseType);
                 }
             }
 
@@ -164,22 +164,22 @@ class InventoryAdjustmentController extends Controller
     }
 
     /**
-     * Devuelve una bodega valida para el articulo, o lanza error si falta.
+     * Devuelve una bodega valida para el item, o lanza error si falta.
      */
-    private function resolveWarehouseId(Article $article, ?int $warehouseId): int
+    private function resolveWarehouseId(Item $item, ?int $warehouseId): int
     {
         if ($warehouseId) {
             return $warehouseId;
         }
 
-        $warehouse = $article->warehouses()->first();
+        $warehouse = $item->warehouses()->first();
         if ($warehouse) {
             return $warehouse->id;
         }
 
         $fallback = Warehouse::first();
         if ($fallback) {
-            $article->warehouses()->attach($fallback->id, [
+            $item->warehouses()->attach($fallback->id, [
                 'quantity' => 0,
                 'stock_min' => 0,
                 'stock_max' => 0,
@@ -188,20 +188,20 @@ class InventoryAdjustmentController extends Controller
         }
 
         throw ValidationException::withMessages([
-            'lines' => ["No hay bodegas configuradas. Crea una bodega o envia warehouse_id."],
+            'lines' => ["No hay bodegas configuradas. Crea una bodega o envía warehouse_id."],
         ]);
     }
 
     /**
      * Aplica el movimiento de inventario en la tabla pivot warehouse_article.
      */
-    private function applyStockMovement(Article $article, int $warehouseId, int $quantity, string $type): void
+    private function applyStockMovement(Item $item, int $warehouseId, int $quantity, string $type): void
     {
         $quantity = abs($quantity);
         $sign = $type === 'entrada' ? 1 : -1;
 
         $row = DB::table('warehouse_article')
-            ->where('article_id', $article->id)
+            ->where('article_id', $item->id)
             ->where('warehouse_id', $warehouseId)
             ->lockForUpdate()
             ->first();
@@ -209,12 +209,12 @@ class InventoryAdjustmentController extends Controller
         $currentQty = $row ? (int) $row->quantity : 0;
         $newQty = $currentQty + ($sign * $quantity);
 
-        if ($newQty < 0 && !$article->negative_movement) {
-            $article->negative_movement = 1;
-            $article->save();
+        if ($newQty < 0 && !$item->negative_movement) {
+            $item->negative_movement = 1;
+            $item->save();
         }
 
-        $quantityToStore = $article->negative_movement ? $newQty : max($newQty, 0);
+        $quantityToStore = $item->negative_movement ? $newQty : max($newQty, 0);
 
         $payload = [
             'quantity'   => $quantityToStore,
@@ -228,7 +228,7 @@ class InventoryAdjustmentController extends Controller
                 ->where('id', $row->id)
                 ->update($payload);
         } else {
-            $payload['article_id'] = $article->id;
+            $payload['article_id'] = $item->id;
             $payload['warehouse_id'] = $warehouseId;
             $payload['created_at'] = now();
             DB::table('warehouse_article')->insert($payload);
@@ -366,17 +366,17 @@ class InventoryAdjustmentController extends Controller
         return [$subtotal, $ivaTotal];
     }
 
-    private function fetchArticlesByLines(array $lines): Collection
+    private function fetchItemsByLines(array $lines): Collection
     {
-        return Article::with('warehouses')
+        return Item::with('warehouses')
             ->whereIn('id', collect($lines)->pluck('article_id'))
             ->get()
             ->keyBy('id');
     }
 
-    private function persistAdjustment(array $data, Collection $articles, ?InventoryAdjustment $adjustment = null, array $movementReasons = []): InventoryAdjustment
+    private function persistAdjustment(array $data, Collection $items, ?InventoryAdjustment $adjustment = null, array $movementReasons = []): InventoryAdjustment
     {
-        return DB::transaction(function () use ($data, $articles, $adjustment, $movementReasons) {
+        return DB::transaction(function () use ($data, $items, $adjustment, $movementReasons) {
             $documentNumber = $data['document_number'] ?: ($adjustment->document_number ?? $this->generateDocumentNumber());
 
             if (!$adjustment) {
@@ -392,7 +392,7 @@ class InventoryAdjustmentController extends Controller
                     'total'            => $data['total'],
                 ]);
             } else {
-                $this->revertStockForAdjustment($adjustment, $articles);
+                $this->revertStockForAdjustment($adjustment, $items);
 
                 $adjustment->update([
                     'document_number'  => $documentNumber,
@@ -409,23 +409,23 @@ class InventoryAdjustmentController extends Controller
                 $adjustment->lines()->delete();
             }
 
-            $this->syncLinesAndStock($adjustment, $data['lines'], $articles, $movementReasons);
+            $this->syncLinesAndStock($adjustment, $data['lines'], $items, $movementReasons);
 
-            return $adjustment->load('lines.article');
+            return $adjustment->load('lines.item');
         });
     }
 
-    private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $articles, array $movementReasons): void
+    private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $items, array $movementReasons): void
     {
         foreach ($lines as $line) {
-            $article = $articles[$line['article_id']] ?? null;
-            if (!$article) {
+            $item = $items[$line['article_id']] ?? null;
+            if (!$item) {
                 throw ValidationException::withMessages([
-                    'lines' => ['No se encontro el articulo indicado.'],
+                    'lines' => ['No se encontro el item indicado.'],
                 ]);
             }
 
-            $warehouseId = $this->resolveWarehouseId($article, $line['warehouse_id'] ?? null);
+            $warehouseId = $this->resolveWarehouseId($item, $line['warehouse_id'] ?? null);
             $lineMovementReason = $line['movement_reason'] ?? $adjustment->movement_reason ?? $adjustment->type;
             $lineType = $movementReasons[$lineMovementReason] ?? $lineMovementReason ?? 'entrada';
 
@@ -446,21 +446,21 @@ class InventoryAdjustmentController extends Controller
                 'line_total'              => $base + $taxAmount,
             ]);
 
-            $this->applyStockMovement($article, $warehouseId, $qty, $lineType);
+            $this->applyStockMovement($item, $warehouseId, $qty, $lineType);
         }
     }
 
-    private function revertStockForAdjustment(InventoryAdjustment $adjustment, Collection $articles): void
+    private function revertStockForAdjustment(InventoryAdjustment $adjustment, Collection $items): void
     {
         foreach ($adjustment->lines as $line) {
-            $article = $articles[$line->article_id] ?? Article::find($line->article_id);
-            if (!$article) {
+            $item = $items[$line->article_id] ?? Item::find($line->article_id);
+            if (!$item) {
                 continue;
             }
 
-            $warehouseId = $this->resolveWarehouseId($article, $line->warehouse_id);
+            $warehouseId = $this->resolveWarehouseId($item, $line->warehouse_id);
             $reverseType = $adjustment->type === 'entrada' ? 'salida' : 'entrada';
-            $this->applyStockMovement($article, $warehouseId, (int) $line->quantity, $reverseType);
+            $this->applyStockMovement($item, $warehouseId, (int) $line->quantity, $reverseType);
         }
     }
 }

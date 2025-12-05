@@ -1,4 +1,4 @@
-Ôªø<script setup lang="ts">
+<script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
@@ -8,26 +8,26 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { Article } from '@/types';
+import type { Item } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Ban, CheckCircle, Download, PlusCircle, Search, Upload } from 'lucide-vue-next';
 import { onMounted, ref, watch, reactive } from 'vue';
-import ArticleDialog from './ArticleDialog.vue';
+import ItemDialog from './ItemDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
-    { title: 'Art√≠culos', href: '/inventario/articulos' },
+    { title: 'Items', href: '/inventario/item' },
 ];
 
-const articles = ref<Article[]>([]);
+const items = ref<Item[]>([]);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
-const form = ref<Partial<Article>>({});
-const articleToDelete = ref<Article | null>(null);
+const form = ref<Partial<Item>>({});
+const itemToDelete = ref<Item | null>(null);
 const isDeleteDialogOpen = ref(false);
 const searchQuery = ref('');
 const currentPage = ref(1);
@@ -36,7 +36,7 @@ const totalItems = ref(0);
 
 const statusFilter = ref<string>('all');
 const isStatusDialogOpen = ref(false);
-const articleToToggleStatus = ref<Article | null>(null);
+const itemToToggleStatus = ref<Item | null>(null);
 const isBulkDialogOpen = ref(false);
 
 const statusOptions = ref([
@@ -45,15 +45,15 @@ const statusOptions = ref([
     reactive({ id: '1', name: 'Deshabilitados' })
 ]);
 
-//Variables reactivas para mensajes de √©xito y error
+//Variables reactivas para mensajes de Èxito y error
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 
-function openDialog(type: 'create' | 'edit', article: Article | null = null) {
+function openDialog(type: 'create' | 'edit', item: Item | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
-    form.value = article
-        ? { ...article }
+    form.value = item
+        ? { ...item }
         : {
               warehouse_id: undefined,
               category_sub_group_id: undefined,
@@ -73,21 +73,21 @@ function closeDialog() {
     isDialogOpen.value = false;
 }
 
-function confirmDeleteArticle(article: Article) {
-    articleToDelete.value = article;
+function confirmDeleteItem(item: Item) {
+    itemToDelete.value = item;
     isDeleteDialogOpen.value = true;
 }
 
-async function deleteArticle() {
-    if (!articleToDelete.value) return;
+async function deleteItem() {
+    if (!itemToDelete.value) return;
     try {
-        await axios.delete(`/articulos/${articleToDelete.value.id}`);
-        fetchArticles();
+        await axios.delete(`/item/${itemToDelete.value.id}`);
+        fetchItems();
         isDeleteDialogOpen.value = false;
-        successMessage.value = "El art√≠culo se elimin√≥ correctamente.";
+        successMessage.value = "El artÌculo se eliminÛ correctamente.";
         errorMessage.value = "";
     } catch (err: unknown) {
-        let message = "No se pudo eliminar el art√≠culo.";
+        let message = "No se pudo eliminar el artÌculo.";
         if (axios.isAxiosError(err)) {
             // err.response puede ser undefined; usar any para acceder a data.message si es necesario
             message = (err.response?.data as any)?.message ?? message;
@@ -100,26 +100,26 @@ async function deleteArticle() {
 }
 
 function handleDialogRefresh() {
-  fetchArticles(currentPage.value, searchQuery.value, statusFilter.value);
+  fetchItems(currentPage.value, searchQuery.value, statusFilter.value);
 
   if (dialogType.value === 'create') {
-    successMessage.value = 'El art√≠culo se cre√≥ correctamente.';
+    successMessage.value = 'El artÌculo se creÛ correctamente.';
   } else {
-    successMessage.value = 'El art√≠culo se actualiz√≥ correctamente.';
+    successMessage.value = 'El artÌculo se actualizÛ correctamente.';
   }
 
   errorMessage.value = '';
 }
 
-function openStatusDialog(article: Article) {
-    articleToToggleStatus.value = article;
+function openStatusDialog(item: Item) {
+    itemToToggleStatus.value = item;
     isStatusDialogOpen.value = true;
 }
 
 async function toggleStatus() {
-    if (!articleToToggleStatus.value) return;
-    await axios.post(`/articulos/${articleToToggleStatus.value.id}/toggle-status`);
-    fetchArticles(currentPage.value, searchQuery.value, statusFilter.value);
+    if (!itemToToggleStatus.value) return;
+    await axios.post(`/item/${itemToToggleStatus.value.id}/toggle-status`);
+    fetchItems(currentPage.value, searchQuery.value, statusFilter.value);
     isStatusDialogOpen.value = false;
 }
 
@@ -130,55 +130,55 @@ function closeBulkDialog() {
     isBulkDialogOpen.value = false;
 }
 
-async function fetchArticles(page = 1, search = '', status = 'all') {
+async function fetchItems(page = 1, search = '', status = 'all') {
     const params: any = { page, per_page: itemsPerPage, search };
     if (status !== 'all') {
         params.status = status;
     }
-    const response = await axios.get('/articulos/data', { params });
-    articles.value = response.data.data;
+    const response = await axios.get('/item/data', { params });
+    items.value = response.data.data;
     totalItems.value = response.data.total;
     currentPage.value = response.data.current_page;
 }
 
 watch(searchQuery, (newQuery) => {
-    fetchArticles(1, newQuery, statusFilter.value);
+    fetchItems(1, newQuery, statusFilter.value);
 });
 watch(statusFilter, (newStatus) => {
-    fetchArticles(1, searchQuery.value, newStatus);
+    fetchItems(1, searchQuery.value, newStatus);
 });
 
 onMounted(() => {
-    fetchArticles();
+    fetchItems();
 });
 
-function exportArticlesExcel() {
-    window.open('/articulos/exportar-excel', '_blank');
+function exportItemsExcel() {
+    window.open('/item/exportar-excel', '_blank');
 }
 </script>
 
 <template>
-    <Head title="Gesti√≥n de Art√≠culos" />
+    <Head title="GestiÛn de Items" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
-                success-title="√âxito"
+                success-title="…xito"
                 error-title="Error"
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gesti√≥n de Art√≠culos</h1>
+                <h1 class="text-lg font-bold">GestiÛn de Items</h1>
                 <div class="flex gap-2">
                     <Button @click="openDialog('create')" variant="default" size="sm">
-                        <PlusCircle class="h-4 w-4" /> Crear Nuevo Art√≠culo
+                        <PlusCircle class="h-4 w-4" /> Crear Nuevo Item
                     </Button>
                     <Button @click="openBulkDialog" variant="secondary" size="sm">
                         <Upload class="h-4 w-4" /> Carga Masiva
                     </Button>
-                    <Button @click="exportArticlesExcel" variant="secondary" size="sm">
+                    <Button @click="exportItemsExcel" variant="secondary" size="sm">
                         <Download class="h-4 w-4" /> Exportar a Excel
                     </Button>
                 </div>
@@ -186,7 +186,7 @@ function exportArticlesExcel() {
             <!-- FILTROS: UNA SOLA FILA -->
             <div class="flex items-end gap-4 mb-2 flex-wrap">
                 <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input v-model="searchQuery" placeholder="Buscar art√≠culo" class="h-10 w-full pl-10" />
+                    <Input v-model="searchQuery" placeholder="Buscar artÌculo" class="h-10 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
@@ -199,7 +199,7 @@ function exportArticlesExcel() {
                         placeholder="Estado"
                     />
                 </div>
-                <!-- Puedes agregar m√°s filtros aqu√≠ siguiendo el mismo patr√≥n visual -->
+                <!-- Puedes agregar m·s filtros aquÌ siguiendo el mismo patrÛn visual -->
             </div>
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
@@ -208,33 +208,33 @@ function exportArticlesExcel() {
                             <TableHead>ID</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Referencia</TableHead>
-                            <TableHead>Descripci√≥n</TableHead>
+                            <TableHead>DescripciÛn</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="article in articles" :key="article.id" class="text-center">
-                            <TableCell>{{ article.id }}</TableCell>
-                            <TableCell>{{ article.name }}</TableCell>
-                            <TableCell>{{ article.reference }}</TableCell>
-                            <TableCell>{{ article.description }}</TableCell>
+                        <TableRow v-for="item in items" :key="item.id" class="text-center">
+                            <TableCell>{{ item.id }}</TableCell>
+                            <TableCell>{{ item.name }}</TableCell>
+                            <TableCell>{{ item.reference }}</TableCell>
+                            <TableCell>{{ item.description }}</TableCell>
                             <TableCell>
-                                <StatusBadge :text="article.status ? 'Habilitado' : 'Deshabilitado'" :type="article.status ? 'green' : 'red'" />
+                                <StatusBadge :text="item.status ? 'Habilitado' : 'Deshabilitado'" :type="item.status ? 'green' : 'red'" />
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton @click="openDialog('edit', article)" />
-                                <DeleteButton @click="confirmDeleteArticle(article)" />
+                                <EditButton @click="openDialog('edit', item)" />
+                                <DeleteButton @click="confirmDeleteItem(item)" />
                                 <button
                                     :class="[
                                         'inline-flex items-center justify-center text-gray-500',
-                                        article.status ? 'hover:text-red-600' : 'hover:text-green-500',
+                                        item.status ? 'hover:text-red-600' : 'hover:text-green-500',
                                     ]"
                                     title="Habilitar/Deshabilitar"
-                                    @click="openStatusDialog(article)"
+                                    @click="openStatusDialog(item)"
                                     type="button"
                                 >
-                                    <Ban v-if="article.status" class="h-4 w-4" />
+                                    <Ban v-if="item.status" class="h-4 w-4" />
                                     <CheckCircle v-else class="h-4 w-4" />
                                 </button>
                             </TableCell>
@@ -243,25 +243,25 @@ function exportArticlesExcel() {
                 </Table>
             </div>
         </div>
-        <ArticleDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="handleDialogRefresh" />
+        <ItemDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="handleDialogRefresh" />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaci√≥n"
-            description="¬øEst√°s seguro de que deseas eliminar este Art√≠culo? Esta acci√≥n no se puede deshacer."
+            title="Confirmar eliminaciÛn"
+            description="øEst·s seguro de que deseas eliminar este Item? Esta acciÛn no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"
-            @confirm="deleteArticle"
+            @confirm="deleteItem"
         />
-        <!-- Di√°logo de confirmaci√≥n para habilitar/deshabilitar -->
+        <!-- Di·logo de confirmaciÛn para habilitar/deshabilitar -->
         <Dialog v-model:open="isStatusDialogOpen">
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle> {{ articleToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }} Art√≠culo </DialogTitle>
+                    <DialogTitle> {{ itemToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }} Item </DialogTitle>
                     <DialogDescription>
-                        ¬øEst√°s seguro de que deseas
-                        {{ articleToToggleStatus?.status ? 'habilitar' : 'deshabilitar' }}
-                        este art√≠culo?
+                        øEst·s seguro de que deseas
+                        {{ itemToToggleStatus?.status ? 'habilitar' : 'deshabilitar' }}
+                        este artÌculo?
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -270,20 +270,49 @@ function exportArticlesExcel() {
                         type="button"
                         :class="[
                             'inline-flex items-center rounded px-3 py-1',
-                            articleToToggleStatus?.status ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-green-600 text-white hover:bg-green-700',
+                            itemToToggleStatus?.status ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-green-600 text-white hover:bg-green-700',
                         ]"
                         @click="toggleStatus"
                     >
-                        <Ban v-if="articleToToggleStatus?.status" class="mr-1 h-4 w-4" />
+                        <Ban v-if="itemToToggleStatus?.status" class="mr-1 h-4 w-4" />
                         <CheckCircle v-else class="mr-1 h-4 w-4" />
-                        {{ articleToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }}
+                        {{ itemToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }}
                     </button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-        <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchArticles" />
+        <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

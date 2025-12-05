@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Articles/ExtraFieldsForm.vue';
-import type { Article, CategorySubGroup, Color, ExtraFields, Warehouse } from '@/types';
+import type { Item, CategorySubGroup, Color, ExtraFields, Warehouse } from '@/types';
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
@@ -21,12 +21,12 @@ import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit' | 'view';
-    form: Partial<Article>;
+    form: Partial<Item>;
 }>();
 const emit = defineEmits(['close', 'refresh', 'saved', 'error']);
 
 // Estado reactivo principal
-const localForm = ref<Partial<Article>>({
+const localForm = ref<Partial<Item>>({
     ...props.form,
     reference: props.form.reference || '',
 });

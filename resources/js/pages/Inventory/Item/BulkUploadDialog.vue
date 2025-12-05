@@ -35,7 +35,7 @@ function downloadTemplate() {
     isDownloading.value = true;
     uploadError.value = '';
     // Usa ruta absoluta sin BASE_URL para evitar doble slash o rutas incorrectas
-    const url = '/articulos/descargar-plantilla';
+    const url = '/item/descargar-plantilla';
     fetch(url, {
         method: 'GET',
         headers: {
@@ -55,7 +55,7 @@ function downloadTemplate() {
             if (!blob) return;
             const link = document.createElement('a');
             link.href = window.URL.createObjectURL(blob);
-            link.download = 'plantilla_articulos.xlsx';
+            link.download = 'plantilla_items.xlsx';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -78,7 +78,7 @@ async function handleBulkUpload() {
     const formData = new FormData();
     formData.append('file', bulkUploadFile.value);
     try {
-        await axios.post('/articulos/carga-masiva', formData, {
+        await axios.post('/item/carga-masiva', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
         uploadSuccess.value = 'Artículos cargados correctamente.';
@@ -150,3 +150,9 @@ async function handleBulkUpload() {
         </DialogContent>
     </Dialog>
 </template>
+
+
+
+
+
+

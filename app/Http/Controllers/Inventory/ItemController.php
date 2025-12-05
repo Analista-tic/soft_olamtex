@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\Inventory\Article;
+use App\Models\Inventory\Item;
 use App\Models\ProductSheet\Brand;
 use App\Models\ProductSheet\FabricBase;
 use App\Models\ProductSheet\Group;
@@ -26,18 +26,18 @@ use App\Models\Common\CategorySubGroup;
 use App\Models\Common\Color;
 use Illuminate\Support\Facades\Log;
 
-class ArticleController extends Controller
+class ItemController extends Controller
 {
     public function index()
     {
-        return Inertia::render('Inventory/Articles/Index', [
-            'articles' => Article::with(['warehouses', 'categorySubGroup', 'color', 'tax'])->get(),
+        return Inertia::render('Inventory/Item/Index', [
+            'articles' => Item::with(['warehouses', 'categorySubGroup', 'color', 'tax'])->get(),
         ]);
     }
 
     public function show($id)
     {
-        return Article::with(['categorySubGroup', 'color', 'tax'])->findOrFail($id);
+        return Item::with(['categorySubGroup', 'color', 'tax'])->findOrFail($id);
     }
 
     public function store(Request $request)
@@ -93,7 +93,7 @@ class ArticleController extends Controller
             $data['status'] = true;
         }
 
-        $article = Article::create($data);
+        $article = Item::create($data);
 
         // Relacionar bodegas si se envía
         if ($request->has('warehouses')) {
@@ -120,7 +120,7 @@ class ArticleController extends Controller
 
     public function update(Request $request, $id)
     {
-        $article = Article::findOrFail($id);
+        $article = Item::findOrFail($id);
 
         if ($request->has('extra_fields') && is_string($request->input('extra_fields'))) {
             $decoded = json_decode($request->input('extra_fields'), true);
@@ -208,7 +208,7 @@ class ArticleController extends Controller
 
     public function destroy($id)
     {
-        $article = Article::findOrFail($id);
+        $article = Item::findOrFail($id);
 
         // Validaciones previas para evitar borrar si hay relaciones activas.
         $reasons = [];
@@ -247,7 +247,7 @@ class ArticleController extends Controller
                 : implode(', ', array_slice($reasons, 0, -1)) . ' y ' . end($reasons);
 
             return response()->json([
-                'message' => "No se puede eliminar el articulo porque tiene {$list}.",
+                'message' => "No se puede eliminar el item porque tiene {$list}.",
             ], 409);
         }
 
@@ -259,7 +259,7 @@ class ArticleController extends Controller
             // Si hay claves foraneas (ajustes, compras, etc.) informamos y devolvemos 409 en vez de 500
             if ((int) $e->getCode() === 23000) {
                 return response()->json([
-                    'message' => 'No se puede eliminar el articulo porque tiene registros relacionados (ajustes de inventario, compras u otros movimientos). Elimine o reasigne esos registros primero.'
+                    'message' => 'No se puede eliminar el item porque tiene registros relacionados (ajustes de inventario, compras u otros movimientos). Elimine o reasigne esos registros primero.'
                 ], 409);
             }
 
@@ -269,7 +269,7 @@ class ArticleController extends Controller
 
     public function getData(Request $request)
     {
-        $query = Article::with(['categorySubGroup', 'color', 'tax', 'warehouses']);
+        $query = Item::with(['categorySubGroup', 'color', 'tax', 'warehouses']);
 
         if ($request->has('search') && trim($request->search) !== '') {
             $search = $request->search;
@@ -311,7 +311,7 @@ class ArticleController extends Controller
 
     public function apiIndex(Request $request)
     {
-        $query = Article::with(['categorySubGroup', 'color', 'tax', 'warehouses']);
+        $query = Item::with(['categorySubGroup', 'color', 'tax', 'warehouses']);
 
         if ($request->has('search') && trim($request->search) !== '') {
             $search = $request->search;
@@ -342,19 +342,19 @@ class ArticleController extends Controller
 
     public function togglestatus($id)
     {
-        $article = Article::findOrFail($id);
+        $article = Item::findOrFail($id);
         $article->status = !$article->status;
         $article->save();
 
         return response()->json([
             'status' => $article->status,
-            'message' => $article->status ? 'articulo habilitado' : 'articulo deshabilitado'
+            'message' => $article->status ? 'item habilitado' : 'item deshabilitado'
         ]);
     }
 
     public function downloadTemplate()
     {
-        $fileName = 'plantilla_articulos.xlsx';
+        $fileName = 'plantilla_items.xlsx';
         $filePath = storage_path('app/public/' . $fileName);
 
         $spreadsheet = new Spreadsheet();
@@ -399,7 +399,7 @@ class ArticleController extends Controller
             'ROJO',     // COLOR
             '19',       // IMPUesta
             '123456',   // CÓDIGO DE BARRAS
-            'Ejemplo de articulo', // DESCRIPCIÓN
+        'Ejemplo de item', // DESCRIPCIÓN
             'Algodón',  // BASE TELA
             'Hilaza 20',// BASE HILAZA
             'Adicional',// CAMPO ADICIONAL
@@ -414,9 +414,9 @@ class ArticleController extends Controller
             'REF001',   // REFERENCIA
         ];
 
-        // Hoja principal: articulos
+        // Hoja principal: items
         $mainSheet = $spreadsheet->getActiveSheet();
-        $mainSheet->setTitle('articulos');
+        $mainSheet->setTitle('items');
         $mainSheet->fromArray([$headers, $exampleRow], '', 'A1');
 
         // Poner los encabezados en negrita
@@ -619,13 +619,13 @@ class ArticleController extends Controller
 
     public function generateAndSaveTemplate($withResponse = true)
     {
-        Log::info('Generando plantilla de articulos');
+        Log::info('Generando plantilla de items');
 
         $spreadsheet = new Spreadsheet();
 
-        // Hoja principal: articulos
+        // Hoja principal: items
         $mainSheet = $spreadsheet->getActiveSheet();
-        $mainSheet->setTitle('articulos');
+        $mainSheet->setTitle('items');
         // Encabezados correctos para la carga masiva
         $mainSheet->fromArray([
             [
@@ -648,7 +648,7 @@ class ArticleController extends Controller
                 '19', // tax
                 '1234567890123', // bar_code
                 '1', // negative_movement
-                'Ejemplo de articulo', // description
+                'Ejemplo de item', // description
                 '{"talla":"M","material":"algodón"}', // extra_fields
                 'Nombre generado', // name
                 'REF001', // reference
@@ -695,7 +695,7 @@ class ArticleController extends Controller
         $spreadsheet->setActiveSheetIndex(0);
 
         $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
-        $fileName = 'plantilla_articulos.xlsx';
+        $fileName = 'plantilla_items.xlsx';
         $path = storage_path('app/public/' . $fileName);
 
         // Asegurarse que el directorio existe
@@ -846,11 +846,11 @@ class ArticleController extends Controller
                     'status' => true,
                 ];
 
-                Article::create($articleData);
+                Item::create($articleData);
                 $inserted++;
             } catch (\Throwable $e) {
                 $errors[] = "Fila $rowNum: " . $e->getMessage();
-                Log::error("Error en fila $rowNum al cargar articulos", [
+                Log::error("Error en fila $rowNum al cargar items", [
                     'error' => $e->getMessage(),
                     'data' => $row
                 ]);
@@ -859,28 +859,28 @@ class ArticleController extends Controller
 
         if ($inserted === 0 && !empty($errors)) {
             return response()->json([
-                'message' => 'No se pudo insertar ningun articulo. Errores: ' . implode('; ', $errors)
+                'message' => 'No se pudo insertar ningun item. Errores: ' . implode('; ', $errors)
             ], 422);
         }
 
         return response()->json([
-            'message' => "Carga masiva completada. articulos insertados: $inserted",
+            'message' => "Carga masiva completada. items insertados: $inserted",
             'errors' => $errors,
             'inserted' => $inserted
         ]);
     }
 
-    // Nuevo metodo para obtener bodegas y stock de un articulo
+    // Nuevo metodo para obtener bodegas y stock de un item
     public function getWarehouses($id)
     {
-        $article = Article::findOrFail($id);
+        $article = Item::findOrFail($id);
         return response()->json($article->getWarehouseStocks());
     }
 
-    // Nuevo metodo para actualizar stock de un articulo en una bodega
+    // Nuevo metodo para actualizar stock de un item en una bodega
     public function updateWarehousestack(Request $request, $id)
     {
-        $article = Article::findOrFail($id);
+        $article = Item::findOrFail($id);
         $request->validate([
             'warehouse_id' => 'required|integer|exists:warehouses,id',
             'quantity' => 'required|integer',
@@ -899,19 +899,19 @@ class ArticleController extends Controller
     // Nuevo método para eliminar la relación con una bodega
     public function detachWarehouse($id, $warehouseId)
     {
-        $article = Article::findOrFail($id);
+        $article = Item::findOrFail($id);
         $article->removeWarehouse($warehouseId);
         return response()->json(['success' => true]);
     }
 
-    // Nueva función para exportar todos los articulos a Excel
+    // Nueva función para exportar todos los items a Excel
     public function exportExcel()
     {
-        $articles = Article::with(['categorySubGroup', 'color'])->get();
+        $articles = Item::with(['categorySubGroup', 'color'])->get();
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('articulos');
+        $sheet->setTitle('items');
 
         // Encabezados en el mismo orden que la plantilla de carga masiva
         $headers = [
@@ -966,8 +966,8 @@ class ArticleController extends Controller
         }
 
         // Descargar archivo
-        $fileName = 'articulos_exportados.xlsx';
-        $tempFile = tempnam(sys_get_temp_dir(), 'articulos_') . '.xlsx';
+        $fileName = 'items_exportados.xlsx';
+        $tempFile = tempnam(sys_get_temp_dir(), 'items_') . '.xlsx';
         $writer = new Xlsx($spreadsheet);
         $writer->save($tempFile);
 
@@ -976,17 +976,14 @@ class ArticleController extends Controller
 
     public function listView()
     {
-        return Inertia::render('Inventory/Articles/List', [
-            'articles' => Article::with(['categorySubGroup', 'color', 'tax'])->get(),
+        return Inertia::render('Inventory/Item/List', [
+            'articles' => Item::with(['categorySubGroup', 'color', 'tax'])->get(),
         ]);
     }
 
     public function adjustmentView()
     {
-        return Inertia::render('Inventory/Articles/InventoryAdjustment');
+        return Inertia::render('Inventory/Item/InventoryAdjustment');
     }
 
 }
-
-
-

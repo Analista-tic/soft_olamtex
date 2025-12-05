@@ -5,6 +5,8 @@ namespace App\Models\Expenses;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
+use App\Models\Inventory\Item;
+
 class PurchaseOrderItem extends Model
 {
     use HasFactory;
@@ -32,8 +34,8 @@ class PurchaseOrderItem extends Model
         return $this->belongsTo(PurchaseOrder::class);
     }
 
-    public function article()
+    public function item()
     {
-        return $this->belongsTo(\App\Models\Inventory\Article::class);
+        return $this->belongsTo(Item::class);
     }
 }

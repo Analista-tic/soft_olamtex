@@ -9,7 +9,7 @@ use App\Models\Common\Warehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-class Article extends Model
+class Item extends Model
 {
     protected $fillable = [
         'category_sub_group_id',
@@ -94,7 +94,7 @@ class Article extends Model
     }
 
     /**
-     * Bodegas donde está asignado el artículo con datos de stock en el pivot.
+     * Bodegas donde está asignado el item con datos de stock en el pivot.
      */
     public function warehouses(): BelongsToMany
     {
