@@ -12,6 +12,7 @@ import axios from 'axios';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import type { Article, Warehouse } from '@/types';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -37,6 +38,7 @@ type Line = {
 };
 
 const defaultMovementReason: 'entrada' | 'salida' = 'entrada';
+const { company, logoUrl } = useCompanyInfo();
 
 const adjustmentTypeOptions = [
   { id: 'entrada', name: 'Entrada', direction: 'entrada' },
@@ -486,16 +488,25 @@ async function handleSubmit() {
             </div>
             <div class="relative flex h-full items-center justify-center rounded p-4">
               <img
-                src="/images/olamtex.png"
-                alt="Logo empresa"
-                class="max-h-12 object-contain"
+                :src="logoUrl"
+                alt="Logotipo de la empresa"
+                class="max-h-24 max-w-[160px] w-auto object-contain"
               />
             </div>
             <div>
-              <div class=" font-semibold">Datos empresa</div>
-              <p class="text-xs">Razon Social: <span class="font-normal">OLAMTEX S.A.S.</span></p>
-              <p class="text-xs">NIT: <span class="font-normal">900123456-7</span></p>
-              <p class="text-xs">Correo: <span class="font-normal">info@olamtex.com</span></p>
+              <div class="font-semibold">Datos empresa</div>
+              <p class="text-xs">
+                Razon Social:
+                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+              </p>
+              <p class="text-xs">
+                NIT:
+                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+              </p>
+              <p class="text-xs">
+                Correo:
+                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+              </p>
             </div>
           </div>
           <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3 items-end">

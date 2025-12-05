@@ -46,11 +46,30 @@ export interface NavGroupItem extends NavItem {
 }
 
 // Datos compartidos en la aplicación
+export interface CompanyInfo {
+    id: number | null;
+    name: string | null;
+    nit: string | null;
+    phone: string | null;
+    email: string | null;
+    accounting_email: string | null;
+    website: string | null;
+    address: string | null;
+    municipality: string | null;
+    department: string | null;
+    description: string | null;
+    logo_path: string | null;
+    logo_url: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
 export interface SharedData extends PageProps {
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
     ziggy: Config & { location: string };
+    company?: CompanyInfo | null;
 }
 
 // Interfaces relacionadas con productos

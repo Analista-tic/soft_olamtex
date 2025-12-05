@@ -2,6 +2,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { computed, ref, watch } from 'vue';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
 type AdjustmentLine = {
   article?: { name?: string; reference?: string };
@@ -46,6 +47,8 @@ watch(
 watch(dialogOpen, (val) => {
   if (!val) emit('close');
 });
+
+const { company, logoUrl } = useCompanyInfo();
 
 const subtotal = computed(() =>
   (props.adjustment?.lines || []).reduce((acc, line) => {
@@ -92,13 +95,26 @@ function print() {
               <div>{{ props.adjustment?.document_number || 'Sin numero' }}</div>
             </div>
             <div class="flex h-full items-center justify-center rounded p-4">
-              <img src="/images/olamtex.png" alt="Logo Olamtex" class="max-h-12 object-contain" />
+              <img
+                :src="logoUrl"
+                alt="Logotipo de la empresa"
+                class="max-h-24 max-w-[160px] w-auto object-contain"
+              />
             </div>
             <div>
               <div class="text-sm font-semibold">Datos empresa</div>
-              <p class="text-xs">Razon Social: <span class="font-normal">MANUFACTURAS OLAMTEX S.A.S.</span></p>
-              <p class="text-xs">NIT: <span class="font-normal">900123456-7</span></p>
-              <p class="text-xs">Correo: <span class="font-normal">info@olamtex.com</span></p>
+              <p class="text-xs">
+                Razon Social:
+                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+              </p>
+              <p class="text-xs">
+                NIT:
+                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+              </p>
+              <p class="text-xs">
+                Correo:
+                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+              </p>
             </div>
           </div>
 

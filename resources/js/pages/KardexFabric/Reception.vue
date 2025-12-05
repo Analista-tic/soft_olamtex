@@ -14,6 +14,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
 import FabricRollDialog from './FabricRollDialog.vue';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
 interface PageProps extends InertiaPageProps {
     invoiceId?: string | number;
@@ -36,6 +37,7 @@ const selectedInvoice = ref<PurchaseInvoice | null>(null);
 const isLoadingSpecificInvoice = ref(false);
 const isFabricRollDialogOpen = ref(false);
 const selectedItem = ref<any>(null);
+const { company, logoUrl } = useCompanyInfo();
 
 // Estado para AlertBox
 const alertMessage = ref('');
@@ -517,13 +519,26 @@ function onFabricRollSuccess() {
                             <p class="text-sm text-gray-600">{{ selectedInvoice.supplier_invoice_number || 'Sin número de proveedor' }}</p>
                         </div>
                         <div class="relative flex h-full items-center justify-center rounded p-2">
-                            <img src="/images/olamtex.png" alt="Logo Olamtex" class="max-h-8 object-contain" />
+                            <img
+                                :src="logoUrl"
+                                alt="Logotipo de la empresa"
+                                class="max-h-24 max-w-[160px] w-auto object-contain"
+                            />
                         </div>
                         <div>
                             <div class="text-sm font-semibold">Datos empresa</div>
-                            <p class="text-sm">Razón Social: <span class="font-normal">OLAMTEX S.A.S.</span></p>
-                            <p class="text-sm">NIT: <span class="font-normal">900123456-7</span></p>
-                            <p class="text-sm">Correo: <span class="font-normal">info@olamtex.com</span></p>
+                            <p class="text-sm">
+                                Razón Social:
+                                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+                            </p>
+                            <p class="text-sm">
+                                NIT:
+                                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+                            </p>
+                            <p class="text-sm">
+                                Correo:
+                                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+                            </p>
                         </div>
                     </div>
 
@@ -796,4 +811,3 @@ function onFabricRollSuccess() {
         </div>
     </AppLayout>
 </template>
-

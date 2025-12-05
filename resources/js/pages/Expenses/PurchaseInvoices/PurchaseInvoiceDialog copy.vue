@@ -10,6 +10,7 @@ import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
 // Props y eventos del di├ílogo
 const props = defineProps<{
@@ -33,6 +34,7 @@ const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
 const isLoadingInvoiceId = ref(false);
 const isReadOnly = computed(() => !!props.readOnly);
+const { company, logoUrl } = useCompanyInfo();
 
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
@@ -362,13 +364,26 @@ watch(dialogOpen, (isOpen) => {
                             <span v-else-if="dialogType === 'create' && isLoadingInvoiceId" class="text-gray-400">Cargando...</span>
                         </div>
                         <div class="flex h-full items-center justify-center rounded p-4">
-                            <img src="/images/olamtex.png" alt="Logo Olamtex" class="max-h-12 object-contain" />
+                            <img
+                                :src="logoUrl"
+                                alt="Logotipo de la empresa"
+                                class="max-h-24 max-w-[160px] w-auto object-contain"
+                            />
                         </div>
                         <div>
                             <div class="text-sm font-semibold">Datos empresa</div>
-                            <p class="text-xs">Razón Social: <span class="font-normal">OLAMTEX S.A.S.</span></p>
-                            <p class="text-xs">NIT: <span class="font-normal">900123456-7</span></p>
-                            <p class="text-xs">Correo: <span class="font-normal">info@olamtex.com</span></p>
+                            <p class="text-xs">
+                                Razón Social:
+                                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+                            </p>
+                            <p class="text-xs">
+                                NIT:
+                                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+                            </p>
+                            <p class="text-xs">
+                                Correo:
+                                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+                            </p>
                         </div>
                     </div>
                     <div class="grid grid-cols-3 gap-4">
