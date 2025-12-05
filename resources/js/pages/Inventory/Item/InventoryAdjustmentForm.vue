@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import type { Article, Warehouse } from '@/types';
+import type { Item, Warehouse } from '@/types';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
@@ -61,7 +61,7 @@ const date = ref<string>('');
 const observation = ref<string>('');
 const productionOrder = ref<string>('');
 const taxes = ref<any[]>([]);
-const articles = ref<Article[]>([]);
+const items = ref<Item[]>([]);
 const warehouses = ref<Warehouse[]>([]);
 const selectedWarehouseId = ref<number | null>(null);
 const lastSelectedWarehouseId = ref<number | null>(null);
@@ -85,10 +85,10 @@ const lines = ref<Line[]>([
 ]);
 
 
-const articleSelectOptions = computed(() =>
-  articles.value.map(article => ({
-    id: article.id,
-    name: article.reference ? `${article.name} (${article.reference})` : article.name,
+const itemSelectOptions = computed(() =>
+  items.value.map(item => ({
+    id: item.id,
+    name: item.reference ? `${item.name} (${item.reference})` : item.name,
   })),
 );
 
@@ -117,15 +117,15 @@ async function fetchTaxes() {
   }
 }
 
-async function fetchArticles() {
+async function fetchItems() {
   try {
-    const response = await axios.get('/articulos/data', {
+    const response = await axios.get('/item/data', {
       params: { per_page: 1000, status: 1 },
     });
-    articles.value = response.data?.data ?? [];
+    items.value = response.data?.data ?? [];
   } catch (e) {
-    console.error('Error cargando articulos', e);
-    articles.value = [];
+    console.error('Error cargando items', e);
+    items.value = [];
   }
 }
 
@@ -146,7 +146,7 @@ async function fetchWarehouses() {
 
 onMounted(() => {
   fetchTaxes();
-  fetchArticles();
+  fetchItems();
   fetchWarehouses();
 });
 
@@ -338,7 +338,7 @@ async function handleSubmit() {
   } else {
     lines.value.forEach((line) => {
       if (!line.articleId) {
-        requiredErrors.push('Articulo');
+        requiredErrors.push('Item');
       }
       if (!line.warehouseId && !selectedWarehouseId.value) {
         requiredErrors.push('Bodega');
@@ -563,7 +563,7 @@ async function handleSubmit() {
               <Table class="min-w-full text-center" style="overflow: visible; max-height: none;">
                 <TableHeader>
                   <TableRow class="text-center">
-                    <TableHead class="min-w-[150px] text-left">Articulo <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
                     <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
                     <TableHead class="min-w-[160px] text-left">
                       Descripcion <span class="text-destructive">*</span>
@@ -688,3 +688,14 @@ async function handleSubmit() {
     </DialogContent>
   </Dialog>
 </template>
+
+
+
+
+
+
+
+
+
+
+

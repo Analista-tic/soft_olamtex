@@ -1,5 +1,5 @@
-Ôªø<script setup lang="ts">
-// Importaci‚îú‚îÇn de componentes y utilidades
+<script setup lang="ts">
+// Importaci+¶n de componentes y utilidades
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
-import ExtraFieldsForm from '@/pages/Inventory/Articles/ExtraFieldsForm.vue';
+import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
 import type { Item, CategorySubGroup, Color, ExtraFields, Warehouse } from '@/types';
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
@@ -36,7 +36,7 @@ const colors = ref<Color[]>([]);
 const imageFile = ref<File | null>(null);
 const errors = ref<Record<string, string[]>>({});
 const extraFieldNames = [
-    'Base tela', 'Base hilaza', 'Campo adicional', 'Marca', 'Mundo', 'L√≠neas', 'Tipo puntera', 'Talla', 'Medida'
+    'Base tela', 'Base hilaza', 'Campo adicional', 'Marca', 'Mundo', 'LÌneas', 'Tipo puntera', 'Talla', 'Medida'
 ];
 const extraFields = ref<ExtraFields>({});
 const nameField = ref('');
@@ -47,8 +47,8 @@ const taxes = ref<any[]>([]);
 
 // Unidades de medida
 const unitMeasures = [
-    { id: 'cm', name: 'Cent√≠metro (cm)' },
-    { id: 'mm', name: 'Mil√≠metro (mm)' },
+    { id: 'cm', name: 'CentÌmetro (cm)' },
+    { id: 'mm', name: 'MilÌmetro (mm)' },
     { id: 'm', name: 'Metro (m)' },
     { id: 'in', name: 'Pulgada (in)' },
     { id: 'ft', name: 'Pie (ft)' },
@@ -66,7 +66,7 @@ const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isViewMode = computed(() => props.dialogType === 'view');
 
-// Carga de cat‚îú√≠logos y datos iniciales
+// Carga de cat+Ìlogos y datos iniciales
 async function fetchWarehouses() {
     try {
         const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
@@ -96,23 +96,23 @@ async function fetchTaxes() {
     taxes.value = (data.data ?? []).filter((t: any) => t.status);
 }
 
-// Opciones para campos adicionales (reactivo y din√°mico)
+// Opciones para campos adicionales (reactivo y din·mico)
 const extraFieldOptions = ref<Record<string, { id: string; name: string }[]>>({
     'Base tela': [],
     'Base hilaza': [],
     'Marca': [],
     'Mundo': [],
-    'Secci√≥n': [],
+    'SecciÛn': [],
     'Grupo': [],
-    'L√≠neas': [],
+    'LÌneas': [],
     'Tipo puntera': [],
     'Talla': [],
 });
 
-// Carga de cat√°logos para campos adicionales
+// Carga de cat·logos para campos adicionales
 async function fetchExtraFieldOptions() {
     const catalogos = [
-        { campo: 'Secci√≥n', url: '/catalogos/sections' },
+        { campo: 'SecciÛn', url: '/catalogos/sections' },
         { campo: 'Grupo', url: '/catalogos/groups' },
         { campo: 'Marca', url: '/catalogos/brands' },
         { campo: 'Mundo', url: '/catalogos/worlds' },
@@ -160,7 +160,7 @@ onMounted(async () => {
     }
 });
 
-// Carga de stocks por bodega para el art√≠culo
+// Carga de stocks por bodega para el artÌculo
 async function fetchWarehouseStocks(articleId: number) {
     try {
         const { data } = await axios.get(`/bodegas/${articleId}/warehouses`);
@@ -209,7 +209,7 @@ function updateWarehouseName(idx: number) {
     warehouseStocks.value[idx].name = warehouse ? warehouse.name : '';
 }
 
-// Sincronizaci√≥n de props y estado local
+// SincronizaciÛn de props y estado local
 watch(
     () => props.form,
     (newVal) => {
@@ -229,7 +229,7 @@ watch(
 watch(
     () => props.form.id,
     async (id) => {
-        // Cada vez que cambie el articulo seleccionado (al abrir el modal de editar/ver), recargamos sus bodegas
+        // Cada vez que cambie el item seleccionado (al abrir el modal de editar/ver), recargamos sus bodegas
         if (id) {
             await fetchWarehouseStocks(Number(id));
         } else {
@@ -260,7 +260,7 @@ watch(
     },
 );
 
-// Limpia errores de validaci√≥n
+// Limpia errores de validaciÛn
 function resetErrors() {
     errors.value = {};
 }
@@ -275,10 +275,10 @@ const buildErrorMessage = (err: any): string => {
             .join('. ');
         if (joined.trim()) return joined;
     }
-    return resp?.message || 'Ocurri√≥ un error inesperado al guardar el art√≠culo.';
+    return resp?.message || 'OcurriÛ un error inesperado al guardar el artÌculo.';
 };
 
-// Maneja el env√≠o del formulario
+// Maneja el envÌo del formulario
 async function handleSubmit() {
     resetErrors();
     alertMessage.value = '';
@@ -313,7 +313,7 @@ async function handleSubmit() {
     }
     if (hasNegativeStock.value && !negativeMovementBool.value) {
         showNegativeMovementWarning();
-        return; // NO se env√≠a el formulario ni se cierra el di√°logo
+        return; // NO se envÌa el formulario ni se cierra el di·logo
     }
 
     const extraFieldsToSend: Record<string, string> = {};
@@ -359,7 +359,7 @@ async function handleSubmit() {
             return;
         }
         if (typeof value === 'string' && optionalStringFields.has(key) && value.trim() === '') {
-            return; // no enviar strings vac√≠os en campos opcionales
+            return; // no enviar strings vacÌos en campos opcionales
         }
         if (value !== undefined && value !== null) {
             formData.append(key, value as any);
@@ -375,7 +375,7 @@ async function handleSubmit() {
         stock_max: Number(w.stock_max),
     }))));
 
-    const url = props.dialogType === 'create' ? '/articulos' : `/articulos/${localForm.value.id}`;
+    const url = props.dialogType === 'create' ? '/item' : `/item/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'POST';
     if (props.dialogType === 'edit') {
         formData.append('_method', 'PUT');
@@ -393,7 +393,7 @@ async function handleSubmit() {
         emit('close');
         emit('saved', props.dialogType);
     } catch (error: any) {
-        console.error('Error al guardar el articulo:', error, error?.response?.data);
+        console.error('Error al guardar el item:', error, error?.response?.data);
         const msg = buildErrorMessage(error);
         alertType.value = error?.response?.data?.errors ? 'warning' : 'error';
         alertMessage.value = msg;
@@ -403,7 +403,7 @@ async function handleSubmit() {
     }
 }
 
-// Estado de apertura del di√°logo
+// Estado de apertura del di·logo
 const dialogOpen = ref(props.isOpen);
 watch(
     () => props.isOpen,
@@ -418,10 +418,10 @@ const handleInventoryAdjustmentSaved = (event: Event) => {
     const articleIds = (evt?.detail?.articleIds ?? [])
         .map(id => Number(id))
         .filter((id) => Number.isFinite(id) && id > 0);
-    const currentArticleId = Number(props.form.id);
-    if (!currentArticleId || !articleIds.includes(currentArticleId)) return;
+    const currentItemId = Number(props.form.id);
+    if (!currentItemId || !articleIds.includes(currentItemId)) return;
     if (!dialogOpen.value) return;
-    void fetchWarehouseStocks(currentArticleId);
+    void fetchWarehouseStocks(currentItemId);
 };
 
 onMounted(() => {
@@ -433,14 +433,14 @@ onBeforeUnmount(() => {
     window.removeEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
 });
 
-// Cierre del di√°logo
+// Cierre del di·logo
 function handleClose() {
     dialogOpen.value = false;
     emit('close');
 }
 
 const NEGATIVE_STOCK_WARNING =
-  'Este art√≠culo tiene cantidades negativas en una o m√°s bodegas. ' +
+  'Este item tiene cantidades negativas en una o m·s bodegas. ' +
   'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
 
 function showNegativeMovementWarning() {
@@ -468,7 +468,7 @@ function handleNegativeMovementChange(val: boolean) {
   localForm.value.negative_movement = val ? 1 : 0;
 }
 
-// Actualiza el campo nombre autom√°ticamente
+// Actualiza el campo nombre autom·ticamente
 function updateNameField(orderedFields?: Record<string, string>): void {
     const subGroup = categorySubGroups.value.find(
         (sg) => String(sg.id) === String(localForm.value.category_sub_group_id)
@@ -489,7 +489,7 @@ function updateNameField(orderedFields?: Record<string, string>): void {
     localForm.value.name = nameField.value;
 }
 
-// Previsualizaci√≥n de imagen
+// PrevisualizaciÛn de imagen
 watch(imageFile, (file) => {
     if (file) {
         const reader = new FileReader();
@@ -539,7 +539,7 @@ function handleFileChange(e: Event) {
     imageFile.value = files && files.length > 0 ? files.item(0) : null;
 }
 
-// Actualiza tax_id y tax (objeto) autom√°ticamente al cambiar tax_id
+// Actualiza tax_id y tax (objeto) autom·ticamente al cambiar tax_id
 watch(
     () => localForm.value.tax_id,
     (taxId) => {
@@ -568,20 +568,20 @@ watch(
                 <DialogTitle>
                 {{
                     dialogType === 'create'
-                    ? 'Crear Art√≠culo'
+                    ? 'Crear Item'
                     : dialogType === 'edit'
-                        ? 'Editar Art√≠culo'
-                        : 'Detalle del Art√≠culo'
+                        ? 'Editar Item'
+                        : 'Detalle del Item'
                 }}
                 </DialogTitle>
 
                 <DialogDescription>
                 {{
                     dialogType === 'create'
-                    ? 'Complete los campos para crear un nuevo art√≠culo.'
+                    ? 'Complete los campos para crear un nuevo artÌculo.'
                     : dialogType === 'edit'
-                        ? 'Edite los campos del art√≠culo seleccionado.'
-                        : 'Visualice la informaci√≥n del art√≠culo.'
+                        ? 'Edite los campos del artÌculo seleccionado.'
+                        : 'Visualice la informaciÛn del artÌculo.'
                 }}
                 </DialogDescription>
 
@@ -756,7 +756,7 @@ watch(
                             </div>
                         </div>
 
-                        <!-- Previsualizaci√≥n de imagen con dropzone -->
+                        <!-- PrevisualizaciÛn de imagen con dropzone -->
                         <div class="flex flex-col items-center justify-center px-2 md:row-span-3">
                             <div class="flex w-full flex-col items-center">
                                 <Label class="mb-1 block text-sm font-medium">Imagen</Label>
@@ -783,7 +783,7 @@ watch(
                                         <div class="relative h-52 w-full">
                                             <img
                                                 :src="imagePreview"
-                                                alt="Previsualizaci‚îú‚îÇn"
+                                                alt="Previsualizaci+¶n"
                                                 class="h-57 w-full rounded object-contain"
                                                 style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
                                             />
@@ -791,7 +791,7 @@ watch(
                                         <div
                                             class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
                                         >
-                                            {{ isViewMode ? 'Imagen del art√≠culo' : 'Cambiar imagen' }}
+                                            {{ isViewMode ? 'Imagen del artÌculo' : 'Cambiar imagen' }}
                                         </div>
                                     </template>
 
@@ -810,7 +810,7 @@ watch(
                         </div>
                     </div>
 
-                    <!-- SEGUNDA SECCI√ìN: unidad, c√≥digo, referencia, movimiento -->
+                    <!-- SEGUNDA SECCI”N: unidad, cÛdigo, referencia, movimiento -->
                     <div class="mb-3 grid grid-cols-1 gap-4 md:grid-cols-4">
                         <div class="md:col-span-1">
                             <template v-if="isViewMode">
@@ -835,7 +835,7 @@ watch(
                         </div>
 
                         <div class="md:col-span-1">
-                            <InputField v-model="localForm.bar_code" label="C√≥digo de Barras" />
+                            <InputField v-model="localForm.bar_code" label="CÛdigo de Barras" />
                         </div>
                         <div class="md:col-span-1">
                             <InputField
@@ -853,9 +853,9 @@ watch(
                         </div>
                     </div>
 
-                    <!-- Descripci√≥n -->
+                    <!-- DescripciÛn -->
                     <div>
-                        <TextareaField v-model="localForm.description" label="Descripci√≥n" />
+                        <TextareaField v-model="localForm.description" label="DescripciÛn" />
                     </div>
 
                     <!-- Campos adicionales -->
@@ -890,3 +890,13 @@ watch(
         </DialogContent>
     </Dialog>
 </template>
+
+
+
+
+
+
+
+
+
+

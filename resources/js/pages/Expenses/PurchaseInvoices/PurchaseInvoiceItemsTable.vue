@@ -4,7 +4,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import type { Article, PurchaseInvoiceItem } from '@/types';
+import type { Item, PurchaseInvoiceItem } from '@/types';
 import axios from 'axios';
 import { CirclePlus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -19,24 +19,24 @@ const props = defineProps<{
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseInvoiceItem[]>([]);
-const articles = ref<Article[]>([]);
+const items = ref<Item[]>([]);
 const taxes = ref<Tax[]>([]);
 const isReadOnly = computed(() => !!props.isReadOnly);
 
-const articleMap = computed(() => new Map<number, Article>(articles.value.map((a) => [a.id, a])));
+const itemMap = computed(() => new Map<number, Item>(items.value.map((a) => [a.id, a])));
 const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
 
-const articleOptions = computed(() => {
-    return articles.value
-        .filter((article) => {
-            const isFabric = isTelaArticle(article);
+const itemOptions = computed(() => {
+    return items.value
+        .filter((item) => {
+            const isFabric = isTelaArticle(item);
             if (props.telaMode === true) return isFabric;
             if (props.telaMode === false) return !isFabric;
             return true;
         })
-        .map((article) => ({
-            id: article.id,
-            name: article.name,
+        .map((item) => ({
+            id: item.id,
+            name: item.name,
         }));
 });
 
@@ -49,7 +49,7 @@ const shouldShowFabricColumns = computed(() => {
 const showActionsColumn = computed(() => !isReadOnly.value && localItems.value.length > 1);
 
 const totalColumns = computed(() => {
-    let cols = 6; // Artículo, Precio, Impuesto, Cantidad, Descripción, Total
+    let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripci�n, Total
     if (shouldShowFabricColumns.value) cols += 3; // Código, Color, Ancho
     if (showActionsColumn.value) cols += 1;
     return cols;
@@ -73,8 +73,8 @@ function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
     };
 }
 
-function isTelaArticle(article: Article | null | undefined) {
-    return article?.category_sub_group?.name?.toLowerCase() === 'tela';
+function isTelaArticle(item: Article | null | undefined) {
+    return item?.category_sub_group?.name?.toLowerCase() === 'tela';
 }
 
 watch(
@@ -110,7 +110,7 @@ watch(
                 watch(
                     () => item.article_id,
                     () => {
-                        setTaxFromArticle(item);
+                        setTaxFromItem(item);
                         setFieldsFromOrder(item);
                         calcTotals(item);
                         notifyParent();
@@ -127,9 +127,9 @@ watch(
     { deep: true, immediate: true },
 );
 
-async function fetchArticles() {
-    const res = await axios.get('/articulos/data', { params: { per_page: 1000 } });
-    articles.value = res.data.data;
+async function fetchItems() {
+    const res = await axios.get('/item/data', { params: { per_page: 1000 } });
+    items.value = res.data.data;
 }
 
 async function fetchTaxes() {
@@ -138,7 +138,7 @@ async function fetchTaxes() {
 }
 
 onMounted(() => {
-    fetchArticles();
+    fetchItems();
     fetchTaxes();
 });
 
@@ -165,10 +165,10 @@ function removeItem(idx: number) {
     notifyParent();
 }
 
-function setTaxFromArticle(item: PurchaseInvoiceItem) {
-    const articleId = Number(item.article_id);
-    const article = articleMap.value.get(articleId);
-    item.tax = article?.tax?.percentage ?? 0;
+function setTaxFromItem(item: PurchaseInvoiceItem) {
+    const itemId = Number(item.article_id);
+    const item = itemMap.value.get(itemId);
+    item.tax = item?.tax?.percentage ?? 0;
 }
 
 function getSuggestedPrice(item: PurchaseInvoiceItem): number | null {
@@ -202,9 +202,9 @@ function calcTotals(item: PurchaseInvoiceItem) {
 }
 
 function isTela(item: PurchaseInvoiceItem) {
-    const articleId = Number(item.article_id);
-    const article = articleMap.value.get(articleId);
-    return isTelaArticle(article);
+    const itemId = Number(item.article_id);
+    const item = itemMap.value.get(itemId);
+    return isTelaArticle(item);
 }
 
 function setFieldsFromOrder(item: PurchaseInvoiceItem) {
@@ -256,7 +256,7 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
         >
             <TableHeader>
                 <TableRow class="text-center">
-                    <TableCell class="min-w-[120px]">Artículo <span class="text-red-600">*</span></TableCell>
+                    <TableCell class="min-w-[120px]">Item <span class="text-red-600">*</span></TableCell>
 
                     <TableCell :class="telaMode ? 'w-[140px] min-w-[140px]' : ''">
                     Precio <span class="text-red-600">*</span>
@@ -285,7 +285,7 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                         <div class="flex flex-col items-start justify-start h-full w-full">
                             <SelectField
                                 v-model="item.article_id"
-                                :options="articleOptions"
+                                :options="itemOptions"
                                 label=""
                                 placeholder="Selecciona artículo"
                                 :disabled="isReadOnly"
@@ -404,3 +404,13 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
         </Table>
     </div>
 </template>
+
+
+
+
+
+
+
+
+
+

@@ -1,11 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, watch } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Input from '@/components/ui/input/Input.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
-import ArticleDialog from './ArticleDialog.vue';
+import ItemDialog from './ItemDialog.vue';
 import { Button } from '@/components/ui/button';
 import {
     Pagination,
@@ -18,15 +18,15 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import axios from 'axios';
-import { Article } from '@/types';
+import { Item } from '@/types';
 import ViewButton from '@/components/common/ViewButton.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
-    { title: 'Listado de Artículos', href: '/inventario/articulos' },
+    { title: 'Listado de Items', href: '/inventario/item' },
 ];
 
-const articles = ref<Article[]>([]);
+const items = ref<Item[]>([]);
 const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -34,33 +34,33 @@ const totalItems = ref(0);
 
 const dialogType = ref<'view'>('view');
 const isDialogOpen = ref(false);
-const form = ref<Partial<Article>>({});
+const form = ref<Partial<Item>>({});
 
-async function fetchArticles(page = 1, search = '') {
+async function fetchItems(page = 1, search = '') {
     const params = { page, per_page: itemsPerPage, search };
-    const response = await axios.get('/articulos/data', { params });
-    articles.value = response.data.data;
+    const response = await axios.get('/item/data', { params });
+    items.value = response.data.data;
     totalItems.value = response.data.total;
     currentPage.value = response.data.current_page;
 }
 
 watch(searchQuery, (newQuery) => {
-    fetchArticles(1, newQuery);
+    fetchItems(1, newQuery);
 });
 
 onMounted(() => {
-    fetchArticles();
+    fetchItems();
 });
 
 function handlePageChange(newPage: number) {
     currentPage.value = newPage;
-    fetchArticles(newPage, searchQuery.value);
+    fetchItems(newPage, searchQuery.value);
 }
 
-function openDialog(article: Article) {
+function openDialog(item: Item) {
     dialogType.value = 'view';
     isDialogOpen.value = true;
-    form.value = { ...article };
+    form.value = { ...item };
 }
 
 function closeDialog() {
@@ -70,15 +70,15 @@ function closeDialog() {
 </script>
 
 <template>
-    <Head title="Listado de Artículos" />
+    <Head title="Listado de Items" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Listado de Artículos</h1>
+                <h1 class="text-lg font-bold">Listado de Items</h1>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search_article" v-model="searchQuery" placeholder="Buscar por nombre o referencia" class="h-10 w-full pl-10" />
+                    <Input id="search_item" v-model="searchQuery" placeholder="Buscar por nombre o referencia" class="h-10 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
@@ -99,25 +99,25 @@ function closeDialog() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="article in articles" :key="article.id">
-                            <TableCell>{{ article.id }}</TableCell>
-                            <TableCell>{{ article.name }}</TableCell>
-                            <TableCell>{{ article.reference }}</TableCell>
-                            <TableCell>{{ article.category_sub_group?.name }}</TableCell>
-                            <TableCell>{{ article.color?.name }}</TableCell>
+                        <TableRow v-for="item in items" :key="item.id">
+                            <TableCell>{{ item.id }}</TableCell>
+                            <TableCell>{{ item.name }}</TableCell>
+                            <TableCell>{{ item.reference }}</TableCell>
+                            <TableCell>{{ item.category_sub_group?.name }}</TableCell>
+                            <TableCell>{{ item.color?.name }}</TableCell>
                             <TableCell>
-                                <span v-if="article.tax">{{ article.tax.percentage }}%</span>
+                                <span v-if="item.tax">{{ item.tax.percentage }}%</span>
                                 <span v-else>-</span>
                             </TableCell>
                             <TableCell>
-                                <StatusBadge :status="article.status" />
+                                <StatusBadge :status="item.status" />
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <ViewButton :onClick="() => openDialog(article)" />
+                                <ViewButton :onClick="() => openDialog(item)" />
                             </TableCell>
                         </TableRow>
-                        <TableRow v-if="articles.length === 0">
-                            <TableCell :colspan="8" class="text-center text-gray-400">No hay artículos encontrados.</TableCell>
+                        <TableRow v-if="items.length === 0">
+                            <TableCell :colspan="8" class="text-center text-gray-400">No hay items encontrados.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
@@ -147,7 +147,20 @@ function closeDialog() {
                 </Pagination>
             </div>
         </div>
-        <ArticleDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="fetchArticles(currentPage, searchQuery)" />
+        <ItemDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="fetchItems(currentPage, searchQuery)" />
     </AppLayout>
 </template>
+
+
+
+
+
+
+
+
+
+
+
+
+
 

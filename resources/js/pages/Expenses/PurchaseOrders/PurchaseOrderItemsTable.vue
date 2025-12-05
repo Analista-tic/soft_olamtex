@@ -4,7 +4,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import type { Article, PurchaseOrderItem } from '@/types';
+import type { Item, PurchaseOrderItem } from '@/types';
 import axios from 'axios';
 import { CirclePlus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -14,15 +14,15 @@ const props = defineProps<{ items: PurchaseOrderItem[] }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseOrderItem[]>([]);
-const articles = ref<Article[]>([]);
+const items = ref<Item[]>([]);
 const taxes = ref<Tax[]>([]);
 
-const articleMap = computed(() => new Map<number, Article>(articles.value.map((a) => [a.id, a])));
+const itemMap = computed(() => new Map<number, Item>(items.value.map((a) => [a.id, a])));
 const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
 const showActionsColumn = computed(() => localItems.value.length > 1);
 const totalColumns = computed(() => {
-    let cols = 6; // Artículo, Precio, Impuesto, Cantidad, Descripción, Total
+    let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripci�n, Total
     if (shouldShowFabricColumns.value) {
         cols += 3;
     }
@@ -52,9 +52,9 @@ watch(
     { immediate: true },
 );
 
-async function fetchArticles() {
-    const res = await axios.get('/articulos/data', { params: { per_page: 1000 } });
-    articles.value = res.data.data;
+async function fetchItems() {
+    const res = await axios.get('/item/data', { params: { per_page: 1000 } });
+    items.value = res.data.data;
 }
 
 async function fetchTaxes() {
@@ -63,13 +63,13 @@ async function fetchTaxes() {
 }
 
 onMounted(() => {
-    fetchArticles();
+    fetchItems();
     fetchTaxes();
 });
 
 function isTela(item: PurchaseOrderItem) {
     const articleId = Number(item.article_id);
-    const article = articleMap.value.get(articleId);
+    const article = itemMap.value.get(articleId);
     return article?.category_sub_group?.name?.toLowerCase() === 'tela';
 }
 
@@ -108,9 +108,9 @@ function calcTotals(item: PurchaseOrderItem) {
     item.total_tax = Math.round(price * (tax / 100) * quantity);
 }
 
-function setTaxFromArticle(item: PurchaseOrderItem) {
+function setTaxFromItem(item: PurchaseOrderItem) {
     const articleId = Number(item.article_id);
-    const article = articleMap.value.get(articleId);
+    const article = itemMap.value.get(articleId);
     item.tax = article?.tax?.percentage ?? 0;
 }
 
@@ -128,7 +128,7 @@ watch(
                 watch(
                     () => item.article_id,
                     () => {
-                        setTaxFromArticle(item);
+                        setTaxFromItem(item);
                         calcTotals(item);
                         emit('update:items', localItems.value);
                     },
@@ -162,9 +162,9 @@ watch(
     >
             <TableHeader>
                 <TableRow class="text-center">
-                    <TableCell>Artículo <span class="text-destructive">*</span></TableCell>
+                    <TableCell>Item <span class="text-destructive">*</span></TableCell>
                     <TableCell>Precio <span class="text-destructive">*</span></TableCell>
-                    <TableCell>Impuesto (%)</TableCell>
+                    <TableCell v-if="showActionsColumn">Acciones</TableCell>
                     <TableCell>Cantidad <span class="text-destructive">*</span></TableCell>
                     <TableCell>Descripción</TableCell>
                     <!-- Campos extra para tela -->
@@ -179,7 +179,7 @@ watch(
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
                     <TableCell class="min-w-[270px] p-0 px-1">
-                        <SelectField v-model="item.article_id" :options="articles.map((a) => ({ id: a.id, name: a.name }))" label="" />
+                        <SelectField v-model="item.article_id" :options="items.map((a) => ({ id: a.id, name: a.name }))" label="" />
                     </TableCell>
                     <TableCell class="p-1">
                         <InputField v-model="item.price" type="currency" label="" @input="calcTotals(item)" />
@@ -233,3 +233,12 @@ watch(
         </Table>
     </div>
 </template>
+
+
+
+
+
+
+
+
+
