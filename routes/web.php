@@ -10,8 +10,6 @@ use App\Http\Controllers\ProductSheet\GroupController;
 use App\Http\Controllers\ProductSheet\SectionController;
 use App\Http\Controllers\ProductSheet\WorldController;
 use App\Http\Controllers\ProductSheet\YarnBaseController;
-use App\Http\Controllers\Vault\VaultEntryController;
-use App\Http\Controllers\Vault\VaultSubKeyController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -310,24 +308,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/', [InventoryAdjustmentController::class, 'store'])->name('store');       // guardar nuevo
         Route::put('/{id}', [InventoryAdjustmentController::class, 'update'])->name('update');  // actualizar
         Route::delete('/{id}', [InventoryAdjustmentController::class, 'destroy'])->name('destroy');
-    });
-
-    // === PASSWORD VAULT ===
-    Route::prefix('vault')->name('vault.')->middleware(['throttle:60,1'])->group(function () {
-        Route::get('/', [VaultEntryController::class, 'index'])->name('index');
-        Route::get('/data', [VaultEntryController::class, 'getData'])->name('getData');
-        Route::post('/', [VaultEntryController::class, 'store'])->name('store');
-        Route::get('/{vaultEntry}', [VaultEntryController::class, 'show'])->name('show');
-        Route::put('/{vaultEntry}', [VaultEntryController::class, 'update'])->name('update');
-        Route::delete('/{vaultEntry}', [VaultEntryController::class, 'destroy'])->name('destroy');
-
-        // Sub-keys routes
-        Route::prefix('sub-keys')->name('sub-keys.')->group(function () {
-            Route::post('/', [VaultSubKeyController::class, 'store'])->name('store');
-            Route::get('/{vaultSubKey}', [VaultSubKeyController::class, 'show'])->name('show');
-            Route::put('/{vaultSubKey}', [VaultSubKeyController::class, 'update'])->name('update');
-            Route::delete('/{vaultSubKey}', [VaultSubKeyController::class, 'destroy'])->name('destroy');
-        });
     });
 
 });
