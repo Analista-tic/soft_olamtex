@@ -313,7 +313,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // === PASSWORD VAULT ===
-    Route::prefix('vault')->name('vault.')->group(function () {
+    Route::prefix('vault')->name('vault.')->middleware(['throttle:60,1'])->group(function () {
         Route::get('/', [VaultEntryController::class, 'index'])->name('index');
         Route::get('/data', [VaultEntryController::class, 'getData'])->name('getData');
         Route::post('/', [VaultEntryController::class, 'store'])->name('store');

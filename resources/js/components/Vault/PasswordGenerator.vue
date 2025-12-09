@@ -113,7 +113,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { generatePassword } from '@/services/cryptoService';
+import { generatePassword as generatePasswordUtil } from '@/services/cryptoService';
 
 const emit = defineEmits<{
   generated: [password: string];
@@ -130,8 +130,8 @@ const options = ref({
 const generatedPassword = ref('');
 const showCopiedMessage = ref(false);
 
-function generateNewPassword() {
-  generatedPassword.value = generatePassword(length.value, options.value);
+function generatePassword() {
+  generatedPassword.value = generatePasswordUtil(length.value, options.value);
 }
 
 function usePassword() {
