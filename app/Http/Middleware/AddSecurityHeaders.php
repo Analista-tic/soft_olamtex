@@ -18,18 +18,30 @@ class AddSecurityHeaders
         $response = $next($request);
 
         // Content Security Policy
-        // Note: In production, remove 'unsafe-inline' and 'unsafe-eval' and use nonces instead
-        $response->headers->set('Content-Security-Policy', 
-            "default-src 'self'; " .
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " .
-            "style-src 'self' 'unsafe-inline'; " .
-            "img-src 'self' data: https:; " .
-            "font-src 'self' data:; " .
-            "connect-src 'self'; " .
-            "frame-ancestors 'none'; " .
-            "base-uri 'self'; " .
-            "form-action 'self';"
-        );
+        // ⚠️ PRODUCTION NOTE: Remove 'unsafe-inline' and 'unsafe-eval' in production
+        // Use nonces or hashes instead. These are included for Vite development compatibility.
+        // For production CSP, see SECURITY.md for proper configuration.
+        $cspDirective = config('app.env') === 'production'
+            ? "default-src 'self'; " .
+              "script-src 'self'; " .
+              "style-src 'self'; " .
+              "img-src 'self' data: https:; " .
+              "font-src 'self' data:; " .
+              "connect-src 'self'; " .
+              "frame-ancestors 'none'; " .
+              "base-uri 'self'; " .
+              "form-action 'self';"
+            : "default-src 'self'; " .
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " .
+              "style-src 'self' 'unsafe-inline'; " .
+              "img-src 'self' data: https:; " .
+              "font-src 'self' data:; " .
+              "connect-src 'self'; " .
+              "frame-ancestors 'none'; " .
+              "base-uri 'self'; " .
+              "form-action 'self';";
+        
+        $response->headers->set('Content-Security-Policy', $cspDirective);
 
         // Prevent clickjacking
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');

@@ -211,6 +211,7 @@ async function handleUnlock(password: string) {
       }
     }
   } else {
+    // TODO: Replace with toast notification for better UX
     alert('Invalid master password');
   }
 }
@@ -225,12 +226,14 @@ function handleEdit(entry: VaultEntry) {
 }
 
 async function handleDelete(entry: VaultEntry) {
+  // TODO: Replace with custom modal dialog for better UX
   if (confirm('Are you sure you want to delete this entry?')) {
     try {
       await axios.delete(`/vault/${entry.id}`);
       vaultStore.removeEntry(entry.id);
     } catch (error) {
       console.error('Failed to delete entry:', error);
+      // TODO: Replace with toast notification for better UX
       alert('Failed to delete entry');
     }
   }

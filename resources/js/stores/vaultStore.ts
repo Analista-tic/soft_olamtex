@@ -114,16 +114,14 @@ export const useVaultStore = defineStore('vault', () => {
   function startSessionTimeout() {
     stopSessionTimeout(); // Clear any existing timeout
 
-    sessionTimeoutId.value = window.setTimeout(() => {
+    // Check every minute for inactivity
+    sessionTimeoutId.value = window.setInterval(() => {
       if (isUnlocked.value && lastActivityTime.value) {
         const timeSinceLastActivity = Date.now() - lastActivityTime.value;
         if (timeSinceLastActivity >= SESSION_TIMEOUT) {
           lock();
           // Optionally show a notification
           console.log('Vault locked due to inactivity');
-        } else {
-          // Re-check in 1 minute
-          startSessionTimeout();
         }
       }
     }, 60000); // Check every minute
@@ -134,7 +132,7 @@ export const useVaultStore = defineStore('vault', () => {
    */
   function stopSessionTimeout() {
     if (sessionTimeoutId.value !== null) {
-      clearTimeout(sessionTimeoutId.value);
+      clearInterval(sessionTimeoutId.value);
       sessionTimeoutId.value = null;
     }
   }
