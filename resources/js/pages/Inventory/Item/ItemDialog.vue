@@ -202,9 +202,10 @@ async function fetchWarehouseStocks(itemId: number) {
 function availableWarehouses(idx?: number) {
     const usedIds = warehouseStocks.value
         .map((ws, i) => (i !== idx ? ws.warehouse_id : null))
-        .filter((id): id is number => typeof id === 'number');
+        .map((id) => (typeof id === 'number' ? String(id) : typeof id === 'string' ? id : null))
+        .filter((id): id is string => typeof id === 'string' && id !== '');
     return [...warehouses.value]
-        .filter((w) => typeof w.id === 'number' && !usedIds.includes(w.id))
+        .filter((w) => typeof w.id === 'number' && !usedIds.includes(String(w.id)))
         .map((w) => ({
             id: String(w.id),
             name: w.name
@@ -220,6 +221,15 @@ function addWarehouseStock() {
         stock_min: 0,
         stock_max: 0,
     });
+}
+function handleAddWarehouseStock() {
+    const available = availableWarehouses().length;
+    if (available === 0) {
+        alertType.value = 'warning';
+        alertMessage.value = 'No hay más bodegas disponibles para agregar.';
+        return;
+    }
+    addWarehouseStock();
 }
 function removeWarehouseStock(idx: number) {
     warehouseStocks.value.splice(idx, 1);
@@ -460,12 +470,13 @@ function handleColorSelection(colorId: string | number | null) {
     localForm.value.color_id = Number(colorId);
 }
 
-function openCatalog(to: 'group' | 'subgroup' | 'tax') {
+function openCatalog(to: 'group' | 'subgroup' | 'tax' | 'warehouse') {
     if (typeof window === 'undefined') return;
-    const routes: Record<'group' | 'subgroup' | 'tax', string> = {
+    const routes: Record<'group' | 'subgroup' | 'tax' | 'warehouse', string> = {
         group: '/categorias/subgrupos',
         subgroup: '/categorias/subgrupos',
         tax: '/impuestos',
+        warehouse: '/bodegas',
     };
     const url = routes[to];
     if (!url) return;
@@ -787,8 +798,8 @@ watch(
                                         v-if="!isViewMode"
                                         type="button"
                                         class="rounded-full p-1 transition hover:bg-gray-100 dark:hover:bg-gray-800"
-                                        @click="addWarehouseStock"
-                                        :disabled="availableWarehouses().length === 0"
+                                        :class="availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
+                                        @click="handleAddWarehouseStock"
                                         title="Agregar Bodega"
                                     >
                                         <Plus class="h-5 w-5 text-primary" />
@@ -814,7 +825,20 @@ watch(
                                                 class="w-full"
                                                 placeholder="Bodega"
                                                 :searchable="false"
-                                            />
+                                            >
+                                                <template #header>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                                        @click.stop="openCatalog('warehouse')"
+                                                    >
+                                                        <Plus class="h-3 w-3" />
+                                                        Nueva bodega
+                                                    </Button>
+                                                </template>
+                                            </SelectField>
                                         </div>
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Cantidad</Label>
@@ -1005,11 +1029,5 @@ watch(
         </DialogContent>
     </Dialog>
 </template>
-
-
-
-
-
-
 
 
