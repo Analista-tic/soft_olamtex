@@ -383,7 +383,7 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                             :options="taxOptions"
                             label=""
                             :disabled="isReadOnly"
-                            class="max-w-[140px]"
+                            class="max-w-[180px]"
                             @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
                         >
                             <template #header>

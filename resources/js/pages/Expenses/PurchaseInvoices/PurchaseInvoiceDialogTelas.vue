@@ -6,7 +6,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Contact, PurchaseInvoice } from '@/types';
+import type { Contact, Option, PurchaseInvoice } from '@/types';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
@@ -56,6 +56,40 @@ const selectedContactData = computed(() => contacts.value.find((c) => Number(c.i
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 const { company, logoUrl } = useCompanyInfo();
+
+const pendingPurchaseOrderOptions = computed<Option[]>(() =>
+    purchaseOrders.value.map((order) => {
+        const rawId = order?.id ?? '';
+        const numericId = Number(rawId);
+        const optionId = Number.isNaN(numericId) ? rawId : numericId;
+        const orderNumber = order?.supplier_order_number || order?.order_number || String(order?.id ?? '');
+        const contactName =
+            order?.contact?.full_name ||
+            order?.contact?.business_name ||
+            order?.contact_full_name ||
+            '';
+        const nameParts = [`Orden ${orderNumber}`];
+        if (contactName) {
+            nameParts.push(contactName);
+        }
+        return {
+            id: optionId,
+            name: nameParts.join(' · '),
+        };
+    }),
+);
+
+const selectedPurchaseOrderValue = computed<Option['id'] | ''>({
+    get: () => selectedPurchaseOrderId.value ?? '',
+    set: (value) => {
+        if (value === '' || value === null) {
+            selectedPurchaseOrderId.value = null;
+            return;
+        }
+        const numeric = Number(value);
+        selectedPurchaseOrderId.value = Number.isNaN(numeric) ? null : numeric;
+    },
+});
 
 const id = computed(() => {
     if (props.dialogType === 'edit') return props.form?.id?.toString() || '';
@@ -404,11 +438,38 @@ watch(dialogOpen, (isOpen) => {
 <template>
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-h-[95vh] overflow-y-auto sm:max-w-6xl lg:max-w-[82rem]">
-            <DialogHeader>
-                <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
-                <DialogDescription>
-                    Completa los campos y añade los ítems de la factura.
-                </DialogDescription>
+            <DialogHeader class="relative">
+                <div class="flex flex-col gap-1">
+                    <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
+                    <DialogDescription>
+                        Completa los campos y añade los ítems de la factura.
+                    </DialogDescription>
+                </div>
+                <div class="absolute right-4 top-4 flex w-full max-w-[520px] items-end gap-2">
+                    <div class="w-[260px]">
+                        <SelectField
+                            v-model="selectedPurchaseOrderValue"
+                            :options="pendingPurchaseOrderOptions"
+                            label="Cargar desde orden pendiente"
+                            placeholder="Selecciona una orden existente"
+                            :disabled="isReadOnly"
+                            :searchable="pendingPurchaseOrderOptions.length >= 6"
+                            search-placeholder="Buscar orden de compra..."
+                        />
+                    </div>
+                    <div class="w-[260px]">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            class="h-full w-full"
+                            :disabled="!selectedPurchaseOrderId || isReadOnly"
+                            @click="selectedPurchaseOrderId = null"
+                        >
+                            Limpiar
+                        </Button>
+                    </div>
+                </div>
             </DialogHeader>
             <AlertStack
                 :success-message="successMessage"
@@ -419,15 +480,12 @@ watch(dialogOpen, (isOpen) => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <div class="mb-2 flex justify-end">
-                <div class="w-64"></div>
-            </div>
-              <form
-                  @submit.prevent="handleSubmit()"
-                  :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"
-                  class="space-y-6"
-              >
-                <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+            <form
+                @submit.prevent="handleSubmit()"
+                :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"
+                class="space-y-6"
+            >
+                <div class="mt-8 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
                     <!-- Cabecera -->
                     <div class="grid grid-cols-3 items-start gap-4">
                         <div>
