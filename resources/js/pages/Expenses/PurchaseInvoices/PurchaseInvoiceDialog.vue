@@ -80,7 +80,7 @@ function createDefaultForm(): Partial<PurchaseInvoice> {
 
 function createEmptyItem() {
     return {
-        article_id: null,
+        item_id: null,
         price: '',
         tax: 0,
         quantity: '',
@@ -192,7 +192,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.description = order.description || '';
     localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
-              article_id: item.article_id,
+              item_id: item.item_id,
               price: item.price || '',
               tax: item.tax || 0,
               quantity: item.quantity || '',
@@ -322,9 +322,9 @@ function validateForm(): boolean {
         errors.push('La factura debe contener al menos un ítem.');
     }
     const invalidItems = items.filter((it) =>
-        // aceptar article_id como number|string|null; considerar inválido null/undefined/empty/<=0
-        it.article_id == null ||
-        Number(it.article_id) <= 0 ||
+        // aceptar item_id como number|string|null; considerar inválido null/undefined/empty/<=0
+        it.item_id == null ||
+        Number(it.item_id) <= 0 ||
         it.price === '' ||
         it.quantity === '' ||
         Number(it.price) <= 0 ||

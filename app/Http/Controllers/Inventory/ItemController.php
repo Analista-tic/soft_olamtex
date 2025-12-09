@@ -53,7 +53,7 @@ class ItemController extends Controller
                 'negative_movement' => 'required',
                 'description' => 'required|string',
                 'extra_fields' => 'nullable',
-                'reference' => 'required|string|unique:articles,reference',
+                'reference' => 'required|string|unique:items,reference',
                 'status' => 'sometimes|boolean',
                 'unit_measure' => 'nullable|string',
             ]);
@@ -140,7 +140,7 @@ class ItemController extends Controller
                 'negative_movement' => 'sometimes',
                 'description' => 'sometimes|string',
                 'extra_fields' => 'nullable',
-                'reference' => 'required|string|unique:articles,reference,' . $article->id,
+                'reference' => 'required|string|unique:items,reference,' . $article->id,
                 'status' => 'sometimes|boolean',
                 'unit_measure' => 'nullable|string',
             ]);

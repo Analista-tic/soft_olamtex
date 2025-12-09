@@ -22,7 +22,7 @@ const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, na
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
 const showActionsColumn = computed(() => localItems.value.length > 1);
 const totalColumns = computed(() => {
-    let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripción, Total
+    let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripcion, Total
     if (shouldShowFabricColumns.value) {
         cols += 3;
     }
@@ -68,14 +68,14 @@ onMounted(() => {
 });
 
 function isTela(item: PurchaseOrderItem) {
-    const articleId = Number(item.article_id);
-    const article = itemMap.value.get(articleId);
+    const itemId = Number(item.item_id);
+    const article = itemMap.value.get(itemId);
     return article?.category_sub_group?.name?.toLowerCase() === 'tela';
 }
 
 function addItem() {
     const newItem: PurchaseOrderItem = {
-        article_id: null,
+        item_id: null,
         price: 0,
         tax: 0,
         quantity: 1,
@@ -109,8 +109,8 @@ function calcTotals(item: PurchaseOrderItem) {
 }
 
 function setTaxFromItem(item: PurchaseOrderItem) {
-    const articleId = Number(item.article_id);
-    const article = itemMap.value.get(articleId);
+    const itemId = Number(item.item_id);
+    const article = itemMap.value.get(itemId);
     item.tax = article?.tax?.percentage ?? 0;
 }
 
@@ -126,7 +126,7 @@ watch(
             if (!(item as any).__watching) {
                 (item as any).__watching = true;
                 watch(
-                    () => item.article_id,
+                    () => item.item_id,
                     () => {
                         setTaxFromItem(item);
                         calcTotals(item);
@@ -179,7 +179,7 @@ watch(
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
                     <TableCell class="min-w-[270px] p-0 px-1">
-                        <SelectField v-model="item.article_id" :options="items.map((a) => ({ id: a.id, name: a.name }))" label="" />
+                        <SelectField v-model="item.item_id" :options="items.map((a) => ({ id: a.id, name: a.name }))" label="" />
                     </TableCell>
                     <TableCell class="p-1">
                         <InputField v-model="item.price" type="currency" label="" @input="calcTotals(item)" />

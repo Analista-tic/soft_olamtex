@@ -126,8 +126,8 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Insertar relación en warehouse_article para stock y bodega
-        DB::table('warehouse_article')->insert([
+        // Insertar relación en warehouse_item para stock y bodega
+        DB::table('warehouse_items')->insert([
             'warehouse_id' => $warehouseId,
             'item_id' => $itemId,
             'quantity' => 100,

@@ -83,7 +83,7 @@ function createDefaultForm(): Partial<PurchaseInvoice> {
 
 function createEmptyItem() {
     return {
-        article_id: null,
+        item_id: null,
         price: '',
         tax: 0,
         quantity: '',
@@ -199,7 +199,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.description = order.description || '';
     localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
-              article_id: item.article_id,
+              item_id: item.item_id,
               article: item.article,
               quantity: Number(item.quantity) || 0,
               price: Number(item.price) || 0,

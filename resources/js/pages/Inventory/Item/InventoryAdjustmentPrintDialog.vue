@@ -92,7 +92,7 @@ function print() {
           <div class="grid grid-cols-3 items-start gap-4 mb-4">
             <div>
               <div class="font-bold"># Documento</div>
-              <div>{{ props.adjustment?.document_number || 'Sin numero' }}</div>
+              <div>{{ props.adjustment?.document_number || 'Sin número' }}</div>
             </div>
             <div class="flex h-full items-center justify-center rounded p-4">
               <img
@@ -104,7 +104,7 @@ function print() {
             <div>
               <div class="text-sm font-semibold">Datos empresa</div>
               <p class="text-xs">
-                Razon Social:
+                Razón social:
                 <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
               </p>
               <p class="text-xs">
@@ -128,24 +128,24 @@ function print() {
               <div class="capitalize">{{ props.adjustment?.type }}</div>
             </div>
             <div>
-              <div class="font-bold">Orden de produccion</div>
-              <div>{{ props.adjustment?.production_order || '-' }}</div>
+              <div class="font-bold">Orden de producción</div>
+                <div>{{ props.adjustment?.production_order || '-' }}</div>
             </div>
           </div>
 
           <div class="mb-4">
-            <div class="font-bold">Observacion</div>
-            <div>{{ props.adjustment?.observation || '-' }}</div>
+            <div class="font-bold">Observación</div>
+              <div>{{ props.adjustment?.observation || '-' }}</div>
           </div>
 
           <div class="mb-4">
-            <div class="font-bold mb-2">Lineas</div>
+            <div class="font-bold mb-2">Líneas</div>
             <table class="w-full text-sm border-collapse print:border-none">
               <thead>
                 <tr class="bg-gray-100 print:bg-transparent">
                   <th class="border px-2 py-1 print:border print:border-gray-300">#</th>
-                  <th class="border px-2 py-1 print:border print:border-gray-300">Articulo</th>
-                  <th class="border px-2 py-1 print:border print:border-gray-300">Descripcion</th>
+                  <th class="border px-2 py-1 print:border print:border-gray-300">Artículo</th>
+                  <th class="border px-2 py-1 print:border print:border-gray-300">Descripción</th>
                   <th class="border px-2 py-1 print:border print:border-gray-300">Cantidad</th>
                   <th class="border px-2 py-1 print:border print:border-gray-300">Precio unitario</th>
                   <th class="border px-2 py-1 print:border print:border-gray-300">Impuesto</th>

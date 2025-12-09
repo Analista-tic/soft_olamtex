@@ -85,7 +85,7 @@ function createDefaultForm(): Partial<PurchaseOrder> {
 
 function createEmptyItem() {
     return {
-        article_id: null,
+        item_id: null,
         price: 0,
         tax: 0,
         quantity: 1,
@@ -178,7 +178,7 @@ async function handleSubmit(sendMail = false) {
     formToSend.items = Array.isArray(localForm.value.items)
         ? localForm.value.items.map((item: any) => ({
               ...item,
-              article_id: item.article_id ? Number(item.article_id) : null,
+              item_id: item.item_id ? Number(item.item_id) : null,
               price: Number(item.price) || 0,
               quantity: Number(item.quantity) || 0,
               tax: Number(item.tax) || 0,
@@ -258,13 +258,13 @@ function validateForm(): boolean {
     const invalidItem = items.find((item) => {
         const priceInvalid = !item.price || Number(item.price) <= 0;
         const quantityInvalid = !item.quantity || Number(item.quantity) <= 0;
-        const articleInvalid = !item.article_id;
-        return priceInvalid || quantityInvalid || articleInvalid;
+        const itemInvalid = !item.item_id;
+        return priceInvalid || quantityInvalid || itemInvalid;
     });
 
     if (invalidItem) {
         const missingItemFields: string[] = [];
-        if (!invalidItem.article_id) missingItemFields.push('Item');
+        if (!invalidItem.item_id) missingItemFields.push('Item');
         if (!invalidItem.price || Number(invalidItem.price) <= 0) missingItemFields.push('Precio');
         if (!invalidItem.quantity || Number(invalidItem.quantity) <= 0) missingItemFields.push('Cantidad');
 

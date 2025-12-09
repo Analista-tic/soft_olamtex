@@ -219,7 +219,7 @@ function fillFromAdjustment(data: any) {
   lines.value = Array.isArray(data.lines)
     ? data.lines.map((line: any, idx: number) => ({
         id: idx + 1,
-        itemId: Number(line.article_id),
+        itemId: Number(line.item_id),
         movementReason: resolvedMovementReason,
         warehouseId: line.warehouse_id ?? null,
         price: Number(line.price) || 0,
@@ -386,7 +386,7 @@ async function handleSubmit() {
     iva: ivaTotal.value,
     total: totalAdjustment.value,
     lines: lines.value.map(line => ({
-      article_id: line.itemId,
+      item_id: line.itemId,
       warehouse_id: line.warehouseId || selectedWarehouseId.value,
       movement_reason: line.movementReason || primaryMovementReason,
       price: line.price ?? 0,
@@ -413,7 +413,7 @@ async function handleSubmit() {
     if (Array.isArray(savedLines)) {
       const itemIds = Array.from(new Set(
         savedLines
-          .map((line: any) => Number(line.article_id))
+          .map((line: any) => Number(line.item_id))
           .filter((id: number) => Number.isFinite(id)),
       ));
       notifyInventoryAdjustmentSaved(itemIds);
@@ -496,7 +496,7 @@ async function handleSubmit() {
             <div>
               <div class="font-semibold">Datos empresa</div>
               <p class="text-xs">
-                Razon Social:
+                Razón social:
                 <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
               </p>
               <p class="text-xs">
@@ -533,20 +533,20 @@ async function handleSubmit() {
               />
             </div>
             <div>
-              <Label>Observacion</Label>
+              <Label>Observación</Label>
               <Input
                 v-model="observation"
                 class="mt-1"
-                placeholder="Ingrese una observacion"
+                placeholder="Ingrese una observación"
               />
             </div>
           </div>
           <div class="mt-4">
-            <Label>Orden de produccion</Label>
+            <Label>Orden de producción</Label>
             <Input
               v-model="productionOrder"
               class="mt-1"
-              placeholder="Ingrese la orden de produccion asociada"
+              placeholder="Ingrese la orden de producción asociada"
             />
           </div>
 

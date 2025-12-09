@@ -108,7 +108,7 @@ watch(
             if (!(item as any).__watching) {
                 (item as any).__watching = true;
                 watch(
-                    () => item.article_id,
+                    () => item.item_id,
                     () => {
                         setTaxFromItem(item);
                         setFieldsFromOrder(item);
@@ -144,7 +144,7 @@ onMounted(() => {
 
 function addItem() {
     localItems.value.push({
-        article_id: null,
+        item_id: null,
         price: '',
         tax: 0,
         quantity: '',
@@ -166,7 +166,7 @@ function removeItem(idx: number) {
 }
 
 function setTaxFromItem(invoiceItem: PurchaseInvoiceItem) {
-    const itemId = Number(invoiceItem.article_id);
+    const itemId = Number(invoiceItem.item_id);
     const selectedItem = itemMap.value.get(itemId);
     invoiceItem.tax = selectedItem?.tax?.percentage ?? 0;
 }
@@ -202,7 +202,7 @@ function calcTotals(item: PurchaseInvoiceItem) {
 }
 
 function isTela(invoiceItem: PurchaseInvoiceItem) {
-    const itemId = Number(invoiceItem.article_id);
+    const itemId = Number(invoiceItem.item_id);
     const selectedItem = itemMap.value.get(itemId);
     return isTelaItem(selectedItem);
 }
@@ -284,7 +284,7 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                     <TableCell class="min-w-[270px] p-1 align-top">
                         <div class="flex flex-col items-start justify-start h-full w-full">
                             <SelectField
-                                v-model="item.article_id"
+                                v-model="item.item_id"
                                 :options="itemOptions"
                                 label=""
                                 placeholder="Selecciona item"

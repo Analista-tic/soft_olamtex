@@ -10,9 +10,10 @@ return new class extends Migration
     {
         Schema::create('inventory_adjustments', function (Blueprint $table) {
             $table->id();
-            $table->string('document_number')->nullable()->index();
+            $table->string('document_number')->unique();
             $table->date('date');
             $table->enum('type', ['entrada', 'salida']);
+            $table->string('movement_reason')->nullable();
             $table->text('observation')->nullable();
             $table->string('production_order')->nullable();
             $table->decimal('subtotal', 15, 2)->default(0);

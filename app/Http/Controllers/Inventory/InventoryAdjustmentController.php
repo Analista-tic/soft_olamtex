@@ -193,14 +193,14 @@ class InventoryAdjustmentController extends Controller
     }
 
     /**
-     * Aplica el movimiento de inventario en la tabla pivot warehouse_article.
+     * Aplica el movimiento de inventario en la tabla pivot `warehouse_items`.
      */
     private function applyStockMovement(Item $item, int $warehouseId, int $quantity, string $type): void
     {
         $quantity = abs($quantity);
         $sign = $type === 'entrada' ? 1 : -1;
 
-        $row = DB::table('warehouse_article')
+        $row = DB::table('warehouse_items')
             ->where('item_id', $item->id)
             ->where('warehouse_id', $warehouseId)
             ->lockForUpdate()
@@ -224,14 +224,14 @@ class InventoryAdjustmentController extends Controller
         ];
 
         if ($row) {
-            DB::table('warehouse_article')
+            DB::table('warehouse_items')
                 ->where('id', $row->id)
                 ->update($payload);
         } else {
             $payload['item_id'] = $item->id;
             $payload['warehouse_id'] = $warehouseId;
             $payload['created_at'] = now();
-            DB::table('warehouse_article')->insert($payload);
+            DB::table('warehouse_items')->insert($payload);
         }
     }
 

@@ -10,8 +10,8 @@ class CreatePurchaseInvoiceItemsTable extends Migration
     {
         Schema::create('purchase_invoice_items', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('purchase_invoice_id');
-            $table->unsignedBigInteger('article_id');
+            $table->foreignId('purchase_invoice_id')->constrained();
+            $table->foreignId('item_id')->constrained('items');
             $table->decimal('price', 15, 2)->default(0);
             $table->decimal('tax', 5, 2)->default(0);
             $table->integer('quantity')->default(1);
@@ -23,9 +23,6 @@ class CreatePurchaseInvoiceItemsTable extends Migration
             $table->decimal('total', 15, 2)->default(0);
             $table->decimal('total_tax', 15, 2)->default(0);
             $table->timestamps();
-
-            $table->foreign('purchase_invoice_id')->references('id')->on('purchase_invoices')->onDelete('cascade');
-            $table->foreign('article_id')->references('id')->on('articles');
         });
     }
 

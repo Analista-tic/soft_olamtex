@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Importaci+¶n de componentes y utilidades
+// Importaci√≥n de componentes y utilidades
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -36,7 +36,7 @@ const colors = ref<Color[]>([]);
 const imageFile = ref<File | null>(null);
 const errors = ref<Record<string, string[]>>({});
 const extraFieldNames = [
-    'Base tela', 'Base hilaza', 'Campo adicional', 'Marca', 'Mundo', 'LÌneas', 'Tipo puntera', 'Talla', 'Medida'
+    'Base tela', 'Base hilaza', 'Campo adicional', 'Marca', 'Mundo', 'L√≠neas', 'Tipo puntera', 'Talla', 'Medida'
 ];
 const extraFields = ref<ExtraFields>({});
 const nameField = ref('');
@@ -47,8 +47,8 @@ const taxes = ref<any[]>([]);
 
 // Unidades de medida
 const unitMeasures = [
-    { id: 'cm', name: 'CentÌmetro (cm)' },
-    { id: 'mm', name: 'MilÌmetro (mm)' },
+    { id: 'cm', name: 'Cent√≠metro (cm)' },
+    { id: 'mm', name: 'Mil√≠metro (mm)' },
     { id: 'm', name: 'Metro (m)' },
     { id: 'in', name: 'Pulgada (in)' },
     { id: 'ft', name: 'Pie (ft)' },
@@ -66,7 +66,7 @@ const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isViewMode = computed(() => props.dialogType === 'view');
 
-// Carga de cat+Ìlogos y datos iniciales
+// Carga de cat√°logos y datos iniciales
 async function fetchWarehouses() {
     try {
         const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
@@ -96,23 +96,23 @@ async function fetchTaxes() {
     taxes.value = (data.data ?? []).filter((t: any) => t.status);
 }
 
-// Opciones para campos adicionales (reactivo y din·mico)
+// Opciones para campos adicionales (reactivo y din√°mico)
 const extraFieldOptions = ref<Record<string, { id: string; name: string }[]>>({
     'Base tela': [],
     'Base hilaza': [],
     'Marca': [],
     'Mundo': [],
-    'SecciÛn': [],
+    'Secci√≥n': [],
     'Grupo': [],
-    'LÌneas': [],
+    'L√≠neas': [],
     'Tipo puntera': [],
     'Talla': [],
 });
 
-// Carga de cat·logos para campos adicionales
+// Carga de cat√°logos para campos adicionales
 async function fetchExtraFieldOptions() {
     const catalogos = [
-        { campo: 'SecciÛn', url: '/catalogos/sections' },
+        { campo: 'Secci√≥n', url: '/catalogos/sections' },
         { campo: 'Grupo', url: '/catalogos/groups' },
         { campo: 'Marca', url: '/catalogos/brands' },
         { campo: 'Mundo', url: '/catalogos/worlds' },
@@ -160,7 +160,7 @@ onMounted(async () => {
     }
 });
 
-// Carga de stocks por bodega para el artÌculo
+// Carga de stocks por bodega para el art√≠culo
 async function fetchWarehouseStocks(itemId: number) {
     try {
         const { data } = await axios.get(`/bodegas/${itemId}/warehouses`);
@@ -209,7 +209,7 @@ function updateWarehouseName(idx: number) {
     warehouseStocks.value[idx].name = warehouse ? warehouse.name : '';
 }
 
-// SincronizaciÛn de props y estado local
+// Sincronizaci√≥n de props y estado local
 watch(
     () => props.form,
     (newVal) => {
@@ -260,7 +260,7 @@ watch(
     },
 );
 
-// Limpia errores de validaciÛn
+// Limpia errores de validaci√≥n
 function resetErrors() {
     errors.value = {};
 }
@@ -275,10 +275,10 @@ const buildErrorMessage = (err: any): string => {
             .join('. ');
         if (joined.trim()) return joined;
     }
-    return resp?.message || 'OcurriÛ un error inesperado al guardar el artÌculo.';
+    return resp?.message || 'Ocurri√≥ un error inesperado al guardar el art√≠culo.';
 };
 
-// Maneja el envÌo del formulario
+// Maneja el env√≠o del formulario
 async function handleSubmit() {
     resetErrors();
     alertMessage.value = '';
@@ -313,7 +313,7 @@ async function handleSubmit() {
     }
     if (hasNegativeStock.value && !negativeMovementBool.value) {
         showNegativeMovementWarning();
-        return; // NO se envÌa el formulario ni se cierra el di·logo
+        return; // NO se env√≠a el formulario ni se cierra el di√°logo
     }
 
     const extraFieldsToSend: Record<string, string> = {};
@@ -359,7 +359,7 @@ async function handleSubmit() {
             return;
         }
         if (typeof value === 'string' && optionalStringFields.has(key) && value.trim() === '') {
-            return; // no enviar strings vacÌos en campos opcionales
+            return; // no enviar strings vac√≠os en campos opcionales
         }
         if (value !== undefined && value !== null) {
             formData.append(key, value as any);
@@ -403,7 +403,7 @@ async function handleSubmit() {
     }
 }
 
-// Estado de apertura del di·logo
+// Estado de apertura del di√°logo
 const dialogOpen = ref(props.isOpen);
 watch(
     () => props.isOpen,
@@ -433,15 +433,15 @@ onBeforeUnmount(() => {
     window.removeEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
 });
 
-// Cierre del di·logo
+// Cierre del di√°logo
 function handleClose() {
     dialogOpen.value = false;
     emit('close');
 }
 
 const NEGATIVE_STOCK_WARNING =
-  'Este item tiene cantidades negativas en una o m·s bodegas. ' +
-  'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
+    'Este √≠tem tiene cantidades negativas en una o m√°s bodegas. ' +
+    'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
 
 function showNegativeMovementWarning() {
   alertType.value = 'warning';
@@ -468,7 +468,7 @@ function handleNegativeMovementChange(val: boolean) {
   localForm.value.negative_movement = val ? 1 : 0;
 }
 
-// Actualiza el campo nombre autom·ticamente
+// Actualiza el campo nombre autom√°ticamente
 function updateNameField(orderedFields?: Record<string, string>): void {
     const subGroup = categorySubGroups.value.find(
         (sg) => String(sg.id) === String(localForm.value.category_sub_group_id)
@@ -489,7 +489,7 @@ function updateNameField(orderedFields?: Record<string, string>): void {
     localForm.value.name = nameField.value;
 }
 
-// PrevisualizaciÛn de imagen
+// Previsualizaci√≥n de imagen
 watch(imageFile, (file) => {
     if (file) {
         const reader = new FileReader();
@@ -539,7 +539,7 @@ function handleFileChange(e: Event) {
     imageFile.value = files && files.length > 0 ? files.item(0) : null;
 }
 
-// Actualiza tax_id y tax (objeto) autom·ticamente al cambiar tax_id
+// Actualiza tax_id y tax (objeto) autom√°ticamente al cambiar tax_id
 watch(
     () => localForm.value.tax_id,
     (taxId) => {
@@ -568,20 +568,20 @@ watch(
                 <DialogTitle>
                 {{
                     dialogType === 'create'
-                    ? 'Crear Item'
+                    ? 'Crear √≠tem'
                     : dialogType === 'edit'
-                        ? 'Editar Item'
-                        : 'Detalle del Item'
+                        ? 'Editar √≠tem'
+                        : 'Detalle del √≠tem'
                 }}
                 </DialogTitle>
 
                 <DialogDescription>
                 {{
                     dialogType === 'create'
-                    ? 'Complete los campos para crear un nuevo artÌculo.'
+                    ? 'Complete los campos para crear un nuevo art√≠culo.'
                     : dialogType === 'edit'
-                        ? 'Edite los campos del artÌculo seleccionado.'
-                        : 'Visualice la informaciÛn del artÌculo.'
+                        ? 'Edite los campos del art√≠culo seleccionado.'
+                        : 'Visualice la informaci√≥n del art√≠culo.'
                 }}
                 </DialogDescription>
 
@@ -756,7 +756,7 @@ watch(
                             </div>
                         </div>
 
-                        <!-- PrevisualizaciÛn de imagen con dropzone -->
+                        <!-- Previsualizaci√≥n de imagen con dropzone -->
                         <div class="flex flex-col items-center justify-center px-2 md:row-span-3">
                             <div class="flex w-full flex-col items-center">
                                 <Label class="mb-1 block text-sm font-medium">Imagen</Label>
@@ -783,7 +783,7 @@ watch(
                                         <div class="relative h-52 w-full">
                                             <img
                                                 :src="imagePreview"
-                                                alt="Previsualizaci+¶n"
+                                                alt="Previsualizaci√≥n"
                                                 class="h-57 w-full rounded object-contain"
                                                 style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
                                             />
@@ -791,7 +791,7 @@ watch(
                                         <div
                                             class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
                                         >
-                                            {{ isViewMode ? 'Imagen del artÌculo' : 'Cambiar imagen' }}
+                                            {{ isViewMode ? 'Imagen del art√≠culo' : 'Cambiar imagen' }}
                                         </div>
                                     </template>
 
@@ -810,7 +810,7 @@ watch(
                         </div>
                     </div>
 
-                    <!-- SEGUNDA SECCI”N: unidad, cÛdigo, referencia, movimiento -->
+                    <!-- SEGUNDA SECCI√ìN: unidad, c√≥digo, referencia, movimiento -->
                     <div class="mb-3 grid grid-cols-1 gap-4 md:grid-cols-4">
                         <div class="md:col-span-1">
                             <template v-if="isViewMode">
@@ -835,7 +835,7 @@ watch(
                         </div>
 
                         <div class="md:col-span-1">
-                            <InputField v-model="localForm.bar_code" label="CÛdigo de Barras" />
+                            <InputField v-model="localForm.bar_code" label="C√≥digo de Barras" />
                         </div>
                         <div class="md:col-span-1">
                             <InputField
@@ -853,9 +853,9 @@ watch(
                         </div>
                     </div>
 
-                    <!-- DescripciÛn -->
+                    <!-- Descripci√≥n -->
                     <div>
-                        <TextareaField v-model="localForm.description" label="DescripciÛn" />
+                        <TextareaField v-model="localForm.description" label="Descripci√≥n" />
                     </div>
 
                     <!-- Campos adicionales -->

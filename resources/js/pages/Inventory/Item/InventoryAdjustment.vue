@@ -234,7 +234,7 @@ onMounted(() => {
           <Input
             id="search_adjustment"
             v-model="searchQuery"
-            placeholder="Buscar por numero de documento u observacion"
+            placeholder="Buscar por número de documento u observación"
             class="h-10 w-full pl-10"
             @keyup.enter="handleSearch"
           />
@@ -264,14 +264,14 @@ onMounted(() => {
               <TableHead># Documento</TableHead>
               <TableHead>Fecha</TableHead>
               <TableHead>Tipo</TableHead>
-              <TableHead>Observacion</TableHead>
+              <TableHead>Observación</TableHead>
               <TableHead>Total</TableHead>
               <TableHead class="w-[140px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             <TableRow v-for="adjustment in adjustments" :key="adjustment.id">
-              <TableCell>{{ adjustment.document_number ?? 'Sin numero' }}</TableCell>
+              <TableCell>{{ adjustment.document_number ?? 'Sin número' }}</TableCell>
               <TableCell>{{ adjustment.date }}</TableCell>
               <TableCell class="capitalize">
                 {{ getAdjustmentTypeLabel(adjustment) }}
@@ -369,11 +369,11 @@ onMounted(() => {
     />
 
     <Dialog v-model:open="isDeleteDialogOpen">
-      <DialogContent>
+        <DialogContent>
         <DialogHeader>
-          <DialogTitle>Confirmar eliminacion</DialogTitle>
+          <DialogTitle>Confirmar eliminación</DialogTitle>
           <DialogDescription>
-            Estas seguro de eliminar este ajuste? Esta accion no se puede deshacer.
+            ¿Estás seguro de eliminar este ajuste? Esta acción no se puede deshacer.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

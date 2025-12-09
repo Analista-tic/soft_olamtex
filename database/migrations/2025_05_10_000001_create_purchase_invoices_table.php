@@ -11,7 +11,7 @@ class CreatePurchaseInvoicesTable extends Migration
         Schema::create('purchase_invoices', function (Blueprint $table) {
             $table->id();
             $table->foreignId('contact_id')->constrained();
-            $table->foreignId('purchase_order_id')->constrained();
+            $table->foreignId('purchase_order_id')->constrained()->nullable();
             $table->date('date');
             $table->date('delivery_date')->nullable();
             $table->string('supplier_invoice_number')->nullable();

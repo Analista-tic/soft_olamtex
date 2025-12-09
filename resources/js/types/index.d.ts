@@ -278,8 +278,8 @@ export interface ColorDialogProps {
 // Tipos para Órdenes de Compra (Gastos)
 export interface PurchaseOrderItem {
     id?: number;
-    article_id: number | null;
-    article?: Item;
+    item_id: number | null;
+    item?: Item;
     price: number;
     tax: number;
     quantity: number;
@@ -315,8 +315,8 @@ export interface PurchaseInvoiceWithholding {
 export interface PurchaseInvoiceItem {
     id?: number;
     purchase_invoice_id?: number;
-    article_id: number | null;
-    article?: Item;
+    item_id: number | null;
+    item?: Item;
     price: number | string | '';
     tax: number;
     quantity: number | string | '';

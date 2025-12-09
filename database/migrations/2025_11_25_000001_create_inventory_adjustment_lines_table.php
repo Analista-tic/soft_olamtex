@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('inventory_adjustment_lines', function (Blueprint $table) {
             $table->id();
             $table->foreignId('inventory_adjustment_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('article_id')->constrained('articles');
+            $table->foreignId('item_id')->constrained('items');
             $table->foreignId('warehouse_id')->nullable()->constrained('warehouses');
             $table->decimal('price', 15, 2)->default(0);
             $table->decimal('tax', 8, 2)->default(0);
