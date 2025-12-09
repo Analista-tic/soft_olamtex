@@ -282,7 +282,7 @@ function formatDate(dateStr: string) {
             </div>
 
             <div v-if="activeTab === 'form'">
-                <!-- Info artículo pedido simplificada -->
+                <!-- Info item pedido simplificada -->
                 <div v-if="itemInfo" class="grid grid-cols-2 gap-2 p-2 bg-blue-50 rounded text-xs mb-3">
                     <div><b>Pedido:</b> {{ itemInfo.orderedQuantity }} mts</div>
                     <div><b>Ingresado:</b> {{ totalReceived }} mts</div>

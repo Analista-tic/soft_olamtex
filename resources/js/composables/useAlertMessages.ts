@@ -4,6 +4,7 @@ type AlertSeverity = 'success' | 'error' | 'info' | 'warning';
 
 export interface AlertMessagesConfig {
     entityLabel?: string;
+    entityItem?: string;
     entityArticle?: string;
     successActions?: Record<string, string>;
     defaultSuccessMessage?: string;
@@ -17,7 +18,13 @@ export function useAlertMessages(config: AlertMessagesConfig = {}) {
     const errorType = ref<AlertSeverity>('error');
 
     const buildEntityLabel = () =>
-        [config.entityArticle?.trim(), config.entityLabel?.trim()].filter(Boolean).join(' ').trim();
+        [
+            config.entityItem?.trim() ?? config.entityArticle?.trim(),
+            config.entityLabel?.trim(),
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
 
     const showSuccess = (actionKey?: string, customMessage?: string) => {
         if (customMessage) {

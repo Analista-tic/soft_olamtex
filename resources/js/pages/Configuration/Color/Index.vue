@@ -86,13 +86,13 @@ async function deleteColor() {
 
         errorType.value = isConstraint ? 'warning' : 'error';
         if (isConstraint) {
-            const articlesCount = details?.articulos ?? 0;
-            if (articlesCount > 0) {
-                const articuloLabel = articlesCount === 1 ? 'articulo' : 'articulos';
-                errorMessage.value = `No se puede eliminar este color porque esta asociado a ${articlesCount} ${articuloLabel}.`;
+            const itemsCount = details?.items ?? 0;
+            if (itemsCount > 0) {
+                const itemLabel = itemsCount === 1 ? 'item' : 'items';
+                errorMessage.value = `No se puede eliminar este color porque esta asociado a ${itemsCount} ${itemLabel}.`;
             } else {
                 errorMessage.value =
-                    'No se puede eliminar este color porque esta asociado a otros registros (facturas, articulos, etc.).';
+                    'No se puede eliminar este color porque esta asociado a otros registros (facturas, items, etc.).';
             }
         } else {
             errorMessage.value = 'No se pudo eliminar el color.';
@@ -263,6 +263,5 @@ onMounted(() => {
         </Dialog>
     </AppLayout>
 </template>
-
 
 

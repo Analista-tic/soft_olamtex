@@ -54,7 +54,7 @@ const {
     clearAll,
 } = useAlertMessages({
     entityLabel: 'Factura',
-    entityArticle: '',
+    entityItem: '',
     successActions: {
         delete: 'eliminada correctamente.',
         sendMail: 'enviada por correo correctamente.',

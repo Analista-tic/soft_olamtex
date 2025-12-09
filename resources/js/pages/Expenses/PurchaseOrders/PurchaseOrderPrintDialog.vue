@@ -112,7 +112,7 @@ function print() {
                             <thead>
                                 <tr class="bg-gray-100 print:bg-transparent">
                                     <th class="border px-2 py-1 print:border print:border-gray-300">#</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">Artículo</th>
+                                    <th class="border px-2 py-1 print:border print:border-gray-300">Item</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Descripción</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Cantidad</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Precio unitario</th>

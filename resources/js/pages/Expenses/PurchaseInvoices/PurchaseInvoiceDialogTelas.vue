@@ -336,14 +336,14 @@ function validateForm(): boolean {
         Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
-        errors.push('Cada ítem debe tener artículo, precio y cantidad.');
+        errors.push('Cada item debe tener item, precio y cantidad.');
     }
 
     // En el diálogo de telas, además validar campos específicos por ítem
     const itemsMissingFabricFields: Array<{ idx: number; missing: string[] }> = [];
     items.forEach((it, idx) => {
         const missing: string[] = [];
-        // Solo validar si el artículo, precio y cantidad están presentes (o bien validar siempre para asegurar)
+        // Solo validar si el item, precio y cantidad están presentes (o bien validar siempre para asegurar)
         if (!it.supplier_code || String(it.supplier_code).trim() === '') missing.push('Código proveedor');
         if (!it.supplier_color || String(it.supplier_color).trim() === '') missing.push('Color proveedor');
         if (!it.order_width || String(it.order_width).trim() === '') missing.push('Ancho pedido');

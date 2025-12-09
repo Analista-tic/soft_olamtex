@@ -148,7 +148,7 @@ class InventoryAdjustmentController extends Controller
 
         DB::transaction(function () use ($adjustment) {
             foreach ($adjustment->lines as $line) {
-                $item = Item::find($line->article_id);
+                $item = Item::find($line->item_id);
                 if ($item) {
                     $warehouseId = $this->resolveWarehouseId($item, $line->warehouse_id);
                     $reverseType = $adjustment->type === 'entrada' ? 'salida' : 'entrada';
@@ -201,7 +201,7 @@ class InventoryAdjustmentController extends Controller
         $sign = $type === 'entrada' ? 1 : -1;
 
         $row = DB::table('warehouse_article')
-            ->where('article_id', $item->id)
+            ->where('item_id', $item->id)
             ->where('warehouse_id', $warehouseId)
             ->lockForUpdate()
             ->first();
@@ -228,7 +228,7 @@ class InventoryAdjustmentController extends Controller
                 ->where('id', $row->id)
                 ->update($payload);
         } else {
-            $payload['article_id'] = $item->id;
+            $payload['item_id'] = $item->id;
             $payload['warehouse_id'] = $warehouseId;
             $payload['created_at'] = now();
             DB::table('warehouse_article')->insert($payload);
@@ -313,7 +313,7 @@ class InventoryAdjustmentController extends Controller
             'iva'                  => 'nullable|numeric',
             'total'                => 'nullable|numeric',
             'lines'                => 'required|array|min:1',
-            'lines.*.article_id'   => 'required|integer|exists:articles,id',
+            'lines.*.item_id'   => 'required|integer|exists:items,id',
             'lines.*.warehouse_id' => 'nullable|integer|exists:warehouses,id',
             'lines.*.price'        => 'required|numeric|min:0',
             'lines.*.tax'          => 'nullable|numeric|min:0',
@@ -369,7 +369,7 @@ class InventoryAdjustmentController extends Controller
     private function fetchItemsByLines(array $lines): Collection
     {
         return Item::with('warehouses')
-            ->whereIn('id', collect($lines)->pluck('article_id'))
+            ->whereIn('id', collect($lines)->pluck('item_id'))
             ->get()
             ->keyBy('id');
     }
@@ -418,7 +418,7 @@ class InventoryAdjustmentController extends Controller
     private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $items, array $movementReasons): void
     {
         foreach ($lines as $line) {
-            $item = $items[$line['article_id']] ?? null;
+            $item = $items[$line['item_id']] ?? null;
             if (!$item) {
                 throw ValidationException::withMessages([
                     'lines' => ['No se encontro el item indicado.'],
@@ -437,7 +437,7 @@ class InventoryAdjustmentController extends Controller
 
             InventoryAdjustmentLine::create([
                 'inventory_adjustment_id' => $adjustment->id,
-                'article_id'              => $line['article_id'],
+                'item_id'                 => $line['item_id'],
                 'warehouse_id'            => $warehouseId,
                 'price'                   => $price,
                 'tax'                     => $tax,
@@ -453,7 +453,7 @@ class InventoryAdjustmentController extends Controller
     private function revertStockForAdjustment(InventoryAdjustment $adjustment, Collection $items): void
     {
         foreach ($adjustment->lines as $line) {
-            $item = $items[$line->article_id] ?? Item::find($line->article_id);
+            $item = $items[$line->item_id] ?? Item::find($line->item_id);
             if (!$item) {
                 continue;
             }

@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Expenses;
 
 use App\Http\Controllers\Controller;
 use App\Models\Expenses\PurchaseOrder;
-use App\Models\Expenses\PurchaseOrderItem;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf as DomPDF;
 use App\Mail\PurchaseOrderMail;
 
@@ -20,7 +20,7 @@ class PurchaseOrderController extends Controller
 
     public function getData(Request $request)
     {
-        $query = PurchaseOrder::with(['contact', 'items.article']);
+        $query = PurchaseOrder::with(['contact', 'items.item']);
 
         if ($request->has('search') && $request->search) {
             $search = $request->search;
@@ -60,7 +60,7 @@ class PurchaseOrderController extends Controller
             'supplier_order_number' => 'required|string|max:255',
             'description' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.article_id' => 'required|exists:articles,id',
+            'items.*.item_id' => 'required|exists:items,id',
             'items.*.price' => 'required|numeric',
             'items.*.tax' => 'required|numeric',
             'items.*.quantity' => 'required|numeric',
@@ -85,7 +85,7 @@ class PurchaseOrderController extends Controller
 
         foreach ($validated['items'] as $item) {
             $order->items()->create([
-                'article_id' => $item['article_id'],
+                'item_id' => $item['item_id'],
                 'price' => $item['price'],
                 'tax' => $item['tax'],
                 'quantity' => $item['quantity'],
@@ -99,13 +99,13 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order created.',
-            'data' => $order->load('items.article')
+            'data' => $order->load('items.item')
         ], 201);
     }
 
     public function show(PurchaseOrder $purchaseOrder)
     {
-        $purchaseOrder->load(['contact', 'items.article']);
+        $purchaseOrder->load(['contact', 'items.item']);
 
         return response()->json($purchaseOrder);
     }
@@ -119,7 +119,7 @@ class PurchaseOrderController extends Controller
             'supplier_order_number' => 'required|string|max:255',
             'description' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.article_id' => 'required|exists:articles,id',
+            'items.*.item_id' => 'required|exists:items,id',
             'items.*.price' => 'required|numeric',
             'items.*.tax' => 'required|numeric',
             'items.*.quantity' => 'required|numeric',
@@ -145,7 +145,7 @@ class PurchaseOrderController extends Controller
         $purchaseOrder->items()->delete();
         foreach ($validated['items'] as $item) {
             $purchaseOrder->items()->create([
-                'article_id' => $item['article_id'],
+                'item_id' => $item['item_id'],
                 'price' => $item['price'],
                 'tax' => $item['tax'],
                 'quantity' => $item['quantity'],
@@ -159,7 +159,7 @@ class PurchaseOrderController extends Controller
 
         return response()->json([
             'message' => 'Purchase order updated.',
-            'data' => $purchaseOrder->load('items.article')
+            'data' => $purchaseOrder->load('items.item')
         ]);
     }
 
@@ -173,7 +173,7 @@ class PurchaseOrderController extends Controller
 
     public function enviarCorreoPdf(PurchaseOrder $purchaseOrder)
     {
-        $purchaseOrder->load(['contact', 'items.article']);
+        $purchaseOrder->load(['contact', 'items.item']);
 
         // Validar que el proveedor tenga email
         if (empty($purchaseOrder->contact->email)) {
@@ -193,7 +193,7 @@ class PurchaseOrderController extends Controller
 
             return response()->json(['message' => 'Correo enviado correctamente.']);
         } catch (\Exception $e) {
-            \Log::error('Error enviando correo de orden de compra: ' . $e->getMessage());
+            Log::error('Error enviando correo de orden de compra: ' . $e->getMessage());
             return response()->json(['message' => 'Error enviando el correo: ' . $e->getMessage()], 500);
         }
     }
@@ -223,8 +223,8 @@ class PurchaseOrderController extends Controller
 
         // Copy items
         foreach ($purchaseOrder->items as $item) {
-            $invoice->items()->create([
-                'article_id' => $item->article_id,
+                $invoice->items()->create([
+                'item_id' => $item->item_id,
                 'price' => $item->price,
                 'tax' => $item->tax,
                 'quantity' => $item->quantity,

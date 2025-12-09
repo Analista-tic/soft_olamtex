@@ -23,7 +23,7 @@ import ViewButton from '@/components/common/ViewButton.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
-    { title: 'Listado de Items', href: '/inventario/item' },
+    { title: 'Listado de ítems', href: '/inventario/item' },
 ];
 
 const items = ref<Item[]>([]);
@@ -70,11 +70,11 @@ function closeDialog() {
 </script>
 
 <template>
-    <Head title="Listado de Items" />
+    <Head title="Listado de ítems" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Listado de Items</h1>
+                <h1 class="text-lg font-bold">Listado de ítems</h1>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
@@ -117,7 +117,7 @@ function closeDialog() {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="items.length === 0">
-                            <TableCell :colspan="8" class="text-center text-gray-400">No hay items encontrados.</TableCell>
+                            <TableCell :colspan="8" class="text-center text-gray-400">No hay ítems encontrados.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>

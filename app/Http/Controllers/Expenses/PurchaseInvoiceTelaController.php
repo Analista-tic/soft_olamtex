@@ -29,10 +29,10 @@ class PurchaseInvoiceTelaController extends Controller
             $invoice = PurchaseInvoice::with([
                 'contact',
                 'purchaseOrder',
-                'items.article.warehouses',
-                'items.article.categorySubGroup.categoryGroup',
-                'items.article.color',
-                'items.article.tax'
+                'items.item.warehouses',
+                'items.item.categorySubGroup.categoryGroup',
+                'items.item.color',
+                'items.item.tax'
             ])->findOrFail($purchaseInvoice);
 
             return response()->json(['data' => $invoice]);
@@ -122,10 +122,10 @@ class PurchaseInvoiceTelaController extends Controller
         $query = PurchaseInvoice::with([
             'contact',
             'purchaseOrder',
-            'items.article.warehouses',
-            'items.article.categorySubGroup.categoryGroup',
-            'items.article.color',
-            'items.article.tax'
+            'items.item.warehouses',
+            'items.item.categorySubGroup.categoryGroup',
+            'items.item.color',
+            'items.item.tax'
         ])
         ->where('is_fabric', true);
 
@@ -177,7 +177,7 @@ class PurchaseInvoiceTelaController extends Controller
             'status' => 'nullable|string|max:50',
             'items' => 'array',
             'items.*.id' => $itemIdRule,
-            'items.*.article_id' => 'required|exists:articles,id',
+            'items.*.item_id' => 'required|exists:items,id',
             'items.*.price' => 'required|numeric',
             'items.*.tax' => 'nullable|numeric',
             'items.*.quantity' => 'required|numeric',

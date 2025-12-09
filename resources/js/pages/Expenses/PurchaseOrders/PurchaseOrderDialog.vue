@@ -264,7 +264,7 @@ function validateForm(): boolean {
 
     if (invalidItem) {
         const missingItemFields: string[] = [];
-        if (!invalidItem.article_id) missingItemFields.push('Artículo');
+        if (!invalidItem.article_id) missingItemFields.push('Item');
         if (!invalidItem.price || Number(invalidItem.price) <= 0) missingItemFields.push('Precio');
         if (!invalidItem.quantity || Number(invalidItem.quantity) <= 0) missingItemFields.push('Cantidad');
 

@@ -177,7 +177,7 @@ export interface Tax {
     updated_at?: string;
 }
 
-export interface Article {
+export interface Item {
     id: number;
     warehouse_id: number;
     warehouse?: Warehouse;
@@ -279,7 +279,7 @@ export interface ColorDialogProps {
 export interface PurchaseOrderItem {
     id?: number;
     article_id: number | null;
-    article?: Article;
+    article?: Item;
     price: number;
     tax: number;
     quantity: number;
@@ -316,7 +316,7 @@ export interface PurchaseInvoiceItem {
     id?: number;
     purchase_invoice_id?: number;
     article_id: number | null;
-    article?: Article;
+    article?: Item;
     price: number | string | '';
     tax: number;
     quantity: number | string | '';
@@ -345,7 +345,7 @@ export interface PurchaseInvoice {
     withholdings?: PurchaseInvoiceWithholding[]; // Usar el tipo correcto aquí
 }
 
-// Tipos para campos adicionales de artículos
+// Tipos para campos adicionales de items
 export interface ExtraFields {
     [key: string]: string;
 }

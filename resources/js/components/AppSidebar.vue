@@ -72,22 +72,22 @@ const navMainGroup: NavGroupItem[] = [
         icon: UsersRound,
         isActive: false,
     },
-    {
-        title: 'Inventario',
-        href: '#',
-        icon: Database,
-        isActive: false,
-        items: [
             {
-                title: 'Gestion de Articulos',
-                href: '/articulos',
-                permission: 'ver articulos',
-            },
-            {
-                title: 'Inventario de Articulos',
-                href: '/inventario/articulos',
-                permission: 'ver inventario',
-            },
+                title: 'Inventario',
+                href: '#',
+                icon: Database,
+                isActive: false,
+                items: [
+                    {
+                        title: 'Gestion de Items',
+                        href: '/item',
+                        permission: 'ver items',
+                    },
+                    {
+                        title: 'Inventario de Items',
+                        href: '/inventario/item',
+                        permission: 'ver inventario',
+                    },
             {
                 title: 'Ajuste de Inventario',
                 href: '/inventario/ajuste-inventario',

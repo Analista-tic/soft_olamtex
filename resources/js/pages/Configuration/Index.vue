@@ -19,15 +19,15 @@ const modules = [
                     { name: 'Contactos', href: '/contactos' },
                 ],
             },
-    {
-        title: 'Inventario',
-        description: 'Parametrizar y Configurar Campos de Inventario.',
-        options: [
-            { name: 'Articulos', href: '/articulos' },
-            { name: 'Categorias', href: 'categorias/subgrupos' },
-            { name: 'Bodegas', href: '/bodegas' },
-        ],
-    },
+        {
+            title: 'Inventario',
+            description: 'Parametrizar y Configurar Campos de Inventario.',
+            options: [
+                { name: 'Items', href: '/item' },
+                { name: 'Categorias', href: 'categorias/subgrupos' },
+                { name: 'Bodegas', href: '/bodegas' },
+            ],
+        },
     {
         title: 'Impuestos',
         description: 'Parametrizar y Configurar Impuestos.',

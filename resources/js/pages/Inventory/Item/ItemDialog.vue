@@ -161,9 +161,9 @@ onMounted(async () => {
 });
 
 // Carga de stocks por bodega para el artículo
-async function fetchWarehouseStocks(articleId: number) {
+async function fetchWarehouseStocks(itemId: number) {
     try {
-        const { data } = await axios.get(`/bodegas/${articleId}/warehouses`);
+        const { data } = await axios.get(`/bodegas/${itemId}/warehouses`);
         warehouseStocks.value = data.map((w: any) => ({
             warehouse_id: w.id,
             name: w.name,
@@ -414,12 +414,12 @@ watch(
 
 const INVENTORY_ADJUSTMENT_SAVED_EVENT = 'inventory-adjustment-saved';
 const handleInventoryAdjustmentSaved = (event: Event) => {
-    const evt = event as CustomEvent<{ articleIds?: number[] }>;
-    const articleIds = (evt?.detail?.articleIds ?? [])
+    const evt = event as CustomEvent<{ itemIds?: number[] }>;
+    const itemIds = (evt?.detail?.itemIds ?? [])
         .map(id => Number(id))
         .filter((id) => Number.isFinite(id) && id > 0);
     const currentItemId = Number(props.form.id);
-    if (!currentItemId || !articleIds.includes(currentItemId)) return;
+    if (!currentItemId || !itemIds.includes(currentItemId)) return;
     if (!dialogOpen.value) return;
     void fetchWarehouseStocks(currentItemId);
 };

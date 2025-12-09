@@ -331,7 +331,7 @@ function validateForm(): boolean {
         Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
-        errors.push('Cada ítem debe tener artículo, precio y cantidad.');
+        errors.push('Cada item debe tener item, precio y cantidad.');
     }
 
     if (errors.length) {

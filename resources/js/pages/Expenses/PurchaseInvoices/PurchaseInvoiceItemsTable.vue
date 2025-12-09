@@ -29,7 +29,7 @@ const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, na
 const itemOptions = computed(() => {
     return items.value
         .filter((item) => {
-            const isFabric = isTelaArticle(item);
+            const isFabric = isTelaItem(item);
             if (props.telaMode === true) return isFabric;
             if (props.telaMode === false) return !isFabric;
             return true;
@@ -49,7 +49,7 @@ const shouldShowFabricColumns = computed(() => {
 const showActionsColumn = computed(() => !isReadOnly.value && localItems.value.length > 1);
 
 const totalColumns = computed(() => {
-    let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripci�n, Total
+    let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripci�n, Total
     if (shouldShowFabricColumns.value) cols += 3; // Código, Color, Ancho
     if (showActionsColumn.value) cols += 1;
     return cols;
@@ -73,7 +73,7 @@ function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
     };
 }
 
-function isTelaArticle(item: Article | null | undefined) {
+function isTelaItem(item: Item | null | undefined) {
     return item?.category_sub_group?.name?.toLowerCase() === 'tela';
 }
 
@@ -165,10 +165,10 @@ function removeItem(idx: number) {
     notifyParent();
 }
 
-function setTaxFromItem(item: PurchaseInvoiceItem) {
-    const itemId = Number(item.article_id);
-    const item = itemMap.value.get(itemId);
-    item.tax = item?.tax?.percentage ?? 0;
+function setTaxFromItem(invoiceItem: PurchaseInvoiceItem) {
+    const itemId = Number(invoiceItem.article_id);
+    const selectedItem = itemMap.value.get(itemId);
+    invoiceItem.tax = selectedItem?.tax?.percentage ?? 0;
 }
 
 function getSuggestedPrice(item: PurchaseInvoiceItem): number | null {
@@ -201,10 +201,10 @@ function calcTotals(item: PurchaseInvoiceItem) {
     item.total_tax = Math.round(price * (tax / 100) * quantity);
 }
 
-function isTela(item: PurchaseInvoiceItem) {
-    const itemId = Number(item.article_id);
-    const item = itemMap.value.get(itemId);
-    return isTelaArticle(item);
+function isTela(invoiceItem: PurchaseInvoiceItem) {
+    const itemId = Number(invoiceItem.article_id);
+    const selectedItem = itemMap.value.get(itemId);
+    return isTelaItem(selectedItem);
 }
 
 function setFieldsFromOrder(item: PurchaseInvoiceItem) {
@@ -287,7 +287,7 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                                 v-model="item.article_id"
                                 :options="itemOptions"
                                 label=""
-                                placeholder="Selecciona artículo"
+                                placeholder="Selecciona item"
                                 :disabled="isReadOnly"
                             />
                         </div>

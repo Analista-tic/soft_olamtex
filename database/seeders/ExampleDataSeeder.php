@@ -109,7 +109,7 @@ class ExampleDataSeeder extends Seeder
         ]);
 
         // Insertar artículo de ejemplo (ajustado a los campos reales)
-        $articleId = DB::table('articles')->insertGetId([
+        $itemId = DB::table('items')->insertGetId([
             'category_sub_group_id' => $categorySubGroupId,
             'color_id' => $colorId,
             'tax_id' => $tax19Id, // Relación con tabla taxes
@@ -129,7 +129,7 @@ class ExampleDataSeeder extends Seeder
         // Insertar relación en warehouse_article para stock y bodega
         DB::table('warehouse_article')->insert([
             'warehouse_id' => $warehouseId,
-            'article_id' => $articleId,
+            'item_id' => $itemId,
             'quantity' => 100,
             'stock_min' => 10,
             'stock_max' => 200,
@@ -150,7 +150,7 @@ class ExampleDataSeeder extends Seeder
         // Insertar ítem de orden de compra de ejemplo
         DB::table('purchase_order_items')->insert([
             'purchase_order_id' => $purchaseOrderId,
-            'article_id' => $articleId,
+            'item_id' => $itemId,
             'price' => 1000.00,
             'tax' => 0,
             'quantity' => 1,

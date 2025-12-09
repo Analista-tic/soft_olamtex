@@ -20,7 +20,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
-    { title: 'Items', href: '/inventario/item' },
+    { title: '√çtems', href: '/inventario/item' },
 ];
 
 const items = ref<Item[]>([]);
@@ -45,7 +45,7 @@ const statusOptions = ref([
     reactive({ id: '1', name: 'Deshabilitados' })
 ]);
 
-//Variables reactivas para mensajes de Èxito y error
+// Variables reactivas para mensajes de √©xito y error
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 
@@ -84,10 +84,10 @@ async function deleteItem() {
         await axios.delete(`/item/${itemToDelete.value.id}`);
         fetchItems();
         isDeleteDialogOpen.value = false;
-        successMessage.value = "El artÌculo se eliminÛ correctamente.";
+        successMessage.value = "El √≠tem se elimin√≥ correctamente.";
         errorMessage.value = "";
     } catch (err: unknown) {
-        let message = "No se pudo eliminar el artÌculo.";
+        let message = "No se pudo eliminar el √≠tem.";
         if (axios.isAxiosError(err)) {
             // err.response puede ser undefined; usar any para acceder a data.message si es necesario
             message = (err.response?.data as any)?.message ?? message;
@@ -103,9 +103,9 @@ function handleDialogRefresh() {
   fetchItems(currentPage.value, searchQuery.value, statusFilter.value);
 
   if (dialogType.value === 'create') {
-    successMessage.value = 'El artÌculo se creÛ correctamente.';
+    successMessage.value = 'El √≠tem se cre√≥ correctamente.';
   } else {
-    successMessage.value = 'El artÌculo se actualizÛ correctamente.';
+    successMessage.value = 'El √≠tem se actualiz√≥ correctamente.';
   }
 
   errorMessage.value = '';
@@ -158,22 +158,22 @@ function exportItemsExcel() {
 </script>
 
 <template>
-    <Head title="GestiÛn de Items" />
+    <Head title="Gesti√≥n de √≠tems" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
-                success-title="…xito"
+                success-title="√âxito"
                 error-title="Error"
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">GestiÛn de Items</h1>
+                <h1 class="text-lg font-bold">Gesti√≥n de √≠tems</h1>
                 <div class="flex gap-2">
                     <Button @click="openDialog('create')" variant="default" size="sm">
-                        <PlusCircle class="h-4 w-4" /> Crear Nuevo Item
+                        <PlusCircle class="h-4 w-4" /> Crear nuevo √≠tem
                     </Button>
                     <Button @click="openBulkDialog" variant="secondary" size="sm">
                         <Upload class="h-4 w-4" /> Carga Masiva
@@ -186,7 +186,7 @@ function exportItemsExcel() {
             <!-- FILTROS: UNA SOLA FILA -->
             <div class="flex items-end gap-4 mb-2 flex-wrap">
                 <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input v-model="searchQuery" placeholder="Buscar artÌculo" class="h-10 w-full pl-10" />
+                    <Input v-model="searchQuery" placeholder="Buscar √≠tem" class="h-10 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
@@ -199,7 +199,7 @@ function exportItemsExcel() {
                         placeholder="Estado"
                     />
                 </div>
-                <!-- Puedes agregar m·s filtros aquÌ siguiendo el mismo patrÛn visual -->
+                <!-- Puedes agregar m√°s filtros aqu√≠ siguiendo el mismo patr√≥n visual -->
             </div>
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
@@ -208,7 +208,7 @@ function exportItemsExcel() {
                             <TableHead>ID</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Referencia</TableHead>
-                            <TableHead>DescripciÛn</TableHead>
+                            <TableHead>Descripci√≥n</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
@@ -246,22 +246,22 @@ function exportItemsExcel() {
         <ItemDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="handleDialogRefresh" />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaciÛn"
-            description="øEst·s seguro de que deseas eliminar este Item? Esta acciÛn no se puede deshacer."
+            title="Confirmar eliminaci√≥n"
+            description="¬øEst√°s seguro de que deseas eliminar este √≠tem? Esta acci√≥n no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"
             @confirm="deleteItem"
         />
-        <!-- Di·logo de confirmaciÛn para habilitar/deshabilitar -->
+        <!-- Di√°logo de confirmaci√≥n para habilitar/deshabilitar -->
         <Dialog v-model:open="isStatusDialogOpen">
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle> {{ itemToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }} Item </DialogTitle>
+                    <DialogTitle> {{ itemToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }} √≠tem </DialogTitle>
                     <DialogDescription>
-                        øEst·s seguro de que deseas
+                        ¬øEst√°s seguro de que deseas
                         {{ itemToToggleStatus?.status ? 'habilitar' : 'deshabilitar' }}
-                        este artÌculo?
+                        este √≠tem?
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

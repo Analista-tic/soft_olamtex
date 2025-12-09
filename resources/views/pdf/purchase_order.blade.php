@@ -103,12 +103,12 @@
                 </div>
             </div>
             <div class="mb-4">
-                <div class="font-bold mb-2">Ítems</div>
+                <div class="font-bold mb-2">Items</div>
                 <table>
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Artículo</th>
+                            <th>Item</th>
                             <th>Descripción</th>
                             <th>Cantidad</th>
                             <th>Precio unitario</th>

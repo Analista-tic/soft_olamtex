@@ -98,7 +98,7 @@ class Item extends Model
      */
     public function warehouses(): BelongsToMany
     {
-        return $this->belongsToMany(Warehouse::class, 'warehouse_article')
+        return $this->belongsToMany(Warehouse::class, 'warehouse_article', 'article_id', 'warehouse_id')
             ->withPivot(['quantity', 'stock_min', 'stock_max'])
             ->withTimestamps();
     }

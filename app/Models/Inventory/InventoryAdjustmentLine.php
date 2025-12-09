@@ -14,7 +14,7 @@ class InventoryAdjustmentLine extends Model
 
     protected $fillable = [
         'inventory_adjustment_id',
-        'article_id',
+        'item_id',
         'warehouse_id',
         'price',
         'tax',

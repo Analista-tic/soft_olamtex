@@ -410,7 +410,7 @@ function onFabricRollSuccess() {
                                 <TableHead>Fecha</TableHead>
                                 <TableHead>Total</TableHead>
                                 <TableHead>Estado</TableHead>
-                                <TableHead>Artículos</TableHead>
+                                <TableHead>Items</TableHead>
                                 <TableHead>Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -436,7 +436,7 @@ function onFabricRollSuccess() {
                                         {{ getStatusText(invoice.status || 'pending') }}
                                     </span>
                                 </TableCell>
-                                <TableCell>{{ (invoice.items || []).length }} artículo(s)</TableCell>
+                                <TableCell>{{ (invoice.items || []).length }} item(s)</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <button
                                         class="flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600"
@@ -564,14 +564,14 @@ function onFabricRollSuccess() {
                         <p class="text-sm">{{ selectedInvoice.description }}</p>
                     </div>
 
-                    <!-- Artículos -->
+                    <!-- Items -->
                     <div>
-                        <h3 class="text-sm font-medium mb-2">Artículos de la Factura</h3>
+                        <h3 class="text-sm font-medium mb-2">Items de la Factura</h3>
                         <div class="border rounded-lg overflow-hidden">
                             <Table>
                                 <TableHeader>
                                     <TableRow class="text-sm">
-                                        <TableHead class="text-sm py-2">Artículo</TableHead>
+                                        <TableHead class="text-sm py-2">Item</TableHead>
                                         <TableHead class="text-sm py-2">Código</TableHead>
                                         <TableHead class="text-sm py-2">Descripción</TableHead>
                                         <TableHead class="text-sm py-2">Código Proveedor</TableHead>

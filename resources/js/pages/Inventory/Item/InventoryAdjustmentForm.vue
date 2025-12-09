@@ -27,7 +27,7 @@ const emit = defineEmits<{
 
 type Line = {
   id: number;
-  articleId: number | null;
+  itemId: number | null;
   movementReason: string;
   warehouseId: number | null;
   price: number;
@@ -73,7 +73,7 @@ const isSubmitting = ref(false);
 const lines = ref<Line[]>([
   {
     id: 1,
-    articleId: null,
+    itemId: null,
     movementReason: defaultMovementReason,
     warehouseId: null,
     price: 0,
@@ -156,10 +156,10 @@ watch(selectedWarehouseId, (val) => {
     return;
   }
 
-  lines.value = lines.value.map(line => ({
-    ...line,
-    warehouseId: line.warehouseId === previous ? val ?? null : line.warehouseId,
-  }));
+    lines.value = lines.value.map(line => ({
+      ...line,
+      warehouseId: line.warehouseId === previous ? val ?? null : line.warehouseId,
+    }));
 
   lastSelectedWarehouseId.value = val ?? null;
 });
@@ -184,7 +184,7 @@ function resetForm() {
   selectedWarehouseId.value = warehouses.value[0]?.id ?? null;
   lines.value = [{
     id: 1,
-    articleId: null,
+    itemId: null,
     movementReason: defaultMovementReason,
     warehouseId: selectedWarehouseId.value,
     price: 0,
@@ -219,7 +219,7 @@ function fillFromAdjustment(data: any) {
   lines.value = Array.isArray(data.lines)
     ? data.lines.map((line: any, idx: number) => ({
         id: idx + 1,
-        articleId: Number(line.article_id),
+        itemId: Number(line.article_id),
         movementReason: resolvedMovementReason,
         warehouseId: line.warehouse_id ?? null,
         price: Number(line.price) || 0,
@@ -230,7 +230,7 @@ function fillFromAdjustment(data: any) {
       }))
     : [{
       id: 1,
-      articleId: null,
+      itemId: null,
       movementReason: resolvedMovementReason,
       warehouseId: selectedWarehouseId.value,
       price: 0,
@@ -270,7 +270,7 @@ function addLine() {
   const nextId = lines.value.length ? Math.max(...lines.value.map(l => l.id)) + 1 : 1;
   lines.value.push({
     id: nextId,
-    articleId: null,
+    itemId: null,
     movementReason: lines.value[0]?.movementReason || defaultMovementReason,
     warehouseId: selectedWarehouseId.value,
     price: 0,
@@ -310,13 +310,13 @@ const ivaTotal = computed(() =>
 const totalAdjustment = computed(() => subtotal.value + ivaTotal.value);
 
 type InventoryAdjustmentSavedEventDetail = {
-  articleIds: number[];
+  itemIds: number[];
 };
 
-function notifyInventoryAdjustmentSaved(articleIds: number[]) {
-  if (typeof window === 'undefined' || !articleIds?.length) return;
+function notifyInventoryAdjustmentSaved(itemIds: number[]) {
+  if (typeof window === 'undefined' || !itemIds?.length) return;
   const detail: InventoryAdjustmentSavedEventDetail = {
-    articleIds,
+    itemIds,
   };
   window.dispatchEvent(new CustomEvent<InventoryAdjustmentSavedEventDetail>('inventory-adjustment-saved', { detail }));
 }
@@ -337,7 +337,7 @@ async function handleSubmit() {
     requiredErrors.push('Al menos una linea de detalle');
   } else {
     lines.value.forEach((line) => {
-      if (!line.articleId) {
+      if (!line.itemId) {
         requiredErrors.push('Item');
       }
       if (!line.warehouseId && !selectedWarehouseId.value) {
@@ -351,7 +351,7 @@ async function handleSubmit() {
       }
       const trimmedDescription = (line.description ?? '').trim();
       if (!trimmedDescription) {
-        requiredErrors.push('Descripcion');
+        requiredErrors.push('Descripción');
       } else if (trimmedDescription !== line.description) {
         line.description = trimmedDescription;
       }
@@ -386,7 +386,7 @@ async function handleSubmit() {
     iva: ivaTotal.value,
     total: totalAdjustment.value,
     lines: lines.value.map(line => ({
-      article_id: line.articleId,
+      article_id: line.itemId,
       warehouse_id: line.warehouseId || selectedWarehouseId.value,
       movement_reason: line.movementReason || primaryMovementReason,
       price: line.price ?? 0,
@@ -411,12 +411,12 @@ async function handleSubmit() {
     }
     const savedLines = response?.data?.data?.lines;
     if (Array.isArray(savedLines)) {
-      const articleIds = Array.from(new Set(
+      const itemIds = Array.from(new Set(
         savedLines
           .map((line: any) => Number(line.article_id))
           .filter((id: number) => Number.isFinite(id)),
       ));
-      notifyInventoryAdjustmentSaved(articleIds);
+      notifyInventoryAdjustmentSaved(itemIds);
     }
     alertDetails.value = [];
     emit('saved');
@@ -580,8 +580,8 @@ async function handleSubmit() {
                   <TableRow v-for="(line, idx) in lines" :key="line.id">
                     <TableCell class="p-1 text-left">
                       <SelectField
-                        v-model="line.articleId"
-                        :options="articleSelectOptions"
+                        v-model="line.itemId"
+                        :options="itemSelectOptions"
                         label=""
                         :searchable=true
                         placeholder="Selecciona"
@@ -688,14 +688,3 @@ async function handleSubmit() {
     </DialogContent>
   </Dialog>
 </template>
-
-
-
-
-
-
-
-
-
-
-

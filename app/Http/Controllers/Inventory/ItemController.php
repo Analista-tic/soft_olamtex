@@ -220,21 +220,21 @@ class ItemController extends Controller
                 : "{$warehouseCount} bodegas asignadas";
         }
 
-        $poCount = PurchaseOrderItem::where('article_id', $article->id)->count();
+        $poCount = PurchaseOrderItem::where('item_id', $article->id)->count();
         if ($poCount > 0) {
             $reasons[] = $poCount === 1
                 ? '1 orden de compra'
                 : "{$poCount} ordenes de compra";
         }
 
-        $invoiceCount = PurchaseInvoiceItem::where('article_id', $article->id)->count();
+        $invoiceCount = PurchaseInvoiceItem::where('item_id', $article->id)->count();
         if ($invoiceCount > 0) {
             $reasons[] = $invoiceCount === 1
                 ? '1 factura de compra'
                 : "{$invoiceCount} facturas de compra";
         }
 
-        $adjustmentCount = InventoryAdjustmentLine::where('article_id', $article->id)->count();
+        $adjustmentCount = InventoryAdjustmentLine::where('item_id', $article->id)->count();
         if ($adjustmentCount > 0) {
             $reasons[] = $adjustmentCount === 1
                 ? '1 movimiento de inventario'
