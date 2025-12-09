@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
-import type { Item, CategorySubGroup, Color, ExtraFields, Warehouse } from '@/types';
+import type { Item, CategorySubGroup, CategoryGroup, Color, ExtraFields, Warehouse } from '@/types';
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
@@ -32,11 +32,13 @@ const localForm = ref<Partial<Item>>({
 });
 const warehouses = ref<Warehouse[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
+const categoryGroups = ref<CategoryGroup[]>([]);
 const colors = ref<Color[]>([]);
+const selectedGroupId = ref<string | null>(null);
 const imageFile = ref<File | null>(null);
 const errors = ref<Record<string, string[]>>({});
 const extraFieldNames = [
-    'Base tela', 'Base hilaza', 'Campo adicional', 'Marca', 'Mundo', 'Líneas', 'Tipo puntera', 'Talla', 'Medida'
+    'Base tela', 'Base hilaza', 'Campo adicional', 'Color', 'Marca', 'Mundo', 'Líneas', 'Tipo puntera', 'Talla', 'Medida'
 ];
 const extraFields = ref<ExtraFields>({});
 const nameField = ref('');
@@ -44,6 +46,42 @@ const imagePreview = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
 const taxes = ref<any[]>([]);
+const colorOptions = computed(() => colors.value.map((color) => ({
+    id: String(color.id ?? ''),
+    name: color.name,
+})));
+const groupOptions = computed(() => categoryGroups.value.map((group) => ({
+    id: String(group.id ?? ''),
+    name: group.name,
+})));
+const filteredSubGroups = computed(() => {
+    if (!selectedGroupId.value) {
+        return [];
+    }
+    return categorySubGroups.value.filter(
+        (sg) => String(sg.category_group_id ?? '') === selectedGroupId.value,
+    );
+});
+const subGroupOptions = computed(() => filteredSubGroups.value.map((sg) => ({
+    id: String(sg.id ?? ''),
+    name: sg.name,
+})));
+const currentSubGroup = computed(() =>
+    categorySubGroups.value.find(
+        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
+    )
+);
+const currentGroup = computed(() => {
+    if (currentSubGroup.value?.category_group) {
+        return currentSubGroup.value.category_group;
+    }
+    if (selectedGroupId.value) {
+        return categoryGroups.value.find(
+            (group) => String(group.id) === selectedGroupId.value,
+        ) ?? null;
+    }
+    return null;
+});
 
 // Unidades de medida
 const unitMeasures = [
@@ -79,8 +117,17 @@ async function fetchCategorySubGroups() {
     try {
         const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
         categorySubGroups.value = data.data;
+        syncGroupFromSubgroup();
     } catch (error) {
         console.error('Error al obtener los subgrupos:', error);
+    }
+}
+async function fetchCategoryGroups() {
+    try {
+        const { data } = await axios.get('/categorias/grupos');
+        categoryGroups.value = Array.isArray(data) ? data : [];
+    } catch (error) {
+        console.error('Error al obtener los grupos:', error);
     }
 }
 async function fetchColors() {
@@ -96,43 +143,6 @@ async function fetchTaxes() {
     taxes.value = (data.data ?? []).filter((t: any) => t.status);
 }
 
-// Opciones para campos adicionales (reactivo y dinámico)
-const extraFieldOptions = ref<Record<string, { id: string; name: string }[]>>({
-    'Base tela': [],
-    'Base hilaza': [],
-    'Marca': [],
-    'Mundo': [],
-    'Sección': [],
-    'Grupo': [],
-    'Líneas': [],
-    'Tipo puntera': [],
-    'Talla': [],
-});
-
-// Carga de catálogos para campos adicionales
-async function fetchExtraFieldOptions() {
-    const catalogos = [
-        { campo: 'Sección', url: '/catalogos/sections' },
-        { campo: 'Grupo', url: '/catalogos/groups' },
-        { campo: 'Marca', url: '/catalogos/brands' },
-        { campo: 'Mundo', url: '/catalogos/worlds' },
-        { campo: 'Base tela', url: '/catalogos/fabric-bases' },
-        { campo: 'Base hilaza', url: '/catalogos/yarn-bases' },
-    ];
-    for (const cat of catalogos) {
-        try {
-            const res = await axios.get(cat.url);
-            extraFieldOptions.value[cat.campo] = res.data.data.map((item: any) => ({
-                id: item.id?.toString() ?? item.name,
-                name: item.name,
-            }));
-        } catch (e) {
-            console.log(`Error al cargar opciones para ${cat.campo}:`, e);
-            extraFieldOptions.value[cat.campo] = [];
-        }
-    }
-}
-
 // Rellena los campos extra desde el objeto recibido
 function fillExtraFields(obj: any) {
     extraFields.value = {};
@@ -145,14 +155,25 @@ function fillExtraFields(obj: any) {
     }
 }
 
+function syncGroupFromSubgroup() {
+    const subGroup = categorySubGroups.value.find(
+        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
+    );
+    if (subGroup && subGroup.category_group_id) {
+        selectedGroupId.value = String(subGroup.category_group_id);
+    } else {
+        selectedGroupId.value = null;
+    }
+}
+
 // Carga inicial de datos al montar el componente
 onMounted(async () => {
     await Promise.all([
         fetchWarehouses(),
         fetchCategorySubGroups(),
+        fetchCategoryGroups(),
         fetchColors(),
         fetchTaxes(),
-        fetchExtraFieldOptions()
     ]);
     fillExtraFields(props.form.extra_fields);
     if (props.form.id) {
@@ -223,6 +244,7 @@ watch(
         fillExtraFields(newVal.extra_fields);
         imageFile.value = null;
         updateNameField();
+        syncGroupFromSubgroup();
     },
     { deep: true },
 );
@@ -251,11 +273,38 @@ watch(
             imageFile.value = null;
             resetErrors();
             updateNameField();
+            syncGroupFromSubgroup();
             if (props.form.id) {
                 void fetchWarehouseStocks(Number(props.form.id));
             } else {
                 warehouseStocks.value = [];
             }
+        }
+    },
+);
+
+watch(selectedGroupId, (groupId) => {
+    if (!groupId) {
+        localForm.value.category_sub_group_id = undefined;
+        return;
+    }
+    const currentSubGroup = categorySubGroups.value.find(
+        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
+    );
+    if (!currentSubGroup || String(currentSubGroup.category_group_id ?? '') !== groupId) {
+        localForm.value.category_sub_group_id = undefined;
+    }
+});
+
+watch(
+    () => localForm.value.category_sub_group_id,
+    (newVal) => {
+        if (!newVal) return;
+        const subGroup = categorySubGroups.value.find(
+            (sg) => String(sg.id) === String(newVal),
+        );
+        if (subGroup && subGroup.category_group_id) {
+            selectedGroupId.value = String(subGroup.category_group_id);
         }
     },
 );
@@ -403,6 +452,26 @@ async function handleSubmit() {
     }
 }
 
+function handleColorSelection(colorId: string | number | null) {
+    if (colorId === null || colorId === '' || Number.isNaN(Number(colorId))) {
+        localForm.value.color_id = undefined;
+        return;
+    }
+    localForm.value.color_id = Number(colorId);
+}
+
+function openCatalog(to: 'group' | 'subgroup' | 'tax') {
+    if (typeof window === 'undefined') return;
+    const routes: Record<'group' | 'subgroup' | 'tax', string> = {
+        group: '/categorias/subgrupos',
+        subgroup: '/categorias/subgrupos',
+        tax: '/impuestos',
+    };
+    const url = routes[to];
+    if (!url) return;
+    window.open(url, '_blank');
+}
+
 // Estado de apertura del diálogo
 const dialogOpen = ref(props.isOpen);
 watch(
@@ -480,6 +549,7 @@ function updateNameField(orderedFields?: Record<string, string>): void {
         orderedFields ??
         Object.fromEntries(
             extraFieldNames
+                .filter((key) => key !== 'Color')
                 .filter((key) => extraFields.value[key] && String(extraFields.value[key]).trim() !== '')
                 .sort()
                 .map((key) => [key, String(extraFields.value[key])]),
@@ -603,65 +673,109 @@ watch(
                             </div>
 
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                <template v-if="isViewMode">
-                                    <div class="flex flex-col gap-1">
-                                        <Label>Subgrupo</Label>
-                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                            {{
-                                                categorySubGroups.find(
-                                                    (sg) => String(sg.id) === String(localForm.category_sub_group_id)
-                                                )?.name || '-'
-                                            }}
-                                        </div>
+                            <template v-if="isViewMode">
+                                <div class="flex flex-col gap-1">
+                                    <Label>Grupo</Label>
+                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                        {{ currentGroup?.name || '-' }}
                                     </div>
+                                </div>
 
-                                    <div class="flex flex-col gap-1">
-                                        <Label>Color</Label>
-                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                            {{
-                                                colors.find(
-                                                    (c) => String(c.id) === String(localForm.color_id)
-                                                )?.name || '-'
-                                            }}
-                                        </div>
+                                <div class="flex flex-col gap-1">
+                                    <Label>Subgrupo</Label>
+                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                        {{ currentSubGroup?.name || '-' }}
                                     </div>
+                                </div>
 
-                                    <div class="flex flex-col gap-1">
-                                        <Label>Impuesto</Label>
-                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                            {{
-                                                taxes.find((t) => String(t.id) === String(localForm.tax_id))
-                                                    ? `${taxes.find((t) => String(t.id) === String(localForm.tax_id)).name}
+                                <div class="flex flex-col gap-1">
+                                    <Label>Impuesto</Label>
+                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                        {{
+                                            taxes.find((t) => String(t.id) === String(localForm.tax_id))
+                                                ? `${taxes.find((t) => String(t.id) === String(localForm.tax_id)).name}
                                                     (${Math.trunc(taxes.find((t) => String(t.id) === String(localForm.tax_id)).percentage)}%)`
-                                                    : '-'
-                                            }}
-                                        </div>
+                                                : '-'
+                                        }}
                                     </div>
-                                </template>
+                                </div>
+                            </template>
 
-                                <template v-else>
-                                    <SelectField
-                                        v-model="localForm.category_sub_group_id"
-                                        label="Subgrupo"
-                                        :options="categorySubGroups.map((sg) => ({ id: String(sg.id ?? ''), name: sg.name }))"
-                                        required
-                                    />
-                                    <SelectField
-                                        v-model="localForm.color_id"
-                                        label="Color"
-                                        :options="colors.map((c) => ({ id: String(c.id ?? ''), name: c.name }))"
-                                        required
-                                    />
-                                    <SelectField
-                                        v-model="localForm.tax_id"
-                                        label="Impuesto"
-                                        :options="taxes.map((t) => ({
-                                            id: t.id,
-                                            name: `${t.name} (${Math.trunc(t.percentage)}%)`,
-                                        }))"
-                                        required
-                                    />
-                                </template>
+                            <template v-else>
+                                <SelectField
+                                    v-model="selectedGroupId"
+                                    label="Grupo"
+                                    :options="groupOptions"
+                                    required
+                                    placeholder="Selecciona un grupo"
+                                    searchable
+                                    search-placeholder="Buscar..."
+                                    :show-placeholder-option="false"
+                                >
+                                    <template #header>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                            @click.stop="openCatalog('group')"
+                                        >
+                                            <Plus class="h-4 w-4" />
+                                            Nuevo grupo
+                                        </Button>
+                                    </template>
+                                </SelectField>
+                                <SelectField
+                                    v-model="localForm.category_sub_group_id"
+                                    label="Subgrupo"
+                                    :options="subGroupOptions"
+                                    :disabled="!selectedGroupId"
+                                    :placeholder="selectedGroupId ? 'Selecciona un subgrupo' : 'Selecciona un grupo primero'"
+                                    required
+                                    button-class="min-h-[34px] py-1"
+                                    searchable
+                                    search-placeholder="Buscar..."
+                                    :show-placeholder-option="false"
+                                >
+                                    <template #header>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                            @click.stop="openCatalog('subgroup')"
+                                        >
+                                            <Plus class="h-4 w-4" />
+                                            Nuevo subgrupo
+                                        </Button>
+                                    </template>
+                                </SelectField>
+                                <SelectField
+                                    v-model="localForm.tax_id"
+                                    label="Impuesto"
+                                    :options="taxes.map((t) => ({
+                                        id: t.id,
+                                        name: `${t.name} (${Math.trunc(t.percentage)}%)`,
+                                    }))"
+                                    required
+                                    searchable
+                                    search-placeholder="Buscar..."
+                                    :show-placeholder-option="false"
+                                >
+                                    <template #header>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                            @click.stop="openCatalog('tax')"
+                                        >
+                                            <Plus class="h-4 w-4" />
+                                            Nuevo impuesto
+                                        </Button>
+                                    </template>
+                                </SelectField>
+                            </template>
                             </div>
 
                             <div
@@ -862,8 +976,9 @@ watch(
                     <ExtraFieldsForm
                         :extra-field-names="extraFieldNames"
                         v-model:extra-fields="extraFields"
-                        :extra-field-options="extraFieldOptions"
                         :readonly="isViewMode"
+                        :color-options="colorOptions"
+                        @color-selected="handleColorSelection"
                     />
                 </fieldset>
 
@@ -890,8 +1005,6 @@ watch(
         </DialogContent>
     </Dialog>
 </template>
-
-
 
 
 

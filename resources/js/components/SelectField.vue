@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, withDefaults, onBeforeUnmount } from 'vue';
+import { Combobox, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption } from '@headlessui/vue';
 import { Label } from '@/components/ui/label';
-import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
 import type { Option } from '@/types';
+import { ChevronDown, Check } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
     label: string;
@@ -16,15 +17,17 @@ const props = withDefaults(defineProps<{
     searchPlaceholder?: string;
     showPlaceholderOption?: boolean;
     searchThreshold?: number;
+    buttonClass?: string;
 }>(), {
     required: false,
     multiple: false,
     placeholder: '',
     disabled: false,
     searchable: false,
-    searchPlaceholder: 'Buscar...',
+    searchPlaceholder: 'Buscar y seleccionar...',
     showPlaceholderOption: true,
     searchThreshold: 5,
+    buttonClass: '',
 });
 
 const emit = defineEmits<{
@@ -32,11 +35,8 @@ const emit = defineEmits<{
     (e: 'search', searchTerm: string): void;
 }>();
 
-const localModelValue = ref<Option['id'] | Option['id'][]>(
-    props.modelValue ?? (props.multiple ? [] : '')
-);
+const localModelValue = ref<Option['id'] | Option['id'][]>(props.modelValue ?? (props.multiple ? [] : ''));
 
-// Mantener sincronía con el valor externo si cambia desde el padre
 watch(
     () => props.modelValue,
     (newVal) => {
@@ -44,14 +44,12 @@ watch(
     }
 );
 
-// Emitir cambios al padre
 watch(localModelValue, (newValue) => {
     emit('update:modelValue', newValue);
 });
 
-// Búsqueda local dentro del dropdown
 const searchTerm = ref('');
-const searchInputRef = ref<HTMLInputElement | null>(null);
+let searchTimeout: ReturnType<typeof setTimeout> | undefined;
 
 const isSearchEnabled = computed(() => {
     if (props.searchable) return true;
@@ -59,47 +57,83 @@ const isSearchEnabled = computed(() => {
     return props.options.length > props.searchThreshold;
 });
 
-const shouldShowSearchInput = computed(() => isSearchEnabled.value);
-
-// Emitir búsqueda al componente padre con debounce (solo si searchable es true)
-let searchTimeout: ReturnType<typeof setTimeout>;
-watch(searchTerm, (newVal) => {
+watch(searchTerm, (newValue) => {
     if (!isSearchEnabled.value) return;
-    
-    clearTimeout(searchTimeout);
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
     searchTimeout = setTimeout(() => {
-        emit('search', newVal);
-    }, 300); // 300ms de debounce
+        emit('search', newValue);
+    }, 300);
+});
+
+onBeforeUnmount(() => {
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
 });
 
 const filteredOptions = computed(() => {
-    if (!isSearchEnabled.value) return props.options;
-    
+    if (!isSearchEnabled.value) {
+        return props.options;
+    }
     const term = searchTerm.value.trim().toLowerCase();
-    if (!term) return props.options;
-    return props.options.filter((opt) => opt.name.toLowerCase().includes(term));
-});
-
-const selectedOptions = computed<Option[] | Option | null>(() => {
-    if (props.multiple && Array.isArray(localModelValue.value)) {
-        return props.options.filter((opt) => (localModelValue.value as Array<Option['id']>).includes(opt.id));
+    if (!term) {
+        return props.options;
     }
-    return props.options.find((opt) => opt.id == localModelValue.value) || null;
+    return props.options.filter(option =>
+        option.name.toLowerCase().includes(term)
+    );
 });
 
-const fallbackLabel = computed(() => {
-    if (props.multiple || !localModelValue.value) return '';
-    const fallback = String(localModelValue.value);
-    if (fallback.includes('||')) {
-        const [municipality, department] = fallback.split('||');
-        const readable = [municipality, department].filter(Boolean).join(', ');
-        return readable || fallback;
+const comboboxValue = computed<Option | Option[] | null>(() => {
+    if (props.multiple) {
+        if (!Array.isArray(localModelValue.value)) {
+            return [];
+        }
+        return props.options.filter(option =>
+            localModelValue.value.includes(option.id)
+        );
     }
-    return fallback;
+    return props.options.find(option => option.id == localModelValue.value) ?? null;
 });
 
-function handleChange(val: Option['id'] | Option['id'][]) {
-    localModelValue.value = val;
+const placeholderText = computed(() => {
+    if (props.placeholder) {
+        return props.placeholder;
+    }
+    return props.searchPlaceholder;
+});
+
+function displayValue(item: Option | Option[] | null) {
+    if (props.multiple) {
+        if (!Array.isArray(item) || item.length === 0) {
+            return '';
+        }
+        return item.map(opt => opt.name).join(', ');
+    }
+    return (item as Option | null)?.name ?? '';
+}
+
+function getOptionId(option: Option | null | undefined) {
+    return option?.id ?? option;
+}
+
+function handleComboboxChange(value: Option | Option[] | null) {
+    if (props.multiple) {
+        const selected = Array.isArray(value) ? value : [];
+        localModelValue.value = selected.map(option => option.id);
+    } else {
+        const selected = value as Option | null;
+        localModelValue.value = selected?.id ?? '';
+    }
+    searchTerm.value = '';
+}
+
+function handleInput(event: Event) {
+    if (!isSearchEnabled.value) return;
+    const target = event.target as HTMLInputElement;
+    searchTerm.value = target.value;
 }
 
 const hasLabel = computed(() => Boolean(props.label?.trim()));
@@ -114,164 +148,84 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
             </Label>
         </template>
         <div class="relative w-full">
-        <Listbox
-            :modelValue="localModelValue"
-            :multiple="multiple"
-            :disabled="disabled"
-            @update:modelValue="handleChange"
-            class="w-full"
-        >
-            <div class="relative inline-block w-full">
-                <ListboxButton
-                    :class="[
-                        'w-full rounded-md border border-border bg-card px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition flex items-center justify-between gap-2 pr-10 text-card-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
-                        disabled ? 'pointer-events-none opacity-60' : '',
-                    ]"
-                    :disabled="disabled"
-                >
-                    <span v-if="multiple && Array.isArray(localModelValue) && localModelValue.length === 0" class="text-gray-400">
-                        {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
-                    </span>
-                    <span v-else-if="!multiple && !localModelValue" class="text-gray-400">
-                        {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
-                    </span>
-                    <span v-else :class="multiple ? 'truncate-selected' : ''">
-                        <template v-if="multiple">
-                            <div class="flex flex-wrap gap-1">
-                                <span
-                                    v-for="opt in (selectedOptions as Option[])"
-                                    :key="opt.id"
-                                    class="selected-pill truncate-selected-item"
-                                >
-                                    {{ opt.name }}
-                                </span>
-                            </div>
-                        </template>
-                        <template v-else>
-                            {{ (selectedOptions as Option)?.name ?? fallbackLabel }}
-                        </template>
-                    </span>
-                        <svg class="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground/70" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </ListboxButton>
-                <ListboxOptions
-                    class="absolute z-50 mt-1 min-w-[12rem] w-full max-w-full rounded-md text-base sm:text-sm overflow-hidden border border-border bg-card shadow-2xl focus:outline-none"
-                    style="max-height: 15rem;"
-                >
-                    <div
-                        v-if="shouldShowSearchInput"
-                        class="z-30 bg-muted px-3 pb-3 pt-3 shadow-sm border-b border-border/60"
+            <Combobox
+                class="w-full"
+                :modelValue="comboboxValue"
+                :multiple="multiple"
+                :disabled="disabled"
+                :by="getOptionId"
+                @update:modelValue="handleComboboxChange"
+            >
+                <div class="relative">
+                    <ComboboxInput
+                        class="w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                        :class="[!isSearchEnabled ? 'cursor-default' : '', buttonClass]"
+                        :placeholder="placeholderText"
+                        :display-value="displayValue"
+                        :disabled="disabled"
+                        @input="handleInput"
+                    />
+                    <ComboboxButton
+                        class="pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-transparent bg-transparent p-0 text-muted-foreground/70 transition hover:text-muted-foreground"
+                        :class="[disabled ? 'pointer-events-none opacity-60' : '']"
+                        :disabled="disabled"
                     >
-                        <input
-                            ref="searchInputRef"
-                            v-model="searchTerm"
-                            type="text"
-                            :placeholder="searchPlaceholder"
-                            class="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-card-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-muted-foreground"
-                            @keydown.stop
-                            @keyup.stop
-                            @click.stop
-                            autofocus
-                        />
-                    </div>
-                    <div class="max-h-[11.5rem] overflow-y-auto overflow-x-hidden">
-                        <ListboxOption
+                        <ChevronDown class="h-4 w-4" />
+                    </ComboboxButton>
+                    <ComboboxOptions
+                        class="absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded-md border border-border bg-card shadow-2xl focus:outline-none"
+                    >
+                        <div v-if="$slots.header" class="border-b border-border/70 bg-muted px-2 py-2">
+                            <slot name="header" />
+                        </div>
+                        <ComboboxOption
                             v-if="!multiple && showPlaceholderOption"
-                            :value="''"
+                            :value="null"
                             disabled
-                                class="text-muted-foreground/60 bg-card cursor-default select-none relative py-2 pl-3 pr-9"
+                            class="text-muted-foreground/60 bg-card cursor-default select-none relative py-2 pl-3 pr-9"
                         >
-                            {{ placeholder || `Selecciona ${label.toLowerCase()}` }}
-                        </ListboxOption>
-                            <div
-                                v-if="$slots.header"
-                            class="border-b border-border/60 bg-muted px-2 pb-2 pt-2"
+                            {{ placeholderText }}
+                        </ComboboxOption>
+                        <template v-if="filteredOptions.length">
+                            <ComboboxOption
+                                v-for="option in filteredOptions"
+                                :key="option.id"
+                                :value="option"
                             >
-                                <slot name="header" />
-                            </div>
-                        <ListboxOption
-                            v-for="option in filteredOptions"
-                            :key="option.id"
-                            :value="option.id"
-                        >
-                            <template #default="{ active, selected }">
-                                <div
-                                :class="[
-                                    'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
-                                    active
-                                        ? 'text-white bg-blue-600 dark:bg-blue-500'
-                                        : 'text-card-foreground dark:text-card-foreground bg-card hover:bg-muted/60'
-                                ]"
-                                >
-                                    <span :class="selected ? 'font-semibold' : 'font-normal'">
-                                        {{ option.name }}
-                                    </span>
-                                    <span
-                                        v-if="selected"
-                            class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600"
-                        >
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                    </span>
-                                </div>
-                            </template>
-                        </ListboxOption>
+                                <template #default="{ active, selected }">
+                                    <div
+                                        :class="[
+                                            'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
+                                            active
+                                                ? 'text-white bg-blue-600 dark:bg-blue-500'
+                                                : 'text-card-foreground bg-card hover:bg-muted/60'
+                                        ]"
+                                    >
+                                        <span :class="selected ? 'font-semibold' : 'font-normal'">
+                                            {{ option.name }}
+                                        </span>
+                                        <span
+                                            v-if="selected"
+                                            class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600"
+                                        >
+                                            <Check class="h-4 w-4" />
+                                        </span>
+                                    </div>
+                                </template>
+                            </ComboboxOption>
+                        </template>
                         <div
                             v-if="filteredOptions.length === 0"
                             class="px-3 py-2 text-sm text-muted-foreground/70"
                         >
-                                No se encontraron opciones.
-                            </div>
-                            <div
-                                v-if="$slots.footer"
-                                class="mt-1 border-t border-border/60 bg-muted px-2 pb-2 pt-2"
-                            >
-                                <slot name="footer" />
-                            </div>
+                            No se encontraron opciones.
                         </div>
-                    </ListboxOptions>
+                        <div v-if="$slots.footer" class="border-t border-border/70 bg-muted px-2 pb-2 pt-2">
+                            <slot name="footer" />
+                        </div>
+                    </ComboboxOptions>
                 </div>
-            </Listbox>
+            </Combobox>
         </div>
     </div>
 </template>
-
-<style scoped>
-.selected-pill {
-    background-color: #eef2ff;
-    border: 1px solid #c7d2fe;
-    color: #1d4ed8;
-    padding: 0.1rem 0.4rem;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    line-height: 1rem;
-    user-select: none;
-}
-
-:global(.dark) .selected-pill {
-    background-color: #1f2937;
-    border-color: #374151;
-    color: #f8fafc;
-}
-
-.truncate-selected {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow: hidden;
-    min-width: 0;
-    width: 100%;
-    justify-content: flex-start;
-    direction: ltr;
-}
-.truncate-selected-item {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 7rem;
-    display: inline-block;
-    vertical-align: bottom;
-    direction: ltr;
-}
-</style>

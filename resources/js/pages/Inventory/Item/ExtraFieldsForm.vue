@@ -1,19 +1,28 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, withDefaults } from 'vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import type { ExtraFields } from '@/types';
+import type { ExtraFields, Option } from '@/types';
 import axios from 'axios';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     extraFieldNames: string[],
     extraFields: ExtraFields,
     readonly?: boolean;
+    showLabel?: boolean;
+    colorOptions?: Option[];
+}>(), {
+    readonly: false,
+    showLabel: true,
+    colorOptions: [],
+});
+const emit = defineEmits<{
+    (e: 'update:extraFields', value: ExtraFields): void;
+    (e: 'color-selected', colorId: Option['id'] | null): void;
 }>();
-const emit = defineEmits(['update:extraFields']);
 
 const unidadesMedida = [
     'cm', 'mm', 'm', 'in', 'ft', 'yd', 'kg', 'g', 'lb', 'oz', 'l', 'ml', 'unidad'
@@ -36,6 +45,7 @@ const selectedExtraField = ref('');
 const extraFieldValue = ref('');
 const medidaValor = ref('');
 const medidaUnidad = ref(unidadesMedida[0]);
+const selectedColorId = ref<Option['id'] | ''>('');
 
 const localExtraFields = ref<ExtraFields>({ ...props.extraFields });
 
@@ -62,6 +72,7 @@ watch(selectedExtraField, () => {
     extraFieldValue.value = '';
     medidaValor.value = '';
     medidaUnidad.value = unidadesMedida[0];
+    selectedColorId.value = '';
 });
 
 function addExtraField() {
@@ -77,6 +88,17 @@ function addExtraField() {
         if (extraFieldValue.value.trim()) {
             localExtraFields.value['Campo adicional'] = extraFieldValue.value.trim();
             selectedExtraField.value = '';
+        }
+    } else if (field === 'Color') {
+        if (selectedColorId.value) {
+            const option = props.colorOptions?.find(
+                (opt) => String(opt.id) === String(selectedColorId.value),
+            );
+            if (option) {
+                localExtraFields.value['Color'] = option.name;
+                emit('color-selected', option.id);
+                selectedExtraField.value = '';
+            }
         }
     } else if (opcionesCampos[field]) {
         if (extraFieldValue.value && !localExtraFields.value[field]) {
@@ -100,6 +122,9 @@ function removeExtraField(field: string) {
         const updated = { ...localExtraFields.value };
         delete updated[field];
         localExtraFields.value = updated;
+        if (field === 'Color') {
+            emit('color-selected', null);
+        }
     }
 }
 
@@ -109,6 +134,12 @@ function isAddDisabled() {
     if (localExtraFields.value[field]) return true;
     if (field === 'Medida') {
         return !medidaValor.value.trim() || !medidaUnidad.value;
+    }
+    if (field === 'Campo adicional') {
+        return !extraFieldValue.value.trim();
+    }
+    if (field === 'Color') {
+        return !selectedColorId.value;
     }
     return !extraFieldValue.value.trim();
 }
@@ -137,10 +168,15 @@ onMounted(async () => {
 
 <template>
     <div>
-        <label class="mb-2 block font-semibold">Campos Adicionales</label>
+        <label
+            v-if="props.showLabel"
+            class="mb-2 block font-semibold"
+        >
+            Campos Adicionales
+        </label>
 
         <div
-            v-if="!readonly"
+            v-if="!props.readonly"
             class="flex flex-col items-end gap-2 md:flex-row"
         >
             <div class="flex-1">
@@ -176,6 +212,14 @@ onMounted(async () => {
                         :disabled="!selectedExtraField"
                     />
                 </div>
+                <SelectField
+                    v-else-if="selectedExtraField === 'Color'"
+                    label="Valor"
+                    v-model="selectedColorId"
+                    :options="props.colorOptions ?? []"
+                    :disabled="!selectedExtraField || !props.colorOptions?.length"
+                    placeholder="Selecciona un color"
+                />
                 <SelectField
                     v-else-if="selectedExtraField && opcionesCampos[selectedExtraField]"
                     label="Valor"
@@ -220,7 +264,7 @@ onMounted(async () => {
                             {{ value }}
                         </TableCell>
                         <TableCell
-                            v-if="!readonly"
+                            v-if="!props.readonly"
                             class="px-4 py-2"
                         >
                             <DeleteButton
@@ -233,7 +277,7 @@ onMounted(async () => {
 
                     <TableRow v-if="Object.keys(localExtraFields).length === 0">
                         <TableCell
-                            :colspan="readonly ? 2 : 3"
+                            :colspan="props.readonly ? 2 : 3"
                             class="px-4 py-2 text-center text-gray-400"
                         >
                             No hay campos adicionales agregados.
