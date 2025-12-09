@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
+import ItemDialog from '@/pages/Inventory/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
+import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import type { Item, PurchaseInvoiceItem } from '@/types';
 import axios from 'axios';
-import { CirclePlus } from 'lucide-vue-next';
+import { CirclePlus, Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import type { Tax } from '@/types';
 
@@ -21,6 +23,17 @@ const emit = defineEmits(['update:items']);
 const localItems = ref<PurchaseInvoiceItem[]>([]);
 const items = ref<Item[]>([]);
 const taxes = ref<Tax[]>([]);
+const isTaxDialogOpen = ref(false);
+const taxDialogLoading = ref(false);
+const taxForm = ref({ name: '', percentage: 0, status: 'true' });
+const isItemDialogOpen = ref(false);
+const itemDialogForm = ref<Partial<Item>>({
+    reference: '',
+    description: '',
+    extra_fields: {},
+    negative_movement: false,
+    status: true,
+});
 const isReadOnly = computed(() => !!props.isReadOnly);
 
 const itemMap = computed(() => new Map<number, Item>(items.value.map((a) => [a.id, a])));
@@ -142,6 +155,39 @@ onMounted(() => {
     fetchTaxes();
 });
 
+function openTaxDialog() {
+    taxForm.value = { name: '', percentage: 0, status: 'true' };
+    isTaxDialogOpen.value = true;
+}
+
+async function handleTaxDialogSubmit(formData: any) {
+    taxDialogLoading.value = true;
+    try {
+        await axios.post('/impuestos', formData);
+        await fetchTaxes();
+        isTaxDialogOpen.value = false;
+    } catch (error) {
+        console.error('Error creando impuesto', error);
+    } finally {
+        taxDialogLoading.value = false;
+    }
+}
+
+function openItemDialog() {
+    itemDialogForm.value = {
+        reference: '',
+        description: '',
+        extra_fields: {},
+        negative_movement: false,
+        status: true,
+    };
+    isItemDialogOpen.value = true;
+}
+
+async function handleItemDialogRefresh() {
+    await fetchItems();
+}
+
 function addItem() {
     localItems.value.push({
         item_id: null,
@@ -256,15 +302,15 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
         >
             <TableHeader>
                 <TableRow class="text-center">
-                    <TableCell class="min-w-[120px]">Item <span class="text-red-600">*</span></TableCell>
+                    <TableCell class="min-w-[220px]">Item <span class="text-red-600">*</span></TableCell>
 
                     <TableCell :class="telaMode ? 'w-[140px] min-w-[140px]' : ''">
                     Precio <span class="text-red-600">*</span>
                     </TableCell>
                     <TableCell
                     :class="[
-                        'min-w-[50px]',
-                        telaMode ? 'w-[50px]' : 'w-[60px]'
+                        'min-w-[160px]',
+                        telaMode ? 'w-[160px]' : 'w-[180px]'
                     ]"
                     >
                     Impuesto (%)
@@ -281,7 +327,7 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
             </TableHeader>
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
-                    <TableCell class="min-w-[270px] p-1 align-top">
+                    <TableCell class="min-w-[240px] p-1 align-top">
                         <div class="flex flex-col items-start justify-start h-full w-full">
                             <SelectField
                                 v-model="item.item_id"
@@ -289,7 +335,20 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                                 label=""
                                 placeholder="Selecciona item"
                                 :disabled="isReadOnly"
-                            />
+                            >
+                                <template v-if="!isReadOnly" #header>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                        @click.stop="openItemDialog"
+                                    >
+                                        <Plus class="h-4 w-4" />
+                                        Nuevo item
+                                    </Button>
+                                </template>
+                            </SelectField>
                         </div>
                     </TableCell>
                     <TableCell class="p-1 align-top">
@@ -318,14 +377,28 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                             </div>
                         </div>
                     </TableCell>
-                    <TableCell class="w-[80px] min-w-[60px] p-1 align-top">
+                    <TableCell class="w-[180px] min-w-[180px] p-1 align-top">
                         <SelectField
                             v-model="item.tax"
                             :options="taxOptions"
                             label=""
                             :disabled="isReadOnly"
+                            class="max-w-[140px]"
                             @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
-                        />
+                        >
+                            <template #header>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                    @click.stop="openTaxDialog"
+                                >
+                                    <Plus class="h-4 w-4" />
+                                    Nuevo impuesto
+                                </Button>
+                            </template>
+                        </SelectField>
                     </TableCell>
                     <TableCell class="p-1 align-top">
                         <div class="flex flex-col items-start justify-start h-full w-full">
@@ -402,15 +475,20 @@ function isQuantityDifferent(item: PurchaseInvoiceItem): boolean {
                 </TableRow>
             </TableBody>
         </Table>
+        <ItemDialog
+            :isOpen="isItemDialogOpen"
+            dialog-type="create"
+            :form="itemDialogForm"
+            @refresh="handleItemDialogRefresh"
+            @close="isItemDialogOpen = false"
+        />
+        <TaxDialog
+            v-model:open="isTaxDialogOpen"
+            dialog-type="create"
+            :form="taxForm"
+            :loading="taxDialogLoading"
+            @submit="handleTaxDialogSubmit"
+            @cancel="isTaxDialogOpen = false"
+        />
     </div>
 </template>
-
-
-
-
-
-
-
-
-
-

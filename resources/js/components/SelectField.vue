@@ -158,7 +158,7 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
             >
                 <div class="relative">
                     <ComboboxInput
-                        class="w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                        class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
                         :class="[!isSearchEnabled ? 'cursor-default' : '', buttonClass]"
                         :placeholder="placeholderText"
                         :display-value="displayValue"

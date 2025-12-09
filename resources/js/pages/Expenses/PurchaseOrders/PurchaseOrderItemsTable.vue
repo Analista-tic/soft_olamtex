@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
+import ItemDialog from '@/pages/Inventory/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
+import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import type { Item, PurchaseOrderItem } from '@/types';
 import axios from 'axios';
-import { CirclePlus } from 'lucide-vue-next';
+import { CirclePlus, Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import type { Tax } from '@/types';
 
@@ -16,6 +18,17 @@ const emit = defineEmits(['update:items']);
 const localItems = ref<PurchaseOrderItem[]>([]);
 const items = ref<Item[]>([]);
 const taxes = ref<Tax[]>([]);
+const isTaxDialogOpen = ref(false);
+const taxDialogLoading = ref(false);
+const taxForm = ref({ name: '', percentage: 0, status: 'true' });
+const isItemDialogOpen = ref(false);
+const itemDialogForm = ref<Partial<Item>>({
+    reference: '',
+    description: '',
+    extra_fields: {},
+    negative_movement: false,
+    status: true,
+});
 
 const itemMap = computed(() => new Map<number, Item>(items.value.map((a) => [a.id, a])));
 const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
@@ -66,6 +79,39 @@ onMounted(() => {
     fetchItems();
     fetchTaxes();
 });
+
+function openTaxDialog() {
+    taxForm.value = { name: '', percentage: 0, status: 'true' };
+    isTaxDialogOpen.value = true;
+}
+
+function openItemDialog() {
+    itemDialogForm.value = {
+        reference: '',
+        description: '',
+        extra_fields: {},
+        negative_movement: false,
+        status: true,
+    };
+    isItemDialogOpen.value = true;
+}
+
+async function handleItemDialogRefresh() {
+    await fetchItems();
+}
+
+async function handleTaxDialogSubmit(formData: any) {
+    taxDialogLoading.value = true;
+    try {
+        await axios.post('/impuestos', formData);
+        await fetchTaxes();
+        isTaxDialogOpen.value = false;
+    } catch (error) {
+        console.error('Error creando impuesto', error);
+    } finally {
+        taxDialogLoading.value = false;
+    }
+}
 
 function isTela(item: PurchaseOrderItem) {
     const itemId = Number(item.item_id);
@@ -160,13 +206,13 @@ watch(
     <Table
         style="overflow: visible; max-height: none;"
     >
-            <TableHeader>
-                <TableRow class="text-center">
-                    <TableCell>Item <span class="text-destructive">*</span></TableCell>
-                    <TableCell>Precio <span class="text-destructive">*</span></TableCell>
-                    <TableCell v-if="showActionsColumn">Acciones</TableCell>
-                    <TableCell>Cantidad <span class="text-destructive">*</span></TableCell>
-                    <TableCell>Descripción</TableCell>
+                <TableHeader>
+                    <TableRow class="text-center">
+                        <TableCell>Item <span class="text-destructive">*</span></TableCell>
+                        <TableCell>Precio <span class="text-destructive">*</span></TableCell>
+                        <TableCell>Impuesto <span class="text-destructive">*</span></TableCell>
+                        <TableCell>Cantidad <span class="text-destructive">*</span></TableCell>
+                        <TableCell>Descripción</TableCell>
                     <!-- Campos extra para tela -->
                     <TableCell v-if="shouldShowFabricColumns">Código proveedor</TableCell>
                     <TableCell v-if="shouldShowFabricColumns">Color proveedor</TableCell>
@@ -179,7 +225,24 @@ watch(
             <TableBody>
                 <TableRow v-for="(item, idx) in localItems" :key="idx">
                     <TableCell class="min-w-[270px] p-0 px-1">
-                        <SelectField v-model="item.item_id" :options="items.map((a) => ({ id: a.id, name: a.name }))" label="" />
+                        <SelectField
+                            v-model="item.item_id"
+                            :options="items.map((a) => ({ id: a.id, name: a.name }))"
+                            label=""
+                        >
+                            <template #header>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                    @click.stop="openItemDialog"
+                                >
+                                    <Plus class="h-4 w-4" />
+                                    Nuevo item
+                                </Button>
+                            </template>
+                        </SelectField>
                     </TableCell>
                     <TableCell class="p-1">
                         <InputField v-model="item.price" type="currency" label="" @input="calcTotals(item)" />
@@ -191,7 +254,20 @@ watch(
                             label=""
                             @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
                             class="max-w-[350px]"
-                        />
+                        >
+                            <template #header>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                    @click.stop="openTaxDialog"
+                                >
+                                    <Plus class="h-4 w-4" />
+                                    Nuevo impuesto
+                                </Button>
+                            </template>
+                        </SelectField>
                     </TableCell>
                     <TableCell class="p-1">
                         <InputField v-model="item.quantity" type="number" label="" class="max-w-[120px]" @input="calcTotals(item)" />
@@ -231,14 +307,20 @@ watch(
                 </TableRow>
             </TableBody>
         </Table>
+        <ItemDialog
+            :isOpen="isItemDialogOpen"
+            dialog-type="create"
+            :form="itemDialogForm"
+            @refresh="handleItemDialogRefresh"
+            @close="isItemDialogOpen = false"
+        />
+        <TaxDialog
+            v-model:open="isTaxDialogOpen"
+            dialog-type="create"
+            :form="taxForm"
+            :loading="taxDialogLoading"
+            @submit="handleTaxDialogSubmit"
+            @cancel="isTaxDialogOpen = false"
+        />
     </div>
 </template>
-
-
-
-
-
-
-
-
-

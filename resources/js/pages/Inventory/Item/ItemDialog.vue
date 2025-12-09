@@ -4,7 +4,9 @@ import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
 import SwitchField from '@/components/SwitchField.vue';
+import SubGroupDialog from '@/pages/Configuration/Category/SubGroupDialog.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import GroupDialog from '@/pages/Configuration/Category/GroupDialog.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
@@ -13,6 +15,7 @@ import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
 import type { Item, CategorySubGroup, CategoryGroup, Color, ExtraFields, Warehouse } from '@/types';
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
+import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -46,6 +49,12 @@ const imagePreview = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
 const taxes = ref<any[]>([]);
+const isGroupDialogOpen = ref(false);
+const isSubGroupDialogOpen = ref(false);
+const subGroupDialogForm = ref<Partial<CategorySubGroup>>({
+    name: '',
+    category_group_id: undefined,
+});
 const colorOptions = computed(() => colors.value.map((color) => ({
     id: String(color.id ?? ''),
     name: color.name,
@@ -103,6 +112,43 @@ const unitMeasure = ref(props.form.unit_measure ?? unitMeasures[0].id);
 const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isViewMode = computed(() => props.dialogType === 'view');
+const isImageZoomOpen = ref(false);
+const isTaxDialogOpen = ref(false);
+const taxDialogLoading = ref(false);
+const taxForm = ref({ name: '', percentage: 0, status: 'true' });
+
+function openImageZoom() {
+    if (!imagePreview.value) return;
+    isImageZoomOpen.value = true;
+}
+
+function closeImageZoom() {
+    isImageZoomOpen.value = false;
+}
+
+function handleImageZoomKey(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+        closeImageZoom();
+    }
+}
+
+watch(isImageZoomOpen, (open) => {
+    if (typeof window === 'undefined') return;
+    if (open) {
+        window.addEventListener('keydown', handleImageZoomKey);
+    } else {
+        window.removeEventListener('keydown', handleImageZoomKey);
+    }
+});
+
+watch(
+    () => imagePreview.value,
+    (value) => {
+        if (!value) {
+            closeImageZoom();
+        }
+    }
+);
 
 // Carga de catálogos y datos iniciales
 async function fetchWarehouses() {
@@ -130,6 +176,42 @@ async function fetchCategoryGroups() {
         console.error('Error al obtener los grupos:', error);
     }
 }
+async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
+    try {
+        const response = await axios.post<CategoryGroup>('/categorias/grupos', newGroup);
+        const createdGroup = response.data;
+        categoryGroups.value.push(createdGroup);
+        selectedGroupId.value = String(createdGroup.id ?? createdGroup.name ?? '');
+        localForm.value.category_sub_group_id = undefined;
+    } catch (error) {
+        console.error('Error al crear el grupo:', error);
+    } finally {
+        isGroupDialogOpen.value = false;
+    }
+}
+
+async function handleSubGroupSubmit(formData: Partial<CategorySubGroup>) {
+    try {
+        await axios.post('/categorias/subgrupos', formData);
+        await fetchCategorySubGroups();
+    } catch (error) {
+        console.error('Error al crear el subgrupo:', error);
+    } finally {
+        isSubGroupDialogOpen.value = false;
+    }
+}
+
+function openGroupDialog() {
+    isGroupDialogOpen.value = true;
+}
+
+function openSubGroupDialog() {
+    subGroupDialogForm.value = {
+        name: '',
+        category_group_id: selectedGroupId.value ? Number(selectedGroupId.value) : undefined,
+    };
+    isSubGroupDialogOpen.value = true;
+}
 async function fetchColors() {
     try {
         const { data } = await axios.get('/colores/data', { params: { per_page: 1000 } });
@@ -141,6 +223,24 @@ async function fetchColors() {
 async function fetchTaxes() {
     const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
     taxes.value = (data.data ?? []).filter((t: any) => t.status);
+}
+
+function openTaxDialog() {
+    taxForm.value = { name: '', percentage: 0, status: 'true' };
+    isTaxDialogOpen.value = true;
+}
+
+async function handleTaxDialogSubmit(formData: any) {
+    taxDialogLoading.value = true;
+    try {
+        await axios.post('/impuestos', formData);
+        await fetchTaxes();
+        isTaxDialogOpen.value = false;
+    } catch (error) {
+        console.error('Error creando impuesto', error);
+    } finally {
+        taxDialogLoading.value = false;
+    }
 }
 
 // Rellena los campos extra desde el objeto recibido
@@ -470,12 +570,9 @@ function handleColorSelection(colorId: string | number | null) {
     localForm.value.color_id = Number(colorId);
 }
 
-function openCatalog(to: 'group' | 'subgroup' | 'tax' | 'warehouse') {
+function openCatalog(to: 'warehouse') {
     if (typeof window === 'undefined') return;
-    const routes: Record<'group' | 'subgroup' | 'tax' | 'warehouse', string> = {
-        group: '/categorias/subgrupos',
-        subgroup: '/categorias/subgrupos',
-        tax: '/impuestos',
+    const routes: Record<'warehouse', string> = {
         warehouse: '/bodegas',
     };
     const url = routes[to];
@@ -511,6 +608,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
     if (typeof window === 'undefined') return;
     window.removeEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
+    window.removeEventListener('keydown', handleImageZoomKey);
 });
 
 // Cierre del diálogo
@@ -670,7 +768,7 @@ watch(
 
             <form @submit.prevent="handleSubmit">
                 <fieldset :disabled="isViewMode" class="space-y-4">
-                    <div class="grid grid-cols-1 gap-2 md:grid-cols-4">
+                    <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
                             <div>
                                 <Label>Nombre</Label>
@@ -729,7 +827,7 @@ watch(
                                             size="sm"
                                             variant="outline"
                                             class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                            @click.stop="openCatalog('group')"
+                                            @click.stop="openGroupDialog"
                                         >
                                             <Plus class="h-4 w-4" />
                                             Nuevo grupo
@@ -754,7 +852,7 @@ watch(
                                             size="sm"
                                             variant="outline"
                                             class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                            @click.stop="openCatalog('subgroup')"
+                                            @click.stop="openSubGroupDialog"
                                         >
                                             <Plus class="h-4 w-4" />
                                             Nuevo subgrupo
@@ -779,7 +877,7 @@ watch(
                                             size="sm"
                                             variant="outline"
                                             class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                            @click.stop="openCatalog('tax')"
+                                            @click.stop="openTaxDialog"
                                         >
                                             <Plus class="h-4 w-4" />
                                             Nuevo impuesto
@@ -894,55 +992,63 @@ watch(
                             </div>
                         </div>
 
-                        <!-- Previsualización de imagen con dropzone -->
-                        <div class="flex flex-col items-center justify-center px-2 md:row-span-3">
-                            <div class="flex w-full flex-col items-center">
-                                <Label class="mb-1 block text-sm font-medium">Imagen</Label>
-
-                                <!-- input file (se deshabilita por el fieldset + prop) -->
-                                <input
-                                    ref="fileInputRef"
-                                    type="file"
-                                    accept="image/*"
-                                    class="hidden"
-                                    :disabled="isViewMode"
-                                    @change="handleFileChange"
-                                />
-
-                                <div
-                                    :class="[
-                                        'relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition',
-                                        isViewMode ? 'cursor-default' : 'cursor-pointer hover:border-blue-400',
-                                    ]"
-                                    @click="!isViewMode && triggerFileInput()"
-                                    style="min-width: 0; position: relative"
-                                >
-                                    <template v-if="imagePreview">
-                                        <div class="relative h-52 w-full">
-                                            <img
-                                                :src="imagePreview"
-                                                alt="Previsualización"
-                                                class="h-57 w-full rounded object-contain"
-                                                style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
-                                            />
-                                        </div>
-                                        <div
-                                            class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
-                                        >
-                                            {{ isViewMode ? 'Imagen del artículo' : 'Cambiar imagen' }}
-                                        </div>
-                                    </template>
-
-                                    <template v-else>
-                                        <div
-                                            class="z-10 flex h-full w-full flex-col items-center justify-center"
-                                        >
-                                            <Image class="mb-2 h-12 w-12 text-gray-400" />
-                                            <span class="text-sm text-gray-500">
-                                                {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
-                                            </span>
-                                        </div>
-                                    </template>
+                        <div class="flex flex-col gap-2 md:col-span-1">
+                            <div class="flex w-full flex-col items-start gap-2">
+                                <Label class="mb-1 block text-sm font-medium text-left">Imagen</Label>
+                                <div class="w-full">
+                                    <!-- input file (se deshabilita por el fieldset + prop) -->
+                                    <input
+                                        ref="fileInputRef"
+                                        type="file"
+                                        accept="image/*"
+                                        class="hidden"
+                                        :disabled="isViewMode"
+                                        @change="handleFileChange"
+                                    />
+                                    <div
+                                        :class="[
+                                            'group relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
+                                            isViewMode
+                                                ? 'cursor-default opacity-100'
+                                                : 'cursor-pointer hover:border-blue-400 hover:shadow-lg',
+                                        ]"
+                                        @click="!isViewMode && triggerFileInput()"
+                                        style="min-width: 0; position: relative"
+                                    >
+                                        <template v-if="imagePreview">
+                                            <div class="relative h-52 w-full">
+                                                <img
+                                                    :src="imagePreview"
+                                                    alt="Previsualización"
+                                                    class="h-57 w-full rounded object-contain transition-transform duration-200 group-hover:scale-105"
+                                                    style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    class="absolute top-2 right-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-black"
+                                                    @click.stop="openImageZoom"
+                                                    aria-label="Ver imagen ampliada"
+                                                >
+                                                    Ver imagen
+                                                </button>
+                                            </div>
+                                            <div
+                                                class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
+                                            >
+                                                {{ isViewMode ? 'Imagen del artículo' : 'Cambiar imagen' }}
+                                            </div>
+                                        </template>
+                                        <template v-else>
+                                            <div
+                                                class="z-10 flex h-full w-full flex-col items-center justify-center"
+                                            >
+                                                <Image class="mb-2 h-12 w-12 text-gray-400" />
+                                                <span class="text-sm text-gray-500">
+                                                    {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
+                                                </span>
+                                            </div>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1028,6 +1134,64 @@ watch(
             </form>
         </DialogContent>
     </Dialog>
+    <GroupDialog
+        v-model:isOpen="isGroupDialogOpen"
+        @created="handleGroupCreated"
+        @close="isGroupDialogOpen = false"
+    />
+    <SubGroupDialog
+        :isOpen="isSubGroupDialogOpen"
+        dialog-type="create"
+        :subGroupData="subGroupDialogForm"
+        :groups="categoryGroups"
+        @close="isSubGroupDialogOpen = false"
+        @submit="handleSubGroupSubmit"
+    />
+    <TaxDialog
+        v-model:open="isTaxDialogOpen"
+        dialog-type="create"
+        :form="taxForm"
+        :loading="taxDialogLoading"
+        @submit="handleTaxDialogSubmit"
+        @cancel="isTaxDialogOpen = false"
+    />
+    <transition name="zoom">
+        <div
+            v-if="isImageZoomOpen"
+            class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/90 px-8 py-10"
+            @click="closeImageZoom"
+            aria-modal="true"
+            role="dialog"
+        >
+            <div
+                class="relative mx-auto max-h-[98vh] max-w-[98vw] overflow-hidden rounded-2xl bg-white shadow-[0_25px_70px_rgba(15,23,42,0.8)] transform scale-125"
+                @click.stop
+            >
+                <img
+                    :src="imagePreview"
+                    alt="Imagen ampliada"
+                    class="zoom-img max-h-[105vh] max-w-[105vw] object-cover"
+                />
+                <button
+                    type="button"
+                    class="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white transition hover:bg-black"
+                    @click="closeImageZoom"
+                >
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </transition>
 </template>
 
-
+<style scoped>
+.zoom-enter-active,
+.zoom-leave-active {
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+.zoom-enter-from,
+.zoom-leave-to {
+    opacity: 0;
+    transform: scale(0.95);
+}
+</style>
