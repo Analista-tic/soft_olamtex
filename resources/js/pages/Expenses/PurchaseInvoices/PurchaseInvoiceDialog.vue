@@ -40,6 +40,12 @@ const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const originalFormSnapshot = ref<string>('');
+const orderTotal = ref<number | null>(null);
+const differenceDialogOpen = ref(false);
+const pendingDifferenceSendMail = ref<boolean | null>(null);
+const differenceReason = ref('');
+const differenceEvidenceData = ref<string | null>(null);
+const differenceEvidenceName = ref('');
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -51,6 +57,8 @@ const retencionesTotal = computed(() =>
     ),
 );
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
+const amountDifference = computed(() => (orderTotal.value != null ? Number(total.value) - orderTotal.value : 0));
+const hasDifference = computed(() => orderTotal.value != null && Math.abs(amountDifference.value) > 0.01);
 
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
@@ -155,6 +163,10 @@ function resetForm() {
     errorMessage.value = '';
     errorType.value = 'error';
     originalFormSnapshot.value = stableStringify(localForm.value);
+    orderTotal.value = null;
+    differenceReason.value = props.form?.difference_reason || '';
+    differenceEvidenceData.value = null;
+    differenceEvidenceName.value = '';
 }
 
 async function initializeDialog() {
@@ -249,7 +261,17 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     }
     selectedPurchaseOrderId.value = Number(orderId);
     localForm.value.purchase_order_id = Number(orderId);
+    orderTotal.value = (Array.isArray(order.items) ? order.items : []).reduce(
+        (acc: number, item: any) =>
+            acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0),
+        0,
+    );
     originalFormSnapshot.value = stableStringify(localForm.value);
+}
+
+function clearSelectedPurchaseOrder() {
+    selectedPurchaseOrderId.value = null;
+    resetForm();
 }
 
 const scrollToDialogTop = () => {
@@ -279,13 +301,59 @@ const stableStringify = (value: any): string => {
     return JSON.stringify(normalize(value));
 };
 
-async function handleSubmit(sendMail = false) {
+function formatCurrency(value: number): string {
+    return Number(value).toLocaleString('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    });
+}
+
+function handleEvidenceFileChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+        differenceEvidenceData.value = null;
+        differenceEvidenceName.value = '';
+        return;
+    }
+    differenceEvidenceName.value = file.name;
+    const reader = new FileReader();
+    reader.onload = () => {
+        differenceEvidenceData.value = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+}
+
+async function handleDifferenceSave() {
+    if (!differenceReason.value.trim()) {
+        setErrorMessage('Por favor describe el motivo de la diferencia.', 'warning');
+        return;
+    }
+    const sendMail = pendingDifferenceSendMail.value ?? false;
+    pendingDifferenceSendMail.value = null;
+    differenceDialogOpen.value = false;
+    await handleSubmit(sendMail, true);
+}
+
+function closeDifferenceDialog() {
+    differenceDialogOpen.value = false;
+    pendingDifferenceSendMail.value = null;
+}
+
+async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     if (isReadOnly.value) return;
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
     if (!validateForm()) return;
     if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value) {
+        return;
+    }
+    if (!skipDifferenceCheck && hasDifference.value && !differenceReason.value.trim()) {
+        pendingDifferenceSendMail.value = sendMail;
+        differenceDialogOpen.value = true;
         return;
     }
     isLoading.value = true;
@@ -297,6 +365,13 @@ async function handleSubmit(sendMail = false) {
     if (props.dialogType === 'create') delete formToSend.id;
     if (!Array.isArray(formToSend.withholdings)) {
         formToSend.withholdings = [];
+    }
+    if (hasDifference.value) {
+        formToSend.difference_reason = differenceReason.value.trim();
+        formToSend.difference_evidence_path = differenceEvidenceData.value || null;
+    } else {
+        formToSend.difference_reason = null;
+        formToSend.difference_evidence_path = null;
     }
     const url = props.dialogType === 'create' ? '/gastos/facturas-compra' : `/gastos/facturas-compra/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
@@ -311,6 +386,9 @@ async function handleSubmit(sendMail = false) {
                 ? 'Factura creada correctamente.'
                 : 'Factura actualizada correctamente.';
         }
+        differenceReason.value = '';
+        differenceEvidenceData.value = null;
+        differenceEvidenceName.value = '';
         dialogOpen.value = false;
     } catch (e: any) {
         const serverMessage =
@@ -390,6 +468,7 @@ watch(selectedPurchaseOrderId, (orderId) => {
         loadPurchaseOrderToInvoice(orderId);
     } else {
         localForm.value.purchase_order_id = null;
+        orderTotal.value = null;
     }
 });
 
@@ -424,8 +503,8 @@ watch(dialogOpen, (isOpen) => {
                         Completa los campos y añade los ítems de la factura.
                     </DialogDescription>
                 </div>
-                <div class="absolute right-4 top-4 flex w-full max-w-[520px] items-end gap-2">
-                    <div class="w-[260px]">
+                <div class="absolute right-4 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
+                    <div class="w-[280px]">
                         <SelectField
                             v-model="selectedPurchaseOrderValue"
                             :options="pendingPurchaseOrderOptions"
@@ -436,14 +515,14 @@ watch(dialogOpen, (isOpen) => {
                             search-placeholder="Buscar orden de compra..."
                         />
                     </div>
-                    <div class="w-[260px]">
+                    <div class="w-[100px]">
                         <Button
                             variant="outline"
                             size="sm"
                             type="button"
-                            class="h-full w-full"
+                            class="h-10 w-full"
                             :disabled="!selectedPurchaseOrderId || isReadOnly"
-                            @click="selectedPurchaseOrderId = null"
+                            @click="clearSelectedPurchaseOrder()"
                         >
                             Limpiar
                         </Button>
@@ -620,6 +699,32 @@ watch(dialogOpen, (isOpen) => {
                     </Button>
                 </DialogFooter>
             </form>
+        </DialogContent>
+    </Dialog>
+    <Dialog v-model:open="differenceDialogOpen">
+        <DialogContent class="max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>Valor diferente a la orden</DialogTitle>
+                <DialogDescription>
+                    El total de la factura {{ formatCurrency(Number(total || 0)) }} no coincide con el valor de la orden {{ formatCurrency(orderTotal || 0) }}.
+                </DialogDescription>
+            </DialogHeader>
+            <div class="space-y-4">
+                <TextareaField
+                    v-model="differenceReason"
+                    label="Motivo"
+                    rows="3"
+                />
+                <div class="space-y-1 text-sm">
+                    <label class="block font-semibold">Evidencia (imagen)</label>
+                    <input type="file" accept="image/*" class="text-sm" @change="handleEvidenceFileChange" />
+                    <p v-if="differenceEvidenceName" class="text-muted-foreground text-xs">{{ differenceEvidenceName }}</p>
+                </div>
+            </div>
+            <DialogFooter class="gap-2">
+                <Button variant="outline" type="button" @click="closeDifferenceDialog">Cancelar</Button>
+                <Button variant="default" type="button" @click="handleDifferenceSave">Guardar y continuar</Button>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
 </template>

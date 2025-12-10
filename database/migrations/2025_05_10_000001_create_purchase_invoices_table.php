@@ -18,6 +18,8 @@ class CreatePurchaseInvoicesTable extends Migration
             $table->text('description')->nullable();
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->json('withholdings')->nullable();
+            $table->text('difference_reason')->nullable();
+            $table->string('difference_evidence_path')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

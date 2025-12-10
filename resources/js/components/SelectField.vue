@@ -91,11 +91,11 @@ const comboboxValue = computed<Option | Option[] | null>(() => {
         if (!Array.isArray(localModelValue.value)) {
             return [];
         }
-        return props.options.filter(option =>
-            localModelValue.value.includes(option.id)
+        return props.options.filter((option) =>
+            localModelValue.value.some((selectedId) => selectedId == option.id),
         );
     }
-    return props.options.find(option => option.id == localModelValue.value) ?? null;
+    return props.options.find((option) => option.id == localModelValue.value) ?? null;
 });
 
 const placeholderText = computed(() => {
@@ -117,6 +117,16 @@ function displayValue(item: Option | Option[] | null) {
 
 function getOptionId(option: Option | null | undefined) {
     return option?.id ?? option;
+}
+
+function isOptionSelected(option: Option) {
+    if (props.multiple) {
+        if (!Array.isArray(localModelValue.value)) {
+            return false;
+        }
+        return localModelValue.value.some((selectedId) => selectedId == option.id);
+    }
+    return localModelValue.value == option.id;
 }
 
 function handleComboboxChange(value: Option | Option[] | null) {
@@ -192,7 +202,7 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                                 :key="option.id"
                                 :value="option"
                             >
-                                <template #default="{ active, selected }">
+                                <template #default="{ active }">
                                     <div
                                         :class="[
                                             'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
@@ -201,12 +211,15 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                                                 : 'text-card-foreground bg-card hover:bg-muted/60'
                                         ]"
                                     >
-                                        <span :class="selected ? 'font-semibold' : 'font-normal'">
+                                        <span>
                                             {{ option.name }}
                                         </span>
                                         <span
-                                            v-if="selected"
-                                            class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600"
+                                            v-if="isOptionSelected(option)"
+                                            :class="[
+                                                'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
+                                                active ? 'text-white' : 'text-blue-600'
+                                            ]"
                                         >
                                             <Check class="h-4 w-4" />
                                         </span>

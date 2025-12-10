@@ -265,6 +265,22 @@ function setFieldsFromOrder(item: PurchaseInvoiceItem) {
     }
 }
 
+function syncInvoiceItemsTaxWithCatalog() {
+    localItems.value.forEach((invoiceItem) => {
+        if (invoiceItem.item_id == null) return;
+        setTaxFromItem(invoiceItem);
+        calcTotals(invoiceItem);
+    });
+}
+
+watch(
+    items,
+    () => {
+        syncInvoiceItemsTaxWithCatalog();
+    },
+    { immediate: true },
+);
+
 function isPriceDifferent(item: PurchaseInvoiceItem): boolean {
     const suggested = getSuggestedPrice(item);
     if (suggested === null) return false;

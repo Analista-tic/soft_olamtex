@@ -160,6 +160,22 @@ function setTaxFromItem(item: PurchaseOrderItem) {
     item.tax = article?.tax?.percentage ?? 0;
 }
 
+function syncItemsTaxWithCatalog() {
+    localItems.value.forEach((item) => {
+        if (item.item_id == null) return;
+        setTaxFromItem(item);
+        calcTotals(item);
+    });
+}
+
+watch(
+    items,
+    () => {
+        syncItemsTaxWithCatalog();
+    },
+    { immediate: true },
+);
+
 watch(
     localItems,
     (val) => {
