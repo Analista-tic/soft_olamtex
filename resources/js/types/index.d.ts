@@ -343,6 +343,8 @@ export interface PurchaseInvoice {
     updated_at?: string;
     purchase_order_id?: number | null;
     withholdings?: PurchaseInvoiceWithholding[]; // Usar el tipo correcto aquí
+    reason: string | null;
+    evidence_path: string | null;
 }
 
 // Tipos para campos adicionales de items

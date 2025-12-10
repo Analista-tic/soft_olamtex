@@ -22,6 +22,8 @@ class PurchaseInvoice extends Model
         'description',
         'status',
         'withholdings',
+        'reason',
+        'evidence_path',
         'is_fabric',
     ];
 

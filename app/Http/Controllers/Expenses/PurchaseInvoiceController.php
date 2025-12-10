@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Expenses;
 use App\Http\Controllers\Controller;
 use App\Models\Expenses\PurchaseInvoice;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -110,6 +113,7 @@ class PurchaseInvoiceController extends Controller
         $invoice = PurchaseInvoice::findOrFail($id);
         $invoice->items()->delete();
         $invoice->delete();
+        $this->handleDeletedPurchaseOrder($invoice->purchase_order_id);
         return response()->json(['message' => 'Factura eliminada']);
     }
 
@@ -166,13 +170,17 @@ class PurchaseInvoiceController extends Controller
     private function validateInvoice(Request $request, $isUpdate = false)
     {
         $itemIdRule = $isUpdate ? ['sometimes', 'exists:purchase_invoice_items,id'] : [];
-        return $request->validate([
+        $validated = $request->validate([
             'contact_id' => 'required|exists:contacts,id',
             'purchase_order_id' => 'nullable|exists:purchase_orders,id',
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',
             'supplier_invoice_number' => 'nullable|string|max:255',
             'description' => 'nullable|string',
+            'reason' => 'nullable|string',
+            'evidence_path' => 'nullable|string',
+            'difference_reason' => 'nullable|string',
+            'difference_evidence_path' => 'nullable|string',
             'status' => 'nullable|string|max:50',
             'items' => 'array',
             'items.*.id' => $itemIdRule,
@@ -191,6 +199,73 @@ class PurchaseInvoiceController extends Controller
             'withholdings.*.percentage' => 'required_with:withholdings|numeric',
             'withholdings.*.base_amount' => 'required_with:withholdings|numeric',
         ]);
+
+        if (array_key_exists('difference_reason', $validated)) {
+            if (!empty($validated['difference_reason'])) {
+                $validated['reason'] = $validated['difference_reason'];
+            }
+            unset($validated['difference_reason']);
+        }
+
+        if (array_key_exists('difference_evidence_path', $validated)) {
+            $validated['evidence_path'] = $this->prepareEvidencePath($validated['difference_evidence_path']);
+            unset($validated['difference_evidence_path']);
+        }
+
+        if (array_key_exists('evidence_path', $validated)) {
+            $validated['evidence_path'] = $this->prepareEvidencePath($validated['evidence_path']);
+        }
+
+        return $validated;
+    }
+
+    private function prepareEvidencePath(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = trim($value);
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (Str::startsWith($normalized, 'data:image/')) {
+            return $this->storeEvidenceFromBase64($normalized);
+        }
+
+        return $normalized;
+    }
+
+    private function storeEvidenceFromBase64(string $value): string
+    {
+        if (!preg_match('/^data:(image\/[a-zA-Z0-9.+-]+);base64,/', $value, $matches)) {
+            throw ValidationException::withMessages([
+                'difference_evidence_path' => 'La evidencia proporcionada no tiene un formato válido.',
+            ]);
+        }
+
+        $payload = substr($value, strpos($value, ',') + 1);
+        $decoded = base64_decode($payload);
+        if ($decoded === false) {
+            throw ValidationException::withMessages([
+                'difference_evidence_path' => 'No se pudo decodificar la evidencia.',
+            ]);
+        }
+
+        $extensionMap = [
+            'image/jpeg' => 'jpg',
+            'image/jpg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+        ];
+
+        $extension = $extensionMap[$matches[1]] ?? 'png';
+        $path = sprintf('purchase-invoices/evidence/%s/%s.%s', now()->format('Y/m/d'), Str::uuid(), $extension);
+
+        Storage::disk('public')->put($path, $decoded);
+
+        return $path;
     }
 
     /**
@@ -247,6 +322,27 @@ class PurchaseInvoiceController extends Controller
                 $order->status = 'invoiced'; // Usa el valor permitido por tu ENUM
                 $order->save();
             }
+        }
+    }
+
+    private function handleDeletedPurchaseOrder(?int $purchaseOrderId)
+    {
+        if (empty($purchaseOrderId)) {
+            return;
+        }
+
+        $order = \App\Models\Expenses\PurchaseOrder::find($purchaseOrderId);
+        if (!$order) {
+            return;
+        }
+
+        $hasActiveInvoices = PurchaseInvoice::where('purchase_order_id', $purchaseOrderId)
+            ->whereNull('deleted_at')
+            ->exists();
+
+        if (!$hasActiveInvoices) {
+            $order->status = 'pending';
+            $order->save();
         }
     }
 }

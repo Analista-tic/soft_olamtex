@@ -3,6 +3,7 @@ import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -45,7 +46,6 @@ const differenceDialogOpen = ref(false);
 const pendingDifferenceSendMail = ref<boolean | null>(null);
 const differenceReason = ref('');
 const differenceEvidenceData = ref<string | null>(null);
-const differenceEvidenceName = ref('');
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -113,6 +113,8 @@ function createDefaultForm(): Partial<PurchaseInvoice> {
         delivery_date: '',
         supplier_invoice_number: '',
         description: '',
+        reason: '',
+        evidence_path: '',
         items: [],
         id: undefined,
         purchase_order_id: null,
@@ -164,9 +166,8 @@ function resetForm() {
     errorType.value = 'error';
     originalFormSnapshot.value = stableStringify(localForm.value);
     orderTotal.value = null;
-    differenceReason.value = props.form?.difference_reason || '';
+    differenceReason.value = props.form?.reason || '';
     differenceEvidenceData.value = null;
-    differenceEvidenceName.value = '';
 }
 
 async function initializeDialog() {
@@ -301,36 +302,12 @@ const stableStringify = (value: any): string => {
     return JSON.stringify(normalize(value));
 };
 
-function formatCurrency(value: number): string {
-    return Number(value).toLocaleString('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    });
-}
-
-function handleEvidenceFileChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-        differenceEvidenceData.value = null;
-        differenceEvidenceName.value = '';
-        return;
-    }
-    differenceEvidenceName.value = file.name;
-    const reader = new FileReader();
-    reader.onload = () => {
-        differenceEvidenceData.value = reader.result as string;
-    };
-    reader.readAsDataURL(file);
-}
-
-async function handleDifferenceSave() {
-    if (!differenceReason.value.trim()) {
-        setErrorMessage('Por favor describe el motivo de la diferencia.', 'warning');
-        return;
-    }
+async function handleDifferenceDialogSave(payload: { reason: string; evidenceData: string }) {
+    const trimmedReason = payload.reason.trim();
+    differenceReason.value = trimmedReason;
+    localForm.value.reason = trimmedReason;
+    differenceEvidenceData.value = payload.evidenceData;
+    localForm.value.evidence_path = payload.evidenceData;
     const sendMail = pendingDifferenceSendMail.value ?? false;
     pendingDifferenceSendMail.value = null;
     differenceDialogOpen.value = false;
@@ -366,13 +343,10 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     if (!Array.isArray(formToSend.withholdings)) {
         formToSend.withholdings = [];
     }
-    if (hasDifference.value) {
-        formToSend.difference_reason = differenceReason.value.trim();
-        formToSend.difference_evidence_path = differenceEvidenceData.value || null;
-    } else {
-        formToSend.difference_reason = null;
-        formToSend.difference_evidence_path = null;
-    }
+    const trimmedLocalReason = String(localForm.value.reason || '').trim();
+    const normalizedReason = differenceReason.value.trim() || trimmedLocalReason;
+    formToSend.reason = normalizedReason || null;
+    formToSend.evidence_path = differenceEvidenceData.value ?? localForm.value.evidence_path ?? null;
     const url = props.dialogType === 'create' ? '/gastos/facturas-compra' : `/gastos/facturas-compra/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
@@ -388,7 +362,6 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
         }
         differenceReason.value = '';
         differenceEvidenceData.value = null;
-        differenceEvidenceName.value = '';
         dialogOpen.value = false;
     } catch (e: any) {
         const serverMessage =
@@ -701,30 +674,11 @@ watch(dialogOpen, (isOpen) => {
             </form>
         </DialogContent>
     </Dialog>
-    <Dialog v-model:open="differenceDialogOpen">
-        <DialogContent class="max-w-2xl">
-            <DialogHeader>
-                <DialogTitle>Valor diferente a la orden</DialogTitle>
-                <DialogDescription>
-                    El total de la factura {{ formatCurrency(Number(total || 0)) }} no coincide con el valor de la orden {{ formatCurrency(orderTotal || 0) }}.
-                </DialogDescription>
-            </DialogHeader>
-            <div class="space-y-4">
-                <TextareaField
-                    v-model="differenceReason"
-                    label="Motivo"
-                    rows="3"
-                />
-                <div class="space-y-1 text-sm">
-                    <label class="block font-semibold">Evidencia (imagen)</label>
-                    <input type="file" accept="image/*" class="text-sm" @change="handleEvidenceFileChange" />
-                    <p v-if="differenceEvidenceName" class="text-muted-foreground text-xs">{{ differenceEvidenceName }}</p>
-                </div>
-            </div>
-            <DialogFooter class="gap-2">
-                <Button variant="outline" type="button" @click="closeDifferenceDialog">Cancelar</Button>
-                <Button variant="default" type="button" @click="handleDifferenceSave">Guardar y continuar</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+    <DifferenceDialog
+        v-model:open="differenceDialogOpen"
+        :total="total"
+        :order-total="orderTotal ?? 0"
+        @save="handleDifferenceDialogSave"
+        @cancel="closeDifferenceDialog"
+    />
 </template>
