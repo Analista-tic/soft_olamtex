@@ -209,6 +209,16 @@ async function fetchNextInvoiceId() {
     }
 }
 
+function isTelaOrderItem(orderItem: any) {
+    const subgroupName = orderItem?.item?.category_sub_group?.name;
+    return typeof subgroupName === 'string' && subgroupName.trim().toLowerCase() === 'tela';
+}
+
+function orderHasTelaItems(order: any) {
+    if (!order || !Array.isArray(order.items)) return false;
+    return order.items.some((orderItem: any) => isTelaOrderItem(orderItem));
+}
+
 async function fetchPendingPurchaseOrders() {
     purchaseOrders.value = [];
     selectedPurchaseOrderId.value = null;
@@ -216,7 +226,8 @@ async function fetchPendingPurchaseOrders() {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
             params: { status: 'pending', per_page: 1000 },
         });
-        purchaseOrders.value = data.data || [];
+        const fetchedOrders = Array.isArray(data.data) ? data.data : [];
+        purchaseOrders.value = fetchedOrders.filter(orderHasTelaItems);
     } catch {
         purchaseOrders.value = [];
     }
@@ -256,6 +267,11 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     selectedPurchaseOrderId.value = Number(orderId);
     localForm.value.purchase_order_id = Number(orderId);
     originalFormSnapshot.value = stableStringify(localForm.value);
+}
+
+function clearSelectedPurchaseOrder() {
+    selectedPurchaseOrderId.value = null;
+    resetForm();
 }
 
 const scrollToDialogTop = () => {
@@ -445,8 +461,8 @@ watch(dialogOpen, (isOpen) => {
                         Completa los campos y añade los ítems de la factura.
                     </DialogDescription>
                 </div>
-                <div class="absolute right-4 top-4 flex w-full max-w-[520px] items-end gap-2">
-                    <div class="w-[260px]">
+                <div class="absolute right-4 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
+                    <div class="w-[280px]">
                         <SelectField
                             v-model="selectedPurchaseOrderValue"
                             :options="pendingPurchaseOrderOptions"
@@ -457,14 +473,14 @@ watch(dialogOpen, (isOpen) => {
                             search-placeholder="Buscar orden de compra..."
                         />
                     </div>
-                    <div class="w-[260px]">
+                    <div class="w-[100px]">
                         <Button
                             variant="outline"
                             size="sm"
                             type="button"
-                            class="h-full w-full"
+                            class="h-10 w-full"
                             :disabled="!selectedPurchaseOrderId || isReadOnly"
-                            @click="selectedPurchaseOrderId = null"
+                            @click="clearSelectedPurchaseOrder()"
                         >
                             Limpiar
                         </Button>

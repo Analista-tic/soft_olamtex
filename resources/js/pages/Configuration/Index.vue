@@ -11,23 +11,24 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const modules = [
-            {
-                title: 'Empresa',
-                description: 'Administra usuarios, roles y permisos de acceso.',
-                options: [
-                    { name: 'Datos Basicos', href: '/panel-administrativo/empresa' },
-                    { name: 'Contactos', href: '/contactos' },
-                ],
-            },
-        {
-            title: 'Inventario',
-            description: 'Parametrizar y Configurar Campos de Inventario.',
-            options: [
-                { name: 'Items', href: '/item' },
-                { name: 'Categorias', href: 'categorias/subgrupos' },
-                { name: 'Bodegas', href: '/bodegas' },
-            ],
-        },
+    {
+        title: 'Empresa',
+        description: 'Administra usuarios, roles y permisos de acceso.',
+        options: [
+            { name: 'Datos Basicos', href: '/panel-administrativo/empresa' },
+            { name: 'Contactos', href: '/contactos' },
+        ],
+    },
+    {
+        title: 'Inventario',
+        description: 'Parametrizar y Configurar Campos de Inventario.',
+        options: [
+            { name: 'Items', href: '/item' },
+            { name: 'Categorias', href: 'categorias/subgrupos' },
+            { name: 'Bodegas', href: '/bodegas' },
+            { name: 'Campos adicionales', href: '/inventario/campos-adicionales' },
+        ],
+    },
     {
         title: 'Impuestos',
         description: 'Parametrizar y Configurar Impuestos.',
@@ -57,7 +58,7 @@ const modules = [
         ],
     },
     {
-        title: 'Diseño',
+        title: 'Diseヵo',
         description: 'Administra parametros y configuraciones',
         options: [
             { name: 'Temporadas', href: '' },

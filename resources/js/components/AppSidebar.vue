@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavMainGroup from '@/components/NavMainGroup.vue';
@@ -50,7 +50,12 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
         items: [
             {
-                title: 'Orden de Compra',
+                title: 'Solicitud de Compras',
+                href: '/gastos/solicitudes-compra',
+                permission: 'ver telas',
+            },
+            {
+                title: 'Orden de Compras',
                 href: '/gastos/ordenes-compra',
                 permission: 'ver telas',
             },
@@ -97,6 +102,11 @@ const navMainGroup: NavGroupItem[] = [
                 title: 'Gestión de Bodegas',
                 href: '/bodegas',
                 permission: 'ver bodegas',
+            },
+            {
+                title: 'Campos adicionales',
+                href: '/inventario/campos-adicionales',
+                permission: 'ver inventario',
             },
             {
                 title: 'Gestión de Categorías',
@@ -244,3 +254,4 @@ const filteredNavMainGroup = computed(() =>
     </Sidebar>
     <slot />
 </template>
+

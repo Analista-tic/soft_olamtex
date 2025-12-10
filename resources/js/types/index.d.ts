@@ -139,6 +139,21 @@ export interface Warehouse {
     observation: string;
 }
 
+export type AdditionalFieldType = 'text' | 'number' | 'select' | 'textarea' | 'date';
+
+export interface AdditionalField {
+    id?: number;
+    name: string;
+    field_type: AdditionalFieldType;
+    options?: string[];
+    default_value?: string | null;
+    description?: string;
+    is_required: boolean;
+    status: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface Color {
     id: number | undefined;
     name: string;

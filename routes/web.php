@@ -4,6 +4,7 @@ use App\Http\Controllers\Common\ContactController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceTelaController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
+use App\Http\Controllers\Expenses\PurchaseRequestController;
 use App\Http\Controllers\ProductSheet\BrandController;
 use App\Http\Controllers\ProductSheet\FabricBaseController;
 use App\Http\Controllers\ProductSheet\GroupController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Common\CategorySubGroupController;
 use App\Http\Controllers\Common\WarehouseController;
 use App\Http\Controllers\Common\ColorController;
 use App\Http\Controllers\Inventory\ItemController;
+use App\Http\Controllers\Inventory\AdditionalFieldController;
 use App\Http\Controllers\Settings\RetentionController;
 use App\Http\Controllers\Common\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
@@ -228,6 +230,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === GASTOS (AGRUPADO) ===
     Route::prefix('gastos')->name('gastos.')->group(function () {
+        // === SOLICITUD DE COMPRA ===
+        Route::prefix('solicitudes-compra')->name('purchase-requests.')->group(function () {
+            Route::get('/', [PurchaseRequestController::class, 'index'])->name('index');
+            Route::get('/data', [PurchaseRequestController::class, 'getData'])->name('getData');
+            Route::post('/', [PurchaseRequestController::class, 'store'])->name('store');
+            Route::get('/{purchaseRequest}', [PurchaseRequestController::class, 'show'])->name('show');
+            Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update');
+            Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
+        });
+        
         // === ORDENES DE COMPRA ===
         Route::prefix('ordenes-compra')->name('purchase-orders.')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
@@ -310,6 +322,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
     })->name('inventario.ajuste-inventario.create');
 
+    // === CAMPOS ADICIONALES ===
+    Route::prefix('inventario/campos-adicionales')->name('inventory.additional-fields.')->group(function () {
+        Route::get('/', [AdditionalFieldController::class, 'index'])->name('index');
+        Route::get('/data', [AdditionalFieldController::class, 'getData'])->name('data');
+        Route::post('/', [AdditionalFieldController::class, 'store'])->name('store');
+        Route::get('/{additionalField}', [AdditionalFieldController::class, 'show'])->name('show');
+        Route::put('/{additionalField}', [AdditionalFieldController::class, 'update'])->name('update');
+        Route::delete('/{additionalField}', [AdditionalFieldController::class, 'destroy'])->name('destroy');
+    });
+
+    // === AJUSTES DE INVENTARIO ===
     Route::prefix('ajustes-inventario')->name('ajustes-inventario.')->group(function () {
         Route::get('/data', [InventoryAdjustmentController::class, 'getData'])->name('data');   // para la tabla
         Route::get('/', [InventoryAdjustmentController::class, 'index'])->name('index');        // opcional

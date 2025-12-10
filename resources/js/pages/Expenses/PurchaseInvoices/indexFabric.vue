@@ -261,7 +261,7 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
 </script>
 
 <template>
-    <Head title="Facturas de Compra Tela" />
+    <Head title="Facturas de Compras y Servicios Tela" />
     <AppLayout :breadcrumbs="breadcrumbs">
             <AlertStack
                 :successMessage="successMessage"
@@ -272,7 +272,7 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
             />
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Facturas de Compra Tela</h1>
+                <h1 class="text-lg font-bold">Facturas de Compras y Servicios Tela</h1>
                 <div class="flex gap-2">
                     <Button 
                         @click="router.visit('/kardex-telas/recepcion')" 
