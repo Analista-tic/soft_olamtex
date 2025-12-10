@@ -31,15 +31,35 @@ const defaultForm: Partial<Contact> = {
     phone: '',
 };
 
+function ensureArray(value: Contact['groups'] | undefined | null): Contact['groups'] {
+    if (Array.isArray(value)) {
+        return value;
+    }
+    if (value === undefined || value === null) {
+        return [];
+    }
+    return [value];
+}
+
+function normalizeFormPayload(form?: Partial<Contact> | Record<string, any>): Partial<Contact> {
+    const normalized = { ...(form || {}) } as Partial<Contact>;
+    normalized.groups = ensureArray(normalized.groups);
+    return normalized;
+}
+
 // Inicializar de forma segura: merge de defaults con el prop (si existe)
-const internalForm = ref<Partial<Contact>>(Object.assign({}, defaultForm, props.form || {}));
+const internalForm = ref<Partial<Contact>>(
+    Object.assign({}, defaultForm, normalizeFormPayload(props.form)),
+);
 
 // Sincronizar el objeto interno con el prop `form` sin causar recursividad
 watch(
     () => props.form,
     (newForm) => {
-        if (JSON.stringify(newForm) !== JSON.stringify(internalForm.value)) {
-            internalForm.value = { ...newForm };
+        const normalized = normalizeFormPayload(newForm);
+        const currentNormalized = normalizeFormPayload(internalForm.value);
+        if (JSON.stringify(normalized) !== JSON.stringify(currentNormalized)) {
+            internalForm.value = { ...defaultForm, ...normalized };
         }
     },
     { deep: true },
@@ -49,8 +69,10 @@ watch(
 watch(
     internalForm,
     (updatedForm) => {
-        if (JSON.stringify(updatedForm) !== JSON.stringify(props.form)) {
-            emit('update:form', updatedForm); // Emitir el formulario actualizado
+        const normalizedUpdated = normalizeFormPayload(updatedForm);
+        const normalizedPropsForm = normalizeFormPayload(props.form);
+        if (JSON.stringify(normalizedUpdated) !== JSON.stringify(normalizedPropsForm)) {
+            emit('update:form', normalizedUpdated); // Emitir el formulario actualizado
         }
     },
     { deep: true },

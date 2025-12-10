@@ -3,7 +3,7 @@ import { ref, watch, computed, withDefaults, onBeforeUnmount } from 'vue';
 import { Combobox, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption } from '@headlessui/vue';
 import { Label } from '@/components/ui/label';
 import type { Option } from '@/types';
-import { ChevronDown, Check } from 'lucide-vue-next';
+import { ChevronDown, Check, X } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
     label: string;
@@ -98,6 +98,18 @@ const comboboxValue = computed<Option | Option[] | null>(() => {
     return props.options.find((option) => option.id == localModelValue.value) ?? null;
 });
 
+const selectedOptions = computed(() => {
+    if (!props.multiple) return [] as Option[];
+    const val = comboboxValue.value as Option[] | null;
+    return Array.isArray(val) ? val : [];
+});
+
+function removeSelected(optionId: Option['id']) {
+    if (!props.multiple) return;
+    if (!Array.isArray(localModelValue.value)) return;
+    localModelValue.value = localModelValue.value.filter((id) => id != optionId);
+}
+
 const placeholderText = computed(() => {
     if (props.placeholder) {
         return props.placeholder;
@@ -167,9 +179,21 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                 @update:modelValue="handleComboboxChange"
             >
                 <div class="relative">
+                    <!-- Selected chips (only for multiple) -->
+                    <div v-if="multiple && selectedOptions.length" class="absolute left-3 top-2 z-0 flex max-w-[70%] flex-wrap items-center gap-2">
+                        <template v-for="opt in selectedOptions" :key="opt.id">
+                            <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 shadow-sm">
+                                <span class="truncate max-w-[10rem]">{{ opt.name }}</span>
+                                <button type="button" @click.stop.prevent="removeSelected(opt.id)" class="inline-flex items-center justify-center rounded-full p-0.5 text-blue-700 hover:bg-blue-100">
+                                    <X class="h-3 w-3" />
+                                </button>
+                            </span>
+                        </template>
+                    </div>
+
                     <ComboboxInput
                         class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
-                        :class="[!isSearchEnabled ? 'cursor-default' : '', buttonClass]"
+                        :class="[!isSearchEnabled ? 'cursor-default' : '', buttonClass, multiple ? 'pl-28' : '']"
                         :placeholder="placeholderText"
                         :display-value="displayValue"
                         :disabled="disabled"
@@ -205,10 +229,7 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                                 <template #default="{ active }">
                                     <div
                                         :class="[
-                                            'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
-                                            active
-                                                ? 'text-white bg-blue-600 dark:bg-blue-500'
-                                                : 'text-card-foreground bg-card hover:bg-muted/60'
+                                            'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors'
                                         ]"
                                     >
                                         <span>
