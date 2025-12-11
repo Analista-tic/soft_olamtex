@@ -139,7 +139,7 @@ export interface Warehouse {
     observation: string;
 }
 
-export type AdditionalFieldType = 'text' | 'number' | 'select' | 'textarea' | 'date';
+export type AdditionalFieldType = 'text' | 'number' | 'decimal' | 'textarea' | 'date' | 'boolean' | 'select';
 
 export interface AdditionalField {
     id?: number;
@@ -198,8 +198,8 @@ export interface Item {
     warehouse?: Warehouse;
     category_sub_group_id: number;
     category_sub_group?: CategorySubGroup;
-    color_id: number;
-    color?: Color;
+    color_id?: number | null;
+    color?: Color | null;
     tax_id?: number | null; // Nuevo campo para la relación
     tax?: Tax | null;       // Relación con el objeto Tax
     name: string;
@@ -213,6 +213,7 @@ export interface Item {
     description: string;
     extra_fields?: ExtraFields | string;
     status: boolean;
+    item_type: 'product' | 'service';
     unit_measure?: string; // Añadido correctamente
     created_at?: string;
     updated_at?: string;

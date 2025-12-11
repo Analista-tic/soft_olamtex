@@ -45,7 +45,7 @@ class ItemController extends Controller
         try {
             $data = $request->validate([
                 'category_sub_group_id' => 'required|integer',
-                'color_id' => 'required|integer',
+                'color_id' => 'nullable|integer',
                 'img' => 'nullable|string',
                 'tax_id' => 'nullable|integer',
                 'tax' => 'required|numeric',
@@ -55,6 +55,7 @@ class ItemController extends Controller
                 'extra_fields' => 'nullable',
                 'reference' => 'required|string|unique:items,reference',
                 'status' => 'sometimes|boolean',
+                'item_type' => 'required|string|in:product,service',
                 'unit_measure' => 'nullable|string',
             ]);
         } catch (ValidationException $e) {
@@ -85,12 +86,19 @@ class ItemController extends Controller
         $data['negative_movement'] = filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
 
         $subGroupName = optional(CategorySubGroup::find($data['category_sub_group_id']))->name ?? '';
-        $colorName = optional(Color::find($data['color_id']))->name ?? '';
+        $colorName = '';
+        if (!empty($data['color_id'])) {
+            $colorName = optional(Color::find($data['color_id']))->name ?? '';
+        }
         $extrasString = implode(' ', array_filter(array_map('trim', array_values($extraFields))));
         $data['name'] = trim("$subGroupName $extrasString $colorName");
 
         if (!isset($data['status'])) {
             $data['status'] = true;
+        }
+
+        if (empty($data['item_type'])) {
+            $data['item_type'] = 'product';
         }
 
         $article = Item::create($data);
@@ -132,7 +140,7 @@ class ItemController extends Controller
         try {
             $data = $request->validate([
                 'category_sub_group_id' => 'sometimes|integer',
-                'color_id' => 'sometimes|integer',
+                'color_id' => 'sometimes|nullable|integer',
                 'img' => 'nullable|string',
                 'tax_id' => 'nullable|integer', 
                 'tax' => 'sometimes|numeric',
@@ -142,6 +150,7 @@ class ItemController extends Controller
                 'extra_fields' => 'nullable',
                 'reference' => 'required|string|unique:items,reference,' . $article->id,
                 'status' => 'sometimes|boolean',
+                'item_type' => 'required|string|in:product,service',
                 'unit_measure' => 'nullable|string',
             ]);
         } catch (ValidationException $e) {
@@ -178,7 +187,10 @@ class ItemController extends Controller
         $subGroupId = $data['category_sub_group_id'] ?? $article->category_sub_group_id;
         $colorId = $data['color_id'] ?? $article->color_id;
         $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
-        $colorName = optional(Color::find($colorId))->name ?? '';
+        $colorName = '';
+        if (!empty($colorId)) {
+            $colorName = optional(Color::find($colorId))->name ?? '';
+        }
         $extrasString = implode(' ', array_filter(array_map('trim', array_values($extraFields))));
         $data['name'] = trim("$subGroupName $extrasString $colorName");
 
@@ -808,11 +820,13 @@ class ItemController extends Controller
 
                 // Buscar IDs para subgrupo y color por nombre
                 $subGroup = CategorySubGroup::where('name', $rowData['SUBGRUPO'] ?? '')->first();
-                $color = Color::where('name', $rowData['COLOR'] ?? '')->first();
-
-                if (!$subGroup || !$color) {
-                    $errors[] = "Fila $rowNum: Subgrupo o color no encontrado";
-                    continue;
+                $color = null;
+                if (isset($rowData['COLOR']) && trim($rowData['COLOR']) !== '') {
+                    $color = Color::where('name', $rowData['COLOR'] ?? '')->first();
+                    if (!$color) {
+                        $errors[] = "Fila $rowNum: Color '{$rowData['COLOR']}' no encontrado";
+                        continue;
+                    }
                 }
 
                 // Construir extra_fields
@@ -828,13 +842,13 @@ class ItemController extends Controller
                 $name = trim(
                     $subGroup->name . ' ' .
                     $extrasString . ' ' .
-                    ($color->name ?? '')
+                    (optional($color)->name ?? '')
                 );
 
                 // Usar solo los campos que existen en la base de datos
                 $articleData = [
                     'category_sub_group_id' => $subGroup->id,
-                    'color_id' => $color->id,
+                    'color_id' => optional($color)->id,
                     // 'impuesta' o 'tax' segun tu base de datos, si no existe ninguno, omite esta campo
                     // 'unit_measure' eliminado porque no existe en la tabla
                     'bar_code' => $rowData['CÓDIGO DE BARRAS'] ?? null,

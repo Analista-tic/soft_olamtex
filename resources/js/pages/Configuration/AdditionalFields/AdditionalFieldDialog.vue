@@ -14,10 +14,11 @@ type AdditionalFieldForm = Omit<AdditionalField, 'default_value'> & {
 
 const fieldTypeOptions: Array<{ id: AdditionalFieldType; name: string }> = [
     { id: 'text', name: 'Texto' },
-    { id: 'number', name: 'Numero' },
-    { id: 'select', name: 'Lista de opciones' },
-    { id: 'textarea', name: 'Area de texto' },
+    { id: 'number', name: 'Número' },
+    { id: 'decimal', name: 'Número decimal' },
     { id: 'date', name: 'Fecha' },
+    { id: 'boolean', name: 'Si/No' },
+    { id: 'select', name: 'Lista de opciones' },
 ];
 
 const props = defineProps<{
@@ -43,7 +44,12 @@ const defaultForm: AdditionalFieldForm = {
     status: true,
 };
 
-const localForm = ref<AdditionalFieldForm>({ ...defaultForm, ...props.form });
+// Inicializar localForm de forma segura convirtiendo `default_value` a string
+const localForm = ref<AdditionalFieldForm>({
+    ...defaultForm,
+    ...(props.form ?? {} as Partial<AdditionalFieldForm>),
+    default_value: String((props.form as Partial<AdditionalField>)?.default_value ?? ''),
+});
 const optionsRaw = ref('');
 
 const isSelectField = computed(() => localForm.value.field_type === 'select');

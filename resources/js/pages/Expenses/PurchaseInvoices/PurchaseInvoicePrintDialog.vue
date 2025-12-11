@@ -123,7 +123,7 @@ function print() {
                                         <th class="border px-2 py-1 print:border print:border-gray-300">Item</th>
                                         <th class="border px-2 py-1 print:border print:border-gray-300">Descripción</th>
                                         <th class="border px-2 py-1 print:border print:border-gray-300">Cantidad</th>
-                                        <th class="border px-2 py-1 print:border print:border-gray-300">Precio unitario</th>
+                                        <th class="border px-2 py-1 print:border print:border-gray-300">Precio SIN Impuesto unitario</th>
                                         <th class="border px-2 py-1 print:border print:border-gray-300">IVA</th>
                                         <th class="border px-2 py-1 print:border print:border-gray-300">Total</th>
                                     </tr>

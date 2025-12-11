@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { Contact, PurchaseOrder } from '@/types';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
@@ -35,6 +36,7 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const originalFormSnapshot = ref<string>('');
+const itemsTableRef = ref<{ addItem: () => void } | null>(null);
 
 const subtotal = computed(() =>
     (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total) || 0, 0), 0),
@@ -163,6 +165,10 @@ const stableStringify = (value: any): string => {
     return JSON.stringify(normalize(value));
 };
 
+function handleAddLine() {
+    itemsTableRef.value?.addItem();
+}
+
 async function handleSubmit(sendMail = false) {
     successMessage.value = '';
     errorMessage.value = '';
@@ -265,7 +271,7 @@ function validateForm(): boolean {
     if (invalidItem) {
         const missingItemFields: string[] = [];
         if (!invalidItem.item_id) missingItemFields.push('Item');
-        if (!invalidItem.price || Number(invalidItem.price) <= 0) missingItemFields.push('Precio');
+        if (!invalidItem.price || Number(invalidItem.price) <= 0) missingItemFields.push('Precio SIN Impuesto');
         if (!invalidItem.quantity || Number(invalidItem.quantity) <= 0) missingItemFields.push('Cantidad');
 
         setErrorMessage(
@@ -301,7 +307,7 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-h-[95vh] overflow-y-auto sm:max-w-6xl lg:max-w-[82rem]">
+        <DialogContent class="max-w-[200vh] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
                 <DialogDescription>
@@ -397,9 +403,13 @@ watch(dialogOpen, (isOpen) => {
                     </div>
 
                     <!-- Items -->
-                    <div>
-                        <PurchaseOrderItemsTable :items="localForm.items || []" @update:items="(items) => (localForm.items = items)" />
-                    </div>
+                    <InventoryDetailTableLayout @create-line="handleAddLine">
+                        <PurchaseOrderItemsTable
+                            ref="itemsTableRef"
+                            :items="localForm.items || []"
+                            @update:items="(items) => (localForm.items = items)"
+                        />
+                    </InventoryDetailTableLayout>
 
                     <!-- Totales -->
                     <div class="flex flex-col items-end space-y-0 text-sm">

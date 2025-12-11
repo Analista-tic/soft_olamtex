@@ -11,7 +11,7 @@ class CreateItemsTable extends Migration
         Schema::create('items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('category_sub_group_id')->constrained();
-            $table->foreignId('color_id')->constrained();
+            $table->foreignId('color_id')->nullable()->constrained();
             $table->string('name');
             $table->string('reference')->nullable();
             $table->string('img')->nullable();
@@ -22,6 +22,7 @@ class CreateItemsTable extends Migration
             $table->json('extra_fields')->nullable();
             $table->string('unit_measure')->nullable();
             $table->boolean('status')->default(true);
+            $table->string('item_type')->default('product');
             $table->timestamps();
             $table->softDeletes();
         });

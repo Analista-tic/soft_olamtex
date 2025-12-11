@@ -22,6 +22,7 @@ class Item extends Model
         'extra_fields',
         'name',
         'reference',
+        'item_type',
         'status',
         'unit_measure', // EN: unidad de medida
     ];

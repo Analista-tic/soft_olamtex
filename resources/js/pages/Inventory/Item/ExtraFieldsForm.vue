@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, withDefaults } from 'vue';
+import { ref, watch, onMounted, computed } from 'vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import type { ExtraFields, Option } from '@/types';
+import type { ExtraFields, Option, AdditionalField } from '@/types';
+import { Plus } from 'lucide-vue-next';
 import axios from 'axios';
 
 const props = withDefaults(defineProps<{
@@ -14,32 +15,27 @@ const props = withDefaults(defineProps<{
     readonly?: boolean;
     showLabel?: boolean;
     colorOptions?: Option[];
+    fieldOptions?: Record<string, string[]>;
+    // Metadata de campos adicionales (vista de AdditionalField)
+    additionalFieldsMeta?: AdditionalField[];
 }>(), {
     readonly: false,
     showLabel: true,
-    colorOptions: [],
+    colorOptions: () => [],
+    fieldOptions: () => ({}),
+    additionalFieldsMeta: () => [],
 });
 const emit = defineEmits<{
     (e: 'update:extraFields', value: ExtraFields): void;
     (e: 'color-selected', colorId: Option['id'] | null): void;
+    (e: 'create-additional-field'): void;
 }>();
 
 const unidadesMedida = [
     'cm', 'mm', 'm', 'in', 'ft', 'yd', 'kg', 'g', 'lb', 'oz', 'l', 'ml', 'unidad'
 ];
 
-const opcionesCampos: Record<string, string[]> = {
-    // Estos campos serán llenados dinámicamente
-    'Base tela': [],
-    'Base hilaza': [],
-    'Marca': [],
-    'Mundo': [],
-    'Sección': [],
-    'Grupo': [],
-    'Líneas': ['Línea 1', 'Línea 2', 'Línea 3', 'Línea 4', 'Línea 5'],
-    'Tipo puntera': ['Redonda', 'Cuadrada', 'Puntiaguda', 'Abierta', 'Cerrada'],
-    'Talla': ['XS', 'S', 'M', 'L', 'XL', 'XXL', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45'],
-};
+const catalogFieldOptions = ref<Record<string, string[]>>({});
 
 const selectedExtraField = ref('');
 const extraFieldValue = ref('');
@@ -48,6 +44,48 @@ const medidaUnidad = ref(unidadesMedida[0]);
 const selectedColorId = ref<Option['id'] | ''>('');
 
 const localExtraFields = ref<ExtraFields>({ ...props.extraFields });
+
+// Construir lista de campos disponibles (nombres simples + metadatos)
+const availableFieldNames = computed(() => {
+    const names = new Set<string>();
+    (props.extraFieldNames ?? []).forEach((n) => names.add(n));
+    (props.additionalFieldsMeta ?? []).forEach((m) => names.add(m.name));
+    // mantener orden: primero extraFieldNames, luego metadatos adicionales
+    const ordered: string[] = [];
+    (props.extraFieldNames ?? []).forEach((n) => {
+        if (names.has(n)) {
+            ordered.push(n);
+            names.delete(n);
+        }
+    });
+    (props.additionalFieldsMeta ?? []).forEach((m) => {
+        if (names.has(m.name)) {
+            ordered.push(m.name);
+            names.delete(m.name);
+        }
+    });
+    Array.from(names).forEach((n) => ordered.push(n));
+    return ordered;
+});
+
+const addableFieldNames = computed(() =>
+    availableFieldNames.value.filter((name) => !localExtraFields.value[name]),
+);
+
+const fieldSelectOptions = computed(() =>
+    addableFieldNames.value.map((name) => ({ id: name, name })),
+);
+
+// dynamicFieldOptions incluye catálogos, props.fieldOptions y opciones desde metadatos
+const dynamicFieldOptions = computed(() => {
+    const base = { ...catalogFieldOptions.value, ...(props.fieldOptions ?? {}) } as Record<string, string[]>;
+    for (const meta of props.additionalFieldsMeta ?? []) {
+        if (Array.isArray(meta.options) && meta.options.length) {
+            base[meta.name] = meta.options as string[];
+        }
+    }
+    return base;
+});
 
 // Mantener sincronización solo cuando cambian las props externamente
 watch(
@@ -73,12 +111,17 @@ watch(selectedExtraField, () => {
     medidaValor.value = '';
     medidaUnidad.value = unidadesMedida[0];
     selectedColorId.value = '';
+    // precargar default_value desde metadatos si existe
+    const meta = (props.additionalFieldsMeta ?? []).find((m) => m.name === selectedExtraField.value);
+    if (meta && meta.default_value !== undefined && meta.default_value !== null) {
+        extraFieldValue.value = String(meta.default_value ?? '');
+    }
 });
 
 function addExtraField() {
     const field = selectedExtraField.value;
     if (!field) return;
-
+    // campos especiales
     if (field === 'Medida') {
         if (medidaValor.value.trim() && medidaUnidad.value) {
             localExtraFields.value['Medida'] = `${medidaValor.value} ${medidaUnidad.value}`;
@@ -100,15 +143,38 @@ function addExtraField() {
                 selectedExtraField.value = '';
             }
         }
-    } else if (opcionesCampos[field]) {
-        if (extraFieldValue.value && !localExtraFields.value[field]) {
-            localExtraFields.value[field] = extraFieldValue.value;
-            selectedExtraField.value = '';
-        }
     } else {
-        if (extraFieldValue.value.trim() && !localExtraFields.value[field]) {
-            localExtraFields.value[field] = extraFieldValue.value.trim();
-            selectedExtraField.value = '';
+        // verificar metadata del campo
+        const meta = (props.additionalFieldsMeta ?? []).find((m) => m.name === field);
+        if (meta) {
+            // para campos select, el valor viene de extraFieldValue
+            if (meta.field_type === 'select') {
+                if (extraFieldValue.value && !localExtraFields.value[field]) {
+                    localExtraFields.value[field] = extraFieldValue.value;
+                    selectedExtraField.value = '';
+                }
+            } else if (meta.field_type === 'number') {
+                if (extraFieldValue.value && !localExtraFields.value[field]) {
+                    localExtraFields.value[field] = extraFieldValue.value;
+                    selectedExtraField.value = '';
+                }
+            } else if (meta.field_type === 'date') {
+                if (extraFieldValue.value && !localExtraFields.value[field]) {
+                    localExtraFields.value[field] = extraFieldValue.value;
+                    selectedExtraField.value = '';
+                }
+            } else {
+                if (extraFieldValue.value.trim() && !localExtraFields.value[field]) {
+                    localExtraFields.value[field] = extraFieldValue.value.trim();
+                    selectedExtraField.value = '';
+                }
+            }
+        } else {
+            // campo genérico o catálogo
+            if (extraFieldValue.value.trim() && !localExtraFields.value[field]) {
+                localExtraFields.value[field] = extraFieldValue.value.trim();
+                selectedExtraField.value = '';
+            }
         }
     }
     // Limpiar valores auxiliares
@@ -157,10 +223,10 @@ onMounted(async () => {
     for (const cat of catalogos) {
         try {
             const res = await axios.get(cat.url);
-            opcionesCampos[cat.campo] = res.data.data.map((item: any) => item.name);
+            catalogFieldOptions.value[cat.campo] = res.data.data.map((item: any) => item.name);
         } catch (e) {
             console.log(e)
-            opcionesCampos[cat.campo] = [];
+            catalogFieldOptions.value[cat.campo] = [];
         }
     }
 });
@@ -183,10 +249,23 @@ onMounted(async () => {
                 <SelectField
                     v-model="selectedExtraField"
                     label="Campo"
-                    :options="extraFieldNames.filter(f => !localExtraFields[f]).map(f => ({ id: f, name: f }))"
+                    :options="fieldSelectOptions"
                     placeholder="Selecciona un campo"
-                    :disabled="extraFieldNames.filter(f => !localExtraFields[f]).length === 0"
-                />
+                    :disabled="props.readonly"
+                >
+                    <template #header>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                            @click.stop.prevent="emit('create-additional-field')"
+                        >
+                            <Plus class="h-4 w-4" />
+                            Nuevo campo adicional
+                        </Button>
+                    </template>
+                </SelectField>
             </div>
             <div class="flex-1">
                 <InputField
@@ -221,10 +300,10 @@ onMounted(async () => {
                     placeholder="Selecciona un color"
                 />
                 <SelectField
-                    v-else-if="selectedExtraField && opcionesCampos[selectedExtraField]"
+                    v-else-if="selectedExtraField && dynamicFieldOptions[selectedExtraField]"
                     label="Valor"
                     v-model="extraFieldValue"
-                    :options="opcionesCampos[selectedExtraField].map(o => ({ id: o, name: o }))"
+                    :options="(dynamicFieldOptions[selectedExtraField] ?? []).map(o => ({ id: o, name: o }))"
                     :disabled="!selectedExtraField"
                     placeholder="Seleccione valor"
                 />

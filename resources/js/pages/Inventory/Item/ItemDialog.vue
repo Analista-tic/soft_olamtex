@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
-import type { Item, CategorySubGroup, CategoryGroup, Color, ExtraFields, Warehouse } from '@/types';
+import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
+import type { Item, CategorySubGroup, CategoryGroup, Color, ExtraFields, Warehouse, AdditionalField } from '@/types';
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
 import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
@@ -29,10 +30,28 @@ const props = defineProps<{
 const emit = defineEmits(['close', 'refresh', 'saved', 'error']);
 
 // Estado reactivo principal
-const localForm = ref<Partial<Item>>({
-    ...props.form,
-    reference: props.form.reference || '',
+type ItemType = 'product' | 'service';
+const itemTypeOptions: { value: ItemType; label: string }[] = [
+    { value: 'product', label: 'Producto' },
+    { value: 'service', label: 'Servicio' },
+];
+const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce(
+    (acc: Record<ItemType, string>, option: { value: ItemType; label: string }) => {
+        acc[option.value] = option.label;
+        return acc;
+    },
+    {} as Record<ItemType, string>,
+);
+const normalizeItemType = (value?: string | null): ItemType =>
+    value === 'service' ? 'service' : 'product';
+const prepareLocalForm = (source: Partial<Item>): Partial<Item> => ({
+    ...source,
+    reference: source.reference || '',
+    tax: typeof source.tax === 'object' && source.tax !== null ? source.tax : null,
+    item_type: normalizeItemType(source.item_type),
 });
+
+const localForm = ref<Partial<Item>>(prepareLocalForm(props.form));
 const warehouses = ref<Warehouse[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
 const categoryGroups = ref<CategoryGroup[]>([]);
@@ -40,12 +59,11 @@ const colors = ref<Color[]>([]);
 const selectedGroupId = ref<string | null>(null);
 const imageFile = ref<File | null>(null);
 const errors = ref<Record<string, string[]>>({});
-const extraFieldNames = [
-    'Base tela', 'Base hilaza', 'Campo adicional', 'Color', 'Marca', 'Mundo', 'Líneas', 'Tipo puntera', 'Talla', 'Medida'
-];
+const extraFieldNames = ref<string[]>([]);
+const additionalFieldOptions = ref<Record<string, string[]>>({});
 const extraFields = ref<ExtraFields>({});
 const nameField = ref('');
-const imagePreview = ref<string | null>(null);
+const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
 const taxes = ref<any[]>([]);
@@ -92,6 +110,7 @@ const currentGroup = computed(() => {
     return null;
 });
 
+const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
 // Unidades de medida
 const unitMeasures = [
     { id: 'cm', name: 'Centímetro (cm)' },
@@ -106,9 +125,15 @@ const unitMeasures = [
     { id: 'oz', name: 'Onza (oz)' },
     { id: 'l', name: 'Litro (l)' },
     { id: 'ml', name: 'Mililitro (ml)' },
-    { id: 'unidad', name: 'Unidad' }
+    { id: 'unidad', name: 'Unidad' },
+    { id: 'servicio', name: 'Servicio' }
 ];
-const unitMeasure = ref(props.form.unit_measure ?? unitMeasures[0].id);
+const serviceUnitId = 'servicio';
+const defaultProductUnitValue = unitMeasures[0]?.id ?? 'unidad';
+const getInitialUnitMeasure = (form: Partial<Item>): string =>
+    form.unit_measure ??
+    (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
+const unitMeasure = ref(getInitialUnitMeasure(props.form));
 const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isViewMode = computed(() => props.dialogType === 'view');
@@ -116,6 +141,19 @@ const isImageZoomOpen = ref(false);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
 const taxForm = ref({ name: '', percentage: 0, status: 'true' });
+const additionalFieldDialogOpen = ref(false);
+const additionalFieldDialogLoading = ref(false);
+const createAdditionalFieldForm = (): AdditionalField => ({
+    id: undefined,
+    name: '',
+    field_type: 'text',
+    options: [],
+    default_value: '',
+    description: '',
+    is_required: false,
+    status: true,
+});
+const additionalFieldDialogForm = ref<AdditionalField>(createAdditionalFieldForm());
 
 function openImageZoom() {
     if (!imagePreview.value) return;
@@ -225,6 +263,53 @@ async function fetchTaxes() {
     taxes.value = (data.data ?? []).filter((t: any) => t.status);
 }
 
+async function fetchAdditionalFields() {
+    try {
+        const { data } = await axios.get('/inventario/campos-adicionales/options');
+        const payload: any[] = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : [];
+        const names = payload
+            .map((field: any) => field?.name)
+            .filter((name: unknown): name is string => typeof name === 'string');
+        // Si el backend no devuelve campos, dejamos el arreglo vacío.
+        extraFieldNames.value = names;
+        additionalFieldOptions.value = payload.reduce((acc: Record<string, string[]>, field: any) => {
+            if (field?.name) {
+                acc[field.name] = Array.isArray(field.options)
+                    ? field.options.map((opt: any) => String(opt))
+                    : [];
+            }
+            return acc;
+        }, {} as Record<string, string[]>);
+    } catch (error) {
+        console.error('Error al cargar campos adicionales:', error);
+        // En caso de error no llenamos campos adicionales; el formulario los mostrará vacíos.
+        extraFieldNames.value = [];
+        additionalFieldOptions.value = {};
+    }
+}
+
+function openAdditionalFieldDialog() {
+    additionalFieldDialogForm.value = createAdditionalFieldForm();
+    additionalFieldDialogOpen.value = true;
+}
+
+function closeAdditionalFieldDialog() {
+    additionalFieldDialogOpen.value = false;
+}
+
+async function handleAdditionalFieldDialogSubmit(field: AdditionalField) {
+    additionalFieldDialogLoading.value = true;
+    try {
+        await axios.post('/inventario/campos-adicionales', field);
+        await fetchAdditionalFields();
+        additionalFieldDialogOpen.value = false;
+    } catch (error) {
+        console.error('Error creando campo adicional', error);
+    } finally {
+        additionalFieldDialogLoading.value = false;
+    }
+}
+
 function openTaxDialog() {
     taxForm.value = { name: '', percentage: 0, status: 'true' };
     isTaxDialogOpen.value = true;
@@ -247,7 +332,7 @@ async function handleTaxDialogSubmit(formData: any) {
 function fillExtraFields(obj: any) {
     extraFields.value = {};
     if (obj && typeof obj === 'object') {
-        for (const key of extraFieldNames) {
+        for (const key of extraFieldNames.value) {
             if (obj[key] !== undefined && obj[key] !== null && String(obj[key]).trim() !== '') {
                 extraFields.value[key] = String(obj[key]);
             }
@@ -274,6 +359,7 @@ onMounted(async () => {
         fetchCategoryGroups(),
         fetchColors(),
         fetchTaxes(),
+        fetchAdditionalFields(),
     ]);
     fillExtraFields(props.form.extra_fields);
     if (props.form.id) {
@@ -344,13 +430,8 @@ function updateWarehouseName(idx: number) {
 watch(
     () => props.form,
     (newVal) => {
-        localForm.value = {
-            ...newVal,
-            reference: newVal.reference || '',
-            tax: typeof newVal.tax === 'object' && newVal.tax !== null
-                ? newVal.tax
-                : null
-        };
+        localForm.value = prepareLocalForm(newVal);
+        unitMeasure.value = getInitialUnitMeasure(newVal);
         fillExtraFields(newVal.extra_fields);
         imageFile.value = null;
         updateNameField();
@@ -360,50 +441,23 @@ watch(
 );
 watch(
     () => props.form.id,
-    async (id) => {
-        // Cada vez que cambie el item seleccionado (al abrir el modal de editar/ver), recargamos sus bodegas
-        if (id) {
-            await fetchWarehouseStocks(Number(id));
-        } else {
-            warehouseStocks.value = [];
-        }
+    async () => {
+        // handled elsewhere on open; noop watcher removed
     },
     { immediate: true }
 );
-watch(
-    () => props.isOpen,
-    (val) => {
-        dialogOpen.value = val;
-        if (val) {
-            localForm.value = {
-                ...props.form,
-                reference: props.form.reference || '',
-            };
-            fillExtraFields(props.form.extra_fields);
-            imageFile.value = null;
-            resetErrors();
-            updateNameField();
-            syncGroupFromSubgroup();
-            if (props.form.id) {
-                void fetchWarehouseStocks(Number(props.form.id));
-            } else {
-                warehouseStocks.value = [];
-            }
-        }
-    },
-);
-
-watch(selectedGroupId, (groupId) => {
-    if (!groupId) {
-        localForm.value.category_sub_group_id = undefined;
+watch(currentItemType, (type, prevType) => {
+    if (type === 'service' && unitMeasure.value !== serviceUnitId) {
+        unitMeasure.value = serviceUnitId;
         return;
     }
-    const currentSubGroup = categorySubGroups.value.find(
-        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
-    );
-    if (!currentSubGroup || String(currentSubGroup.category_group_id ?? '') !== groupId) {
-        localForm.value.category_sub_group_id = undefined;
+    if (type === 'product' && prevType === 'service' && unitMeasure.value === serviceUnitId) {
+        unitMeasure.value = defaultProductUnitValue;
     }
+});
+
+watch(selectedGroupId, () => {
+    // mantenido para compatibilidad futura; la sincronización se hace en el watcher sobre category_sub_group_id
 });
 
 watch(
@@ -476,7 +530,7 @@ async function handleSubmit() {
     }
 
     const extraFieldsToSend: Record<string, string> = {};
-    extraFieldNames.forEach((key) => {
+    extraFieldNames.value.forEach((key) => {
         if (extraFields.value[key] && String(extraFields.value[key]).trim() !== '') {
             extraFieldsToSend[key] = String(extraFields.value[key]);
         }
@@ -505,6 +559,7 @@ async function handleSubmit() {
         extra_fields: Object.keys(orderedExtraFields).length ? JSON.stringify(orderedExtraFields) : null,
         name: nameField.value,
         unit_measure: unitMeasure.value,
+        item_type: normalizeItemType(localForm.value.item_type),
         status: typeof localForm.value.status === 'boolean'
             ? (localForm.value.status ? 1 : 0)
             : (localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true ? 1 : 0),
@@ -570,6 +625,11 @@ function handleColorSelection(colorId: string | number | null) {
     localForm.value.color_id = Number(colorId);
 }
 
+function handleItemTypeSelect(type: ItemType) {
+    if (isViewMode.value) return;
+    localForm.value.item_type = type;
+}
+
 function openCatalog(to: 'warehouse') {
     if (typeof window === 'undefined') return;
     const routes: Record<'warehouse', string> = {
@@ -582,10 +642,11 @@ function openCatalog(to: 'warehouse') {
 
 // Estado de apertura del diálogo
 const dialogOpen = ref(props.isOpen);
+
 watch(
     () => props.isOpen,
-    (val) => {
-        dialogOpen.value = val;
+    (value) => {
+        dialogOpen.value = value;
     },
 );
 
@@ -657,7 +718,7 @@ function updateNameField(orderedFields?: Record<string, string>): void {
     const extrasObj: Record<string, string> =
         orderedFields ??
         Object.fromEntries(
-            extraFieldNames
+            extraFieldNames.value
                 .filter((key) => key !== 'Color')
                 .filter((key) => extraFields.value[key] && String(extraFields.value[key]).trim() !== '')
                 .sort()
@@ -680,7 +741,7 @@ watch(imageFile, (file) => {
         if (typeof localForm.value.img === 'string' && localForm.value.img.trim() !== '') {
             imagePreview.value = `/storage/${localForm.value.img.replace(/^\/?storage\//, '')}`;
         } else {
-            imagePreview.value = null;
+            imagePreview.value = undefined;
         }
     }
 });
@@ -691,7 +752,7 @@ watch(
             if (typeof img === 'string' && img.trim() !== '') {
                 imagePreview.value = `/storage/${img.replace(/^\/?storage\//, '')}`;
             } else {
-                imagePreview.value = null;
+                imagePreview.value = undefined;
             }
         }
     },
@@ -702,7 +763,7 @@ watch(
     [
         () => localForm.value.category_sub_group_id,
         () => localForm.value.color_id,
-        () => extraFieldNames.map((key) => extraFields.value[key]).join('|'),
+        () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|'),
     ],
     () => updateNameField(),
     { immediate: true }
@@ -770,6 +831,35 @@ watch(
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
+                            <div>
+                                <template v-if="isViewMode">
+                                    <Label>Tipo de ítem</Label>
+                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                        {{ itemTypeLabelMap[currentItemType] }}
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <Label>Tipo de ítem</Label>
+                                    <div class="mt-2 grid grid-cols-2 gap-2">
+                                        <button
+                                            v-for="option in itemTypeOptions"
+                                            :key="option.value"
+                                            type="button"
+                                            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
+                                            :class="[
+                                                option.value === currentItemType
+                                                    ? 'border-blue-500 bg-blue-500 text-white shadow'
+                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
+                                            ]"
+                                            :aria-pressed="option.value === currentItemType"
+                                            :disabled="isViewMode"
+                                            @click="handleItemTypeSelect(option.value)"
+                                        >
+                                            {{ option.label }}
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
                             <div>
                                 <Label>Nombre</Label>
                                 <Input
@@ -1109,6 +1199,8 @@ watch(
                         :readonly="isViewMode"
                         :color-options="colorOptions"
                         @color-selected="handleColorSelection"
+                        @create-additional-field="openAdditionalFieldDialog"
+                        :field-options="additionalFieldOptions"
                     />
                 </fieldset>
 
@@ -1154,6 +1246,15 @@ watch(
         :loading="taxDialogLoading"
         @submit="handleTaxDialogSubmit"
         @cancel="isTaxDialogOpen = false"
+    />
+    <AdditionalFieldDialog
+        :open="additionalFieldDialogOpen"
+        dialogType="create"
+        :form="additionalFieldDialogForm"
+        :loading="additionalFieldDialogLoading"
+        @update:open="(value) => additionalFieldDialogOpen = value"
+        @submit="handleAdditionalFieldDialogSubmit"
+        @cancel="closeAdditionalFieldDialog"
     />
     <transition name="zoom">
         <div

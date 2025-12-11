@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { Contact, Option, PurchaseInvoice } from '@/types';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -46,6 +47,7 @@ const differenceDialogOpen = ref(false);
 const pendingDifferenceSendMail = ref<boolean | null>(null);
 const differenceReason = ref('');
 const differenceEvidenceData = ref<string | null>(null);
+const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -302,6 +304,10 @@ const stableStringify = (value: any): string => {
     return JSON.stringify(normalize(value));
 };
 
+function handleInvoiceAddLine() {
+    invoiceItemsTableRef.value?.addItem();
+}
+
 async function handleDifferenceDialogSave(payload: { reason: string; evidenceData: string }) {
     const trimmedReason = payload.reason.trim();
     differenceReason.value = trimmedReason;
@@ -416,7 +422,7 @@ function validateForm(): boolean {
         Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
-        errors.push('Cada item debe tener item, precio y cantidad.');
+        errors.push('Cada item debe tener item, Precio SIN Impuesto y cantidad.');
     }
 
     if (errors.length) {
@@ -468,7 +474,7 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-h-[95vh] overflow-y-auto sm:max-w-6xl lg:max-w-[82rem]">
+        <DialogContent class="max-w-[200vh] max-h-[90vh] overflow-y-auto">
             <DialogHeader class="relative">
                 <div class="flex flex-col gap-1">
                     <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
@@ -579,15 +585,19 @@ watch(dialogOpen, (isOpen) => {
                     <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
                     <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
                 </div>
-                <div>
+                <InventoryDetailTableLayout
+                    @create-line="handleInvoiceAddLine"
+                    :createLineButtonDisabled="isReadOnly"
+                >
                     <PurchaseInvoiceItemsTable
+                        ref="invoiceItemsTableRef"
                         :items="localForm.items || []"
                         :isCreating="dialogType === 'create'"
                         :isReadOnly="isReadOnly"
                         :telaMode="false"
                         @update:items="(items) => (localForm.items = items)"
                     />
-                </div>
+                </InventoryDetailTableLayout>
                 <div class="space-y-4 pt-6">
                     <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
                         <PurchaseInvoiceWithholdingsTable

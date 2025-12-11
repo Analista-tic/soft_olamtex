@@ -67,6 +67,17 @@ class AdditionalFieldController extends Controller
         return response()->json($additionalFields);
     }
 
+    public function options()
+    {
+        $fields = AdditionalField::where('status', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'field_type', 'options', 'default_value', 'description', 'is_required']);
+
+        return response()->json([
+            'data' => $fields,
+        ]);
+    }
+
     private function validateData(Request $request): array
     {
         $data = $request->validate([

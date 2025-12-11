@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { Contact, Option, PurchaseInvoice } from '@/types';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -40,6 +41,7 @@ const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const originalFormSnapshot = ref<string>('');
+const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -301,6 +303,10 @@ const stableStringify = (value: any): string => {
     return JSON.stringify(normalize(value));
 };
 
+function handleInvoiceAddLine() {
+    invoiceItemsTableRef.value?.addItem();
+}
+
 async function handleSubmit(sendMail = false) {
     if (isReadOnly.value) return;
     successMessage.value = '';
@@ -386,14 +392,14 @@ function validateForm(): boolean {
         Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
-        errors.push('Cada item debe tener item, precio y cantidad.');
+        errors.push('Cada item debe tener item, Precio SIN Impuesto y cantidad.');
     }
 
     // En el diálogo de telas, además validar campos específicos por ítem
     const itemsMissingFabricFields: Array<{ idx: number; missing: string[] }> = [];
     items.forEach((it, idx) => {
         const missing: string[] = [];
-        // Solo validar si el item, precio y cantidad están presentes (o bien validar siempre para asegurar)
+        // Solo validar si el item, Precio SIN Impuesto y cantidad están presentes (o bien validar siempre para asegurar)
         if (!it.supplier_code || String(it.supplier_code).trim() === '') missing.push('Código proveedor');
         if (!it.supplier_color || String(it.supplier_color).trim() === '') missing.push('Color proveedor');
         if (!it.order_width || String(it.order_width).trim() === '') missing.push('Ancho pedido');
@@ -453,7 +459,7 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-h-[95vh] overflow-y-auto sm:max-w-6xl lg:max-w-[82rem]">
+        <DialogContent class="max-w-[200vh] max-h-[90vh] overflow-y-auto">
             <DialogHeader class="relative">
                 <div class="flex flex-col gap-1">
                     <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
@@ -567,15 +573,19 @@ watch(dialogOpen, (isOpen) => {
                         <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
                         <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
                     </div>
-                    <div>
+                    <InventoryDetailTableLayout
+                        @create-line="handleInvoiceAddLine"
+                        :createLineButtonDisabled="isReadOnly"
+                    >
                         <PurchaseInvoiceItemsTable
+                            ref="invoiceItemsTableRef"
                             :items="localForm.items || []"
                             :isCreating="dialogType === 'create'"
                             :isReadOnly="isReadOnly"
                             :telaMode="true"
                             @update:items="(items) => (localForm.items = items)"
                         />
-                    </div>
+                    </InventoryDetailTableLayout>
                     <div class="space-y-4 pt-6">
                         <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
                             <PurchaseInvoiceWithholdingsTable

@@ -28,8 +28,10 @@ class AdditionalField extends Model
     public const FIELD_TYPES = [
         'text',
         'number',
-        'select',
+        'decimal',
         'textarea',
         'date',
+        'boolean',
+        'select',
     ];
 }

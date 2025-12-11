@@ -24,15 +24,15 @@ watch(dialogOpen, (val) => {
 
 const { company, logoUrl } = useCompanyInfo();
 
-// Subtotal: suma de (precio * cantidad) de cada ítem
+// Subtotal: suma de (Precio SIN Impuesto * cantidad) de cada ítem
 const subtotal = computed(() =>
     (props.order?.items || []).reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity) || 0), 0)
 );
-// IVA total: suma de ((precio * cantidad) * (tax/100)) de cada ítem
+// IVA total: suma de ((Precio SIN Impuesto * cantidad) * (tax/100)) de cada ítem
 const iva = computed(() =>
     (props.order?.items || []).reduce((acc, item) => acc + ((Number(item.price) * Number(item.quantity) * (Number(item.tax) || 0)) / 100), 0)
 );
-// Total: suma de (precio * cantidad + IVA) de cada ítem, o simplemente subtotal + iva
+// Total: suma de (Precio SIN Impuesto * cantidad + IVA) de cada ítem, o simplemente subtotal + iva
 const total = computed(() => subtotal.value + iva.value);
 
 function print() {
@@ -115,7 +115,7 @@ function print() {
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Item</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Descripción</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Cantidad</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">Precio unitario</th>
+                                    <th class="border px-2 py-1 print:border print:border-gray-300">Precio SIN Impuesto unitario</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">IVA</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Total</th>
                                 </tr>

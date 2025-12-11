@@ -22,9 +22,16 @@ class AdditionalFieldsSeeder extends Seeder
         ];
 
         $fields = [
-            ['name' => 'Base tela', 'field_type' => 'select'],
-            ['name' => 'Base hilaza', 'field_type' => 'select'],
-            ['name' => 'Campo adicional', 'field_type' => 'text'],
+            [   
+                'name' => 'Base tela', 
+                'field_type' => 'select', 
+                'options' => ['Algodón', 'Poliéster', 'Lino', 'Seda', 'Lana']
+            ],
+            [
+                'name' => 'Base hilaza', 
+                'field_type' => 'select', 
+                'options' => ['Nylon', 'Rayón', 'Acrílico', 'Polipropileno', 'Algodón'],
+            ],
             ['name' => 'Color', 'field_type' => 'select'],
             ['name' => 'Marca', 'field_type' => 'select'],
             ['name' => 'Mundo', 'field_type' => 'select'],
@@ -43,7 +50,6 @@ class AdditionalFieldsSeeder extends Seeder
                 'field_type' => 'select',
                 'options' => ['XS', 'S', 'M', 'L', 'XL', 'XXL', '34', '35', '36', '37', '38', '39', '40', '41', '42', '43', '44', '45'],
             ],
-            ['name' => 'Medida', 'field_type' => 'text'],
         ];
 
         foreach ($fields as $field) {
@@ -54,3 +60,4 @@ class AdditionalFieldsSeeder extends Seeder
         }
     }
 }
+

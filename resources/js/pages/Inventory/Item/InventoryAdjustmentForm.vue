@@ -5,11 +5,11 @@ import SelectField from '@/components/SelectField.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus } from 'lucide-vue-next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import type { Item, Warehouse } from '@/types';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
@@ -347,7 +347,7 @@ async function handleSubmit() {
         requiredErrors.push('Cantidad');
       }
       if (line.price === null || line.price === undefined || line.price < 0) {
-        requiredErrors.push('Precio');
+        requiredErrors.push('Precio SIN Impuesto');
       }
       const trimmedDescription = (line.description ?? '').trim();
       if (!trimmedDescription) {
@@ -443,7 +443,7 @@ async function handleSubmit() {
 
 <template>
   <Dialog :open="isOpen" @update:open="emit('close')">
-    <DialogContent class="max-w-[167vh] max-h-[90vh] overflow-y-auto">
+    <DialogContent class="max-w-[200vh] max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{{ props.dialogType === 'edit' ? 'Editar ajuste de inventario' : 'Nuevo ajuste de inventario' }}</DialogTitle>
         <DialogDescription>
@@ -550,124 +550,117 @@ async function handleSubmit() {
             />
           </div>
 
-          <div class="mt-6">
-            <div class="mb-2 flex items-center justify-between">
-              <span class="text-sm font-semibold">Detalle de inventario</span>
-              <Button type="button" variant="outline" size="sm" class="flex items-center gap-1" @click="addLine">
-                <Plus class="h-4 w-4" />
-                Crear linea
-              </Button>
-            </div>
+          <InventoryDetailTableLayout @create-line="addLine">
+            <Table
+              class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed"
+              style="overflow: visible; max-height: none;"
+            >
+              <TableHeader>
+              <TableRow class="text-center border-b border-border/60">
+                  <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
+                  <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
+                  <TableHead class="min-w-[160px] text-left">
+                    Descripcion <span class="text-destructive">*</span>
+                  </TableHead>
+                  <TableHead class="min-w-[120px]">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
+                  <TableHead class="min-w-[140px]">Impuesto</TableHead>
+                  <TableHead class="min-w-[110px]">Cantidad <span class="text-destructive">*</span></TableHead>
+                  <TableHead class="min-w-[90px]">Total</TableHead>
+                  <TableHead class="w-[60px]"></TableHead>
+                </TableRow>
+              </TableHeader>
 
-            <div class="overflow-x-auto rounded-lg border" style="overflow: visible; max-height: none;">
-              <Table class="min-w-full text-center" style="overflow: visible; max-height: none;">
-                <TableHeader>
-                  <TableRow class="text-center">
-                    <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[160px] text-left">
-                      Descripcion <span class="text-destructive">*</span>
-                    </TableHead>
-                    <TableHead class="min-w-[120px]">Precio <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[140px]">Impuesto</TableHead>
-                    <TableHead class="min-w-[110px]">Cantidad <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[90px]">Total</TableHead>
-                    <TableHead class="w-[60px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
+              <TableBody>
+                <TableRow v-for="(line, idx) in lines" :key="line.id">
+                  <TableCell class="p-1 text-left">
+                    <SelectField
+                      v-model="line.itemId"
+                      :options="itemSelectOptions"
+                      label=""
+                      :searchable=true
+                      placeholder="Selecciona"
+                      class="w-full"
+                    />
+                  </TableCell>
 
-                <TableBody>
-                  <TableRow v-for="(line, idx) in lines" :key="line.id">
-                    <TableCell class="p-1 text-left">
-                      <SelectField
-                        v-model="line.itemId"
-                        :options="itemSelectOptions"
-                        label=""
-                        :searchable=true
-                        placeholder="Selecciona"
-                        class="w-full"
-                      />
-                    </TableCell>
+                  <TableCell class="p-1 text-left">
+                    <SelectField
+                      v-model="line.movementReason"
+                      :options="adjustmentTypeOptions"
+                      label=""
+                      placeholder="Selecciona"
+                      class="w-full"
+                    />
+                  </TableCell>
 
-                    <TableCell class="p-1 text-left">
-                      <SelectField
-                        v-model="line.movementReason"
-                        :options="adjustmentTypeOptions"
-                        label=""
-                        placeholder="Selecciona"
-                        class="w-full"
-                      />
-                    </TableCell>
+                  <TableCell class="p-1">
+                    <Input
+                      v-model="line.description"
+                      placeholder="Descripcion"
+                      required
+                      class="h-10 w-full"
+                    />
+                  </TableCell>
 
-                    <TableCell class="p-1">
-                      <Input
-                        v-model="line.description"
-                        placeholder="Descripcion"
-                        required
-                        class="h-10 w-full"
-                      />
-                    </TableCell>
+                  <TableCell class="p-1">
+                    <Input
+                      v-model.number="line.price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      class="h-10 w-full"
+                    />
+                  </TableCell>
 
-                    <TableCell class="p-1">
-                      <Input
-                        v-model.number="line.price"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        class="h-10 w-full"
-                      />
-                    </TableCell>
+                  <TableCell class="p-1">
+                    <SelectField
+                      v-model="line.taxId"
+                      :options="taxSelectOptions"
+                      label=""
+                      placeholder="Selecciona"
+                      class="w-full"
+                      @update:modelValue="val => {
+                        const selected = taxes.find(t => String(t.id) === String(val));
+                        line.taxId = selected ? selected.id : null;
+                        line.tax = selected ? Number(selected.percentage) : 0;
+                      }"
+                    />
+                  </TableCell>
 
-                    <TableCell class="p-1">
-                      <SelectField
-                        v-model="line.taxId"
-                        :options="taxSelectOptions"
-                        label=""
-                        placeholder="Selecciona"
-                        class="w-full"
-                        @update:modelValue="val => {
-                          const selected = taxes.find(t => String(t.id) === String(val));
-                          line.taxId = selected ? selected.id : null;
-                          line.tax = selected ? Number(selected.percentage) : 0;
-                        }"
-                      />
-                    </TableCell>
+                  <TableCell class="p-1">
+                    <Input
+                      v-model.number="line.quantity"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="0"
+                      class="h-10 w-full"
+                    />
+                  </TableCell>
 
-                    <TableCell class="p-1">
-                      <Input
-                        v-model.number="line.quantity"
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="0"
-                        class="h-10 w-full"
-                      />
-                    </TableCell>
+                  <TableCell class="p-1">
+                    {{ formatCurrency(lineTotal(line)) }}
+                  </TableCell>
 
-                    <TableCell class="p-1">
-                      {{ formatCurrency(lineTotal(line)) }}
-                    </TableCell>
+                  <TableCell class="p-1 text-center">
+                    <DeleteButton
+                      v-if="lines.length > 1 && idx > 0"
+                      class="mx-auto"
+                      title="Eliminar"
+                      @click="removeLine(line.id)"
+                    />
+                  </TableCell>
+                </TableRow>
 
-                    <TableCell class="p-1 text-center">
-                      <DeleteButton
-                        v-if="lines.length > 1 && idx > 0"
-                        class="mx-auto"
-                        title="Eliminar"
-                        @click="removeLine(line.id)"
-                      />
-                    </TableCell>
-                  </TableRow>
-
-                  <TableRow v-if="lines.length === 0">
-                    <TableCell colspan="8" class="text-center text-gray-400">
-                      No hay lineas agregadas.
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-          </div>
+                <TableRow v-if="lines.length === 0">
+                  <TableCell colspan="8" class="text-center text-gray-400">
+                    No hay lineas agregadas.
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </InventoryDetailTableLayout>
 
           <div class="mt-4 flex flex-col items-end gap-1 text-sm">
             <div>Subtotal: <span class="font-semibold">{{ formatCurrency(subtotal) }}</span></div>
