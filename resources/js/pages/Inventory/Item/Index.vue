@@ -57,7 +57,6 @@ function openDialog(type: 'create' | 'edit', item: Item | null = null) {
         : {
               warehouse_id: undefined,
               category_sub_group_id: undefined,
-              color_id: undefined,
               img: '',
               stock_min: 0,
               stock_max: 0,
@@ -284,7 +283,6 @@ function exportItemsExcel() {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
-
 
 
 

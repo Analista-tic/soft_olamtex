@@ -3,7 +3,6 @@
 namespace App\Models\Inventory;
 
 use App\Models\Common\CategorySubGroup;
-use App\Models\Common\Color;
 use App\Models\Common\Tax;
 use App\Models\Common\Warehouse;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +12,6 @@ class Item extends Model
 {
     protected $fillable = [
         'category_sub_group_id',
-        'color_id',
         'tax_id', // Nuevo campo
         'img',
         'bar_code',
@@ -82,11 +80,6 @@ class Item extends Model
     public function categorySubGroup()
     {
         return $this->belongsTo(CategorySubGroup::class, 'category_sub_group_id');
-    }
-
-    public function color()
-    {
-        return $this->belongsTo(Color::class);
     }
 
     public function tax()

@@ -145,13 +145,20 @@ function removeItem(idx: number) {
     emit('update:items', localItems.value);
 }
 
+const currencyDecimals = 2;
+
+function roundCurrency(value: number) {
+    const factor = Math.pow(10, currencyDecimals);
+    return Math.round(value * factor) / factor;
+}
+
 function calcTotals(item: PurchaseOrderItem) {
     const price = Number(item.price) || 0;
     const quantity = Number(item.quantity) || 0;
     const tax = Number(item.tax) || 0;
 
-    item.total = Math.round(price * quantity);
-    item.total_tax = Math.round(price * (tax / 100) * quantity);
+    item.total = roundCurrency(price * quantity);
+    item.total_tax = roundCurrency(price * (tax / 100) * quantity);
 }
 
 function setTaxFromItem(item: PurchaseOrderItem) {
@@ -225,8 +232,8 @@ defineExpose({ addItem });
                         <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
                         <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[160px] text-left">Descripci?n</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">C?digo proveedor</TableHead>
+                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Código proveedor</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Color proveedor</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Ancho pedido</TableHead>
                         <TableHead class="min-w-[90px] text-left">Total</TableHead>
@@ -258,7 +265,15 @@ defineExpose({ addItem });
                             </SelectField>
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 120px;">
-                            <InputField v-model="item.price" type="currency" label="" class="h-10 w-full" @input="calcTotals(item)" />
+                            <InputField
+                                v-model="item.price"
+                                type="currency"
+                                label=""
+                                :decimals="2"
+                                :min="0"
+                                class="h-10 w-full"
+                                @input="calcTotals(item)"
+                            />
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 160px;">
                             <SelectField
@@ -343,4 +358,3 @@ defineExpose({ addItem });
         />
     </div>
 </template>
-

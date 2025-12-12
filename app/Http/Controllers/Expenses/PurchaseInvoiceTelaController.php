@@ -31,7 +31,6 @@ class PurchaseInvoiceTelaController extends Controller
                 'purchaseOrder',
                 'items.item.warehouses',
                 'items.item.categorySubGroup.categoryGroup',
-                'items.item.color',
                 'items.item.tax'
             ])->findOrFail($purchaseInvoice);
 
@@ -124,7 +123,6 @@ class PurchaseInvoiceTelaController extends Controller
             'purchaseOrder',
             'items.item.warehouses',
             'items.item.categorySubGroup.categoryGroup',
-            'items.item.color',
             'items.item.tax'
         ])
         ->where('is_fabric', true);

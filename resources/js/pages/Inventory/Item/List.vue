@@ -92,7 +92,6 @@ function closeDialog() {
                             <TableHead>Nombre</TableHead>
                             <TableHead>Referencia</TableHead>
                             <TableHead>Subgrupo</TableHead>
-                            <TableHead>Color</TableHead>
                             <TableHead>Impuesto</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
@@ -104,7 +103,6 @@ function closeDialog() {
                             <TableCell>{{ item.name }}</TableCell>
                             <TableCell>{{ item.reference }}</TableCell>
                             <TableCell>{{ item.category_sub_group?.name }}</TableCell>
-                            <TableCell>{{ item.color?.name }}</TableCell>
                             <TableCell>
                                 <span v-if="item.tax">{{ item.tax.percentage }}%</span>
                                 <span v-else>-</span>
@@ -117,7 +115,7 @@ function closeDialog() {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="items.length === 0">
-                            <TableCell :colspan="8" class="text-center text-gray-400">No hay ítems encontrados.</TableCell>
+                            <TableCell :colspan="7" class="text-center text-gray-400">No hay ítems encontrados.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
@@ -150,8 +148,6 @@ function closeDialog() {
         <ItemDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="fetchItems(currentPage, searchQuery)" />
     </AppLayout>
 </template>
-
-
 
 
 

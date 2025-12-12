@@ -7,6 +7,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import SwitchField from '@/components/SwitchField.vue';
 import { Button } from '@/components/ui/button';
 import type { AdditionalField, AdditionalFieldType } from '@/types';
+import { Trash, Plus } from 'lucide-vue-next';
 
 type AdditionalFieldForm = Omit<AdditionalField, 'default_value'> & {
     default_value: string;
@@ -50,7 +51,7 @@ const localForm = ref<AdditionalFieldForm>({
     ...(props.form ?? {} as Partial<AdditionalFieldForm>),
     default_value: String((props.form as Partial<AdditionalField>)?.default_value ?? ''),
 });
-const optionsRaw = ref('');
+const localOptions = ref<string[]>([]);
 
 const isSelectField = computed(() => localForm.value.field_type === 'select');
 
@@ -64,10 +65,41 @@ watch(
             default_value: value?.default_value ?? '',
         };
         const optionsFromProps = Array.isArray(value?.options) ? (value?.options ?? []) : [];
-        optionsRaw.value = optionsFromProps.join('\n');
+        localOptions.value = optionsFromProps.length ? optionsFromProps : [];
     },
     { immediate: true },
 );
+
+watch(
+    () => localForm.value.field_type,
+    (value) => {
+        if (value === 'select') {
+            if (localOptions.value.length === 0) {
+                localOptions.value = [''];
+            }
+        } else {
+            localOptions.value = [];
+        }
+    },
+    { immediate: true },
+);
+
+function addOptionAfter(index?: number) {
+    const options = [...localOptions.value];
+    const insertionIndex = index !== undefined ? index + 1 : options.length;
+    options.splice(insertionIndex, 0, '');
+    localOptions.value = options;
+}
+
+function removeOption(index: number) {
+    if (localOptions.value.length <= 1) {
+        localOptions.value = [''];
+        return;
+    }
+    const options = [...localOptions.value];
+    options.splice(index, 1);
+    localOptions.value = options;
+}
 
 function handleClose() {
     emit('update:open', false);
@@ -76,8 +108,7 @@ function handleClose() {
 
 function handleSubmit() {
     const preparedOptions = isSelectField.value
-        ? optionsRaw.value
-            .split(/\r?\n/)
+        ? localOptions.value
             .map((value) => value.trim())
             .filter((value) => value)
         : [];
@@ -91,7 +122,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent class="space-y-4">
+        <DialogContent class="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
             <DialogHeader>
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional' }}
@@ -119,13 +150,43 @@ function handleSubmit() {
                 :rows="3"
                 v-model="localForm.description"
             />
-            <TextareaField
-                v-if="isSelectField"
-                v-model="optionsRaw"
-                label="Opciones (una por linea)"
-                placeholder="Escribe cada opcion en una linea nueva"
-                :rows="4"
-            />
+            <div v-if="isSelectField" class="space-y-2">
+                <label class="text-sm font-medium text-slate-600">Opciones</label>
+                <div class="space-y-2">
+                    <div
+                        v-for="(option, index) in localOptions"
+                        :key="index"
+                        class="relative"
+                    >
+                        <InputField
+                            v-model="localOptions[index]"
+                            placeholder="Opción"
+                            class="w-full pr-10"
+                            @keydown.enter.prevent="addOptionAfter(index)"
+                    />
+                        <button
+                            v-if="index > 0 || (index === 0 && localOptions.length > 1)"
+                            type="button"
+                            class="absolute inset-y-0 right-0 flex items-center px-2 text-slate-500 hover:text-slate-700"
+                            @click="removeOption(index)"
+                            aria-label="Eliminar opción"
+                        >
+                            <Trash class="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Presione ENTER para agregar opciones</span>
+                    <button
+                        type="button"
+                        class="flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs text-primary hover:bg-primary/10"
+                        @click="addOptionAfter()"
+                    >
+                        <Plus class="h-3.5 w-3.5" />
+                        Nueva opción
+                    </button>
+                </div>
+            </div>
             <div class="grid grid-cols-2 gap-4">
                 <SwitchField v-model="localForm.is_required" label="Obligatorio" />
                 <SwitchField v-model="localForm.status" label="Activo" />

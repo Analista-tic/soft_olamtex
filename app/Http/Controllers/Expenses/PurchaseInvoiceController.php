@@ -32,7 +32,6 @@ class PurchaseInvoiceController extends Controller
                 'purchaseOrder',
                 'items.item.warehouses',
                 'items.item.categorySubGroup.categoryGroup',
-                'items.item.color',
                 'items.item.tax'
             ])->findOrFail($purchaseInvoice);
 
@@ -127,7 +126,6 @@ class PurchaseInvoiceController extends Controller
             'purchaseOrder',
             'items.item.warehouses',
             'items.item.categorySubGroup.categoryGroup',
-            'items.item.color',
             'items.item.tax'
         ])
         ->where('is_fabric', false);

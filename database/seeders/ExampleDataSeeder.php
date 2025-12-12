@@ -32,7 +32,7 @@ class ExampleDataSeeder extends Seeder
         ]);
 
         // Insertar color de ejemplo si no existe
-        $colorId = DB::table('colors')->insertGetId([
+        DB::table('colors')->insert([
             'name' => 'Rojo',
             'rgb_value' => '255,0,0',
             'created_at' => now(),
@@ -111,7 +111,6 @@ class ExampleDataSeeder extends Seeder
         // Insertar artículo de ejemplo (ajustado a los campos reales)
         $itemId = DB::table('items')->insertGetId([
             'category_sub_group_id' => $categorySubGroupId,
-            'color_id' => $colorId,
             'tax_id' => $tax19Id, // Relación con tabla taxes
             'name' => 'Artículo de prueba',
             'reference' => 'ART-001',

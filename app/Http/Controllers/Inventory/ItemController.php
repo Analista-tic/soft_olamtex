@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Inventory\Item;
 use App\Models\ProductSheet\Brand;
 use App\Models\ProductSheet\FabricBase;
-use App\Models\ProductSheet\Group;
-use App\Models\ProductSheet\Section;
 use App\Models\ProductSheet\World;
 use App\Models\ProductSheet\YarnBase;
 use App\Models\Expenses\PurchaseOrderItem;
@@ -15,15 +13,12 @@ use App\Models\Expenses\PurchaseInvoiceItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use App\Models\Common\Warehouse;
 use App\Models\Common\CategorySubGroup;
-use App\Models\Common\Color;
 use Illuminate\Support\Facades\Log;
 
 class ItemController extends Controller
@@ -31,13 +26,13 @@ class ItemController extends Controller
     public function index()
     {
         return Inertia::render('Inventory/Item/Index', [
-            'articles' => Item::with(['warehouses', 'categorySubGroup', 'color', 'tax'])->get(),
+            'articles' => Item::with(['warehouses', 'categorySubGroup', 'tax'])->get(),
         ]);
     }
 
     public function show($id)
     {
-        return Item::with(['categorySubGroup', 'color', 'tax'])->findOrFail($id);
+        return Item::with(['categorySubGroup', 'tax'])->findOrFail($id);
     }
 
     public function store(Request $request)
@@ -45,7 +40,6 @@ class ItemController extends Controller
         try {
             $data = $request->validate([
                 'category_sub_group_id' => 'required|integer',
-                'color_id' => 'nullable|integer',
                 'img' => 'nullable|string',
                 'tax_id' => 'nullable|integer',
                 'tax' => 'required|numeric',
@@ -86,11 +80,8 @@ class ItemController extends Controller
         $data['negative_movement'] = filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
 
         $subGroupName = optional(CategorySubGroup::find($data['category_sub_group_id']))->name ?? '';
-        $colorName = '';
-        if (!empty($data['color_id'])) {
-            $colorName = optional(Color::find($data['color_id']))->name ?? '';
-        }
-        $extrasString = implode(' ', array_filter(array_map('trim', array_values($extraFields))));
+        $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
+        $colorName = $this->extractColorNameFromExtraFields($extraFields);
         $data['name'] = trim("$subGroupName $extrasString $colorName");
 
         if (!isset($data['status'])) {
@@ -140,7 +131,6 @@ class ItemController extends Controller
         try {
             $data = $request->validate([
                 'category_sub_group_id' => 'sometimes|integer',
-                'color_id' => 'sometimes|nullable|integer',
                 'img' => 'nullable|string',
                 'tax_id' => 'nullable|integer', 
                 'tax' => 'sometimes|numeric',
@@ -185,13 +175,9 @@ class ItemController extends Controller
         }
 
         $subGroupId = $data['category_sub_group_id'] ?? $article->category_sub_group_id;
-        $colorId = $data['color_id'] ?? $article->color_id;
         $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
-        $colorName = '';
-        if (!empty($colorId)) {
-            $colorName = optional(Color::find($colorId))->name ?? '';
-        }
-        $extrasString = implode(' ', array_filter(array_map('trim', array_values($extraFields))));
+        $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
+        $colorName = $this->extractColorNameFromExtraFields($extraFields);
         $data['name'] = trim("$subGroupName $extrasString $colorName");
 
         $article->update($data);
@@ -281,7 +267,7 @@ class ItemController extends Controller
 
     public function getData(Request $request)
     {
-        $query = Item::with(['categorySubGroup', 'color', 'tax', 'warehouses']);
+        $query = Item::with(['categorySubGroup', 'tax', 'warehouses']);
 
         if ($request->has('search') && trim($request->search) !== '') {
             $search = $request->search;
@@ -293,51 +279,6 @@ class ItemController extends Controller
                     // })
                     ->orWhereHas('categorySubGroup', function ($sg) use ($search) {
                         $sg->where('name', 'like', "%$search%");
-                    })
-                    ->orWhereHas('color', function ($c) use ($search) {
-                        $c->where('name', 'like', "%$search%");
-                    });
-            });
-        }
-
-        if ($request->has('status') && $request->status !== '') {
-            $query->where('status', (bool) $request->status);
-        }
-
-        $perPage = $request->input('per_page', 10);
-        $articles = $query->paginate($perPage);
-
-        return response()->json($articles);
-    }
-
-    public function uploadImage(Request $request)
-    {
-        $request->validate([
-            'image' => 'required|image|max:2048'
-        ]);
-        $path = $request->file('image')->store('articles', 'public');
-        return response()->json([
-            'url' => Storage::url($path)
-        ]);
-    }
-
-    public function apiIndex(Request $request)
-    {
-        $query = Item::with(['categorySubGroup', 'color', 'tax', 'warehouses']);
-
-        if ($request->has('search') && trim($request->search) !== '') {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('description', 'like', "%$search%")
-                    ->orWhere('bar_code', 'like', "%$search%")
-                    // ->orWhereHas('warehouse', function ($w) use ($search) {
-                    //     $w->where('name', 'like', "%$search%");
-                    // })
-                    ->orWhereHas('categorySubGroup', function ($sg) use ($search) {
-                        $sg->where('name', 'like', "%$search%");
-                    })
-                    ->orWhereHas('color', function ($c) use ($search) {
-                        $c->where('name', 'like', "%$search%");
                     });
             });
         }
@@ -381,14 +322,14 @@ class ItemController extends Controller
             'Líneas',
             'Tipo puntera',
             'Talla',
-            'Medida'
+            'Medida',
         ];
 
         // Encabezados en español y mayúsculas
         $headers = [
             'SUBGRUPO',
             'COLOR',
-            'IMPUesta (%)',
+            'IMPUESTO (%)',
             'CÓDIGO DE BARRAS',
             'DESCRIPCIÓN',
             'BASE TELA',
@@ -464,16 +405,6 @@ class ItemController extends Controller
         }
         $rowS = count($subGroups) + 1;
 
-        // Hoja: Colores
-        $colors = Color::select('id', 'name')->get()->toArray();
-        $colorSheet = $spreadsheet->createSheet();
-        $colorSheet->setTitle('Colores');
-        $colorSheet->fromArray(['ID', 'Nombre'], null, 'A1');
-        if (!empty($colors)) {
-            $colorSheet->fromArray($colors, null, 'A2');
-        }
-        $rowC = count($colors) + 1;
-
         // Hoja: Unidades de medida
         $unitMeasures = [
             'cm',
@@ -519,7 +450,6 @@ class ItemController extends Controller
         // Validaciones desplegables por nombre
         $mainSheet = $spreadsheet->setActiveSheetIndex(0);
         $subGroupLastRow = $rowS;
-        $colorLastRow = $rowC;
         $unitLastRow = $rowU;
 
         $maxValidationRow = 1000;
@@ -536,21 +466,6 @@ class ItemController extends Controller
                 ->setFormula1("'Subgrupos'!B2:B{$subGroupLastRow}");
             for ($row = 2; $row <= $maxValidationRow; $row++) {
                 $mainSheet->getCell('A' . $row)->setDataValidation(clone $validationSubGroup);
-            }
-        }
-
-        // Validacion para color
-        if ($colorLastRow >= 2) {
-            $validationColor = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
-            $validationColor->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
-                ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
-                ->setAllowBlank(false)
-                ->setShowInputMessage(true)
-                ->setShowErrorMessage(true)
-                ->setShowDropDown(true)
-                ->setFormula1("'Colores'!B2:B{$colorLastRow}");
-            for ($row = 2; $row <= $maxValidationRow; $row++) {
-                $mainSheet->getCell('B' . $row)->setDataValidation(clone $validationColor);
             }
         }
 
@@ -629,130 +544,6 @@ class ItemController extends Controller
         ]);
     }
 
-    public function generateAndSaveTemplate($withResponse = true)
-    {
-        Log::info('Generando plantilla de items');
-
-        $spreadsheet = new Spreadsheet();
-
-        // Hoja principal: items
-        $mainSheet = $spreadsheet->getActiveSheet();
-        $mainSheet->setTitle('items');
-        // Encabezados correctos para la carga masiva
-        $mainSheet->fromArray([
-            [
-                'category_sub_group_id',
-                'color_id',
-                'img',
-                'tax', // Cambiado de 'impuesta' a 'tax'
-                'bar_code',
-                'negative_movement',
-                'description',
-                'extra_fields',
-                'name',
-                'reference',
-                'status'
-            ],
-            [
-                '1', // category_sub_group_id
-                '1', // color_id
-                '',  // img
-                '19', // tax
-                '1234567890123', // bar_code
-                '1', // negative_movement
-                'Ejemplo de item', // description
-                '{"talla":"M","material":"algodón"}', // extra_fields
-                'Nombre generado', // name
-                'REF001', // reference
-                '1' // status
-            ]
-        ], '', 'A1'); // Cambiado null por ''
-
-        // Hoja: Bodegas
-        $warehouseSheet = $spreadsheet->createSheet();
-        $warehouseSheet->setTitle('Bodegas');
-        $warehouses = Warehouse::select('id', 'name')->get();
-        $warehouseSheet->fromArray(['ID', 'Nombre'], null, 'A1');
-        $row = 2;
-        foreach ($warehouses as $warehouse) {
-            $warehouseSheet->setCellValue("A$row", $warehouse->id);
-            $warehouseSheet->setCellValue("B$row", $warehouse->name);
-            $row++;
-        }
-
-        // Hoja: Subgrupos
-        $subGroupSheet = $spreadsheet->createSheet();
-        $subGroupSheet->setTitle('Subgrupos');
-        $subGroups = CategorySubGroup::select('id', 'name')->get();
-        $subGroupSheet->fromArray(['ID', 'Nombre'], null, 'A1');
-        $row = 2;
-        foreach ($subGroups as $sg) {
-            $subGroupSheet->setCellValue("A$row", $sg->id);
-            $subGroupSheet->setCellValue("B$row", $sg->name);
-            $row++;
-        }
-
-        // Hoja: Colores
-        $colorSheet = $spreadsheet->createSheet();
-        $colorSheet->setTitle('Colores');
-        $colors = Color::select('id', 'name')->get();
-        $colorSheet->fromArray(['ID', 'Nombre'], null, 'A1');
-        $row = 2;
-        foreach ($colors as $color) {
-            $colorSheet->setCellValue("A$row", $color->id);
-            $colorSheet->setCellValue("B$row", $color->name);
-            $row++;
-        }
-
-        $spreadsheet->setActiveSheetIndex(0);
-
-        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
-        $fileName = 'plantilla_items.xlsx';
-        $path = storage_path('app/public/' . $fileName);
-
-        // Asegurarse que el directorio existe
-        if (!file_exists(dirname($path))) {
-            if (!mkdir(dirname($path), 0755, true)) {
-                Log::error('No se pudo crear el directorio para la plantilla', ['path' => dirname($path)]);
-                throw new \Exception("No se pudo crear el directorio para guardar la plantilla.");
-            }
-        }
-
-        // Esperar si el archivo está siendo usado por otro proceso (máximo 5 intentos)
-        $maxAttempts = 5;
-        $attempt = 0;
-        $waitMs = 200;
-        while (file_exists($path) && !is_writable($path) && $attempt < $maxAttempts) {
-            usleep($waitMs * 1000); // Espera en microsegundos
-            $attempt++;
-        }
-
-        try {
-            $writer->save($path);
-            Log::info('Plantilla guardada exitosamente', ['path' => $path, 'size' => filesize($path)]);
-
-            if ($withResponse) {
-                return response()->json([
-                    'message' => 'Plantilla generada y guardada correctamente',
-                    'path' => $path
-                ]);
-            }
-        } catch (\Throwable $e) {
-            Log::error('Error al guardar la plantilla', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            if ($withResponse) {
-                return response()->json([
-                    'message' => 'Error al guardar la plantilla: ' . $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
-                ], 500);
-            }
-            throw $e;
-        }
-    }
-
     public function bulkUpload(Request $request)
     {
         $request->validate([
@@ -773,7 +564,6 @@ class ItemController extends Controller
         // Mapeo de encabezados a campos de base de datos
         $headerMap = [
             'SUBGRUPO' => 'category_sub_group_id',
-            'COLOR' => 'color_id',
             'IMPUesta (%)' => 'tax',
             'CÓDIGO DE BARRAS' => 'bar_code',
             'MOVIMIENTO NEGATIVO' => 'negative_movement',
@@ -794,6 +584,7 @@ class ItemController extends Controller
 
         // Campos extra_fields que se guardaron como array/JSON
         $extraFieldsKeys = [
+            'COLOR',
             'BASE TELA',
             'BASE HILAZA',
             'CAMPO ADICIONAL',
@@ -818,16 +609,8 @@ class ItemController extends Controller
                     $rowData[$colName] = $row[$colIdx] ?? null;
                 }
 
-                // Buscar IDs para subgrupo y color por nombre
+                // Buscar ID de subgrupo por nombre
                 $subGroup = CategorySubGroup::where('name', $rowData['SUBGRUPO'] ?? '')->first();
-                $color = null;
-                if (isset($rowData['COLOR']) && trim($rowData['COLOR']) !== '') {
-                    $color = Color::where('name', $rowData['COLOR'] ?? '')->first();
-                    if (!$color) {
-                        $errors[] = "Fila $rowNum: Color '{$rowData['COLOR']}' no encontrado";
-                        continue;
-                    }
-                }
 
                 // Construir extra_fields
                 $extraFields = [];
@@ -838,17 +621,18 @@ class ItemController extends Controller
                 }
 
                 // Generar el nombre igual que en la plantilla
-                $extrasString = implode(' ', array_filter(array_map('trim', array_values($extraFields))));
-                $name = trim(
-                    $subGroup->name . ' ' .
-                    $extrasString . ' ' .
-                    (optional($color)->name ?? '')
-                );
+                $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
+                $colorValue = $this->extractColorNameFromExtraFields($extraFields);
+                $nameParts = array_filter([
+                    optional($subGroup)->name,
+                    $extrasString,
+                    $colorValue,
+                ]);
+                $name = trim(implode(' ', $nameParts));
 
                 // Usar solo los campos que existen en la base de datos
                 $articleData = [
                     'category_sub_group_id' => $subGroup->id,
-                    'color_id' => optional($color)->id,
                     // 'impuesta' o 'tax' segun tu base de datos, si no existe ninguno, omite esta campo
                     // 'unit_measure' eliminado porque no existe en la tabla
                     'bar_code' => $rowData['CÓDIGO DE BARRAS'] ?? null,
@@ -884,44 +668,43 @@ class ItemController extends Controller
         ]);
     }
 
-    // Nuevo metodo para obtener bodegas y stock de un item
+    private function buildExtraFieldsNameSegment(array $extraFields): string
+    {
+        $filtered = array_filter($extraFields, function ($value, $key) {
+            if (!is_string($key)) {
+                return true;
+            }
+            return strcasecmp(trim($key), 'color') !== 0;
+        }, ARRAY_FILTER_USE_BOTH);
+
+        $trimmed = array_filter(array_map(function ($value) {
+            return trim((string) ($value ?? ''));
+        }, array_values($filtered)));
+
+        return implode(' ', $trimmed);
+    }
+
+    private function extractColorNameFromExtraFields(array $extraFields): string
+    {
+        foreach ($extraFields as $key => $value) {
+            if (is_string($key) && strcasecmp(trim($key), 'color') === 0) {
+                return trim((string) ($value ?? ''));
+            }
+        }
+
+        return '';
+    }
+
     public function getWarehouses($id)
     {
         $article = Item::findOrFail($id);
         return response()->json($article->getWarehouseStocks());
     }
 
-    // Nuevo metodo para actualizar stock de un item en una bodega
-    public function updateWarehousestack(Request $request, $id)
-    {
-        $article = Item::findOrFail($id);
-        $request->validate([
-            'warehouse_id' => 'required|integer|exists:warehouses,id',
-            'quantity' => 'required|integer',
-            'stock_min' => 'required|integer',
-            'stock_max' => 'required|integer',
-        ]);
-        $article->setWarehouseStock(
-            $request->warehouse_id,
-            $request->quantity,
-            $request->stock_min,
-            $request->stock_max
-        );
-        return response()->json(['success' => true]);
-    }
-
-    // Nuevo método para eliminar la relación con una bodega
-    public function detachWarehouse($id, $warehouseId)
-    {
-        $article = Item::findOrFail($id);
-        $article->removeWarehouse($warehouseId);
-        return response()->json(['success' => true]);
-    }
-
     // Nueva función para exportar todos los items a Excel
     public function exportExcel()
     {
-        $articles = Item::with(['categorySubGroup', 'color'])->get();
+        $articles = Item::with(['categorySubGroup'])->get();
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -954,8 +737,9 @@ class ItemController extends Controller
         foreach ($articles as $article) {
             // Extra fields
             $extra = is_array($article->extra_fields) ? $article->extra_fields : (json_decode($article->extra_fields, true) ?: []);
+            $colorValue = $extra['COLOR'] ?? $extra['Color'] ?? '';
             $sheet->setCellValue("A$rowNum", optional($article->categorySubGroup)->name); // SUBGRUPO
-            $sheet->setCellValue("B$rowNum", optional($article->color)->name); // COLOR
+            $sheet->setCellValue("B$rowNum", $colorValue); // COLOR
             $sheet->setCellValue("C$rowNum", $article->tax); // IMPUesta (%)
             $sheet->setCellValue("D$rowNum", $article->bar_code); // CÓDIGO DE BARRAS
             $sheet->setCellValue("E$rowNum", $article->description); // DESCRIPCIÓN
@@ -991,7 +775,7 @@ class ItemController extends Controller
     public function listView()
     {
         return Inertia::render('Inventory/Item/List', [
-            'articles' => Item::with(['categorySubGroup', 'color', 'tax'])->get(),
+            'articles' => Item::with(['categorySubGroup', 'tax'])->get(),
         ]);
     }
 

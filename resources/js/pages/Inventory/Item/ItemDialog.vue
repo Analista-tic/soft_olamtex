@@ -13,7 +13,7 @@ import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
 import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
-import type { Item, CategorySubGroup, CategoryGroup, Color, ExtraFields, Warehouse, AdditionalField } from '@/types';
+import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Warehouse, AdditionalField, AdditionalFieldType } from '@/types';
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
 import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
@@ -55,12 +55,12 @@ const localForm = ref<Partial<Item>>(prepareLocalForm(props.form));
 const warehouses = ref<Warehouse[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
 const categoryGroups = ref<CategoryGroup[]>([]);
-const colors = ref<Color[]>([]);
 const selectedGroupId = ref<string | null>(null);
 const imageFile = ref<File | null>(null);
 const errors = ref<Record<string, string[]>>({});
 const extraFieldNames = ref<string[]>([]);
 const additionalFieldOptions = ref<Record<string, string[]>>({});
+const additionalFieldsMeta = ref<AdditionalField[]>([]);
 const extraFields = ref<ExtraFields>({});
 const nameField = ref('');
 const imagePreview = ref<string | undefined>(undefined);
@@ -73,10 +73,6 @@ const subGroupDialogForm = ref<Partial<CategorySubGroup>>({
     name: '',
     category_group_id: undefined,
 });
-const colorOptions = computed(() => colors.value.map((color) => ({
-    id: String(color.id ?? ''),
-    name: color.name,
-})));
 const groupOptions = computed(() => categoryGroups.value.map((group) => ({
     id: String(group.id ?? ''),
     name: group.name,
@@ -250,14 +246,6 @@ function openSubGroupDialog() {
     };
     isSubGroupDialogOpen.value = true;
 }
-async function fetchColors() {
-    try {
-        const { data } = await axios.get('/colores/data', { params: { per_page: 1000 } });
-        colors.value = data.data;
-    } catch (error) {
-        console.error('Error al obtener los colores:', error);
-    }
-}
 async function fetchTaxes() {
     const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
     taxes.value = (data.data ?? []).filter((t: any) => t.status);
@@ -267,12 +255,30 @@ async function fetchAdditionalFields() {
     try {
         const { data } = await axios.get('/inventario/campos-adicionales/options');
         const payload: any[] = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : [];
-        const names = payload
-            .map((field: any) => field?.name)
-            .filter((name: unknown): name is string => typeof name === 'string');
+        const normalizedFields: AdditionalField[] = payload
+            .map((field: any) => {
+                const fieldType = (field?.field_type ?? 'text') as AdditionalFieldType;
+                return {
+                    id: field?.id,
+                    name: field?.name ? String(field.name) : '',
+                    field_type: fieldType,
+                    options: Array.isArray(field?.options)
+                        ? field.options.map((opt: any) => String(opt))
+                        : [],
+                    default_value: field?.default_value ?? null,
+                    description: field?.description ?? '',
+                    is_required: Boolean(field?.is_required),
+                    status: field?.status ?? true,
+                    created_at: field?.created_at,
+                    updated_at: field?.updated_at,
+                } as AdditionalField;
+            })
+            .filter((field) => Boolean(field.name));
+        const names = normalizedFields.map((field) => field.name);
         // Si el backend no devuelve campos, dejamos el arreglo vacío.
         extraFieldNames.value = names;
-        additionalFieldOptions.value = payload.reduce((acc: Record<string, string[]>, field: any) => {
+        additionalFieldsMeta.value = normalizedFields;
+        additionalFieldOptions.value = normalizedFields.reduce((acc: Record<string, string[]>, field: any) => {
             if (field?.name) {
                 acc[field.name] = Array.isArray(field.options)
                     ? field.options.map((opt: any) => String(opt))
@@ -285,6 +291,7 @@ async function fetchAdditionalFields() {
         // En caso de error no llenamos campos adicionales; el formulario los mostrará vacíos.
         extraFieldNames.value = [];
         additionalFieldOptions.value = {};
+        additionalFieldsMeta.value = [];
     }
 }
 
@@ -357,7 +364,6 @@ onMounted(async () => {
         fetchWarehouses(),
         fetchCategorySubGroups(),
         fetchCategoryGroups(),
-        fetchColors(),
         fetchTaxes(),
         fetchAdditionalFields(),
     ]);
@@ -502,9 +508,6 @@ async function handleSubmit() {
     if (!localForm.value.category_sub_group_id) {
         requiredErrors.push('Subgrupo');
     }
-    if (!localForm.value.color_id) {
-        requiredErrors.push('Color');
-    }
     if (!localForm.value.tax_id && localForm.value.tax_id !== 0) {
         requiredErrors.push('Impuesto');
     }
@@ -542,7 +545,6 @@ async function handleSubmit() {
     const cleanForm: any = {
         ...localForm.value,
         category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
-        color_id: Number(localForm.value.color_id) || undefined,
         tax_id:
             localForm.value.tax_id !== undefined &&
             localForm.value.tax_id !== null &&
@@ -615,14 +617,6 @@ async function handleSubmit() {
         dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
         emit('error', msg);
     }
-}
-
-function handleColorSelection(colorId: string | number | null) {
-    if (colorId === null || colorId === '' || Number.isNaN(Number(colorId))) {
-        localForm.value.color_id = undefined;
-        return;
-    }
-    localForm.value.color_id = Number(colorId);
 }
 
 function handleItemTypeSelect(type: ItemType) {
@@ -712,20 +706,16 @@ function updateNameField(orderedFields?: Record<string, string>): void {
     const subGroup = categorySubGroups.value.find(
         (sg) => String(sg.id) === String(localForm.value.category_sub_group_id)
     );
-    const color = colors.value.find(
-        (c) => String(c.id) === String(localForm.value.color_id)
-    );
     const extrasObj: Record<string, string> =
         orderedFields ??
         Object.fromEntries(
             extraFieldNames.value
-                .filter((key) => key !== 'Color')
                 .filter((key) => extraFields.value[key] && String(extraFields.value[key]).trim() !== '')
                 .sort()
                 .map((key) => [key, String(extraFields.value[key])]),
         );
     const extras = Object.values(extrasObj).join(' ');
-    nameField.value = [subGroup?.name ?? '', extras, color?.name ?? ''].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    nameField.value = [subGroup?.name ?? '', extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
     localForm.value.name = nameField.value;
 }
 
@@ -762,7 +752,6 @@ watch(
 watch(
     [
         () => localForm.value.category_sub_group_id,
-        () => localForm.value.color_id,
         () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|'),
     ],
     () => updateNameField(),
@@ -1193,15 +1182,14 @@ watch(
                     </div>
 
                     <!-- Campos adicionales -->
-                    <ExtraFieldsForm
-                        :extra-field-names="extraFieldNames"
-                        v-model:extra-fields="extraFields"
-                        :readonly="isViewMode"
-                        :color-options="colorOptions"
-                        @color-selected="handleColorSelection"
-                        @create-additional-field="openAdditionalFieldDialog"
-                        :field-options="additionalFieldOptions"
-                    />
+                        <ExtraFieldsForm
+                            :extra-field-names="extraFieldNames"
+                            v-model:extra-fields="extraFields"
+                            :readonly="isViewMode"
+                            @create-additional-field="openAdditionalFieldDialog"
+                            :field-options="additionalFieldOptions"
+                            :additional-fields-meta="additionalFieldsMeta"
+                        />
                 </fieldset>
 
                 <!-- FOOTER -->

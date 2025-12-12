@@ -66,13 +66,6 @@ const modules = [
             { name: 'Prioridades', href: '' },
         ],
     },
-    {
-        title: 'General',
-        description: 'Administra parametros y configuraciones generales',
-        options: [
-            { name: 'Colores', href: '/colores' },
-        ],
-    },
 ];
 </script>
 

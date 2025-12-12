@@ -193,7 +193,7 @@ function addItem() {
         item_id: null,
         price: '',
         tax: 0,
-        quantity: '',
+        quantity: 1,
         description: '',
         total: 0,
         total_tax: 0,
@@ -239,12 +239,19 @@ function getSuggestedQuantity(item: PurchaseInvoiceItem): number | null {
     return null;
 }
 
+const currencyDecimals = 2;
+
+function roundCurrency(value: number) {
+    const factor = Math.pow(10, currencyDecimals);
+    return Math.round(value * factor) / factor;
+}
+
 function calcTotals(item: PurchaseInvoiceItem) {
     const price = item.price === '' || item.price === null || item.price === undefined ? 0 : Number(item.price);
     const quantity = item.quantity === '' || item.quantity === null || item.quantity === undefined ? 0 : Number(item.quantity);
     const tax = Number(item.tax) || 0;
-    item.total = Math.round(price * quantity);
-    item.total_tax = Math.round(price * (tax / 100) * quantity);
+    item.total = roundCurrency(price * quantity);
+    item.total_tax = roundCurrency(price * (tax / 100) * quantity);
 }
 
 function isTela(invoiceItem: PurchaseInvoiceItem) {
@@ -305,13 +312,13 @@ defineExpose({ addItem });
         <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none;">
             <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
                 <TableHeader>
-                    <TableRow class="text-center border-b border-border/60">
+                    <TableRow class="border-b border-border/60">
                         <TableHead class="min-w-[150px] text-left">Item <span class="text-red-600">*</span></TableHead>
                         <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-red-600">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Impuesto (%)</TableHead>
                         <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-red-600">*</span></TableHead>
-                        <TableHead class="min-w-[160px] text-left">Descripci?n</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">C?digo proveedor <span class="text-red-600">*</span></TableHead>
+                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Código proveedor <span class="text-red-600">*</span></TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Color proveedor <span class="text-red-600">*</span></TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Ancho pedido <span class="text-red-600">*</span></TableHead>
                         <TableHead class="min-w-[90px] text-left">Total</TableHead>
@@ -350,8 +357,8 @@ defineExpose({ addItem });
                                 type="currency"
                                 label=""
                                 :min="0"
-                                :step="1"
-                                :decimals="0"
+                                :step="0.01"
+                                :decimals="2"
                                 :readonly="isReadOnly"
                                 :disabled="isReadOnly"
                                 class="h-10 w-full"
@@ -484,4 +491,3 @@ defineExpose({ addItem });
         />
     </div>
 </template>
-

@@ -154,12 +154,6 @@ export interface AdditionalField {
     updated_at?: string;
 }
 
-export interface Color {
-    id: number | undefined;
-    name: string;
-    rgb_value: string;
-}
-
 export interface CategoryGroup {
     id: number;
     name: string;
@@ -198,8 +192,6 @@ export interface Item {
     warehouse?: Warehouse;
     category_sub_group_id: number;
     category_sub_group?: CategorySubGroup;
-    color_id?: number | null;
-    color?: Color | null;
     tax_id?: number | null; // Nuevo campo para la relación
     tax?: Tax | null;       // Relación con el objeto Tax
     name: string;
@@ -278,17 +270,6 @@ export interface AdditionalContact {
 export interface AdditionalContactsListProps {
     additionalContacts: AdditionalContact[];
     onUpdateAdditionalContacts: (updatedContacts: AdditionalContact[]) => void;
-}
-
-export interface ColorDialogProps {
-    open: boolean;
-    dialogType: 'create' | 'edit';
-    form: Color;
-    loading?: boolean;
-    // Métodos de emisión
-    'onUpdate:open'?: (value: boolean) => void;
-    onSubmit?: (value: Color) => void;
-    onCancel?: () => void;
 }
 
 // Tipos para Órdenes de Compra (Gastos)

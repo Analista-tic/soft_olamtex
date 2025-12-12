@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import Input from '@/components/ui/input/Input.vue';
+import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { Button } from '@/components/ui/button';
@@ -309,6 +310,15 @@ const ivaTotal = computed(() =>
 
 const totalAdjustment = computed(() => subtotal.value + ivaTotal.value);
 
+function normalizeDecimalInput(event: Event) {
+  const target = event.target as HTMLInputElement | null;
+  if (!target) return;
+  const normalized = target.value.replace(/,/g, '.');
+  if (normalized !== target.value) {
+    target.value = normalized;
+  }
+}
+
 type InventoryAdjustmentSavedEventDetail = {
   itemIds: number[];
 };
@@ -555,17 +565,17 @@ async function handleSubmit() {
               class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed"
               style="overflow: visible; max-height: none;"
             >
-              <TableHeader>
-              <TableRow class="text-center border-b border-border/60">
+                <TableHeader>
+                <TableRow class="border-b border-border/60">
                   <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
                   <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
                   <TableHead class="min-w-[160px] text-left">
                     Descripcion <span class="text-destructive">*</span>
                   </TableHead>
-                  <TableHead class="min-w-[120px]">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
-                  <TableHead class="min-w-[140px]">Impuesto</TableHead>
-                  <TableHead class="min-w-[110px]">Cantidad <span class="text-destructive">*</span></TableHead>
-                  <TableHead class="min-w-[90px]">Total</TableHead>
+                  <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
+                  <TableHead class="min-w-[140px] text-left">Impuesto</TableHead>
+                  <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-destructive">*</span></TableHead>
+                  <TableHead class="min-w-[90px] text-left">Total</TableHead>
                   <TableHead class="w-[60px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -603,13 +613,15 @@ async function handleSubmit() {
                   </TableCell>
 
                   <TableCell class="p-1">
-                    <Input
+                    <InputField
                       v-model.number="line.price"
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      type="currency"
+                      :min="0"
+                      :step="0.01"
+                      :decimals="2"
                       placeholder="0.00"
                       class="h-10 w-full"
+                      @input="normalizeDecimalInput"
                     />
                   </TableCell>
 

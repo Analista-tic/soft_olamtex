@@ -14,20 +14,17 @@ const props = withDefaults(defineProps<{
     extraFields: ExtraFields,
     readonly?: boolean;
     showLabel?: boolean;
-    colorOptions?: Option[];
     fieldOptions?: Record<string, string[]>;
     // Metadata de campos adicionales (vista de AdditionalField)
     additionalFieldsMeta?: AdditionalField[];
 }>(), {
     readonly: false,
     showLabel: true,
-    colorOptions: () => [],
     fieldOptions: () => ({}),
     additionalFieldsMeta: () => [],
 });
 const emit = defineEmits<{
     (e: 'update:extraFields', value: ExtraFields): void;
-    (e: 'color-selected', colorId: Option['id'] | null): void;
     (e: 'create-additional-field'): void;
 }>();
 
@@ -41,7 +38,6 @@ const selectedExtraField = ref('');
 const extraFieldValue = ref('');
 const medidaValor = ref('');
 const medidaUnidad = ref(unidadesMedida[0]);
-const selectedColorId = ref<Option['id'] | ''>('');
 
 const localExtraFields = ref<ExtraFields>({ ...props.extraFields });
 
@@ -110,7 +106,6 @@ watch(selectedExtraField, () => {
     extraFieldValue.value = '';
     medidaValor.value = '';
     medidaUnidad.value = unidadesMedida[0];
-    selectedColorId.value = '';
     // precargar default_value desde metadatos si existe
     const meta = (props.additionalFieldsMeta ?? []).find((m) => m.name === selectedExtraField.value);
     if (meta && meta.default_value !== undefined && meta.default_value !== null) {
@@ -131,17 +126,6 @@ function addExtraField() {
         if (extraFieldValue.value.trim()) {
             localExtraFields.value['Campo adicional'] = extraFieldValue.value.trim();
             selectedExtraField.value = '';
-        }
-    } else if (field === 'Color') {
-        if (selectedColorId.value) {
-            const option = props.colorOptions?.find(
-                (opt) => String(opt.id) === String(selectedColorId.value),
-            );
-            if (option) {
-                localExtraFields.value['Color'] = option.name;
-                emit('color-selected', option.id);
-                selectedExtraField.value = '';
-            }
         }
     } else {
         // verificar metadata del campo
@@ -188,9 +172,6 @@ function removeExtraField(field: string) {
         const updated = { ...localExtraFields.value };
         delete updated[field];
         localExtraFields.value = updated;
-        if (field === 'Color') {
-            emit('color-selected', null);
-        }
     }
 }
 
@@ -203,9 +184,6 @@ function isAddDisabled() {
     }
     if (field === 'Campo adicional') {
         return !extraFieldValue.value.trim();
-    }
-    if (field === 'Color') {
-        return !selectedColorId.value;
     }
     return !extraFieldValue.value.trim();
 }
@@ -291,14 +269,6 @@ onMounted(async () => {
                         :disabled="!selectedExtraField"
                     />
                 </div>
-                <SelectField
-                    v-else-if="selectedExtraField === 'Color'"
-                    label="Valor"
-                    v-model="selectedColorId"
-                    :options="props.colorOptions ?? []"
-                    :disabled="!selectedExtraField || !props.colorOptions?.length"
-                    placeholder="Selecciona un color"
-                />
                 <SelectField
                     v-else-if="selectedExtraField && dynamicFieldOptions[selectedExtraField]"
                     label="Valor"
