@@ -141,37 +141,39 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent class="space-y-4 max-h-[80vh] overflow-y-auto pr-2">
+        <DialogContent class="space-y-6 max-h-[80vh]">
             <DialogHeader>
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional' }}
                 </DialogTitle>
             </DialogHeader>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <InputField v-model="localForm.name" label="Nombre" placeholder="Nombre del campo" required />
-                <SelectField
-                    v-model="localForm.field_type"
-                    label="Tipo de campo"
-                    :options="fieldTypeOptions"
-                    option-label="name"
-                    option-value="id"
-                    required
+            <div class="space-y-6">
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+                    <InputField v-model="localForm.name" label="Nombre" placeholder="Nombre del campo" required />
+                    <SelectField
+                        v-model="localForm.field_type"
+                        label="Tipo de campo"
+                        :options="fieldTypeOptions"
+                        option-label="name"
+                        option-value="id"
+                        required
+                    />
+                </div>
+                <InputField
+                    v-model="localForm.default_value"
+                    label="Valor por defecto"
+                    placeholder="Valor por defecto"
+                />
+                <TextareaField
+                    label="Descripcion"
+                    placeholder="Opcional"
+                    :rows="3"
+                    v-model="localForm.description"
                 />
             </div>
-            <InputField
-                v-model="localForm.default_value"
-                label="Valor por defecto"
-                placeholder="Valor por defecto"
-            />
-            <TextareaField
-                label="Descripcion"
-                placeholder="Opcional"
-                :rows="3"
-                v-model="localForm.description"
-            />
-            <div v-if="isSelectField" class="space-y-2">
+            <div v-if="isSelectField" class="space-y-3">
                 <label class="text-sm font-medium text-slate-600">Opciones</label>
-                <div class="space-y-2">
+                <div class="space-y-3">
                     <div
                         v-for="(option, index) in localOptions"
                         :key="index"
@@ -209,9 +211,9 @@ function handleSubmit() {
                     </button>
                 </div>
             </div>
-            <div class="grid grid-cols-2 gap-4">
-                <SwitchField v-model="localForm.is_required" label="Obligatorio" />
-                <SwitchField v-model="localForm.status" label="Activo" />
+            <div class="grid grid-cols-2 gap-5">
+                <SwitchField class="gap-3" v-model="localForm.is_required" label="Obligatorio" />
+                <SwitchField class="gap-3" v-model="localForm.status" label="Activo" />
             </div>
             <DialogFooter class="justify-end gap-2">
                 <Button variant="outline" @click="handleClose">Cancelar</Button>

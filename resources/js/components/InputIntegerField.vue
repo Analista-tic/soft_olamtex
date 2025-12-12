@@ -9,7 +9,6 @@ interface Props {
     required?: boolean;
     modelValue?: string | number;
     readonly?: boolean;
-    // 👇 NUEVO
     allowNegative?: boolean;
 }
 
