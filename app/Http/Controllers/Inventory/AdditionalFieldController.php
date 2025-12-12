@@ -22,6 +22,8 @@ class AdditionalFieldController extends Controller
         $data = $this->validateData($request);
 
         $data['status'] = $data['status'] ?? true;
+        $nextPosition = AdditionalField::max('position') ?? 0;
+        $data['position'] = $nextPosition + 1;
 
         return AdditionalField::create($data);
     }
@@ -46,6 +48,22 @@ class AdditionalFieldController extends Controller
         return response()->noContent();
     }
 
+    public function reorder(Request $request)
+    {
+        $validated = $request->validate([
+            'order' => 'required|array',
+            'order.*' => 'integer|min:1',
+        ]);
+
+        foreach ($validated['order'] as $index => $fieldId) {
+            AdditionalField::where('id', $fieldId)->update([
+                'position' => $index + 1,
+            ]);
+        }
+
+        return response()->json(['message' => 'Orden actualizado correctamente.']);
+    }
+
     public function getData(Request $request)
     {
         $query = AdditionalField::query();
@@ -62,7 +80,7 @@ class AdditionalFieldController extends Controller
             $query->whereIn('field_type', (array) $fieldTypes);
         }
 
-        $additionalFields = $query->orderBy('id', 'desc')->paginate($perPage);
+        $additionalFields = $query->orderBy('position', 'asc')->paginate($perPage);
 
         return response()->json($additionalFields);
     }
@@ -70,8 +88,8 @@ class AdditionalFieldController extends Controller
     public function options()
     {
         $fields = AdditionalField::where('status', true)
-            ->orderBy('name')
-            ->get(['id', 'name', 'field_type', 'options', 'default_value', 'description', 'is_required']);
+            ->orderBy('position', 'asc')
+            ->get(['id', 'name', 'field_type', 'options', 'default_value', 'description', 'is_required', 'position']);
 
         return response()->json([
             'data' => $fields,

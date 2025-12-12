@@ -17,12 +17,14 @@ class AdditionalField extends Model
         'description',
         'is_required',
         'status',
+        'position',
     ];
 
     protected $casts = [
         'options' => 'array',
         'is_required' => 'boolean',
         'status' => 'boolean',
+        'position' => 'integer',
     ];
 
     public const FIELD_TYPES = [

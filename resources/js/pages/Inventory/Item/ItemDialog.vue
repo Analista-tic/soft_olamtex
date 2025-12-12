@@ -62,6 +62,15 @@ const extraFieldNames = ref<string[]>([]);
 const additionalFieldOptions = ref<Record<string, string[]>>({});
 const additionalFieldsMeta = ref<AdditionalField[]>([]);
 const extraFields = ref<ExtraFields>({});
+const additionalFieldOrder = computed(() => {
+    const map = new Map<string, number>();
+    (additionalFieldsMeta.value ?? []).forEach((field, index) => {
+        if (field.name) {
+            map.set(field.name, index);
+        }
+    });
+    return map;
+});
 const nameField = ref('');
 const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
@@ -269,11 +278,17 @@ async function fetchAdditionalFields() {
                     description: field?.description ?? '',
                     is_required: Boolean(field?.is_required),
                     status: field?.status ?? true,
+                    position: typeof field?.position === 'number' ? field.position : null,
                     created_at: field?.created_at,
                     updated_at: field?.updated_at,
                 } as AdditionalField;
             })
             .filter((field) => Boolean(field.name));
+        normalizedFields.sort((a, b) => {
+            const aPosition = typeof a.position === 'number' ? a.position : 0;
+            const bPosition = typeof b.position === 'number' ? b.position : 0;
+            return aPosition - bPosition;
+        });
         const names = normalizedFields.map((field) => field.name);
         // Si el backend no devuelve campos, dejamos el arreglo vacío.
         extraFieldNames.value = names;
@@ -538,7 +553,16 @@ async function handleSubmit() {
             extraFieldsToSend[key] = String(extraFields.value[key]);
         }
     });
-    const orderedExtraFields = Object.fromEntries(Object.entries(extraFieldsToSend).sort());
+    const orderedExtraFields = Object.fromEntries(
+        Object.entries(extraFieldsToSend).sort((a, b) => {
+            const indexA = additionalFieldOrder.value.get(a[0]) ?? Number.MAX_SAFE_INTEGER;
+            const indexB = additionalFieldOrder.value.get(b[0]) ?? Number.MAX_SAFE_INTEGER;
+            if (indexA !== indexB) {
+                return indexA - indexB;
+            }
+            return a[0].localeCompare(b[0]);
+        }),
+    );
     updateNameField(orderedExtraFields);
 
     // Prepara el formulario para enviar
@@ -711,7 +735,14 @@ function updateNameField(orderedFields?: Record<string, string>): void {
         Object.fromEntries(
             extraFieldNames.value
                 .filter((key) => extraFields.value[key] && String(extraFields.value[key]).trim() !== '')
-                .sort()
+                .sort((a, b) => {
+                    const indexA = additionalFieldOrder.value.get(a) ?? Number.MAX_SAFE_INTEGER;
+                    const indexB = additionalFieldOrder.value.get(b) ?? Number.MAX_SAFE_INTEGER;
+                    if (indexA !== indexB) {
+                        return indexA - indexB;
+                    }
+                    return a.localeCompare(b);
+                })
                 .map((key) => [key, String(extraFields.value[key])]),
         );
     const extras = Object.values(extrasObj).join(' ');

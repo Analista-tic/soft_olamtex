@@ -57,6 +57,9 @@ const isSubmitting = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const draggedFieldId = ref<number | null>(null);
+const dragOverFieldId = ref<number | null>(null);
+const isReordering = ref(false);
 
 const searchQuery = ref('');
 const currentPage = ref(1);
@@ -145,11 +148,108 @@ async function deleteField() {
         successMessage.value = 'Campo adicional eliminado correctamente.';
         setError('');
         fetchAdditionalFields(currentPage.value, searchQuery.value);
-    } catch (error) {
+    } catch {
         setError('No se pudo eliminar el campo adicional.');
     } finally {
         isDeleteDialogOpen.value = false;
         fieldToDelete.value = null;
+    }
+}
+
+function resetDragState() {
+    draggedFieldId.value = null;
+    dragOverFieldId.value = null;
+}
+
+function handleDragStart(field: AdditionalField) {
+    if (isReordering.value || field.id == null) {
+        return;
+    }
+    const fieldIdNumber = Number(field.id);
+    if (Number.isNaN(fieldIdNumber)) {
+        return;
+    }
+    draggedFieldId.value = fieldIdNumber;
+}
+
+function handleDragOver(field: AdditionalField, event: DragEvent) {
+    if (isReordering.value || field.id == null) {
+        return;
+    }
+    const fieldIdNumber = Number(field.id);
+    if (Number.isNaN(fieldIdNumber)) {
+        return;
+    }
+    event.preventDefault();
+    dragOverFieldId.value = fieldIdNumber;
+}
+
+function handleDragLeave(field: AdditionalField) {
+    if (field.id == null) {
+        return;
+    }
+    const fieldIdNumber = Number(field.id);
+    if (Number.isNaN(fieldIdNumber)) {
+        return;
+    }
+    if (dragOverFieldId.value === fieldIdNumber) {
+        dragOverFieldId.value = null;
+    }
+}
+
+async function handleDrop(field: AdditionalField) {
+    if (isReordering.value || !draggedFieldId.value || field.id == null) {
+        resetDragState();
+        return;
+    }
+
+    const fieldIdNumber = Number(field.id);
+    if (Number.isNaN(fieldIdNumber)) {
+        resetDragState();
+        return;
+    }
+
+    if (fieldIdNumber === draggedFieldId.value) {
+        resetDragState();
+        return;
+    }
+
+    const reordered = [...additionalFields.value];
+    const sourceIndex = reordered.findIndex((item) => Number(item.id) === draggedFieldId.value);
+    const targetIndex = reordered.findIndex((item) => Number(item.id) === fieldIdNumber);
+
+    if (sourceIndex === -1 || targetIndex === -1) {
+        resetDragState();
+        return;
+    }
+
+    const [moved] = reordered.splice(sourceIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    additionalFields.value = reordered;
+
+    await persistFieldOrder(reordered);
+    resetDragState();
+}
+
+async function persistFieldOrder(fields: AdditionalField[]) {
+    if (fields.length === 0) {
+        return;
+    }
+
+    isReordering.value = true;
+    try {
+        await axios.post('/inventario/campos-adicionales/reorder', {
+            order: fields
+                .map((field) => Number(field.id))
+                .filter((id): id is number => Number.isFinite(id)),
+        });
+        successMessage.value = 'Orden actualizado correctamente.';
+        errorMessage.value = '';
+    } catch (error) {
+        setError('No se pudo actualizar el orden de los campos adicionales.');
+        fetchAdditionalFields(currentPage.value, searchQuery.value);
+    } finally {
+        isReordering.value = false;
     }
 }
 
@@ -195,6 +295,9 @@ onMounted(() => {
                     </span>
                 </div>
             </div>
+            <p class="text-sm text-muted-foreground">
+                Arrastra y suelta los campos adicionales para definir el orden que se usará al completar el nombre de los items.
+            </p>
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
@@ -212,6 +315,18 @@ onMounted(() => {
                         <TableRow
                             v-for="(field, index) in additionalFields"
                             :key="field.id ?? `field-${index}`"
+                            draggable="true"
+                            @dragstart="handleDragStart(field)"
+                            @dragover.prevent="handleDragOver(field, $event)"
+                            @dragleave="handleDragLeave(field)"
+                            @drop.prevent="handleDrop(field)"
+                            @dragend="resetDragState()"
+                            :class="{
+                                'cursor-grab': !isReordering,
+                                'cursor-wait': isReordering,
+                                'opacity-70': field.id && field.id === draggedFieldId,
+                                'bg-slate-50': field.id && field.id === dragOverFieldId,
+                            }"
                         >
                             <TableCell class="font-medium">{{ field.id }}</TableCell>
                             <TableCell class="font-medium">{{ field.name }}</TableCell>

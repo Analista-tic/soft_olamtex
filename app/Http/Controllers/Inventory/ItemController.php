@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\Item;
+use App\Models\Inventory\AdditionalField;
 use App\Models\ProductSheet\Brand;
 use App\Models\ProductSheet\FabricBase;
 use App\Models\ProductSheet\World;
@@ -23,6 +24,8 @@ use Illuminate\Support\Facades\Log;
 
 class ItemController extends Controller
 {
+    private ?array $orderedAdditionalFieldNamesCache = null;
+
     public function index()
     {
         return Inertia::render('Inventory/Item/Index', [
@@ -79,10 +82,10 @@ class ItemController extends Controller
 
         $data['negative_movement'] = filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
 
+        $orderedFieldNames = $this->orderedAdditionalFieldNames();
         $subGroupName = optional(CategorySubGroup::find($data['category_sub_group_id']))->name ?? '';
-        $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
-        $colorName = $this->extractColorNameFromExtraFields($extraFields);
-        $data['name'] = trim("$subGroupName $extrasString $colorName");
+        $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
+        $data['name'] = trim("$subGroupName $extrasString");
 
         if (!isset($data['status'])) {
             $data['status'] = true;
@@ -176,9 +179,9 @@ class ItemController extends Controller
 
         $subGroupId = $data['category_sub_group_id'] ?? $article->category_sub_group_id;
         $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
-        $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
-        $colorName = $this->extractColorNameFromExtraFields($extraFields);
-        $data['name'] = trim("$subGroupName $extrasString $colorName");
+        $orderedFieldNames = $this->orderedAdditionalFieldNames();
+        $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
+        $data['name'] = trim("$subGroupName $extrasString");
 
         $article->update($data);
 
@@ -596,6 +599,7 @@ class ItemController extends Controller
             'MEDIDA'
         ];
 
+        $orderedFieldNames = $this->orderedAdditionalFieldNames();
         foreach ($rows as $rowNum => $row) {
             // Saltar filas vacías
             if (empty(array_filter($row))) {
@@ -621,7 +625,7 @@ class ItemController extends Controller
                 }
 
                 // Generar el nombre igual que en la plantilla
-                $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
+                $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
                 $colorValue = $this->extractColorNameFromExtraFields($extraFields);
                 $nameParts = array_filter([
                     optional($subGroup)->name,
@@ -668,20 +672,62 @@ class ItemController extends Controller
         ]);
     }
 
-    private function buildExtraFieldsNameSegment(array $extraFields): string
+    private function buildExtraFieldsNameSegment(array $extraFields, array $orderedNames = []): string
     {
-        $filtered = array_filter($extraFields, function ($value, $key) {
-            if (!is_string($key)) {
-                return true;
+        $segments = [];
+        $handled = [];
+        $normalize = function ($value) {
+            if (!is_string($value)) {
+                return '';
             }
-            return strcasecmp(trim($key), 'color') !== 0;
-        }, ARRAY_FILTER_USE_BOTH);
+            return trim($value);
+        };
 
-        $trimmed = array_filter(array_map(function ($value) {
-            return trim((string) ($value ?? ''));
-        }, array_values($filtered)));
+        $extraFieldsList = [];
+        $extraFieldsMap = [];
+        foreach ($extraFields as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+            $normalizedKey = $normalize($key);
+            if ($normalizedKey === '') {
+                continue;
+            }
+            $upperKey = mb_strtoupper($normalizedKey);
+            $trimmedValue = $normalize((string) ($value ?? ''));
+            $entry = [
+                'upper' => $upperKey,
+                'value' => $trimmedValue,
+            ];
+            $extraFieldsList[] = $entry;
+            if (!isset($extraFieldsMap[$upperKey])) {
+                $extraFieldsMap[$upperKey] = $entry['value'];
+            }
+        }
 
-        return implode(' ', $trimmed);
+        foreach ($orderedNames as $name) {
+            $normalizedName = $normalize($name);
+            if ($normalizedName === '') {
+                continue;
+            }
+            $upperName = mb_strtoupper($normalizedName);
+            $handled[] = $upperName;
+            $value = $extraFieldsMap[$upperName] ?? null;
+            if ($value !== null && $value !== '') {
+                $segments[] = $value;
+            }
+        }
+
+        foreach ($extraFieldsList as $entry) {
+            if (in_array($entry['upper'], $handled, true)) {
+                continue;
+            }
+            if ($entry['value'] !== '') {
+                $segments[] = $entry['value'];
+            }
+        }
+
+        return implode(' ', $segments);
     }
 
     private function extractColorNameFromExtraFields(array $extraFields): string
@@ -693,6 +739,31 @@ class ItemController extends Controller
         }
 
         return '';
+    }
+
+    private function orderedAdditionalFieldNames(): array
+    {
+        if ($this->orderedAdditionalFieldNamesCache !== null) {
+            return $this->orderedAdditionalFieldNamesCache;
+        }
+
+        $names = AdditionalField::where('status', true)
+            ->orderBy('position', 'asc')
+            ->pluck('name')
+            ->map(function ($name) {
+                if (!is_string($name)) {
+                    return '';
+                }
+                return trim($name);
+            })
+            ->filter(function ($name) {
+                return $name !== '';
+            })
+            ->unique()
+            ->values()
+            ->toArray();
+
+        return $this->orderedAdditionalFieldNamesCache = $names;
     }
 
     public function getWarehouses($id)

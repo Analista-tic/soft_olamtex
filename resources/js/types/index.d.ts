@@ -150,6 +150,7 @@ export interface AdditionalField {
     description?: string;
     is_required: boolean;
     status: boolean;
+    position?: number;
     created_at?: string;
     updated_at?: string;
 }

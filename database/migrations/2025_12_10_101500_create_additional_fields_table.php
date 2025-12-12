@@ -17,6 +17,7 @@ return new class() extends Migration
             $table->text('description')->nullable();
             $table->boolean('is_required')->default(false);
             $table->boolean('status')->default(true);
+            $table->integer('position')->default(0);
             $table->timestamps();
         });
     }

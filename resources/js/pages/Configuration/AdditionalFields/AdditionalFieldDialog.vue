@@ -53,6 +53,13 @@ const localForm = ref<AdditionalFieldForm>({
 });
 const localOptions = ref<string[]>([]);
 
+const hasDuplicateOptions = computed(() => {
+    const normalized = localOptions.value
+        .map((value) => String(value ?? '').trim().toUpperCase())
+        .filter(Boolean);
+    return new Set(normalized).size !== normalized.length;
+});
+
 const isSelectField = computed(() => localForm.value.field_type === 'select');
 
 watch(
@@ -84,6 +91,18 @@ watch(
     { immediate: true },
 );
 
+watch(
+    localOptions,
+    (options) => {
+        const transformed = options.map((value) => String(value ?? '').toUpperCase());
+        const hasDiff = transformed.some((value, index) => value !== options[index]);
+        if (hasDiff) {
+            localOptions.value = transformed;
+        }
+    },
+    { deep: true },
+);
+
 function addOptionAfter(index?: number) {
     const options = [...localOptions.value];
     const insertionIndex = index !== undefined ? index + 1 : options.length;
@@ -109,7 +128,7 @@ function handleClose() {
 function handleSubmit() {
     const preparedOptions = isSelectField.value
         ? localOptions.value
-            .map((value) => value.trim())
+            .map((value) => String(value ?? '').trim().toUpperCase())
             .filter((value) => value)
         : [];
 
@@ -175,6 +194,9 @@ function handleSubmit() {
                         </button>
                     </div>
                 </div>
+                <p v-if="hasDuplicateOptions" class="text-xs text-red-600">
+                    Cada opción debe ser única.
+                </p>
                 <div class="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Presione ENTER para agregar opciones</span>
                     <button
@@ -193,7 +215,7 @@ function handleSubmit() {
             </div>
             <DialogFooter class="justify-end gap-2">
                 <Button variant="outline" @click="handleClose">Cancelar</Button>
-                <Button variant="default" :disabled="loading" @click="handleSubmit">
+                <Button variant="default" :disabled="loading || hasDuplicateOptions" @click="handleSubmit">
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                 </Button>
             </DialogFooter>

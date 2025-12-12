@@ -25,25 +25,29 @@ class AdditionalFieldsSeeder extends Seeder
             [   
                 'name' => 'Base tela', 
                 'field_type' => 'select', 
-                'options' => ['Algodón', 'Poliéster', 'Lino', 'Seda', 'Lana']
+                'options' => ['ALGODÓN', 'Poliéster', 'LINO', 'SEDA', 'LANA']
             ],
             [
                 'name' => 'Base hilaza', 
                 'field_type' => 'select', 
-                'options' => ['Nylon', 'Rayón', 'Acrílico', 'Polipropileno', 'Algodón'],
+                'options' => ['NYLON', 'RAYÓN', 'ACRÍLICO', 'POLIPROPILENO', 'ALGODÓN'],
             ],
-            ['name' => 'Color', 'field_type' => 'select'],
+            [
+                'name' => 'Color', 
+                'field_type' => 'select',
+                'options' => ['ROJO', 'VERDE', 'AZUL', 'NEGRO', 'BLANCO'],
+            ],
             ['name' => 'Marca', 'field_type' => 'select'],
             ['name' => 'Mundo', 'field_type' => 'select'],
             [
                 'name' => 'Líneas',
                 'field_type' => 'select',
-                'options' => ['Línea 1', 'Línea 2', 'Línea 3', 'Línea 4', 'Línea 5'],
+                'options' => ['LÍNEA 1', 'LÍNEA 2', 'LÍNEA 3', 'LÍNEA 4', 'LÍNEA 5'],
             ],
             [
                 'name' => 'Tipo puntera',
                 'field_type' => 'select',
-                'options' => ['Redonda', 'Cuadrada', 'Puntiaguda', 'Abierta', 'Cerrada'],
+                'options' => ['REDONDA', 'CUADRADA', 'PUNTIAGUDA', 'ABIERTA', 'CERRADA'],
             ],
             [
                 'name' => 'Talla',

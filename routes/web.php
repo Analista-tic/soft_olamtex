@@ -327,6 +327,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/options', [AdditionalFieldController::class, 'options'])->name('options');
         Route::get('/data', [AdditionalFieldController::class, 'getData'])->name('data');
         Route::post('/', [AdditionalFieldController::class, 'store'])->name('store');
+        Route::post('/reorder', [AdditionalFieldController::class, 'reorder'])->name('reorder');
         Route::get('/{additionalField}', [AdditionalFieldController::class, 'show'])->name('show');
         Route::put('/{additionalField}', [AdditionalFieldController::class, 'update'])->name('update');
         Route::delete('/{additionalField}', [AdditionalFieldController::class, 'destroy'])->name('destroy');
