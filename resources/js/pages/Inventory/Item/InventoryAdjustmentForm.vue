@@ -453,243 +453,245 @@ async function handleSubmit() {
 
 <template>
   <Dialog :open="isOpen" @update:open="emit('close')">
-    <DialogContent class="max-w-[200vh] max-h-[90vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>{{ props.dialogType === 'edit' ? 'Editar ajuste de inventario' : 'Nuevo ajuste de inventario' }}</DialogTitle>
-        <DialogDescription>
-          Registra un movimiento de entrada o salida de inventario.
-        </DialogDescription>
-      </DialogHeader>
+    <DialogContent class="max-w-[200vh] p-0">
+      <div class="max-h-[90vh] overflow-y-auto px-6 pt-6 pb-6">
+        <DialogHeader>
+          <DialogTitle>{{ props.dialogType === 'edit' ? 'Editar ajuste de inventario' : 'Nuevo ajuste de inventario' }}</DialogTitle>
+          <DialogDescription>
+            Registra un movimiento de entrada o salida de inventario.
+          </DialogDescription>
+        </DialogHeader>
 
-      <transition name="fade">
-        <div
-          v-if="alertMessage"
-          class="pointer-events-none absolute left-1/2 top-6 z-30 w-full max-w-xl -translate-x-1/2"
-        >
-          <AlertBox
-            :type="alertType"
-            :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : 'Error'"
-            :message="alertMessage"
-            class="pointer-events-auto"
-            @close="alertMessage = ''"
-          />
+        <transition name="fade">
           <div
-            v-if="alertDetails.length"
-            class="pointer-events-auto mt-2 p-1 text-sm text-amber-900"
+            v-if="alertMessage"
+            class="pointer-events-none absolute left-1/2 top-6 z-30 w-full max-w-xl -translate-x-1/2"
           >
-            <ul class="list-disc ps-5">
-              <li v-for="(item, idx) in alertDetails" :key="idx">{{ item }}</li>
-            </ul>
-          </div>
-        </div>
-      </transition>
-
-      <form class="space-y-4" novalidate @submit.prevent="handleSubmit">
-        <div class="rounded-xl border border-sidebar-border/70 bg-white p-4 dark:border-sidebar-border">
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <Label># Documento</Label>
-              <Input
-                v-model="documentNumber"
-                class="mt-1 pointer-events-none select-none"
-                readonly
-                tabindex="-1"
-              />
-            </div>
-            <div class="relative flex h-full items-center justify-center rounded p-4">
-              <img
-                :src="logoUrl"
-                alt="Logotipo de la empresa"
-                class="max-h-24 max-w-[160px] w-auto object-contain"
-              />
-            </div>
-            <div>
-              <div class="font-semibold">Datos empresa</div>
-              <p class="text-xs">
-                Razón social:
-                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
-              </p>
-              <p class="text-xs">
-                NIT:
-                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
-              </p>
-              <p class="text-xs">
-                Correo:
-                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
-              </p>
-            </div>
-          </div>
-          <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3 items-end">
-            <div>
-              <SelectField
-                v-model="selectedWarehouseId"
-                label="Bodega"
-                :options="warehouseSelectOptions"
-                placeholder="Selecciona bodega"
-                :searchable="false"
-                required
-              />
-            </div>
-
-            <div>
-              <Label>
-                Fecha <span class="text-destructive">*</span>
-              </Label>
-              <Input
-                v-model="date"
-                type="date"
-                class="w-full"
-                required
-              />
-            </div>
-            <div>
-              <Label>Observación</Label>
-              <Input
-                v-model="observation"
-                class="mt-1"
-                placeholder="Ingrese una observación"
-              />
-            </div>
-          </div>
-          <div class="mt-4">
-            <Label>Orden de producción</Label>
-            <Input
-              v-model="productionOrder"
-              class="mt-1"
-              placeholder="Ingrese la orden de producción asociada"
+            <AlertBox
+              :type="alertType"
+              :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : 'Error'"
+              :message="alertMessage"
+              class="pointer-events-auto"
+              @close="alertMessage = ''"
             />
-          </div>
-
-          <InventoryDetailTableLayout @create-line="addLine">
-            <Table
-              class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed"
-              style="overflow: visible; max-height: none;"
+            <div
+              v-if="alertDetails.length"
+              class="pointer-events-auto mt-2 p-1 text-sm text-amber-900"
             >
-                <TableHeader>
-                <TableRow class="border-b border-border/60">
-                  <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
-                  <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
-                  <TableHead class="min-w-[160px] text-left">
-                    Descripcion <span class="text-destructive">*</span>
-                  </TableHead>
-                  <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
-                  <TableHead class="min-w-[140px] text-left">Impuesto</TableHead>
-                  <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-destructive">*</span></TableHead>
-                  <TableHead class="min-w-[90px] text-left">Total</TableHead>
-                  <TableHead class="w-[60px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                <TableRow v-for="(line, idx) in lines" :key="line.id">
-                  <TableCell class="p-1 text-left">
-                    <SelectField
-                      v-model="line.itemId"
-                      :options="itemSelectOptions"
-                      label=""
-                      :searchable=true
-                      placeholder="Selecciona"
-                      class="w-full"
-                    />
-                  </TableCell>
-
-                  <TableCell class="p-1 text-left">
-                    <SelectField
-                      v-model="line.movementReason"
-                      :options="adjustmentTypeOptions"
-                      label=""
-                      placeholder="Selecciona"
-                      class="w-full"
-                    />
-                  </TableCell>
-
-                  <TableCell class="p-1">
-                    <Input
-                      v-model="line.description"
-                      placeholder="Descripcion"
-                      required
-                      class="h-10 w-full"
-                    />
-                  </TableCell>
-
-                  <TableCell class="p-1">
-                    <InputField
-                      v-model.number="line.price"
-                      type="currency"
-                      :min="0"
-                      :step="0.01"
-                      :decimals="2"
-                      placeholder="0.00"
-                      class="h-10 w-full"
-                      @input="normalizeDecimalInput"
-                    />
-                  </TableCell>
-
-                  <TableCell class="p-1">
-                    <SelectField
-                      v-model="line.taxId"
-                      :options="taxSelectOptions"
-                      label=""
-                      placeholder="Selecciona"
-                      class="w-full"
-                      @update:modelValue="val => {
-                        const selected = taxes.find(t => String(t.id) === String(val));
-                        line.taxId = selected ? selected.id : null;
-                        line.tax = selected ? Number(selected.percentage) : 0;
-                      }"
-                    />
-                  </TableCell>
-
-                  <TableCell class="p-1">
-                    <Input
-                      v-model.number="line.quantity"
-                      type="number"
-                      min="1"
-                      step="1"
-                      placeholder="0"
-                      class="h-10 w-full"
-                    />
-                  </TableCell>
-
-                  <TableCell class="p-1">
-                    {{ formatCurrency(lineTotal(line)) }}
-                  </TableCell>
-
-                  <TableCell class="p-1 text-center">
-                    <DeleteButton
-                      v-if="lines.length > 1 && idx > 0"
-                      class="mx-auto"
-                      title="Eliminar"
-                      @click="removeLine(line.id)"
-                    />
-                  </TableCell>
-                </TableRow>
-
-                <TableRow v-if="lines.length === 0">
-                  <TableCell colspan="8" class="text-center text-gray-400">
-                    No hay lineas agregadas.
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </InventoryDetailTableLayout>
-
-          <div class="mt-4 flex flex-col items-end gap-1 text-sm">
-            <div>Subtotal: <span class="font-semibold">{{ formatCurrency(subtotal) }}</span></div>
-            <div>IVA total: <span class="font-semibold">{{ formatCurrency(ivaTotal) }}</span></div>
-            <div>Total ajuste: <span class="font-semibold">{{ formatCurrency(totalAdjustment) }}</span></div>
+              <ul class="list-disc ps-5">
+                <li v-for="(item, idx) in alertDetails" :key="idx">{{ item }}</li>
+              </ul>
+            </div>
           </div>
-        </div>
+        </transition>
 
-        <div class="flex justify-end gap-2">
-          <Button type="button" variant="outline" @click="emit('close')">
-            Cancelar
-          </Button>
-          <Button type="submit" class="px-6" :disabled="isSubmitting">
-            {{ isSubmitting ? 'Guardando...' : props.dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-          </Button>
-        </div>
-      </form>
+        <form class="space-y-4" novalidate @submit.prevent="handleSubmit">
+          <div class="rounded-xl border border-sidebar-border/70 bg-white p-4 dark:border-sidebar-border">
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <Label># Documento</Label>
+                <Input
+                  v-model="documentNumber"
+                  class="mt-1 pointer-events-none select-none"
+                  readonly
+                  tabindex="-1"
+                />
+              </div>
+              <div class="relative flex h-full items-center justify-center rounded p-4">
+                <img
+                  :src="logoUrl"
+                  alt="Logotipo de la empresa"
+                  class="max-h-24 max-w-[160px] w-auto object-contain"
+                />
+              </div>
+              <div>
+                <div class="font-semibold">Datos empresa</div>
+                <p class="text-xs">
+                  Razón social:
+                  <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+                </p>
+                <p class="text-xs">
+                  NIT:
+                  <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+                </p>
+                <p class="text-xs">
+                  Correo:
+                  <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+                </p>
+              </div>
+            </div>
+            <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3 items-end">
+              <div>
+                <SelectField
+                  v-model="selectedWarehouseId"
+                  label="Bodega"
+                  :options="warehouseSelectOptions"
+                  placeholder="Selecciona bodega"
+                  :searchable="false"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label>
+                  Fecha <span class="text-destructive">*</span>
+                </Label>
+                <Input
+                  v-model="date"
+                  type="date"
+                  class="w-full"
+                  required
+                />
+              </div>
+              <div>
+                <Label>Observación</Label>
+                <Input
+                  v-model="observation"
+                  class="mt-1"
+                  placeholder="Ingrese una observación"
+                />
+              </div>
+            </div>
+            <div class="mt-4">
+              <Label>Orden de producción</Label>
+              <Input
+                v-model="productionOrder"
+                class="mt-1"
+                placeholder="Ingrese la orden de producción asociada"
+              />
+            </div>
+
+            <InventoryDetailTableLayout @create-line="addLine">
+              <Table
+                class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed"
+                style="overflow: visible; max-height: none;"
+              >
+                  <TableHeader>
+                  <TableRow class="border-b border-border/60">
+                    <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[160px] text-left">
+                      Descripcion <span class="text-destructive">*</span>
+                    </TableHead>
+                    <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[140px] text-left">Impuesto</TableHead>
+                    <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[90px] text-left">Total</TableHead>
+                    <TableHead class="w-[60px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  <TableRow v-for="(line, idx) in lines" :key="line.id">
+                    <TableCell class="p-1 text-left">
+                      <SelectField
+                        v-model="line.itemId"
+                        :options="itemSelectOptions"
+                        label=""
+                        :searchable=true
+                        placeholder="Selecciona"
+                        class="w-full"
+                      />
+                    </TableCell>
+
+                    <TableCell class="p-1 text-left">
+                      <SelectField
+                        v-model="line.movementReason"
+                        :options="adjustmentTypeOptions"
+                        label=""
+                        placeholder="Selecciona"
+                        class="w-full"
+                      />
+                    </TableCell>
+
+                    <TableCell class="p-1">
+                      <Input
+                        v-model="line.description"
+                        placeholder="Descripcion"
+                        required
+                        class="h-10 w-full"
+                      />
+                    </TableCell>
+
+                    <TableCell class="p-1">
+                      <InputField
+                        v-model.number="line.price"
+                        type="currency"
+                        :min="0"
+                        :step="0.01"
+                        :decimals="2"
+                        placeholder="0.00"
+                        class="h-10 w-full"
+                        @input="normalizeDecimalInput"
+                      />
+                    </TableCell>
+
+                    <TableCell class="p-1">
+                      <SelectField
+                        v-model="line.taxId"
+                        :options="taxSelectOptions"
+                        label=""
+                        placeholder="Selecciona"
+                        class="w-full"
+                        @update:modelValue="val => {
+                          const selected = taxes.find(t => String(t.id) === String(val));
+                          line.taxId = selected ? selected.id : null;
+                          line.tax = selected ? Number(selected.percentage) : 0;
+                        }"
+                      />
+                    </TableCell>
+
+                    <TableCell class="p-1">
+                      <Input
+                        v-model.number="line.quantity"
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="0"
+                        class="h-10 w-full"
+                      />
+                    </TableCell>
+
+                    <TableCell class="p-1">
+                      {{ formatCurrency(lineTotal(line)) }}
+                    </TableCell>
+
+                    <TableCell class="p-1 text-center">
+                      <DeleteButton
+                        v-if="lines.length > 1 && idx > 0"
+                        class="mx-auto"
+                        title="Eliminar"
+                        @click="removeLine(line.id)"
+                      />
+                    </TableCell>
+                  </TableRow>
+
+                  <TableRow v-if="lines.length === 0">
+                    <TableCell colspan="8" class="text-center text-gray-400">
+                      No hay lineas agregadas.
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </InventoryDetailTableLayout>
+
+            <div class="mt-4 flex flex-col items-end gap-1 text-sm">
+              <div>Subtotal: <span class="font-semibold">{{ formatCurrency(subtotal) }}</span></div>
+              <div>IVA total: <span class="font-semibold">{{ formatCurrency(ivaTotal) }}</span></div>
+              <div>Total ajuste: <span class="font-semibold">{{ formatCurrency(totalAdjustment) }}</span></div>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-2">
+            <Button type="button" variant="outline" @click="emit('close')">
+              Cancelar
+            </Button>
+            <Button type="submit" class="px-6" :disabled="isSubmitting">
+              {{ isSubmitting ? 'Guardando...' : props.dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+            </Button>
+          </div>
+        </form>
+      </div>
     </DialogContent>
   </Dialog>
 </template>

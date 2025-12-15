@@ -307,178 +307,180 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[200vh] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-                <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
-                <DialogDescription>
-                    Completa los campos y añade los ítems de la orden.</DialogDescription>
-            </DialogHeader>
-            <AlertStack
-                :success-message="successMessage"
-                :error-message="errorMessage"
-                success-title="Exito"
-                error-title="Error"
-                :error-type="errorType"
-                @close-success="successMessage = ''"
-                @close-error="errorMessage = ''"
-            />
-            <div class="mb-2 flex justify-end">
-                <div class="w-64"></div>
-            </div>
-            <form
-                @submit.prevent="handleSubmit()"
-                :class="{'pointer-events-none opacity-50':dialogType === 'create' && isLoadingOrderId}"
-                class="space-y-6"
-            >
-                <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
-                    <!-- Cabecera -->
-                    <div class="grid grid-cols-3 items-start gap-4">
-                        <div>
-                            <InputField
-                                label="# Orden de Compra"
-                                :modelValue="id"
-                                readonly
-                                v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && id)"
-                            />
-                            <span v-else-if="dialogType === 'create' && isLoadingOrderId" class="text-gray-400">Cargando...</span>
-                        </div>
-                        <div class="flex h-full items-center justify-center rounded p-4">
-                            <img
-                                :src="logoUrl"
-                                alt="Logotipo de la empresa"
-                                class="max-h-24 max-w-[160px] w-auto object-contain"
-                            />
-                        </div>
-                        <div>
-                            <div class="text-sm font-semibold">Datos empresa</div>
-                            <p class="text-xs">
-                                Razón Social:
-                                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
-                            </p>
-                            <p class="text-xs">
-                                NIT:
-                                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
-                            </p>
-                            <p class="text-xs">
-                                Correo:
-                                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Proveedor -->
-                    <div class="grid grid-cols-3 gap-4">
-                        <SelectField
-                            v-model="localForm.contact_id"
-                            label="Proveedor"
-                            :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
-                            required
-                        />
-                        <InputField
-                            :key="String(localForm.contact_id ?? '')"
-                            label="Numero de identificacion"
-                            :modelValue="contactIdNumber"
-                            readonly
-                            :disabled="true"
-                        />
-                        <InputField
-                            :key="String(localForm.contact_id ?? '') + '-phone'"
-                            label="Numero de contacto"
-                            :modelValue="contactPhone"
-                            readonly
-                            :disabled="true"
-                        />
-                    </div>
-
-                    <!-- Fechas -->
-                    <div class="grid grid-cols-3 gap-4">
-                        <InputDate v-model="localForm.date" label="Fecha de creacion" required />
-                        <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
-                        <InputField
-                            v-model="localForm.supplier_order_number"
-                            label="# Pedido Proveedor"
-                            id="supplier-order"
-                            required
-                        />
-                    </div>
-
-                    <!-- Items -->
-                    <InventoryDetailTableLayout @create-line="handleAddLine">
-                        <PurchaseOrderItemsTable
-                            ref="itemsTableRef"
-                            :items="localForm.items || []"
-                            @update:items="(items) => (localForm.items = items)"
-                        />
-                    </InventoryDetailTableLayout>
-
-                    <!-- Totales -->
-                    <div class="flex flex-col items-end space-y-0 text-sm">
-                        <div class="flex gap-5">
-                            <div class="flex flex-col items-end">
-                                <span class="font-semibold">Subtotal:</span>
-                                <span class="font-semibold">IVA total:</span>
-                                <span class="font-semibold">Total orden de compra:</span>
-                            </div>
-                            <div class="flex min-w-[140px] flex-col items-start text-right">
-                                <span>{{
-                                    Number(subtotal || 0).toLocaleString('es-CO', {
-                                        style: 'currency',
-                                        currency: 'COP',
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0,
-                                    })
-                                }}</span>
-                                <span>{{
-                                    Number(iva || 0).toLocaleString('es-CO', {
-                                        style: 'currency',
-                                        currency: 'COP',
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0,
-                                    })
-                                }}</span>
-                                <span class="font-bold">{{
-                                    Number(total || 0).toLocaleString('es-CO', {
-                                        style: 'currency',
-                                        currency: 'COP',
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0,
-                                    })
-                                }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Observaciones -->
-                    <div>
-                        <TextareaField
-                            v-model="localForm.description"
-                            label="Observacion"
-                            placeholder="Agrega aqui observaciones adicionales para la orden de compra"
-                        />
-                    </div>
+        <DialogContent class="max-w-[200vh] p-0">
+            <div class="max-h-[90vh] overflow-y-auto px-6 pt-6 pb-6">
+                <DialogHeader>
+                    <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
+                    <DialogDescription>
+                        Completa los campos y añade los ítems de la orden.</DialogDescription>
+                </DialogHeader>
+                <AlertStack
+                    :success-message="successMessage"
+                    :error-message="errorMessage"
+                    success-title="Exito"
+                    error-title="Error"
+                    :error-type="errorType"
+                    @close-success="successMessage = ''"
+                    @close-error="errorMessage = ''"
+                />
+                <div class="mb-2 flex justify-end">
+                    <div class="w-64"></div>
                 </div>
+                <form
+                    @submit.prevent="handleSubmit()"
+                    :class="{'pointer-events-none opacity-50':dialogType === 'create' && isLoadingOrderId}"
+                    class="space-y-6"
+                >
+                    <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+                        <!-- Cabecera -->
+                        <div class="grid grid-cols-3 items-start gap-4">
+                            <div>
+                                <InputField
+                                    label="# Orden de Compra"
+                                    :modelValue="id"
+                                    readonly
+                                    v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && id)"
+                                />
+                                <span v-else-if="dialogType === 'create' && isLoadingOrderId" class="text-gray-400">Cargando...</span>
+                            </div>
+                            <div class="flex h-full items-center justify-center rounded p-4">
+                                <img
+                                    :src="logoUrl"
+                                    alt="Logotipo de la empresa"
+                                    class="max-h-24 max-w-[160px] w-auto object-contain"
+                                />
+                            </div>
+                            <div>
+                                <div class="text-sm font-semibold">Datos empresa</div>
+                                <p class="text-xs">
+                                    Razón Social:
+                                    <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+                                </p>
+                                <p class="text-xs">
+                                    NIT:
+                                    <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+                                </p>
+                                <p class="text-xs">
+                                    Correo:
+                                    <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+                                </p>
+                            </div>
+                        </div>
 
-                <!-- Botones -->
-                <DialogFooter class="mt-4 flex justify-end gap-4">
-                    <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
-                    <Button
-                        variant="default"
-                        type="button"
-                        :disabled="isLoading || isSendingMail"
-                        @click.prevent="handleSubmit(false)"
-                    >
-                        {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                    </Button>
-                    <Button
-                        variant="default"
-                        type="button"
-                        :disabled="isLoading || isSendingMail"
-                        @click.prevent="handleSubmit(true)"
-                    >
-                        {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                    </Button>
-                </DialogFooter>
-            </form>
+                        <!-- Proveedor -->
+                        <div class="grid grid-cols-3 gap-4">
+                            <SelectField
+                                v-model="localForm.contact_id"
+                                label="Proveedor"
+                                :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
+                                required
+                            />
+                            <InputField
+                                :key="String(localForm.contact_id ?? '')"
+                                label="Numero de identificacion"
+                                :modelValue="contactIdNumber"
+                                readonly
+                                :disabled="true"
+                            />
+                            <InputField
+                                :key="String(localForm.contact_id ?? '') + '-phone'"
+                                label="Numero de contacto"
+                                :modelValue="contactPhone"
+                                readonly
+                                :disabled="true"
+                            />
+                        </div>
+
+                        <!-- Fechas -->
+                        <div class="grid grid-cols-3 gap-4">
+                            <InputDate v-model="localForm.date" label="Fecha de creacion" required />
+                            <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
+                            <InputField
+                                v-model="localForm.supplier_order_number"
+                                label="# Pedido Proveedor"
+                                id="supplier-order"
+                                required
+                            />
+                        </div>
+
+                        <!-- Items -->
+                        <InventoryDetailTableLayout @create-line="handleAddLine">
+                            <PurchaseOrderItemsTable
+                                ref="itemsTableRef"
+                                :items="localForm.items || []"
+                                @update:items="(items) => (localForm.items = items)"
+                            />
+                        </InventoryDetailTableLayout>
+
+                        <!-- Totales -->
+                        <div class="flex flex-col items-end space-y-0 text-sm">
+                            <div class="flex gap-5">
+                                <div class="flex flex-col items-end">
+                                    <span class="font-semibold">Subtotal:</span>
+                                    <span class="font-semibold">IVA total:</span>
+                                    <span class="font-semibold">Total orden de compra:</span>
+                                </div>
+                                <div class="flex min-w-[140px] flex-col items-start text-right">
+                                    <span>{{
+                                        Number(subtotal || 0).toLocaleString('es-CO', {
+                                            style: 'currency',
+                                            currency: 'COP',
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0,
+                                        })
+                                    }}</span>
+                                    <span>{{
+                                        Number(iva || 0).toLocaleString('es-CO', {
+                                            style: 'currency',
+                                            currency: 'COP',
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0,
+                                        })
+                                    }}</span>
+                                    <span class="font-bold">{{
+                                        Number(total || 0).toLocaleString('es-CO', {
+                                            style: 'currency',
+                                            currency: 'COP',
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0,
+                                        })
+                                    }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Observaciones -->
+                        <div>
+                            <TextareaField
+                                v-model="localForm.description"
+                                label="Observacion"
+                                placeholder="Agrega aqui observaciones adicionales para la orden de compra"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Botones -->
+                    <DialogFooter class="mt-4 flex justify-end gap-4">
+                        <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
+                        <Button
+                            variant="default"
+                            type="button"
+                            :disabled="isLoading || isSendingMail"
+                            @click.prevent="handleSubmit(false)"
+                        >
+                            {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                        </Button>
+                        <Button
+                            variant="default"
+                            type="button"
+                            :disabled="isLoading || isSendingMail"
+                            @click.prevent="handleSubmit(true)"
+                        >
+                            {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </div>
         </DialogContent>
     </Dialog>
 </template>

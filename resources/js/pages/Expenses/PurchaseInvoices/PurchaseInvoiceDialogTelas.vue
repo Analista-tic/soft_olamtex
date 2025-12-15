@@ -459,181 +459,148 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[200vh] max-h-[90vh] overflow-y-auto">
-            <DialogHeader class="relative">
-                <div class="flex flex-col gap-1">
-                    <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
-                    <DialogDescription>
-                        Completa los campos y añade los ítems de la factura.
-                    </DialogDescription>
-                </div>
-                <div class="absolute right-4 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
-                    <div class="w-[280px]">
-                        <SelectField
-                            v-model="selectedPurchaseOrderValue"
-                            :options="pendingPurchaseOrderOptions"
-                            label="Cargar desde orden pendiente"
-                            placeholder="Selecciona una orden existente"
-                            :disabled="isReadOnly"
-                            :searchable="pendingPurchaseOrderOptions.length >= 6"
-                            search-placeholder="Buscar orden de compra..."
-                        />
+        <DialogContent class="max-w-[200vh] p-0">
+            <div class="max-h-[90vh] overflow-y-auto px-6 pt-6 pb-6">
+                <DialogHeader class="relative">
+                    <div class="flex flex-col gap-1">
+                        <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
+                        <DialogDescription>
+                            Completa los campos y añade los ítems de la factura.
+                        </DialogDescription>
                     </div>
-                    <div class="w-[100px]">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            type="button"
-                            class="h-10 w-full"
-                            :disabled="!selectedPurchaseOrderId || isReadOnly"
-                            @click="clearSelectedPurchaseOrder()"
-                        >
-                            Limpiar
-                        </Button>
-                    </div>
-                </div>
-            </DialogHeader>
-            <AlertStack
-                :success-message="successMessage"
-                :error-message="errorMessage"
-                success-title="Éxito"
-                error-title="Error"
-                :error-type="errorType"
-                @close-success="successMessage = ''"
-                @close-error="errorMessage = ''"
-            />
-            <form
-                @submit.prevent="handleSubmit()"
-                :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"
-                class="space-y-6"
-            >
-                <div class="mt-8 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
-                    <!-- Cabecera -->
-                    <div class="grid grid-cols-3 items-start gap-4">
-                        <div>
-                            <InputField
-                                label="# Factura de Compra Tela"
-                                :modelValue="id"
-                                readonly
-                                v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingInvoiceId && id)"
-                            />
-                            <span v-else-if="dialogType === 'create' && isLoadingInvoiceId" class="text-gray-400">Cargando...</span>
-                        </div>
-                        <div class="flex h-full items-center justify-center rounded p-4">
-                            <img
-                                :src="logoUrl"
-                                alt="Logotipo de la empresa"
-                                class="max-h-24 max-w-[160px] w-auto object-contain"
+                    <div class="absolute right-4 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
+                        <div class="w-[280px]">
+                            <SelectField
+                                v-model="selectedPurchaseOrderValue"
+                                :options="pendingPurchaseOrderOptions"
+                                label="Cargar desde orden pendiente"
+                                placeholder="Selecciona una orden existente"
+                                :disabled="isReadOnly"
+                                :searchable="pendingPurchaseOrderOptions.length >= 6"
+                                search-placeholder="Buscar orden de compra..."
                             />
                         </div>
-                        <div>
-                            <div class="text-sm font-semibold">Datos empresa</div>
-                            <p class="text-xs">
-                                Razon Social:
-                                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
-                            </p>
-                            <p class="text-xs">
-                                NIT:
-                                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
-                            </p>
-                            <p class="text-xs">
-                                Correo:
-                                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
-                            </p>
+                        <div class="w-[100px]">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                type="button"
+                                class="h-10 w-full"
+                                :disabled="!selectedPurchaseOrderId || isReadOnly"
+                                @click="clearSelectedPurchaseOrder()"
+                            >
+                                Limpiar
+                            </Button>
                         </div>
                     </div>
+                </DialogHeader>
+                <AlertStack
+                    :success-message="successMessage"
+                    :error-message="errorMessage"
+                    success-title="Éxito"
+                    error-title="Error"
+                    :error-type="errorType"
+                    @close-success="successMessage = ''"
+                    @close-error="errorMessage = ''"
+                />
+                <form
+                    @submit.prevent="handleSubmit()"
+                    :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"
+                    class="space-y-6"
+                >
+                    <div class="mt-8 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+                        <!-- Cabecera -->
+                        <div class="grid grid-cols-3 items-start gap-4">
+                            <div>
+                                <InputField
+                                    label="# Factura de Compra Tela"
+                                    :modelValue="id"
+                                    readonly
+                                    v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingInvoiceId && id)"
+                                />
+                                <span v-else-if="dialogType === 'create' && isLoadingInvoiceId" class="text-gray-400">Cargando...</span>
+                            </div>
+                            <div class="flex h-full items-center justify-center rounded p-4">
+                                <img
+                                    :src="logoUrl"
+                                    alt="Logotipo de la empresa"
+                                    class="max-h-24 max-w-[160px] w-auto object-contain"
+                                />
+                            </div>
+                            <div>
+                                <div class="text-sm font-semibold">Datos empresa</div>
+                                <p class="text-xs">
+                                    Razon Social:
+                                    <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+                                </p>
+                                <p class="text-xs">
+                                    NIT:
+                                    <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+                                </p>
+                                <p class="text-xs">
+                                    Correo:
+                                    <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+                                </p>
+                            </div>
+                        </div>
 
-                    <!-- Proveedor -->
-                    <div class="grid grid-cols-3 gap-4">
-                        <SelectField
-                            v-model="localForm.contact_id"
-                            label="Proveedor"
-                            :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
-                            :disabled="isReadOnly"
-                            required
-                            :key="contacts.length + '-' + localForm.contact_id"
-                        />
-                        <InputField
-                            :key="`idnumber-${localForm.contact_id ?? ''}`"
-                            label="Número de identificación"
-                            :modelValue="contactIdNumber"
-                            readonly
-                            :disabled="true"
-                        />
-                        <InputField
-                            :key="`phone-${localForm.contact_id ?? ''}`"
-                            label="Número de contacto"
-                            :modelValue="contactPhone"
-                            readonly
-                            :disabled="true"
-                        />
-                    </div>
-                    <div class="grid grid-cols-3 gap-4">
-                        <InputDate v-model="localForm.date" label="Fecha de factura" required />
-                        <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
-                        <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
-                    </div>
-                    <InventoryDetailTableLayout
-                        @create-line="handleInvoiceAddLine"
-                        :createLineButtonDisabled="isReadOnly"
-                    >
-                        <PurchaseInvoiceItemsTable
-                            ref="invoiceItemsTableRef"
-                            :items="localForm.items || []"
-                            :isCreating="dialogType === 'create'"
-                            :isReadOnly="isReadOnly"
-                            :telaMode="true"
-                            @update:items="(items) => (localForm.items = items)"
-                        />
-                    </InventoryDetailTableLayout>
-                    <div class="space-y-4 pt-6">
-                        <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
-                            <PurchaseInvoiceWithholdingsTable
-                                :modelValue="localForm.withholdings || []"
-                                @update:modelValue="(val) => (localForm.withholdings = val)"
-                                :isReadOnly="isReadOnly"
+                        <!-- Proveedor -->
+                        <div class="grid grid-cols-3 gap-4">
+                            <SelectField
+                                v-model="localForm.contact_id"
+                                label="Proveedor"
+                                :options="contacts.map((c) => ({ id: Number(c.id), name: c.full_name }))"
+                                :disabled="isReadOnly"
+                                required
+                                :key="contacts.length + '-' + localForm.contact_id"
+                            />
+                            <InputField
+                                :key="`idnumber-${localForm.contact_id ?? ''}`"
+                                label="Número de identificación"
+                                :modelValue="contactIdNumber"
+                                readonly
+                                :disabled="true"
+                            />
+                            <InputField
+                                :key="`phone-${localForm.contact_id ?? ''}`"
+                                label="Número de contacto"
+                                :modelValue="contactPhone"
+                                readonly
+                                :disabled="true"
                             />
                         </div>
-                        <div class="flex flex-col items-end space-y-0 text-sm w-full">
-                            <div class="w-full max-w-xs rounded p-2 space-y-1 bg-card text-card-foreground shadow-sm">
-                                <div class="flex justify-between items-center">
-                                    <span class="font-semibold text-card-foreground/70">Subtotal</span>
-                                    <span>{{
-                                        Number(subtotal || 0).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="font-semibold text-card-foreground/70">IVA 19%</span>
-                                    <span>{{
-                                        Number(iva || 0).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}</span>
-                                </div>
-                                <div class="flex justify-between items-center pt-1">
-                                    <span class="font-bold text-card-foreground">Total orden de compra</span>
-                                    <span class="font-bold text-card-foreground">{{
-                                        Number(total || 0).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}</span>
-                                </div>
-                                <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
+                        <div class="grid grid-cols-3 gap-4">
+                            <InputDate v-model="localForm.date" label="Fecha de factura" required />
+                            <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
+                            <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
+                        </div>
+                        <InventoryDetailTableLayout
+                            @create-line="handleInvoiceAddLine"
+                            :createLineButtonDisabled="isReadOnly"
+                        >
+                            <PurchaseInvoiceItemsTable
+                                ref="invoiceItemsTableRef"
+                                :items="localForm.items || []"
+                                :isCreating="dialogType === 'create'"
+                                :isReadOnly="isReadOnly"
+                                :telaMode="true"
+                                @update:items="(items) => (localForm.items = items)"
+                            />
+                        </InventoryDetailTableLayout>
+                        <div class="space-y-4 pt-6">
+                            <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
+                                <PurchaseInvoiceWithholdingsTable
+                                    :modelValue="localForm.withholdings || []"
+                                    @update:modelValue="(val) => (localForm.withholdings = val)"
+                                    :isReadOnly="isReadOnly"
+                                />
+                            </div>
+                            <div class="flex flex-col items-end space-y-0 text-sm w-full">
+                                <div class="w-full max-w-xs rounded p-2 space-y-1 bg-card text-card-foreground shadow-sm">
                                     <div class="flex justify-between items-center">
-                                        <span class="text-card-foreground/60">- {{ w.name }}</span>
-                                        <span class="text-red-500 dark:text-red-400">-{{
-                                            ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100).toLocaleString('es-CO', {
+                                        <span class="font-semibold text-card-foreground/70">Subtotal</span>
+                                        <span>{{
+                                            Number(subtotal || 0).toLocaleString('es-CO', {
                                                 style: 'currency',
                                                 currency: 'COP',
                                                 minimumFractionDigits: 0,
@@ -641,35 +608,70 @@ watch(dialogOpen, (isOpen) => {
                                             })
                                         }}</span>
                                     </div>
-                                </template>
-                                <div class="flex justify-between items-center pt-2 mt-1 border-t border-border/50">
-                                    <span class="font-bold text-card-foreground">Total a pagar</span>
-                                    <span class="font-bold text-green-500 dark:text-green-400">{{
-                                        Number(totalPagar || 0).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}</span>
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold text-card-foreground/70">IVA 19%</span>
+                                        <span>{{
+                                            Number(iva || 0).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center pt-1">
+                                        <span class="font-bold text-card-foreground">Total orden de compra</span>
+                                        <span class="font-bold text-card-foreground">{{
+                                            Number(total || 0).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}</span>
+                                    </div>
+                                    <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-card-foreground/60">- {{ w.name }}</span>
+                                            <span class="text-red-500 dark:text-red-400">-{{
+                                                ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100).toLocaleString('es-CO', {
+                                                    style: 'currency',
+                                                    currency: 'COP',
+                                                    minimumFractionDigits: 0,
+                                                    maximumFractionDigits: 0,
+                                                })
+                                            }}</span>
+                                        </div>
+                                    </template>
+                                    <div class="flex justify-between items-center pt-2 mt-1 border-t border-border/50">
+                                        <span class="font-bold text-card-foreground">Total a pagar</span>
+                                        <span class="font-bold text-green-500 dark:text-green-400">{{
+                                            Number(totalPagar || 0).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        <div>
+                            <TextareaField v-model="localForm.description" label="Observación" />
+                        </div>
                     </div>
-                    <div>
-                        <TextareaField v-model="localForm.description" label="Observación" />
-                    </div>
-                </div>
-                <DialogFooter class="gap-2">
-                    <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
-                    <Button variant="default" type="button" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(false)">
-                        {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                    </Button>
-                    <Button variant="default" type="button" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(true)">
-                        {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                    </Button>
-                </DialogFooter>
-            </form>
+                    <DialogFooter class="gap-2">
+                        <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
+                        <Button variant="default" type="button" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(false)">
+                            {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                        </Button>
+                        <Button variant="default" type="button" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(true)">
+                            {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </div>
         </DialogContent>
     </Dialog>
 </template>
