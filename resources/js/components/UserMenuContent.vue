@@ -3,7 +3,7 @@ import UserInfo from '@/components/UserInfo.vue';
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import type { User } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { LogOut, Settings } from 'lucide-vue-next';
+import { LogOut, Settings, FileSearch } from 'lucide-vue-next';
 
 interface Props {
     user: User;
@@ -24,6 +24,12 @@ defineProps<Props>();
             <Link class="block w-full" :href="route('panel-administrativo.empresa')" as="button">
                 <Settings class="mr-2 h-4 w-4" />
                 Configuración
+            </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem :as-child="true">
+            <Link class="block w-full" :href="route('auditoria.index')" as="button">
+                <FileSearch class="mr-2 h-4 w-4" />
+                Auditoría
             </Link>
         </DropdownMenuItem>
     </DropdownMenuGroup>

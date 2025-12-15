@@ -58,7 +58,7 @@ const modules = [
         ],
     },
     {
-        title: 'Diseヵo',
+        title: 'Diseño',
         description: 'Administra parametros y configuraciones',
         options: [
             { name: 'Temporadas', href: '' },

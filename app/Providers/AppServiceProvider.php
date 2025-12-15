@@ -2,8 +2,22 @@
 
 namespace App\Providers;
 
+use App\Models\Common\CategoryGroup;
+use App\Models\Common\CategorySubGroup;
+use App\Models\Common\Contact;
+use App\Models\Common\Tax;
+use App\Models\Common\Warehouse;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
+
+use App\Models\Expenses\PurchaseOrder;
+use App\Models\Expenses\PurchaseInvoice;
+use App\Models\Expenses\PurchaseRequest;
+use App\Models\Inventory\Item;
+use App\Models\Settings\CompanySetting;
+use App\Models\Settings\Retention;
+use App\Models\User;
+use App\Observers\AuditObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,5 +35,19 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191); // Limita las cadenas a 191 caracteres
+
+        PurchaseRequest::observe(AuditObserver::class);
+        PurchaseOrder::observe(AuditObserver::class);
+        PurchaseInvoice::observe(AuditObserver::class);
+        Item::observe(AuditObserver::class);
+        User::observe(AuditObserver::class);
+        CategoryGroup::observe(AuditObserver::class);
+        CategorySubGroup::observe(AuditObserver::class);
+        Contact::observe(AuditObserver::class);
+        Tax::observe(AuditObserver::class);
+        Warehouse::observe(AuditObserver::class);
+        CompanySetting::observe(AuditObserver::class);
+        Retention::observe(AuditObserver::class);
     }
+
 }

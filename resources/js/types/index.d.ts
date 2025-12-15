@@ -72,6 +72,52 @@ export interface SharedData extends PageProps {
     company?: CompanyInfo | null;
 }
 
+export interface PaginationLink {
+    url: string | null;
+    label: string;
+    active: boolean;
+}
+
+export interface PaginatedData<T> {
+    data: T[];
+    current_page: number;
+    first_page_url?: string | null;
+    from?: number | null;
+    last_page: number;
+    last_page_url?: string | null;
+    links: PaginationLink[];
+    next_page_url?: string | null;
+    path?: string;
+    per_page: number;
+    prev_page_url?: string | null;
+    to?: number | null;
+    total: number;
+    meta?: {
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+    };
+}
+
+export interface AuditLog {
+    id: number;
+    user_id: number | null;
+    user_name: string | null;
+    action: string;
+    auditable_type: string | null;
+    auditable_id: number | string | null;
+    module: string | null;
+    description: string | null;
+    company_id: number | null;
+    old_values: Record<string, unknown> | null;
+    new_values: Record<string, unknown> | null;
+    ip_address: string | null;
+    user_agent: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
 // Interfaces relacionadas con productos
 export interface OptionParams {
     id: number;

@@ -3,8 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Hash;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -29,6 +28,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear roles',
             'editar roles',
             'eliminar roles',
+            'ver auditoria',
             'ver telas',
             'crear telas',
             'editar telas',

@@ -11,6 +11,7 @@ use App\Http\Controllers\ProductSheet\GroupController;
 use App\Http\Controllers\ProductSheet\SectionController;
 use App\Http\Controllers\ProductSheet\WorldController;
 use App\Http\Controllers\ProductSheet\YarnBaseController;
+use App\Http\Controllers\AuditLogController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -158,6 +159,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:eliminar roles')
         ->name('roles.destroy');
 
+    // === AUDITORÍA ===
+    Route::middleware(['auth', 'verified'])->group(function () {
+        Route::get('auditoria', [AuditLogController::class, 'index'])
+            ->name('auditoria.index')
+            ->middleware('permission:ver auditoria'); // si usáis permisos
+    });
+
     // === CATEGORIAS ===
     Route::prefix('categorias')->name('categorias.')->group(function () {
         Route::get('grupos', [CategoryGroupController::class, 'getData'])->name('groups.getData');
@@ -189,15 +197,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/{id}/warehouses', [ItemController::class, 'getWarehouses'])->name('warehouses');
         Route::put('/{warehouse}', [WarehouseController::class, 'update'])->name('update');
         Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->name('destroy');
-    });
-
-    // === COLORS ===
-    Route::prefix('colores')->name('colors.')->group(function () {
-        Route::get('/data', [ColorController::class, 'getData'])->name('getData');
-        Route::post('/', [ColorController::class, 'store'])->name('store');
-        Route::get('/{color}', [ColorController::class, 'show'])->name('show');
-        Route::put('/{color}', [ColorController::class, 'update'])->name('update');
-        Route::delete('/{color}', [ColorController::class, 'destroy'])->name('destroy');
     });
 
     // === ITEMS ===
