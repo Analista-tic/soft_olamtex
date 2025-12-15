@@ -90,13 +90,13 @@ onUnmounted(() => {
             "
         >
             <div class="flex h-full max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[24px]">
-                <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6">
+                <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-10">
                     <slot />
                 </div>
             </div>
 
             <DialogClose
-                class="absolute right-4 top-4 rounded border-0 bg-transparent px-2 py-1 text-lg font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                class="absolute right-5 top-2 z-10 rounded border-0 bg-transparent px-2 py-1 text-lg font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
                 <span aria-hidden="true">&times;</span>
                 <span class="sr-only">Close</span>
@@ -104,4 +104,3 @@ onUnmounted(() => {
         </DialogContent>
     </DialogPortal>
 </template>
-

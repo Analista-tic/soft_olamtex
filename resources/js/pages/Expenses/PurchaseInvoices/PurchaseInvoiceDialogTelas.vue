@@ -468,7 +468,7 @@ watch(dialogOpen, (isOpen) => {
                             Completa los campos y añade los ítems de la factura.
                         </DialogDescription>
                     </div>
-                    <div class="absolute right-4 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
+                    <div class="absolute right-12 top-4 flex w-full max-w-[520px] items-start justify-end gap-2">
                         <div class="w-[280px]">
                             <SelectField
                                 v-model="selectedPurchaseOrderValue"
