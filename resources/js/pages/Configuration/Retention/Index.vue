@@ -18,7 +18,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
 const breadcrumbs = [
-    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Retenciones', href: '/configuracion/retenciones' },
 ];
 

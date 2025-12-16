@@ -39,11 +39,14 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent>
+        <DialogContent class="w-full max-w-4xl">
             <DialogHeader>
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear Bodega' : 'Editar Bodega' }}
                 </DialogTitle>
+                <DialogDescription>
+                    {{ dialogType === 'create' ? 'Completa los campos para crear una nueva bodega.' : 'Actualiza los datos de la bodega seleccionada.' }}
+                </DialogDescription>
             </DialogHeader>
             <div class="space-y-4">
                 <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre" required />

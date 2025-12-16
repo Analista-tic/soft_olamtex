@@ -93,9 +93,12 @@ async function handleBulkUpload() {
 
 <template>
     <Dialog v-model:open="isOpen">
-        <DialogContent class="max-w-lg">
+        <DialogContent class="w-full max-w-2xl">
             <DialogHeader>
                 <DialogTitle>Carga Masiva de Artículos</DialogTitle>
+                <DialogDescription>
+                    Descarga la plantilla o sube el archivo Excel con los artículos para registrarlos en lote.
+                </DialogDescription>
             </DialogHeader>
             <Tabs default-value="descargar" class="w-full">
                 <TabsList>

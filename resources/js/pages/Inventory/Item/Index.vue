@@ -19,7 +19,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
-    { title: 'Inventario', href: '/inventario' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Ítems', href: '/inventario/item' },
 ];
 

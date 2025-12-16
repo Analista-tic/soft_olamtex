@@ -47,7 +47,7 @@ interface DiffEntry {
 const props = defineProps<AuditPageProps>();
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuración', href: route('panel-administrativo') },
+    { title: 'Panel administrativo', href: route('panel-administrativo') },
     { title: 'Auditoría', href: route('auditoria.index') },
 ];
 

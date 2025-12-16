@@ -26,7 +26,7 @@ import SelectField from '@/components/SelectField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Contactos', href: '/contactos' },
 ];
 

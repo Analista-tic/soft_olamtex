@@ -25,7 +25,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PlusCircle, Search } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuracion', href: '/configuracion' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Campos adicionales', href: '/inventario/campos-adicionales' },
 ];
 

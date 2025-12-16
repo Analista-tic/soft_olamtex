@@ -18,7 +18,7 @@ import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
-    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Impuestos', href: '/impuestos' },
 ];
 

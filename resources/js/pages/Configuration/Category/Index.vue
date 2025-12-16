@@ -26,8 +26,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Configuración',
-        href: '/configuracion',
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
     },
     {
         title: 'Subgrupos',

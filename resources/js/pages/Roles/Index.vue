@@ -26,8 +26,8 @@ import { useAuthStore } from '@/stores/auth';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Configuración',
-        href: '/configuracion',
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
     },
     {
         title: 'Roles',

@@ -22,7 +22,7 @@ import { Item } from '@/types';
 import ViewButton from '@/components/common/ViewButton.vue';
 
 const breadcrumbs = [
-    { title: 'Inventario', href: '/inventario' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Listado de ítems', href: '/inventario/item' },
 ];
 

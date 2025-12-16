@@ -146,6 +146,10 @@ function handleSubmit() {
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional' }}
                 </DialogTitle>
+                <DialogDescription>
+                    {{ dialogType === 'create' ? 'Define un nuevo campo adicional para los ítems.' : 'Modifica la configuración del campo adicional seleccionado.' }}
+                    <template v-if="localForm.field_type === 'select'"> Agrega las opciones que estarán disponibles en la lista.</template>
+                </DialogDescription>
             </DialogHeader>
             <div class="space-y-6">
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
