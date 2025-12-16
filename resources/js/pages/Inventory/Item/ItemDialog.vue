@@ -18,6 +18,7 @@ import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
 import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import FormHeader from '@/components/FormHeader.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
@@ -824,28 +825,11 @@ watch(
                     />
                 </div>
             </transition>
-            <DialogHeader class="mb-4">
-                <DialogTitle>
-                {{
-                    dialogType === 'create'
-                    ? 'Crear ítem'
-                    : dialogType === 'edit'
-                        ? 'Editar ítem'
-                        : 'Detalle del ítem'
-                }}
-                </DialogTitle>
-
-                <DialogDescription>
-                {{
-                    dialogType === 'create'
-                    ? 'Complete los campos para crear un nuevo artículo.'
-                    : dialogType === 'edit'
-                        ? 'Edite los campos del artículo seleccionado.'
-                        : 'Visualice la información del artículo.'
-                }}
-                </DialogDescription>
-
-            </DialogHeader>
+            <FormHeader
+                headerClass="mb-4"
+                :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
+                :description="dialogType === 'create' ? 'Complete los campos para crear un nuevo artículo.' : dialogType === 'edit' ? 'Edite los campos del artículo seleccionado.' : 'Visualice la información del artículo.'"
+            />
 
             <form @submit.prevent="handleSubmit">
                 <fieldset :disabled="isViewMode" class="space-y-4">

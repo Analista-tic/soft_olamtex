@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue'; // Importar el nuevo componente SelectField
 import { ref, watch } from 'vue';
+import FormHeader from '@/components/FormHeader.vue';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -72,12 +73,10 @@ function submitForm() {
 <template>
     <Dialog v-model:open="internalIsOpen">
         <DialogContent class="space-y-6 bg-card text-card-foreground w-full max-w-4xl">
-            <DialogHeader>
-                <DialogTitle>{{ dialogType === 'create' ? 'Crear Usuario' : 'Editar Usuario' }}</DialogTitle>
-                <DialogDescription>
-                    Completa los campos para {{ dialogType === 'create' ? 'crear un nuevo usuario' : 'editar el usuario' }}.
-                </DialogDescription>
-            </DialogHeader>
+            <FormHeader
+                :title="dialogType === 'create' ? 'Crear Usuario' : 'Editar Usuario'"
+                :description="dialogType === 'create' ? 'Completa los campos para crear un nuevo usuario.' : 'Completa los campos para editar el usuario.'"
+            />
             <div class="space-y-4">
                 <InputField v-model="form.name" label="Nombre" placeholder="Nombre del usuario" required />
                 <InputField v-model="form.email" label="Email" placeholder="Correo electrónico" required />

@@ -460,7 +460,7 @@ watch(dialogOpen, (isOpen) => {
 <template>
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-w-[200vh] p-0">
-            <div class="max-h-[90vh] overflow-y-auto px-6 pt-6 pb-6">
+            <div class="max-h-[90vh] overflow-y-auto px-4 py-4">
                 <DialogHeader class="relative">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import FormHeader from '@/components/FormHeader.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
@@ -141,16 +143,15 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent class="space-y-6 max-h-[80vh]">
-            <DialogHeader>
-                <DialogTitle>
-                    {{ dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional' }}
-                </DialogTitle>
-                <DialogDescription>
-                    {{ dialogType === 'create' ? 'Define un nuevo campo adicional para los ítems.' : 'Modifica la configuración del campo adicional seleccionado.' }}
-                    <template v-if="localForm.field_type === 'select'"> Agrega las opciones que estarán disponibles en la lista.</template>
-                </DialogDescription>
-            </DialogHeader>
+        <FormDialogContent class="space-y-6">
+            <FormHeader
+                :title="dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional'"
+                :description="dialogType === 'create' ? 'Define un nuevo campo adicional para los ítems.' : 'Modifica la configuración del campo adicional seleccionado.'"
+            >
+                <template v-if="localForm.field_type === 'select'" #default>
+                    <div class="text-sm text-gray-600 mt-1">Agrega las opciones que estarán disponibles en la lista.</div>
+                </template>
+            </FormHeader>
             <div class="space-y-6">
                 <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
                     <InputField v-model="localForm.name" label="Nombre" placeholder="Nombre del campo" required />
@@ -225,6 +226,6 @@ function handleSubmit() {
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                 </Button>
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

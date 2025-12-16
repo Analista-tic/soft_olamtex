@@ -454,7 +454,7 @@ async function handleSubmit() {
 <template>
   <Dialog :open="isOpen" @update:open="emit('close')">
     <DialogContent class="max-w-[200vh] p-0">
-      <div class="max-h-[90vh] overflow-y-auto px-6 pt-6 pb-6">
+      <div class="max-h-[90vh] overflow-y-auto px-4 py-4">
         <DialogHeader>
           <DialogTitle>{{ props.dialogType === 'edit' ? 'Editar ajuste de inventario' : 'Nuevo ajuste de inventario' }}</DialogTitle>
           <DialogDescription>
