@@ -20,19 +20,14 @@ const props = defineProps<Props>();
             </div>
         </div>
 
-        <div class="rounded-2xl border border-border bg-card shadow-sm transition">
-            <div v-if="$slots.filters" class="rounded-t-2xl border-b border-divider bg-card/50 px-4 py-4 transition">
+        <div v-if="$slots.filters" class="rounded-2xl border border-border bg-card shadow-sm transition">
+            <div class="px-4 py-4">
                 <slot name="filters" />
             </div>
+        </div>
 
-            <div
-                :class="[
-                    'bg-card transition',
-                    $slots.filters ? 'rounded-b-2xl' : 'rounded-2xl',
-                ]"
-            >
-                <slot />
-            </div>
+        <div class="rounded-2xl border border-border bg-card shadow-sm transition">
+            <slot />
         </div>
 
         <div v-if="$slots.footer">
