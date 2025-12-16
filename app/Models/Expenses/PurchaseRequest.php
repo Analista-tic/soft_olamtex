@@ -9,9 +9,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class PurchaseRequest extends Model
+class PurchaseRequest extends Model implements \App\Contracts\HasAuditLabel
 {
     use HasFactory, SoftDeletes;
+
+    public static function auditLabel(): string
+    {
+        return 'Solicitud de compra';
+    }
 
     protected $fillable = [
         'request_number',

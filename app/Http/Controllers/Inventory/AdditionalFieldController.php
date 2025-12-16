@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\AdditionalFieldRequest;
 use App\Models\Inventory\AdditionalField;
+use App\Services\Inventory\AdditionalFieldService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class AdditionalFieldController extends Controller
 {
+    public function __construct(protected AdditionalFieldService $service) {}
+
     public function index()
     {
         return Inertia::render('Configuration/AdditionalFields/Index', [
@@ -17,33 +20,27 @@ class AdditionalFieldController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(AdditionalFieldRequest $request)
     {
-        $data = $this->validateData($request);
-
-        $data['status'] = $data['status'] ?? true;
-        $nextPosition = AdditionalField::max('position') ?? 0;
-        $data['position'] = $nextPosition + 1;
-
-        return AdditionalField::create($data);
+        return $this->service->create($request->validated());
     }
 
     public function show($id)
     {
-        return AdditionalField::findOrFail($id);
+        return $this->service->find($id);
     }
 
-    public function update(Request $request, $id)
+    public function update(AdditionalFieldRequest $request, $id)
     {
-        $field = AdditionalField::findOrFail($id);
-        $field->update($this->validateData($request));
+        $field = $this->service->find($id);
 
-        return $field;
+        return $this->service->update($field, $request->validated());
     }
 
     public function destroy($id)
     {
-        AdditionalField::findOrFail($id)->delete();
+        $field = $this->service->find($id);
+        $this->service->delete($field);
 
         return response()->noContent();
     }
@@ -55,90 +52,25 @@ class AdditionalFieldController extends Controller
             'order.*' => 'integer|min:1',
         ]);
 
-        foreach ($validated['order'] as $index => $fieldId) {
-            AdditionalField::where('id', $fieldId)->update([
-                'position' => $index + 1,
-            ]);
-        }
+        $this->service->reorder($validated['order']);
 
         return response()->json(['message' => 'Orden actualizado correctamente.']);
     }
 
     public function getData(Request $request)
     {
-        $query = AdditionalField::query();
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where('name', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%");
-        }
-
+        $filters = $request->only(['search', 'field_type']);
         $perPage = $request->input('per_page', 10);
-        $fieldTypes = $request->input('field_type');
-        if ($fieldTypes) {
-            $query->whereIn('field_type', (array) $fieldTypes);
-        }
-
-        $additionalFields = $query->orderBy('position', 'asc')->paginate($perPage);
+        $additionalFields = $this->service->paginate($filters, $perPage);
 
         return response()->json($additionalFields);
     }
 
     public function options()
     {
-        $fields = AdditionalField::where('status', true)
-            ->orderBy('position', 'asc')
-            ->get(['id', 'name', 'field_type', 'options', 'default_value', 'description', 'is_required', 'position']);
-
         return response()->json([
-            'data' => $fields,
+            'data' => $this->service->options(),
         ]);
     }
 
-    private function validateData(Request $request): array
-    {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'field_type' => ['required', Rule::in(AdditionalField::FIELD_TYPES)],
-            'options' => 'nullable',
-            'default_value' => 'nullable|string',
-            'description' => 'nullable|string',
-            'is_required' => 'sometimes|boolean',
-            'status' => 'sometimes|boolean',
-        ]);
-
-        $data['is_required'] = $request->has('is_required') ? $request->boolean('is_required') : false;
-        $data['status'] = $request->has('status') ? $request->boolean('status') : null;
-
-        $options = $this->normalizeOptions($request->input('options'));
-        $data['options'] = $options;
-
-        return $data;
-    }
-
-    private function normalizeOptions(mixed $options): ?array
-    {
-        if (is_string($options)) {
-            $decoded = json_decode($options, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $options = $decoded;
-            } else {
-                $options = preg_split('/\\r?\\n/', $options) ?: [];
-            }
-        }
-
-        if (!is_array($options)) {
-            return null;
-        }
-
-        $sanitized = array_values(array_filter(array_map(function ($value) {
-            if ($value === null) {
-                return null;
-            }
-            return trim((string) $value);
-        }, $options), fn ($value) => $value !== ''));
-
-        return $sanitized ?: null;
-    }
 }

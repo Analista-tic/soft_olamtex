@@ -9,9 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Common\Contact;
 
-class PurchaseInvoice extends Model
+class PurchaseInvoice extends Model implements \App\Contracts\HasAuditLabel
 {
     use HasFactory, SoftDeletes;
+
+    public static function auditLabel(): string
+    {
+        return 'Factura de compra';
+    }
 
     protected $fillable = [
         'contact_id',

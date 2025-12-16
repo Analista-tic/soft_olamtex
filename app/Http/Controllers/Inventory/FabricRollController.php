@@ -3,14 +3,15 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\Inventory\FabricRoll;
 use App\Models\Expenses\PurchaseInvoice;
+use App\Services\Inventory\FabricRollService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
 
 class FabricRollController extends Controller
 {
+    public function __construct(protected FabricRollService $service) {}
     public function index()
     {
         return Inertia::render('Inventory/FabricRolls/Index');
@@ -23,7 +24,7 @@ class FabricRollController extends Controller
 
     public function edit($id)
     {
-        $fabricRoll = FabricRoll::with(['purchaseInvoiceItem.article'])->findOrFail($id);
+        $fabricRoll = $this->service->findOrFail($id);
         return Inertia::render('Inventory/FabricRolls/Edit', [
             'fabricRoll' => $fabricRoll
         ]);
@@ -48,40 +49,9 @@ class FabricRollController extends Controller
 
     public function getData(Request $request)
     {
-        $query = FabricRoll::with(['purchaseInvoiceItem.article']);
-
-        // Filtro por búsqueda general
-        if ($request->has('search') && trim($request->search) !== '') {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('roll_number', 'like', "%$search%")
-                    ->orWhereHas('purchaseInvoiceItem.article', function ($article) use ($search) {
-                        $article->where('description', 'like', "%$search%")
-                                ->orWhere('reference', 'like', "%$search%");
-                    });
-            });
-        }
-
-        // Filtro por estado (disponible o agotado)
-        if ($request->has('status') && $request->status !== '') {
-            if ($request->status === 'available') {
-                $query->whereRaw('quantity > actual_output');
-            } elseif ($request->status === 'depleted') {
-                $query->whereRaw('quantity <= actual_output');
-            }
-        }
-
-        // Filtro por fecha de entrada
-        if ($request->has('date_from') && $request->date_from) {
-            $query->whereDate('entry_date', '>=', $request->date_from);
-        }
-
-        if ($request->has('date_to') && $request->date_to) {
-            $query->whereDate('entry_date', '<=', $request->date_to);
-        }
-
+        $filters = $request->only(['search', 'status', 'date_from', 'date_to']);
         $perPage = $request->input('per_page', 10);
-        $fabricRolls = $query->orderBy('entry_date', 'desc')->paginate($perPage);
+        $fabricRolls = $this->service->paginate($filters, $perPage);
 
         return response()->json($fabricRolls);
     }
@@ -107,21 +77,14 @@ class FabricRollController extends Controller
             ], 422);
         }
 
-        // Valores por defecto
-        $data['partial_output'] = $data['partial_output'] ?? 0;
-        $data['actual_output'] = $data['actual_output'] ?? 0;
-        $data['roll_width'] = $data['roll_width'] ?? 0;
-
-        // Validación de salidas
-        if ($data['actual_output'] > $data['quantity']) {
+        if (($data['actual_output'] ?? 0) > $data['quantity']) {
             return response()->json([
                 'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
                 'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']]
             ], 422);
         }
 
-        $fabricRoll = FabricRoll::create($data);
-        $fabricRoll->load('purchaseInvoiceItem.article');
+        $fabricRoll = $this->service->create($data);
 
         return response()->json([
             'message' => 'Rollo creado correctamente',
@@ -131,13 +94,13 @@ class FabricRollController extends Controller
 
     public function show($id)
     {
-        $fabricRoll = FabricRoll::with(['purchaseInvoiceItem.article'])->findOrFail($id);
+        $fabricRoll = $this->service->findOrFail($id);
         return response()->json($fabricRoll);
     }
 
     public function update(Request $request, $id)
     {
-        $fabricRoll = FabricRoll::findOrFail($id);
+        $fabricRoll = $this->service->findOrFail($id);
 
         try {
             $data = $request->validate([
@@ -155,32 +118,28 @@ class FabricRollController extends Controller
             ], 422);
         }
 
-        $data['partial_output'] = $data['partial_output'] ?? 0;
-        $data['actual_output'] = $data['actual_output'] ?? 0;
-
-        if ($data['actual_output'] > $data['quantity']) {
+        if (($data['actual_output'] ?? 0) > $data['quantity']) {
             return response()->json([
                 'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
                 'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']]
             ], 422);
         }
 
-        $fabricRoll->update($data);
-        $fabricRoll->load('purchaseInvoiceItem.article');
+        $fabricRoll = $this->service->update($fabricRoll, $data);
 
         return response()->json($fabricRoll);
     }
 
     public function destroy($id)
     {
-        $fabricRoll = FabricRoll::findOrFail($id);
-        $fabricRoll->delete();
+        $fabricRoll = $this->service->findOrFail($id);
+        $this->service->delete($fabricRoll);
         return response()->noContent();
     }
 
     public function updateOutput(Request $request, $id)
     {
-        $fabricRoll = FabricRoll::findOrFail($id);
+        $fabricRoll = $this->service->findOrFail($id);
 
         $data = $request->validate([
             'partial_output' => 'nullable|numeric|min:0',
@@ -195,8 +154,7 @@ class FabricRollController extends Controller
             ], 422);
         }
 
-        $fabricRoll->update($data);
-        $fabricRoll->load('purchaseInvoiceItem.article');
+        $fabricRoll = $this->service->updateOutput($fabricRoll, $data);
 
         return response()->json([
             'message' => 'Salidas actualizadas correctamente',
@@ -207,8 +165,7 @@ class FabricRollController extends Controller
     public function approveReception($invoiceId)
     {
         try {
-            $invoice = PurchaseInvoice::findOrFail($invoiceId);
-            $invoice->update(['status' => 'approved']);
+            $invoice = $this->service->approveReception($invoiceId);
             return response()->json([
                 'message' => 'Recepción aprobada correctamente',
                 'data' => $invoice
@@ -223,8 +180,7 @@ class FabricRollController extends Controller
     public function rejectReception($invoiceId)
     {
         try {
-            $invoice = PurchaseInvoice::findOrFail($invoiceId);
-            $invoice->update(['status' => 'rejected']);
+            $invoice = $this->service->rejectReception($invoiceId);
             return response()->json([
                 'message' => 'Recepción rechazada correctamente',
                 'data' => $invoice
@@ -257,11 +213,7 @@ class FabricRollController extends Controller
             ], 422);
         }
 
-        $data['partial_output'] = $data['partial_output'] ?? 0;
-        $data['actual_output'] = $data['actual_output'] ?? 0;
-        $data['roll_width'] = $data['roll_width'] ?? 0;
-
-        if ($data['actual_output'] > $data['quantity']) {
+        if (($data['actual_output'] ?? 0) > $data['quantity']) {
             return response()->json([
                 'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
                 'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']]
@@ -269,8 +221,7 @@ class FabricRollController extends Controller
         }
 
         try {
-            $fabricRoll = FabricRoll::create($data);
-            $fabricRoll->load('purchaseInvoiceItem.article');
+            $fabricRoll = $this->service->storeFromReception($data);
 
             return response()->json([
                 'message' => 'Rollo creado correctamente desde recepción',
@@ -287,7 +238,7 @@ class FabricRollController extends Controller
     // Nuevo método para obtener rollos por item de factura
     public function getByInvoiceItem($itemId)
     {
-        $rolls = FabricRoll::where('purchase_invoice_item_id', $itemId)->orderBy('entry_date')->get();
+        $rolls = $this->service->getByInvoiceItem($itemId);
         return response()->json($rolls);
     }
 }

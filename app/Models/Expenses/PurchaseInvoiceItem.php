@@ -5,6 +5,7 @@ namespace App\Models\Expenses;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
+use App\Models\Inventory\FabricRoll;
 use App\Models\Inventory\Item;
 
 class PurchaseInvoiceItem extends Model
@@ -37,5 +38,15 @@ class PurchaseInvoiceItem extends Model
     public function item()
     {
         return $this->belongsTo(Item::class);
+    }
+
+    public function fabricRolls()
+    {
+        return $this->hasMany(FabricRoll::class, 'purchase_invoice_item_id');
+    }
+
+    public function article()
+    {
+        return $this->item();
     }
 }

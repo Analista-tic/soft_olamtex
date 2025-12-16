@@ -5,7 +5,7 @@ namespace App\Models\Common;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Tax extends Model
+class Tax extends Model implements \App\Contracts\HasAuditLabel
 {
     use SoftDeletes;
 
@@ -19,4 +19,9 @@ class Tax extends Model
         'status' => 'boolean',
         'percentage' => 'decimal:2',
     ];
+
+    public static function auditLabel(): string
+    {
+        return 'Impuesto';
+    }
 }

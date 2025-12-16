@@ -22,7 +22,7 @@ return new class extends Migration
             $table->unsignedBigInteger('auditable_id')->nullable();
 
             $table->string('module')->nullable(); // 'Expenses', 'Inventory', etc.
-            $table->string('description')->nullable();
+            $table->text('description')->nullable();
 
             $table->json('old_values')->nullable();
             $table->json('new_values')->nullable();

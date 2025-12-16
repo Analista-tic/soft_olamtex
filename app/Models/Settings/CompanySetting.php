@@ -6,7 +6,7 @@ namespace App\Models\Settings;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
-class CompanySetting extends Model
+class CompanySetting extends Model implements \App\Contracts\HasAuditLabel
 {
     protected $fillable = [
         'name',
@@ -29,5 +29,10 @@ class CompanySetting extends Model
         return $this->logo_path
             ? Storage::url($this->logo_path)
             : null;
+    }
+
+    public static function auditLabel(): string
+    {
+        return 'Configuración de empresa';
     }
 }

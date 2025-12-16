@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Expenses;
 
 use App\Http\Controllers\Controller;
 use App\Models\Expenses\PurchaseRequest;
+use App\Services\Expenses\PurchaseRequestService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class PurchaseRequestController extends Controller
 {
+    public function __construct(protected PurchaseRequestService $service) {}
+
     public function index()
     {
         return Inertia::render('Expenses/PurchaseServiceRequests/Index');
@@ -16,38 +19,8 @@ class PurchaseRequestController extends Controller
 
     public function getData(Request $request)
     {
-        $query = PurchaseRequest::with(['provider', 'requester']);
-
-        if ($search = $request->input('search')) {
-            $query->where(function ($sub) use ($search) {
-                $sub->where('request_number', 'like', "%{$search}%")
-                    ->orWhereHas('provider', function ($providerQuery) use ($search) {
-                        $providerQuery->where('full_name', 'like', "%{$search}%");
-                    });
-            });
-        }
-
-        if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('provider_id') && $request->provider_id !== 'all') {
-            $providerId = is_numeric($request->provider_id) ? (int) $request->provider_id : null;
-            if ($providerId !== null) {
-                $query->where('contact_id', $providerId);
-            }
-        }
-
-        if ($request->filled('date_from')) {
-            $query->where('date', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->where('date', '<=', $request->date_to);
-        }
-
-        $perPage = $request->input('per_page', 20);
-        $requests = $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
+        $filters = $request->only(['search', 'status', 'provider_id', 'date_from', 'date_to']);
+        $requests = $this->service->paginate($filters, $request->input('per_page', 20));
 
         return response()->json([
             'data' => $requests->items(),
@@ -59,33 +32,27 @@ class PurchaseRequestController extends Controller
     public function store(Request $request)
     {
         $data = $this->validateData($request);
-        if (empty($data['request_number'])) {
-            $data['request_number'] = $this->generateRequestNumber();
-        }
-        $data['status'] = $data['status'] ?? 'draft';
-        $data['requester_user_id'] = $data['requester_user_id'] ?? $request->user()?->id;
+        $purchaseRequest = $this->service->create($data);
 
-        $purchaseRequest = PurchaseRequest::create($data);
-
-        return response()->json(['data' => $purchaseRequest->load('provider', 'requester')], 201);
+        return response()->json(['data' => $purchaseRequest], 201);
     }
 
     public function show(PurchaseRequest $purchaseRequest)
     {
-        return response()->json(['data' => $purchaseRequest->load('provider', 'requester')]);
+        return response()->json(['data' => $this->service->loadWithRelations($purchaseRequest)]);
     }
 
     public function update(Request $request, PurchaseRequest $purchaseRequest)
     {
         $data = $this->validateData($request, true);
-        $purchaseRequest->update($data);
+        $updated = $this->service->update($purchaseRequest, $data);
 
-        return response()->json(['data' => $purchaseRequest->fresh('provider', 'requester')]);
+        return response()->json(['data' => $updated]);
     }
 
     public function destroy(PurchaseRequest $purchaseRequest)
     {
-        $purchaseRequest->delete();
+        $this->service->delete($purchaseRequest);
         return response()->json(['message' => 'Solicitud eliminada correctamente.']);
     }
 
@@ -101,11 +68,5 @@ class PurchaseRequestController extends Controller
             'description' => 'nullable|string',
             'status' => 'nullable|string|max:50',
         ]);
-    }
-
-    private function generateRequestNumber(): string
-    {
-        $nextId = (int) PurchaseRequest::withTrashed()->max('id') + 1;
-        return sprintf('SOL-%s-%04d', now()->format('Ymd'), $nextId);
     }
 }

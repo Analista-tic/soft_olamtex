@@ -5,21 +5,23 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserRequest;
 use App\Models\User;
+use App\Services\Settings\UserService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role; // Importar el modelo de roles
 
 class UserController extends Controller
 {
-    //ENVIA TODOS LOS USUARIOS A LA VISTA
+    public function __construct(protected UserService $service) {}
+
     public function index()
     {
-        $users = User::with('roles.permissions')->get(); // Asegurar que los roles y permisos se carguen correctamente
-        $roles = Role::with('permissions')->get(); // Obtener roles con permisos
+        $users = $this->service->listAll();
+        $roles = Role::with('permissions')->get();
 
         return Inertia::render('Users/Index', [
             'users' => $users,
-            'roles' => $roles, // Enviar roles al frontend
+            'roles' => $roles,
         ]);
     }
 
@@ -29,72 +31,48 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8',
-            'roles' => 'required|array', // Validar que sea un array
-            'roles.*' => 'exists:roles,name', // Validar que cada rol exista
+            'roles' => 'required|array',
+            'roles.*' => 'exists:roles,name',
         ]);
 
-        $validated['password'] = bcrypt($validated['password']);
-        $validated['roles'] = is_array($validated['roles']) ? $validated['roles'] : []; // Asegurar que roles sea un array antes de procesarlo
-        $validated['roles'] = array_map('strval', $validated['roles']); // Asegurar que los roles sean cadenas antes de sincronizarlos
-        $user = User::create($validated);
+        $validated['roles'] = is_array($validated['roles']) ? $validated['roles'] : [];
+        $validated['roles'] = array_map('strval', $validated['roles']);
 
-        $user->syncRoles($validated['roles']); // Asignar múltiples roles al usuario
+        $user = $this->service->create($validated);
 
         return response()->json($user, 201);
     }
 
     public function update(Request $request, $usuario)
     {
-        $user = User::findOrFail($usuario);
+        $user = $this->service->findOrFail($usuario);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $user->id,
             'password' => 'nullable|string|min:8',
-            'roles' => 'required|array', // Validar que sea un array
-            'roles.*' => 'exists:roles,name', // Validar que cada rol exista
+            'roles' => 'required|array',
+            'roles.*' => 'exists:roles,name',
         ]);
 
-        if (!empty($validated['password'])) {
-            $validated['password'] = bcrypt($validated['password']);
-        } else {
-            unset($validated['password']); // No actualizar la contraseña si está vacía
-        }
+        $user = $this->service->update($user, $validated);
 
-        $roles = $validated['roles'];
-        unset($validated['roles']);
-
-        $user->update($validated);
-
-        $user->syncRoles($roles); // Sincronizar roles correctamente
-
-        // Sincronizar permisos basados en los roles asignados
-        $permissions = Role::whereIn('name', $roles)->with('permissions')->get()->pluck('permissions.*.name')->flatten();
-        $user->syncPermissions($permissions);
-
-        return response()->json($user); // Asegurar que se devuelva el usuario actualizado
+        return response()->json($user);
     }
 
     public function destroy($usuario)
     {
-        $user = User::findOrFail($usuario);
-        $user->delete();
+        $user = $this->service->findOrFail($usuario);
+        $this->service->delete($user);
 
         return response()->json(null, 204);
     }
 
     public function getData(Request $request)
     {
-        $query = User::with('roles'); // Incluir los roles asociados a los usuarios
+        $perPage = $request->perPage ?? 10;
+        $data = $this->service->paginate($request->all(), $perPage);
 
-        if ($request->has('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
-        }
-
-        if ($request->has('sortBy')) {
-            $query->orderBy($request->sortBy, $request->sortDirection ?? 'asc');
-        }
-
-        return response()->json($query->paginate($request->perPage ?? 10));
+        return response()->json($data);
     }
 }

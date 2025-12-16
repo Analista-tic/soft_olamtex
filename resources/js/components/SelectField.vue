@@ -6,7 +6,7 @@ import type { Option } from '@/types';
 import { ChevronDown, Check, X } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
-    label: string;
+    label?: string;
     options: Option[];
     required?: boolean;
     modelValue: Option['id'] | Option['id'][] | undefined | null;

@@ -6,9 +6,14 @@ use App\Models\Inventory\Item;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Warehouse extends Model
+class Warehouse extends Model implements \App\Contracts\HasAuditLabel
 {
     use HasFactory;
+
+    public static function auditLabel(): string
+    {
+        return 'Bodega';
+    }
 
     protected $fillable = ['name', 'observation'];
 

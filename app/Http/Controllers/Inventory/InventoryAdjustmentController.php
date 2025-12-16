@@ -4,50 +4,23 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\Item;
-use App\Models\Inventory\InventoryAdjustment;
-use App\Models\Inventory\InventoryAdjustmentLine;
-use App\Models\Common\Warehouse;
+use App\Services\Inventory\InventoryAdjustmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class InventoryAdjustmentController extends Controller
 {
+    public function __construct(protected InventoryAdjustmentService $service) {}
     /**
      * Devuelve los ajustes paginados para la tabla (API).
      */
     public function getData(Request $request)
     {
-        $query = InventoryAdjustment::query();
-
-        if ($request->has('search') && trim($request->search) !== '') {
-            $search = trim($request->search);
-            $query->where(function ($q) use ($search) {
-                $q->where('document_number', 'like', "%{$search}%")
-                  ->orWhere('observation', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->has('type') && in_array($request->type, ['entrada', 'salida'])) {
-            $query->where('type', $request->type);
-        }
-
-        if ($request->has('date_from') && $request->date_from) {
-            $query->whereDate('date', '>=', $request->date_from);
-        }
-
-        if ($request->has('date_to') && $request->date_to) {
-            $query->whereDate('date', '<=', $request->date_to);
-        }
-
+        $filters = $request->only(['search','type','date_from','date_to']);
         $perPage = $request->input('per_page', 10);
-        $adjustments = $query
-            ->orderBy('date', 'desc')
-            ->orderBy('id', 'desc')
-            ->paginate($perPage);
-
+        $adjustments = $this->service->paginate($filters, $perPage);
         return response()->json($adjustments);
     }
 
@@ -66,7 +39,7 @@ class InventoryAdjustmentController extends Controller
      */
     public function show($id)
     {
-        $adjustment = InventoryAdjustment::with(['lines.item', 'lines.warehouse'])->findOrFail($id);
+        $adjustment = $this->service->findOrFail($id);
         return response()->json($adjustment);
     }
 
@@ -75,20 +48,16 @@ class InventoryAdjustmentController extends Controller
      */
     public function store(Request $request)
     {
-        $movementReasons = $this->movementReasons();
         $this->decodeLinesJson($request);
 
         try {
-            $data = $this->validateAdjustment($request, $movementReasons);
+            $data = $this->validateAdjustment($request, $this->service->movementReasons());
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e);
         }
 
-        $data = $this->preparePayload($data, $movementReasons);
-
         try {
-            $items = $this->fetchItemsByLines($data['lines']);
-            $adjustment = $this->persistAdjustment($data, $items, null, $movementReasons);
+            $adjustment = $this->service->createAdjustment($data);
 
             return response()->json([
                 'message' => 'Ajuste de inventario creado correctamente',
@@ -109,21 +78,16 @@ class InventoryAdjustmentController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $adjustment = InventoryAdjustment::findOrFail($id);
-        $movementReasons = $this->movementReasons();
         $this->decodeLinesJson($request);
 
         try {
-            $data = $this->validateAdjustment($request, $movementReasons, $adjustment);
+            $data = $this->validateAdjustment($request, $this->service->movementReasons(), InventoryAdjustment::find($id));
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e);
         }
 
-        $data = $this->preparePayload($data, $movementReasons);
-
         try {
-            $items = $this->fetchItemsByLines($data['lines']);
-            $updated = $this->persistAdjustment($data, $items, $adjustment, $movementReasons);
+            $updated = $this->service->updateAdjustment($id, $data);
 
             return response()->json([
                 'message' => 'Ajuste de inventario actualizado correctamente',
@@ -144,21 +108,7 @@ class InventoryAdjustmentController extends Controller
      */
     public function destroy($id)
     {
-        $adjustment = InventoryAdjustment::findOrFail($id);
-
-        DB::transaction(function () use ($adjustment) {
-            foreach ($adjustment->lines as $line) {
-                $item = Item::find($line->item_id);
-                if ($item) {
-                    $warehouseId = $this->resolveWarehouseId($item, $line->warehouse_id);
-                    $reverseType = $adjustment->type === 'entrada' ? 'salida' : 'entrada';
-                    $this->applyStockMovement($item, $warehouseId, (int) $line->quantity, $reverseType);
-                }
-            }
-
-            $adjustment->lines()->delete();
-            $adjustment->delete();
-        });
+        $this->service->deleteAdjustment($id);
 
         return response()->noContent();
     }
@@ -264,7 +214,7 @@ class InventoryAdjustmentController extends Controller
      */
     public function nextNumber()
     {
-        $next = DB::transaction(fn() => $this->generateDocumentNumber());
+        $next = $this->service->nextNumber();
 
         return response()->json(['document_number' => $next]);
     }
@@ -272,14 +222,6 @@ class InventoryAdjustmentController extends Controller
     /**
      * Mapeo de motivos de ajuste a tipo de movimiento (entrada/salida).
      */
-    private function movementReasons(): array
-    {
-        return [
-            'entrada' => 'entrada',
-            'salida' => 'salida',
-        ];
-    }
-
     private function decodeLinesJson(Request $request): void
     {
         if ($request->has('lines') && is_string($request->input('lines'))) {
@@ -331,136 +273,5 @@ class InventoryAdjustmentController extends Controller
             'message' => 'Errores de validacion',
             'errors'  => $exception->errors(),
         ], 422);
-    }
-
-    private function preparePayload(array $data, array $movementReasons): array
-    {
-        $data['type'] = $movementReasons[$data['movement_reason']] ?? $data['type'];
-        $data['document_number'] = $data['document_number'] ?: null;
-
-        [$subtotal, $iva] = $this->calculateTotals($data['lines']);
-        $data['subtotal'] = $subtotal;
-        $data['iva']      = $iva;
-        $data['total']    = $subtotal + $iva;
-
-        return $data;
-    }
-
-    private function calculateTotals(array $lines): array
-    {
-        $subtotal = 0;
-        $ivaTotal = 0;
-
-        foreach ($lines as $line) {
-            $price = (float) ($line['price'] ?? 0);
-            $qty   = (int) ($line['quantity'] ?? 0);
-            $tax   = (float) ($line['tax'] ?? 0);
-
-            $base = $price * $qty;
-            $taxAmount = $base * $tax / 100;
-
-            $subtotal += $base;
-            $ivaTotal += $taxAmount;
-        }
-
-        return [$subtotal, $ivaTotal];
-    }
-
-    private function fetchItemsByLines(array $lines): Collection
-    {
-        return Item::with('warehouses')
-            ->whereIn('id', collect($lines)->pluck('item_id'))
-            ->get()
-            ->keyBy('id');
-    }
-
-    private function persistAdjustment(array $data, Collection $items, ?InventoryAdjustment $adjustment = null, array $movementReasons = []): InventoryAdjustment
-    {
-        return DB::transaction(function () use ($data, $items, $adjustment, $movementReasons) {
-            $documentNumber = $data['document_number'] ?: ($adjustment->document_number ?? $this->generateDocumentNumber());
-
-            if (!$adjustment) {
-                $adjustment = InventoryAdjustment::create([
-                    'document_number'  => $documentNumber,
-                    'date'             => $data['date'],
-                    'type'             => $data['type'],
-                    'movement_reason'  => $data['movement_reason'],
-                    'observation'      => $data['observation'] ?? null,
-                    'production_order' => $data['production_order'] ?? null,
-                    'subtotal'         => $data['subtotal'],
-                    'iva'              => $data['iva'],
-                    'total'            => $data['total'],
-                ]);
-            } else {
-                $this->revertStockForAdjustment($adjustment, $items);
-
-                $adjustment->update([
-                    'document_number'  => $documentNumber,
-                    'date'             => $data['date'],
-                    'type'             => $data['type'],
-                    'movement_reason'  => $data['movement_reason'],
-                    'observation'      => $data['observation'] ?? null,
-                    'production_order' => $data['production_order'] ?? null,
-                    'subtotal'         => $data['subtotal'],
-                    'iva'              => $data['iva'],
-                    'total'            => $data['total'],
-                ]);
-
-                $adjustment->lines()->delete();
-            }
-
-            $this->syncLinesAndStock($adjustment, $data['lines'], $items, $movementReasons);
-
-            return $adjustment->load('lines.item');
-        });
-    }
-
-    private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $items, array $movementReasons): void
-    {
-        foreach ($lines as $line) {
-            $item = $items[$line['item_id']] ?? null;
-            if (!$item) {
-                throw ValidationException::withMessages([
-                    'lines' => ['No se encontro el item indicado.'],
-                ]);
-            }
-
-            $warehouseId = $this->resolveWarehouseId($item, $line['warehouse_id'] ?? null);
-            $lineMovementReason = $line['movement_reason'] ?? $adjustment->movement_reason ?? $adjustment->type;
-            $lineType = $movementReasons[$lineMovementReason] ?? $lineMovementReason ?? 'entrada';
-
-            $price = (float) ($line['price'] ?? 0);
-            $qty   = (int) ($line['quantity'] ?? 0);
-            $tax   = (float) ($line['tax'] ?? 0);
-            $base = $price * $qty;
-            $taxAmount = $base * $tax / 100;
-
-            InventoryAdjustmentLine::create([
-                'inventory_adjustment_id' => $adjustment->id,
-                'item_id'                 => $line['item_id'],
-                'warehouse_id'            => $warehouseId,
-                'price'                   => $price,
-                'tax'                     => $tax,
-                'quantity'                => $qty,
-                'description'             => $line['description'] ?? null,
-                'line_total'              => $base + $taxAmount,
-            ]);
-
-            $this->applyStockMovement($item, $warehouseId, $qty, $lineType);
-        }
-    }
-
-    private function revertStockForAdjustment(InventoryAdjustment $adjustment, Collection $items): void
-    {
-        foreach ($adjustment->lines as $line) {
-            $item = $items[$line->item_id] ?? Item::find($line->item_id);
-            if (!$item) {
-                continue;
-            }
-
-            $warehouseId = $this->resolveWarehouseId($item, $line->warehouse_id);
-            $reverseType = $adjustment->type === 'entrada' ? 'salida' : 'entrada';
-            $this->applyStockMovement($item, $warehouseId, (int) $line->quantity, $reverseType);
-        }
     }
 }

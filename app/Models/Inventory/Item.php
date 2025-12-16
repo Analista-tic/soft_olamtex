@@ -8,8 +8,9 @@ use App\Models\Common\Warehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-class Item extends Model
+class Item extends Model implements \App\Contracts\HasAuditLabel
 {
+    use \App\Models\Concerns\HasAuditLabel;
     protected $fillable = [
         'category_sub_group_id',
         'tax_id', // Nuevo campo

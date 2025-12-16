@@ -36,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191); // Limita las cadenas a 191 caracteres
 
+        //se debe agregar un observer para cada modelo que se quiera auditar
         PurchaseRequest::observe(AuditObserver::class);
         PurchaseOrder::observe(AuditObserver::class);
         PurchaseInvoice::observe(AuditObserver::class);

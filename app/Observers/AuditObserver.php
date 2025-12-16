@@ -13,16 +13,32 @@ class AuditObserver
 
     public function created(Model $model): void
     {
-        $this->logger->log($model, 'created');
+        $this->logWithContext($model, 'created');
     }
 
     public function updated(Model $model): void
     {
-        $this->logger->log($model, 'updated');
+        $this->logWithContext($model, 'updated');
     }
 
     public function deleted(Model $model): void
     {
-        $this->logger->log($model, 'deleted');
+        $this->logWithContext($model, 'deleted');
+    }
+
+    protected function logWithContext(Model $model, string $action): void
+    {
+        $this->logger->log($model, $action, $this->gatherContext());
+    }
+
+    protected function gatherContext(): array
+    {
+        $request = app()->bound('request') ? app('request') : null;
+
+        return [
+            'user' => auth()->user(),
+            'ip_address' => $request?->ip(),
+            'user_agent' => $request?->userAgent(),
+        ];
     }
 }

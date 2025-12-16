@@ -3,35 +3,26 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Services\Audit\AuditLogService;
 use Illuminate\Http\Request;
 
 class AuditLogController extends Controller
 {
+    public function __construct(protected AuditLogService $service) {}
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
-        $logs = AuditLog::query()
-            ->when($request->filled('user'), fn($q) =>
-                $q->where('user_name', 'like', '%'.$request->user.'%')
-            )
-            ->when($request->filled('module'), fn($q) =>
-                $q->where('module', $request->module)
-            )
-            ->when($request->filled('action'), fn($q) =>
-                $q->where('action', $request->action)
-            )
-            ->latest()
-            ->paginate(50);
+        $filters = $request->only('user', 'module', 'action');
+        $logs = $this->service->paginate($filters);
 
-        // Si usas Inertia:
         return inertia('Audit/Index', [
             'logs' => $logs,
-            'filters' => $request->only('user', 'module', 'action'),
+            'filters' => $filters,
         ]);
     }
-
 
     /**
      * Show the form for creating a new resource.

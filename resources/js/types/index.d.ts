@@ -108,7 +108,9 @@ export interface AuditLog {
     auditable_type: string | null;
     auditable_id: number | string | null;
     module: string | null;
+    module_label?: string | null;
     description: string | null;
+    resource_label?: string | null;
     company_id: number | null;
     old_values: Record<string, unknown> | null;
     new_values: Record<string, unknown> | null;

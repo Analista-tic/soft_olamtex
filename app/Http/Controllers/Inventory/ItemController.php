@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\Item;
-use App\Models\Inventory\AdditionalField;
 use App\Models\ProductSheet\Brand;
 use App\Models\ProductSheet\FabricBase;
 use App\Models\ProductSheet\World;
@@ -12,6 +11,7 @@ use App\Models\ProductSheet\YarnBase;
 use App\Models\Expenses\PurchaseOrderItem;
 use App\Models\Expenses\PurchaseInvoiceItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
+use App\Services\Inventory\ItemService;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Inertia\Inertia;
@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Log;
 
 class ItemController extends Controller
 {
-    private ?array $orderedAdditionalFieldNamesCache = null;
+    public function __construct(protected ItemService $service) {}
 
     public function index()
     {
@@ -35,7 +35,7 @@ class ItemController extends Controller
 
     public function show($id)
     {
-        return Item::with(['categorySubGroup', 'tax'])->findOrFail($id);
+        return $this->service->findWithRelations($id);
     }
 
     public function store(Request $request)
@@ -57,12 +57,12 @@ class ItemController extends Controller
             ]);
         } catch (ValidationException $e) {
             return response()->json([
-                'message' => 'Errores de validaciÃ³n',
+                'message' => 'Errores de validaciÇün',
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'OcurriÃ³ un error inesperado al procesar la solicitud.',
+                'message' => 'OcurriÇü un error inesperado al procesar la solicitud.',
                 'errors' => [],
             ], 500);
         }
@@ -72,70 +72,19 @@ class ItemController extends Controller
             $data['img'] = $path;
         }
 
-        $extraFields = [];
-        if (!empty($data['extra_fields'])) {
-            $extraFields = is_array($data['extra_fields'])
-                ? $data['extra_fields']
-                : (json_decode($data['extra_fields'], true) ?: []);
-        }
-        $data['extra_fields'] = $extraFields;
+        $warehouses = $this->resolveWarehouses($request) ?? [];
 
-        $data['negative_movement'] = filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
-
-        $orderedFieldNames = $this->orderedAdditionalFieldNames();
-        $subGroupName = optional(CategorySubGroup::find($data['category_sub_group_id']))->name ?? '';
-        $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
-        $data['name'] = trim("$subGroupName $extrasString");
-
-        if (!isset($data['status'])) {
-            $data['status'] = true;
-        }
-
-        if (empty($data['item_type'])) {
-            $data['item_type'] = 'product';
-        }
-
-        $article = Item::create($data);
-
-        // Relacionar bodegas si se envÃ­a
-        if ($request->has('warehouses')) {
-            $warehouses = $request->input('warehouses');
-            if (is_string($warehouses)) {
-                $warehouses = json_decode($warehouses, true);
-            }
-            if (is_array($warehouses)) {
-                foreach ($warehouses as $w) {
-                    $article->warehouses()->attach(
-                        $w['warehouse_id'],
-                        [
-                            'quantity' => $w['quantity'] ?? 0,
-                            'stock_min' => $w['stock_min'] ?? 0,
-                            'stock_max' => $w['stock_max'] ?? 0,
-                        ]
-                    );
-                }
-            }
-        }
-
-        return $article;
+        return $this->service->create($data, $warehouses);
     }
-
     public function update(Request $request, $id)
     {
-        $article = Item::findOrFail($id);
-
-        if ($request->has('extra_fields') && is_string($request->input('extra_fields'))) {
-            $decoded = json_decode($request->input('extra_fields'), true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $request->merge(['extra_fields' => $decoded]);
-            }
-        }
+        $article = $this->service->find($id);
 
         try {
             $data = $request->validate([
                 'category_sub_group_id' => 'sometimes|integer',
                 'img' => 'nullable|string',
-                'tax_id' => 'nullable|integer', 
+                'tax_id' => 'nullable|integer',
                 'tax' => 'sometimes|numeric',
                 'bar_code' => 'nullable|string',
                 'negative_movement' => 'sometimes',
@@ -148,12 +97,12 @@ class ItemController extends Controller
             ]);
         } catch (ValidationException $e) {
             return response()->json([
-                'message' => 'Errores de validaciÃ³n',
+                'message' => 'Errores de validaci¢n',
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'OcurriÃ³ un error inesperado al procesar la solicitud.',
+                'message' => 'Ocurri¢ un error inesperado al procesar la solicitud.',
                 'errors' => [],
             ], 500);
         }
@@ -163,151 +112,43 @@ class ItemController extends Controller
             $data['img'] = $path;
         }
 
-        $extraFields = [];
-        if (array_key_exists('extra_fields', $data) && !empty($data['extra_fields'])) {
-            $extraFields = is_array($data['extra_fields'])
-                ? $data['extra_fields']
-                : (json_decode($data['extra_fields'], true) ?: []);
-        } else {
-            $extraFields = $article->extra_fields ?? [];
-        }
-        $data['extra_fields'] = $extraFields;
+        $warehouses = $this->resolveWarehouses($request);
 
-        if (array_key_exists('negative_movement', $data)) {
-            $data['negative_movement'] = filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
-        }
+        $updated = $this->service->update($article, $data, $warehouses);
 
-        $subGroupId = $data['category_sub_group_id'] ?? $article->category_sub_group_id;
-        $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
-        $orderedFieldNames = $this->orderedAdditionalFieldNames();
-        $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
-        $data['name'] = trim("$subGroupName $extrasString");
-
-        $article->update($data);
-
-        // Actualizar bodegas si se envÃ­a
-        if ($request->has('warehouses')) {
-            $warehouses = $request->input('warehouses');
-            if (is_string($warehouses)) {
-                $warehouses = json_decode($warehouses, true);
-            }
-            if (is_array($warehouses)) {
-                $syncData = [];
-                foreach ($warehouses as $w) {
-                    $syncData[$w['warehouse_id']] = [
-                        'quantity' => $w['quantity'] ?? 0,
-                        'stock_min' => $w['stock_min'] ?? 0,
-                        'stock_max' => $w['stock_max'] ?? 0,
-                    ];
-                }
-                $article->warehouses()->sync($syncData);
-            }
-        }
-
-        return $article;
+        return $updated;
     }
-
     public function destroy($id)
     {
-        $article = Item::findOrFail($id);
+        $article = $this->service->find($id);
 
-        // Validaciones previas para evitar borrar si hay relaciones activas.
-        $reasons = [];
-
-        $warehouseCount = $article->warehouses()->count();
-        if ($warehouseCount > 0) {
-            $reasons[] = $warehouseCount === 1
-                ? '1 bodega asignada'
-                : "{$warehouseCount} bodegas asignadas";
-        }
-
-        $poCount = PurchaseOrderItem::where('item_id', $article->id)->count();
-        if ($poCount > 0) {
-            $reasons[] = $poCount === 1
-                ? '1 orden de compra'
-                : "{$poCount} ordenes de compra";
-        }
-
-        $invoiceCount = PurchaseInvoiceItem::where('item_id', $article->id)->count();
-        if ($invoiceCount > 0) {
-            $reasons[] = $invoiceCount === 1
-                ? '1 factura de compra'
-                : "{$invoiceCount} facturas de compra";
-        }
-
-        $adjustmentCount = InventoryAdjustmentLine::where('item_id', $article->id)->count();
-        if ($adjustmentCount > 0) {
-            $reasons[] = $adjustmentCount === 1
-                ? '1 movimiento de inventario'
-                : "{$adjustmentCount} movimientos de inventario";
-        }
-
-        if (!empty($reasons)) {
-            $list = count($reasons) === 1
-                ? $reasons[0]
-                : implode(', ', array_slice($reasons, 0, -1)) . ' y ' . end($reasons);
-
+        try {
+            $this->service->delete($article);
+            return response()->noContent();
+        } catch (\RuntimeException $e) {
             return response()->json([
-                'message' => "No se puede eliminar el item porque tiene {$list}.",
+                'message' => $e->getMessage(),
             ], 409);
         }
-
-        $article->warehouses()->detach();
-        try {
-            $article->delete();
-            return response()->noContent();
-        } catch (QueryException $e) {
-            // Si hay claves foraneas (ajustes, compras, etc.) informamos y devolvemos 409 en vez de 500
-            if ((int) $e->getCode() === 23000) {
-                return response()->json([
-                    'message' => 'No se puede eliminar el item porque tiene registros relacionados (ajustes de inventario, compras u otros movimientos). Elimine o reasigne esos registros primero.'
-                ], 409);
-            }
-
-            throw $e;
-        }
     }
-
     public function getData(Request $request)
     {
-        $query = Item::with(['categorySubGroup', 'tax', 'warehouses']);
-
-        if ($request->has('search') && trim($request->search) !== '') {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('description', 'like', "%$search%")
-                    ->orWhere('bar_code', 'like', "%$search%")
-                    // ->orWhereHas('warehouse', function ($w) use ($search) {
-                    //     $w->where('name', 'like', "%$search%");
-                    // })
-                    ->orWhereHas('categorySubGroup', function ($sg) use ($search) {
-                        $sg->where('name', 'like', "%$search%");
-                    });
-            });
-        }
-
-        if ($request->has('status') && $request->status !== '') {
-            $query->where('status', (bool) $request->status);
-        }
-
+        $filters = $request->only(['search', 'status']);
         $perPage = $request->input('per_page', 10);
-        $articles = $query->paginate($perPage);
+        $articles = $this->service->paginate($filters, $perPage);
 
         return response()->json($articles);
     }
-
     public function togglestatus($id)
     {
-        $article = Item::findOrFail($id);
-        $article->status = !$article->status;
-        $article->save();
+        $article = $this->service->find($id);
+        $status = $this->service->toggleStatus($article);
 
         return response()->json([
-            'status' => $article->status,
-            'message' => $article->status ? 'item habilitado' : 'item deshabilitado'
+            'status' => $status,
+            'message' => $status ? 'item habilitado' : 'item deshabilitado',
         ]);
     }
-
     public function downloadTemplate()
     {
         $fileName = 'plantilla_items.xlsx';
@@ -856,3 +697,9 @@ class ItemController extends Controller
     }
 
 }
+
+
+
+
+
+

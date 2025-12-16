@@ -6,9 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 use App\Models\Inventory\Item;
 
-class CategorySubGroup extends Model
+class CategorySubGroup extends Model implements \App\Contracts\HasAuditLabel
 {
     protected $fillable = ['name', 'category_group_id']; // Ejemplo: "Materia Prima"
+
+    public static function auditLabel(): string
+    {
+        return 'Subgrupo de categorías';
+    }
 
     public function categoryGroup()
     {
