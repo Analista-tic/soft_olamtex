@@ -557,6 +557,8 @@ watch(dialogOpen, (isOpen) => {
                                 </p>
                             </div>
                         </div>
+
+                     <!-- Proveedor -->
                     <div class="grid grid-cols-3 gap-4">
                         <SelectField
                             v-model="localForm.contact_id"
@@ -581,11 +583,15 @@ watch(dialogOpen, (isOpen) => {
                             :disabled="true"
                         />
                     </div>
+
+                    <!-- Fechas -->
                     <div class="grid grid-cols-3 gap-4">
                         <InputDate v-model="localForm.date" label="Fecha de factura" required />
                         <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
                         <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
                     </div>
+
+                    <!-- Items -->
                     <InventoryDetailTableLayout
                         @create-line="handleInvoiceAddLine"
                         :createLineButtonDisabled="isReadOnly"
@@ -599,6 +605,8 @@ watch(dialogOpen, (isOpen) => {
                             @update:items="(items) => (localForm.items = items)"
                         />
                     </InventoryDetailTableLayout>
+
+                    <!-- Totales -->
                     <div class="space-y-4 pt-6">
                         <div class="rounded border border-sidebar-border/70 bg-card p-3 text-card-foreground">
                             <PurchaseInvoiceWithholdingsTable

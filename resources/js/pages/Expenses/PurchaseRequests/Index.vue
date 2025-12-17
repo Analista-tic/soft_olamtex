@@ -13,11 +13,14 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head, router } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { Eye, PlusCircle, Search } from 'lucide-vue-next';
+import EditButton from '@/components/common/EditButton.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
 import { useAlertMessages } from '@/composables/useAlertMessages';
+import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos' },
@@ -102,6 +105,79 @@ const currencyFormatter = new Intl.NumberFormat('es-CO', {
 
 const formatCurrency = (value?: number) => currencyFormatter.format(value ?? 0);
 
+const formatDate = (value?: string | null) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('es-CO');
+};
+
+const isDialogOpen = ref(false);
+const dialogType = ref<'create' | 'edit'>('create');
+const dialogForm = ref<Partial<PurchaseServiceRequest>>({});
+const dialogReadonly = ref(false);
+
+function closeDialog() {
+    isDialogOpen.value = false;
+}
+
+function openCreateRequest() {
+    dialogType.value = 'create';
+    dialogForm.value = {};
+    dialogReadonly.value = false;
+    isDialogOpen.value = true;
+}
+
+async function viewRequest(request: PurchaseServiceRequest) {
+    if (!request.id) return;
+    dialogType.value = 'edit';
+    try {
+        const response = await axios.get(`/gastos/solicitudes-compra/${request.id}`);
+        dialogForm.value = response.data?.data || {};
+        dialogReadonly.value = true;
+        isDialogOpen.value = true;
+    } catch (error) {
+        showError('No se pudo cargar la solicitud para edición.');
+        console.error('Error al obtener solicitud', error);
+    }
+}
+
+async function editRequest(request: PurchaseServiceRequest) {
+    if (!request.id) return;
+    dialogType.value = 'edit';
+    try {
+        const response = await axios.get(`/gastos/solicitudes-compra/${request.id}`);
+        dialogForm.value = response.data?.data || {};
+        dialogReadonly.value = false;
+        isDialogOpen.value = true;
+    } catch (error) {
+        showError('No se pudo cargar la solicitud para edición.');
+        console.error('Error al obtener solicitud', error);
+    }
+}
+
+async function deleteRequest(request: PurchaseServiceRequest) {
+    if (!request.id) return;
+    const confirmed = window.confirm('¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer.');
+    if (!confirmed) return;
+
+    try {
+        await axios.delete(`/gastos/solicitudes-compra/${request.id}`);
+        successMessage.value = 'Solicitud eliminada correctamente.';
+        fetchRequests();
+    } catch (err) {
+        showError('No se pudo eliminar la solicitud. Intenta nuevamente.');
+        console.error('Error eliminando solicitud', err);
+    }
+}
+
+function handleDialogRefresh(message?: string) {
+    if (message) {
+        successMessage.value = message;
+    }
+    fetchRequests();
+}
+
 const getStatusLabel = (status?: string) => statusLabels[status ?? ''] ?? 'Sin estado';
 const getStatusClasses = (status?: string) =>
     statusBadgeStyles[status ?? ''] ?? 'bg-gray-100 text-gray-800';
@@ -158,15 +234,6 @@ async function fetchRequests() {
     }
 }
 
-function openCreateRequest() {
-    router.visit('/gastos/solicitudes-compra/crear');
-}
-
-function viewRequest(request: PurchaseServiceRequest) {
-    if (!request.id) return;
-    router.visit(`/gastos/solicitudes-compra/${request.id}`);
-}
-
 watch([statusFilter, providerFilter, dateFrom, dateTo], () => {
     fetchRequests();
 });
@@ -194,7 +261,7 @@ onMounted(() => {
         <div class="flex flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="space-y-1">
-                    <h1 class="text-lg font-bold">Solicitud de compra y servicios</h1>
+                    <h1 class="text-lg font-bold">Solicitud de Compra y Servicios</h1>
                     <p class="text-sm text-muted-foreground">
                         Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.
                     </p>
@@ -219,7 +286,7 @@ onMounted(() => {
                         v-model="providerFilter"
                         :options="providerOptions"
                         label="Proveedor"
-                        placeholder="Selecciona un proveedor"
+                        placeholder="Escribe un proveedor"
                     />
                 </div>
                 <div class="min-w-[140px]">
@@ -236,10 +303,9 @@ onMounted(() => {
                         <TableRow>
                             <TableHead># Solicitud</TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead>Destino</TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Valor estimado</TableHead>
                             <TableHead>Solicita</TableHead>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead>Precio estimado</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
@@ -263,10 +329,9 @@ onMounted(() => {
                             <TableRow v-for="request in requests" :key="request.id">
                                 <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
                                 <TableCell class="max-w-[180px] truncate">{{ request.provider?.full_name || '-' }}</TableCell>
-                                <TableCell class="max-w-[150px] truncate">{{ request.destination || '-' }}</TableCell>
-                                <TableCell>{{ request.date || '-' }}</TableCell>
-                                <TableCell>{{ formatCurrency(request.estimated_amount) }}</TableCell>
-                                <TableCell>{{ request.requester?.name || '-' }}</TableCell>
+                                <TableCell class="max-w-[150px] truncate">{{ request.requester?.name || '-' }}</TableCell>
+                                <TableCell>{{ formatDate(request.date) }}</TableCell>
+                                <TableCell>{{ request.estimated_amount != null ? formatCurrency(request.estimated_amount as number) : '-' }}</TableCell>
                                 <TableCell>
                                     <span
                                         :class="[
@@ -277,22 +342,29 @@ onMounted(() => {
                                         {{ getStatusLabel(request.status) }}
                                     </span>
                                 </TableCell>
-                                <TableCell class="flex justify-center">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        class="h-8 w-8 p-0"
-                                        @click="viewRequest(request)"
-                                    >
-                                        <Eye class="h-4 w-4" />
-                                        <span class="sr-only">Ver solicitud</span>
-                                    </Button>
+                                <TableCell class="flex justify-center items-center gap-2">
+                                        <button
+                                            class="flex items-center text-gray-500 hover:text-blue-500 transition-colors duration-200"
+                                            @click="viewRequest(request)"
+                                        >
+                                            <Eye class="w-4 h-4" />
+                                        </button>
+                                        <EditButton :onClick="() => editRequest(request)" />
+                                        <DeleteButton :onClick="() => deleteRequest(request)" />
                                 </TableCell>
                             </TableRow>
                         </template>
                     </TableBody>
                 </Table>
             </div>
+            <PurchaseRequestDialog
+                :isOpen="isDialogOpen"
+                :dialogType="dialogType"
+                :form="dialogForm"
+                :readonly="dialogReadonly"
+                @close="closeDialog"
+                @refresh="handleDialogRefresh"
+            />
         </div>
     </AppLayout>
 </template>

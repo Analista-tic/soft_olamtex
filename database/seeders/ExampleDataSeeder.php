@@ -136,6 +136,55 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
+        // Generar documento ejemplo (solicitud + orden) usando la tabla unificada
+        $requestDocumentId = DB::table('purchase_documents')->insertGetId([
+            'document_number' => 'SOL-2025-001',
+            'document_type' => 'purchase_request',
+            'contact_id' => $providerId,
+            'date' => now()->subDays(5)->toDateString(),
+            'delivery_date' => now()->addDays(10)->toDateString(),
+            'description' => 'Solicitud de compra generada por el seeder de ejemplo',
+            'created_by_user_id' => $userId,
+            'status' => 'approved',
+            'requested_at' => now()->subDays(5),
+            'approved_at' => now()->subDays(4),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $orderDocumentId = DB::table('purchase_documents')->insertGetId([
+            'document_number' => 'ORD-2025-001',
+            'document_type' => 'purchase_order',
+            'parent_document_id' => $requestDocumentId,
+            'contact_id' => $providerId,
+            'date' => now()->subDays(3)->toDateString(),
+            'delivery_date' => now()->addDays(7)->toDateString(),
+            'description' => 'Orden de compra vinculada a la solicitud de ejemplo',
+            'created_by_user_id' => $userId,
+            'executed_by_user_id' => $userId,
+            'status' => 'sent',
+            'supplier_order_number' => 'ORD-2025-001',
+            'ordered_at' => now()->subDays(3),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('purchase_document_items')->insert([
+            'purchase_document_id' => $orderDocumentId,
+            'item_id' => $itemId,
+            'quantity' => 10,
+            'price' => 1200.00,
+            'tax' => 19,
+            'total' => 12000.00,
+            'total_tax' => 2280.00,
+            'supplier_code' => 'PRV-ART-001',
+            'supplier_color' => 'Rojo',
+            'order_width' => 1.5,
+            'description' => 'Línea de documento de ejemplo',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         // // Insertar orden de compra de ejemplo
         // $purchaseOrderId = DB::table('purchase_orders')->insertGetId([
         //     'contact_id' => $providerId,
@@ -158,5 +207,75 @@ class ExampleDataSeeder extends Seeder
         //     'created_at' => now(),
         //     'updated_at' => now(),
         // ]);
+        // Factura de compra consolidada en la tabla unificada
+        $invoiceDocumentId = DB::table('purchase_documents')->insertGetId([
+            'document_number' => 'FAC-2025-001',
+            'document_type' => 'purchase_invoice',
+            'parent_document_id' => $orderDocumentId,
+            'contact_id' => $providerId,
+            'date' => now()->subDays(1)->toDateString(),
+            'delivery_date' => now()->toDateString(),
+            'description' => 'Factura de compra vinculada a la orden de ejemplo',
+            'created_by_user_id' => $userId,
+            'executed_by_user_id' => $userId,
+            'status' => 'pending',
+            'supplier_invoice_number' => 'FAC-2025-001',
+            'withholdings' => json_encode([
+                ['name' => 'Retefuente', 'percentage' => 2.5, 'base_amount' => 12000.00],
+            ]),
+            'reason' => 'Diferencia minima verificada',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('purchase_document_items')->insert([
+            'purchase_document_id' => $invoiceDocumentId,
+            'item_id' => $itemId,
+            'quantity' => 10,
+            'price' => 1200.00,
+            'tax' => 19,
+            'total' => 12000.00,
+            'total_tax' => 2280.00,
+            'supplier_code' => 'PRV-ART-001',
+            'supplier_color' => 'Rojo',
+            'order_width' => 1.5,
+            'description' => 'Item facturado asociado a la orden',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        // Ajuste de inventario de ejemplo
+        $adjustmentNumber = 'AJU-2025-001';
+        $adjustmentId = DB::table('inventory_adjustments')->where('document_number', $adjustmentNumber)->value('id');
+        if (!$adjustmentId) {
+            $subtotal = 1250.00 * 4;
+            $iva = $subtotal * 0.19;
+            $adjustmentId = DB::table('inventory_adjustments')->insertGetId([
+                'document_number' => $adjustmentNumber,
+                'date' => now()->subDays(3)->toDateString(),
+                'type' => 'entrada',
+                'movement_reason' => 'Inventario inicial',
+                'observation' => 'Ingreso inicial generado por el seeder',
+                'production_order' => 'PROD-INV-001',
+                'subtotal' => $subtotal,
+                'iva' => $iva,
+                'total' => $subtotal + $iva,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::table('inventory_adjustment_lines')->insert([
+                'inventory_adjustment_id' => $adjustmentId,
+                'item_id' => $itemId,
+                'warehouse_id' => $warehouseId,
+                'price' => 1250.00,
+                'tax' => 19,
+                'quantity' => 4,
+                'description' => 'Ajuste por recepción inicial',
+                'line_total' => 1250.00 * 4,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 }
+

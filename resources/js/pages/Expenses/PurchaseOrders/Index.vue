@@ -48,6 +48,13 @@ const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
 
+const formatDate = (value?: string | null) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('es-CO');
+};
+
 async function fetchProviders() {
     // Consumir correctamente los contactos como proveedores
     const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
@@ -193,7 +200,7 @@ function handleDialogError(message?: string) {
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Órdenes de Compra</h1>
+                <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="h-4 w-4" /> Nueva Orden</Button>
             </div>
             <!-- FILTROS: UNA SOLA FILA -->
@@ -248,9 +255,9 @@ function handleDialogError(message?: string) {
                         <TableRow v-for="order in orders" :key="order.id" class="text-center">
                             <TableCell>{{ order.id }}</TableCell>
                             <TableCell>{{ order.contact?.full_name }}</TableCell>
-                            <TableCell>{{ order.date }}</TableCell>
+                            <TableCell>{{ formatDate(order.date) }}</TableCell>
                             <TableCell>{{ order.supplier_order_number }}</TableCell>
-                            <TableCell>{{ order.delivery_date }}</TableCell>
+                            <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
                             <TableCell>{{ order.description }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', order)" title="Editar orden" />

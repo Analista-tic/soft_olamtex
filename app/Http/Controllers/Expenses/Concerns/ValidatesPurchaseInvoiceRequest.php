@@ -15,7 +15,9 @@ trait ValidatesPurchaseInvoiceRequest
             ->where(fn ($query) => $query->where('document_type', PurchaseDocument::TYPE_ORDER));
 
         return $request->validate([
-            'contact_id' => 'required|exists:contacts,id',
+            'contact_id' => 'nullable|exists:contacts,id',
+            'provider_name' => $isUpdate ? 'sometimes|required_without:contact_id|string|max:255' : 'required_without:contact_id|string|max:255',
+            'provider_phone' => 'nullable|string|max:50',
             'purchase_order_id' => ['nullable', $purchaseOrderRule],
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',

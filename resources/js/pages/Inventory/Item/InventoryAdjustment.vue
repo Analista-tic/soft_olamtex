@@ -78,6 +78,13 @@ const currencyFormatter = new Intl.NumberFormat('es-CO', {
 const formatCurrency = (value: number | string | null | undefined) =>
   currencyFormatter.format(Number(value ?? 0));
 
+const formatDate = (value: string | null | undefined) => {
+  if (!value) return '-';
+  const d = new Date(String(value));
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString('es-CO');
+};
+
 const getAdjustmentTypeLabel = (adjustment: InventoryAdjustment) => {
   const reason = adjustment.movement_reason ?? adjustment.type;
   const fallback = adjustment.type === 'salida' ? 'Salida' : 'Entrada';
@@ -272,7 +279,7 @@ onMounted(() => {
           <TableBody>
             <TableRow v-for="adjustment in adjustments" :key="adjustment.id">
               <TableCell>{{ adjustment.document_number ?? 'Sin número' }}</TableCell>
-              <TableCell>{{ adjustment.date }}</TableCell>
+              <TableCell>{{ formatDate(adjustment.date) }}</TableCell>
               <TableCell class="capitalize">
                 {{ getAdjustmentTypeLabel(adjustment) }}
               </TableCell>

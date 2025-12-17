@@ -14,7 +14,7 @@ class PurchaseRequestController extends Controller
 
     public function index()
     {
-        return Inertia::render('Expenses/PurchaseServiceRequests/Index');
+        return Inertia::render('Expenses/PurchaseRequests/Index');
     }
 
     public function getData(Request $request)

@@ -69,6 +69,13 @@ const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const purchaseOrdersMap = ref<Record<number, string>>({});
 
+const formatDate = (value?: string | null) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('es-CO');
+};
+
 async function fetchProviders() {
     try {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
@@ -337,9 +344,9 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                             <TableCell class="font-medium">{{ invoice.id }}</TableCell>
                             <TableCell>{{ orderDisplay(invoice) }}</TableCell>
                             <TableCell>{{ invoice.contact?.full_name }}</TableCell>
-                            <TableCell>{{ invoice.date }}</TableCell>
+                            <TableCell>{{ formatDate(invoice.date) }}</TableCell>
                             <TableCell>{{ invoice.supplier_invoice_number || '-' }}</TableCell>
-                            <TableCell>{{ invoice.delivery_date }}</TableCell>
+                            <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
                             <TableCell>
                                 <span 
                                     v-if="invoice.status"

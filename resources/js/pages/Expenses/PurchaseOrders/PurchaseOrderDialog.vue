@@ -4,7 +4,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Contact, PurchaseOrder } from '@/types';
+import type { Contact, Option, PurchaseOrder } from '@/types';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
@@ -28,6 +28,8 @@ const emit = defineEmits<{
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<Partial<PurchaseOrder>>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
+const purchaseRequests = ref<any[]>([]);
+const selectedPurchaseRequestId = ref<number | null>(null);
 const isLoading = ref(false);
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
@@ -45,6 +47,40 @@ const iva = computed(() =>
     (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total_tax) || 0, 0), 0),
 );
 const total = computed(() => Math.max(subtotal.value, 0) + Math.max(iva.value, 0));
+
+const pendingPurchaseRequestOptions = computed<Option[]>(() =>
+    purchaseRequests.value.map((request) => {
+        const rawId = request?.id ?? '';
+        const numericId = Number(rawId);
+        const optionId = Number.isNaN(numericId) ? rawId : numericId;
+        const requestNumber = request?.document_number || request?.request_number || String(request?.id ?? '');
+        const contactName =
+            request?.contact?.full_name ||
+            request?.contact_full_name ||
+            request?.contact_name ||
+            '';
+        const labelParts = [`Solicitud ${requestNumber}`];
+        if (contactName) {
+            labelParts.push(contactName);
+        }
+        return {
+            id: optionId,
+            name: labelParts.join(' · '),
+        };
+    }),
+);
+
+const selectedPurchaseRequestValue = computed<Option['id'] | ''>({
+    get: () => selectedPurchaseRequestId.value ?? '',
+    set: (value) => {
+        if (value === '' || value === null) {
+            selectedPurchaseRequestId.value = null;
+            return;
+        }
+        const numeric = Number(value);
+        selectedPurchaseRequestId.value = Number.isNaN(numeric) ? null : numeric;
+    },
+});
 
 const selectedContactData = computed(() => {
     if (!localForm.value.contact_id) return null;
@@ -67,6 +103,7 @@ const id = computed(() => {
 async function initializeDialog() {
     resetForm();
     await fetchContacts();
+    await fetchPendingPurchaseRequests();
     if (props.dialogType === 'create') {
         nextOrderId.value = null;
         await fetchNextOrderId();
@@ -136,6 +173,52 @@ async function fetchNextOrderId() {
     } finally {
         isLoadingOrderId.value = false;
     }
+}
+
+async function fetchPendingPurchaseRequests() {
+    try {
+        const { data } = await axios.get('/gastos/solicitudes-compra/data', {
+            params: { status: 'approved', per_page: 1000 },
+        });
+        purchaseRequests.value = data.data || [];
+    } catch (e) {
+        purchaseRequests.value = [];
+        console.error('Error fetching purchase requests:', e);
+    }
+}
+
+async function loadRequestToOrder(requestId: number) {
+    const request = purchaseRequests.value.find((req) => Number(req?.id) === Number(requestId));
+    if (!request) return;
+    if (!contacts.value.length) await fetchContacts();
+    const foundContact = contacts.value.find((c) => Number(c.id) === Number(request.contact_id));
+    localForm.value.contact_id = foundContact ? Number(request.contact_id) : null;
+    localForm.value.description = request.description || '';
+    localForm.value.date = request.date || '';
+    localForm.value.delivery_date = request.delivery_date || '';
+    localForm.value.supplier_order_number = request.document_number || request.request_number || '';
+    localForm.value.items = Array.isArray(request.items) && request.items.length
+        ? request.items.map((item: any) => ({
+              item_id: item.item_id,
+              price: item.price || '',
+              tax: item.tax || 0,
+              quantity: item.quantity || '',
+              description: item.description || '',
+              total: item.total || 0,
+              total_tax: item.total_tax || 0,
+              supplier_code: item.supplier_code || '',
+              supplier_color: item.supplier_color || '',
+              order_width: item.order_width || '',
+              id: item.id,
+          }))
+        : [createEmptyItem()];
+    selectedPurchaseRequestId.value = Number(requestId);
+    originalFormSnapshot.value = stableStringify(localForm.value);
+}
+
+function clearSelectedPurchaseRequest() {
+    selectedPurchaseRequestId.value = null;
+    resetForm();
 }
 
 const scrollToDialogTop = () => {
@@ -303,16 +386,50 @@ watch(
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) emit('close');
 });
+
+watch(selectedPurchaseRequestId, async (requestId) => {
+    if (requestId) {
+        await loadRequestToOrder(requestId);
+    }
+});
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-w-[200vh] p-0">
             <div class="max-h-[90vh] overflow-y-auto px-4 py-4">
-                <DialogHeader>
-                    <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
-                    <DialogDescription>
-                        Completa los campos y añade los ítems de la orden.</DialogDescription>
+                <DialogHeader class="relative">
+                    <div class="flex flex-col gap-1">
+                        <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
+                        <DialogDescription>
+                            Completa los campos y añade los ítems de la orden.
+                        </DialogDescription>
+                    </div>
+                    <div class="absolute right-12 button-4 flex w-full max-w-[520px] items-end justify-end gap-2">
+                        <div class="w-[280px]">
+                            <SelectField
+                                v-model="selectedPurchaseRequestValue"
+                                :options="pendingPurchaseRequestOptions"
+                                label="Cargar desde solicitud pendiente"
+                                placeholder="Selecciona una solicitud existente"
+                                :disabled="!pendingPurchaseRequestOptions.length || dialogType === 'edit'"
+                                :searchable="pendingPurchaseRequestOptions.length >= 6"
+                                search-placeholder="Buscar solicitud..."
+                            />
+                        </div>
+                        <div class="w-[100px]">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                type="button"
+                                class="h-10 w-full"
+                                :disabled="!selectedPurchaseRequestId"
+                                @click="clearSelectedPurchaseRequest"
+                            >
+                                Limpiar
+                            </Button>
+                        </div>
+                    </div>
                 </DialogHeader>
                 <AlertStack
                     :success-message="successMessage"
@@ -323,16 +440,12 @@ watch(dialogOpen, (isOpen) => {
                     @close-success="successMessage = ''"
                     @close-error="errorMessage = ''"
                 />
-                <div class="mb-2 flex justify-end">
-                    <div class="w-64"></div>
-                </div>
                 <form
                     @submit.prevent="handleSubmit()"
                     :class="{'pointer-events-none opacity-50':dialogType === 'create' && isLoadingOrderId}"
                     class="space-y-6"
                 >
-                    <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
-                        <!-- Cabecera -->
+                    <div class="mt-8 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
                                 <InputField
@@ -343,7 +456,7 @@ watch(dialogOpen, (isOpen) => {
                                 />
                                 <span v-else-if="dialogType === 'create' && isLoadingOrderId" class="text-gray-400">Cargando...</span>
                             </div>
-                            <div class="flex h-full items-center justify-center rounded p-4">
+                            <div class="relative flex h-full items-center justify-center rounded p-4">
                                 <img
                                     :src="logoUrl"
                                     alt="Logotipo de la empresa"
@@ -395,12 +508,8 @@ watch(dialogOpen, (isOpen) => {
                         <div class="grid grid-cols-3 gap-4">
                             <InputDate v-model="localForm.date" label="Fecha de creacion" required />
                             <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
-                            <InputField
-                                v-model="localForm.supplier_order_number"
-                                label="# Pedido Proveedor"
-                                id="supplier-order"
-                                required
-                            />
+                            <InputField v-model="localForm.supplier_order_number" label="# orden de compra proveedor" />
+                
                         </div>
 
                         <!-- Items -->
@@ -413,38 +522,42 @@ watch(dialogOpen, (isOpen) => {
                         </InventoryDetailTableLayout>
 
                         <!-- Totales -->
-                        <div class="flex flex-col items-end space-y-0 text-sm">
-                            <div class="flex gap-5">
-                                <div class="flex flex-col items-end">
-                                    <span class="font-semibold">Subtotal:</span>
-                                    <span class="font-semibold">IVA total:</span>
-                                    <span class="font-semibold">Total orden de compra:</span>
-                                </div>
-                                <div class="flex min-w-[140px] flex-col items-start text-right">
-                                    <span>{{
-                                        Number(subtotal || 0).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}</span>
-                                    <span>{{
-                                        Number(iva || 0).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}</span>
-                                    <span class="font-bold">{{
-                                        Number(total || 0).toLocaleString('es-CO', {
-                                            style: 'currency',
-                                            currency: 'COP',
-                                            minimumFractionDigits: 0,
-                                            maximumFractionDigits: 0,
-                                        })
-                                    }}</span>
+                        <div class="space-y-4 pt-6">
+                            <div class="w-full flex flex-col items-end space-y-0 text-sm">
+                                <div class="w-full max-w-xs rounded p-2 space-y-1 bg-card text-card-foreground shadow-sm">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold text-card-foreground/70">Subtotal</span>
+                                        <span>{{
+                                            Number(subtotal || 0).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold text-card-foreground/70">IVA</span>
+                                        <span>{{
+                                            Number(iva || 0).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center pt-1">
+                                        <span class="font-bold text-card-foreground">Total orden de compra</span>
+                                        <span class="font-bold text-card-foreground">{{
+                                            Number(total || 0).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('purchase_documents', function (Blueprint $table) {
             $table->bigIncrements('id');
 
-            // Identificación general
+            // IdentificaciÃ³n general
             $table->string('document_number', 50)->nullable()->index(); // SOL-2025-001, ORD-2025-001, FAC-2025-001
             $table->string('document_type', 50)->index(); // purchase_request | purchase_order | purchase_invoice
 
@@ -28,12 +28,19 @@ return new class extends Migration
                 ->references('id')
                 ->on('contacts')
                 ->onDelete('set null');
+            // Campos para proveedor no registrado (nombre y telÃ©fono)
+            $table->string('provider_name')->nullable();
+            $table->string('provider_phone')->nullable();
 
             // Fechas principales
             $table->date('date')->nullable();           // Fecha del documento
             $table->date('delivery_date')->nullable(); // Fecha de entrega (si aplica)
 
-            // Descripción general
+            // Razon del documento (diferencias, observaciones o comentarios adicionales)
+            $table->text('reason')->nullable();
+
+
+            // DescripciÃ³n general
             $table->text('description')->nullable();
 
             // Usuarios involucrados
@@ -56,10 +63,10 @@ return new class extends Migration
             //  - Invoices: pending | in_process | approved | rejected
             $table->string('status', 50)->default('pending')->index();
 
-            // Estado de aprobación más "funcional" (sobre todo para factura)
+            // Estado de aprobaciÃ³n mÃ¡s "funcional" (sobre todo para factura)
             $table->string('approval_status', 50)->nullable()->index();
 
-            // Datos específicos por tipo
+            // Datos especÃ­ficos por tipo
             $table->string('supplier_order_number', 50)->nullable();   // Orden proveedor
             $table->string('supplier_invoice_number', 50)->nullable(); // Factura proveedor
 
@@ -80,16 +87,16 @@ return new class extends Migration
             $table->timestamp('rejected_at')->nullable();
 
             // Trazabilidad temporal del ciclo
-            $table->timestamp('requested_at')->nullable(); // Cuándo se solicitó
-            $table->timestamp('ordered_at')->nullable();   // Cuándo se ordenó
-            $table->timestamp('invoiced_at')->nullable();  // Cuándo se facturó
-            $table->timestamp('approved_at')->nullable();  // Cuándo se aprobó (si aplica)
+            $table->timestamp('requested_at')->nullable(); // CuÃ¡ndo se solicitÃ³
+            $table->timestamp('ordered_at')->nullable();   // CuÃ¡ndo se ordenÃ³
+            $table->timestamp('invoiced_at')->nullable();  // CuÃ¡ndo se facturÃ³
+            $table->timestamp('approved_at')->nullable();  // CuÃ¡ndo se aprobÃ³ (si aplica)
 
-            // Auditoría base
+            // AuditorÃ­a base
             $table->timestamps();
             $table->softDeletes();
 
-            // Índices útiles
+            // Ãndices Ãºtiles
             $table->index(['document_type', 'status']);
             $table->index(['document_type', 'approval_status']);
             $table->index(['contact_id', 'document_type']);
@@ -109,3 +116,6 @@ return new class extends Migration
         Schema::dropIfExists('purchase_documents');
     }
 };
+
+
+

@@ -27,6 +27,8 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'document_type',
         'parent_document_id',
         'contact_id',
+        'provider_name',
+        'provider_phone',
         'date',
         'delivery_date',
         'description',

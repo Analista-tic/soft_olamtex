@@ -23,7 +23,7 @@ class PurchaseDocumentController extends Controller
 
     public function requestIndex()
     {
-        return Inertia::render('Expenses/PurchaseServiceRequests/Index');
+        return Inertia::render('Expenses/PurchaseRequests/Index');
     }
 
     public function requestData(Request $request)
@@ -31,8 +31,35 @@ class PurchaseDocumentController extends Controller
         $filters = $request->only(['search', 'status', 'provider_id', 'date_from', 'date_to']);
         $documents = $this->service->paginateDocuments(PurchaseDocument::TYPE_REQUEST, $filters, $request->input('per_page', 20));
 
+        $rows = array_map(function (PurchaseDocument $doc) {
+            $estimated = 0;
+            if ($doc->relationLoaded('items')) {
+                $estimated = $doc->items->sum(function ($it) {
+                    return (float) ($it->total ?? 0);
+                });
+            } else {
+                // fallback: sum via relation query if items not eager-loaded
+                $estimated = (float) $doc->items()->sum('total');
+            }
+
+            return [
+                'id' => $doc->id,
+                'request_number' => $doc->document_number,
+                'document_number' => $doc->document_number,
+                'date' => $doc->date,
+                'description' => $doc->description,
+                'estimated_amount' => $estimated ?: null,
+                'status' => $doc->status,
+                'requester' => $doc->creator ? ['name' => $doc->creator->name] : null,
+                // expose `provider` object expected by the frontend (fall back to provider_name)
+                'provider' => $doc->supplier
+                    ? ['full_name' => $doc->supplier->full_name]
+                    : ($doc->provider_name ? ['full_name' => $doc->provider_name] : null),
+            ];
+        }, $documents->items());
+
         return response()->json([
-            'data' => $documents->items(),
+            'data' => $rows,
             'total' => $documents->total(),
             'current_page' => $documents->currentPage(),
         ]);
@@ -254,13 +281,17 @@ class PurchaseDocumentController extends Controller
     {
         $rules = [
             'document_number' => 'nullable|string|max:64',
-            'contact_id' => 'required|exists:contacts,id',
+            'contact_id' => 'nullable|exists:contacts,id',
+            'provider_name' => $isUpdate ? 'sometimes|required_without:contact_id|string|max:255' : 'required_without:contact_id|string|max:255',
+            'provider_phone' => 'nullable|string|max:50',
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',
             'description' => 'nullable|string',
             'status' => 'nullable|string|max:50',
             'items' => $isUpdate ? 'sometimes|array' : 'sometimes|array',
-            'items.*.item_id' => 'required_with:items|exists:items,id',
+            // allow manual item names when no `item_id` is provided
+            'items.*.item_id' => 'nullable|exists:items,id',
+            'items.*.item_name' => 'nullable|string|max:255',
             'items.*.price' => 'nullable|numeric',
             'items.*.tax' => 'nullable|numeric',
             'items.*.quantity' => 'required_with:items|numeric',
@@ -278,7 +309,9 @@ class PurchaseDocumentController extends Controller
     protected function validateOrderPayload(Request $request, bool $isUpdate = false): array
     {
         $rules = [
-            'contact_id' => 'required|exists:contacts,id',
+            'contact_id' => 'nullable|exists:contacts,id',
+            'provider_name' => $isUpdate ? 'sometimes|required_without:contact_id|string|max:255' : 'required_without:contact_id|string|max:255',
+            'provider_phone' => 'nullable|string|max:50',
             'date' => 'required|date',
             'delivery_date' => 'required|date',
             'supplier_order_number' => 'required|string|max:255',

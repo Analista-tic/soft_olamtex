@@ -328,6 +328,8 @@ class PurchaseDocumentService
             'document_type'       => $documentType,
             'document_number'     => $data['document_number'] ?? null,
             'contact_id'          => $data['contact_id'] ?? null,
+            'provider_name'       => $data['provider_name'] ?? null,
+            'provider_phone'      => $data['provider_phone'] ?? null,
             'date'                => $data['date'] ?? now()->toDateString(),
             'delivery_date'       => $data['delivery_date'] ?? null,
             'description'         => $data['description'] ?? null,
@@ -343,13 +345,15 @@ class PurchaseDocumentService
         $payload = [];
 
         foreach ($items as $item) {
-            if (empty($item['item_id']) || empty($item['quantity'])) {
+            // allow lines that have either an existing item_id or a manual item_name
+            if ((empty($item['item_id']) && empty($item['item_name'])) || empty($item['quantity'])) {
                 continue;
             }
 
             $payload[] = [
                 'purchase_document_id' => $document->id,
-                'item_id'              => $item['item_id'],
+                'item_id'              => $item['item_id'] ?? null,
+                'item_name'            => $item['item_name'] ?? null,
                 'quantity'             => $item['quantity'],
                 'price'                => $item['price']      ?? 0,
                 'tax'                  => $item['tax']        ?? 0,
@@ -365,7 +369,12 @@ class PurchaseDocumentService
         }
 
         if (!empty($payload)) {
-            PurchaseDocumentItem::insert($payload);
+            // Use Eloquent create to ensure model events, casts and timestamps are applied
+            foreach ($payload as $row) {
+                $rowToCreate = $row;
+                unset($rowToCreate['purchase_document_id']);
+                $document->items()->create($rowToCreate);
+            }
         }
     }
 
@@ -475,6 +484,8 @@ class PurchaseDocumentService
     {
         return [
             'document_number',
+            'provider_name',
+            'provider_phone',
             'contact_id',
             'date',
             'delivery_date',

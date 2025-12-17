@@ -25,6 +25,9 @@ return new class extends Migration
                 ->on('items')   // tu tabla actual de ítems
                 ->onDelete('set null');
 
+            // Nombre del ítem cuando no existe en la tabla `items` (entrada manual)
+            $table->string('item_name')->nullable();
+
             // Datos de la línea
             $table->decimal('quantity', 15, 3)->default(0);       // Cantidad
             $table->decimal('price', 15, 2)->default(0);          // Precio unitario SIN impuesto
