@@ -26,6 +26,7 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { computed, reactive, ref, watch } from 'vue';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { AuditLog, BreadcrumbItem, PaginatedData, SharedData } from '@/types';
 import { Eye } from 'lucide-vue-next';
 
@@ -45,6 +46,7 @@ interface DiffEntry {
 }
 
 const props = defineProps<AuditPageProps>();
+const { company } = useCompanyInfo();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Panel administrativo', href: route('panel-administrativo') },
@@ -454,6 +456,9 @@ watch(detailDialogOpen, (value) => {
                                 <div class="font-semibold">
                                     {{ log.user_name ?? 'Sistema' }}
                                 </div>
+                                <p class="mt-0.5 text-xs text-muted-foreground/70">
+                                    Empresa: {{ company?.name ?? 'Sin compañía asignada' }}
+                                </p>
                             </TableCell>
 
                             <!-- ACCIÓN -->

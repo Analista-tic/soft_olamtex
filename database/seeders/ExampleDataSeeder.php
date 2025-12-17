@@ -136,27 +136,27 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Insertar orden de compra de ejemplo
-        $purchaseOrderId = DB::table('purchase_orders')->insertGetId([
-            'contact_id' => $providerId,
-            'date' => now(),
-            'delivery_date' => now(),
-            'supplier_order_number'=> 'ORD-001',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // // Insertar orden de compra de ejemplo
+        // $purchaseOrderId = DB::table('purchase_orders')->insertGetId([
+        //     'contact_id' => $providerId,
+        //     'date' => now(),
+        //     'delivery_date' => now(),
+        //     'supplier_order_number'=> 'ORD-001',
+        //     'created_at' => now(),
+        //     'updated_at' => now(),
+        // ]);
 
-        // Insertar ítem de orden de compra de ejemplo
-        DB::table('purchase_order_items')->insert([
-            'purchase_order_id' => $purchaseOrderId,
-            'item_id' => $itemId,
-            'price' => 1000.00,
-            'tax' => 0,
-            'quantity' => 1,
-            'description' => 'Ítem de prueba',
-            'total' => 1000.00,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // // Insertar ítem de orden de compra de ejemplo
+        // DB::table('purchase_order_items')->insert([
+        //     'purchase_order_id' => $purchaseOrderId,
+        //     'item_id' => $itemId,
+        //     'price' => 1000.00,
+        //     'tax' => 0,
+        //     'quantity' => 1,
+        //     'description' => 'Ítem de prueba',
+        //     'total' => 1000.00,
+        //     'created_at' => now(),
+        //     'updated_at' => now(),
+        // ]);
     }
 }

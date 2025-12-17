@@ -7,6 +7,7 @@ use App\Models\Common\CategorySubGroup;
 use App\Models\Common\Contact;
 use App\Models\Common\Tax;
 use App\Models\Common\Warehouse;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
@@ -18,6 +19,8 @@ use App\Models\Settings\CompanySetting;
 use App\Models\Settings\Retention;
 use App\Models\User;
 use App\Observers\AuditObserver;
+use App\Models\Expenses\PurchaseDocument;
+use App\Models\Expenses\PurchaseDocumentItem;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -36,6 +39,8 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191); // Limita las cadenas a 191 caracteres
 
+        Route::model('purchaseDocument', PurchaseDocument::class);
+
         //se debe agregar un observer para cada modelo que se quiera auditar
         PurchaseRequest::observe(AuditObserver::class);
         PurchaseOrder::observe(AuditObserver::class);
@@ -49,6 +54,8 @@ class AppServiceProvider extends ServiceProvider
         Warehouse::observe(AuditObserver::class);
         CompanySetting::observe(AuditObserver::class);
         Retention::observe(AuditObserver::class);
+        PurchaseDocument::observe(AuditObserver::class);
+        PurchaseDocumentItem::observe(AuditObserver::class);
     }
 
 }

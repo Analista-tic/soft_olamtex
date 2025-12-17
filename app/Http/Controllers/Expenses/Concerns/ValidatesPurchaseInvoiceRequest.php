@@ -2,17 +2,21 @@
 
 namespace App\Http\Controllers\Expenses\Concerns;
 
+use App\Models\Expenses\PurchaseDocument;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 trait ValidatesPurchaseInvoiceRequest
 {
     protected function validateInvoiceRequest(Request $request, bool $isUpdate = false): array
     {
-        $itemIdRule = $isUpdate ? ['sometimes', 'exists:purchase_invoice_items,id'] : [];
+        $itemIdRule = $isUpdate ? ['sometimes', 'exists:purchase_document_items,id'] : [];
+        $purchaseOrderRule = Rule::exists('purchase_documents', 'id')
+            ->where(fn ($query) => $query->where('document_type', PurchaseDocument::TYPE_ORDER));
 
         return $request->validate([
             'contact_id' => 'required|exists:contacts,id',
-            'purchase_order_id' => 'nullable|exists:purchase_orders,id',
+            'purchase_order_id' => ['nullable', $purchaseOrderRule],
             'date' => 'required|date',
             'delivery_date' => 'nullable|date',
             'supplier_invoice_number' => 'nullable|string|max:255',

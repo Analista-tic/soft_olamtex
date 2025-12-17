@@ -131,6 +131,8 @@ class AuditLogService
             'PurchaseOrder' => 'Orden de compra',
             'PurchaseInvoice' => 'Factura de compra',
             'PurchaseRequest' => 'Solicitud de compra',
+            'PurchaseDocument' => 'Documento de compra',
+            'PurchaseDocumentItem' => 'Línea de documento de compra',
             'Item' => 'Artículo',
             'Warehouse' => 'Bodega',
             'Contact' => 'Contacto',
@@ -150,7 +152,9 @@ class AuditLogService
         return match (true) {
             $model instanceof \App\Models\Expenses\PurchaseOrder,
             $model instanceof \App\Models\Expenses\PurchaseInvoice,
-            $model instanceof \App\Models\Expenses\PurchaseRequest
+            $model instanceof \App\Models\Expenses\PurchaseRequest,
+            $model instanceof \App\Models\Expenses\PurchaseDocument,
+            $model instanceof \App\Models\Expenses\PurchaseDocumentItem
                 => 'Expenses',
 
             $model instanceof \App\Models\Inventory\Item,
@@ -268,4 +272,3 @@ class AuditLogService
     }
 
 }
-
