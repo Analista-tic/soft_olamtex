@@ -61,7 +61,7 @@ class FabricRollController extends Controller
         try {
             $data = $request->validate([
                 'roll_number' => 'required|string|max:255|unique:fabric_rolls,roll_number',
-                'purchase_invoice_item_id' => 'required|integer|exists:purchase_invoice_items,id',
+                'purchase_document_item_id' => 'required|integer|exists:purchase_document_items,id',
                 'quantity' => 'required|numeric|min:0.01',
                 'roll_width' => 'nullable|numeric|min:0',
                 'location' => 'nullable|string|max:255',
@@ -105,7 +105,7 @@ class FabricRollController extends Controller
         try {
             $data = $request->validate([
                 'roll_number' => 'required|string|max:255|unique:fabric_rolls,roll_number,' . $fabricRoll->id,
-                'purchase_invoice_item_id' => 'required|integer|exists:purchase_invoice_items,id',
+                'purchase_document_item_id' => 'required|integer|exists:purchase_document_items,id',
                 'quantity' => 'required|numeric|min:0.01',
                 'partial_output' => 'nullable|numeric|min:0',
                 'actual_output' => 'nullable|numeric|min:0',
@@ -197,7 +197,7 @@ class FabricRollController extends Controller
         try {
             $data = $request->validate([
                 'roll_number' => 'required|string|max:255|unique:fabric_rolls,roll_number',
-                'purchase_invoice_item_id' => 'required|integer|exists:purchase_invoice_items,id',
+                'purchase_document_item_id' => 'required|integer|exists:purchase_document_items,id',
                 'quantity' => 'required|numeric|min:0.01',
                 'roll_width' => 'nullable|numeric|min:0',
                 'location' => 'nullable|string|max:255',

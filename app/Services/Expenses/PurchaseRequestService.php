@@ -4,6 +4,7 @@ namespace App\Services\Expenses;
 
 use App\Models\Expenses\PurchaseRequest;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 
 class PurchaseRequestService
 {
@@ -70,7 +71,7 @@ class PurchaseRequestService
         }
 
         $data['status'] = $data['status'] ?? 'draft';
-        $data['requester_user_id'] = $data['requester_user_id'] ?? auth()->id();
+        $data['requester_user_id'] = $data['requester_user_id'] ?? Auth::id();
 
         return $data;
     }

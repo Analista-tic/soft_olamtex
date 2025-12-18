@@ -12,13 +12,13 @@ class FabricRollService
 {
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
-        $query = FabricRoll::with(['purchaseInvoiceItem.article']);
+        $query = FabricRoll::with(['purchaseDocumentItem.item']);
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('roll_number', 'like', "%{$search}%")
-                    ->orWhereHas('purchaseInvoiceItem.article', function ($article) use ($search) {
+                    ->orWhereHas('purchaseDocumentItem.item', function ($article) use ($search) {
                         $article->where('description', 'like', "%{$search}%")
                                 ->orWhere('reference', 'like', "%{$search}%");
                     });
@@ -52,7 +52,7 @@ class FabricRollService
             $data['roll_width'] = $data['roll_width'] ?? 0;
 
             $fabricRoll = FabricRoll::create($data);
-            $fabricRoll->load('purchaseInvoiceItem.article');
+            $fabricRoll->load('purchaseDocumentItem.item');
 
             return $fabricRoll;
         });
@@ -60,7 +60,7 @@ class FabricRollService
 
     public function findOrFail($id): FabricRoll
     {
-        return FabricRoll::with(['purchaseInvoiceItem.article'])->findOrFail($id);
+        return FabricRoll::with(['purchaseDocumentItem.item'])->findOrFail($id);
     }
 
     public function update(FabricRoll $fabricRoll, array $data): FabricRoll
@@ -70,7 +70,7 @@ class FabricRollService
             $data['actual_output'] = $data['actual_output'] ?? 0;
 
             $fabricRoll->update($data);
-            $fabricRoll->load('purchaseInvoiceItem.article');
+            $fabricRoll->load('purchaseDocumentItem.item');
 
             return $fabricRoll;
         });
@@ -84,7 +84,7 @@ class FabricRollService
     public function updateOutput(FabricRoll $fabricRoll, array $data): FabricRoll
     {
         $fabricRoll->update($data);
-        $fabricRoll->load('purchaseInvoiceItem.article');
+        $fabricRoll->load('purchaseDocumentItem.item');
 
         return $fabricRoll;
     }
@@ -96,7 +96,7 @@ class FabricRollService
 
     public function getByInvoiceItem($itemId): Collection
     {
-        return FabricRoll::where('purchase_invoice_item_id', $itemId)->orderBy('entry_date')->get();
+        return FabricRoll::where('purchase_document_item_id', $itemId)->orderBy('entry_date')->get();
     }
 
     public function approveReception($invoiceId)

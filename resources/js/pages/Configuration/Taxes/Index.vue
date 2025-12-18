@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
@@ -106,7 +106,7 @@ onMounted(() => fetchTaxes());
 </script>
 
 <template>
-    <Head title="GestiÃ³n de impuestos" />
+    <Head title="Gestión de impuestos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :successMessage="successMessage"
@@ -118,7 +118,7 @@ onMounted(() => fetchTaxes());
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">GestiÃ³n de impuestos</h1>
+                <h1 class="text-lg font-bold">Gestión de impuestos</h1>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Nuevo Impuesto</Button>
             </div>
             <div class="relative flex items-center gap-4">
@@ -129,7 +129,7 @@ onMounted(() => fetchTaxes());
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
@@ -190,8 +190,8 @@ onMounted(() => fetchTaxes());
         />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaciÃ³n"
-            description="Â¿EstÃ¡s seguro de que deseas eliminar este impuesto? Esta acciÃ³n no se puede deshacer."
+            title="Confirmar eliminación"
+            description="¿Estás seguro de que deseas eliminar este impuesto? Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"
@@ -199,6 +199,7 @@ onMounted(() => fetchTaxes());
         />
     </AppLayout>
 </template>
+
 
 
 

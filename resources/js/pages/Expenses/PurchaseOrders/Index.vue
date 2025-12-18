@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos/ordenes-compra' },
-    { title: 'Ã“rdenes de Compra', href: '/gastos/ordenes-compra' },
+    { title: 'Órdenes de Compra', href: '/gastos/ordenes-compra' },
 ];
 
 const orders = ref<PurchaseOrder[]>([]);
@@ -122,7 +122,7 @@ async function fetchOrders(page = 1, search = '') {
 
 // Actualiza los filtros y la tabla correctamente
 watch([statusFilter, providerFilter, dateFrom, dateTo], () => {
-    // Reinicia la pÃ¡gina a 1 cada vez que cambian los filtros
+    // Reinicia la página a 1 cada vez que cambian los filtros
     currentPage.value = 1;
     fetchOrders(1, searchQuery.value);
 });
@@ -142,7 +142,7 @@ function openPrintDialog(order: PurchaseOrder) {
     isPrintDialogOpen.value = true;
     setTimeout(() => {
         window.print();
-    }, 400); // Espera breve para que el diÃ¡logo se renderice antes de imprimir
+    }, 400); // Espera breve para que el diálogo se renderice antes de imprimir
 }
 
 async function sendOrderByEmail(order: PurchaseOrder) {
@@ -161,13 +161,13 @@ async function sendOrderByEmail(order: PurchaseOrder) {
 
 async function convertToInvoice(order: PurchaseOrder) {
     if (isConverting.value !== null) return;
-    isConverting.value = order.id ?? null; // order.id nunca deberÃ­a ser undefined, pero por seguridad
+    isConverting.value = order.id ?? null; // order.id nunca debería ser undefined, pero por seguridad
     try {
         await axios.post(`/gastos/ordenes-compra/${order.id}/convert-to-invoice`);
         successMessage.value = 'Orden convertida en factura correctamente.';
         fetchOrders(currentPage.value, searchQuery.value);
     } catch (e: any) {
-        // ValidaciÃ³n especÃ­fica del mensaje de error
+        // Validación específica del mensaje de error
         if (e?.response?.data?.error_code === 'ORDER_ALREADY_INVOICED') {
             setErrorMessage('Esta orden de compra ya tiene una factura asociada.');
         } else {
@@ -195,7 +195,7 @@ function handleDialogError(message?: string) {
 </script>
 
 <template>
-    <Head title="Ã“rdenes de Compra" />
+    <Head title="Órdenes de Compra" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :successMessage="successMessage"
@@ -207,9 +207,9 @@ function handleDialogError(message?: string) {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Ã“rdenes de Compras y Servicios</h1>
+                    <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
                     <p class="text-sm text-muted-foreground">
-                        Lleva el control de las Ã³rdenes emitidas a proveedores y su estado de facturaciÃ³n.
+                        Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.
                     </p>
                 </div>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="h-4 w-4" /> Nueva Orden</Button>
@@ -250,16 +250,16 @@ function handleDialogError(message?: string) {
                     <InputDate v-model="dateTo" label="Hasta" placeholder="Hasta" />
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                         <TableHeader>
                         <TableRow>
                             <TableHead>#Orden</TableHead>
                             <TableHead>Proveedor</TableHead>
                             <TableHead>Fecha</TableHead>
-                            <TableHead>NÃºmero Orden</TableHead>
+                            <TableHead>Número Orden</TableHead>
                             <TableHead>Entrega</TableHead>
-                            <TableHead>DescripciÃ³n</TableHead>
+                            <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
@@ -340,8 +340,8 @@ function handleDialogError(message?: string) {
         <PurchaseOrderPrintDialog :isOpen="isPrintDialogOpen" :order="orderToPrint" @close="isPrintDialogOpen = false" />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaciÃ³n"
-            description="Â¿EstÃ¡s seguro de que deseas eliminar esta orden? Esta acciÃ³n no se puede deshacer."
+            title="Confirmar eliminación"
+            description="¿Estás seguro de que deseas eliminar esta orden? Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"
@@ -349,3 +349,4 @@ function handleDialogError(message?: string) {
         />
     </AppLayout>
 </template>
+

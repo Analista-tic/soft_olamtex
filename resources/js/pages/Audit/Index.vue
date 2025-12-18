@@ -425,7 +425,7 @@ watch(detailDialogOpen, (value) => {
 
             <!-- TARJETA / TABLA: mismo “card” que en Gestión de Ítems -->
             <div
-                class="relative min-h-[100vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border md:min-h-min"
+                class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border md:min-h-min"
             >
                 <Table class="text-sm">
                     <TableHeader>
@@ -613,3 +613,4 @@ watch(detailDialogOpen, (value) => {
         </Dialog>
     </AppLayout>
 </template>
+

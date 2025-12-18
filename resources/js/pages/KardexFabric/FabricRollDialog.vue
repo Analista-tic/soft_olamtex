@@ -11,7 +11,7 @@ import AlertBox from '@/components/AlertBox.vue';
 
 interface FabricRollForm {
     roll_number: string;
-    purchase_invoice_item_id: number | null;
+    purchase_document_item_id: number | null;
     quantity: number | string;
     roll_width: number | string;
     location: string;
@@ -59,7 +59,7 @@ function clearAlert() {
 
 const form = ref<FabricRollForm>({
     roll_number: '',
-    purchase_invoice_item_id: null,
+    purchase_document_item_id: null,
     quantity: '',
     roll_width: '',
     location: '',
@@ -122,9 +122,9 @@ const overallStatus = computed(() => {
 });
 
 function resetForm() {
-    form.value = {
-        roll_number: '',
-        purchase_invoice_item_id: props.item?.id || null,
+        form.value = {
+            roll_number: '',
+            purchase_document_item_id: props.item?.id || null,
         quantity: '',
         roll_width: props.item?.order_width?.toString() || '',
         location: '',
@@ -142,7 +142,7 @@ async function handleSubmit() {
             ...form.value,
             quantity: Number(form.value.quantity),
             roll_width: Number(form.value.roll_width),
-            purchase_invoice_item_id: props.item?.id,
+            purchase_document_item_id: props.item?.id,
         };
 
         await axios.post(props.apiUrl!, payload);

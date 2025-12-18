@@ -4,7 +4,7 @@ namespace App\Services\Inventory;
 
 use App\Services\Inventory\AdditionalFieldService;
 use App\Models\Common\CategorySubGroup;
-use App\Models\Expenses\PurchaseInvoiceItem;
+use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Expenses\PurchaseOrderItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Inventory\Item;
@@ -302,7 +302,7 @@ class ItemService
             $reasons[] = $poCount === 1 ? '1 orden de compra' : "{$poCount} ordenes de compra";
         }
 
-        $invoiceCount = PurchaseInvoiceItem::where('item_id', $article->id)->count();
+        $invoiceCount = PurchaseDocumentItem::where('item_id', $article->id)->count();
         if ($invoiceCount > 0) {
             $reasons[] = $invoiceCount === 1 ? '1 factura de compra' : "{$invoiceCount} facturas de compra";
         }

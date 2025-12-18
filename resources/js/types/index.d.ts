@@ -429,8 +429,8 @@ export interface ExtraFields {
 export interface FabricRoll {
     id: number;
     roll_number: string;
-    purchase_invoice_item_id: number;
-    purchase_invoice_item?: PurchaseInvoiceItem;
+    purchase_document_item_id: number;
+    purchase_document_item?: PurchaseInvoiceItem;
     quantity: number;
     roll_width?: number;
     location?: string;

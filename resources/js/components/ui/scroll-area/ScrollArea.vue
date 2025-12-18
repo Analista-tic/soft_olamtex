@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { HTMLAttributes } from 'vue'
 import { computed } from 'vue'
-import { ScrollAreaRoot } from './ScrollAreaRoot.vue'
-import { ScrollAreaViewport } from './ScrollAreaViewport.vue'
-import { ScrollAreaScrollbar } from './ScrollAreaScrollbar.vue'
-import { ScrollAreaThumb } from './ScrollAreaThumb.vue'
-import { ScrollAreaCorner } from './ScrollAreaCorner.vue'
+import ScrollAreaRoot from './ScrollAreaRoot.vue'
+import ScrollAreaViewport from './ScrollAreaViewport.vue'
+import ScrollAreaScrollbar from './ScrollAreaScrollbar.vue'
+import ScrollAreaThumb from './ScrollAreaThumb.vue'
+import ScrollAreaCorner from './ScrollAreaCorner.vue'
 import type { ScrollAreaRootProps } from 'reka-ui'
 
 const props = defineProps<ScrollAreaRootProps & { class?: HTMLAttributes['class'] }>()

@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import { BreadcrumbItem, Role, User } from '@/types'; // Importar los tipos centralizados
 import EditButton from '@/components/common/EditButton.vue';
 import UserDialog from './UserDialog.vue';
@@ -54,7 +54,7 @@ const form = ref<Partial<User>>({
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
-const searchQuery = ref(''); // Campo de bÃºsqueda
+const searchQuery = ref(''); // Campo de búsqueda
 
 const authStore = useAuthStore();
 
@@ -66,7 +66,7 @@ function openDialog(type: 'create' | 'edit', user: User | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
     if (type === 'edit' && user) {
-        form.value = { ...user, password: '' }; // No se muestra la contraseÃ±a existente
+        form.value = { ...user, password: '' }; // No se muestra la contraseña existente
     } else {
         form.value = { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
     }
@@ -138,7 +138,7 @@ watch(searchQuery, (newQuery) => {
 watch(isDialogOpen, (newValue) => {
     if (newValue) {
         form.value = dialogType.value === 'edit' && form.value.id
-            ? { ...form.value, password: '' } // Limpiar solo el campo de contraseÃ±a al editar
+            ? { ...form.value, password: '' } // Limpiar solo el campo de contraseña al editar
             : { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
     }
 });
@@ -149,11 +149,11 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="GestiÃ³n de Usuarios" />
+    <Head title="Gestión de Usuarios" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">GestiÃ³n de Usuarios</h1>
+                <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
                 <Button v-if="canCreate" @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Usuario</Button>
             </div>
             <div class="relative flex items-center gap-4">
@@ -169,7 +169,7 @@ onMounted(() => {
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-border bg-card shadow-sm text-card-foreground md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-border bg-card shadow-sm text-card-foreground md:min-h-min">
                 <Table class="text-center text-sm text-card-foreground">
                     <TableHeader>
                         <TableRow>
@@ -232,14 +232,15 @@ onMounted(() => {
         @submit="submitForm"
     />
 
-    <!-- Dialog para Confirmar EliminaciÃ³n -->
+    <!-- Dialog para Confirmar Eliminación -->
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminaciÃ³n"
-        description="Â¿EstÃ¡s seguro de que deseas eliminar este usuario? Esta acciÃ³n no se puede deshacer."
+        title="Confirmar eliminación"
+        description="¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer."
         confirm-text="Eliminar"
         cancel-text="Cancelar"
         :destructive="true"
         @confirm="deleteUser"
     />
 </template>
+

@@ -9,7 +9,7 @@ import {
     type DialogContentEmits,
     type DialogContentProps,
 } from 'radix-vue';
-import { computed, type HTMLAttributes, onMounted, onUnmounted } from 'vue';
+import { computed, type HTMLAttributes } from 'vue';
 
 const props = defineProps<DialogContentProps & { class?: HTMLAttributes['class'] }>();
 const emits = defineEmits<DialogContentEmits>();
@@ -21,58 +21,6 @@ const delegatedProps = computed(() => {
 });
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
-
-let bodyScrollLockCount = 0;
-let previousOverflow: string | null = null;
-let previousPaddingRight: string | null = null;
-
-function lockBodyScroll() {
-    if (typeof document === 'undefined') {
-        return;
-    }
-
-    bodyScrollLockCount += 1;
-    if (bodyScrollLockCount !== 1) {
-        return;
-    }
-
-    previousOverflow = document.body.style.overflow;
-    previousPaddingRight = document.body.style.paddingRight;
-
-    const scrollbarWidth =
-        typeof window !== 'undefined'
-            ? window.innerWidth - document.documentElement.clientWidth
-            : 0;
-
-    document.body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-        document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-}
-
-function unlockBodyScroll() {
-    if (typeof document === 'undefined') {
-        return;
-    }
-
-    bodyScrollLockCount = Math.max(0, bodyScrollLockCount - 1);
-    if (bodyScrollLockCount !== 0) {
-        return;
-    }
-
-    document.body.style.overflow = previousOverflow ?? '';
-    document.body.style.paddingRight = previousPaddingRight ?? '';
-    previousOverflow = null;
-    previousPaddingRight = null;
-}
-
-onMounted(() => {
-    lockBodyScroll();
-});
-
-onUnmounted(() => {
-    unlockBodyScroll();
-});
 </script>
 
 <template>

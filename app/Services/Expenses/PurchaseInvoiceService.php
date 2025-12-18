@@ -62,13 +62,14 @@ class PurchaseInvoiceService
 
     public function store(array $data, bool $isFabric = false): PurchaseInvoice
     {
-        return DB::transaction(function () use ($data, $isFabric) {
+        $purchaseOrderId = $data['purchase_order_id'] ?? null;
+        return DB::transaction(function () use ($data, $isFabric, $purchaseOrderId) {
             $payload = $this->normalizePayload($data);
             $payload['is_fabric'] = $isFabric;
 
             $invoice = PurchaseInvoice::create($payload);
             $this->syncInvoiceItems($invoice, $payload['items'] ?? [], false);
-            $this->updatePurchaseOrderStatus($payload['purchase_order_id'] ?? null);
+            $this->updatePurchaseOrderStatus($purchaseOrderId);
 
             return $invoice->load('items', 'contact', 'purchaseOrder');
         });
@@ -76,13 +77,14 @@ class PurchaseInvoiceService
 
     public function update(PurchaseInvoice $invoice, array $data, bool $isFabric = false): PurchaseInvoice
     {
-        return DB::transaction(function () use ($invoice, $data, $isFabric) {
+        $purchaseOrderId = $data['purchase_order_id'] ?? null;
+        return DB::transaction(function () use ($invoice, $data, $isFabric, $purchaseOrderId) {
             $payload = $this->normalizePayload($data);
             $payload['is_fabric'] = $isFabric;
 
             $invoice->update($payload);
             $this->syncInvoiceItems($invoice, $payload['items'] ?? [], true);
-            $this->updatePurchaseOrderStatus($payload['purchase_order_id'] ?? null);
+            $this->updatePurchaseOrderStatus($purchaseOrderId);
 
             return $invoice->load('items', 'contact', 'purchaseOrder');
         });
@@ -108,12 +110,18 @@ class PurchaseInvoiceService
         }
 
         if (array_key_exists('difference_evidence_path', $data)) {
-            $data['evidence_path'] = $this->prepareEvidencePath($data['difference_evidence_path']);
+            $data['rejection_evidence_image'] = $this->prepareEvidencePath($data['difference_evidence_path']);
             unset($data['difference_evidence_path']);
         } elseif (array_key_exists('evidence_path', $data)) {
-            $data['evidence_path'] = $this->prepareEvidencePath($data['evidence_path']);
+            $data['rejection_evidence_image'] = $this->prepareEvidencePath($data['evidence_path']);
         }
 
+        if (!empty($data['purchase_order_id'])) {
+            $data['parent_document_id'] = $data['purchase_order_id'];
+        }
+        unset($data['purchase_order_id']);
+
+        $data['document_type'] = $data['document_type'] ?? PurchaseDocument::TYPE_INVOICE;
         $data['withholdings'] = $data['withholdings'] ?? [];
         $data['items'] = $data['items'] ?? [];
 

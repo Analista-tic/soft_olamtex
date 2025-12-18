@@ -3,9 +3,10 @@
 namespace App\Services\Expenses;
 
 use App\Mail\PurchaseOrderMail;
+use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseInvoice;
 use App\Models\Expenses\PurchaseOrder;
-use Barryvdh\DomPDF\Facade\Pdf as DomPDF;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -71,7 +72,7 @@ class PurchaseOrderService
         return $purchaseOrder->load(['contact', 'items.item']);
     }
 
-    public function sendPdf(PurchaseOrder $purchaseOrder): void
+    public function sendPdf(PurchaseDocument $purchaseOrder): void
     {
         $purchaseOrder->load(['contact', 'items.item']);
 
@@ -80,7 +81,7 @@ class PurchaseOrderService
             throw new \RuntimeException('El proveedor no tiene correo electrónico registrado.');
         }
 
-        $pdf = DomPDF::loadView('pdf.purchase_order', ['order' => $purchaseOrder]);
+        $pdf = Pdf::loadView('pdf.purchase_order', ['order' => $purchaseOrder]);
 
         Mail::to($email)->send(new PurchaseOrderMail($purchaseOrder, $pdf->output()));
 

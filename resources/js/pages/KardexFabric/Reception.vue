@@ -39,6 +39,23 @@ const isFabricRollDialogOpen = ref(false);
 const selectedItem = ref<any>(null);
 const { company, logoUrl } = useCompanyInfo();
 
+const invoiceDateTimeFormatter = new Intl.DateTimeFormat('es-CO', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'UTC',
+});
+
+function formatInvoiceDate(value?: string | Date | number | null): string {
+    if (!value) {
+        return '-';
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+        return String(value);
+    }
+    return invoiceDateTimeFormatter.format(parsed);
+}
+
 // Estado para AlertBox
 const alertMessage = ref('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
@@ -418,7 +435,7 @@ function onFabricRollSuccess() {
                             <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
                                 <TableCell class="font-medium">{{ invoice.id }}</TableCell>
                                 <TableCell>{{ invoice.contact?.full_name }}</TableCell>
-                                <TableCell>{{ invoice.date }}</TableCell>
+                                <TableCell>{{ formatInvoiceDate(invoice.date) }}</TableCell>
                                 <TableCell class="font-medium">
                                     {{
                                         calculateInvoiceTotal(invoice).toLocaleString('es-CO', {
@@ -492,7 +509,7 @@ function onFabricRollSuccess() {
                     <div class="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded-lg">
                         <div>
                             <p class="text-sm font-medium text-gray-700">Fecha de factura</p>
-                            <p class="text-sm">{{ selectedInvoice.date }}</p>
+                            <p class="text-sm">{{ formatInvoiceDate(selectedInvoice.date) }}</p>
                         </div>
                         <div>
                             <p class="text-sm font-medium text-gray-700">Fecha de entrega</p>

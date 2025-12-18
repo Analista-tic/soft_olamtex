@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 // import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import { Button } from '@/components/ui/button';
@@ -114,11 +114,11 @@ onMounted(fetchRoles);
 </script>
 
 <template>
-    <Head title="GestiÃ³n de Usuarios" />
+    <Head title="Gestión de Usuarios" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">GestiÃ³n de Roles</h1>
+                <h1 class="text-lg font-bold">Gestión de Roles</h1>
                 <Button v-if="canCreate" @click="openFormDialog()" variant="default" size="sm">
                     <PlusCircle class="h-4 w-4" /> Crear Nuevo Rol
                 </Button>
@@ -131,7 +131,7 @@ onMounted(fetchRoles);
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -184,8 +184,8 @@ onMounted(fetchRoles);
 
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminaciÃ³n"
-        description="Â¿EstÃ¡s seguro de que deseas eliminar este usuario? Esta acciÃ³n no se puede deshacer."
+        title="Confirmar eliminación"
+        description="¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer."
         confirm-text="Eliminar"
         cancel-text="Cancelar"
         :destructive="true"
@@ -200,4 +200,5 @@ onMounted(fetchRoles);
         @submit="handleRoleSubmit"
     />
 </template>
+
 

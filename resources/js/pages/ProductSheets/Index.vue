@@ -1,7 +1,7 @@
-ï»¿<script setup lang="ts">
-import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botÃ³n de eliminar
-import EditButton from '@/components/common/EditButton.vue'; // Importar el botÃ³n de editar
-import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botÃ³n de visualizar
+<script setup lang="ts">
+import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
+import EditButton from '@/components/common/EditButton.vue'; // Importar el botón de editar
+import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
 import {
     AlertDialog,
     AlertDialogAction,
@@ -39,7 +39,7 @@ import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'DiseÃ±o',
+        title: 'Diseño',
         href: '/diseno/sabana-productos',
     },
     {
@@ -66,8 +66,8 @@ interface StatusOption {
 const props = defineProps<ProductSheetPageProps>();
 const products_sheet = ref<ProductSheet[]>([]);
 const productSheetToDelete = ref<ProductSheet | null>(null);
-const isEditDialogOpen = ref(false); // Estado para el diÃ¡logo de ediciÃ³n/creaciÃ³n
-const isDeleteDialogOpen = ref(false); // Estado para el diÃ¡logo de confirmaciÃ³n de eliminaciÃ³n
+const isEditDialogOpen = ref(false); // Estado para el diálogo de edición/creación
+const isDeleteDialogOpen = ref(false); // Estado para el diálogo de confirmación de eliminación
 const editProductSheetData = ref<ProductSheet | undefined>(undefined); // Cambiar null por undefined
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -112,7 +112,7 @@ function clearAlert() {
 
 async function loadPermissions() {
     try {
-        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estÃ©n cargados
+        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estén cargados
         canView.value = authStore.can('ver sabana productos');
         canCreate.value = authStore.can('crear sabana productos');
         canEdit.value = authStore.can('editar sabana productos');
@@ -144,7 +144,7 @@ async function deleteProductSheet() {
     }
 }
 
-// Modificar la funciÃ³n fetchProductSheets para aceptar un parÃ¡metro de bÃºsqueda y filtro de estado
+// Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
 async function fetchProductSheets(page = 1, search = '', status: string | null = null) {
     try {
         const response = await axios.get('/diseno/product-sheets', {
@@ -160,7 +160,7 @@ async function fetchProductSheets(page = 1, search = '', status: string | null =
             products_sheet.value = response.data.products_sheets.data;
             totalItems.value = response.data.products_sheets.total;
         } else {
-            console.error('Error al obtener los product sheets: Respuesta invÃ¡lida');
+            console.error('Error al obtener los product sheets: Respuesta inválida');
         }
     } catch (error) {
         console.error('Error al obtener los product sheets:', error);
@@ -182,8 +182,8 @@ function viewProductSheet(product: ProductSheet) {
 }
 
 function openCreateDialog() {
-    editProductSheetData.value = undefined; // Asegurarse de que no haya datos de ediciÃ³n
-    isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diÃ¡logo
+    editProductSheetData.value = undefined; // Asegurarse de que no haya datos de edición
+    isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diálogo
 }
 
 onMounted(async () => {
@@ -203,7 +203,7 @@ onMounted(async () => {
                 >
                     <AlertBox
                         :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Ã‰xito' : alertType === 'info' ? 'InformaciÃ³n' : 'Error'"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
                         :message="alertMessage"
                         class="pointer-events-auto"
                         @close="clearAlert"
@@ -238,7 +238,7 @@ onMounted(async () => {
                     </Select>
                 </div>
             </div>
-            <div class="relative mt-4 min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -343,9 +343,9 @@ onMounted(async () => {
     <AlertDialog v-model:open="isDeleteDialogOpen" @close="isDeleteDialogOpen = false">
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Confirmar eliminaciÃ³n</AlertDialogTitle>
+                <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Â¿EstÃ¡s seguro de que deseas eliminar este product sheet? Esta acciÃ³n no se puede deshacer.
+                    ¿Estás seguro de que deseas eliminar este product sheet? Esta acción no se puede deshacer.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -355,4 +355,5 @@ onMounted(async () => {
         </AlertDialogContent>
     </AlertDialog>
 </template>
+
 

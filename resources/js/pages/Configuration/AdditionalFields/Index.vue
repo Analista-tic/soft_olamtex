@@ -298,7 +298,7 @@ onMounted(() => {
             <p class="text-sm text-muted-foreground">
                 Arrastra y suelta los campos adicionales para definir el orden que se usará al completar el nombre de los items.
             </p>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
@@ -405,3 +405,4 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
+

@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
@@ -57,11 +57,11 @@ async function deleteRetention() {
     if (!retentionToDelete.value) return;
     try {
         await axios.delete(`/retenciones/${retentionToDelete.value.id}`);
-        successMessage.value = 'RetenciÃ³n eliminada correctamente.';
+        successMessage.value = 'Retención eliminada correctamente.';
         fetchRetentions();
     } catch {
         errorType.value = 'error';
-        errorMessage.value = 'Error al eliminar la retenciÃ³n.';
+        errorMessage.value = 'Error al eliminar la retención.';
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -73,7 +73,7 @@ async function handleDialogSubmit(retentionData: any) {
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
     try {
         await axios({ method, url, data: retentionData });
-        successMessage.value = dialogType.value === 'create' ? 'RetenciÃ³n creada correctamente.' : 'RetenciÃ³n actualizada correctamente.';
+        successMessage.value = dialogType.value === 'create' ? 'Retención creada correctamente.' : 'Retención actualizada correctamente.';
         fetchRetentions();
         closeDialog();
     } catch {
@@ -106,7 +106,7 @@ onMounted(() => fetchRetentions());
 </script>
 
 <template>
-    <Head title="GestiÃ³n de retenciones" />
+    <Head title="Gestión de retenciones" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :successMessage="successMessage"
@@ -118,8 +118,8 @@ onMounted(() => fetchRetentions());
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">GestiÃ³n de retenciones</h1>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Nueva RetenciÃ³n</Button>
+                <h1 class="text-lg font-bold">Gestión de retenciones</h1>
+                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Nueva Retención</Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
@@ -129,7 +129,7 @@ onMounted(() => fetchRetentions());
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
@@ -137,7 +137,7 @@ onMounted(() => fetchRetentions());
                             <TableHead>Nombre</TableHead>
                             <TableHead>Porcentaje</TableHead>
                             <TableHead>Tipo</TableHead>
-                            <TableHead>DescripciÃ³n</TableHead>
+                            <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
@@ -194,8 +194,8 @@ onMounted(() => fetchRetentions());
         />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaciÃ³n"
-            description="Â¿EstÃ¡s seguro de que deseas eliminar esta retenciÃ³n? Esta acciÃ³n no se puede deshacer."
+            title="Confirmar eliminación"
+            description="¿Estás seguro de que deseas eliminar esta retención? Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"
@@ -203,6 +203,7 @@ onMounted(() => fetchRetentions());
         />
     </AppLayout>
 </template>
+
 
 
 

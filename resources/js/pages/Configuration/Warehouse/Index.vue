@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { BreadcrumbItem } from '@/types';
 import type { Warehouse } from '@/types';
@@ -102,7 +102,7 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
     const trimmedObservation = warehouseData.observation?.trim() ?? '';
     const missingFields: string[] = [];
     if (!trimmedName) missingFields.push('Nombre');
-    if (!trimmedObservation) missingFields.push('ObservaciÃ³n');
+    if (!trimmedObservation) missingFields.push('Observación');
     if (missingFields.length) {
         setError(formatRequiredFieldsMessage('Completa los campos obligatorios', missingFields), 'warning');
         return;
@@ -177,7 +177,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="GestiÃ³n de bodegas" />
+    <Head title="Gestión de bodegas" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :success-message="successMessage"
@@ -190,7 +190,7 @@ onMounted(() => {
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">GestiÃ³n de Bodegas</h1>
+                <h1 class="text-lg font-bold">Gestión de Bodegas</h1>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Crear Nueva Bodega</Button>
             </div>
             <div class="relative flex items-center gap-4">
@@ -201,13 +201,13 @@ onMounted(() => {
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
                             <TableHead>Id</TableHead>
                             <TableHead>Nombre</TableHead>
-                            <TableHead>ObservaciÃ³n</TableHead>
+                            <TableHead>Observación</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -262,8 +262,8 @@ onMounted(() => {
 
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaciÃ³n"
-            description="Â¿EstÃ¡s seguro de que deseas eliminar esta bodega? Esta acciÃ³n no se puede deshacer."
+            title="Confirmar eliminación"
+            description="¿Estás seguro de que deseas eliminar esta bodega? Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"
@@ -271,4 +271,5 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
+
 
