@@ -298,7 +298,7 @@ onMounted(() => {
             </div>
 
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70">
-                <Table>
+                <Table class="text-center">
                     <TableHeader>
                         <TableRow>
                             <TableHead># Solicitud</TableHead>

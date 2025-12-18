@@ -339,6 +339,7 @@ export interface PurchaseOrderItem {
 
 export interface PurchaseOrder {
     id?: number;
+    document_number?: string | null;
     contact_id: number | null;
     contact?: Contact;
     date: string;
@@ -381,6 +382,11 @@ export interface PurchaseInvoice {
     contact?: Contact;
     date: string;
     delivery_date: string;
+    document_number?: string | null;
+    parent_document_id?: number | null;
+    parent?: {
+        document_number?: string | null;
+    };
     supplier_invoice_number?: string;
     description?: string;
     status?: string;

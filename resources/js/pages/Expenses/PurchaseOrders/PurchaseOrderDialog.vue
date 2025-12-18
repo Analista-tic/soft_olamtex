@@ -91,13 +91,21 @@ const contactIdNumber = computed(() => selectedContactData.value?.id_number || '
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 const { company, logoUrl } = useCompanyInfo();
 
-const id = computed(() => {
+const orderDocumentNumber = computed(() => {
+    const formDocNumber = props.form?.document_number;
+    const localDocNumber = localForm.value.document_number;
+    const docNumber = formDocNumber || localDocNumber;
+
     if (props.dialogType === 'edit') {
-        return props.form?.id?.toString() || localForm.value.id?.toString() || '';
+        return docNumber || '';
+    }
+    if (docNumber) {
+        return docNumber;
     }
     if (isLoadingOrderId.value) return 'Cargando...';
     if (nextOrderId.value == null) return '';
-    return nextOrderId.value.toString();
+
+    return `ORD-${String(nextOrderId.value).padStart(3, '0')}`;
 });
 
 async function initializeDialog() {
@@ -450,9 +458,9 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             <div>
                                 <InputField
                                     label="# Orden de Compra"
-                                    :modelValue="id"
+                                    :modelValue="orderDocumentNumber"
                                     readonly
-                                    v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && id)"
+                                    v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && orderDocumentNumber)"
                                 />
                                 <span v-else-if="dialogType === 'create' && isLoadingOrderId" class="text-gray-400">Cargando...</span>
                             </div>

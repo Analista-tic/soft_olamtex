@@ -297,6 +297,8 @@ async function handleSubmit() {
     const matched = contacts.value.find((c) => c.full_name?.toLowerCase() === (providerInput.value || '').toLowerCase());
     if (matched) {
         payload.contact_id = Number(matched.id);
+        delete payload.provider_name;
+        delete payload.provider_phone;
     } else {
         payload.contact_id = null;
         payload.provider_name = providerInput.value && providerInput.value.trim() ? providerInput.value.trim() : null;
@@ -404,7 +406,7 @@ watch(dialogOpen, (isOpen) => {
                                 <InputField
                                     label="# Solicitud de Compra"
                                     v-model="localForm.request_number"
-                                    :placeholder="id ? `SOL-${id}` : 'SOL-XXXX-0001'"
+                                    :placeholder="id ? `SOL-${id}` : 'SOL-001'"
                                     :readonly="props.readonly"
                                     :disabled="props.readonly"
                                 />

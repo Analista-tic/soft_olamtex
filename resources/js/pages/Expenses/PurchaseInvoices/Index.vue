@@ -167,7 +167,8 @@ async function fetchPurchaseOrdersMap() {
         purchaseOrdersMap.value = orders.reduce((acc: Record<number, string>, order: any) => {
             const id = Number(order.id);
             if (!Number.isNaN(id)) {
-                acc[id] = order.supplier_order_number || order.order_number || String(id);
+                const docNumber = order.document_number || order.supplier_order_number || order.order_number;
+                acc[id] = docNumber || String(id);
             }
             return acc;
         }, {});
@@ -256,13 +257,19 @@ function handleDialogError(message?: string) {
     clearSuccess();
 }
 
-const orderDisplay = (invoice: PurchaseInvoice) =>
-    purchaseOrdersMap.value[invoice.purchase_order_id as number] ||
-    (invoice as any)?.purchase_order?.supplier_order_number ||
-    (invoice as any)?.purchase_order?.order_number ||
-    invoice.purchase_order_id ||
-    (invoice as any)?.purchase_order?.id ||
-    '-';
+const orderDisplay = (invoice: PurchaseInvoice) => {
+    const parentDocNumber = (invoice as any)?.parent?.document_number;
+    if (parentDocNumber) {
+        return parentDocNumber;
+    }
+
+    const parentId = invoice.parent_document_id ?? (invoice as any)?.purchase_order_id;
+    if (parentId) {
+        return purchaseOrdersMap.value[parentId] || `ORD-${String(parentId).padStart(3, '0')}`;
+    }
+
+    return '-';
+};
 </script>
 
 <template>
@@ -277,7 +284,12 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
             />
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Facturas de Compras y Servicios</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Facturas de Compras y Servicios</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Registra facturas para llevar la trazabilidad de la recepción y la aprobación.
+                    </p>
+                </div>
                 <div class="flex gap-2">
                     <Button 
                         @click="router.visit('/kardex-telas/recepcion')" 
@@ -334,19 +346,22 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Número Factura</TableHead>
                             <TableHead>Entrega</TableHead>
-                            <TableHead>Estado</TableHead>
                             <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                            <TableCell class="font-medium">{{ invoice.id }}</TableCell>
+                            <TableCell class="font-medium">
+                                {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
+                            </TableCell>
                             <TableCell>{{ orderDisplay(invoice) }}</TableCell>
-                            <TableCell>{{ invoice.contact?.full_name }}</TableCell>
+                            <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
                             <TableCell>{{ formatDate(invoice.date) }}</TableCell>
                             <TableCell>{{ invoice.supplier_invoice_number || '-' }}</TableCell>
                             <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
+                            <TableCell class="max-w-32 truncate">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>
                                 <span 
                                     v-if="invoice.status"
@@ -369,7 +384,6 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                                     Pendiente
                                 </span>
                             </TableCell>
-                            <TableCell class="max-w-32 truncate">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>
                                 <div class="flex justify-center gap-1 flex-wrap">
                                     <button

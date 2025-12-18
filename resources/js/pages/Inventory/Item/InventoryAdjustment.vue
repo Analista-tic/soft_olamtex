@@ -229,7 +229,12 @@ onMounted(() => {
       />
 
       <div class="flex items-center justify-between">
-        <h1 class="text-lg font-bold">Ajuste de Inventario</h1>
+        <div class="flex flex-col gap-1">
+          <h1 class="text-lg font-bold">Ajuste de Inventario</h1>
+          <p class="text-sm text-muted-foreground">
+            Controla los ajustes de stock para mantener el inventario alineado con las entradas o salidas físicas.
+          </p>
+        </div>
 
         <Button size="sm" class="flex items-center gap-1" @click="openCreateAdjustment">
           <PlusCircle class="h-4 w-4" /> Crear ajuste

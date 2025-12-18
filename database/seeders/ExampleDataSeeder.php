@@ -138,7 +138,7 @@ class ExampleDataSeeder extends Seeder
 
         // Generar documento ejemplo (solicitud + orden) usando la tabla unificada
         $requestDocumentId = DB::table('purchase_documents')->insertGetId([
-            'document_number' => 'SOL-2025-001',
+            'document_number' => 'SOL-001',
             'document_type' => 'purchase_request',
             'contact_id' => $providerId,
             'date' => now()->subDays(5)->toDateString(),
@@ -153,7 +153,7 @@ class ExampleDataSeeder extends Seeder
         ]);
 
         $orderDocumentId = DB::table('purchase_documents')->insertGetId([
-            'document_number' => 'ORD-2025-001',
+            'document_number' => 'ORD-001',
             'document_type' => 'purchase_order',
             'parent_document_id' => $requestDocumentId,
             'contact_id' => $providerId,
@@ -209,7 +209,7 @@ class ExampleDataSeeder extends Seeder
         // ]);
         // Factura de compra consolidada en la tabla unificada
         $invoiceDocumentId = DB::table('purchase_documents')->insertGetId([
-            'document_number' => 'FAC-2025-001',
+            'document_number' => 'FAC-001',
             'document_type' => 'purchase_invoice',
             'parent_document_id' => $orderDocumentId,
             'contact_id' => $providerId,
@@ -244,7 +244,7 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
         // Ajuste de inventario de ejemplo
-        $adjustmentNumber = 'AJU-2025-001';
+        $adjustmentNumber = 'AJU-001';
         $adjustmentId = DB::table('inventory_adjustments')->where('document_number', $adjustmentNumber)->value('id');
         if (!$adjustmentId) {
             $subtotal = 1250.00 * 4;

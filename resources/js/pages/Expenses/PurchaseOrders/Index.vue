@@ -200,7 +200,12 @@ function handleDialogError(message?: string) {
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.
+                    </p>
+                </div>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="h-4 w-4" /> Nueva Orden</Button>
             </div>
             <!-- FILTROS: UNA SOLA FILA -->
@@ -219,7 +224,7 @@ function handleDialogError(message?: string) {
                         :options="[
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
-                            { id: 'invoiced', name: 'Facturada' },
+                            { id: 'approved', name: 'Aprobada' },
                         ]"
                     />
                 </div>
@@ -240,7 +245,7 @@ function handleDialogError(message?: string) {
             </div>
             <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
-                    <TableHeader>
+                        <TableHeader>
                         <TableRow>
                             <TableHead>#Orden</TableHead>
                             <TableHead>Proveedor</TableHead>
@@ -248,17 +253,31 @@ function handleDialogError(message?: string) {
                             <TableHead>Número Orden</TableHead>
                             <TableHead>Entrega</TableHead>
                             <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
-                    </TableHeader>
+                        </TableHeader>
                     <TableBody>
                         <TableRow v-for="order in orders" :key="order.id" class="text-center">
-                            <TableCell>{{ order.id }}</TableCell>
-                            <TableCell>{{ order.contact?.full_name }}</TableCell>
+                            <TableCell>
+                                {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
+                            </TableCell>
+                            <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
                             <TableCell>{{ formatDate(order.date) }}</TableCell>
                             <TableCell>{{ order.supplier_order_number }}</TableCell>
                             <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
                             <TableCell>{{ order.description }}</TableCell>
+                            <TableCell>
+                                <span
+                                    :class="[
+                                        'px-2 py-1 rounded-full text-xs font-semibold',
+                                        order.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                            'bg-yellow-100 text-yellow-800',
+                                    ]"
+                                >
+                                    {{ order.status === 'approved' ? 'Aprobada' : 'Pendiente' }}
+                                </span>
+                            </TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', order)" title="Editar orden" />
                                 <DeleteButton :onClick="() => confirmDeleteOrder(order)" title="Eliminar orden" />
@@ -318,4 +337,3 @@ function handleDialogError(message?: string) {
         />
     </AppLayout>
 </template>
-

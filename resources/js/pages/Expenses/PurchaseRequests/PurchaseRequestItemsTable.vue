@@ -136,11 +136,11 @@ defineExpose({ addItem });
             <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
                 <TableHeader>
                     <TableRow class="text-center border-b border-border/60">
-                        <TableHead class="min-w-[150px] text-left">Item</TableHead>
-                        <TableHead class="min-w-[120px] text-left">Precio estimado</TableHead>
-                        <TableHead class="min-w-[110px] text-left">Cantidad</TableHead>
-                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
-                        <TableHead class="min-w-[90px] text-left">Total</TableHead>
+                        <TableHead class="min-w-[150px] px-1 text-left">Item</TableHead>
+                        <TableHead class="min-w-[120px] px-1 text-left">Precio estimado</TableHead>
+                        <TableHead class="min-w-[110px] px-1 text-left">Cantidad</TableHead>
+                        <TableHead class="min-w-[160px] px-1 text-left">Descripción</TableHead>
+                        <TableHead class="min-w-[90px] px-1 text-left">Total</TableHead>
                         <TableHead class="w-[60px]"></TableHead>
                     </TableRow>
                 </TableHeader>
@@ -150,7 +150,7 @@ defineExpose({ addItem });
                             <InputField
                                 v-model="item.__name"
                                 label=""
-                                placeholder="Buscar item"
+                                placeholder="Escribir item"
                                 list="items-list"
                                 class="w-full"
                                 :readonly="props.readonly"

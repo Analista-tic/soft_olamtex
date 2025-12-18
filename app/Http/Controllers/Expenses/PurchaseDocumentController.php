@@ -279,6 +279,8 @@ class PurchaseDocumentController extends Controller
 
     protected function validateRequestPayload(Request $request, bool $isUpdate = false): array
     {
+        $this->normalizeRequestItems($request);
+
         $rules = [
             'document_number' => 'nullable|string|max:64',
             'contact_id' => 'nullable|exists:contacts,id',
@@ -290,8 +292,8 @@ class PurchaseDocumentController extends Controller
             'status' => 'nullable|string|max:50',
             'items' => $isUpdate ? 'sometimes|array' : 'sometimes|array',
             // allow manual item names when no `item_id` is provided
-            'items.*.item_id' => 'nullable|exists:items,id',
-            'items.*.item_name' => 'nullable|string|max:255',
+            'items.*.item_id' => 'nullable|integer|exists:items,id',
+            'items.*.item_name' => 'required_without:items.*.item_id|string|max:255',
             'items.*.price' => 'nullable|numeric',
             'items.*.tax' => 'nullable|numeric',
             'items.*.quantity' => 'required_with:items|numeric',
@@ -304,6 +306,39 @@ class PurchaseDocumentController extends Controller
         ];
 
         return $request->validate($rules);
+    }
+
+    protected function normalizeRequestItems(Request $request): void
+    {
+        $items = $request->input('items');
+        if (!is_array($items)) {
+            return;
+        }
+
+        foreach ($items as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $rawId = $item['item_id'] ?? null;
+            if (is_string($rawId)) {
+                $rawId = trim($rawId);
+            }
+            $manualName = isset($item['item_name']) ? trim((string) $item['item_name']) : null;
+
+            if (is_numeric($rawId)) {
+                $items[$index]['item_id'] = (int) $rawId;
+            } else {
+                if ($rawId !== null && $rawId !== '') {
+                    $manualName = $manualName ?: (string) $rawId;
+                }
+                $items[$index]['item_id'] = null;
+            }
+
+            $items[$index]['item_name'] = $manualName ?: null;
+        }
+
+        $request->merge(['items' => $items]);
     }
 
     protected function validateOrderPayload(Request $request, bool $isUpdate = false): array

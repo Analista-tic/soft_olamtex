@@ -97,6 +97,9 @@ class PurchaseDocumentService
     public function createOrder(array $data, array $items = []): PurchaseDocument
     {
         return DB::transaction(function () use ($data, $items) {
+            if (empty($data['document_number'])) {
+                $data['document_number'] = $this->generateOrderNumber();
+            }
             $base = $this->buildBaseData($data, PurchaseDocument::TYPE_ORDER);
 
             $order = PurchaseDocument::create([
@@ -118,6 +121,9 @@ class PurchaseDocumentService
         $data = $this->normalizeInvoicePayload($data);
 
         return DB::transaction(function () use ($data, $items, $withholdings) {
+            if (empty($data['document_number'])) {
+                $data['document_number'] = $this->generateInvoiceNumber();
+            }
             $base = $this->buildBaseData($data, PurchaseDocument::TYPE_INVOICE);
 
             $parentId = $data['parent_document_id'] ?? $data['purchase_order_id'] ?? null;
@@ -141,7 +147,7 @@ class PurchaseDocumentService
 
             $this->updateParentOrderStatus(
                 $parentId,
-                $data['order_status'] ?? 'sent',
+                $data['order_status'] ?? 'approved',
                 $data['linked_invoiced_at'] ?? $invoice->invoiced_at
             );
 
@@ -160,6 +166,9 @@ class PurchaseDocumentService
                 'approved_at' => $orderData['approved_at'] ?? now(),
             ]);
 
+            if (empty($orderData['document_number'])) {
+                $orderData['document_number'] = $this->generateOrderNumber();
+            }
             $base = $this->buildBaseData($orderData, PurchaseDocument::TYPE_ORDER);
 
             $order = PurchaseDocument::create([
@@ -205,6 +214,9 @@ class PurchaseDocumentService
                 'invoiced_at' => $data['linked_invoiced_at'] ?? now(),
             ]);
 
+            if (empty($data['document_number'])) {
+                $data['document_number'] = $this->generateInvoiceNumber();
+            }
             $base = $this->buildBaseData($data, PurchaseDocument::TYPE_INVOICE);
 
             $invoice = PurchaseDocument::create([
@@ -241,7 +253,7 @@ class PurchaseDocumentService
 
             $this->updateParentOrderStatus(
                 $order->id,
-                $data['order_status'] ?? 'sent',
+                $data['order_status'] ?? 'approved',
                 $data['linked_invoiced_at'] ?? $invoice->invoiced_at
             );
 
@@ -345,15 +357,29 @@ class PurchaseDocumentService
         $payload = [];
 
         foreach ($items as $item) {
-            // allow lines that have either an existing item_id or a manual item_name
-            if ((empty($item['item_id']) && empty($item['item_name'])) || empty($item['quantity'])) {
+            $rawItemId = $item['item_id'] ?? null;
+            if (is_string($rawItemId)) {
+                $rawItemId = trim($rawItemId);
+            }
+            $itemName = isset($item['item_name']) ? trim((string) $item['item_name']) : null;
+
+            if ($rawItemId !== null && $rawItemId !== '' && !is_numeric($rawItemId)) {
+                // treat non-numeric values as manual names instead of forcing them into the ID column
+                $itemName = $itemName ?: (string) $rawItemId;
+                $rawItemId = null;
+            }
+
+            $resolvedItemId = is_numeric($rawItemId) ? (int) $rawItemId : null;
+            $hasReference = $resolvedItemId !== null || ($itemName !== null && $itemName !== '');
+
+            if (!$hasReference || empty($item['quantity'])) {
                 continue;
             }
 
             $payload[] = [
                 'purchase_document_id' => $document->id,
-                'item_id'              => $item['item_id'] ?? null,
-                'item_name'            => $item['item_name'] ?? null,
+                'item_id'              => $resolvedItemId,
+                'item_name'            => $itemName,
                 'quantity'             => $item['quantity'],
                 'price'                => $item['price']      ?? 0,
                 'tax'                  => $item['tax']        ?? 0,
@@ -380,11 +406,30 @@ class PurchaseDocumentService
 
     protected function generateRequestNumber(): string
     {
-        $nextId = (int) PurchaseDocument::withTrashed()
-            ->where('document_type', PurchaseDocument::TYPE_REQUEST)
-            ->max('id') + 1;
+        return $this->generateDocumentNumber('SOL', PurchaseDocument::TYPE_REQUEST);
+    }
 
-        return sprintf('SOL-%s-%04d', now()->format('Ymd'), $nextId);
+    protected function generateOrderNumber(): string
+    {
+        return $this->generateDocumentNumber('ORD', PurchaseDocument::TYPE_ORDER);
+    }
+
+    protected function generateInvoiceNumber(): string
+    {
+        return $this->generateDocumentNumber('FAC', PurchaseDocument::TYPE_INVOICE);
+    }
+
+    protected function generateDocumentNumber(string $prefix, string $documentType): string
+    {
+        $nextId = $this->nextDocumentSequence($documentType);
+        return sprintf('%s-%03d', $prefix, $nextId);
+    }
+
+    protected function nextDocumentSequence(string $documentType): int
+    {
+        return (int) PurchaseDocument::withTrashed()
+            ->where('document_type', $documentType)
+            ->max('id') + 1;
     }
 
     protected function normalizeInvoicePayload(array $data): array
@@ -463,7 +508,7 @@ class PurchaseDocumentService
         return $path;
     }
 
-    protected function updateParentOrderStatus(?int $parentId, string $status = 'sent', ?string $invoicedAt = null): void
+    protected function updateParentOrderStatus(?int $parentId, string $status = 'pending', ?string $invoicedAt = null): void
     {
         if (empty($parentId)) {
             return;

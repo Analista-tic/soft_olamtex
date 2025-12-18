@@ -353,7 +353,7 @@ watch(detailDialogOpen, (value) => {
             <!-- Encabezado -->
             <div class="mb-2 flex flex-col gap-1">
                 <h1 class="text-lg font-bold">Auditoría</h1>
-                <p class=" text-muted-foreground">
+                <p class=" text-sm text-muted-foreground">
                     Rastro completo de cambios: quién, dónde y cómo se modificó cada recurso.
                 </p>
             </div>
@@ -367,7 +367,7 @@ watch(detailDialogOpen, (value) => {
                 <div class="min-w-[220px] max-w-xs flex-1">
                     <label
                         for="audit-filter-user"
-                        class="mb-1 block text-xs font-semibold uppercase text-muted-foreground"
+                        class="mb-1 block text-xs font-semibold text-muted-foreground"
                     >
                         Usuario
                     </label>
@@ -381,7 +381,7 @@ watch(detailDialogOpen, (value) => {
 
                 <!-- Módulo (reuse single SelectField) -->
                 <div class="min-w-[220px] max-w-xs flex-1">
-                    <label class="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+                    <label class="mb-1 block text-xs font-semibold text-muted-foreground">
                         Módulo
                     </label>
                     <SelectField
@@ -395,7 +395,7 @@ watch(detailDialogOpen, (value) => {
 
                 <!-- Acción -->
                 <div class="min-w-[200px] max-w-xs flex-1">
-                    <label class="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+                    <label class="mb-1 block text-xs font-semibold text-muted-foreground">
                         Acción
                     </label>
                     <SelectField

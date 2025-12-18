@@ -78,6 +78,6 @@ class PurchaseRequestService
     protected function generateRequestNumber(): string
     {
         $nextId = (int) PurchaseRequest::withTrashed()->max('id') + 1;
-        return sprintf('SOL-%s-%04d', now()->format('Ymd'), $nextId);
+        return sprintf('SOL-%03d', $nextId);
     }
 }
