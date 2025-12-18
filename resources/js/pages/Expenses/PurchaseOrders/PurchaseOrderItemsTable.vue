@@ -16,7 +16,7 @@ const props = defineProps<{ items: PurchaseOrderItem[] }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseOrderItem[]>([]);
-const items = ref<Item[]>([]);
+const catalogItems = ref<Item[]>([]); // renombrado desde `items`
 const taxes = ref<Tax[]>([]);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
@@ -30,7 +30,7 @@ const itemDialogForm = ref<Partial<Item>>({
     status: true,
 });
 
-const itemMap = computed(() => new Map<number, Item>(items.value.map((a) => [a.id, a])));
+const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
 const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
 const showActionsColumn = computed(() => localItems.value.length > 1);
@@ -67,7 +67,7 @@ watch(
 
 async function fetchItems() {
     const res = await axios.get('/item/data', { params: { per_page: 1000 } });
-    items.value = res.data.data;
+    catalogItems.value = res.data.data;
 }
 
 async function fetchTaxes() {
@@ -176,7 +176,7 @@ function syncItemsTaxWithCatalog() {
 }
 
 watch(
-    items,
+    catalogItems,
     () => {
         syncItemsTaxWithCatalog();
     },
@@ -246,7 +246,7 @@ defineExpose({ addItem });
                         <TableCell class="p-1 text-left min-w-[150px]">
                             <SelectField
                                 v-model="item.item_id"
-                                :options="items.map((a) => ({ id: a.id, name: a.name }))"
+                                :options="catalogItems.map((a) => ({ id: a.id, name: a.name }))"
                                 label=""
                                 class="w-full"
                             >

@@ -399,6 +399,27 @@ export interface PurchaseInvoice {
     evidence_path: string | null;
 }
 
+export interface PurchaseRequestItem {
+    item_id: number | string | null;
+    price: number | string;
+    quantity: number | string;
+    description: string;
+    total: number;
+    name?: string;
+}
+
+export interface PurchaseRequestForm {
+    id?: number;
+    request_number: string;
+    contact_id: number | string | null;
+    requester_user_id: number | null;
+    date: string;
+    estimated_amount: number | null;
+    description: string;
+    items: PurchaseRequestItem[];
+    status?: string | null;
+}
+
 // Tipos para campos adicionales de items
 export interface ExtraFields {
     [key: string]: string;

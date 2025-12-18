@@ -7,7 +7,7 @@ import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Contact, Option, PurchaseInvoice } from '@/types';
+import type { Contact, Option, PurchaseInvoice, PurchaseInvoiceItem } from '@/types';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
@@ -60,7 +60,43 @@ const retencionesTotal = computed(() =>
 );
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
 const amountDifference = computed(() => (orderTotal.value != null ? Number(total.value) - orderTotal.value : 0));
-const hasDifference = computed(() => orderTotal.value != null && Math.abs(amountDifference.value) > 0.01);
+
+function getSuggestedPriceForItem(item: PurchaseInvoiceItem): number | null {
+    const original = item.original_order_item;
+    if (!original) {
+        return null;
+    }
+    const price = Number(original.price);
+    return Number.isNaN(price) ? null : price;
+}
+
+function getSuggestedQuantityForItem(item: PurchaseInvoiceItem): number | null {
+    const original = item.original_order_item;
+    if (!original) {
+        return null;
+    }
+    const quantity = Number(original.quantity);
+    return Number.isNaN(quantity) ? null : quantity;
+}
+
+const hasModifiedPriceOrQuantity = computed(() => {
+    const items: PurchaseInvoiceItem[] = Array.isArray(localForm.value.items) ? localForm.value.items : [];
+    return items.some((item) => {
+        const suggestedPrice = getSuggestedPriceForItem(item);
+        const suggestedQuantity = getSuggestedQuantityForItem(item);
+        const priceChanged = suggestedPrice !== null && Number(item.price) !== suggestedPrice;
+        const quantityChanged = suggestedQuantity !== null && Number(item.quantity) !== suggestedQuantity;
+        return priceChanged || quantityChanged;
+    });
+});
+
+const hasDifference = computed(() => {
+    return (
+        orderTotal.value != null &&
+        Math.abs(amountDifference.value) > 0.01 &&
+        hasModifiedPriceOrQuantity.value
+    );
+});
 
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');

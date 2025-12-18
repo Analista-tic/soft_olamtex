@@ -18,7 +18,7 @@ import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.
 import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
-import type { PurchaseRequestForm, PurchaseRequestItem } from './types';
+import type { PurchaseRequestForm, PurchaseRequestItem } from '@/types';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -111,7 +111,7 @@ function createEmptyItem(): PurchaseRequestItem {
         quantity: '',
         description: '',
         total: 0,
-        __name: '',
+        name: '',
     };
 }
 
@@ -275,7 +275,7 @@ async function handleSubmit() {
     if (Array.isArray(localForm.value.items)) {
         const filtered = localForm.value.items
             .map((item: PurchaseRequestItem) => {
-                const { __name: name, ...rest } = item;
+                const { name, ...rest } = item;
                 return {
                     ...rest,
                     item_id: item.item_id === null || item.item_id === undefined ? null : Number(item.item_id),

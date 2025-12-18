@@ -91,8 +91,14 @@ async function deleteOrder() {
         await axios.delete(`/gastos/ordenes-compra/${orderToDelete.value.id}`);
         successMessage.value = 'Orden eliminada correctamente.';
         fetchOrders(currentPage.value, searchQuery.value);
-    } catch {
-        setErrorMessage('Error al eliminar la orden.');
+    } catch (e: any) {
+        const documentError = e?.response?.data?.errors?.document;
+        const normalizedDocumentError = Array.isArray(documentError) ? documentError[0] : documentError;
+        const serverMessage =
+            normalizedDocumentError ||
+            e?.response?.data?.message ||
+            'Error al eliminar la orden.';
+        setErrorMessage(serverMessage);
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -225,6 +231,7 @@ function handleDialogError(message?: string) {
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobada' },
+                            { id: 'rejected', name: 'Rechazada' },
                         ]"
                     />
                 </div>
@@ -272,10 +279,15 @@ function handleDialogError(message?: string) {
                                     :class="[
                                         'px-2 py-1 rounded-full text-xs font-semibold',
                                         order.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                            order.status === 'rejected' ? 'bg-red-100 text-red-800' :
                                             'bg-yellow-100 text-yellow-800',
                                     ]"
                                 >
-                                    {{ order.status === 'approved' ? 'Aprobada' : 'Pendiente' }}
+                                    {{
+                                        order.status === 'approved' ? 'Aprobada' :
+                                        order.status === 'rejected' ? 'Rechazada' :
+                                        'Pendiente'
+                                    }}
                                 </span>
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">

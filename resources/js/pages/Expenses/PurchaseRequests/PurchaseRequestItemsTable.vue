@@ -5,13 +5,13 @@ import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@
 import type { Item } from '@/types';
 import axios from 'axios';
 import { onMounted, ref, watch } from 'vue';
-import type { PurchaseRequestItem } from './types';
+import type { PurchaseRequestItem } from '@/types/index';
 
 const props = defineProps<{ items: PurchaseRequestItem[]; readonly?: boolean }>();
 const emit = defineEmits(["update:items"]);
 
 const localItems = ref<PurchaseRequestItem[]>([]);
-const items = ref<Item[]>([]);
+const catalogItems = ref<Item[]>([]);
 
 watch(
     () => props.items,
@@ -24,10 +24,10 @@ watch(
                           price: Number(item.price) || 0,
                           quantity: Number(item.quantity) || 0,
                       };
-                      const match = items.value.find((entry) => Number(entry.id) === Number(item.item_id));
+                      const match = catalogItems.value.find((entry) => Number(entry.id) === Number(item.item_id)); // updated reference
                       return {
                           ...normalized,
-                          __name: match?.name || item.item_name || item.__name || '',
+                          name: match?.name || item.name || '',
                       };
                   })
                 : [];
@@ -38,20 +38,20 @@ watch(
 
 async function fetchItems() {
     const res = await axios.get('/item/data', { params: { per_page: 1000 } });
-    items.value = res.data.data;
+    catalogItems.value = res.data.data;
 }
 onMounted(() => {
     fetchItems();
 });
 
 watch(
-    items,
+    catalogItems,
     () => {
         localItems.value.forEach((item) => {
-            if (!item.__name && typeof item.item_id === 'number') {
-                const match = items.value.find((entry) => Number(entry.id) === Number(item.item_id));
+            if (!item.name && typeof item.item_id === 'number') {
+                const match = catalogItems.value.find((entry) => Number(entry.id) === Number(item.item_id));
                 if (match) {
-                    item.__name = match.name || '';
+                    item.name = match.name || '';
                 }
             }
         });
@@ -67,7 +67,7 @@ function addItem() {
         quantity: 1,
         description: '',
         total: 0,
-        __name: '',
+        name: '',
     });
 }
 
@@ -102,9 +102,9 @@ watch(
             if (!(item as any).__watching) {
                 (item as any).__watching = true;
                 watch(
-                    () => item.__name,
+                    () => item.name,
                     (value) => {
-                        const match = items.value.find((entry) => entry.name?.toLowerCase() === (value || '').toLowerCase());
+                        const match = catalogItems.value.find((entry) => entry.name?.toLowerCase() === (value || '').toLowerCase());
                         item.item_id = match
                             ? Number(match.id)
                             : value && value.trim()
@@ -148,7 +148,7 @@ defineExpose({ addItem });
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
                         <TableCell class="p-1 text-left min-w-[150px]">
                             <InputField
-                                v-model="item.__name"
+                                v-model="item.name"
                                 label=""
                                 placeholder="Escribir item"
                                 list="items-list"
@@ -208,7 +208,7 @@ defineExpose({ addItem });
             </Table>
         </div>
         <datalist id="items-list">
-            <option v-for="itemOption in items" :key="itemOption.id" :value="itemOption.name" />
+            <option v-for="itemOption in catalogItems" :key="itemOption.id" :value="itemOption.name" />
         </datalist>
     </div>
 </template>

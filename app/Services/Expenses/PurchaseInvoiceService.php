@@ -3,6 +3,7 @@
 namespace App\Services\Expenses;
 
 use App\Models\Expenses\PurchaseInvoice;
+use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseOrder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -157,6 +158,7 @@ class PurchaseInvoiceService
         if ($order) {
             $order->status = 'invoiced';
             $order->save();
+            $this->updateUnifiedOrderStatus($purchaseOrderId, 'approved');
         }
     }
 
@@ -177,9 +179,24 @@ class PurchaseInvoiceService
             ->exists();
 
         if (!$hasActiveInvoices) {
-            $order->status = 'pending';
+            $order->status = 'rejected';
             $order->save();
+            $this->updateUnifiedOrderStatus($purchaseOrderId, 'rejected');
         }
+    }
+
+    protected function updateUnifiedOrderStatus(?int $purchaseOrderId, string $status): void
+    {
+        if (empty($purchaseOrderId)) {
+            return;
+        }
+
+        $order = PurchaseDocument::find($purchaseOrderId);
+        if (!$order || !$order->isOrder()) {
+            return;
+        }
+
+        $order->update(['status' => $status]);
     }
 
     protected function prepareEvidencePath(?string $value): ?string

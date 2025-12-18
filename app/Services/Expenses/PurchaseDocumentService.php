@@ -293,6 +293,8 @@ class PurchaseDocumentService
 
     public function deleteDocument(PurchaseDocument $document): void
     {
+        $this->ensureDocumentCanBeDeleted($document);
+
         DB::transaction(function () use ($document) {
             $document->items()->delete();
             $document->delete();
@@ -506,6 +508,23 @@ class PurchaseDocumentService
 
         Storage::disk('public')->put($path, $decoded);
         return $path;
+    }
+
+    protected function ensureDocumentCanBeDeleted(PurchaseDocument $document): void
+    {
+        if (!$document->isOrder()) {
+            return;
+        }
+
+        $hasInvoices = $document->children()
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->exists();
+
+        if ($hasInvoices) {
+            throw ValidationException::withMessages([
+                'document' => 'No se puede eliminar una orden de compra que ya tiene facturas vinculadas.',
+            ]);
+        }
     }
 
     protected function updateParentOrderStatus(?int $parentId, string $status = 'pending', ?string $invoicedAt = null): void
