@@ -246,9 +246,15 @@ function goToReception(invoice: PurchaseInvoice) {
     router.visit(buildReceptionUrl(invoice.id));
 }
 
-function viewInvoiceDetails(invoice: PurchaseInvoice) {
-    // Abrir el dialog de edición en modo solo lectura
-    openDialog('edit', invoice, true);
+async function viewInvoiceDetails(invoice: PurchaseInvoice) {
+    if (!invoice.id) return;
+    try {
+        const response = await axios.get(`/gastos/facturas-compra/${invoice.id}`);
+        openDialog('edit', response.data?.data, true);
+    } catch (error) {
+        console.error('Error al obtener factura para visualización', error);
+        showError('No se pudo cargar la factura para visualizar.');
+    }
 }
 
 function handleDialogRefresh(message?: string) {
@@ -394,13 +400,13 @@ const orderDisplay = (invoice: PurchaseInvoice) => {
                             </TableCell>
                             <TableCell>
                                 <div class="flex justify-center gap-1 flex-wrap">
-                                    <button
-                                        class="flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600"
-                                        @click="viewInvoiceDetails(invoice)"
-                                        title="Ver detalles"
-                                    >
+                                      <button
+                                          class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-blue-600"
+                                          @click="viewInvoiceDetails(invoice)"
+                                          title="Ver detalles"
+                                      >
                                         <Eye class="h-4 w-4" />
-                                    </button>
+                                      </button>
                                     <EditButton :onClick="() => openDialog('edit', invoice)" />
                                     <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
