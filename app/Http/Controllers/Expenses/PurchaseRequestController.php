@@ -2,15 +2,12 @@
 
 namespace App\Http\Controllers\Expenses;
 
-use App\Http\Controllers\Controller;
 use App\Models\Expenses\PurchaseDocument;
-use App\Services\Expenses\PurchaseDocumentService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
-class PurchaseRequestController extends Controller
+class PurchaseRequestController extends PurchaseDocumentController
 {
-    public function __construct(protected PurchaseDocumentService $service) {}
 
     public function index()
     {
@@ -90,73 +87,4 @@ class PurchaseRequestController extends Controller
         return response()->json(['message' => 'Solicitud eliminada correctamente.']);
     }
 
-    protected function ensureDocumentType(PurchaseDocument $document, string $type): void
-    {
-        if ($document->document_type !== $type) {
-            abort(404);
-        }
-    }
-
-    protected function validateRequestPayload(Request $request, bool $isUpdate = false): array
-    {
-        $this->normalizeRequestItems($request);
-
-        $rules = [
-            'document_number' => 'nullable|string|max:64',
-            'contact_id' => 'nullable|exists:contacts,id',
-            'provider_name' => $isUpdate ? 'sometimes|required_without:contact_id|string|max:255' : 'required_without:contact_id|string|max:255',
-            'provider_phone' => 'nullable|string|max:50',
-            'date' => 'required|date',
-            'delivery_date' => 'nullable|date',
-            'description' => 'nullable|string',
-            'status' => 'nullable|string|max:50',
-            'items' => $isUpdate ? 'sometimes|array' : 'sometimes|array',
-            'items.*.item_id' => 'nullable|integer|exists:items,id',
-            'items.*.item_name' => 'required_without:items.*.item_id|string|max:255',
-            'items.*.price' => 'nullable|numeric',
-            'items.*.tax' => 'nullable|numeric',
-            'items.*.quantity' => 'required_with:items|numeric',
-            'items.*.description' => 'nullable|string',
-            'items.*.supplier_code' => 'nullable|string',
-            'items.*.supplier_color' => 'nullable|string',
-            'items.*.order_width' => 'nullable|string',
-            'items.*.total' => 'nullable|numeric',
-            'items.*.total_tax' => 'nullable|numeric',
-        ];
-
-        return $request->validate($rules);
-    }
-
-    protected function normalizeRequestItems(Request $request): void
-    {
-        $items = $request->input('items');
-        if (!is_array($items)) {
-            return;
-        }
-
-        foreach ($items as $index => $item) {
-            if (!is_array($item)) {
-                continue;
-            }
-
-            $rawId = $item['item_id'] ?? null;
-            if (is_string($rawId)) {
-                $rawId = trim($rawId);
-            }
-            $manualName = isset($item['item_name']) ? trim((string) $item['item_name']) : null;
-
-            if (is_numeric($rawId)) {
-                $items[$index]['item_id'] = (int) $rawId;
-            } else {
-                if ($rawId !== null && $rawId !== '') {
-                    $manualName = $manualName ?: (string) $rawId;
-                }
-                $items[$index]['item_id'] = null;
-            }
-
-            $items[$index]['item_name'] = $manualName ?: null;
-        }
-
-        $request->merge(['items' => $items]);
-    }
 }

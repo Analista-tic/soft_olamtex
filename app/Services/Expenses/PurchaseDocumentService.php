@@ -17,7 +17,7 @@ class PurchaseDocumentService
     public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
         $query = $this->buildDocumentQuery($documentType);
-        $this->applyDocumentFilters($query, $filters);
+        $query = $this->applyDocumentFilters($query, $filters);
 
         return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
     }
@@ -26,57 +26,66 @@ class PurchaseDocumentService
     {
         return PurchaseDocument::with([
             'items.item',
-            'supplier',
-            'creator',
-            'executor',
-            'rejectedBy',
-            'parent',
-            'children',
-        ])->where('document_type', $documentType);
+            'supplier:id,full_name,email',
+            'creator:id,name',
+            'executor:id,name',
+            'rejectedBy:id,name',
+            'parent:id,document_number',
+            'children:id,parent_document_id',
+        ])
+        ->where('document_type', $documentType);
     }
 
-    public function applyDocumentFilters(Builder $query, array $filters): void
+    public function applyDocumentFilters(Builder $query, array $filters): Builder
     {
-        if (array_key_exists('is_fabric', $filters)) {
-            $query->where('is_fabric', filter_var($filters['is_fabric'], FILTER_VALIDATE_BOOLEAN));
+        $search = trim($filters['search'] ?? '');
+
+        return $query
+            ->when(array_key_exists('is_fabric', $filters), fn (Builder $builder) =>
+                $builder->where('is_fabric', filter_var($filters['is_fabric'], FILTER_VALIDATE_BOOLEAN))
+            )
+            ->when($search !== '', fn (Builder $builder) =>
+                $builder->where(function (Builder $sub) use ($search) {
+                    $sub->where('document_number', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhereHas('supplier', fn (Builder $supplier) =>
+                            $supplier->where('full_name', 'like', "%{$search}%")
+                        );
+                })
+            )
+            ->when($this->shouldApplyFilter($filters['status'] ?? null), fn (Builder $builder) =>
+                $builder->where('status', $filters['status'])
+            )
+            ->when($this->shouldApplyFilter($filters['approval_status'] ?? null), fn (Builder $builder) =>
+                $builder->where('approval_status', $filters['approval_status'])
+            )
+            ->when($this->shouldApplyFilter($filters['provider_id'] ?? null), fn (Builder $builder) =>
+                $builder->where('contact_id', $filters['provider_id'])
+            )
+            ->when($this->shouldApplyFilter($filters['subgroup_id'] ?? null), fn (Builder $builder) =>
+                $builder->whereHas('items.item', fn (Builder $itemQuery) =>
+                    $itemQuery->where('category_sub_group_id', $filters['subgroup_id'])
+                )
+            )
+            ->when(!empty($filters['date_from']), fn (Builder $builder) =>
+                $builder->whereDate('date', '>=', $filters['date_from'])
+            )
+            ->when(!empty($filters['date_to']), fn (Builder $builder) =>
+                $builder->whereDate('date', '<=', $filters['date_to'])
+            );
+    }
+
+    protected function shouldApplyFilter(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
         }
 
-        if (!empty($filters['search'])) {
-            $search = trim($filters['search']);
-            $query->where(function (Builder $sub) use ($search) {
-                $sub->where('document_number', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%")
-                    ->orWhereHas('supplier', fn ($supplier) =>
-                        $supplier->where('full_name', 'like', "%{$search}%")
-                    );
-            });
+        if (is_string($value) && $value === 'all') {
+            return false;
         }
 
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
-            $query->where('status', $filters['status']);
-        }
-
-        if (!empty($filters['approval_status']) && $filters['approval_status'] !== 'all') {
-            $query->where('approval_status', $filters['approval_status']);
-        }
-
-        if (!empty($filters['provider_id']) && $filters['provider_id'] !== 'all') {
-            $query->where('contact_id', $filters['provider_id']);
-        }
-
-        if (!empty($filters['subgroup_id']) && $filters['subgroup_id'] !== 'all') {
-            $query->whereHas('items.item', function (Builder $itemQuery) use ($filters) {
-                $itemQuery->where('category_sub_group_id', $filters['subgroup_id']);
-            });
-        }
-
-        if (!empty($filters['date_from'])) {
-            $query->whereDate('date', '>=', $filters['date_from']);
-        }
-
-        if (!empty($filters['date_to'])) {
-            $query->whereDate('date', '<=', $filters['date_to']);
-        }
+        return $value !== '';
     }
 
     /**
@@ -376,7 +385,6 @@ class PurchaseDocumentService
             $itemName = isset($item['item_name']) ? trim((string) $item['item_name']) : null;
 
             if ($rawItemId !== null && $rawItemId !== '' && !is_numeric($rawItemId)) {
-                // treat non-numeric values as manual names instead of forcing them into the ID column
                 $itemName = $itemName ?: (string) $rawItemId;
                 $rawItemId = null;
             }

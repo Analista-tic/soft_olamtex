@@ -2,18 +2,14 @@
 
 namespace App\Http\Controllers\Expenses;
 
-use App\Http\Controllers\Controller;
 use App\Http\Controllers\Expenses\Concerns\ValidatesPurchaseInvoiceRequest;
 use App\Models\Expenses\PurchaseDocument;
-use App\Services\Expenses\PurchaseDocumentService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
-class PurchaseInvoiceController extends Controller
+class PurchaseInvoiceController extends PurchaseDocumentController
 {
     use ValidatesPurchaseInvoiceRequest;
-
-    public function __construct(protected PurchaseDocumentService $service) {}
 
     public function index()
     {
@@ -87,13 +83,6 @@ class PurchaseInvoiceController extends Controller
         );
 
         return response()->json(['data' => $invoice]);
-    }
-
-    protected function ensureDocumentType(PurchaseDocument $document, string $type): void
-    {
-        if ($document->document_type !== $type) {
-            abort(404);
-        }
     }
 
     protected function buildFilters(Request $request): array

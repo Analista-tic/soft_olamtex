@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Expenses;
 
-use App\Http\Controllers\Controller;
 use App\Mail\PurchaseOrderMail;
 use App\Models\Expenses\PurchaseDocument;
 use App\Services\Expenses\PurchaseDocumentService;
@@ -12,10 +11,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
-class PurchaseOrderController extends Controller
+class PurchaseOrderController extends PurchaseDocumentController
 {
-    public function __construct(protected PurchaseDocumentService $service) {}
-
     public function index()
     {
         return Inertia::render('Expenses/PurchaseOrders/Index');
@@ -117,42 +114,4 @@ class PurchaseOrderController extends Controller
         }
     }
 
-    protected function ensureDocumentType(PurchaseDocument $document, string $type): void
-    {
-        if ($document->document_type !== $type) {
-            abort(404);
-        }
-    }
-
-    protected function validateOrderPayload(Request $request, bool $isUpdate = false): array
-    {
-        $rules = [
-            'contact_id' => 'nullable|exists:contacts,id',
-            'provider_name' => $isUpdate ? 'sometimes|required_without:contact_id|string|max:255' : 'required_without:contact_id|string|max:255',
-            'provider_phone' => 'nullable|string|max:50',
-            'date' => 'required|date',
-            'delivery_date' => 'required|date',
-            'supplier_order_number' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status' => 'sometimes|in:pending,invoiced,sent,received',
-            'parent_document_id' => 'nullable|exists:purchase_documents,id',
-            'items' => 'required|array|min:1',
-            'items.*.item_id' => 'required|exists:items,id',
-            'items.*.price' => 'required|numeric',
-            'items.*.tax' => 'required|numeric',
-            'items.*.quantity' => 'required|numeric',
-            'items.*.description' => 'nullable|string',
-            'items.*.supplier_code' => 'nullable|string',
-            'items.*.supplier_color' => 'nullable|string',
-            'items.*.order_width' => 'nullable|string',
-            'items.*.total' => 'required|numeric',
-            'items.*.total_tax' => 'nullable|numeric',
-        ];
-
-        if ($isUpdate) {
-            $rules['items'] = 'sometimes|array|min:1';
-        }
-
-        return $request->validate($rules);
-    }
 }
