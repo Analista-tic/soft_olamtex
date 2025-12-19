@@ -4,7 +4,7 @@ import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { PurchaseInvoice } from '@/types';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import axios from 'axios';
 import { Eye, Search, Check, X, ArrowLeft, Package2 } from 'lucide-vue-next';
@@ -38,6 +38,11 @@ const isLoadingSpecificInvoice = ref(false);
 const isFabricRollDialogOpen = ref(false);
 const selectedItem = ref<any>(null);
 const { company, logoUrl } = useCompanyInfo();
+const returnToUrl = computed(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('return_to') || '';
+});
 
 const invoiceDateTimeFormatter = new Intl.DateTimeFormat('es-CO', {
     dateStyle: 'short',
@@ -64,7 +69,7 @@ const showAlert = ref(false);
 // Ref al contenedor principal para poder hacer scroll cuando muestre alertas
 const pageContentRef = ref<HTMLElement | null>(null);
 
-// Dialogo para rechazar recepción
+// Diálogo para rechazar recepción
 const isRejectDialogOpen = ref(false);
 const invoiceToReject = ref<PurchaseInvoice | null>(null);
 
@@ -87,9 +92,11 @@ function clearAlert() {
 
 const statusFilter = ref('pending');
 const providerFilter = ref('all');
+const subgroupFilter = ref('all');
 const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
+const subgroups = ref<{ id: number; name: string }[]>([]);
 
 // Computed para determinar si hay un ID específico en la URL
 const specificInvoiceId = computed(() => {
@@ -113,6 +120,16 @@ async function fetchProviders() {
     } catch (e: any) {
         console.log('Error al cargar proveedores:', e);
         providers.value = [];
+    }
+}
+
+async function fetchSubgroups() {
+    try {
+        const response = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
+        subgroups.value = response.data.data || [];
+    } catch (e: any) {
+        console.log('Error al cargar subgrupos:', e);
+        subgroups.value = [];
     }
 }
 
@@ -149,9 +166,36 @@ function viewInvoice(invoice: PurchaseInvoice) {
 
 function goBackToList() {
     selectedInvoice.value = null;
+    if (returnToUrl.value) {
+        router.visit(returnToUrl.value);
+        return;
+    }
     // Si vino por URL específica, navegar de vuelta
     if (specificInvoiceId.value) {
-        window.location.href = '/kardex-telas/recepcion';
+        router.visit('/kardex-telas/recepcion');
+        return;
+    }
+    // Priorizar redirección a Facturas si la página de origen fue Facturas
+    const referrer = typeof document !== 'undefined' ? document.referrer : '';
+    if (referrer) {
+        try {
+            const refUrl = new URL(referrer);
+            const refPath = refUrl.pathname || '';
+            // Ajusta las rutas según la aplicación: buscar patrones relacionados con facturas
+            if (refPath.includes('/gastos/facturas') || refPath.includes('/facturas') || refPath.includes('/gastos/facturas-compra')) {
+                router.visit('/gastos/facturas');
+                return;
+            }
+        } catch {
+            // si falla el parseo, continuar con la lógica por defecto
+        }
+    }
+
+    // Si hay historial previo, volver al anterior; si no, ir a Kardex Telas
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+        window.history.back();
+    } else {
+        router.visit('/kardex-telas');
     }
 }
 
@@ -210,10 +254,14 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         search,
         date_from: dateFrom.value,
         date_to: dateTo.value,
+        is_fabric: true,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
+    }
+    if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
+        params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
         const response = await axios.get('/gastos/facturas-compra/data', { params });
@@ -269,13 +317,14 @@ function getStatusText(status: string) {
 
 // Watchers y eventos solo para modo lista
 watch(
-    [statusFilter, providerFilter, dateFrom, dateTo, searchQuery],
-    ([newStatus, newProvider, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldFrom, oldTo, oldSearch]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
         if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
         
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
+            newSubgroup !== oldSubgroup ||
             newFrom !== oldFrom ||
             newTo !== oldTo ||
             newSearch !== oldSearch
@@ -299,6 +348,7 @@ watch(currentPage, (newPage, oldPage) => {
 
 onMounted(async () => {
     await fetchProviders();
+    await fetchSubgroups();
     
     if (specificInvoiceId.value) {
         // Modo específico: cargar solo la factura solicitada
@@ -315,7 +365,11 @@ function openFabricRollDialog(item: any) {
 }
 
 function isFabricItem(item: any): boolean {
-    const name = (item?.article?.name || '').toString().toLowerCase();
+    const name = (
+        item?.item?.name ??
+        item?.article?.name ??
+        ''
+    ).toString().toLowerCase();
     return name.includes('tela');
 }
 
@@ -335,7 +389,7 @@ function onFabricRollSuccess() {
 </script>
 
 <template>
-    <Head :title="specificInvoiceId ? `Recepción - Factura #${specificInvoiceId}` : 'Recepción de Telas'" />
+    <Head :title="specificInvoiceId ? `Recepción - Factura #${specificInvoiceId}` : 'Recepción'" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-col gap-4 rounded-xl p-3">
             <transition name="fade">
@@ -367,11 +421,11 @@ function onFabricRollSuccess() {
                         Volver a la lista
                     </Button>
                     <h1 class="text-base font-bold">
-                        {{ showInvoiceDetail ? `Recepción - Factura #${selectedInvoice?.id}` : 'Recepción de Telas' }}
+                        {{ showInvoiceDetail ? `Recepción - Factura #${selectedInvoice?.id}` : 'Recepción' }}
                     </h1>
                 </div>
                 <div class="text-xs text-gray-600">
-                    {{ showInvoiceDetail ? 'Revisión y aprobación de factura' : 'Gestión de recepciones de facturas de telas' }}
+                    {{ showInvoiceDetail ? 'Revisión y aprobación de factura' : 'Gestión de recepciones de facturas' }}
                 </div>
             </div>
 
@@ -407,6 +461,13 @@ function onFabricRollSuccess() {
                             v-model="providerFilter"
                             label="Proveedor"
                             :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map(prov => ({ id: String(prov.id), name: prov.full_name }))]"
+                        />
+                    </div>
+                    <div class="min-w-[180px]">
+                        <SelectField
+                            v-model="subgroupFilter"
+                            label="Subgrupo"
+                            :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map(sub => ({ id: String(sub.id), name: sub.name }))]"
                         />
                     </div>
                     <div class="min-w-[140px]">
@@ -603,8 +664,8 @@ function onFabricRollSuccess() {
                                 </TableHeader>
                                 <TableBody>
                                     <TableRow v-for="item in selectedInvoice.items" :key="item.id" class="text-sm">
-                                        <TableCell class="py-2">{{ item.article?.name || 'N/A' }}</TableCell>
-                                        <TableCell class="py-2">{{ item.article?.code || 'N/A' }}</TableCell>
+                                        <TableCell class="py-2">{{ item.item?.name || 'N/A' }}</TableCell>
+                                        <TableCell class="py-2">{{ item.item?.code || 'N/A' }}</TableCell>
                                         <TableCell class="py-2">{{ item.description || '-' }}</TableCell>
                                         <TableCell class="py-2">{{ item.supplier_code || '-' }}</TableCell>
                                         <TableCell class="py-2">{{ item.supplier_color || '-' }}</TableCell>
@@ -640,10 +701,10 @@ function onFabricRollSuccess() {
                                                 })
                                             }}
                                         </TableCell>
-                                        <TableCell class="py-2">
+                                        <TableCell class="py-2 text-center">
                                             <template v-if="isFabricItem(item)">
                                                 <button
-                                                    class="flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600"
+                                                    class="flex h-full items-center justify-center text-gray-500 transition-colors duration-200 hover:text-blue-600"
                                                     @click="openFabricRollDialog(item)"
                                                     title="Registrar rollo"
                                                 >

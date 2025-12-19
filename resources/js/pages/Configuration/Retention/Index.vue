@@ -57,11 +57,11 @@ async function deleteRetention() {
     if (!retentionToDelete.value) return;
     try {
         await axios.delete(`/retenciones/${retentionToDelete.value.id}`);
-        successMessage.value = 'Retenci髇 eliminada correctamente.';
+        successMessage.value = 'Retenci贸n eliminada correctamente.';
         fetchRetentions();
     } catch {
         errorType.value = 'error';
-        errorMessage.value = 'Error al eliminar la retenci髇.';
+        errorMessage.value = 'Error al eliminar la retenci贸n.';
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -73,7 +73,7 @@ async function handleDialogSubmit(retentionData: any) {
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
     try {
         await axios({ method, url, data: retentionData });
-        successMessage.value = dialogType.value === 'create' ? 'Retenci髇 creada correctamente.' : 'Retenci髇 actualizada correctamente.';
+        successMessage.value = dialogType.value === 'create' ? 'Retenci贸n creada correctamente.' : 'Retenci贸n actualizada correctamente.';
         fetchRetentions();
         closeDialog();
     } catch {
@@ -106,7 +106,7 @@ onMounted(() => fetchRetentions());
 </script>
 
 <template>
-    <Head title="Gesti髇 de retenciones" />
+    <Head title="Gesti贸n de retenciones" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :successMessage="successMessage"
@@ -118,8 +118,8 @@ onMounted(() => fetchRetentions());
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gesti髇 de retenciones</h1>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Nueva Retenci髇</Button>
+                <h1 class="text-lg font-bold">Gesti贸n de retenciones</h1>
+                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Nueva Retenci贸n</Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
@@ -137,7 +137,7 @@ onMounted(() => fetchRetentions());
                             <TableHead>Nombre</TableHead>
                             <TableHead>Porcentaje</TableHead>
                             <TableHead>Tipo</TableHead>
-                            <TableHead>Descripci髇</TableHead>
+                            <TableHead>Descripci贸n</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
@@ -194,8 +194,8 @@ onMounted(() => fetchRetentions());
         />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaci髇"
-            description="縀st醩 seguro de que deseas eliminar esta retenci髇? Esta acci髇 no se puede deshacer."
+            title="Confirmar eliminaci贸n"
+            description="驴Est谩s seguro de que deseas eliminar esta retenci贸n? Esta acci贸n no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"

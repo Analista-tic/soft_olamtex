@@ -20,7 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos/ordenes-compra' },
-    { title: '觬denes de Compra', href: '/gastos/ordenes-compra' },
+    { title: '脫rdenes de Compra', href: '/gastos/ordenes-compra' },
 ];
 
 const orders = ref<PurchaseOrder[]>([]);
@@ -122,7 +122,7 @@ async function fetchOrders(page = 1, search = '') {
 
 // Actualiza los filtros y la tabla correctamente
 watch([statusFilter, providerFilter, dateFrom, dateTo], () => {
-    // Reinicia la p醙ina a 1 cada vez que cambian los filtros
+    // Reinicia la p谩gina a 1 cada vez que cambian los filtros
     currentPage.value = 1;
     fetchOrders(1, searchQuery.value);
 });
@@ -142,7 +142,7 @@ function openPrintDialog(order: PurchaseOrder) {
     isPrintDialogOpen.value = true;
     setTimeout(() => {
         window.print();
-    }, 400); // Espera breve para que el di醠ogo se renderice antes de imprimir
+    }, 400); // Espera breve para que el di谩logo se renderice antes de imprimir
 }
 
 async function sendOrderByEmail(order: PurchaseOrder) {
@@ -161,13 +161,13 @@ async function sendOrderByEmail(order: PurchaseOrder) {
 
 async function convertToInvoice(order: PurchaseOrder) {
     if (isConverting.value !== null) return;
-    isConverting.value = order.id ?? null; // order.id nunca deber韆 ser undefined, pero por seguridad
+    isConverting.value = order.id ?? null; // order.id nunca deber铆a ser undefined, pero por seguridad
     try {
         await axios.post(`/gastos/ordenes-compra/${order.id}/convert-to-invoice`);
         successMessage.value = 'Orden convertida en factura correctamente.';
         fetchOrders(currentPage.value, searchQuery.value);
     } catch (e: any) {
-        // Validaci髇 espec韋ica del mensaje de error
+        // Validaci贸n espec铆fica del mensaje de error
         if (e?.response?.data?.error_code === 'ORDER_ALREADY_INVOICED') {
             setErrorMessage('Esta orden de compra ya tiene una factura asociada.');
         } else {
@@ -195,7 +195,7 @@ function handleDialogError(message?: string) {
 </script>
 
 <template>
-    <Head title="觬denes de Compra" />
+    <Head title="脫rdenes de Compra" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :successMessage="successMessage"
@@ -207,9 +207,9 @@ function handleDialogError(message?: string) {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">觬denes de Compras y Servicios</h1>
+                    <h1 class="text-lg font-bold">脫rdenes de Compras y Servicios</h1>
                     <p class="text-sm text-muted-foreground">
-                        Lleva el control de las 髍denes emitidas a proveedores y su estado de facturaci髇.
+                        Lleva el control de las 贸rdenes emitidas a proveedores y su estado de facturaci贸n.
                     </p>
                 </div>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="h-4 w-4" /> Nueva Orden</Button>
@@ -257,9 +257,9 @@ function handleDialogError(message?: string) {
                             <TableHead>#Orden</TableHead>
                             <TableHead>Proveedor</TableHead>
                             <TableHead>Fecha</TableHead>
-                            <TableHead>N鷐ero Orden</TableHead>
+                            <TableHead>N煤mero Orden</TableHead>
                             <TableHead>Entrega</TableHead>
-                            <TableHead>Descripci髇</TableHead>
+                            <TableHead>Descripci贸n</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
@@ -269,7 +269,7 @@ function handleDialogError(message?: string) {
                             <TableCell>
                                 {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
                             </TableCell>
-                            <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
+                            <TableCell>{{order.contact?.full_name || '-' }}</TableCell>
                             <TableCell>{{ formatDate(order.date) }}</TableCell>
                             <TableCell>{{ order.supplier_order_number }}</TableCell>
                             <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
@@ -340,8 +340,8 @@ function handleDialogError(message?: string) {
         <PurchaseOrderPrintDialog :isOpen="isPrintDialogOpen" :order="orderToPrint" @close="isPrintDialogOpen = false" />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaci髇"
-            description="縀st醩 seguro de que deseas eliminar esta orden? Esta acci髇 no se puede deshacer."
+            title="Confirmar eliminaci贸n"
+            description="驴Est谩s seguro de que deseas eliminar esta orden? Esta acci贸n no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"

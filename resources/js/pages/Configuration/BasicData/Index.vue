@@ -45,7 +45,14 @@ const sectionRoutes: Record<SectionKey, string> = {
     personalizacion: route('panel-administrativo.apariencia'),
 };
 
-const navSections = [
+type NavSection = {
+    key: SectionKey;
+    label: string;
+    description: string;
+    href?: string;
+};
+
+const navSections: NavSection[] = [
     {
         key: 'empresa',
         label: 'Empresa',
@@ -63,6 +70,7 @@ const navSections = [
         description: 'Tema y apariencia de la plataforma',
         href: '/panel-administrativo/personalizacion',
     },
+
 ];
 
 const selectedSection = ref<SectionKey>(props.activeSection ?? 'empresa');

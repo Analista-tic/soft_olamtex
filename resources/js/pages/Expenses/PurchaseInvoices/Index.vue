@@ -68,6 +68,14 @@ const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const purchaseOrdersMap = ref<Record<number, string>>({});
+const facturasRoute = '/gastos/facturas-compra';
+const receptionBaseRoute = '/kardex-telas/recepcion';
+const receptionReturnParam = 'return_to';
+
+function buildReceptionUrl(invoiceId?: number | string) {
+    const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
+    return `${basePath}?${receptionReturnParam}=${encodeURIComponent(facturasRoute)}`;
+}
 
 const formatDate = (value?: string | null) => {
     if (!value) return '-';
@@ -140,6 +148,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         search,
         date_from: dateFrom.value,
         date_to: dateTo.value,
+        is_fabric: false,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
@@ -235,7 +244,7 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
 
 function goToReception(invoice: PurchaseInvoice) {
     // Navegar a la página de recepción con el ID de la factura
-    router.visit(`/kardex-telas/recepcion/${invoice.id}`);
+    router.visit(buildReceptionUrl(invoice.id));
 }
 
 function viewInvoiceDetails(invoice: PurchaseInvoice) {
@@ -292,7 +301,7 @@ const orderDisplay = (invoice: PurchaseInvoice) => {
                 </div>
                 <div class="flex gap-2">
                     <Button 
-                        @click="router.visit('/kardex-telas/recepcion')" 
+                        @click="router.visit(buildReceptionUrl())" 
                         variant="outline" 
                         size="sm"
                     >

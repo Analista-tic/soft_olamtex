@@ -40,7 +40,7 @@ const props = defineProps<{
     groups: CategoryGroup[]; // Recibir los grupos como props
 }>();
 
-// Variables reactivas con tipado explícito
+// Variables reactivas con tipado explÃ­cito
 const subGroups = ref<CategorySubGroup[]>([]);
 const subGroupToDelete = ref<CategorySubGroup | null>(null);
 const isDialogOpen = ref<boolean>(false);
@@ -54,12 +54,12 @@ const form = ref<Partial<CategorySubGroup>>({
 const currentPage = ref<number>(1);
 const itemsPerPage = 10;
 const totalItems = ref<number>(0);
-const searchQuery = ref<string>(''); // Campo de búsqueda
+const searchQuery = ref<string>(''); // Campo de bÃºsqueda
 const selectedGroup = ref<number | null | undefined>(null); // Filtro por grupo
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 
-// Funciones con tipado explícito
+// Funciones con tipado explÃ­cito
 function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
     dialogType.value = type;
     isDialogOpen.value = true;
@@ -88,7 +88,7 @@ async function deleteSubGroup(): Promise<void> {
         await axios.delete(`/categorias/subgrupos/${subGroupToDelete.value.id}`);
         fetchSubGroups();
         isDeleteDialogOpen.value = false;
-        successMessage.value = 'El subgrupo se eliminó correctamente.';
+        successMessage.value = 'El subgrupo se eliminÃ³ correctamente.';
         errorMessage.value = '';
     } catch (error) {
         console.error('Error al eliminar el subgrupo:', error);
@@ -106,8 +106,8 @@ async function submitForm(subGroupData: Partial<CategorySubGroup>): Promise<void
         fetchSubGroups();
         closeDialog();
         successMessage.value = dialogType.value === 'create'
-            ? 'El subgrupo se creó correctamente.'
-            : 'El subgrupo se actualizó correctamente.';
+            ? 'El subgrupo se creÃ³ correctamente.'
+            : 'El subgrupo se actualizÃ³ correctamente.';
         errorMessage.value = '';
     } catch (error) {
         console.error('Error al guardar el subgrupo:', error);
@@ -141,7 +141,7 @@ function handlePageChange(newPage: number): void {
     fetchSubGroups(newPage, searchQuery.value, selectedGroup.value);
 }
 
-// Observadores con tipado explícito
+// Observadores con tipado explÃ­cito
 watch([searchQuery, selectedGroup], ([newQuery, newGroup]: [string, number | null | undefined]) => {
     fetchSubGroups(1, newQuery, newGroup);
 });
@@ -153,19 +153,19 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Gestión de Subgrupos" />
+    <Head title="GestiÃ³n de Subgrupos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Subgrupos</h1>
-                <!-- Aviso de éxito -->
+                <h1 class="text-lg font-bold">GestiÃ³n de Subgrupos</h1>
+                <!-- Aviso de Ã©xito -->
                 
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Subgrupo</Button>
             </div>
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
-                success-title="Éxito"
+                success-title="Ã‰xito"
                 error-title="Error"
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
@@ -253,8 +253,8 @@ onMounted(() => {
     />
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminación"
-        description="¿Estás seguro de que deseas eliminar este subgrupo? Esta acción no se puede deshacer."
+        title="Confirmar eliminaciÃ³n"
+        description="Â¿EstÃ¡s seguro de que deseas eliminar este subgrupo? Esta acciÃ³n no se puede deshacer."
         confirm-text="Eliminar"
         cancel-text="Cancelar"
         :destructive="true"

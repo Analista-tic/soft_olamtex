@@ -70,7 +70,7 @@ const form = ref<FabricRollForm>({
 const itemInfo = computed(() => {
     if (!props.item) return null;
     return {
-        articleName: props.item.article?.name || 'N/A',
+        articleName: props.item.item?.name || 'N/A',
         supplierCode: props.item.supplier_code || 'N/A',
         supplierColor: props.item.supplier_color || 'N/A',
         orderWidth: props.item.order_width || 'N/A',

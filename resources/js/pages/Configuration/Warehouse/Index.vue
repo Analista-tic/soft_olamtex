@@ -102,7 +102,7 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
     const trimmedObservation = warehouseData.observation?.trim() ?? '';
     const missingFields: string[] = [];
     if (!trimmedName) missingFields.push('Nombre');
-    if (!trimmedObservation) missingFields.push('Observaci髇');
+    if (!trimmedObservation) missingFields.push('Observaci贸n');
     if (missingFields.length) {
         setError(formatRequiredFieldsMessage('Completa los campos obligatorios', missingFields), 'warning');
         return;
@@ -133,7 +133,7 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
             if (validationErrors?.name?.length || lower.includes('already') || lower.includes('taken')) {
                 setError('Ya existe una bodega con ese nombre.', 'warning');
             } else if (lower.includes('observation') && lower.includes('required')) {
-                setError('La observacion es obligatoria.', 'warning');
+                setError('La observaci贸n es obligatoria.', 'warning');
             } else if (rawMessage) {
                 setError(rawMessage, 'warning');
             } else {
@@ -177,20 +177,20 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Gesti髇 de bodegas" />
+    <Head title="Gesti贸n de bodegas" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :success-message="successMessage"
             :error-message="errorMessage"
             :error-type="errorType"
-            success-title="Operacion exitosa"
+            success-title="Operaci贸n exitosa"
             error-title="Aviso"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gesti髇 de Bodegas</h1>
+                <h1 class="text-lg font-bold">Gesti贸n de Bodegas</h1>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Crear Nueva Bodega</Button>
             </div>
             <div class="relative flex items-center gap-4">
@@ -207,7 +207,7 @@ onMounted(() => {
                         <TableRow>
                             <TableHead>Id</TableHead>
                             <TableHead>Nombre</TableHead>
-                            <TableHead>Observaci髇</TableHead>
+                            <TableHead>Observaci贸n</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -262,8 +262,8 @@ onMounted(() => {
 
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaci髇"
-            description="縀st醩 seguro de que deseas eliminar esta bodega? Esta acci髇 no se puede deshacer."
+            title="Confirmar eliminaci贸n"
+            description="驴Est谩s seguro de que deseas eliminar esta bodega? Esta acci贸n no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"

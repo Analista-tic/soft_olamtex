@@ -21,7 +21,7 @@ const props = defineProps<{
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseInvoiceItem[]>([]);
-const items = ref<Item[]>([]);
+const catalogItems = ref<Item[]>([]);
 const taxes = ref<Tax[]>([]);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
@@ -36,11 +36,11 @@ const itemDialogForm = ref<Partial<Item>>({
 });
 const isReadOnly = computed(() => !!props.isReadOnly);
 
-const itemMap = computed(() => new Map<number, Item>(items.value.map((a) => [a.id, a])));
+const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
 const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
 
 const itemOptions = computed(() => {
-    return items.value
+    return catalogItems.value
         .filter((item) => {
             const isFabric = isTelaItem(item);
             if (props.telaMode === true) return isFabric;
@@ -142,7 +142,7 @@ watch(
 
 async function fetchItems() {
     const res = await axios.get('/item/data', { params: { per_page: 1000 } });
-    items.value = res.data.data;
+    catalogItems.value = res.data.data;
 }
 
 async function fetchTaxes() {
@@ -281,7 +281,7 @@ function syncInvoiceItemsTaxWithCatalog() {
 }
 
 watch(
-    items,
+    catalogItems,
     () => {
         syncInvoiceItemsTaxWithCatalog();
     },
@@ -423,7 +423,7 @@ defineExpose({ addItem });
                             <InputField
                                 v-model="item.supplier_code"
                                 label=""
-                                placeholder="C?digo proveedor"
+                                placeholder="Código proveedor"
                                 class="h-10 w-full"
                                 :readonly="isReadOnly || !isTela(item)"
                                 :disabled="isReadOnly || !isTela(item)"

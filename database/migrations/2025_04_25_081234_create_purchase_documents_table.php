@@ -43,6 +43,9 @@ return new class extends Migration
             // DescripciÃ³n general
             $table->text('description')->nullable();
 
+            // Indicador si el documento es tela (fabric) — agregado aquí en la migración de creación
+            $table->boolean('is_fabric')->default(false)->index();
+
             // Usuarios involucrados
             $table->unsignedBigInteger('created_by_user_id')->nullable()->index();
             $table->foreign('created_by_user_id')

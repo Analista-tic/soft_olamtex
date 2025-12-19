@@ -84,12 +84,12 @@ const navMainGroup: NavGroupItem[] = [
                 isActive: false,
                 items: [
                     {
-                        title: 'Gestion de Items',
+                        title: 'Gestión de Ítems',
                         href: '/item',
                         permission: 'ver items',
                     },
                     {
-                        title: 'Inventario de Items',
+                        title: 'Inventario de Ítems',
                         href: '/inventario/item',
                         permission: 'ver inventario',
                     },
@@ -145,7 +145,7 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
         items: [
             {
-                title: 'Sabana de Productos',
+                title: 'Sábana de Productos',
                 href: '/diseno/sabana-productos',
                 permission: 'ver sabana productos', // Permiso necesario para este subitem
             },
@@ -163,7 +163,7 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
         items: [
             {
-                title: 'Ordenes de Producción',
+                title: 'Órdenes de Producción',
                 href: '',
                 permission: 'ver sabana productos', // Permiso necesario para este subitem
             },
@@ -254,4 +254,3 @@ const filteredNavMainGroup = computed(() =>
     </Sidebar>
     <slot />
 </template>
-

@@ -29,6 +29,7 @@ class PurchaseDocumentController extends Controller
     public function requestData(Request $request)
     {
         $filters = $request->only(['search', 'status', 'provider_id', 'date_from', 'date_to']);
+        $filters['is_fabric'] = $request->boolean('is_fabric', false);
         $documents = $this->service->paginateDocuments(PurchaseDocument::TYPE_REQUEST, $filters, $request->input('per_page', 20));
 
         $rows = array_map(function (PurchaseDocument $doc) {

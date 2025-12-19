@@ -37,6 +37,10 @@ class PurchaseDocumentService
 
     public function applyDocumentFilters(Builder $query, array $filters): void
     {
+        if (array_key_exists('is_fabric', $filters)) {
+            $query->where('is_fabric', filter_var($filters['is_fabric'], FILTER_VALIDATE_BOOLEAN));
+        }
+
         if (!empty($filters['search'])) {
             $search = trim($filters['search']);
             $query->where(function (Builder $sub) use ($search) {
@@ -58,6 +62,12 @@ class PurchaseDocumentService
 
         if (!empty($filters['provider_id']) && $filters['provider_id'] !== 'all') {
             $query->where('contact_id', $filters['provider_id']);
+        }
+
+        if (!empty($filters['subgroup_id']) && $filters['subgroup_id'] !== 'all') {
+            $query->whereHas('items.item', function (Builder $itemQuery) use ($filters) {
+                $itemQuery->where('category_sub_group_id', $filters['subgroup_id']);
+            });
         }
 
         if (!empty($filters['date_from'])) {

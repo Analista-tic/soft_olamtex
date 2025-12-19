@@ -188,6 +188,135 @@ class ItemService
         return $fallback;
     }
 
+    /**
+     * Procesa filas extraídas de una hoja de cálculo para carga masiva.
+     * Espera que la fila 1 contenga encabezados (nombres en mayúsculas en español).
+     * Retorna arreglo con 'inserted' y 'errors'.
+     *
+     * @param array $rows
+     * @return array
+     */
+    public function processBulkUploadArray(array $rows): array
+    {
+        if (empty($rows) || !isset($rows[1])) {
+            return ['inserted' => 0, 'errors' => ['No hay datos en el archivo']];
+        }
+
+        $header = array_map('trim', $rows[1]);
+        unset($rows[1]);
+
+        $inserted = 0;
+        $errors = [];
+
+        $extraFieldsKeys = [
+            'COLOR',
+            'BASE TELA',
+            'BASE HILAZA',
+            'CAMPO ADICIONAL',
+            'MARCA',
+            'MUNDO',
+            'LÍNEAS',
+            'TIPO PUNTERA',
+            'TALLA',
+            'MEDIDA'
+        ];
+
+        $orderedFieldNames = $this->orderedAdditionalFieldNames();
+
+        foreach ($rows as $rowNum => $row) {
+            if (empty(array_filter($row))) {
+                continue;
+            }
+
+            try {
+                $rowData = [];
+                foreach ($header as $colIdx => $colName) {
+                    $rowData[$colName] = $row[$colIdx] ?? null;
+                }
+
+                $subGroupName = $rowData['SUBGRUPO'] ?? '';
+                $subGroup = CategorySubGroup::where('name', $subGroupName)->first();
+                if (!$subGroup) {
+                    $errors[] = "Fila $rowNum: Subgrupo '$subGroupName' no encontrado";
+                    continue;
+                }
+
+                $extraFields = [];
+                foreach ($extraFieldsKeys as $key) {
+                    if (isset($rowData[$key]) && $rowData[$key] !== '') {
+                        $extraFields[$key] = $rowData[$key];
+                    }
+                }
+
+                $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
+                $colorValue = $this->extractColorNameFromExtraFields($extraFields);
+                $nameParts = array_filter([
+                    optional($subGroup)->name,
+                    $extrasString,
+                    $colorValue,
+                ]);
+                $name = trim(implode(' ', $nameParts));
+
+                $articleData = [
+                    'category_sub_group_id' => $subGroup->id,
+                    'tax' => isset($rowData['IMPUesta (%)']) ? $rowData['IMPUesta (%)'] : null,
+                    'bar_code' => $rowData['CÓDIGO DE BARRAS'] ?? null,
+                    'negative_movement' => filter_var($rowData['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+                    'description' => $rowData['DESCRIPCIÓN'] ?? '',
+                    'extra_fields' => $extraFields,
+                    'name' => $name,
+                    'reference' => $rowData['REFERENCIA'] ?? '',
+                    'status' => true,
+                    'item_type' => 'product',
+                    'unit_measure' => $rowData['UNIDAD DE MEDIDA'] ?? null,
+                ];
+
+                $this->create($articleData, []);
+                $inserted++;
+            } catch (\Throwable $e) {
+                $errors[] = "Fila $rowNum: " . $e->getMessage();
+            }
+        }
+
+        return ['inserted' => $inserted, 'errors' => $errors];
+    }
+
+    public function resolveWarehousePayload(mixed $payload): array
+    {
+        if (is_string($payload)) {
+            $decoded = json_decode($payload, true);
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                return [];
+            }
+            $payload = $decoded;
+        }
+
+        if (!is_array($payload)) {
+            return [];
+        }
+
+        $warehouses = [];
+        foreach ($payload as $warehouse) {
+            if (!is_array($warehouse)) {
+                continue;
+            }
+
+            $warehouseId = $warehouse['warehouse_id'] ?? $warehouse['warehouseId'] ?? null;
+            if (empty($warehouseId)) {
+                continue;
+            }
+
+            $warehouses[] = [
+                'warehouse_id' => (int) $warehouseId,
+                'quantity' => is_numeric($warehouse['quantity'] ?? null) ? (int) $warehouse['quantity'] : 0,
+                'stock_min' => is_numeric($warehouse['stock_min'] ?? null) ? (int) $warehouse['stock_min'] : 0,
+                'stock_max' => is_numeric($warehouse['stock_max'] ?? null) ? (int) $warehouse['stock_max'] : 0,
+            ];
+        }
+
+        return $warehouses;
+    }
+
     public function warehouseStocks(Item $article)
     {
         return $article->getWarehouseStocks();

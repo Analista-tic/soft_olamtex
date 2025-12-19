@@ -15,12 +15,12 @@ const modules = [
         title: 'Empresa',
         description: 'Administra usuarios, roles y permisos de acceso.',
         options: [
-            { name: 'Datos Basicos', href: '/panel-administrativo/empresa' },
+            { name: 'Configuración', href: '/panel-administrativo/empresa' },
             { name: 'Contactos', href: '/contactos' },
         ],
     },
     {
-        title: 'Inventario',
+        title: 'Inventario',    
         description: 'Parametrizar y Configurar Campos de Inventario.',
         options: [
             { name: 'Items', href: '/item' },
@@ -47,7 +47,7 @@ const modules = [
     },
     {
         title: 'Comercial',
-        description: 'Administra parametros y configuraciones',
+        description: 'Administra parámetros y configuraciones.',
         options: [
             { name: 'Secciones', href: '' },
             { name: 'Grupos', href: '' },
@@ -59,7 +59,7 @@ const modules = [
     },
     {
         title: 'Diseño',
-        description: 'Administra parametros y configuraciones',
+        description: 'Administra parámetros y configuraciones.',
         options: [
             { name: 'Temporadas', href: '' },
             { name: 'Destinos', href: '' },

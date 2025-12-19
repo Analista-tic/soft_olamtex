@@ -57,12 +57,12 @@ class ItemController extends Controller
             ]);
         } catch (ValidationException $e) {
             return response()->json([
-                'message' => 'Errores de validaci��n',
+                'message' => 'Errores de validación',
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Ocurri�� un error inesperado al procesar la solicitud.',
+                'message' => 'Ocurrió un error inesperado al procesar la solicitud.',
                 'errors' => [],
             ], 500);
         }
@@ -72,10 +72,11 @@ class ItemController extends Controller
             $data['img'] = $path;
         }
 
-        $warehouses = $this->resolveWarehouses($request) ?? [];
+        $warehouses = $this->service->resolveWarehousePayload($request->input('warehouses')) ?? [];
 
         return $this->service->create($data, $warehouses);
     }
+
     public function update(Request $request, $id)
     {
         $article = $this->service->find($id);
@@ -97,12 +98,12 @@ class ItemController extends Controller
             ]);
         } catch (ValidationException $e) {
             return response()->json([
-                'message' => 'Errores de validaci�n',
+                'message' => 'Errores de validación',
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Ocurri� un error inesperado al procesar la solicitud.',
+                'message' => 'Ocurrió un error inesperado al procesar la solicitud.',
                 'errors' => [],
             ], 500);
         }
@@ -112,12 +113,13 @@ class ItemController extends Controller
             $data['img'] = $path;
         }
 
-        $warehouses = $this->resolveWarehouses($request);
+        $warehouses = $this->service->resolveWarehousePayload($request->input('warehouses'));
 
         $updated = $this->service->update($article, $data, $warehouses);
 
         return $updated;
     }
+
     public function destroy($id)
     {
         $article = $this->service->find($id);
@@ -131,6 +133,7 @@ class ItemController extends Controller
             ], 409);
         }
     }
+
     public function getData(Request $request)
     {
         $filters = $request->only(['search', 'status']);
@@ -139,6 +142,7 @@ class ItemController extends Controller
 
         return response()->json($articles);
     }
+
     public function togglestatus($id)
     {
         $article = $this->service->find($id);
@@ -149,6 +153,7 @@ class ItemController extends Controller
             'message' => $status ? 'item habilitado' : 'item deshabilitado',
         ]);
     }
+
     public function downloadTemplate()
     {
         $fileName = 'plantilla_items.xlsx';
@@ -196,7 +201,7 @@ class ItemController extends Controller
             'ROJO',     // COLOR
             '19',       // IMPUesta
             '123456',   // CÓDIGO DE BARRAS
-        'Ejemplo de item', // DESCRIPCIÓN
+            'Ejemplo de item', // DESCRIPCIÓN
             'Algodón',  // BASE TELA
             'Hilaza 20',// BASE HILAZA
             'Adicional',// CAMPO ADICIONAL
@@ -399,212 +404,19 @@ class ItemController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $rows = $sheet->toArray(null, true, true, true);
 
-        // Leer encabezados y normalizarlos
-        $header = array_map('trim', $rows[1]);
-        unset($rows[1]);
-        $inserted = 0;
-        $errors = [];
+        $result = $this->service->processBulkUploadArray($rows);
 
-        // Mapeo de encabezados a campos de base de datos
-        $headerMap = [
-            'SUBGRUPO' => 'category_sub_group_id',
-            'IMPUesta (%)' => 'tax',
-            'CÓDIGO DE BARRAS' => 'bar_code',
-            'MOVIMIENTO NEGATIVO' => 'negative_movement',
-            'DESCRIPCIÓN' => 'description',
-            'BASE TELA' => 'base_tela',
-            'BASE HILAZA' => 'base_hilaza',
-            'CAMPO ADICIONAL' => 'campo_adicional',
-            'MARCA' => 'marca',
-            'MUNDO' => 'mundo',
-            'LÍNEAS' => 'lineas',
-            'TIPO PUNTERA' => 'tipo_puntera',
-            'TALLA' => 'talla',
-            'MEDIDA' => 'medida',
-            'UNIDAD DE MEDIDA' => 'unit_measure',
-            'NOMBRE' => 'name',
-            'REFERENCIA' => 'reference',
-        ];
-
-        // Campos extra_fields que se guardaron como array/JSON
-        $extraFieldsKeys = [
-            'COLOR',
-            'BASE TELA',
-            'BASE HILAZA',
-            'CAMPO ADICIONAL',
-            'MARCA',
-            'MUNDO',
-            'LÍNEAS',
-            'TIPO PUNTERA',
-            'TALLA',
-            'MEDIDA'
-        ];
-
-        $orderedFieldNames = $this->orderedAdditionalFieldNames();
-        foreach ($rows as $rowNum => $row) {
-            // Saltar filas vacías
-            if (empty(array_filter($row))) {
-                continue;
-            }
-
-            try {
-                // Mapear los datos de la fila usando el encabezado
-                $rowData = [];
-                foreach ($header as $colIdx => $colName) {
-                    $rowData[$colName] = $row[$colIdx] ?? null;
-                }
-
-                // Buscar ID de subgrupo por nombre
-                $subGroup = CategorySubGroup::where('name', $rowData['SUBGRUPO'] ?? '')->first();
-
-                // Construir extra_fields
-                $extraFields = [];
-                foreach ($extraFieldsKeys as $key) {
-                    if (isset($rowData[$key]) && $rowData[$key] !== '') {
-                        $extraFields[$key] = $rowData[$key];
-                    }
-                }
-
-                // Generar el nombre igual que en la plantilla
-                $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
-                $colorValue = $this->extractColorNameFromExtraFields($extraFields);
-                $nameParts = array_filter([
-                    optional($subGroup)->name,
-                    $extrasString,
-                    $colorValue,
-                ]);
-                $name = trim(implode(' ', $nameParts));
-
-                // Usar solo los campos que existen en la base de datos
-                $articleData = [
-                    'category_sub_group_id' => $subGroup->id,
-                    // 'impuesta' o 'tax' segun tu base de datos, si no existe ninguno, omite esta campo
-                    // 'unit_measure' eliminado porque no existe en la tabla
-                    'bar_code' => $rowData['CÓDIGO DE BARRAS'] ?? null,
-                    'negative_movement' => filter_var($rowData['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
-                    'description' => $rowData['DESCRIPCIÓN'] ?? '',
-                    'extra_fields' => $extraFields,
-                    'name' => $name,
-                    'reference' => $rowData['REFERENCIA'] ?? '',
-                    'status' => true,
-                ];
-
-                Item::create($articleData);
-                $inserted++;
-            } catch (\Throwable $e) {
-                $errors[] = "Fila $rowNum: " . $e->getMessage();
-                Log::error("Error en fila $rowNum al cargar items", [
-                    'error' => $e->getMessage(),
-                    'data' => $row
-                ]);
-            }
-        }
-
-        if ($inserted === 0 && !empty($errors)) {
+        if ($result['inserted'] === 0 && !empty($result['errors'])) {
             return response()->json([
-                'message' => 'No se pudo insertar ningun item. Errores: ' . implode('; ', $errors)
+                'message' => 'No se pudo insertar ningun item. Errores: ' . implode('; ', $result['errors'])
             ], 422);
         }
 
         return response()->json([
-            'message' => "Carga masiva completada. items insertados: $inserted",
-            'errors' => $errors,
-            'inserted' => $inserted
+            'message' => "Carga masiva completada. items insertados: {$result['inserted']}",
+            'errors' => $result['errors'] ?? [],
+            'inserted' => $result['inserted'] ?? 0
         ]);
-    }
-
-    private function buildExtraFieldsNameSegment(array $extraFields, array $orderedNames = []): string
-    {
-        $segments = [];
-        $handled = [];
-        $normalize = function ($value) {
-            if (!is_string($value)) {
-                return '';
-            }
-            return trim($value);
-        };
-
-        $extraFieldsList = [];
-        $extraFieldsMap = [];
-        foreach ($extraFields as $key => $value) {
-            if (!is_string($key)) {
-                continue;
-            }
-            $normalizedKey = $normalize($key);
-            if ($normalizedKey === '') {
-                continue;
-            }
-            $upperKey = mb_strtoupper($normalizedKey);
-            $trimmedValue = $normalize((string) ($value ?? ''));
-            $entry = [
-                'upper' => $upperKey,
-                'value' => $trimmedValue,
-            ];
-            $extraFieldsList[] = $entry;
-            if (!isset($extraFieldsMap[$upperKey])) {
-                $extraFieldsMap[$upperKey] = $entry['value'];
-            }
-        }
-
-        foreach ($orderedNames as $name) {
-            $normalizedName = $normalize($name);
-            if ($normalizedName === '') {
-                continue;
-            }
-            $upperName = mb_strtoupper($normalizedName);
-            $handled[] = $upperName;
-            $value = $extraFieldsMap[$upperName] ?? null;
-            if ($value !== null && $value !== '') {
-                $segments[] = $value;
-            }
-        }
-
-        foreach ($extraFieldsList as $entry) {
-            if (in_array($entry['upper'], $handled, true)) {
-                continue;
-            }
-            if ($entry['value'] !== '') {
-                $segments[] = $entry['value'];
-            }
-        }
-
-        return implode(' ', $segments);
-    }
-
-    private function extractColorNameFromExtraFields(array $extraFields): string
-    {
-        foreach ($extraFields as $key => $value) {
-            if (is_string($key) && strcasecmp(trim($key), 'color') === 0) {
-                return trim((string) ($value ?? ''));
-            }
-        }
-
-        return '';
-    }
-
-    private function orderedAdditionalFieldNames(): array
-    {
-        if ($this->orderedAdditionalFieldNamesCache !== null) {
-            return $this->orderedAdditionalFieldNamesCache;
-        }
-
-        $names = AdditionalField::where('status', true)
-            ->orderBy('position', 'asc')
-            ->pluck('name')
-            ->map(function ($name) {
-                if (!is_string($name)) {
-                    return '';
-                }
-                return trim($name);
-            })
-            ->filter(function ($name) {
-                return $name !== '';
-            })
-            ->unique()
-            ->values()
-            ->toArray();
-
-        return $this->orderedAdditionalFieldNamesCache = $names;
     }
 
     public function getWarehouses($id)
@@ -696,7 +508,13 @@ class ItemController extends Controller
         return Inertia::render('Inventory/Item/InventoryAdjustment');
     }
 
+    private function resolveWarehouses(Request $request): array
+    {
+        // Delegar la resolución de payloads de bodegas al servicio
+        return $this->service->resolveWarehousePayload($request->input('warehouses'));
+    }
 }
+
 
 
 

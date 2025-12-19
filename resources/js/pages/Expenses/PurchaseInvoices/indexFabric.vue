@@ -68,6 +68,14 @@ const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const purchaseOrdersMap = ref<Record<number, string>>({});
+const facturasFabricRoute = '/gastos/facturas-compra-tela';
+const receptionBaseRoute = '/kardex-telas/recepcion';
+const receptionReturnParam = 'return_to';
+
+function buildReceptionUrl(invoiceId?: number | string) {
+    const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
+    return `${basePath}?${receptionReturnParam}=${encodeURIComponent(facturasFabricRoute)}`;
+}
 
 async function fetchProviders() {
     try {
@@ -229,7 +237,7 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
 
 function goToReception(invoice: PurchaseInvoice) {
     // Navegar a la página de recepción con el ID de la factura
-    router.visit(`/kardex-telas/recepcion/${invoice.id}`);
+    router.visit(buildReceptionUrl(invoice.id));
 }
 
 function viewInvoiceDetails(invoice: PurchaseInvoice) {
@@ -275,7 +283,7 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                 <h1 class="text-lg font-bold">Facturas de Compras y Servicios Tela</h1>
                 <div class="flex gap-2">
                     <Button 
-                        @click="router.visit('/kardex-telas/recepcion')" 
+                        @click="router.visit(buildReceptionUrl())" 
                         variant="outline" 
                         size="sm"
                     >
