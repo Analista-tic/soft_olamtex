@@ -1,8 +1,8 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 // import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -125,7 +125,7 @@ onMounted(fetchRoles);
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search_user" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-8 w-full pl-10" @input="fetchRoles" />
+                    <Input id="search_user" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-10 w-full pl-10" @input="fetchRoles" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
@@ -182,18 +182,15 @@ onMounted(fetchRoles);
         </div>
     </AppLayout>
 
-    <Dialog v-model:open="isDeleteDialogOpen">
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Confirmar eliminación</DialogTitle>
-                <DialogDescription>¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-                <Button variant="outline" @click="closeDialog">Cancelar</Button>
-                <Button variant="destructive" @click="deleteUser">Eliminar</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+        v-model:open="isDeleteDialogOpen"
+        title="Confirmar eliminación"
+        description="¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="deleteUser"
+    />
 
     <RoleDialog
         :isOpen="isEditDialogOpen"
@@ -203,3 +200,4 @@ onMounted(fetchRoles);
         @submit="handleRoleSubmit"
     />
 </template>
+

@@ -74,7 +74,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'email' => 'admin@gmail.com'
         ], [
             'name' => 'Admin',
-            'password' => Hash::make('12345678'), // Encriptar la contraseña
+            'password' => Hash::make('12345'), // Encriptar la contraseña
         ]);
         $adminUser->assignRole($admin);
 

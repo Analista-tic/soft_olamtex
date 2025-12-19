@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import {
     AlertDialog,
     AlertDialogAction,
@@ -27,6 +27,7 @@ import { OptionParams, ProductSheet, Programmer, type BreadcrumbItem } from '@/t
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { onMounted, ref, watch } from 'vue';
+import AlertBox from '@/components/AlertBox.vue';
 import { Search } from 'lucide-vue-next';
 import EditProgrammerDialog from './Edit.vue';
 import CreateProgrammerDialog from './Create.vue';
@@ -39,19 +40,31 @@ import { useAuthStore } from '@/stores/auth';
 
 const authStore = useAuthStore();
 
-const canView = authStore.can('ver programador');
-const canCreate = authStore.can('crear programador');
-const canEdit = authStore.can('editar programador');
-const canDelete = authStore.can('eliminar programador');
+const canView = ref(false);
+const canCreate = ref(false);
+const canEdit = ref(false);
+const canDelete = ref(false);
+
+async function loadPermissions() {
+    try {
+        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estén cargados
+        canView.value = authStore.can('ver programador');
+        canCreate.value = authStore.can('crear programador');
+        canEdit.value = authStore.can('editar programador');
+        canDelete.value = authStore.can('eliminar programador');
+    } catch (error) {
+        console.error('Error al cargar los permisos:', error);
+    }
+}
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Diseño',
-        href: '/diseno/programador',
+        href: '/comercial/programador',
     },
     {
         title: 'Programador',
-        href: '/diseno/programador',
+        href: '/comercial/programador',
     },
 ];
 
@@ -60,14 +73,37 @@ const props = defineProps<{
     groups: OptionParams[];
     brands: OptionParams[];
     worlds: OptionParams[];
-    bases: OptionParams[];
+    fabricBases: OptionParams[]; // Cambiar bases a fabricBases
     productSheets: ProductSheet[];
     destinations: OptionParams[];
+    yarnBases: OptionParams[]; // Nueva propiedad para yarn bases
 }>();
 
 const programmers = ref<Programmer[]>([]);
 const programmerToDelete = ref<Programmer | null>(null);
 const isDialogOpen = ref(false);
+
+// Alert state
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
+const showAlert = ref(false);
+const pageContentRef = ref<HTMLElement | null>(null);
+
+function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    alertMessage.value = message;
+    alertType.value = type;
+    showAlert.value = true;
+    if (pageContentRef.value && typeof pageContentRef.value.scrollTo === 'function') {
+        pageContentRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert() {
+    alertMessage.value = '';
+    showAlert.value = false;
+}
 const editProgrammerDialogRef = ref<InstanceType<typeof EditProgrammerDialog> | null>(null);
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
@@ -78,6 +114,7 @@ const filters = ref({
     priority: '',
     status: '',
     destination_id: '',
+    yarn_base_id: '', // Nuevo filtro para yarn bases
 });
 
 function confirmDeleteProgrammer(programmer: Programmer) {
@@ -89,19 +126,19 @@ async function deleteProgrammer() {
     if (!programmerToDelete.value) return;
 
     try {
-        await axios.delete(`/diseno/programador/${programmerToDelete.value.id}`);
+        await axios.delete(`/comercial/programador/${programmerToDelete.value.id}`);
         fetchProgrammers(currentPage.value);
         programmerToDelete.value = null;
         isDialogOpen.value = false;
     } catch (error) {
         console.error('Error al eliminar el programador:', error);
-        alert('Hubo un error al eliminar el programador.');
+        setAlert('Hubo un error al eliminar el programador.', 'error');
     }
 }
 
 async function fetchProgrammers(page = 1) {
     try {
-        const response = await axios.get('/diseno/programmers', {
+        const response = await axios.get('/comercial/programmers', {
             params: {
                 page,
                 per_page: itemsPerPage.value,
@@ -110,6 +147,7 @@ async function fetchProgrammers(page = 1) {
                 priority: filters.value.priority,
                 status: filters.value.status,
                 destination_id: filters.value.destination_id,
+                yarn_base_id: filters.value.yarn_base_id,
             },
         });
         console.log(response);
@@ -136,7 +174,7 @@ function openEditDialog(programmer: Programmer) {
 }
 
 function viewProgrammer(programmer: Programmer) {
-    alert(`Visualizando el programador: ${programmer.product_sheet?.reference || 'Sin referencia'}`);
+    setAlert(`Visualizando el programador: ${programmer.product_sheet?.reference || 'Sin referencia'}`, 'info');
 }
 
 function handlePageChange(page: number) {
@@ -145,7 +183,8 @@ function handlePageChange(page: number) {
     fetchProgrammers(page);
 }
 
-onMounted(() => {
+onMounted(async () => {
+    await loadPermissions();
     fetchProgrammers();
 });
 </script>
@@ -153,7 +192,21 @@ onMounted(() => {
 <template>
     <Head title="Comercial/Diseño" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+        <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+            <transition name="fade">
+                <div
+                    v-if="showAlert && alertMessage"
+                    class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-xl -translate-x-1/2"
+                >
+                    <AlertBox
+                        :type="alertType"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :message="alertMessage"
+                        class="pointer-events-auto"
+                        @close="clearAlert"
+                    />
+                </div>
+            </transition>
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Lista Programador</h1>
                 <CreateProgrammerDialog 
@@ -162,7 +215,8 @@ onMounted(() => {
                     :groups="props.groups"
                     :brands="props.brands"
                     :worlds="props.worlds"
-                    :bases="props.bases"
+                    :fabricBases="props.fabricBases"
+                    :yarnBases="props.yarnBases"
                     :productSheets="props.productSheets" 
                     :destinations="props.destinations" 
                     @programmerCreated="fetchProgrammers" 
@@ -176,14 +230,15 @@ onMounted(() => {
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-8 w-full pl-10" />
+                    <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
                 </div>
                 <SelectField 
                     v-model="filters.season" 
-                    label="Temporada" 
+                    label="" 
+                    placeholder="Filtrar Temporada"
                     :options="[ 
                         { id: 'all', name: 'TODOS' },
                         { id: 'ENERO', name: 'ENERO' },
@@ -202,7 +257,8 @@ onMounted(() => {
                 />
                 <SelectField 
                     v-model="filters.priority" 
-                    label="Prioridad" 
+                    label="" 
+                    placeholder="Filtrar Prioridad"
                     :options="[ 
                         { id: 'all', name: 'TODOS' },
                         { id: 'A', name: 'A' },
@@ -213,7 +269,8 @@ onMounted(() => {
                 />
                 <SelectField 
                     v-model="filters.status" 
-                    label="Estado" 
+                    label="" 
+                    placeholder="Filtrar Estado"
                     :options="[ 
                         { id: 'all', name: 'TODOS' },
                         { id: 'Completo', name: 'Completo' },
@@ -222,7 +279,8 @@ onMounted(() => {
                 />
                 <SelectField 
                     v-model="filters.destination_id" 
-                    label="Destino" 
+                    label="" 
+                    placeholder="Filtrar Destino"
                     :options="[ 
                         { id: 'all', name: 'TODOS' },
                         ...props.destinations.map(d => ({ id: d.id, name: d.name }))
@@ -233,6 +291,7 @@ onMounted(() => {
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead>Lote</TableHead>
                             <TableHead>Referencia</TableHead>
                             <TableHead>Temporada</TableHead>
                             <TableHead>Prioridad</TableHead>
@@ -245,7 +304,8 @@ onMounted(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="programmer in programmers" :key="programmer.id">
+                        <TableRow v-for="programmer in programmers" :key="programmer.id" class="text-center">
+                            <TableCell class="font-medium">MF{{ programmer.id }}</TableCell>
                             <TableCell class="font-medium">{{ programmer.product_sheet?.reference || 'Sin referencia' }}</TableCell>
                             <TableCell>{{ programmer.season }}</TableCell>
                             <TableCell>{{ programmer.priority }}</TableCell>
@@ -254,11 +314,12 @@ onMounted(() => {
                             <TableCell>{{ programmer.product_sheet?.selling_price ?? 'N/A' }}</TableCell>
                             <TableCell>{{ programmer.units }}</TableCell>
                             <TableCell>
-                                <Badge :variant="programmer.status === 'complete' ? 'default' : 'destructive'">
+                                <Badge :variant="programmer.status === 'complete' ? 'default' : 'outline'" 
+                                       :class="programmer.status === 'complete' ? '' : 'border-red-500 text-red-500'">
                                     {{ programmer.status === 'complete' ? 'Completo' : 'Incompleto' }}
                                 </Badge>
                             </TableCell>
-                            <TableCell class="flex gap-1">
+                            <TableCell class="flex justify-center items-center gap-1">
                                 <ViewButton v-if="canView" :onClick="() => viewProgrammer(programmer)" />
                                 <EditButton v-if="canEdit" :onClick="() => openEditDialog(programmer)" />
                                 <DeleteButton v-if="canDelete" :onClick="() => confirmDeleteProgrammer(programmer)" />
@@ -322,3 +383,4 @@ onMounted(() => {
         </AlertDialogContent>
     </AlertDialog>
 </template>
+

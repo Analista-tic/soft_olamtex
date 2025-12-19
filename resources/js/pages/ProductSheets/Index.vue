@@ -1,4 +1,7 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
+import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
+import EditButton from '@/components/common/EditButton.vue'; // Importar el botón de editar
+import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
 import {
     AlertDialog,
     AlertDialogAction,
@@ -9,6 +12,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import Badge from '@/components/ui/badge/Badge.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import {
@@ -21,37 +25,26 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { OptionParams, ProductSheet , type BreadcrumbItem, type SharedData } from '@/types';
+import { useAuthStore } from '@/stores/auth';
+import { OptionParams, ProductSheet, type BreadcrumbItem, type SharedData } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Search } from 'lucide-vue-next';
+import { PlusCircle, Search } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
-import EditProductSheetDialog from './EditProductSheetDialog.vue';
-import ProductSheetDialog from './CreateProductSheetDialog.vue';
-import {
-    Select,
-    SelectTrigger,
-    SelectValue,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-} from '@/components/ui/select';
-import Badge from '@/components/ui/badge/Badge.vue'; // Importa el componente de badge
-import EditButton from '@/components/common/EditButton.vue'; // Importar el botón de editar
-import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
-import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
-import { useAuthStore } from '@/stores/auth';
+import AlertBox from '@/components/AlertBox.vue';
+import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Comercial',
-        href: '/comercial/sabana-productos',
+        title: 'Diseño',
+        href: '/diseno/sabana-productos',
     },
     {
         title: 'Sabana de Productos',
-        href: '/comercial/sabana-productos',
+        href: '/diseno/sabana-productos',
     },
 ];
 
@@ -60,7 +53,8 @@ interface ProductSheetPageProps extends SharedData {
     groups: OptionParams[];
     brands: OptionParams[];
     worlds: OptionParams[];
-    bases: OptionParams[];
+    fabricBases: OptionParams[]; // Cambiar bases a fabricBases
+    yarnBases: OptionParams[];
 }
 
 interface StatusOption {
@@ -72,8 +66,9 @@ interface StatusOption {
 const props = defineProps<ProductSheetPageProps>();
 const products_sheet = ref<ProductSheet[]>([]);
 const productSheetToDelete = ref<ProductSheet | null>(null);
-const isDialogOpen = ref(false);
-const editProductSheetDialogRef = ref<InstanceType<typeof EditProductSheetDialog> | null>(null);
+const isEditDialogOpen = ref(false); // Estado para el diálogo de edición/creación
+const isDeleteDialogOpen = ref(false); // Estado para el diálogo de confirmación de eliminación
+const editProductSheetData = ref<ProductSheet | undefined>(undefined); // Cambiar null por undefined
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
@@ -88,37 +83,71 @@ const statusOptions: StatusOption[] = [
 
 const authStore = useAuthStore();
 
-const canView = authStore.can('ver sabana productos');
-const canCreate = authStore.can('crear sabana productos');
-const canEdit = authStore.can('editar sabana productos');
-const canDelete = authStore.can('eliminar sabana productos');
+const canView = ref(false);
+const canCreate = ref(false);
+const canEdit = ref(false);
+const canDelete = ref(false);
+
+// Alert state
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
+const showAlert = ref(false);
+const pageContentRef = ref<HTMLElement | null>(null);
+
+function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    alertMessage.value = message;
+    alertType.value = type;
+    showAlert.value = true;
+    if (pageContentRef.value && typeof pageContentRef.value.scrollTo === 'function') {
+        pageContentRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert() {
+    alertMessage.value = '';
+    showAlert.value = false;
+}
+
+async function loadPermissions() {
+    try {
+        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estén cargados
+        canView.value = authStore.can('ver sabana productos');
+        canCreate.value = authStore.can('crear sabana productos');
+        canEdit.value = authStore.can('editar sabana productos');
+        canDelete.value = authStore.can('eliminar sabana productos');
+    } catch (error) {
+        console.error('Error al cargar los permisos:', error);
+    }
+}
 
 function confirmDeleteProductSheet(product: ProductSheet) {
     productSheetToDelete.value = product;
-    isDialogOpen.value = true;
+    isDeleteDialogOpen.value = true;
 }
 
 async function deleteProductSheet() {
     if (!productSheetToDelete.value) return;
 
     try {
-        await axios.delete(`/comercial/sabana-productos/${productSheetToDelete.value.id}`);
+        await axios.delete(`/diseno/sabana-productos/${productSheetToDelete.value.id}`);
         const index = products_sheet.value.findIndex((product) => product.id === productSheetToDelete.value!.id);
         if (index !== -1) {
             products_sheet.value.splice(index, 1);
         }
         productSheetToDelete.value = null;
-        isDialogOpen.value = false;
+        isDeleteDialogOpen.value = false;
     } catch (error) {
         console.error('Error al eliminar el product sheet:', error);
-        alert('Hubo un error al eliminar el product sheet.');
+        setAlert('Hubo un error al eliminar el product sheet.', 'error');
     }
 }
 
 // Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
 async function fetchProductSheets(page = 1, search = '', status: string | null = null) {
     try {
-        const response = await axios.get('/comercial/product-sheets', {
+        const response = await axios.get('/diseno/product-sheets', {
             params: {
                 page,
                 per_page: itemsPerPage,
@@ -144,14 +173,21 @@ watch([searchQuery, statusFilter], ([newQuery, newStatus]) => {
 });
 
 function openEditDialog(product: ProductSheet) {
-    editProductSheetDialogRef.value?.openEditDialog(product);
+    editProductSheetData.value = { ...product }; // Clonar el producto para evitar referencias directas
+    isEditDialogOpen.value = true;
 }
 
 function viewProductSheet(product: ProductSheet) {
-    alert(`Visualizando el producto: ${product.reference}`);
+    setAlert(`Visualizando el producto: ${product.reference}`, 'info');
 }
 
-onMounted(() => {
+function openCreateDialog() {
+    editProductSheetData.value = undefined; // Asegurarse de que no haya datos de edición
+    isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diálogo
+}
+
+onMounted(async () => {
+    await loadPermissions();
     fetchProductSheets();
 });
 </script>
@@ -159,39 +195,38 @@ onMounted(() => {
 <template>
     <Head title="Sabana de Productos" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+        <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+            <transition name="fade">
+                <div
+                    v-if="showAlert && alertMessage"
+                    class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-xl -translate-x-1/2"
+                >
+                    <AlertBox
+                        :type="alertType"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :message="alertMessage"
+                        class="pointer-events-auto"
+                        @close="clearAlert"
+                    />
+                </div>
+            </transition>
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Lista Sabana de Productos</h1>
-                <ProductSheetDialog
-                    v-if="canCreate"
-                    :sections="props.sections"
-                    :groups="props.groups"
-                    :brands="props.brands"
-                    :worlds="props.worlds"
-                    :bases="props.bases"
-                    @productSheetCreated="fetchProductSheets"
-                />
-                <EditProductSheetDialog
-                    ref="editProductSheetDialogRef"
-                    :sections="props.sections"
-                    :groups="props.groups"
-                    :brands="props.brands"
-                    :worlds="props.worlds"
-                    :bases="props.bases"
-                    @productSheetUpdated="fetchProductSheets"
-                />
+                <Button v-if="canCreate" variant="default" size="sm" @click="openCreateDialog">
+                    <PlusCircle class="h-4 w-4" /> Nuevo Producto
+                </Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-8 w-full pl-10" />
+                    <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
                 </div>
-                <div class="w-full max-w-xs flex items-center">
+                <div class="flex w-full max-w-xs items-center">
                     <Select v-model="statusFilter">
                         <SelectTrigger class="h-8 w-full">
-                            <SelectValue placeholder="Filtrar por estado"/>
+                            <SelectValue placeholder="Filtrar por estado" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectGroup>
@@ -216,7 +251,7 @@ onMounted(() => {
                             <TableHead>Precio Fact</TableHead>
                             <TableHead>Precio Venta</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Actions</TableHead>
+                            <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -226,13 +261,35 @@ onMounted(() => {
                             <TableCell>{{ product.group.name }}</TableCell>
                             <TableCell>{{ product.brand.name }}</TableCell>
                             <TableCell>{{ product.world.name }}</TableCell>
-                            <TableCell>{{ product.base.name }}</TableCell>
-                            <TableCell>{{ product.billing_price }}</TableCell>
-                            <TableCell>{{ product.selling_price }}</TableCell>
-                            <TableCell class="flex gap-1">
+                            <TableCell>{{ product.fabric_base.name }}</TableCell>
+                            <TableCell>{{
+                                new Intl.NumberFormat('es-CO', {
+                                    style: 'currency',
+                                    currency: 'COP',
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0,
+                                }).format(product.billing_price ?? 0)
+                            }}</TableCell>
+                            <TableCell>{{
+                                new Intl.NumberFormat('es-CO', {
+                                    style: 'currency',
+                                    currency: 'COP',
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0,
+                                }).format(product.selling_price ?? 0)
+                            }}</TableCell>
+                            <TableCell>
+                                <Badge
+                                    :variant="'outline'"
+                                    :class="product.status === 'complete' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'"
+                                >
+                                    {{ product.status === 'complete' ? 'Completo' : 'Incompleto' }}
+                                </Badge>
+                            </TableCell>
+                            <TableCell class="flex items-center justify-center gap-1">
                                 <ViewButton v-if="canView" :onClick="() => viewProductSheet(product)" />
-                                <EditButton v-if="canEdit" :onClick="() => openEditDialog(product)" />
-                                <DeleteButton v-if="canDelete" :onClick="() => confirmDeleteProductSheet(product)" />
+                                <EditButton v-if="canEdit" @click="openEditDialog(product)" />
+                                <DeleteButton v-if="canDelete" @click="confirmDeleteProductSheet(product)" />
                             </TableCell>
                         </TableRow>
                     </TableBody>
@@ -268,7 +325,22 @@ onMounted(() => {
         </div>
     </AppLayout>
 
-    <AlertDialog v-model:open="isDialogOpen">
+    <ProductSheetDialog
+        v-if="canCreate || canEdit"
+        :mode="editProductSheetData ? 'edit' : 'create'"
+        :productSheet="editProductSheetData"
+        :sections="props.sections"
+        :groups="props.groups"
+        :brands="props.brands"
+        :worlds="props.worlds"
+        :fabricBases="props.fabricBases"
+        :yarnBases="props.yarnBases"
+        v-model:open="isEditDialogOpen"
+        @productSheetSaved="fetchProductSheets"
+        @close="isEditDialogOpen = false"
+    />
+
+    <AlertDialog v-model:open="isDeleteDialogOpen" @close="isDeleteDialogOpen = false">
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
@@ -277,9 +349,10 @@ onMounted(() => {
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-                <AlertDialogCancel @click="isDialogOpen = false">Cancelar</AlertDialogCancel>
+                <AlertDialogCancel @click="isDeleteDialogOpen = false">Cancelar</AlertDialogCancel>
                 <AlertDialogAction @click="deleteProductSheet">Eliminar</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
 </template>
+

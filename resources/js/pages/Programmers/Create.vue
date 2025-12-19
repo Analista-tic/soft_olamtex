@@ -7,34 +7,63 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { OptionParams, ProductSheet, Programmer } from '@/types';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
-import CreateProductSheetDialog from '../ProductSheets/CreateProductSheetDialog.vue';
+import { computed, ref } from 'vue';
+import AlertBox from '@/components/AlertBox.vue';
+import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
 
 const emit = defineEmits(['programmerCreated']);
 
 const props = defineProps<{
-    productSheets: ProductSheet[]; // Recibir la lista de ProductSheet
+    productSheets: ProductSheet[];
     destinations: OptionParams[];
     sections: OptionParams[];
     groups: OptionParams[];
     brands: OptionParams[];
     worlds: OptionParams[];
-    bases: OptionParams[];
+    fabricBases: OptionParams[];
+    yarnBases: OptionParams[];
 }>();
 
 const isDialogOpen = ref(false);
 
-const lotsForm = ref<Array<Partial<Programmer>>>([]); // Array para los lotes
+// Alert state
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
+const showAlert = ref(false);
+const dialogInnerRef = ref<HTMLElement | null>(null);
+
+function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
+    alertMessage.value = message;
+    alertType.value = type;
+    showAlert.value = true;
+    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
+        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert() {
+    alertMessage.value = '';
+    showAlert.value = false;
+}
+
+const lotsForm = ref<Array<Partial<Programmer>>>([]);
 
 const form = ref<{
-    lotsCount: number | null; // Cantidad de lotes
-    productSheetId: number | null; // ID de la ficha de producto seleccionada
+    lotsCount: number | null | undefined;
+    productSheetId: number | null; // Asegurar que sea del tipo correcto
 }>({
     lotsCount: null,
     productSheetId: null,
 });
 
-const months: Array<{ id: string; name: string }> = [
+// Asegurar que las opciones de `SelectField` sean válidas
+const productSheetOptions = computed(() =>
+    props.productSheets.map(sheet => ({ id: sheet.id, name: sheet.reference }))
+);
+
+const months = [
     { id: 'ENERO', name: 'ENERO' },
     { id: 'FEBRERO', name: 'FEBRERO' },
     { id: 'MARZO', name: 'MARZO' },
@@ -49,16 +78,109 @@ const months: Array<{ id: string; name: string }> = [
     { id: 'DICIEMBRE', name: 'DICIEMBRE' },
 ];
 
-const priorities: Array<{ id: string; name: string }> = [
+const priorities = [
     { id: 'A', name: 'A' },
     { id: 'B', name: 'B' },
     { id: 'C', name: 'C' },
     { id: 'D', name: 'D' },
 ];
 
-const selectedProductSheet = computed<ProductSheet | null>(() => {
+const selectedProductSheet = computed(() => {
     return props.productSheets.find(sheet => sheet.id === form.value.productSheetId) || null;
 });
+
+function generateLots() {
+    if (!form.value.lotsCount || form.value.lotsCount <= 0) {
+        setAlert('Por favor, ingresa una cantidad válida de lotes.', 'warning');
+        return;
+    }
+
+    if (!form.value.productSheetId) {
+        setAlert('Por favor, selecciona una referencia de ficha de producto.', 'warning');
+        return;
+    }
+
+    lotsForm.value = Array.from({ length: form.value.lotsCount }, (_, index) => ({
+        lot: `MF${index + 1}`,
+        product_sheet_id: form.value.productSheetId,
+        season: '',
+        destination_id: null,
+        priority: '',
+        status: 'incomplete',
+        isEcommerce: false,
+        ecommerce_units: null,
+        units: undefined,
+    }));
+}
+
+const formErrors = ref<string[]>([]);
+
+function validateForm() {
+    formErrors.value = [];
+
+    lotsForm.value.forEach((lot, index) => {
+        if (!lot.product_sheet_id) formErrors.value.push(`El ID de Ficha de Producto es requerido para el lote ${index + 1}.`);
+        if (!lot.season) formErrors.value.push(`La Temporada es requerida para el lote ${index + 1}.`);
+        if (!lot.destination_id) formErrors.value.push(`El Destino es requerido para el lote ${index + 1}.`);
+        if (!lot.priority) formErrors.value.push(`La Prioridad es requerida para el lote ${index + 1}.`);
+        if (!lot.units || lot.units <= 0) formErrors.value.push(`Las unidades deben ser mayores a 0 para el lote ${index + 1}.`);
+    });
+}
+
+function createProgrammer() {
+    validateForm();
+
+    if (formErrors.value.length > 0) {
+        setAlert('Por favor, corrige los errores antes de continuar.', 'warning');
+        return;
+    }
+
+    const lotsToSend = lotsForm.value.map(lot => ({
+        product_sheet_id: lot.product_sheet_id,
+        season: lot.season,
+        destination_id: lot.destination_id || null,
+        priority: lot.priority,
+        units: lot.units,
+        ecommerce_units: lot.ecommerce_units || null,
+        status: lot.status,
+    }));
+
+    axios
+        .post('/comercial/programador', { lots: lotsToSend })
+        .then(() => {
+            setAlert('Programadores creados exitosamente.', 'success');
+            emit('programmerCreated');
+            resetForm(); // Llamar a resetForm para limpiar el formulario
+            isDialogOpen.value = false; // Cerrar el diálogo
+        })
+        .catch(error => {
+            console.error('Error al crear los programadores:', error);
+            setAlert('Hubo un error al crear los programadores.', 'error');
+        });
+}
+
+function resetForm() {
+    form.value = {
+        lotsCount: null,
+        productSheetId: null,
+    }; // Reiniciar los valores del formulario
+    lotsForm.value = []; // Limpiar los lotes generados
+    formErrors.value = []; // Limpiar los errores del formulario
+}
+
+const productSheets = ref<ProductSheet[]>(props.productSheets);
+
+function addProductSheet(response: { success: boolean; message: string; data: ProductSheet } | undefined) {
+    if (!response || !response.success || !response.data || !response.data.id) {
+        console.error('El ProductSheet creado no es válido:', response);
+        setAlert('Hubo un problema al crear la ficha de producto. Intenta nuevamente.', 'error');
+        return;
+    }
+
+    const newProductSheet = response.data;
+    productSheets.value = [...productSheets.value, newProductSheet];
+    form.value.productSheetId = newProductSheet.id;
+}
 
 // Función para obtener las claves con valores `true` en `sizes`
 function getTrueSizes(sizes: string | undefined): string {
@@ -75,113 +197,6 @@ function getTrueSizes(sizes: string | undefined): string {
         .map(([key]) => key) // Obtener solo las claves
         .join(', '); // Unirlas con comas
 }
-
-// Función para generar la lista de referencias
-function generateLots() {
-    if (!form.value.lotsCount || form.value.lotsCount <= 0) {
-        alert('Por favor, ingresa una cantidad válida de lotes.');
-        return;
-    }
-
-    if (!form.value.productSheetId) {
-        alert('Por favor, selecciona una referencia de ficha de producto.');
-        return;
-    }
-
-    lotsForm.value = Array.from({ length: form.value.lotsCount }, (_, index) => ({
-        lot: `MF${index + 1}`, // Identificador único para el lote
-        product_sheet_id: form.value.productSheetId, // Asignar el productSheetId seleccionado
-        season: '', // Cambiar null a una cadena vacía
-        destination_id: null, // Inicializar destination_id como null
-        priority: '', // Cambiar null a una cadena vacía
-        status: 'incomplete',
-        isEcommerce: false, // Inicializar como falso
-        ecommerce_units: null, // Inicializar como null
-        units: undefined, // Cantidad de unidades en almacén
-    }));
-}
-
-const isFormSubmitted = ref(false); // Bandera para saber si el formulario fue enviado
-
-function validateForm() {
-    formErrors.value = []; // Reiniciar errores
-
-    if (!isFormSubmitted.value) return; // No validar si el formulario no ha sido enviado
-
-    lotsForm.value.forEach((lot, index) => {
-        if (!lot.product_sheet_id) formErrors.value.push(`El ID de Ficha de Producto es requerido para el lote ${index + 1}.`);
-        if (!lot.season) formErrors.value.push(`La Temporada es requerida para el lote ${index + 1}.`);
-        if (!lot.destination_id) formErrors.value.push(`El Destino es requerido para el lote ${index + 1}.`); // Validar destination_id
-        if (!lot.priority) formErrors.value.push(`La Prioridad es requerida para el lote ${index + 1}.`);
-        if (!lot.status) formErrors.value.push(`El Estado es requerido para el lote ${index + 1}.`);
-        if (lot.isEcommerce && (!lot.ecommerce_units || Object.values(lot.ecommerce_units).reduce((a, b) => a + b, 0) <= 0)) {
-            formErrors.value.push(`La cantidad de E-commerce debe ser mayor a 0 para el lote ${index + 1}.`);
-        }
-    });
-}
-
-function createProgrammer() {
-    isFormSubmitted.value = true; // Marcar el formulario como enviado
-    validateForm();
-
-    if (formErrors.value.length > 0) {
-        alert('Por favor, corrige los errores antes de continuar.');
-        return;
-    }
-
-    // Preparar los lotes para enviarlos al backend
-    const lotsToSend = lotsForm.value.map(lot => ({
-        product_sheet_id: lot.product_sheet_id, // ID de la ficha de producto
-        season: lot.season, // Temporada
-        destination_id: lot.destination_id || null, // Asegurar que destination_id sea enviado como un número o null
-        priority: lot.priority, // Prioridad
-        units: lot.units, // Cantidad de unidades
-        ecommerce_units: lot.ecommerce_units || null, // Enviar como array o null
-        status: lot.status, // Estado
-    }));
-
-    // Enviar los datos al backend
-    axios
-        .post('/diseno/programador', { lots: lotsToSend }) // Enviar el array de lotes
-        .then(() => {
-            alert('Programadores creados exitosamente.');
-            emit('programmerCreated'); // Emitir evento
-            resetForm();
-            isDialogOpen.value = false; // Cerrar el diálogo
-        })
-        .catch(error => {
-            console.error('Error al crear los programadores:', error);
-            alert('Hubo un error al crear los programadores.');
-        });
-}
-
-const formErrors = ref<string[]>([]); // Lista de errores del formulario
-
-function resetForm() {
-    form.value.lotsCount = null;
-    lotsForm.value = [];
-    isFormSubmitted.value = false; // Reiniciar la bandera
-}
-
-watch(lotsForm, () => {
-    validateForm(); // Validar el formulario cada vez que cambie lotsForm
-}, { deep: true });
-
-const productSheets = ref<ProductSheet[]>(props.productSheets); // Lista reactiva de ProductSheets
-
-// Función para añadir un nuevo ProductSheet al select
-function addProductSheet(response: { success: boolean; message: string; data: ProductSheet } | undefined) {
-    if (!response || !response.success || !response.data || !response.data.id) {
-        console.error('El ProductSheet creado no es válido:', response);
-        alert('Hubo un problema al crear la ficha de producto. Intenta nuevamente.');
-        return;
-    }
-
-    const newProductSheet = response.data; // Extraer el ProductSheet real
-    productSheets.value = [...productSheets.value, newProductSheet]; // Crear un nuevo array para forzar la reactividad
-    form.value.productSheetId = newProductSheet.id; // Seleccionar automáticamente el nuevo ProductSheet
-}
-
 </script>
 
 <template>
@@ -190,7 +205,20 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
             <Button variant="default" size="sm"><PlusCircle /> Nuevo Programador</Button>
         </DialogTrigger>
         <DialogContent class="sm:max-w-6xl max-h-screen overflow-y-auto">
-            <DialogHeader>
+            <div ref="dialogInnerRef" class="relative">
+                <transition name="fade">
+                    <div v-if="showAlert && alertMessage" class="pointer-events-none absolute left-1/2 top-4 z-30 w-full max-w-xl -translate-x-1/2">
+                        <AlertBox
+                            :type="alertType"
+                            :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                            :message="alertMessage"
+                            class="pointer-events-auto"
+                            @close="clearAlert"
+                        />
+                    </div>
+                </transition>
+
+                <DialogHeader>
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
             </DialogHeader>
@@ -202,59 +230,62 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
                         <SelectField
                             v-model="form.productSheetId"
                             label="Referencia Seleccionada"
-                            :options="productSheets.map(sheet => ({ id: sheet.id, name: sheet.reference }))"
+                            :options="productSheetOptions"
                             required
                         />
                         <!-- Campo para la cantidad de lotes -->
                         <InputField 
-                            v-model="form.lotsCount" 
+                            v-model="form.lotsCount as number | undefined"
                             label="Cantidad de Lotes" 
                             placeholder="Número de lotes" 
-                            type="number" 
+                            type="integer" 
                             required 
                             @input="generateLots"
                         />
                         <div class="flex items-end">
                             <!-- Crear ficha de producto -->
                             <CreateProductSheetDialog
+                                mode="create"
                                 :sections="props.sections"
                                 :groups="props.groups"
                                 :brands="props.brands"
                                 :worlds="props.worlds"
-                                :bases="props.bases"
-                                @productSheetCreated="addProductSheet"
+                                :fabricBases="props.fabricBases"
+                                :yarnBases="props.yarnBases"
+                                @productSheetSaved="addProductSheet"
                             />
                         </div>
                     </div>
                     <!-- Tabla informativa para mostrar detalles del ProductSheet seleccionado -->
-                    <div v-if="selectedProductSheet">
-                        <table class="bg-gray-100 w-full text-sm mt-2 text-left border border-gray-300 rounded-lg overflow-hidden shadow-sm">
+                    <div v-if="selectedProductSheet" class="mt-4">
+                        <h3 class="text-lg font-bold mb-2">Detalles de la Ficha de Producto</h3>
+                        <table class="w-full text-sm text-left border border-gray-300 rounded-lg overflow-hidden">
                             <tbody>
                                 <tr>
-                                    <td class="px-3 py-2 border font-bold">Referencia:</td>
-                                    <td class="px-3 py-2 border">{{ selectedProductSheet.reference }}</td>
-                                    <td class="px-3 py-2 border font-bold">Sección:</td>
-                                    <td class="px-3 py-2 border">{{ selectedProductSheet.section.name }}</td>
-                                    <td class="px-3 py-2 border font-bold">Grupo:</td>
-                                    <td class="px-3 py-2 border">{{ selectedProductSheet.group.name }}</td>
-                                    <td class="px-3 py-2 border font-bold">Marca:</td>
-                                    <td class="px-3 py-2 border">{{ selectedProductSheet.brand.name }}</td>
-                                    <td class="px-3 py-2 border font-bold">Mundo:</td>
-                                    <td class="px-3 py-2 border">{{ selectedProductSheet.world.name }}</td>
+                                    <td class="px-4 py-2 font-bold">Referencia:</td>
+                                    <td class="px-4 py-2 border border-l-0">{{ selectedProductSheet.reference || 'Sin referencia' }}</td>
+                                    <td class="px-4 py-2 font-bold">Sección:</td>
+                                    <td class="px-4 py-2 border border-l-0">{{ selectedProductSheet.section?.name || 'Sin sección' }}</td>
+                                    <td class="px-4 py-2 font-bold">Grupo:</td>
+                                    <td class="px-4 py-2 border border-l-0">{{ selectedProductSheet.group?.name || 'Sin grupo' }}</td>
+                                    <td class="px-4 py-2 font-bold">Marca:</td>
+                                    <td class="px-4 py-2 border border-l-0">{{ selectedProductSheet.brand?.name || 'Sin marca' }}</td>
                                 </tr>
                                 <tr>
-                                    <td class="px-3 py-2 border font-bold">Base:</td>
-                                    <td class="px-3 py-2 border">{{ selectedProductSheet.base.name }}</td>
-                                    <td class="px-3 py-2 border font-bold">Tallas:</td>
-                                    <td class="px-3 py-2 border" colspan="3">{{ getTrueSizes(selectedProductSheet.sizes) }}</td>
-                                    <td class="px-3 py-2 border font-bold">Precio Fact:</td>
-                                    <td class="px-3 py-2 border">{{ selectedProductSheet.billing_price }}</td>
-                                    <td class="px-3 py-2 border font-bold">Precio Venta:</td>
-                                    <td class="px-3 py-2 border">{{ selectedProductSheet.selling_price }}</td>
+                                    <td class="px-4 py-1 font-bold border border-r-0">Mundo:</td>
+                                    <td class="px-4 py-1 border border-l-0">{{ selectedProductSheet.world?.name || 'Sin mundo' }}</td>
+                                    <td class="px-4 py-1 font-bold border border-r-0">Base:</td>
+                                    <td class="px-4 py-1 border border-l-0">{{ selectedProductSheet.fabric_base?.name || 'Sin base' }}</td>
+                                    <td class="px-4 py-1 font-bold border border-r-0">Precio Facturación:</td>
+                                    <td class="px-4 py-1 border border-l-0">{{ selectedProductSheet.billing_price ?? 'N/A' }}</td>
+                                    <td class="px-4 py-1 font-bold border border-r-0">Precio Venta:</td>
+                                    <td class="px-4 py-1 border border-l-0">{{ selectedProductSheet.selling_price ?? 'N/A' }}</td>
                                 </tr>
                                 <tr>
-                                    <td class="px-3 py-2 border font-bold">Descripción:</td>
-                                    <td class="px-3 py-2 border" colspan="8">{{ selectedProductSheet.description }}</td>
+                                    <td class="px-4 py-5 font-bold border">Tallas:</td>
+                                    <td class="px-8 py-5 border" colspan="3">{{ getTrueSizes(selectedProductSheet.sizes) || 'Sin tallas' }}</td>
+                                    <td class="px-4 py-5 font-bold border">Descripción:</td>
+                                    <td class="px-4 py-5 border" colspan="3">{{ selectedProductSheet.description || 'Sin descripción' }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -270,7 +301,7 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
 
             <div v-if="lotsForm.length > 0" class="mt-2">
                 <h3 class="text-base font-bold mb-2">Lotes Generados:</h3>
-                <table class="bg-gray-100 w-full text-sm text-left border border-gray-300 rounded-lg overflow-hidden shadow-sm text-center">
+                <table class="w-full text-sm text-left border border-gray-300 rounded-lg overflow-hidden shadow-sm text-center">
                     <thead>
                         <tr>
                             <th class="px-3 py-2 border">Lote</th>
@@ -280,7 +311,6 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
                             <th class="px-3 py-2 border">Prioridad</th>
                             <th class="px-3 py-2 border">E-commerce?</th>
                             <th class="px-3 py-2 border">Cant. Almacenes</th>
-                            <!-- Mostrar la columna "Cant. E-commerce" solo si algún lote tiene isEcommerce activado -->
                             <th v-if="lotsForm.some(lot => lot.isEcommerce)" class="px-3 py-2 border">Cant. E-commerce</th>
                         </tr>
                     </thead>
@@ -321,13 +351,12 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
                             </td>
                             <td class="px-3 py-2 border">
                                 <InputField
-                                    v-model="lot.units"
+                                    v-model="lot.units as number | undefined"
                                     label=""
                                     placeholder="Unds. a programar"
                                     :class="{ 'border-red-500': !lot.units }"
                                 />
                             </td>
-                            <!-- Mostrar la celda "Cant. E-commerce" solo si isEcommerce está activado -->
                             <td v-if="lot.isEcommerce" class="px-3 py-2 border">
                                 <EcommerceSizesDialog
                                     :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet?.reference || '' }"
@@ -344,6 +373,7 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
                     Guardar
                 </Button>
             </DialogFooter>
+            </div>
         </DialogContent>
     </Dialog>
 </template>

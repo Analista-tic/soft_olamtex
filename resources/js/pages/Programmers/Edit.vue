@@ -32,7 +32,12 @@ const emits = defineEmits<{
  * Variables reactivas para el estado del componente.
  */
 const isDialogOpen = ref(false); // Estado del diálogo (abierto/cerrado)
-const programmer = ref<Programmer>({} as Programmer); // Datos del programador que se está editando
+const programmer = ref<Programmer>({
+    id: 0,
+    product_sheet_id: null,
+    ecommerce_units: null, // Cambiado a null para cumplir con el tipo
+    // Agrega otras propiedades necesarias con valores predeterminados
+} as Programmer); // Asegúrate de que Programmer tenga todas las propiedades necesarias
 const isLoading = ref(false); // Estado de carga (true mientras se guarda)
 const errorMessage = ref<string | null>(null); // Mensaje de error para mostrar al usuario
 
@@ -55,6 +60,23 @@ function getReferenceName(productSheetId: number | null): string {
 }
 
 /**
+ * Inicializa las tallas de e-commerce al abrir el diálogo.
+ */
+function initializeEcommerceSizes() {
+    try {
+        const ecommerceData = programmer.value.ecommerce_units;
+        const parsedData = typeof ecommerceData === 'string' ? JSON.parse(ecommerceData || '{}') : ecommerceData || {};
+        const sizes = parsedData.sizes || {};
+        programmer.value.ecommerce_units = Object.fromEntries(
+            Object.entries(sizes).map(([key, value]) => [key, Number(value) || 0])
+        );
+    } catch (error) {
+        console.error('Error al parsear ecommerce_units:', error);
+        programmer.value.ecommerce_units = null; // Fallback a null para cumplir con el tipo
+    }
+}
+
+/**
  * Función para abrir el diálogo y cargar los datos del programador seleccionado.
  */
 function openDialog(selectedProgrammer: Programmer) {
@@ -62,8 +84,10 @@ function openDialog(selectedProgrammer: Programmer) {
         ...selectedProgrammer,
         ecommerce_units: selectedProgrammer.ecommerce_units || '{}', // Asegurarse de que sea un string válido
     };
+    initializeEcommerceSizes(); // Inicializar las tallas de e-commerce
     isDialogOpen.value = true; // Abrir el diálogo
     errorMessage.value = null; // Limpiar cualquier mensaje de error previo
+    console.log('Programador cargado para edición:', programmer.value); // Depuración
 }
 
 /**
@@ -77,26 +101,21 @@ defineExpose({
  * Validar los campos requeridos antes de guardar los cambios.
  */
 function validateFields(): boolean {
-    if (!programmer.value?.product_sheet_id) {
-        errorMessage.value = 'La referencia es obligatoria.';
-        return false;
+    const requiredFields = [
+        { field: programmer.value?.product_sheet_id, message: 'La referencia es obligatoria.' },
+        { field: programmer.value?.season, message: 'La temporada es obligatoria.' },
+        { field: programmer.value?.priority, message: 'La prioridad es obligatoria.' },
+        { field: programmer.value?.destination_id, message: 'El destino es obligatorio.' },
+        { field: programmer.value?.units && programmer.value.units > 0, message: 'Las unidades deben ser un número mayor a 0.' },
+    ];
+
+    for (const { field, message } of requiredFields) {
+        if (!field) {
+            errorMessage.value = message;
+            return false;
+        }
     }
-    if (!programmer.value?.season) {
-        errorMessage.value = 'La temporada es obligatoria.';
-        return false;
-    }
-    if (!programmer.value?.priority) {
-        errorMessage.value = 'La prioridad es obligatoria.';
-        return false;
-    }
-    if (!programmer.value?.destination_id) {
-        errorMessage.value = 'El destino es obligatorio.';
-        return false;
-    }
-    if (!programmer.value?.units || programmer.value.units <= 0) {
-        errorMessage.value = 'Las unidades deben ser un número mayor a 0.';
-        return false;
-    }
+
     errorMessage.value = null; // Limpiar mensaje de error si todo es válido
     return true;
 }
@@ -122,12 +141,12 @@ async function saveChanges() {
                 : JSON.stringify(programmer.value.ecommerce_units || {}),
         };
 
-        console.log('Payload enviado:', payload); // Depuración: Verificar el contenido del payload
+        console.log('Payload enviado:', payload); // Depuración
 
         // Realizar la solicitud PUT al servidor
-        const response = await axios.put(`/diseno/programador/${programmer.value.id}`, payload);
+        const response = await axios.put(`/comercial/programador/${programmer.value.id}`, payload);
 
-        console.log('Respuesta del servidor:', response.data); // Depuración: Verificar la respuesta del servidor
+        console.log('Respuesta del servidor:', response.data); // Depuración
 
         emits('programmerUpdated'); // Emitir evento al componente padre
         isDialogOpen.value = false; // Cerrar el diálogo
@@ -216,26 +235,22 @@ async function saveChanges() {
                     />
                 </div>
                 <div>
-                    <InputField 
-                        type="number" 
-                        v-model="programmerUnits" 
-                        label="Unidades" 
-                        placeholder="Unds. a programar" 
-                        :class="{ 'border-red-500': !programmer.units }" 
+                    <InputField
+                        type="number"
+                        v-model="programmerUnits"
+                        label="Unidades"
+                        placeholder="Unds. a programar"
+                        :class="{ 'border-red-500': !programmer.units }"
                     />
                 </div>
                 <div>
                     <label class="block text-sm font-medium">E-commerce</label>
                     <EcommerceSizesDialog
                         :productSheet="{
-                            sizes: typeof programmer.ecommerce_units === 'string' 
-                                ? programmer.ecommerce_units 
-                                : JSON.stringify(programmer.ecommerce_units || {}),
+                            sizes: JSON.stringify({ sizes: programmer.ecommerce_units || {}, reference: getReferenceName(programmer.product_sheet_id) }),
                             reference: getReferenceName(programmer.product_sheet_id)
                         }"
-                        @sizesUpdated="(updatedData) => {
-                            programmer.ecommerce_units = JSON.stringify(updatedData.sizes || {});
-                        }"
+                        @sizesUpdated="(sizes) => programmer.ecommerce_units = sizes"
                     />
                 </div>
             </div>

@@ -113,11 +113,242 @@ export interface FabricOrderItem {
     price: number; // Cambiado a solo número
 }
 
+// Tipos de Inventario
+// ====================
+
+export interface Warehouse {
+    id: number | undefined;
+    name: string;
+    observation: string;
+}
+
+export interface Color {
+    id: number | undefined;
+    name: string;
+    rgb_value: string;
+}
+
+export interface CategoryGroup {
+    id: number;
+    name: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface CategorySubGroup {
+    id: number;
+    name: string;
+    category_group_id: number | null;
+    category_group?: CategoryGroup;
+    created_at?: string;
+    updated_at?: string;
+}
+
+// Tipos para SelectField y opciones de select
+export interface Option {
+    id: string | number;
+    name: string;
+}
+
+// Añade la interfaz Tax
+export interface Tax {
+    id: number;
+    name: string;
+    percentage: number;
+    status: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface Article {
+    id: number;
+    warehouse_id: number;
+    warehouse?: Warehouse;
+    category_sub_group_id: number;
+    category_sub_group?: CategorySubGroup;
+    color_id: number;
+    color?: Color;
+    tax_id?: number | null; // Nuevo campo para la relación
+    tax?: Tax | null;       // Relación con el objeto Tax
+    name: string;
+    code: string; // Agregado: propiedad code faltante
+    reference: string;
+    img?: string;
+    stock_min: number;
+    stock_max: number;
+    bar_code?: string;
+    negative_movement: boolean | number;
+    description: string;
+    extra_fields?: ExtraFields | string;
+    status: boolean;
+    unit_measure?: string; // Añadido correctamente
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface AdditionalContact {
+    name: string;
+    phone: string;
+    email: string;
+}
+
+export interface Contact {
+    id: number;
+    contact_type: string;
+    id_type: string;
+    id_number: string;
+    dv?: string;
+    full_name: string;
+    person_type: string;
+    category: string;
+    municipality?: string;
+    department?: string;
+    address?: string;
+    email: string;
+    phone?: string;
+    additional_contacts?: AdditionalContact[]; // Contactos adicionales
+    groups?: string[]; // Cambiar subgroups a groups
+    created_at?: string;
+    updated_at?: string;
+}
+
+// Tipos para los componentes de UI
+export interface DeleteButtonProps {
+    disabled?: boolean;
+    onClick: () => void;
+}
+
+export interface CreateButtonProps {
+    disabled?: boolean;
+    onClick: () => void;
+}
+
+// Tipos para BranchesList
+export interface Branch {
+    name: string;
+    address: string;
+    phone: string;
+}
+
+export interface BranchesListProps {
+    branches: Branch[];
+    onUpdateBranches: (updatedBranches: Branch[]) => void;
+}
+
+// Tipos para AdditionalContactsList
+export interface AdditionalContact {
+    name: string;
+    phone: string;
+    email: string;
+}
+
+export interface AdditionalContactsListProps {
+    additionalContacts: AdditionalContact[];
+    onUpdateAdditionalContacts: (updatedContacts: AdditionalContact[]) => void;
+}
+
+export interface ColorDialogProps {
+    open: boolean;
+    dialogType: 'create' | 'edit';
+    form: Color;
+    loading?: boolean;
+    // Métodos de emisión
+    'onUpdate:open'?: (value: boolean) => void;
+    onSubmit?: (value: Color) => void;
+    onCancel?: () => void;
+}
+
+// Tipos para Órdenes de Compra (Gastos)
+export interface PurchaseOrderItem {
+    id?: number;
+    article_id: number | null;
+    article?: Article;
+    price: number;
+    tax: number;
+    quantity: number;
+    description?: string;
+    total: number;
+    total_tax?: number;
+    supplier_code?: string;
+    supplier_color?: string;
+    order_width?: number;
+}
+
+export interface PurchaseOrder {
+    id?: number;
+    contact_id: number | null;
+    contact?: Contact;
+    date: string;
+    delivery_date: string;
+    supplier_order_number: string;
+    description?: string;
+    items: PurchaseOrderItem[];
+    created_at?: string;
+    updated_at?: string;
+    status?: string;
+}
+
+// Interfaz para una retención de factura de compra
+export interface PurchaseInvoiceWithholding {
+    name: string;
+    percentage: number;
+    base_amount: number;
+}
+
+export interface PurchaseInvoiceItem {
+    id?: number;
+    purchase_invoice_id?: number;
+    article_id: number | null;
+    article?: Article;
+    price: number | string | '';
+    tax: number;
+    quantity: number | string | '';
+    description?: string;
+    total: number;
+    total_tax?: number;
+    supplier_code?: string;
+    supplier_color?: string;
+    order_width?: string;
+    original_order_item?: PurchaseOrderItem;
+}
+
+export interface PurchaseInvoice {
+    id?: number;
+    contact_id: number | null;
+    contact?: Contact;
+    date: string;
+    delivery_date: string;
+    supplier_invoice_number?: string;
+    description?: string;
+    status?: string;
+    items: PurchaseInvoiceItem[];
+    created_at?: string;
+    updated_at?: string;
+    purchase_order_id?: number | null;
+    withholdings?: PurchaseInvoiceWithholding[]; // Usar el tipo correcto aquí
+}
+
+// Tipos para campos adicionales de artículos
+export interface ExtraFields {
+    [key: string]: string;
+}
+
+// Tipos para Rollos de Tela (Kardex)
 export interface FabricRoll {
-    location: string;
-    fabric_color_id: number | null; // ID del color de tela
-    fabric_order_item_id: number; // ID del ítem de pedido de tela
-    received_quantity: number; // Cantidad recibida
-    width: number; // Ancho del rollo
-    quantity: number; // Cantidad total
+    id: number;
+    roll_number: string;
+    purchase_invoice_item_id: number;
+    purchase_invoice_item?: PurchaseInvoiceItem;
+    quantity: number;
+    roll_width?: number;
+    location?: string;
+    description?: string;
+    tolerance_status?: string;
+    partial_output: number;
+    actual_output: number;
+    entry_date: string;
+    available_quantity: number; // Computed attribute
+    is_depleted: boolean; // Computed attribute
+    created_at?: string;
+    updated_at?: string;
 }

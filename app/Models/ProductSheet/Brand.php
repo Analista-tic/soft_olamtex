@@ -14,9 +14,4 @@ class Brand extends Model
     {
         return $this->hasMany(ProductSheet::class);
     }
-
-    public function fabricProviders()
-    {
-        return $this->hasMany(FabricProvider::class);
-    }
 }

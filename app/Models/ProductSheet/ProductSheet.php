@@ -20,7 +20,7 @@ class ProductSheet extends Model
         'group_id',
         'brand_id',
         'world_id',
-        'base_id',
+        'fabric_base_id',
         'reference',
         'billing_price',
         'selling_price',
@@ -29,6 +29,7 @@ class ProductSheet extends Model
         'description',
         'processes',
         'status',
+        'yarn_base_id', // Nuevo campo
     ];
 
     protected $casts = [
@@ -57,13 +58,13 @@ class ProductSheet extends Model
         return $this->belongsTo(World::class);
     }
 
-    public function base()
+    public function yarnBase()
     {
-        return $this->belongsTo(Base::class);
+        return $this->belongsTo(YarnBase::class, 'yarn_base_id'); // Relación con YarnBase
     }
 
-    public function fabricOrderItems()
+    public function fabricBase()
     {
-        return $this->hasMany(FabricOrderItem::class);
+        return $this->belongsTo(FabricBase::class, 'fabric_base_id'); // Relación con FabricBase
     }
 }

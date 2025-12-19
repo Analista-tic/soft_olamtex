@@ -21,23 +21,31 @@ const editableReference = ref(props.productSheet.reference);
 // Convierte las tallas de JSON a un objeto
 const parsedSizes = computed(() => {
     try {
-        return JSON.parse(props.productSheet.sizes || '{}') || {};
+        const sizesData = JSON.parse(props.productSheet.sizes || '{}');
+        const sizes = sizesData.sizes || sizesData;
+
+        // Diferenciar entre creación (valores booleanos) y edición (valores numéricos)
+        return Object.fromEntries(
+            Object.entries(sizes)
+                .filter(([, value]) => typeof value === 'boolean' ? value : true) // Filtrar solo claves con `true` en creación
+                .map(([key, value]) => [key, typeof value === 'number' ? value : 0]) // Mantener valores numéricos o inicializar en 0
+        );
     } catch (error) {
         console.error('Error al parsear las tallas:', error);
         return {};
     }
 });
 
-// Filtra las tallas habilitadas
+// Filtra las tallas habilitadas (si es necesario)
 const filteredSizes = computed(() => {
-    return Object.entries(parsedSizes.value).filter(([, enabled]) => enabled);
+    return Object.entries(parsedSizes.value);
 });
 
 // Inicializa las cantidades de tallas al abrir el diálogo
 function initializeSizes() {
-    ecommerceSizes.value = filteredSizes.value.reduce(
+    ecommerceSizes.value = Object.entries(parsedSizes.value).reduce(
         (acc, [size, value]) => {
-            acc[size] = ecommerceSizes.value[size] ?? value ?? 0;
+            acc[size] = ecommerceSizes.value[size] ?? value; // Mantener valores existentes o inicializar en 0
             return acc;
         },
         {} as Record<string, number>,
@@ -54,7 +62,9 @@ function handleDialogOpen(open: boolean) {
 
 // Guarda las tallas y emite los datos actualizados
 function saveSizes() {
-    const sanitizedSizes = Object.fromEntries(Object.entries(ecommerceSizes.value).map(([size, value]) => [size, value || 0]));
+    const sanitizedSizes = Object.fromEntries(
+        Object.entries(ecommerceSizes.value).map(([size, value]) => [size, value || 0]) // Asegura que las cantidades sean al menos 0
+    );
 
     emit('sizesUpdated', { sizes: sanitizedSizes, reference: editableReference.value });
     isDialogOpen.value = false;

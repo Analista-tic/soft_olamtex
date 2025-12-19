@@ -14,9 +14,4 @@ class Section extends Model
     {
         return $this->hasMany(ProductSheet::class);
     }
-
-    public function fabricRolls()
-    {
-        return $this->hasMany(FabricRoll::class);
-    }
 }

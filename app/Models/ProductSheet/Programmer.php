@@ -57,12 +57,4 @@ class Programmer extends Model
     {
         return $this->belongsTo(Destination::class);
     }
-
-    /**
-     * Relación con el modelo `FabricOrder`.
-     */
-    public function fabricOrders()
-    {
-        return $this->hasMany(FabricOrder::class);
-    }
 }

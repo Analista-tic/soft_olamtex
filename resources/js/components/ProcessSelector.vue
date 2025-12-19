@@ -3,7 +3,7 @@
         <div class="grid w-full items-center gap-1">
             <Label class="text-sm font-medium">Procesos<span class="text-red-500">*</span></Label>
             <div>
-                <div class="rounded border border-gray-300 bg-white p-2 shadow-sm">
+                <div class="border-gray-300 bg-white p-2 shadow-sm">
                     <div class="mb-3">
                         <Select v-model="localSelectedProcess">
                             <SelectTrigger class="h-9 w-full rounded border border-gray-300 text-sm shadow-sm">

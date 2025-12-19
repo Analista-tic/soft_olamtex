@@ -11,15 +11,33 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const modules = [
+            {
+                title: 'Empresa',
+                description: 'Administra usuarios, roles y permisos de acceso.',
+                options: [
+                    { name: 'Datos Basicos', href: '/configuracion/datos-basicos' },
+                    { name: 'Contactos', href: '/contactos' },
+                ],
+            },
     {
-        title: 'Empresa', // Título mejorado
-        description: 'Administra usuarios, roles y permisos de acceso.',
+        title: 'Inventario',
+        description: 'Parametrizar y Configurar Campos de Inventario.',
         options: [
-            { name: 'Datos Basicos', href: '' },
+            { name: 'Articulos', href: '/articulos' },
+            { name: 'Categorias', href: 'categorias/subgrupos' },
+            { name: 'Bodegas', href: '/bodegas' },
         ],
     },
     {
-        title: 'Accesos y Permisos', // Título mejorado
+        title: 'Impuestos',
+        description: 'Parametrizar y Configurar Impuestos.',
+        options: [
+            { name: 'Retenciones', href: '/retenciones' },
+            { name: 'Impuestos', href: '/impuestos' },
+        ],
+    },
+    {
+        title: 'Accesos y Permisos',
         description: 'Administra usuarios, roles y permisos de acceso.',
         options: [
             { name: 'Usuarios', href: '/usuarios' },
@@ -27,7 +45,7 @@ const modules = [
         ],
     },
     {
-        title: 'Comercial', // Título mejorado
+        title: 'Comercial',
         description: 'Administra parametros y configuraciones',
         options: [
             { name: 'Secciones', href: '' },
@@ -39,12 +57,19 @@ const modules = [
         ],
     },
     {
-        title: 'Diseño', // Título mejorado
+        title: 'Diseño',
         description: 'Administra parametros y configuraciones',
         options: [
             { name: 'Temporadas', href: '' },
             { name: 'Destinos', href: '' },
             { name: 'Prioridades', href: '' },
+        ],
+    },
+    {
+        title: 'General',
+        description: 'Administra parametros y configuraciones generales',
+        options: [
+            { name: 'Colores', href: '/colores' },
         ],
     },
 ];
@@ -63,17 +88,14 @@ const modules = [
                     :key="module.title"
                     class="group relative flex flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-md hover:shadow-lg transition-shadow"
                 >
-                    <!-- Título del módulo -->
                     <div
                         class="text-md font-semibold text-gray-800 group-hover:text-blue-600"
                     >
                         {{ module.title }}
                     </div>
-                    <!-- Descripción del módulo -->
                     <p class="text-xs text-gray-600">
                         {{ module.description }}
                     </p>
-                    <!-- Opciones adicionales -->
                     <ul class="mt-3 text-sm text-gray-600">
                         <li
                             v-for="option in module.options"

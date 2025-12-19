@@ -14,9 +14,4 @@ class World extends Model
     {
         return $this->hasMany(ProductSheet::class);
     }
-
-    public function fabrics()
-    {
-        return $this->hasMany(Fabric::class);
-    }
 }

@@ -8,7 +8,8 @@ use App\Models\ProductSheet\Section;
 use App\Models\ProductSheet\Group;
 use App\Models\ProductSheet\Brand;
 use App\Models\ProductSheet\World;
-use App\Models\ProductSheet\Base;
+use App\Models\ProductSheet\FabricBase; // Cambiar Base a FabricBase
+use App\Models\ProductSheet\YarnBase;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -19,18 +20,20 @@ class ProductSheetController extends Controller
      */
     public function index()
     {
-        $sections = Section::all(); // Todas las secciones.
-        $groups = Group::all(); // Todos los grupos.
-        $brands = Brand::all(); // Todas las marcas.
-        $worlds = World::all(); // Todos los mundos.
-        $bases = Base::all(); // Todas las bases.
+        $sections = Section::all();
+        $groups = Group::all();
+        $brands = Brand::all();
+        $worlds = World::all();
+        $fabricBases = FabricBase::all(); // Cambiar bases a fabricBases
+        $yarnBases = YarnBase::all();
 
         return Inertia::render('ProductSheets/Index', [
             'sections' => $sections,
             'groups' => $groups,
             'brands' => $brands,
             'worlds' => $worlds,
-            'bases' => $bases,
+            'fabricBases' => $fabricBases, // Cambiar bases a fabricBases
+            'yarnBases' => $yarnBases,
         ]);
     }
 
@@ -45,7 +48,7 @@ class ProductSheetController extends Controller
             'group_id' => 'required|integer|exists:groups,id', // ID del grupo.
             'brand_id' => 'required|integer|exists:brands,id', // ID de la marca.
             'world_id' => 'required|integer|exists:worlds,id', // ID del mundo.
-            'base_id' => 'required|integer|exists:bases,id', // ID de la base.
+            'fabric_base_id' => 'required|integer|exists:fabric_bases,id', // Asegurar que sea requerido
             'billing_price' => 'required|numeric', // Precio de facturación.
             'selling_price' => 'required|numeric', // Precio de venta.
             'sizes' => 'required|json', // Tamaños en formato JSON.
@@ -53,9 +56,10 @@ class ProductSheetController extends Controller
             'description' => 'nullable|string', // Descripción opcional.
             'processes' => 'required|json', // Procesos en formato JSON.
             'status' => 'required|string|in:incomplete,complete', // Estado del producto.
+            'yarn_base_id' => 'nullable|integer|exists:yarn_bases,id', // Validar yarnBases
         ]);
 
-        $productSheet = ProductSheet::create($validatedData); // Inserta en la base de datos.
+        $productSheet = ProductSheet::create($validatedData); // Asegurarse de que se incluya fabric_base_id
 
         return response()->json([
             'success' => true,
@@ -75,7 +79,7 @@ class ProductSheetController extends Controller
             'group_id' => 'required|integer|exists:groups,id',
             'brand_id' => 'required|integer|exists:brands,id',
             'world_id' => 'required|integer|exists:worlds,id',
-            'base_id' => 'required|integer|exists:bases,id',
+            'fabric_base_id' => 'required|integer|exists:fabric_bases,id', // Asegurar que fabric_base_id sea requerido
             'billing_price' => 'required|numeric',
             'selling_price' => 'required|numeric',
             'sizes' => 'required|json',
@@ -83,6 +87,7 @@ class ProductSheetController extends Controller
             'description' => 'nullable|string',
             'processes' => 'required|json',
             'status' => 'required|string|in:incomplete,complete',
+            'yarn_base_id' => 'nullable|integer|exists:yarn_bases,id', // Validar yarnBases
         ]);
 
         $productSheet = ProductSheet::findOrFail($id); // Busca el registro.
@@ -107,7 +112,7 @@ class ProductSheetController extends Controller
      */
     public function getData(Request $request)
     {
-        $query = ProductSheet::with(['section', 'group', 'brand', 'world', 'base']); // Relaciones.
+        $query = ProductSheet::with(['section', 'group', 'brand', 'world', 'fabricBase', 'yarnBase']); // Asegurarse de que fabricBase esté definido correctamente
 
         if ($request->has('search') && $request->search != '') {
             $query->where('reference', 'like', '%' . $request->search . '%'); // Filtro por referencia.

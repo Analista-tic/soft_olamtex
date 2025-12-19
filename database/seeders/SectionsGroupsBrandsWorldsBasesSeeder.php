@@ -40,6 +40,21 @@ class SectionsGroupsBrandsWorldsBasesSeeder extends Seeder
             ['name' => 'LINEA'],
             ['name' => 'PRONTA MODA'],
         ]);
+        
+        DB::table('yarn_bases')->insert([
+            ['name' => 'ACRÍLICO'],
+            ['name' => 'ACRÍLICO ALGODÓN'],
+            ['name' => 'ACRÍLICO POLIÉSTER'],
+            ['name' => 'POLIÉSTER'],
+            ['name' => 'SPUN'],
+            ['name' => 'ALGODÓN'],
+            ['name' => 'MODAL'],
+            ['name' => 'CHINCHILLA'],
+            ['name' => 'PELO CONEJO'],
+            ['name' => 'LUREX'],
+            ['name' => 'ELÁSTICO'],
+        ]);
+        
 
         // Insert data into brands table
         DB::table('brands')->insert([
@@ -64,7 +79,7 @@ class SectionsGroupsBrandsWorldsBasesSeeder extends Seeder
         ]);
 
         // Insert data into bases table
-        DB::table('bases')->insert([
+        DB::table('fabric_bases')->insert([
             ['name' => 'BURDA'],
             ['name' => 'ALGODON'],
             ['name' => 'ANTIFLUIDO'],

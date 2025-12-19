@@ -17,7 +17,8 @@ return new class extends Migration
             $table->foreignId('group_id')->constrained();
             $table->foreignId('brand_id')->constrained();
             $table->foreignId('world_id')->constrained();
-            $table->foreignId('base_id')->constrained();
+            $table->foreignId('fabric_base_id')->constrained();
+            $table->foreignId('yarn_base_id')->nullable()->constrained(); // Relación con la tabla 'bases'
             $table->string('reference')->unique();
             $table->float('billing_price')->nullable();
             $table->float('selling_price')->nullable();
