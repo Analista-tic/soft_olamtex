@@ -28,7 +28,7 @@ return new class extends Migration
                 ->references('id')
                 ->on('contacts')
                 ->onDelete('set null');
-            // Campos para proveedor no registrado (nombre y telÃ©fono)
+            // Campos para proveedor no registrado
             $table->string('provider_name')->nullable();
             $table->string('provider_phone')->nullable();
 
@@ -39,12 +39,8 @@ return new class extends Migration
             // Razon del documento (diferencias, observaciones o comentarios adicionales)
             $table->text('reason')->nullable();
 
-
             // Descripción general
             $table->text('description')->nullable();
-
-            // Indicador si el documento es tela (fabric) — agregado aquí en la migración de creación
-            $table->boolean('is_fabric')->default(false)->index();
 
             // Usuarios involucrados
             $table->unsignedBigInteger('created_by_user_id')->nullable()->index();
