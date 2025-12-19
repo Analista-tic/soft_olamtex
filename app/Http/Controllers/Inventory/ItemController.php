@@ -136,7 +136,7 @@ class ItemController extends Controller
 
     public function getData(Request $request)
     {
-        $filters = $request->only(['search', 'status']);
+        $filters = $request->only(['search', 'status', 'item_type']);
         $perPage = $request->input('per_page', 10);
         $articles = $this->service->paginate($filters, $perPage);
 

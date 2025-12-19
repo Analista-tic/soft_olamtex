@@ -1011,9 +1011,10 @@ watch(
                             </template>
                             </div>
 
-                            <div
-                                class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
-                            >
+                        <div
+                            v-if="currentItemType !== 'service'"
+                            class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
+                        >
                                 <div class="mb-2 flex items-center justify-between">
                                     <span class="text-sm font-semibold">Detalle de Inventario</span>
                                     <button

@@ -121,7 +121,7 @@ async function fetchTaxes() {
 async function fetchItems() {
   try {
     const response = await axios.get('/item/data', {
-      params: { per_page: 1000, status: 1 },
+      params: { per_page: 1000, status: 1, item_type: 'product' },
     });
     items.value = response.data?.data ?? [];
   } catch (e) {
@@ -455,7 +455,7 @@ async function handleSubmit() {
   <Dialog :open="isOpen" @update:open="emit('close')">
     <DialogContent class="max-w-[200vh] p-0">
       <div class="max-h-[90vh] overflow-y-auto px-4 py-4">
-        <DialogHeader>
+        <DialogHeader class="pb-5">
           <DialogTitle>{{ props.dialogType === 'edit' ? 'Editar ajuste de inventario' : 'Nuevo ajuste de inventario' }}</DialogTitle>
           <DialogDescription>
             Registra un movimiento de entrada o salida de inventario.
@@ -552,7 +552,7 @@ async function handleSubmit() {
                 />
               </div>
             </div>
-            <div class="mt-4">
+            <div class="mt-4 pb-4">
               <Label>Orden de producción</Label>
               <Input
                 v-model="productionOrder"

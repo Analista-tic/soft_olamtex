@@ -34,6 +34,10 @@ class ItemService
             $query->where('status', filter_var($filters['status'], FILTER_VALIDATE_BOOLEAN));
         }
 
+        if (!empty($filters['item_type'])) {
+            $query->where('item_type', $filters['item_type']);
+        }
+
         return $query->paginate($perPage);
     }
 
