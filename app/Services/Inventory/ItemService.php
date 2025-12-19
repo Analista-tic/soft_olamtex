@@ -24,10 +24,17 @@ class ItemService
         if (!empty($filters['search'])) {
             $search = trim($filters['search']);
             $query->where(function ($q) use ($search) {
-                $q->where('description', 'like', "%{$search}%")
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('reference', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
                     ->orWhere('bar_code', 'like', "%{$search}%")
                     ->orWhereHas('categorySubGroup', fn($sg) => $sg->where('name', 'like', "%{$search}%"));
             });
+        }
+
+        if (isset($filters['warehouse_id']) && $filters['warehouse_id'] !== '') {
+            $warehouseId = (int) $filters['warehouse_id'];
+            $query->whereHas('warehouses', fn($q) => $q->where('warehouse_id', $warehouseId));
         }
 
         if (array_key_exists('status', $filters) && $filters['status'] !== '') {

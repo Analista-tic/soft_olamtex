@@ -24,12 +24,12 @@ use App\Http\Controllers\Settings\CompanySettingsController;
 use App\Http\Controllers\Common\CategoryGroupController;
 use App\Http\Controllers\Common\CategorySubGroupController;
 use App\Http\Controllers\Common\WarehouseController;
-use App\Http\Controllers\Common\ColorController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\Inventory\AdditionalFieldController;
 use App\Http\Controllers\Settings\RetentionController;
 use App\Http\Controllers\Common\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
+use App\Http\Controllers\Inventory\ItemInventoryController;
 
 // Página principal
 Route::get('/', fn() => redirect('login'))->name('home');
@@ -320,6 +320,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('inventario/ajuste-inventario/crear', function () {
         return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
     })->name('inventario.ajuste-inventario.create');
+
+    // === INVENTARIO DE ITEMS ===
+    Route::prefix('inventario-item')->name('inventario-item.')->group(function () {
+        Route::get('/', [ItemInventoryController::class, 'index'])->name('index');        // opcional
+        Route::get('/data', [ItemInventoryController::class, 'getData'])->name('data');
+    });
 
     // === CAMPOS ADICIONALES ===
     Route::prefix('inventario/campos-adicionales')->name('inventory.additional-fields.')->group(function () {

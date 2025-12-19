@@ -256,10 +256,10 @@ function exportItemsExcel() {
         <Dialog v-model:open="isStatusDialogOpen">
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle> {{ itemToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }} ítem </DialogTitle>
+                    <DialogTitle> {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} ítem </DialogTitle>
                     <DialogDescription>
                         ¿Estás seguro de que deseas
-                        {{ itemToToggleStatus?.status ? 'habilitar' : 'deshabilitar' }}
+                        {{ itemToToggleStatus?.status ? 'deshabilitar' : 'habilitar' }}
                         este ítem?
                     </DialogDescription>
                 </DialogHeader>
@@ -275,7 +275,7 @@ function exportItemsExcel() {
                     >
                         <Ban v-if="itemToToggleStatus?.status" class="mr-1 h-4 w-4" />
                         <CheckCircle v-else class="mr-1 h-4 w-4" />
-                        {{ itemToToggleStatus?.status ? 'Habilitar' : 'Deshabilitar' }}
+                        {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }}
                     </button>
                 </DialogFooter>
             </DialogContent>

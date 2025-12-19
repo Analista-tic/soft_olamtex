@@ -105,6 +105,13 @@ class PurchaseOrderController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
 
+        if ($purchaseDocument->children()
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->exists()
+        ) {
+            throw new \RuntimeException('La orden de compra ya tiene una factura vinculada.');
+        }
+
         try {
             $invoice = $this->service->convertOrderToInvoice($purchaseDocument);
             return response()->json([

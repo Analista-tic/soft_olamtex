@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Expenses;
 
 use App\Http\Controllers\Expenses\Concerns\ValidatesPurchaseInvoiceRequest;
+use App\Http\Controllers\Expenses\PurchaseDocumentController;
 use App\Models\Expenses\PurchaseDocument;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use Illuminate\Http\Request;
@@ -22,10 +23,10 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         return Inertia::render('Expenses/PurchaseInvoices/indexFabric');
     }
 
-    public function show(PurchaseDocument $purchaseDocument)
+    public function show(PurchaseDocument $purchaseInvoice)
     {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
-        return response()->json(['data' => $this->service->loadWithRelations($purchaseDocument)]);
+        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+        return response()->json(['data' => $this->service->loadWithRelations($purchaseInvoice)]);
     }
 
     public function store(Request $request)
@@ -43,9 +44,9 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         return response()->json(['data' => $invoice], 201);
     }
 
-    public function update(Request $request, PurchaseDocument $purchaseDocument)
+    public function update(Request $request, PurchaseDocument $purchaseInvoice)
     {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
         $payload = $this->validateInvoiceRequest($request, true);
         $items = $request->has('items') ? $payload['items'] ?? [] : null;
 
@@ -53,14 +54,14 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
             unset($payload['purchase_order_id']);
         }
 
-        $updated = $this->service->updateDocument($purchaseDocument, $payload, $items);
+        $updated = $this->service->updateDocument($purchaseInvoice, $payload, $items);
         return response()->json(['data' => $updated]);
     }
 
-    public function destroy(PurchaseDocument $purchaseDocument)
+    public function destroy(PurchaseDocument $purchaseInvoice)
     {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
-        $this->service->deleteDocument($purchaseDocument);
+        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+        $this->service->deleteDocument($purchaseInvoice);
         return response()->json(['message' => 'Factura eliminada']);
     }
 

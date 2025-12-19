@@ -90,7 +90,7 @@ const navMainGroup: NavGroupItem[] = [
                     },
                     {
                         title: 'Inventario de Ítems',
-                        href: '/inventario/item',
+                        href: '/inventario/inventario-item',
                         permission: 'ver inventario',
                     },
             {
