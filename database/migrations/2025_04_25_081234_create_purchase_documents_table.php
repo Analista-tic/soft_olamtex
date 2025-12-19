@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('purchase_documents', function (Blueprint $table) {
             $table->bigIncrements('id');
 
-            // IdentificaciÃ³n general
+            // Identificación general
             $table->string('document_number', 50)->nullable()->index(); // SOL-2025-001, ORD-2025-001, FAC-2025-001
             $table->string('document_type', 50)->index(); // purchase_request | purchase_order | purchase_invoice
 
@@ -40,7 +40,7 @@ return new class extends Migration
             $table->text('reason')->nullable();
 
 
-            // DescripciÃ³n general
+            // Descripción general
             $table->text('description')->nullable();
 
             // Indicador si el documento es tela (fabric) — agregado aquí en la migración de creación
@@ -66,10 +66,10 @@ return new class extends Migration
             //  - Invoices: pending | in_process | approved | rejected
             $table->string('status', 50)->default('pending')->index();
 
-            // Estado de aprobaciÃ³n mÃ¡s "funcional" (sobre todo para factura)
+            // Estado de aprobación más "funcional" (sobre todo para factura)
             $table->string('approval_status', 50)->nullable()->index();
 
-            // Datos especÃ­ficos por tipo
+            // Datos específicos por tipo
             $table->string('supplier_order_number', 50)->nullable();   // Orden proveedor
             $table->string('supplier_invoice_number', 50)->nullable(); // Factura proveedor
 
@@ -99,7 +99,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            // Ãndices Ãºtiles
+            // Índices útiles
             $table->index(['document_type', 'status']);
             $table->index(['document_type', 'approval_status']);
             $table->index(['contact_id', 'document_type']);
