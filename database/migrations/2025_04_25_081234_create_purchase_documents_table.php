@@ -13,7 +13,7 @@ return new class extends Migration
 
             // Identificación general
             $table->string('document_number', 50)->nullable()->index(); // SOL-2025-001, ORD-2025-001, FAC-2025-001
-            $table->string('document_type', 50)->index(); // purchase_request | purchase_order | purchase_invoice
+            $table->enum('document_type', ['purchase_request', 'purchase_order', 'purchase_invoice'])->index();
 
             // Encadenamiento (Solicitud -> Orden -> Factura)
             $table->unsignedBigInteger('parent_document_id')->nullable()->index();
@@ -60,10 +60,10 @@ return new class extends Migration
             //  - Requests: pending | approved | rejected
             //  - Orders:   pending | sent
             //  - Invoices: pending | in_process | approved | rejected
-            $table->string('status', 50)->default('pending')->index();
+            $table->enum('status', ['pending', 'in_process', 'approved', 'rejected'])->default('pending')->index();
 
             // Estado de aprobación más "funcional" (sobre todo para factura)
-            $table->string('approval_status', 50)->nullable()->index();
+            $table->enum('approval_status', ['pending', 'in_process', 'approved', 'rejected'])->nullable()->index();
 
             // Datos específicos por tipo
             $table->string('supplier_order_number', 50)->nullable();   // Orden proveedor

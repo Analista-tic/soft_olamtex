@@ -162,7 +162,7 @@ class ExampleDataSeeder extends Seeder
             'description' => 'Orden de compra vinculada a la solicitud de ejemplo',
             'created_by_user_id' => $userId,
             'executed_by_user_id' => $userId,
-            'status' => 'sent',
+            'status' => 'in_process',
             'supplier_order_number' => 'ORD-2025-001',
             'ordered_at' => now()->subDays(3),
             'created_at' => now(),
@@ -219,6 +219,7 @@ class ExampleDataSeeder extends Seeder
             'created_by_user_id' => $userId,
             'executed_by_user_id' => $userId,
             'status' => 'pending',
+            'approval_status' => 'pending',
             'supplier_invoice_number' => 'FAC-2025-001',
             'withholdings' => json_encode([
                 ['name' => 'Retefuente', 'percentage' => 2.5, 'base_amount' => 12000.00],

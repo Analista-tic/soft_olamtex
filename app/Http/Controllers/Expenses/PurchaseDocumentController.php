@@ -112,4 +112,5 @@ class PurchaseDocumentController extends Controller
 
         return $request->validate($rules);
     }
+
 }

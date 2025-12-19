@@ -106,7 +106,7 @@ onMounted(() => fetchTaxes());
 </script>
 
 <template>
-    <Head title="Gesti髇 de impuestos" />
+    <Head title="Gesti贸n de impuestos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :successMessage="successMessage"
@@ -118,7 +118,7 @@ onMounted(() => fetchTaxes());
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gesti髇 de impuestos</h1>
+                <h1 class="text-lg font-bold">Gesti贸n de impuestos</h1>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Nuevo Impuesto</Button>
             </div>
             <div class="relative flex items-center gap-4">
@@ -190,8 +190,8 @@ onMounted(() => fetchTaxes());
         />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminaci髇"
-            description="縀st醩 seguro de que deseas eliminar este impuesto? Esta acci髇 no se puede deshacer."
+            title="Confirmar eliminaci贸n"
+            description="驴Est谩s seguro de que deseas eliminar este impuesto? Esta acci贸n no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"

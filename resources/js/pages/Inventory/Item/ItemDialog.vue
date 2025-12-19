@@ -406,6 +406,16 @@ async function fetchWarehouseStocks(itemId: number) {
     }
 }
 
+async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
+    const resolvedItemId = Number(itemId ?? props.form.id);
+    if (!resolvedItemId) {
+        warehouseStocks.value = [];
+        return;
+    }
+
+    await fetchWarehouseStocks(resolvedItemId);
+ }
+
 // Devuelve bodegas disponibles para seleccionar (evita duplicados)
 function availableWarehouses(idx?: number) {
     const usedIds = warehouseStocks.value
@@ -666,6 +676,26 @@ watch(
     () => props.isOpen,
     (value) => {
         dialogOpen.value = value;
+        if (value) {
+            void refreshWarehouseStocksForCurrentItem();
+        } else {
+            warehouseStocks.value = [];
+        }
+    },
+);
+
+watch(
+    () => props.form.id,
+    (itemId) => {
+        if (!dialogOpen.value) {
+            return;
+        }
+
+        if (itemId) {
+            void refreshWarehouseStocksForCurrentItem(Number(itemId));
+        } else {
+            warehouseStocks.value = [];
+        }
     },
 );
 
@@ -678,7 +708,7 @@ const handleInventoryAdjustmentSaved = (event: Event) => {
     const currentItemId = Number(props.form.id);
     if (!currentItemId || !itemIds.includes(currentItemId)) return;
     if (!dialogOpen.value) return;
-    void fetchWarehouseStocks(currentItemId);
+    void refreshWarehouseStocksForCurrentItem(currentItemId);
 };
 
 onMounted(() => {
