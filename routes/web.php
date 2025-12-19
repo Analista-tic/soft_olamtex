@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Common\ContactController;
-use App\Http\Controllers\Expenses\PurchaseDocumentController;
+use App\Http\Controllers\Expenses\PurchaseInvoiceController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceTelaController;
+use App\Http\Controllers\Expenses\PurchaseOrderController;
+use App\Http\Controllers\Expenses\PurchaseRequestController;
 use App\Http\Controllers\ProductSheet\BrandController;
 use App\Http\Controllers\ProductSheet\FabricBaseController;
 use App\Http\Controllers\ProductSheet\GroupController;
@@ -228,35 +230,35 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('gastos')->name('gastos.')->group(function () {
         // === SOLICITUD DE COMPRA ===
         Route::prefix('solicitudes-compra')->name('purchase-requests.')->group(function () {
-            Route::get('/', [PurchaseDocumentController::class, 'requestIndex'])->name('index');
-            Route::get('/data', [PurchaseDocumentController::class, 'requestData'])->name('getData');
-            Route::post('/', [PurchaseDocumentController::class, 'storeRequest'])->name('store');
-            Route::get('/{purchaseDocument}', [PurchaseDocumentController::class, 'showRequest'])->name('show');
-            Route::put('/{purchaseDocument}', [PurchaseDocumentController::class, 'updateRequest'])->name('update');
-            Route::delete('/{purchaseDocument}', [PurchaseDocumentController::class, 'destroyRequest'])->name('destroy');
+            Route::get('/', [PurchaseRequestController::class, 'index'])->name('index');
+            Route::get('/data', [PurchaseRequestController::class, 'getData'])->name('getData');
+            Route::post('/', [PurchaseRequestController::class, 'store'])->name('store');
+            Route::get('/{purchaseDocument}', [PurchaseRequestController::class, 'show'])->name('show');
+            Route::put('/{purchaseDocument}', [PurchaseRequestController::class, 'update'])->name('update');
+            Route::delete('/{purchaseDocument}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
         });
         
         // === ORDENES DE COMPRA ===
         Route::prefix('ordenes-compra')->name('purchase-orders.')->group(function () {
-            Route::get('/', [PurchaseDocumentController::class, 'orderIndex'])->name('index');
-            Route::get('/data', [PurchaseDocumentController::class, 'orderData'])->name('getData');
-            Route::post('/', [PurchaseDocumentController::class, 'storeOrder'])->name('store');
-            Route::get('/{purchaseDocument}', [PurchaseDocumentController::class, 'showOrder'])->name('show');
-            Route::put('/{purchaseDocument}', [PurchaseDocumentController::class, 'updateOrder'])->name('update');
-            Route::delete('/{purchaseDocument}', [PurchaseDocumentController::class, 'destroyOrder'])->name('destroy');
-            Route::post('/{purchaseDocument}/enviar-correo-pdf', [PurchaseDocumentController::class, 'sendOrderPdf']);
-            Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseDocumentController::class, 'convertToInvoice']);
+            Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+            Route::get('/data', [PurchaseOrderController::class, 'getData'])->name('getData');
+            Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
+            Route::get('/{purchaseDocument}', [PurchaseOrderController::class, 'show'])->name('show');
+            Route::put('/{purchaseDocument}', [PurchaseOrderController::class, 'update'])->name('update');
+            Route::delete('/{purchaseDocument}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
+            Route::post('/{purchaseDocument}/enviar-correo-pdf', [PurchaseOrderController::class, 'sendOrderPdf']);
+            Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice']);
         });
 
         // === FACTURAS DE COMPRA ===
         Route::prefix('facturas-compra')->name('purchase-invoices.')->group(function () {
-            Route::get('/', [PurchaseDocumentController::class, 'invoiceIndex'])->name('index');
-            Route::get('/data', [PurchaseDocumentController::class, 'invoiceData'])->name('getData');
-            Route::post('/', [PurchaseDocumentController::class, 'storeInvoice'])->name('store');
-            Route::get('/{purchaseDocument}', [PurchaseDocumentController::class, 'showInvoice'])->name('show');
-            Route::put('/{purchaseDocument}', [PurchaseDocumentController::class, 'updateInvoice'])->name('update');
-            Route::delete('/{purchaseDocument}', [PurchaseDocumentController::class, 'destroyInvoice'])->name('destroy');
-            Route::post('/{purchaseDocument}/justificar', [PurchaseDocumentController::class, 'justifyInvoice'])->name('justify');
+            Route::get('/', [PurchaseInvoiceController::class, 'index'])->name('index');
+            Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
+            Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store');
+            Route::get('/{purchaseDocument}', [PurchaseInvoiceController::class, 'show'])->name('show');
+            Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update');
+            Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
+            Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify');
         });
 
         // === FACTURAS DE COMPRA TELAS ===

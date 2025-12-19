@@ -4,7 +4,8 @@ namespace App\Http\Controllers\Expenses;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Expenses\Concerns\ValidatesPurchaseInvoiceRequest;
-use App\Services\Expenses\PurchaseInvoiceService;
+use App\Models\Expenses\PurchaseDocument;
+use App\Services\Expenses\PurchaseDocumentService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -12,88 +13,93 @@ class PurchaseInvoiceController extends Controller
 {
     use ValidatesPurchaseInvoiceRequest;
 
-    public function __construct(protected PurchaseInvoiceService $service) {}
+    public function __construct(protected PurchaseDocumentService $service) {}
 
-    /**
-     * Muestra la vista principal de facturas de compra.
-     */
     public function index()
     {
         return Inertia::render('Expenses/PurchaseInvoices/Index');
     }
 
-    /**
-     * Muestra una factura de compra específica.
-     */
-    public function show($purchaseInvoice)
+    public function getData(Request $request)
     {
+        $filters = $this->buildFilters($request);
+        $documents = $this->service->paginateDocuments(
+            PurchaseDocument::TYPE_INVOICE,
+            $filters,
+            $request->input('per_page', 20)
+        );
+
         return response()->json([
-            'data' => $this->service->findWithRelations($purchaseInvoice),
+            'data' => $documents->items(),
+            'total' => $documents->total(),
+            'current_page' => $documents->currentPage(),
         ]);
     }
 
-    /**
-     * Valida y almacena una nueva factura de compra.
-     */
     public function store(Request $request)
     {
-        $data = $this->validateInvoiceRequest($request);
-
-        if (empty($data['purchase_order_id'])) {
-            unset($data['purchase_order_id']);
-        }
-
-        $invoice = $this->service->store($data, false);
+        $payload = $this->validateInvoiceRequest($request);
+        $items = $payload['items'] ?? [];
+        $withholdings = $payload['withholdings'] ?? [];
+        $invoice = $this->service->createInvoice($payload, $items, $withholdings);
 
         return response()->json(['data' => $invoice], 201);
     }
 
-    /**
-     * Valida y actualiza una factura de compra existente.
-     */
-    public function update(Request $request, $id)
+    public function show(PurchaseDocument $purchaseDocument)
     {
-        $invoice = $this->service->findWithRelations($id);
-        $data = $this->validateInvoiceRequest($request, true);
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        return response()->json(['data' => $this->service->loadWithRelations($purchaseDocument)]);
+    }
 
-        if (empty($data['purchase_order_id'])) {
-            unset($data['purchase_order_id']);
-        }
+    public function update(Request $request, PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $payload = $this->validateInvoiceRequest($request, true);
+        $items = $request->has('items') ? $payload['items'] ?? [] : null;
 
-        $updated = $this->service->update($invoice, $data, false);
-
+        $updated = $this->service->updateDocument($purchaseDocument, $payload, $items);
         return response()->json(['data' => $updated]);
     }
 
-    /**
-     * Elimina una factura de compra y sus items asociados.
-     */
-    public function destroy($id)
+    public function destroy(PurchaseDocument $purchaseDocument)
     {
-        $invoice = $this->service->findWithRelations($id);
-        $this->service->delete($invoice);
-
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $this->service->deleteDocument($purchaseDocument);
         return response()->json(['message' => 'Factura eliminada']);
     }
 
-    /**
-     * Devuelve datos paginados de facturas de compra según filtros.
-     */
-    public function getData(Request $request)
+    public function justify(Request $request, PurchaseDocument $purchaseDocument)
     {
-        $filters = $this->buildFilters($request);
-        $perPage = $request->per_page ?? 20;
-        $invoices = $this->service->paginate($filters, $perPage, false);
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
 
-        return response()->json([
-            'data' => $invoices->items(),
-            'total' => $invoices->total(),
-            'current_page' => $invoices->currentPage(),
+        $validated = $request->validate([
+            'difference_reason' => 'required|string',
+            'difference_evidence_path' => 'nullable|string',
+            'difference_notes' => 'nullable|string',
         ]);
+
+        $invoice = $this->service->attachValidationDifference(
+            $purchaseDocument,
+            $validated['difference_reason'],
+            $validated['difference_evidence_path'] ?? null,
+            $validated['difference_notes'] ?? null
+        );
+
+        return response()->json(['data' => $invoice]);
     }
 
-    private function buildFilters(Request $request): array
+    protected function ensureDocumentType(PurchaseDocument $document, string $type): void
     {
-        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id']);
+        if ($document->document_type !== $type) {
+            abort(404);
+        }
+    }
+
+    protected function buildFilters(Request $request): array
+    {
+        $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id']);
+        $filters['is_fabric'] = $request->boolean('is_fabric', false);
+        return $filters;
     }
 }
