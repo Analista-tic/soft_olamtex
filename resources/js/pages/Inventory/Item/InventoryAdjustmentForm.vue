@@ -615,6 +615,7 @@ async function handleSubmit() {
 
                     <TableCell class="p-1">
                       <InputField
+                        label=""
                         v-model.number="line.price"
                         type="currency"
                         :min="0"

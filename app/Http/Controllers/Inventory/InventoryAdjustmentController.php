@@ -8,7 +8,6 @@ use App\Models\Inventory\InventoryAdjustment;
 use App\Models\Inventory\Item;
 use App\Services\Inventory\InventoryAdjustmentService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;

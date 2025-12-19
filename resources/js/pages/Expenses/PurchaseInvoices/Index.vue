@@ -64,9 +64,11 @@ const {
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
+const subgroupFilter = ref('all');
 const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
+const subgroups = ref<{ id: number; name: string }[]>([]);
 const purchaseOrdersMap = ref<Record<number, string>>({});
 const facturasRoute = '/gastos/facturas-compra';
 const receptionBaseRoute = '/kardex-telas/recepcion';
@@ -91,6 +93,16 @@ async function fetchProviders() {
     } catch (e) {
         console.log('Error al cargar proveedores:', e);
         providers.value = [];
+    }
+}
+
+async function fetchSubgroups() {
+    try {
+        const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
+        subgroups.value = Array.isArray(data?.data) ? data.data : [];
+    } catch (error) {
+        console.log('Error al cargar subgrupos:', error);
+        subgroups.value = [];
     }
 }
 
@@ -153,6 +165,9 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
+    if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
+        params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
+    }
     try {
         const response = await axios.get('/gastos/facturas-compra/data', { params });
         invoices.value = Array.isArray(response.data.data)
@@ -188,11 +203,12 @@ async function fetchPurchaseOrdersMap() {
 
 // Watcher único para filtros y búsqueda
 watch(
-    [statusFilter, providerFilter, dateFrom, dateTo, searchQuery],
-    ([newStatus, newProvider, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldFrom, oldTo, oldSearch]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
+            newSubgroup !== oldSubgroup ||
             newFrom !== oldFrom ||
             newTo !== oldTo ||
             newSearch !== oldSearch
@@ -218,6 +234,7 @@ onMounted(() => {
     fetchInvoices();
     fetchProviders();
     fetchPurchaseOrdersMap();
+    fetchSubgroups();
 });
 
 function openPrintDialog(invoice: PurchaseInvoice) {
@@ -341,6 +358,13 @@ const orderDisplay = (invoice: PurchaseInvoice) => {
                         v-model="providerFilter"
                         label="Proveedor"
                         :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map(prov => ({ id: String(prov.id), name: prov.full_name }))]"
+                    />
+                </div>
+                <div class="min-w-[180px]">
+                    <SelectField
+                        v-model="subgroupFilter"
+                        label="Subgrupo"
+                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map(sub => ({ id: String(sub.id), name: sub.name }))]"
                     />
                 </div>
                 <div class="min-w-[140px]">
