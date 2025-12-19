@@ -52,7 +52,6 @@ class PurchaseInvoice extends Model implements \App\Contracts\HasAuditLabel
         'ordered_at',
         'invoiced_at',
         'approved_at',
-        'is_fabric',
     ];
 
     protected $casts = [
@@ -64,7 +63,6 @@ class PurchaseInvoice extends Model implements \App\Contracts\HasAuditLabel
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
         'withholdings' => 'array',
-        'is_fabric' => 'boolean',
     ];
 
     public function contact(): BelongsTo

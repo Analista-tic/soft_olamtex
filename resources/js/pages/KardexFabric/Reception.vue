@@ -254,7 +254,6 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         search,
         date_from: dateFrom.value,
         date_to: dateTo.value,
-        is_fabric: true,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {

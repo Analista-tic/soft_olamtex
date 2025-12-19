@@ -3,11 +3,16 @@
 namespace App\Http\Controllers\Expenses;
 
 use App\Models\Expenses\PurchaseDocument;
+use App\Services\Expenses\PurchaseDocumentRequestService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class PurchaseRequestController extends PurchaseDocumentController
 {
+    public function __construct(PurchaseDocumentRequestService $service)
+    {
+        parent::__construct($service);
+    }
 
     public function index()
     {
@@ -17,7 +22,6 @@ class PurchaseRequestController extends PurchaseDocumentController
     public function getData(Request $request)
     {
         $filters = $request->only(['search', 'status', 'provider_id', 'date_from', 'date_to']);
-        $filters['is_fabric'] = $request->boolean('is_fabric', false);
 
         $documents = $this->service->paginateDocuments(
             PurchaseDocument::TYPE_REQUEST,

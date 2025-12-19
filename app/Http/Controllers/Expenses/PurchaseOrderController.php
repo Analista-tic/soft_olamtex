@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Expenses;
 
 use App\Mail\PurchaseOrderMail;
 use App\Models\Expenses\PurchaseDocument;
-use App\Services\Expenses\PurchaseDocumentService;
+use App\Services\Expenses\PurchaseDocumentOrderService;
 use Barryvdh\DomPDF\Facade\Pdf as DomPDF;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +13,11 @@ use Inertia\Inertia;
 
 class PurchaseOrderController extends PurchaseDocumentController
 {
+    public function __construct(PurchaseDocumentOrderService $service)
+    {
+        parent::__construct($service);
+    }
+
     public function index()
     {
         return Inertia::render('Expenses/PurchaseOrders/Index');

@@ -4,12 +4,18 @@ namespace App\Http\Controllers\Expenses;
 
 use App\Http\Controllers\Expenses\Concerns\ValidatesPurchaseInvoiceRequest;
 use App\Models\Expenses\PurchaseDocument;
+use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class PurchaseInvoiceController extends PurchaseDocumentController
 {
     use ValidatesPurchaseInvoiceRequest;
+
+    public function __construct(PurchaseDocumentInvoiceService $service)
+    {
+        parent::__construct($service);
+    }
 
     public function index()
     {
@@ -88,7 +94,6 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     protected function buildFilters(Request $request): array
     {
         $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id']);
-        $filters['is_fabric'] = $request->boolean('is_fabric', false);
         return $filters;
     }
 }
