@@ -77,41 +77,41 @@ const navMainGroup: NavGroupItem[] = [
         icon: UsersRound,
         isActive: false,
     },
+    {
+        title: 'Inventario',
+        href: '#',
+        icon: Database,
+        isActive: false,
+        items: [
             {
-                title: 'Inventario',
-                href: '#',
-                icon: Database,
-                isActive: false,
-                items: [
-                    {
-                        title: 'Gestión de Ítems',
-                        href: '/item',
-                        permission: 'ver items',
-                    },
-                    {
-                        title: 'Inventario de Ítems',
-                        href: '/inventario/inventario-item',
-                        permission: 'ver inventario',
-                    },
+                title: 'Gestion de items',
+                href: '/item',
+                permission: 'ver inventario telas',
+            },
+            {
+                title: 'Inventario de items',
+                href: '/inventario-item',
+                permission: 'ver inventario telas',
+            },
             {
                 title: 'Ajuste de Inventario',
                 href: '/inventario/ajuste-inventario',
-                permission: 'ver ajustes',
+                permission: 'ver inventario telas',
             },
             {
-                title: 'Gestión de Bodegas',
+                title: 'Gestion de Bodegas',
                 href: '/bodegas',
-                permission: 'ver bodegas',
+                permission: 'ver inventario telas',
             },
             {
                 title: 'Campos adicionales',
                 href: '/inventario/campos-adicionales',
-                permission: 'ver inventario',
+                permission: 'ver inventario telas',
             },
             {
-                title: 'Gestión de Categorías',
+                title: 'Gestion de Categorias',
                 href: '/categorias/subgrupos',
-                permission: 'ver categorías',
+                permission: 'ver inventario telas',
             },
         ],
     },
