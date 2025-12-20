@@ -328,7 +328,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // === CAMPOS ADICIONALES ===
-    Route::prefix('inventario/campos-adicionales')->name('inventory.additional-fields.')->group(function () {
+    Route::prefix('campos-adicionales')->name('inventory.additional-fields.')->group(function () {
         Route::get('/', [AdditionalFieldController::class, 'index'])->name('index');
         Route::get('/options', [AdditionalFieldController::class, 'options'])->name('options');
         Route::get('/data', [AdditionalFieldController::class, 'getData'])->name('data');

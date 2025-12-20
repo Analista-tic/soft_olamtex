@@ -263,7 +263,7 @@ async function fetchTaxes() {
 
 async function fetchAdditionalFields() {
     try {
-        const { data } = await axios.get('/inventario/campos-adicionales/options');
+        const { data } = await axios.get('/campos-adicionales/options');
         const payload: any[] = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : [];
         const normalizedFields: AdditionalField[] = payload
             .map((field: any) => {
@@ -323,7 +323,7 @@ function closeAdditionalFieldDialog() {
 async function handleAdditionalFieldDialogSubmit(field: AdditionalField) {
     additionalFieldDialogLoading.value = true;
     try {
-        await axios.post('/inventario/campos-adicionales', field);
+        await axios.post('/campos-adicionales', field);
         await fetchAdditionalFields();
         additionalFieldDialogOpen.value = false;
     } catch (error) {

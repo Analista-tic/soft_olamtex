@@ -101,17 +101,17 @@ const navMainGroup: NavGroupItem[] = [
             {
                 title: 'Gestion de Bodegas',
                 href: '/bodegas',
-                permission: 'ver inventario telas',
+                permission: 'ver bodegas',
             },
             {
                 title: 'Campos adicionales',
-                href: '/inventario/campos-adicionales',
+                href: '/campos-adicionales',
                 permission: 'ver inventario telas',
             },
             {
                 title: 'Gestion de Categorias',
                 href: '/categorias/subgrupos',
-                permission: 'ver inventario telas',
+                permission: 'ver categorias',
             },
         ],
     },

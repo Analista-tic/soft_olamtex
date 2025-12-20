@@ -24,9 +24,10 @@ const modules = [
         description: 'Parametrizar y Configurar Campos de Inventario.',
         options: [
             { name: 'Items', href: '/item' },
+            { name: 'Inventario de Items', href: '/inventario-item' },
             { name: 'Categorias', href: 'categorias/subgrupos' },
             { name: 'Bodegas', href: '/bodegas' },
-            { name: 'Campos adicionales', href: '/inventario/campos-adicionales' },
+            { name: 'Campos adicionales', href: '/campos-adicionales' },
         ],
     },
     {
@@ -110,4 +111,3 @@ const modules = [
         </div>
     </AppLayout>
 </template>
-

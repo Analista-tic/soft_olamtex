@@ -177,10 +177,7 @@ onMounted(() => {
                             <TableHead>Cantidad</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Costo promedio</TableHead>
-                            <TableHead class="whitespace-normal">
-                                <div>Total</div>
-                                <span class="text-xs font-normal text-muted-foreground">Cos. pro x cant</span>
-                            </TableHead>
+                            <TableHead>Total</TableHead>
                             <TableHead>Bodega</TableHead>
                         </TableRow>
                     </TableHeader>

@@ -12,10 +12,10 @@ class CreateItemsTable extends Migration
             $table->id();
             $table->foreignId('category_sub_group_id')->constrained();
             $table->string('name');
-            $table->string('reference')->nullable();
+            $table->string('reference')->nullable()->unique();
             $table->string('img')->nullable();
             $table->foreignId('tax_id')->constrained();
-            $table->string('bar_code')->nullable();
+            $table->string('bar_code')->nullable()->unique();
             $table->boolean('negative_movement')->default(false);
             $table->string('description');
             $table->json('extra_fields')->nullable();

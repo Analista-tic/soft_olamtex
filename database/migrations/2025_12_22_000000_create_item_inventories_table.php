@@ -14,6 +14,12 @@ class CreateItemInventoriesTable extends Migration
             $table->foreignId('warehouse_id')->constrained('warehouses')->cascadeOnDelete();
             $table->string('item_name');
             $table->string('reference')->nullable();
+
+            $table->foreign('reference')
+                ->references('reference')
+                ->on('items')
+                ->cascadeOnDelete();
+                
             $table->decimal('quantity', 14, 4)->default(0);
             $table->boolean('status')->default(true);
             $table->decimal('average_cost', 15, 4)->default(0);

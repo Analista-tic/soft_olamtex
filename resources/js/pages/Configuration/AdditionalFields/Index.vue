@@ -26,7 +26,7 @@ import { PlusCircle, Search } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Panel administrativo', href: '/panel-administrativo' },
-    { title: 'Campos adicionales', href: '/inventario/campos-adicionales' },
+    { title: 'Campos adicionales', href: '/campos-adicionales' },
 ];
 
 const fieldTypeLabels: Record<string, string> = {
@@ -98,8 +98,8 @@ async function handleDialogSubmit(fieldData: AdditionalField) {
     isSubmitting.value = true;
     try {
         const url = dialogType.value === 'create'
-            ? '/inventario/campos-adicionales'
-            : `/inventario/campos-adicionales/${fieldData.id}`;
+            ? '/campos-adicionales'
+            : `/campos-adicionales/${fieldData.id}`;
         const method = dialogType.value === 'create' ? 'POST' : 'PUT';
         await axios({ method, url, data: fieldData });
         successMessage.value = dialogType.value === 'create'
@@ -118,7 +118,7 @@ async function handleDialogSubmit(fieldData: AdditionalField) {
 
 async function fetchAdditionalFields(page = 1, search = '') {
     try {
-        const response = await axios.get('/inventario/campos-adicionales/data', {
+        const response = await axios.get('/campos-adicionales/data', {
             params: { page, per_page: itemsPerPage, search },
         });
         additionalFields.value = response.data.data;
@@ -144,7 +144,7 @@ function confirmDeleteField(field: AdditionalField) {
 async function deleteField() {
     if (!fieldToDelete.value || !fieldToDelete.value.id) return;
     try {
-        await axios.delete(`/inventario/campos-adicionales/${fieldToDelete.value.id}`);
+        await axios.delete(`/campos-adicionales/${fieldToDelete.value.id}`);
         successMessage.value = 'Campo adicional eliminado correctamente.';
         setError('');
         fetchAdditionalFields(currentPage.value, searchQuery.value);
@@ -238,14 +238,14 @@ async function persistFieldOrder(fields: AdditionalField[]) {
 
     isReordering.value = true;
     try {
-        await axios.post('/inventario/campos-adicionales/reorder', {
+        await axios.post('/campos-adicionales/reorder', {
             order: fields
                 .map((field) => Number(field.id))
                 .filter((id): id is number => Number.isFinite(id)),
         });
         successMessage.value = 'Orden actualizado correctamente.';
         errorMessage.value = '';
-    } catch (error) {
+    } catch {
         setError('No se pudo actualizar el orden de los campos adicionales.');
         fetchAdditionalFields(currentPage.value, searchQuery.value);
     } finally {
@@ -405,4 +405,3 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
-
