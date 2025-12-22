@@ -238,6 +238,50 @@ const actionGradientClasses: Record<string, string> = {
     deleted: 'bg-gradient-to-r from-rose-100 via-rose-50 to-rose-100 border-rose-200 text-rose-700',
 };
 
+const fieldLabelTranslations: Record<string, string> = {
+    action: 'Acción',
+    barcode: 'Código de barras',
+    category_sub_group_id: 'Subgrupo',
+    code: 'Código',
+    company_id: 'Empresa',
+    contact_id: 'Contacto',
+    description: 'Descripción',
+    default_value: 'Valor por defecto',
+    field_type: 'Tipo de campo',
+    extra_fields: 'Campos adicionales',
+    group_id: 'Grupo',
+    id: 'ID',
+    is_required: 'Requerido',
+    item_type: 'Tipo de ítem',
+    module: 'Módulo',
+    name: 'Nombre',
+    negative_movement: 'Movimiento negativo',
+    options: 'Opciones',
+    position: 'Posición',
+    reference: 'Referencia',
+    required: 'Requerido',
+    sku: 'SKU',
+    status: 'Estado',
+    tax_id: 'Impuesto',
+    unit_measure: 'Unidad de medida',
+};
+
+function humanizeFieldKey(key: string): string {
+    if (!key) return '';
+    const spaced = key
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/_/g, ' ');
+    return spaced
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join(' ');
+}
+
+function translateDiffLabel(key: string): string {
+    return fieldLabelTranslations[key] ?? humanizeFieldKey(key);
+}
+
 const defaultActionGradientClass =
     'bg-gradient-to-r from-gray-100 via-white to-gray-100 border-gray-200 text-gray-700';
 
@@ -322,14 +366,77 @@ function formatValue(value: unknown): string {
     if (value === null || value === undefined) {
         return 'nulo';
     }
-    if (typeof value === 'object') {
-        try {
-            return JSON.stringify(value);
-        } catch {
-            return String(value);
-        }
+    if (typeof value === 'boolean') {
+        return value ? 'Sí' : 'No';
     }
-    return String(value);
+    if (typeof value === 'number') {
+        return String(value);
+    }
+    if (typeof value === 'object') {
+        return formatStructured(value);
+    }
+    const text = String(value).trim();
+    if (text === '') {
+        return '-';
+    }
+    const parsed = tryParseJsonString(text);
+    if (parsed !== null) {
+        return formatStructured(parsed);
+    }
+    return text;
+}
+
+function formatStructured(value: Record<string, unknown> | unknown[]): string {
+    if (Array.isArray(value)) {
+        if (value.length === 0) {
+            return 'Vacío';
+        }
+        return value.map((item) => formatValue(item)).join(', ');
+    }
+    const entries = Object.entries(value);
+    if (entries.length === 0) {
+        return 'Vacío';
+    }
+    return entries
+        .map(([key, nested]) => `${translateDiffLabel(key)}: ${formatValue(nested)}`)
+        .join('\n');
+}
+
+function tryParseJsonString(value: string): Record<string, unknown> | unknown[] | null {
+    if (!value) {
+        return null;
+    }
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+        return null;
+    }
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (typeof parsed === 'object' && parsed !== null) {
+            return parsed as Record<string, unknown> | unknown[];
+        }
+    } catch {
+        // ignore
+    }
+    return null;
+}
+
+function summarizeChangedFields(log: AuditLog): string[] {
+    return getDiffEntries(log)
+        .map((entry) => translateDiffLabel(entry.key))
+        .filter(Boolean);
+}
+
+function formatDescriptionSummary(log: AuditLog): string {
+    const verb = actionVerbMap[log.action ?? ''] ?? 'registró';
+    const fields = summarizeChangedFields(log);
+    if (!fields.length) {
+        return `Se ${verb} un recurso.`;
+    }
+    const limit = 3;
+    const displayed = fields.slice(0, limit);
+    const extras = fields.length > limit ? ` (+${fields.length - limit})` : '';
+    return `Se ${verb} ${displayed.join(', ')}${extras}.`;
 }
 
 function getDiffEntries(log: AuditLog): DiffEntry[] {
@@ -393,7 +500,7 @@ watch(detailDialogOpen, (value) => {
                         <Input
                             id="audit-filter-user"
                             v-model="filters.user"
-                            placeholder="Nombre o correo"
+                            placeholder="Nombre del usuario"
                             class="h-10 w-full"
                         />
                     </FilterField>
@@ -447,12 +554,12 @@ watch(detailDialogOpen, (value) => {
                     <TableHeader>
                         <TableRow>
                             <TableHead class="px-4 py-2 text-left">Fecha</TableHead>
-                            <TableHead class="px-4 py-2 text-left">Usuario</TableHead>
+                            <TableHead class="px-4 py-2 text-left w-[250px]">Usuario</TableHead>
                             <TableHead class="px-4 py-2 text-left">Acción</TableHead>
                             <TableHead class="px-4 py-2 text-left">Módulo</TableHead>
                             <TableHead class="px-4 py-2 text-left">Recurso</TableHead>
                             <TableHead class="px-4 py-2 text-left">Descripción</TableHead>
-                            <TableHead class="px-4 py-2 pr-6 text-right w-[72px]"></TableHead>
+                            <TableHead class="px-4 py-2 pr-6 text-right w-[70px]"></TableHead>
                         </TableRow>
                     </TableHeader>
 
@@ -499,7 +606,7 @@ watch(detailDialogOpen, (value) => {
                             <!-- DESCRIPCIÓN -->
                             <TableCell class="px-4 py-3 text-left">
                                 <p class="text-xs text-muted-foreground">
-                                    {{ log.description ?? 'Sin descripción registrada' }}
+                                    {{ formatDescriptionSummary(log) }}
                                 </p>
                             </TableCell>
 
@@ -603,12 +710,12 @@ watch(detailDialogOpen, (value) => {
                                     :key="`${entry.key}-${entry.oldValue}-${entry.newValue}`"
                                 >
                                     <TableCell class="font-semibold text-muted-foreground">
-                                        {{ entry.key }}
+                                        {{ translateDiffLabel(entry.key) }}
                                     </TableCell>
-                                    <TableCell class="max-w-[220px] break-words text-xs text-center">
+                                    <TableCell class="max-w-[220px] break-words text-xs text-center whitespace-pre-line">
                                         {{ entry.oldValue }}
                                     </TableCell>
-                                    <TableCell class="max-w-[220px] break-words text-xs text-center">
+                                    <TableCell class="max-w-[220px] break-words text-xs text-center whitespace-pre-line">
                                         {{ entry.newValue }}
                                     </TableCell>
                                 </TableRow>
@@ -628,3 +735,4 @@ watch(detailDialogOpen, (value) => {
         </Dialog>
     </AppLayout>
 </template>
+
