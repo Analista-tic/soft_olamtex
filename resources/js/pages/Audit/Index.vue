@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
 import {
@@ -24,11 +26,13 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head, router } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Head } from '@inertiajs/vue3';
 import { computed, reactive, ref, watch } from 'vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { AuditLog, BreadcrumbItem, PaginatedData, SharedData } from '@/types';
 import { Eye } from 'lucide-vue-next';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 interface AuditPageProps extends SharedData {
     logs: PaginatedData<AuditLog>;
@@ -72,38 +76,21 @@ const actionOptionsForSelect = actionOptions.map((o) => ({ id: String(o.value ??
 const selectAction = ref<string | null>(filters.action ?? null);
 const selectModule = ref<string | null>(filters.module ?? '');
 
-watch(selectModule, (val) => {
-    filters.module = val ?? '';
-});
+const moduleFilterActive = computed(() => Boolean(selectModule.value?.trim()));
+const actionFilterActive = computed(() => Boolean(selectAction.value));
+const moduleButtonClasses = useFilterButtonClasses(moduleFilterActive);
+const actionButtonClasses = useFilterButtonClasses(actionFilterActive);
 
-watch(selectAction, (val) => {
-    if (!val || val === '') {
-        filters.action = null;
-    } else {
-        filters.action = val as any;
-    }
-});
-
-// keep selects in sync when filters are updated externally
-watch(
-    () => [filters.action, filters.module],
-    ([a, m]) => {
-        selectAction.value = a ?? null;
-        selectModule.value = m ?? '';
-    },
-    { deep: true },
-);
-
-const logs = computed(() => props.logs?.data ?? []);
-const totalItems = computed(() => props.logs?.total ?? 0);
-const itemsPerPage = computed(() => props.logs?.per_page ?? 50);
-const lastPage = computed(() => props.logs?.last_page ?? 1);
+const logs = ref<AuditLog[]>(props.logs?.data ?? []);
+const totalItems = ref(props.logs?.total ?? 0);
+const itemsPerPage = ref(props.logs?.per_page ?? 50);
+const lastPage = ref(props.logs?.last_page ?? 1);
 const currentPage = ref(props.logs?.current_page ?? 1);
 
 const moduleOptions = computed(() => {
     const set = new Set<string>();
-    for (const l of logs.value) {
-        const mod = l.module_label ?? (l.module ?? 'General');
+    for (const log of logs.value) {
+        const mod = log.module_label ?? (log.module ?? 'General');
         set.add(String(mod));
     }
     const arr = Array.from(set).map((m) => ({ id: m, name: m }));
@@ -116,72 +103,73 @@ const detailDialogOpen = ref(false);
 const detailLog = ref<AuditLog | null>(null);
 const detailDiffEntries = ref<DiffEntry[]>([]);
 
-watch(
-    () => props.filters,
-    (values) => {
-        filters.user = values.user ?? '';
-        filters.module = values.module ?? '';
-        filters.action = values.action ?? null;
-    },
-    { deep: true },
-);
-
-watch(
-    () => props.logs?.current_page,
-    (page) => {
-        currentPage.value = page ?? 1;
-    },
-);
-
-watch(
-    () => props.logs?.data,
-    () => {
-        diffCache.clear();
-    },
-);
-
-const filterParams = computed(() => {
-    const params: Record<string, string> = {};
-    if (filters.user.trim()) {
-        params.user = filters.user.trim();
+async function fetchLogs(page = 1) {
+    const params: Record<string, unknown> = {
+        page,
+        per_page: itemsPerPage.value,
+    };
+    const userFilter = filters.user.trim();
+    if (userFilter) {
+        params.user = userFilter;
     }
-    if (filters.module.trim()) {
-        params.module = filters.module.trim();
+    const moduleFilter = filters.module.trim();
+    if (moduleFilter) {
+        params.module = moduleFilter;
     }
     if (filters.action) {
         params.action = filters.action;
     }
-    return params;
+
+    try {
+        const response = await axios.get(route('auditoria.data'), { params });
+        const data = response.data ?? {};
+        logs.value = data.data ?? [];
+        totalItems.value = data.total ?? 0;
+        currentPage.value = data.current_page ?? page;
+        lastPage.value = data.last_page ?? 1;
+        itemsPerPage.value = data.per_page ?? itemsPerPage.value;
+    } catch (error) {
+        console.error('Error fetching audit logs', error);
+    }
+}
+
+watch(selectModule, (value) => {
+    const normalized = value ?? '';
+    const previous = filters.module;
+    filters.module = normalized;
+    if (normalized !== previous) {
+        fetchLogs(1);
+    }
 });
 
-function navigateTo(page = 1) {
-    router.visit(route('auditoria.index'), {
-        method: 'get',
-        data: {
-            ...filterParams.value,
-            page,
-        },
-        preserveScroll: true,
-        replace: true,
-    });
-}
+watch(selectAction, (value) => {
+    const normalized = value && value !== '' ? (value as string) : null;
+    const previous = filters.action;
+    filters.action = normalized;
+    if (normalized !== previous) {
+        fetchLogs(1);
+    }
+});
 
-function applyFilters() {
-    navigateTo(1);
-}
+watch(
+    () => filters.user,
+    (value, oldValue) => {
+        if (value === oldValue) {
+            return;
+        }
+        fetchLogs(1);
+    },
+);
 
-function resetFilters() {
-    filters.user = '';
-    filters.module = '';
-    filters.action = null;
-    navigateTo(1);
-}
+watch(logs, () => {
+    diffCache.clear();
+});
 
 function handlePageChange(page: number) {
     if (!page || page === currentPage.value) {
         return;
     }
-    navigateTo(page);
+    fetchLogs(page);
 }
 
 const dateFormatter = new Intl.DateTimeFormat('es-CO', {
@@ -359,69 +347,48 @@ watch(detailDialogOpen, (value) => {
             </div>
 
             <!-- FILTROS: UNA SOLA FILA (mismo estilo que Items) -->
-            <form
-                class="mb-2 flex flex-wrap items-end gap-4"
-                @submit.prevent="applyFilters"
-            >
-                <!-- Usuario -->
-                <div class="min-w-[220px] max-w-xs flex-1">
-                    <label
-                        for="audit-filter-user"
-                        class="mb-1 block text-xs font-semibold text-muted-foreground"
+            <div class="mb-2">
+                <FilterBar align="start" gap="gap-4" noMargin>
+                    <FilterField
+                        label="Usuario"
+                        :active="filters.user.trim().length > 0"
+                        class="min-w-[220px]"
                     >
-                        Usuario
-                    </label>
-                    <Input
-                        id="audit-filter-user"
-                        v-model="filters.user"
-                        placeholder="Nombre o correo"
-                        class="h-10 w-full"
-                    />
-                </div>
-
-                <!-- Módulo (reuse single SelectField) -->
-                <div class="min-w-[220px] max-w-xs flex-1">
-                    <label class="mb-1 block text-xs font-semibold text-muted-foreground">
-                        Módulo
-                    </label>
-                    <SelectField
-                        :options="moduleOptions"
-                        v-model="selectModule"
-                        :placeholder="'Ej. Gastos'"
-                        :searchable="true"
-                        button-class="h-10 w-full"
-                    />
-                </div>
-
-                <!-- Acción -->
-                <div class="min-w-[200px] max-w-xs flex-1">
-                    <label class="mb-1 block text-xs font-semibold text-muted-foreground">
-                        Acción
-                    </label>
-                    <SelectField
-                        :options="actionOptionsForSelect"
-                        v-model="selectAction"
-                        :placeholder="'Filtrar por acción'"
-                        :searchable="false"
-                        button-class="h-10 w-full"
-                    />
-                </div>
-
-                <!-- Botones -->
-                <div class="flex items-end gap-2">
-                    <Button type="submit" class="h-10 px-4">
-                        Filtrar
-                    </Button>
-                    <Button
-                        class="h-10 px-4"
-                        variant="outline"
-                        type="button"
-                        @click="resetFilters"
+                        <Input
+                            id="audit-filter-user"
+                            v-model="filters.user"
+                            placeholder="Nombre o correo"
+                            class="h-10 w-full"
+                        />
+                    </FilterField>
+                    <FilterField
+                        label="Módulo"
+                        :active="selectModule?.trim().length > 0"
+                        class="min-w-[220px]"
                     >
-                        Limpiar
-                    </Button>
-                </div>
-            </form>
+                        <SelectField
+                            :options="moduleOptions"
+                            v-model="selectModule"
+                            :placeholder="'Ej. Gastos'"
+                            :searchable="true"
+                            :button-class="moduleButtonClasses"
+                        />
+                    </FilterField>
+                    <FilterField
+                        label="Acción"
+                        :active="Boolean(selectAction)"
+                        class="min-w-[200px]"
+                    >
+                        <SelectField
+                            :options="actionOptionsForSelect"
+                            v-model="selectAction"
+                            :placeholder="'Filtrar por acción'"
+                            :searchable="false"
+                            :button-class="actionButtonClasses"
+                        />
+                    </FilterField>
+                </FilterBar>
+            </div>
 
             <!-- TARJETA / TABLA: mismo “card” que en Gestión de Ítems -->
             <div
@@ -613,4 +580,3 @@ watch(detailDialogOpen, (value) => {
         </Dialog>
     </AppLayout>
 </template>
-

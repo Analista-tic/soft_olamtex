@@ -20,10 +20,13 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios, { type AxiosError } from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import SelectField from '@/components/SelectField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Panel administrativo', href: '/panel-administrativo' },
@@ -45,13 +48,18 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
-const selectedContactType = ref<string | null>(null);
+const selectedContactType = ref<string>('');
 
 const contactTypeOptions = [
+    { id: '', name: 'Todos los tipos' },
     { id: 'Proveedor', name: 'Proveedor' },
     { id: 'Cliente', name: 'Cliente' },
     { id: 'Cliente y Proveedor', name: 'Cliente y Proveedor' },
 ];
+
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isContactTypeFilterActive = computed(() => selectedContactType.value !== '');
+const contactTypeButtonClasses = useFilterButtonClasses(isContactTypeFilterActive);
 
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -123,7 +131,7 @@ async function deleteContact(): Promise<void> {
     if (!contactToDelete.value) return;
     try {
         await axios.delete(`/contactos/${contactToDelete.value.id}`);
-        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value);
+        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value || null);
         isDeleteDialogOpen.value = false;
         successMessage.value = 'El contacto se eliminó correctamente.';
         setError('', 'error');
@@ -161,7 +169,7 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
 
     try {
         await axios({ method, url, data: contactData });
-        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value);
+        await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value || null);
         closeDialog();
         successMessage.value =
             dialogType.value === 'create'
@@ -205,15 +213,12 @@ async function fetchContacts(
 
 function handlePageChange(newPage: number): void {
     currentPage.value = newPage;
-    fetchContacts(newPage, searchQuery.value, selectedContactType.value);
+    fetchContacts(newPage, searchQuery.value, selectedContactType.value || null);
 }
 
-watch(
-    [searchQuery, selectedContactType],
-    ([newQuery, newType]: [string, string | null]) => {
-        fetchContacts(1, newQuery, newType);
-    },
-);
+watch([searchQuery, selectedContactType], ([newQuery, newType]: [string, string]) => {
+    fetchContacts(1, newQuery, newType || null);
+});
 
 onMounted(() => {
     fetchContacts();
@@ -236,35 +241,47 @@ onMounted(() => {
                 />
             </div>
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Contactos</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Gestión de Contactos</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Administra contactos de proveedores y clientes, controla su información de contacto
+                        y el tipo asignado.
+                    </p>
+                </div>
                 <Button @click="openDialog('create')" variant="default" size="sm">
                     <PlusCircle class="w-4 h-4" /> Nuevo Contacto
                 </Button>
             </div>
 
             <!-- Filtros -->
-            <div class="relative flex items-end gap-4 flex-wrap">
-                <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input
-                        id="search_contact"
-                        v-model="searchQuery"
-                        placeholder="Buscar por nombre o email"
-                        class="h-10 w-full pl-10"
-                    />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-                <div class="relative max-w-xs flex-1 min-w-[220px]">
+            <FilterBar align="start">
+                <FilterField
+                    label="Buscar contacto"
+                    :active="isSearchActive"
+                    class="flex-1 min-w-[220px] p-0"
+                >
+                    <div class="relative w-full">
+                        <Input
+                            id="search_contact"
+                            v-model="searchQuery"
+                            placeholder="Buscar por nombre o email"
+                            class="h-10 w-full pl-10"
+                        />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Tipo de contacto" :active="isContactTypeFilterActive" class="min-w-[200px]">
                     <SelectField
                         v-model="selectedContactType"
+                        label=""
                         :options="contactTypeOptions"
-                        label="Tipo de contacto"
                         placeholder="Todos los tipos"
-                        :required="false"
+                        :button-class="contactTypeButtonClasses"
                     />
-                </div>
-            </div>
+                </FilterField>
+            </FilterBar>
 
             <!-- Tabla -->
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -350,4 +367,3 @@ onMounted(() => {
         @confirm="deleteContact"
     />
 </template>
-

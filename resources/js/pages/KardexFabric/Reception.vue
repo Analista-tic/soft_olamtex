@@ -15,6 +15,9 @@ import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
 import FabricRollDialog from './FabricRollDialog.vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 interface PageProps extends InertiaPageProps {
     invoiceId?: string | number;
@@ -90,9 +93,12 @@ function clearAlert() {
     showAlert.value = false;
 }
 
-const statusFilter = ref('pending');
-const providerFilter = ref('all');
-const subgroupFilter = ref('all');
+const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_PROVIDER_FILTER = 'all';
+const DEFAULT_SUBGROUP_FILTER = 'all';
+const statusFilter = ref(DEFAULT_STATUS_FILTER);
+const providerFilter = ref(DEFAULT_PROVIDER_FILTER);
+const subgroupFilter = ref(DEFAULT_SUBGROUP_FILTER);
 const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
@@ -112,6 +118,13 @@ const showInvoicesList = computed(() => {
 const showInvoiceDetail = computed(() => {
     return selectedInvoice.value !== null;
 });
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
+const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
+const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
 
 async function fetchProviders() {
     try {
@@ -436,46 +449,51 @@ function onFabricRollSuccess() {
                 </div>
 
                 <!-- Filtros -->
-                <div class="flex items-end gap-4 mb-2 flex-wrap">
-                    <div class="relative max-w-xs flex-1 min-w-[220px]">
-                        <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
-                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                            <Search :size="20" class="text-muted-foreground" />
-                        </span>
-                    </div>
-                    <div class="min-w-[180px]">
+                <FilterBar align="start" gap="gap-4">
+                    <FilterField label="Buscar factura" :active="isSearchActive" class="flex-1 min-w-[220px] p-0">
+                        <div class="relative">
+                            <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
+                            <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                                <Search :size="20" class="text-muted-foreground" />
+                            </span>
+                        </div>
+                    </FilterField>
+                    <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="statusFilter"
-                            label="Estado"
+                            label=""
                             :options="[
                                 { id: 'all', name: 'Todos los estados' },
                                 { id: 'pending', name: 'Pendiente' },
                                 { id: 'approved', name: 'Aprobado' },
                                 { id: 'rejected', name: 'Rechazado' }
                             ]"
+                            :button-class="statusButtonClasses"
                         />
-                    </div>
-                    <div class="min-w-[180px]">
+                    </FilterField>
+                    <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="providerFilter"
-                            label="Proveedor"
+                            label=""
                             :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map(prov => ({ id: String(prov.id), name: prov.full_name }))]"
+                            :button-class="providerButtonClasses"
                         />
-                    </div>
-                    <div class="min-w-[180px]">
+                    </FilterField>
+                    <FilterField label="Subgrupo" :active="isSubgroupFilterActive" class="min-w-[180px]">
                         <SelectField
                             v-model="subgroupFilter"
-                            label="Subgrupo"
+                            label=""
                             :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map(sub => ({ id: String(sub.id), name: sub.name }))]"
+                            :button-class="subgroupButtonClasses"
                         />
-                    </div>
-                    <div class="min-w-[140px]">
-                        <InputDate v-model="dateFrom" label="Desde" />
-                    </div>
-                    <div class="min-w-[140px]">
-                        <InputDate v-model="dateTo" label="Hasta" />
-                    </div>
-                </div>
+                    </FilterField>
+                    <FilterField label="Desde" :active="Boolean(dateFrom.value)" class="min-w-[140px]">
+                        <InputDate v-model="dateFrom" label="" placeholder="Desde" />
+                    </FilterField>
+                    <FilterField label="Hasta" :active="Boolean(dateTo.value)" class="min-w-[140px]">
+                        <InputDate v-model="dateTo" label="" placeholder="Hasta" />
+                    </FilterField>
+                </FilterBar>
                 
                 <!-- Tabla de facturas -->
                 <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">

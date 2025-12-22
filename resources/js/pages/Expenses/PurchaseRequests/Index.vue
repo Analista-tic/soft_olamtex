@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -21,6 +23,7 @@ import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import { useAlertMessages } from '@/composables/useAlertMessages';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos' },
@@ -51,6 +54,18 @@ const providerFilter = ref('all');
 const dateFrom = ref('');
 const dateTo = ref('');
 const isLoading = ref(false);
+
+const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_PROVIDER_FILTER = 'all';
+
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
+const isDateFromActive = computed(() => Boolean(dateFrom.value));
+const isDateToActive = computed(() => Boolean(dateTo.value));
+
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 
 const {
     successMessage,
@@ -271,31 +286,40 @@ onMounted(() => {
                 </Button>
             </div>
 
-            <div class="flex flex-wrap items-end gap-4">
-                <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input v-model="searchQuery" placeholder="Buscar solicitud" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2 pointer-events-none">
-                        <Search class="h-4 w-4 text-muted-foreground" />
-                    </span>
-                </div>
-                <div class="min-w-[180px]">
-                    <SelectField v-model="statusFilter" :options="statusOptions" label="Estado" placeholder="Selecciona un estado" />
-                </div>
-                <div class="min-w-[180px]">
+            <FilterBar align="start">
+                <FilterField label="Buscar solicitud" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                    <div class="relative">
+                        <Input v-model="searchQuery" placeholder="Buscar solicitud" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2 pointer-events-none">
+                            <Search class="h-4 w-4 text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
+                    <SelectField
+                        v-model="statusFilter"
+                        label=""
+                        :options="statusOptions"
+                        placeholder="Selecciona un estado"
+                        :button-class="statusButtonClasses"
+                    />
+                </FilterField>
+                <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="providerFilter"
                         :options="providerOptions"
-                        label="Proveedor"
+                        label=""
                         placeholder="Escribe un proveedor"
+                        :button-class="providerButtonClasses"
                     />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" label="Desde" placeholder="Desde" />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateTo" label="Hasta" placeholder="Hasta" />
-                </div>
-            </div>
+                </FilterField>
+                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFrom" placeholder="Desde" />
+                </FilterField>
+                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
+                    <InputDate v-model="dateTo" placeholder="Hasta" />
+                </FilterField>
+            </FilterBar>
 
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70">
                 <Table class="text-center">
@@ -368,4 +392,3 @@ onMounted(() => {
         </div>
     </AppLayout>
 </template>
-

@@ -114,11 +114,11 @@ onMounted(fetchRoles);
 </script>
 
 <template>
-    <Head title="Gesti髇 de Usuarios" />
+    <Head title="Gesti贸n de Roles" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gesti髇 de Roles</h1>
+                <h1 class="text-lg font-bold">Gesti贸n de Roles</h1>
                 <Button v-if="canCreate" @click="openFormDialog()" variant="default" size="sm">
                     <PlusCircle class="h-4 w-4" /> Crear Nuevo Rol
                 </Button>
@@ -184,8 +184,8 @@ onMounted(fetchRoles);
 
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminaci髇"
-        description="縀st醩 seguro de que deseas eliminar este usuario? Esta acci髇 no se puede deshacer."
+        title="Confirmar eliminaci贸n"
+        description="驴Est谩s seguro de que deseas eliminar este usuario? Esta acci贸n no se puede deshacer."
         confirm-text="Eliminar"
         cancel-text="Cancelar"
         :destructive="true"

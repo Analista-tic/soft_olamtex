@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,8 @@ import {
 import InventoryAdjustmentForm from './InventoryAdjustmentForm.vue';
 import InventoryAdjustmentPrintDialog from './InventoryAdjustmentPrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import {
   Pagination,
   PaginationEllipsis,
@@ -31,6 +33,7 @@ import {
   PaginationNext,
   PaginationPrev,
 } from '@/components/ui/pagination';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 type InventoryAdjustment = {
   id: number;
@@ -64,6 +67,10 @@ const isSendingMail = ref(false);
 const isConverting = ref<number | null>(null);
 const isPrintDialogOpen = ref(false);
 const adjustmentToPrint = ref<InventoryAdjustment | null>(null);
+const DEFAULT_TYPE_FILTER = 'all';
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_TYPE_FILTER);
+const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
 
 const adjustmentTypeLabelMap: Record<string, 'Entrada' | 'Salida'> = {
   entrada: 'Entrada',
@@ -241,31 +248,34 @@ onMounted(() => {
         </Button>
       </div>
 
-      <div class="flex items-end gap-4 mb-2 flex-wrap">
-        <div class="relative max-w-xs flex-1 min-w-[220px]">
-          <Input
-            id="search_adjustment"
-            v-model="searchQuery"
-            placeholder="Buscar por número de documento u observación"
-            class="h-10 w-full pl-10"
-            @keyup.enter="handleSearch"
-          />
-          <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-            <Search class="h-5 w-5 text-muted-foreground" />
-          </span>
-        </div>
-        <div class="min-w-[180px]">
+      <FilterBar align="start">
+        <FilterField label="Buscar ajuste" :active="isSearchActive" class="flex-1 min-w-[220px]">
+          <div class="relative">
+            <Input
+              id="search_adjustment"
+              v-model="searchQuery"
+              placeholder="Buscar por número de documento u observación"
+              class="h-10 w-full pl-10"
+              @keyup.enter="handleSearch"
+            />
+            <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+              <Search class="h-5 w-5 text-muted-foreground" />
+            </span>
+          </div>
+        </FilterField>
+        <FilterField label="Tipo" :active="isTypeFilterActive" class="min-w-[180px]">
           <SelectField
             v-model="typeFilter"
-            label="Tipo"
+            label=""
             :options="[
               { id: 'all', name: 'Todos los tipos' },
               { id: 'entrada', name: 'Entrada' },
               { id: 'salida', name: 'Salida' },
             ]"
+            :button-class="typeButtonClasses"
           />
-        </div>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       <div
         class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min"

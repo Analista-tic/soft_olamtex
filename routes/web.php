@@ -163,7 +163,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('auditoria', [AuditLogController::class, 'index'])
             ->name('auditoria.index')
-            ->middleware('permission:ver auditoria'); // si usáis permisos
+            ->middleware('permission:ver auditoria');
+        Route::get('auditoria/data', [AuditLogController::class, 'data'])
+            ->name('auditoria.data')
+            ->middleware('permission:ver auditoria');
     });
 
     // === CATEGORIAS ===

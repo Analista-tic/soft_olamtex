@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
-import EditButton from '@/components/common/EditButton.vue'; // Importar el botón de editar
-import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
+import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botï¿½n de eliminar
+import EditButton from '@/components/common/EditButton.vue'; // Importar el botï¿½n de editar
+import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botï¿½n de visualizar
 import {
     AlertDialog,
     AlertDialogAction,
@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import Badge from '@/components/ui/badge/Badge.vue';
 import { Button } from '@/components/ui/button';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -33,13 +35,14 @@ import { OptionParams, ProductSheet, type BreadcrumbItem, type SharedData } from
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
 import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Diseño',
+        title: 'Diseï¿½o',
         href: '/diseno/sabana-productos',
     },
     {
@@ -66,14 +69,19 @@ interface StatusOption {
 const props = defineProps<ProductSheetPageProps>();
 const products_sheet = ref<ProductSheet[]>([]);
 const productSheetToDelete = ref<ProductSheet | null>(null);
-const isEditDialogOpen = ref(false); // Estado para el diálogo de edición/creación
-const isDeleteDialogOpen = ref(false); // Estado para el diálogo de confirmación de eliminación
+const isEditDialogOpen = ref(false); // Estado para el diï¿½logo de ediciï¿½n/creaciï¿½n
+const isDeleteDialogOpen = ref(false); // Estado para el diï¿½logo de confirmaciï¿½n de eliminaciï¿½n
 const editProductSheetData = ref<ProductSheet | undefined>(undefined); // Cambiar null por undefined
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
 const statusFilter = ref<string | null>(null); // Cambiar a string | null para mayor claridad
+const statusFilterActive = computed(() => statusFilter.value !== null);
+const statusTriggerClasses = useFilterButtonClasses(statusFilterActive, {
+    baseClasses:
+        'h-8 w-full rounded-md border px-3 text-sm flex items-center justify-between transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
+});
 
 const statusOptions: StatusOption[] = [
     { id: 0, label: 'Todos', value: null },
@@ -112,7 +120,7 @@ function clearAlert() {
 
 async function loadPermissions() {
     try {
-        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estén cargados
+        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estï¿½n cargados
         canView.value = authStore.can('ver sabana productos');
         canCreate.value = authStore.can('crear sabana productos');
         canEdit.value = authStore.can('editar sabana productos');
@@ -144,7 +152,7 @@ async function deleteProductSheet() {
     }
 }
 
-// Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
+// Modificar la funciï¿½n fetchProductSheets para aceptar un parï¿½metro de bï¿½squeda y filtro de estado
 async function fetchProductSheets(page = 1, search = '', status: string | null = null) {
     try {
         const response = await axios.get('/diseno/product-sheets', {
@@ -160,7 +168,7 @@ async function fetchProductSheets(page = 1, search = '', status: string | null =
             products_sheet.value = response.data.products_sheets.data;
             totalItems.value = response.data.products_sheets.total;
         } else {
-            console.error('Error al obtener los product sheets: Respuesta inválida');
+            console.error('Error al obtener los product sheets: Respuesta invï¿½lida');
         }
     } catch (error) {
         console.error('Error al obtener los product sheets:', error);
@@ -182,8 +190,8 @@ function viewProductSheet(product: ProductSheet) {
 }
 
 function openCreateDialog() {
-    editProductSheetData.value = undefined; // Asegurarse de que no haya datos de edición
-    isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diálogo
+    editProductSheetData.value = undefined; // Asegurarse de que no haya datos de ediciï¿½n
+    isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diï¿½logo
 }
 
 onMounted(async () => {
@@ -203,7 +211,7 @@ onMounted(async () => {
                 >
                     <AlertBox
                         :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'ï¿½xito' : alertType === 'info' ? 'Informaciï¿½n' : 'Error'"
                         :message="alertMessage"
                         class="pointer-events-auto"
                         @close="clearAlert"
@@ -216,28 +224,41 @@ onMounted(async () => {
                     <PlusCircle class="h-4 w-4" /> Nuevo Producto
                 </Button>
             </div>
-            <div class="relative flex items-center gap-4">
-                <div class="relative w-full max-w-sm">
-                    <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-                <div class="flex w-full max-w-xs items-center">
-                    <Select v-model="statusFilter">
-                        <SelectTrigger class="h-8 w-full">
-                            <SelectValue placeholder="Filtrar por estado" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem v-for="option in statusOptions" :key="option.id" :value="option.value">
-                                    {{ option.label }}
-                                </SelectItem>
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
+            <FilterBar align="start" gap="gap-4">
+                <FilterField
+                    label="Referencia"
+                    :active="searchQuery.trim().length > 0"
+                    class="flex-1 min-w-[220px] p-0"
+                >
+                    <div class="relative w-full max-w-sm">
+                        <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField
+                    label="Estado"
+                    :active="statusFilter !== null"
+                    class="min-w-[200px]"
+                >
+                    <div class="flex w-full max-w-xs items-center">
+                        <Select v-model="statusFilter">
+                        <SelectTrigger :class="statusTriggerClasses">
+                                <SelectValue placeholder="Filtrar por estado" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem v-for="option in statusOptions" :key="option.id" :value="option.value">
+                                        {{ option.label }}
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </FilterField>
+            </FilterBar>
+
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                     <TableHeader>
@@ -343,9 +364,9 @@ onMounted(async () => {
     <AlertDialog v-model:open="isDeleteDialogOpen" @close="isDeleteDialogOpen = false">
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
+                <AlertDialogTitle>Confirmar eliminaciï¿½n</AlertDialogTitle>
                 <AlertDialogDescription>
-                    ¿Estás seguro de que deseas eliminar este product sheet? Esta acción no se puede deshacer.
+                    ï¿½Estï¿½s seguro de que deseas eliminar este product sheet? Esta acciï¿½n no se puede deshacer.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -355,5 +376,3 @@ onMounted(async () => {
         </AlertDialogContent>
     </AlertDialog>
 </template>
-
-

@@ -9,6 +9,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
 import {
@@ -26,17 +28,18 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { OptionParams, ProductSheet, Programmer, type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
 import { Search } from 'lucide-vue-next';
 import EditProgrammerDialog from './Edit.vue';
 import CreateProgrammerDialog from './Create.vue';
 import Badge from '@/components/ui/badge/Badge.vue';
-import EditButton from '@/components/common/EditButton.vue'; // Importar el botón de editar
-import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
-import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
+import EditButton from '@/components/common/EditButton.vue'; // Importar el botï¿½n de editar
+import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botï¿½n de eliminar
+import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botï¿½n de visualizar
 import Button from '@/components/ui/button/Button.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const authStore = useAuthStore();
 
@@ -47,7 +50,7 @@ const canDelete = ref(false);
 
 async function loadPermissions() {
     try {
-        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estén cargados
+        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estï¿½n cargados
         canView.value = authStore.can('ver programador');
         canCreate.value = authStore.can('crear programador');
         canEdit.value = authStore.can('editar programador');
@@ -59,7 +62,7 @@ async function loadPermissions() {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Diseño',
+        title: 'DiseÃ±o',
         href: '/comercial/programador',
     },
     {
@@ -110,12 +113,22 @@ const itemsPerPage = ref(10);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const filters = ref({
-    season: '',
-    priority: '',
-    status: '',
-    destination_id: '',
-    yarn_base_id: '', // Nuevo filtro para yarn bases
+    season: 'all',
+    priority: 'all',
+    status: 'all',
+    destination_id: 'all',
+    yarn_base_id: 'all', // Nuevo filtro para yarn bases
 });
+const DEFAULT_SELECT_VALUE = 'all';
+const seasonIsActive = computed(() => Boolean(filters.value.season) && filters.value.season !== DEFAULT_SELECT_VALUE);
+const priorityIsActive = computed(() => Boolean(filters.value.priority) && filters.value.priority !== DEFAULT_SELECT_VALUE);
+const statusIsActive = computed(() => Boolean(filters.value.status) && filters.value.status !== DEFAULT_SELECT_VALUE);
+const destinationIsActive = computed(() => Boolean(filters.value.destination_id) && filters.value.destination_id !== DEFAULT_SELECT_VALUE);
+
+const seasonButtonClasses = useFilterButtonClasses(seasonIsActive);
+const priorityButtonClasses = useFilterButtonClasses(priorityIsActive);
+const statusButtonClasses = useFilterButtonClasses(statusIsActive);
+const destinationButtonClasses = useFilterButtonClasses(destinationIsActive);
 
 function confirmDeleteProgrammer(programmer: Programmer) {
     programmerToDelete.value = programmer;
@@ -157,17 +170,17 @@ async function fetchProgrammers(page = 1) {
             totalItems.value = response.data.total;
             currentPage.value = response.data.current_page;
         } else {
-            console.error('Error al obtener los programadores: Respuesta inválida');
+            console.error('Error al obtener los programadores: Respuesta invï¿½lida');
         }
     } catch (error) {
         console.error('Error al obtener los programadores:', error);
     }
 }
 
-// Reactivar la búsqueda cuando cambien los filtros o el término de búsqueda
+// Reactivar la bï¿½squeda cuando cambien los filtros o el tï¿½rmino de bï¿½squeda
 watch([searchQuery, filters], () => {
-    fetchProgrammers(1); // Reactivar la búsqueda cuando cambien los filtros o el término de búsqueda
-}, { deep: true }); // Asegúrate de observar cambios profundos en los filtros
+    fetchProgrammers(1); // Reactivar la bï¿½squeda cuando cambien los filtros o el tï¿½rmino de bï¿½squeda
+}, { deep: true }); // Asegï¿½rate de observar cambios profundos en los filtros
 
 function openEditDialog(programmer: Programmer) {
     editProgrammerDialogRef.value?.openDialog(programmer);
@@ -190,7 +203,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <Head title="Comercial/Diseño" />
+    <Head title="Comercial/DiseÃ±o" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <transition name="fade">
@@ -200,7 +213,7 @@ onMounted(async () => {
                 >
                     <AlertBox
                         :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'ï¿½xito' : alertType === 'info' ? 'Informaciï¿½n' : 'Error'"
                         :message="alertMessage"
                         class="pointer-events-auto"
                         @close="clearAlert"
@@ -208,85 +221,122 @@ onMounted(async () => {
                 </div>
             </transition>
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Lista Programador</h1>
-                <CreateProgrammerDialog 
-                    v-if="canCreate"
-                    :sections="props.sections"
-                    :groups="props.groups"
-                    :brands="props.brands"
-                    :worlds="props.worlds"
-                    :fabricBases="props.fabricBases"
-                    :yarnBases="props.yarnBases"
-                    :productSheets="props.productSheets" 
-                    :destinations="props.destinations" 
-                    @programmerCreated="fetchProgrammers" 
-                />
-                <EditProgrammerDialog
-                    ref="editProgrammerDialogRef"
-                    :productSheets="props.productSheets"
-                    :destinations="props.destinations"
-                    @programmerUpdated="fetchProgrammers"
-                />
-            </div>
-            <div class="relative flex items-center gap-4">
-                <div class="relative w-full max-w-sm">
-                    <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Lista Programador</h1>
+                    <p class="text-sm text-muted-foreground">Gestiona programadores, referencias y su estado de diseÃ±o.</p>
                 </div>
-                <SelectField 
-                    v-model="filters.season" 
-                    label="" 
-                    placeholder="Filtrar Temporada"
-                    :options="[ 
-                        { id: 'all', name: 'TODOS' },
-                        { id: 'ENERO', name: 'ENERO' },
-                        { id: 'FEBRERO', name: 'FEBRERO' },
-                        { id: 'MARZO', name: 'MARZO' },
-                        { id: 'ABRIL', name: 'ABRIL' },
-                        { id: 'MAYO', name: 'MAYO' },
-                        { id: 'JUNIO', name: 'JUNIO' },
-                        { id: 'JULIO', name: 'JULIO' },
-                        { id: 'AGOSTO', name: 'AGOSTO' },
-                        { id: 'SEPTIEMBRE', name: 'SEPTIEMBRE' },
-                        { id: 'OCTUBRE', name: 'OCTUBRE' },
-                        { id: 'NOVIEMBRE', name: 'NOVIEMBRE' },
-                        { id: 'DICIEMBRE', name: 'DICIEMBRE' }
-                    ]"
-                />
-                <SelectField 
-                    v-model="filters.priority" 
-                    label="" 
-                    placeholder="Filtrar Prioridad"
-                    :options="[ 
-                        { id: 'all', name: 'TODOS' },
-                        { id: 'A', name: 'A' },
-                        { id: 'B', name: 'B' },
-                        { id: 'C', name: 'C' },
-                        { id: 'D', name: 'D' }
-                    ]"
-                />
-                <SelectField 
-                    v-model="filters.status" 
-                    label="" 
-                    placeholder="Filtrar Estado"
-                    :options="[ 
-                        { id: 'all', name: 'TODOS' },
-                        { id: 'Completo', name: 'Completo' },
-                        { id: 'Incompleto', name: 'Incompleto' }
-                    ]"
-                />
-                <SelectField 
-                    v-model="filters.destination_id" 
-                    label="" 
-                    placeholder="Filtrar Destino"
-                    :options="[ 
-                        { id: 'all', name: 'TODOS' },
-                        ...props.destinations.map(d => ({ id: d.id, name: d.name }))
-                    ]"
-                />
+                <div class="flex items-center gap-2">
+                    <CreateProgrammerDialog 
+                        v-if="canCreate"
+                        :sections="props.sections"
+                        :groups="props.groups"
+                        :brands="props.brands"
+                        :worlds="props.worlds"
+                        :fabricBases="props.fabricBases"
+                        :yarnBases="props.yarnBases"
+                        :productSheets="props.productSheets" 
+                        :destinations="props.destinations" 
+                        @programmerCreated="fetchProgrammers" 
+                    />
+                    <EditProgrammerDialog
+                        ref="editProgrammerDialogRef"
+                        :productSheets="props.productSheets"
+                        :destinations="props.destinations"
+                        @programmerUpdated="fetchProgrammers"
+                    />
+                </div>
             </div>
+            <FilterBar align="start" gap="gap-4">
+                <FilterField
+                    label="Buscar referencia"
+                    :active="searchQuery.trim().length > 0"
+                    class="flex-1 min-w-[220px] p-0"
+                >
+                    <div class="relative w-full max-w-sm">
+                        <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField
+                    label="Temporada"
+                    :active="seasonIsActive"
+                    class="min-w-[180px]"
+                >
+                    <SelectField
+                        v-model="filters.season"
+                        placeholder="Filtrar Temporada"
+                        :options="[
+                            { id: 'all', name: 'Todos' },
+                            { id: 'ENERO', name: 'ENERO' },
+                            { id: 'FEBRERO', name: 'FEBRERO' },
+                            { id: 'MARZO', name: 'MARZO' },
+                            { id: 'ABRIL', name: 'ABRIL' },
+                            { id: 'MAYO', name: 'MAYO' },
+                            { id: 'JUNIO', name: 'JUNIO' },
+                            { id: 'JULIO', name: 'JULIO' },
+                            { id: 'AGOSTO', name: 'AGOSTO' },
+                            { id: 'SEPTIEMBRE', name: 'SEPTIEMBRE' },
+                            { id: 'OCTUBRE', name: 'OCTUBRE' },
+                            { id: 'NOVIEMBRE', name: 'NOVIEMBRE' },
+                            { id: 'DICIEMBRE', name: 'DICIEMBRE' }
+                        ]"
+                        :button-class="seasonButtonClasses"
+                    />
+                </FilterField>
+                <FilterField
+                    label="Prioridad"
+                    :active="priorityIsActive"
+                    class="min-w-[160px]"
+                >
+                    <SelectField
+                        v-model="filters.priority"
+                        placeholder="Filtrar Prioridad"
+                        :options="[
+                            { id: 'all', name: 'Todos' },
+                            { id: 'A', name: 'A' },
+                            { id: 'B', name: 'B' },
+                            { id: 'C', name: 'C' },
+                            { id: 'D', name: 'D' }
+                        ]"
+                        :button-class="priorityButtonClasses"
+                    />
+                </FilterField>
+                <FilterField
+                    label="Estado"
+                    :active="statusIsActive"
+                    class="min-w-[160px]"
+                >
+                    <SelectField
+                        v-model="filters.status"
+                        placeholder="Filtrar Estado"
+                        :options="[
+                            { id: 'all', name: 'Todos' },
+                            { id: 'Completo', name: 'Completo' },
+                            { id: 'Incompleto', name: 'Incompleto' }
+                        ]"
+                        :button-class="statusButtonClasses"
+                    />
+                </FilterField>
+                <FilterField
+                    label="Destino"
+                    :active="destinationIsActive"
+                    class="min-w-[200px]"
+                >
+                    <SelectField
+                        v-model="filters.destination_id"
+                        placeholder="Filtrar Destino"
+                        :options="[
+                            { id: 'all', name: 'Todos' },
+                            ...props.destinations.map(d => ({ id: d.id, name: d.name }))
+                        ]"
+                        :button-class="destinationButtonClasses"
+                    />
+                </FilterField>
+            </FilterBar>
+
+
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                     <TableHeader>
@@ -371,10 +421,10 @@ onMounted(async () => {
     <AlertDialog v-model:open="isDialogOpen">
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
+                <AlertDialogTitle>Confirmar eliminaciï¿½n</AlertDialogTitle>
             </AlertDialogHeader>
             <AlertDialogDescription>
-                ¿Estás seguro de que deseas eliminar este programador? Esta acción no se puede deshacer.
+                ï¿½Estï¿½s seguro de que deseas eliminar este programador? Esta acciï¿½n no se puede deshacer.
             </AlertDialogDescription>
             <AlertDialogFooter>
                 <AlertDialogCancel @click="isDialogOpen = false">Cancelar</AlertDialogCancel>
@@ -383,5 +433,7 @@ onMounted(async () => {
         </AlertDialogContent>
     </AlertDialog>
 </template>
+
+
 
 
