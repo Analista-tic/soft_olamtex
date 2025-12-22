@@ -20,6 +20,7 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import FormHeader from '@/components/FormHeader.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { unitMeasures } from '@/data/unitMeasures';
 
 // Props y eventos
 const props = defineProps<{
@@ -121,23 +122,7 @@ const currentGroup = computed(() => {
 });
 
 const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
-// Unidades de medida
-const unitMeasures = [
-    { id: 'cm', name: 'Centímetro (cm)' },
-    { id: 'mm', name: 'Milímetro (mm)' },
-    { id: 'm', name: 'Metro (m)' },
-    { id: 'in', name: 'Pulgada (in)' },
-    { id: 'ft', name: 'Pie (ft)' },
-    { id: 'yd', name: 'Yarda (yd)' },
-    { id: 'kg', name: 'Kilogramo (kg)' },
-    { id: 'g', name: 'Gramo (g)' },
-    { id: 'lb', name: 'Libra (lb)' },
-    { id: 'oz', name: 'Onza (oz)' },
-    { id: 'l', name: 'Litro (l)' },
-    { id: 'ml', name: 'Mililitro (ml)' },
-    { id: 'unidad', name: 'Unidad' },
-    { id: 'servicio', name: 'Servicio' }
-];
+// Lista de unidades importada desde resources/js/data/unitMeasures.js
 const serviceUnitId = 'servicio';
 const defaultProductUnitValue = unitMeasures[0]?.id ?? 'unidad';
 const getInitialUnitMeasure = (form: Partial<Item>): string =>

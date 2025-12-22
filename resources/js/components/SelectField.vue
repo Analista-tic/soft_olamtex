@@ -86,6 +86,22 @@ const filteredOptions = computed(() => {
     );
 });
 
+const groupedOptions = computed(() => {
+    const groups: Array<{ label: string; options: Option[] }> = [];
+    const map = new Map<string, number>();
+    filteredOptions.value.forEach((option) => {
+        const label = option.groupLabel ?? '';
+        let index = map.get(label);
+        if (index === undefined) {
+            index = groups.length;
+            map.set(label, index);
+            groups.push({ label, options: [] });
+        }
+        groups[index].options.push(option);
+    });
+    return groups;
+});
+
 const comboboxValue = computed<Option | Option[] | null>(() => {
     if (props.multiple) {
         if (!Array.isArray(localModelValue.value)) {
@@ -220,33 +236,44 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                         >
                             {{ placeholderText }}
                         </ComboboxOption>
-                        <template v-if="filteredOptions.length">
-                            <ComboboxOption
-                                v-for="option in filteredOptions"
-                                :key="option.id"
-                                :value="option"
+                        <template v-if="groupedOptions.length">
+                            <template
+                                v-for="(group, groupIndex) in groupedOptions"
+                                :key="group.label || groupIndex"
                             >
-                                <template #default="{ active }">
-                                    <div
-                                        :class="[
-                                            'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors'
-                                        ]"
-                                    >
-                                        <span>
-                                            {{ option.name }}
-                                        </span>
-                                        <span
-                                            v-if="isOptionSelected(option)"
+                                <div
+                                    v-if="group.label"
+                                    class="rounded-t-md bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70"
+                                >
+                                    {{ group.label }}
+                                </div>
+                                <ComboboxOption
+                                    v-for="option in group.options"
+                                    :key="option.id"
+                                    :value="option"
+                                >
+                                    <template #default="{ active }">
+                                        <div
                                             :class="[
-                                                'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
-                                                active ? 'text-white' : 'text-blue-600'
+                                                'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors'
                                             ]"
                                         >
-                                            <Check class="h-4 w-4" />
-                                        </span>
-                                    </div>
-                                </template>
-                            </ComboboxOption>
+                                            <span>
+                                                {{ option.name }}
+                                            </span>
+                                            <span
+                                                v-if="isOptionSelected(option)"
+                                                :class="[
+                                                    'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
+                                                    active ? 'text-white' : 'text-blue-600'
+                                                ]"
+                                            >
+                                                <Check class="h-4 w-4" />
+                                            </span>
+                                        </div>
+                                    </template>
+                                </ComboboxOption>
+                            </template>
                         </template>
                         <div
                             v-if="filteredOptions.length === 0"

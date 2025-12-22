@@ -223,6 +223,7 @@ export interface CategorySubGroup {
 export interface Option {
     id: string | number | boolean;
     name: string;
+    groupLabel?: string;
 }
 
 // Añade la interfaz Tax
