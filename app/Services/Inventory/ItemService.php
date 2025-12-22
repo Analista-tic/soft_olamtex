@@ -61,35 +61,35 @@ class ItemService
     public function create(array $data, array $warehouses = []): Item
     {
         $payload = $this->buildCreatePayload($data);
-        $article = Item::create($payload);
-        $this->syncWarehouses($article, $warehouses);
+        $item = Item::create($payload);
+        $this->syncWarehouses($item, $warehouses);
 
-        return $article;
+        return $item;
     }
 
-    public function update(Item $article, array $data, ?array $warehouses = null): Item
+    public function update(Item $item, array $data, ?array $warehouses = null): Item
     {
-        $payload = $this->buildUpdatePayload($article, $data);
-        $article->update($payload);
+        $payload = $this->buildUpdatePayload($item, $data);
+        $item->update($payload);
         if ($warehouses !== null) {
-            $this->syncWarehouses($article, $warehouses, true);
+            $this->syncWarehouses($item, $warehouses, true);
         }
 
-        return $article;
+        return $item;
     }
 
-    public function delete(Item $article): void
+    public function delete(Item $item): void
     {
-        $reasons = $this->gatherDeletionReasons($article);
+        $reasons = $this->gatherDeletionReasons($item);
         if (!empty($reasons)) {
             $message = $this->formatReasonList($reasons);
             throw new \RuntimeException("No se puede eliminar el item porque tiene {$message}.");
         }
 
-        $article->warehouses()->detach();
+        $item->warehouses()->detach();
 
         try {
-            $article->delete();
+            $item->delete();
         } catch (QueryException $e) {
             if ((int) $e->getCode() === 23000) {
                 throw new \RuntimeException('No se puede eliminar el item porque tiene registros relacionados (ajustes de inventario, compras u otros movimientos). Elimine o reasigne esos registros primero.');
@@ -98,11 +98,11 @@ class ItemService
         }
     }
 
-    public function toggleStatus(Item $article): bool
+    public function toggleStatus(Item $item): bool
     {
-        $article->status = !$article->status;
-        $article->save();
-        return $article->status;
+        $item->status = !$item->status;
+        $item->save();
+        return $item->status;
     }
 
     public function orderedAdditionalFieldNames(): array
@@ -268,9 +268,9 @@ class ItemService
                 ]);
                 $name = trim(implode(' ', $nameParts));
 
-                $articleData = [
+                $itemData = [
                     'category_sub_group_id' => $subGroup->id,
-                    'tax' => isset($rowData['IMPUesta (%)']) ? $rowData['IMPUesta (%)'] : null,
+                    'tax' => isset($rowData['Impuesto (%)']) ? $rowData['Impuesto (%)'] : null,
                     'bar_code' => $rowData['CÓDIGO DE BARRAS'] ?? null,
                     'negative_movement' => filter_var($rowData['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
                     'description' => $rowData['DESCRIPCIÓN'] ?? '',
@@ -282,7 +282,7 @@ class ItemService
                     'unit_measure' => $rowData['UNIDAD DE MEDIDA'] ?? null,
                 ];
 
-                $this->create($articleData, []);
+                $this->create($itemData, []);
                 $inserted++;
             } catch (\Throwable $e) {
                 $errors[] = "Fila $rowNum: " . $e->getMessage();
@@ -328,9 +328,9 @@ class ItemService
         return $warehouses;
     }
 
-    public function warehouseStocks(Item $article)
+    public function warehouseStocks(Item $item)
     {
-        return $article->getWarehouseStocks();
+        return $item->getWarehouseStocks();
     }
 
     protected function buildCreatePayload(array $data): array
@@ -356,7 +356,7 @@ class ItemService
         return $payload;
     }
 
-    protected function buildUpdatePayload(Item $article, array $data): array
+    protected function buildUpdatePayload(Item $item, array $data): array
     {
         $payload = [];
 
@@ -391,10 +391,10 @@ class ItemService
 
         $extraFields = array_key_exists('extra_fields', $data)
             ? $this->normalizeExtraFields($data['extra_fields'])
-            : ($article->extra_fields ?? []);
+            : ($item->extra_fields ?? []);
         $payload['extra_fields'] = $extraFields;
 
-        $subGroupId = $data['category_sub_group_id'] ?? $article->category_sub_group_id;
+        $subGroupId = $data['category_sub_group_id'] ?? $item->category_sub_group_id;
         $payload['name'] = $this->buildName($subGroupId, $extraFields);
 
         return $payload;
@@ -407,7 +407,7 @@ class ItemService
         return trim("{$subGroupName} {$extrasString}");
     }
 
-    protected function syncWarehouses(Item $article, array $warehouses, bool $replace = false): void
+    protected function syncWarehouses(Item $item, array $warehouses, bool $replace = false): void
     {
         $payload = [];
         foreach ($warehouses as $warehouse) {
@@ -419,35 +419,35 @@ class ItemService
         }
 
         if ($replace) {
-            $article->warehouses()->sync($payload);
+            $item->warehouses()->sync($payload);
             return;
         }
 
         foreach ($payload as $warehouseId => $values) {
-            $article->warehouses()->attach($warehouseId, $values);
+            $item->warehouses()->attach($warehouseId, $values);
         }
     }
 
-    protected function gatherDeletionReasons(Item $article): array
+    protected function gatherDeletionReasons(Item $item): array
     {
         $reasons = [];
 
-        $warehouseCount = $article->warehouses()->count();
+        $warehouseCount = $item->warehouses()->count();
         if ($warehouseCount > 0) {
             $reasons[] = $warehouseCount === 1 ? '1 bodega asignada' : "{$warehouseCount} bodegas asignadas";
         }
 
-        $poCount = PurchaseOrderItem::where('item_id', $article->id)->count();
+        $poCount = PurchaseOrderItem::where('item_id', $item->id)->count();
         if ($poCount > 0) {
             $reasons[] = $poCount === 1 ? '1 orden de compra' : "{$poCount} ordenes de compra";
         }
 
-        $invoiceCount = PurchaseDocumentItem::where('item_id', $article->id)->count();
+        $invoiceCount = PurchaseDocumentItem::where('item_id', $item->id)->count();
         if ($invoiceCount > 0) {
             $reasons[] = $invoiceCount === 1 ? '1 factura de compra' : "{$invoiceCount} facturas de compra";
         }
 
-        $adjustmentCount = InventoryAdjustmentLine::where('item_id', $article->id)->count();
+        $adjustmentCount = InventoryAdjustmentLine::where('item_id', $item->id)->count();
         if ($adjustmentCount > 0) {
             $reasons[] = $adjustmentCount === 1 ? '1 movimiento de inventario' : "{$adjustmentCount} movimientos de inventario";
         }

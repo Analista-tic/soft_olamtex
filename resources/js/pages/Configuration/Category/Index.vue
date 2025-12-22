@@ -19,10 +19,14 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -58,6 +62,14 @@ const searchQuery = ref<string>(''); // Campo de búsqueda
 const selectedGroup = ref<number | null | undefined>(null); // Filtro por grupo
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
+
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isGroupFilterActive = computed(() => selectedGroup.value != null);
+const groupFilterButtonClasses = useFilterButtonClasses(isGroupFilterActive);
+const groupOptions = computed(() => [
+    { id: null, name: 'Todos los grupos' },
+    ...props.groups.map((group) => ({ id: group.id, name: group.name })),
+]);
 
 // Funciones con tipado explícito
 function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
@@ -157,9 +169,12 @@ onMounted(() => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Subgrupos</h1>
-                <!-- Aviso de éxito -->
-                
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Gestión de Subgrupos</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Administra los subgrupos de categorías para organizar tus ítems.
+                    </p>
+                </div>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Subgrupo</Button>
             </div>
             <AlertStack
@@ -170,25 +185,29 @@ onMounted(() => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <div class="relative flex items-center gap-4">
-                <div class="relative w-full max-w-sm">
-                    <Input id="search_subgroup" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-                <div class="relative w-full max-w-xs">
-                    <select
+            <FilterBar align="start" gap="gap-4">
+                <FilterField
+                    label="Buscar subgrupo"
+                    :active="isSearchActive"
+                    class="flex-1 min-w-[240px] p-0"
+                >
+                    <div class="relative w-full">
+                        <Input id="search_subgroup" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Grupo" :active="isGroupFilterActive" class="min-w-[200px]">
+                    <SelectField
                         v-model="selectedGroup"
-                        class="h-10 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm text-card-foreground shadow-sm outline-offset-0 transition focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-                    >
-                        <option :value="null">Todos los grupos</option>
-                        <option v-for="group in props.groups" :key="group.id" :value="group.id">
-                            {{ group.name }}
-                        </option>
-                    </select>
-                </div>
-            </div>
+                        :options="groupOptions"
+                        label=""
+                        placeholder="Todos los grupos"
+                        :button-class="groupFilterButtonClasses"
+                    />
+                </FilterField>
+            </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
@@ -261,4 +280,3 @@ onMounted(() => {
         @confirm="deleteSubGroup"
     />
 </template>
-

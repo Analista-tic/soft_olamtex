@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import { Button } from '@/components/ui/button';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
@@ -10,13 +12,14 @@ import type { PurchaseOrder } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos/ordenes-compra' },
@@ -47,6 +50,18 @@ const providerFilter = ref('all');
 const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
+
+const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_PROVIDER_FILTER = 'all';
+
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
+const isDateFromActive = computed(() => Boolean(dateFrom.value));
+const isDateToActive = computed(() => Boolean(dateTo.value));
+
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 
 const formatDate = (value?: string | null) => {
     if (!value) return '-';
@@ -214,42 +229,43 @@ function handleDialogError(message?: string) {
                 </div>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="h-4 w-4" /> Nueva Orden</Button>
             </div>
-            <!-- FILTROS: UNA SOLA FILA -->
-            <div class="flex items-end gap-4 mb-2 flex-wrap">
-                <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input v-model="searchQuery" placeholder="Buscar orden" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-                <!-- Estado: usando SelectField -->
-                <div class="min-w-[180px]">
+            <FilterBar align="start">
+                <FilterField label="Buscar orden" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                    <div class="relative">
+                        <Input v-model="searchQuery" placeholder="Buscar orden" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="statusFilter"
-                        label="Estado"
+                        label=""
                         :options="[
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobada' },
                             { id: 'rejected', name: 'Rechazada' },
                         ]"
+                        :button-class="statusButtonClasses"
                     />
-                </div>
-                <!-- Proveedor: usando SelectField -->
-                <div class="min-w-[180px]">
+                </FilterField>
+                <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="providerFilter"
-                        label="Proveedor"
+                        label=""
                         :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map((prov: { id: number; full_name: string }) => ({ id: String(prov.id), name: prov.full_name }))]"
+                        :button-class="providerButtonClasses"
                     />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" label="Desde" placeholder="Desde" />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateTo" label="Hasta" placeholder="Hasta" />
-                </div>
-            </div>
+                </FilterField>
+                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFrom" placeholder="Desde" />
+                </FilterField>
+                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
+                    <InputDate v-model="dateTo" placeholder="Hasta" />
+                </FilterField>
+            </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                         <TableHeader>
@@ -349,4 +365,3 @@ function handleDialogError(message?: string) {
         />
     </AppLayout>
 </template>
-

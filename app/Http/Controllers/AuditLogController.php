@@ -24,6 +24,21 @@ class AuditLogController extends Controller
         ]);
     }
 
+    public function data(Request $request)
+    {
+        $filters = $request->only('user', 'module', 'action');
+        $perPage = (int) $request->input('per_page', 50);
+        $logs = $this->service->paginate($filters, $perPage);
+
+        return response()->json([
+            'data' => $logs->items(),
+            'total' => $logs->total(),
+            'per_page' => $logs->perPage(),
+            'current_page' => $logs->currentPage(),
+            'last_page' => $logs->lastPage(),
+        ]);
+    }
+
     /**
      * Show the form for creating a new resource.
      */

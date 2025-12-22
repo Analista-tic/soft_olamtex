@@ -8,15 +8,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import type { Item } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Ban, CheckCircle, Download, PlusCircle, Search, Upload } from 'lucide-vue-next';
-import { onMounted, ref, watch, reactive } from 'vue';
+import { computed, onMounted, ref, watch, reactive } from 'vue';
 import ItemDialog from './ItemDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
     { title: 'Panel administrativo', href: '/panel-administrativo' },
@@ -34,16 +37,21 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 
-const statusFilter = ref<string>('all');
+const DEFAULT_STATUS_FILTER = 'all';
+const statusFilter = ref<string>(DEFAULT_STATUS_FILTER);
 const isStatusDialogOpen = ref(false);
 const itemToToggleStatus = ref<Item | null>(null);
 const isBulkDialogOpen = ref(false);
 
 const statusOptions = ref([
     reactive({ id: 'all', name: 'Todos' }),
-    reactive({ id: '0', name: 'Habilitados' }),
-    reactive({ id: '1', name: 'Deshabilitados' })
+    // Usar booleanos para mantener un contrato claro con la API
+    reactive({ id: true, name: 'Habilitados' }),
+    reactive({ id: false, name: 'Deshabilitados' })
 ]);
+
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 // Variables reactivas para mensajes de éxito y error
 const successMessage = ref<string>('');
@@ -169,7 +177,12 @@ function exportItemsExcel() {
                 @close-error="errorMessage = ''"
             />
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de ítems</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Gestión de ítems</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Gestiona los ítems del inventario: categorías, stock y estado.
+                    </p>
+                </div>
                 <div class="flex gap-2">
                     <Button @click="openDialog('create')" variant="default" size="sm">
                         <PlusCircle class="h-4 w-4" /> Crear nuevo ítem
@@ -183,23 +196,34 @@ function exportItemsExcel() {
                 </div>
             </div>
             <!-- FILTROS: UNA SOLA FILA -->
-            <div class="flex items-end gap-4 mb-2 flex-wrap">
-                <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input v-model="searchQuery" placeholder="Buscar ítem" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-                <div class="min-w-[180px]">
+            <FilterBar>
+                <FilterField
+                    label="Buscar ítem"
+                    :active="searchQuery.trim().length > 0"
+                    class="flex-1 min-w-[220px] p-0"
+                >
+                    <div class="relative">
+                        <Input
+                            v-model="searchQuery"
+                            placeholder="Buscar ítem"
+                            class="h-10 w-full rounded-md border border-gray-200 bg-white pl-10 text-sm focus:border-primary focus:ring-0 dark:bg-slate-800 dark:border-slate-700 dark:placeholder:text-slate-400"
+                        />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[180px]">
                     <SelectField
                         v-model="statusFilter"
-                        label="Estado"
+                        label=""
                         :options="statusOptions"
                         placeholder="Estado"
+                        :button-class="statusButtonClasses"
                     />
-                </div>
+                </FilterField>
                 <!-- Puedes agregar más filtros aquí siguiendo el mismo patrón visual -->
-            </div>
+            </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                     <TableHeader>

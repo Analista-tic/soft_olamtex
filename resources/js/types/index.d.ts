@@ -221,7 +221,7 @@ export interface CategorySubGroup {
 
 // Tipos para SelectField y opciones de select
 export interface Option {
-    id: string | number;
+    id: string | number | boolean;
     name: string;
 }
 

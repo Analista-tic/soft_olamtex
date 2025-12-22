@@ -10,13 +10,16 @@ import type { PurchaseInvoice } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialogTelas from './PurchaseInvoiceDialogTelas.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import { useAlertMessages } from '@/composables/useAlertMessages';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -73,6 +76,21 @@ const purchaseOrdersMap = ref<Record<number, string>>({});
 const facturasFabricRoute = '/gastos/facturas-compra-tela';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
+
+const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_PROVIDER_FILTER = 'all';
+const DEFAULT_SUBGROUP_FILTER = 'all';
+
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
+const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
+const isDateFromActive = computed(() => Boolean(dateFrom.value));
+const isDateToActive = computed(() => Boolean(dateTo.value));
+
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
+const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
 
 function buildReceptionUrl(invoiceId?: number | string) {
     const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
@@ -297,7 +315,12 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
             />
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Facturas de Compras y Servicios Tela</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Facturas de Compras y Servicios Tela</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Registra facturas de tela para llevar la trazabilidad de la recepción y la aprobación.
+                    </p>
+                </div>
                 <div class="flex gap-2">
                     <Button 
                         @click="router.visit(buildReceptionUrl())" 
@@ -311,46 +334,51 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                     </Button>
                 </div>
             </div>
-            <div class="flex items-end gap-4 mb-2 flex-wrap">
-                <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-                <div class="min-w-[180px]">
+            <FilterBar align="start">
+                <FilterField label="Buscar factura" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                    <div class="relative">
+                        <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="statusFilter"
-                        label="Estado"
+                        label=""
                         :options="[
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobado' },
                             { id: 'rejected', name: 'Rechazado' }
                         ]"
+                        :button-class="statusButtonClasses"
                     />
-                </div>
-                <div class="min-w-[180px]">
+                </FilterField>
+                <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="providerFilter"
-                        label="Proveedor"
+                        label=""
                         :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map(prov => ({ id: String(prov.id), name: prov.full_name }))]"
+                        :button-class="providerButtonClasses"
                     />
-                </div>
-                <div class="min-w-[180px]">
+                </FilterField>
+                <FilterField label="Subgrupo" :active="isSubgroupFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="subgroupFilter"
-                        label="Subgrupo"
+                        label=""
                         :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map(sub => ({ id: String(sub.id), name: sub.name }))]"
+                        :button-class="subgroupButtonClasses"
                     />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" label="Desde" />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateTo" label="Hasta" />
-                </div>
-            </div>
+                </FilterField>
+                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFrom" placeholder="dd/mm/aaaa" />
+                </FilterField>
+                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
+                    <InputDate v-model="dateTo" placeholder="dd/mm/aaaa" />
+                </FilterField>
+            </FilterBar>
             <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">
                 <Table>
                     <TableHeader>

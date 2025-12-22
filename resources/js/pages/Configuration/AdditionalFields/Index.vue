@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -8,8 +8,12 @@ import AdditionalFieldDialog from './AdditionalFieldDialog.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { BreadcrumbItem, AdditionalField } from '@/types';
 import {
     Pagination,
@@ -62,9 +66,31 @@ const dragOverFieldId = ref<number | null>(null);
 const isReordering = ref(false);
 
 const searchQuery = ref('');
+const typeFilter = ref('all');
+const statusFilter = ref('all');
 const currentPage = ref(1);
 const totalItems = ref(0);
 const itemsPerPage = 10;
+
+const DEFAULT_TYPE_FILTER = 'all';
+const DEFAULT_STATUS_FILTER = 'all';
+
+const typeOptions = computed(() => [
+    { id: 'all', name: 'Todos los tipos' },
+    ...Object.entries(fieldTypeLabels).map(([key, label]) => ({ id: key, name: label })),
+]);
+const statusOptions = [
+    { id: 'all', name: 'Todos los estados' },
+    { id: 'active', name: 'Activo' },
+    { id: 'inactive', name: 'Inactivo' },
+];
+
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_TYPE_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+
+const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 function clearMessages() {
     successMessage.value = '';
@@ -119,7 +145,18 @@ async function handleDialogSubmit(fieldData: AdditionalField) {
 async function fetchAdditionalFields(page = 1, search = '') {
     try {
         const response = await axios.get('/campos-adicionales/data', {
-            params: { page, per_page: itemsPerPage, search },
+            params: {
+                page,
+                per_page: itemsPerPage,
+                search,
+                field_type: typeFilter.value !== DEFAULT_TYPE_FILTER ? typeFilter.value : undefined,
+                status:
+                    statusFilter.value === 'active'
+                        ? true
+                        : statusFilter.value === 'inactive'
+                            ? false
+                            : undefined,
+            },
         });
         additionalFields.value = response.data.data;
         totalItems.value = response.data.total ?? response.data.data.length;
@@ -256,6 +293,9 @@ async function persistFieldOrder(fields: AdditionalField[]) {
 watch(searchQuery, (newQuery) => {
     fetchAdditionalFields(1, newQuery);
 });
+watch([typeFilter, statusFilter], () => {
+    fetchAdditionalFields(1, searchQuery.value);
+});
 
 onMounted(() => {
     fetchAdditionalFields();
@@ -276,28 +316,54 @@ onMounted(() => {
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Campos adicionales</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Campos adicionales</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Define y ordena campos adicionales para ítems; estos se usarán al completar información extra en los productos.
+                    </p>
+                </div>
                 <Button @click="openDialog('create')" variant="default" size="sm">
                     <PlusCircle class="w-4 h-4" />
                     Crear nuevo campo
                 </Button>
             </div>
-            <div class="relative flex items-center gap-4">
-                <div class="relative w-full max-w-sm">
-                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Buscar campo</span>
-                    <Input
-                        id="search_additional_field"
-                        v-model="searchQuery"
-                        placeholder="Buscar por nombre o etiqueta"
-                        class="h-10 w-full pl-11"
+            <FilterBar align="start" gap="gap-4" noMargin>
+                <FilterField
+                    label="Buscar campo"
+                    :active="isSearchActive"
+                    class="flex-1 min-w-[220px] p-0"
+                >
+                    <div class="relative w-full">
+                        <Input
+                            id="search_additional_field"
+                            v-model="searchQuery"
+                            placeholder="Buscar por nombre o etiqueta"
+                            class="h-10 w-full pl-11"
+                        />
+                        <span class="absolute inset-y-0 start-2 flex items-center justify-center pointer-events-none">
+                            <Search :size="18" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Tipo" :active="isTypeFilterActive" class="min-w-[180px]">
+                    <SelectField
+                        v-model="typeFilter"
+                        label=""
+                        :options="typeOptions"
+                        :button-class="typeButtonClasses"
                     />
-                    <span class="absolute inset-y-0 start-2 flex items-center justify-center pointer-events-none">
-                        <Search :size="18" class="text-muted-foreground" />
-                    </span>
-                </div>
-            </div>
-            <p class="text-sm text-muted-foreground">
-                Arrastra y suelta los campos adicionales para definir el orden que se usará al completar el nombre de los items.
+                </FilterField>
+                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
+                    <SelectField
+                        v-model="statusFilter"
+                        label=""
+                        :options="statusOptions"
+                        :button-class="statusButtonClasses"
+                    />
+                </FilterField>
+            </FilterBar>
+            <p class="text-xs text-muted-foreground">
+                Ordena campos adicionales (arrastrar y soltar).
             </p>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
@@ -307,7 +373,7 @@ onMounted(() => {
                             <TableHead>Nombre</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Requerido</TableHead>
-                            <TableHead>Activo</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead>Opciones</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>

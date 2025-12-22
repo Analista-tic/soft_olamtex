@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import { ref, onMounted, watch, computed } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Input from '@/components/ui/input/Input.vue';
@@ -20,6 +22,7 @@ import {
 import axios from 'axios';
 import { Option, Warehouse } from '@/types';
 import { Search } from 'lucide-vue-next';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 type InventoryViewItem = {
     id: number;
@@ -47,11 +50,15 @@ const statusOptions: Option[] = [
 
 const items = ref<InventoryViewItem[]>([]);
 const searchQuery = ref('');
-const dateFrom = ref('');
-const dateTo = ref('');
 const warehouseFilter = ref<Option['id'] | '' | null>(null);
 const warehouses = ref<Option[]>([]);
 const statusFilter = ref<Option['id']>('all');
+const isSearchFilterActive = computed(() => searchQuery.value.trim().length > 0);
+const isWarehouseActive = computed(() => warehouseFilter.value !== null && warehouseFilter.value !== '');
+const isStatusActive = computed(() => statusFilter.value !== 'all');
+
+const warehouseButtonClasses = useFilterButtonClasses(isWarehouseActive);
+const statusButtonClasses = useFilterButtonClasses(isStatusActive);
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
@@ -96,13 +103,7 @@ async function fetchItems(page = 1) {
         params.search = searchQuery.value.trim();
     }
 
-    if (dateFrom.value.trim()) {
-        params.date_from = dateFrom.value.trim();
-    }
-
-    if (dateTo.value.trim()) {
-        params.date_to = dateTo.value.trim();
-    }
+    // Fecha filter removed — no date params sent
 
     if (selectedWarehouseId.value) {
         params.warehouse_id = selectedWarehouseId.value;
@@ -137,7 +138,7 @@ function handlePageChange(newPage: number) {
     void fetchItems(newPage);
 }
 
-watch([searchQuery, dateFrom, dateTo, selectedWarehouseId, resolvedStatusFilter], () => {
+watch([searchQuery, selectedWarehouseId, resolvedStatusFilter], () => {
     currentPage.value = 1;
     void fetchItems(1);
 });
@@ -153,45 +154,46 @@ onMounted(() => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Inventario Ítems</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Inventario Ítems</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Visualiza el stock por bodega, consulta referencias y controla el estado de los ítems.
+                    </p>
+                </div>
             </div>
             <!-- FILTROS: UNA SOLA FILA -->
-            <div class="flex items-end gap-4 mb-2 flex-wrap">
-                <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Buscar referencia</span>
-                    <Input v-model="searchQuery" placeholder="Buscar ítem o referencia" class="h-10 w-full pl-12" />
-                    <span class="pt-5 absolute inset-y-0 start-3 flex items-center justify-center pointer-events-none">
-                        <Search :size="18" class="text-muted-foreground" />
-                    </span>
-                </div>
-                <div class="flex-1 min-w-[220px]">
-                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Bodega</span>
+            <FilterBar align="start" gap="gap-4">
+                <FilterField
+                    label="Buscar referencia"
+                    :active="isSearchFilterActive"
+                    class="flex-1 min-w-[220px]"
+                >
+                    <div class="relative">
+                        <Input v-model="searchQuery" placeholder="Buscar ítem o referencia" class="h-10 w-full pl-12" />
+                        <span class="absolute inset-y-0 start-3 flex items-center justify-center pointer-events-none">
+                            <Search :size="18" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Bodega" :active="isWarehouseActive" class="flex-1 min-w-[220px]">
                     <SelectField
                         v-model="warehouseFilter"
                         :options="warehouses"
                         placeholder="Selecciona una bodega"
                         searchable
-                        button-class="h-10"
+                        :button-class="warehouseButtonClasses"
                     />
-                </div>
-                <div class="min-w-[200px]">
-                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Desde</span>
-                    <Input v-model="dateFrom" type="date" class="h-10" />
-                </div>
-                <div class="min-w-[200px]">
-                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Hasta</span>
-                    <Input v-model="dateTo" type="date" class="h-10" />
-                </div>
-                <div class="min-w-[180px]">
-                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Estado</span>
+                </FilterField>
+
+                <FilterField label="Estado" :active="isStatusActive" class="min-w-[180px]">
                     <SelectField
                         v-model="statusFilter"
                         :options="statusOptions"
                         placeholder="Estado"
-                        button-class="h-10"
+                        :button-class="statusButtonClasses"
                     />
-                </div>
-            </div>
+                </FilterField>
+            </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
                 <Table>
                     <TableHeader>

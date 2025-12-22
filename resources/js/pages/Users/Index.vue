@@ -54,7 +54,7 @@ const form = ref<Partial<User>>({
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
-const searchQuery = ref(''); // Campo de búsqueda
+const searchQuery = ref(''); // Campo de bï¿½squeda
 
 const authStore = useAuthStore();
 
@@ -66,7 +66,7 @@ function openDialog(type: 'create' | 'edit', user: User | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
     if (type === 'edit' && user) {
-        form.value = { ...user, password: '' }; // No se muestra la contraseña existente
+        form.value = { ...user, password: '' }; // No se muestra la contraseï¿½a existente
     } else {
         form.value = { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
     }
@@ -138,7 +138,7 @@ watch(searchQuery, (newQuery) => {
 watch(isDialogOpen, (newValue) => {
     if (newValue) {
         form.value = dialogType.value === 'edit' && form.value.id
-            ? { ...form.value, password: '' } // Limpiar solo el campo de contraseña al editar
+            ? { ...form.value, password: '' } // Limpiar solo el campo de contraseï¿½a al editar
             : { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
     }
 });
@@ -149,11 +149,11 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Gestión de Usuarios" />
+    <Head title="Gestiï¿½n de Usuarios" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
+                <h1 class="text-lg font-bold">Gestiï¿½n de Usuarios</h1>
                 <Button v-if="canCreate" @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Usuario</Button>
             </div>
             <div class="relative flex items-center gap-4">
@@ -232,11 +232,11 @@ onMounted(() => {
         @submit="submitForm"
     />
 
-    <!-- Dialog para Confirmar Eliminación -->
+    <!-- Dialog para Confirmar Eliminaciï¿½n -->
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminación"
-        description="¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer."
+        title="Confirmar eliminaciï¿½n"
+        description="ï¿½Estï¿½s seguro de que deseas eliminar este usuario? Esta acciï¿½n no se puede deshacer."
         confirm-text="Eliminar"
         cancel-text="Cancelar"
         :destructive="true"
