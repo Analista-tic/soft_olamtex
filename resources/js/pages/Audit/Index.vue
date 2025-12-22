@@ -388,11 +388,19 @@ function formatValue(value: unknown): string {
 
 function formatStructured(value: Record<string, unknown> | unknown[]): string {
     if (Array.isArray(value)) {
-        if (value.length === 0) {
-            return 'Vacío';
-        }
-        return value.map((item) => formatValue(item)).join(', ');
+        return formatStructuredArray(value);
     }
+    return formatStructuredObject(value);
+}
+
+function formatStructuredArray(values: unknown[]): string {
+    if (values.length === 0) {
+        return 'Vacío';
+    }
+    return values.map((item) => formatValue(item)).join(', ');
+}
+
+function formatStructuredObject(value: Record<string, unknown>): string {
     const entries = Object.entries(value);
     if (entries.length === 0) {
         return 'Vacío';
