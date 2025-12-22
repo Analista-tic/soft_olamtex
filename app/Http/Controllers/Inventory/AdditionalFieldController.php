@@ -60,6 +60,9 @@ class AdditionalFieldController extends Controller
     public function getData(Request $request)
     {
         $filters = $request->only(['search', 'field_type']);
+        if ($request->has('status')) {
+            $filters['status'] = filter_var($request->input('status'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        }
         $perPage = $request->input('per_page', 10);
         $additionalFields = $this->service->paginate($filters, $perPage);
 

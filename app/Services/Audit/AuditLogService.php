@@ -5,6 +5,7 @@ namespace App\Services\Audit;
 use App\Models\AuditLog;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class AuditLogService
 {
@@ -59,11 +60,15 @@ class AuditLogService
         $userFilter = $this->normalizeFilter($filters, 'user');
         $moduleFilter = $this->normalizeFilter($filters, 'module');
         $actionFilter = $this->normalizeFilter($filters, 'action');
+        $startDate = $this->normalizeFilter($filters, 'start_date');
+        $endDate = $this->normalizeFilter($filters, 'end_date');
 
         $logs = AuditLog::query()
             ->when($userFilter, fn($query) => $query->where('user_name', 'like', '%' . $userFilter . '%'))
             ->when($moduleFilter, fn($query) => $query->where('module', $moduleFilter))
             ->when($actionFilter, fn($query) => $query->where('action', $actionFilter))
+            ->when($startDate, fn($query) => $query->whereDate('created_at', '>=', Carbon::parse($startDate)))
+            ->when($endDate, fn($query) => $query->whereDate('created_at', '<=', Carbon::parse($endDate)))
             ->latest()
             ->paginate($perPage);
 

@@ -17,8 +17,8 @@ type AdditionalFieldForm = Omit<AdditionalField, 'default_value'> & {
 
 const fieldTypeOptions: Array<{ id: AdditionalFieldType; name: string }> = [
     { id: 'text', name: 'Texto' },
-    { id: 'number', name: 'Número' },
-    { id: 'decimal', name: 'Número decimal' },
+    { id: 'number', name: 'Numero' },
+    { id: 'decimal', name: 'Numero decimal' },
     { id: 'date', name: 'Fecha' },
     { id: 'boolean', name: 'Si/No' },
     { id: 'select', name: 'Lista de opciones' },
@@ -143,80 +143,79 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="space-y-6">
+        <FormDialogContent class="flex flex-col space-y-6 max-h-[85vh] max-w-[550px]">
             <FormHeader
                 :title="dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional'"
-                :description="dialogType === 'create' ? 'Define un nuevo campo adicional para los ítems.' : 'Modifica la configuración del campo adicional seleccionado.'"
-            >
-                <template v-if="localForm.field_type === 'select'" #default>
-                    <div class="text-sm text-gray-600 mt-1">Agrega las opciones que estarán disponibles en la lista.</div>
-                </template>
-            </FormHeader>
-            <div class="space-y-6">
-                <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
-                    <InputField v-model="localForm.name" label="Nombre" placeholder="Nombre del campo" required />
-                    <SelectField
-                        v-model="localForm.field_type"
-                        label="Tipo de campo"
-                        :options="fieldTypeOptions"
-                        option-label="name"
-                        option-value="id"
-                        required
-                    />
-                </div>
-                <InputField
-                    v-model="localForm.default_value"
-                    label="Valor por defecto"
-                    placeholder="Valor por defecto"
-                />
-                <TextareaField
-                    label="Descripcion"
-                    placeholder="Opcional"
-                    :rows="3"
-                    v-model="localForm.description"
-                />
-            </div>
-            <div v-if="isSelectField" class="space-y-3">
-                <label class="text-sm font-medium text-slate-600">Opciones</label>
-                <div class="space-y-3">
-                    <div
-                        v-for="(option, index) in localOptions"
-                        :key="index"
-                        class="relative"
-                    >
-                        <InputField
-                            v-model="localOptions[index]"
-                            placeholder="Opción"
-                            class="w-full pr-10"
-                            @keydown.enter.prevent="addOptionAfter(index)"
-                    />
-                        <button
-                            v-if="index > 0 || (index === 0 && localOptions.length > 1)"
-                            type="button"
-                            class="absolute inset-y-0 right-0 flex items-center px-2 text-slate-500 hover:text-slate-700"
-                            @click="removeOption(index)"
-                            aria-label="Eliminar opción"
-                        >
-                            <Trash class="h-4 w-4" />
-                        </button>
+                :description="dialogType === 'create' ? 'Define un nuevo campo adicional para los items.' : 'Modifica la configuracion del campo adicional seleccionado.'"
+            ></FormHeader>
+            <div class="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1 pt-4">
+                <div class="space-y-6">
+                    <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+                        <InputField v-model="localForm.name" label="Nombre" placeholder="Nombre del campo" required />
+                        <SelectField
+                            v-model="localForm.field_type"
+                            label="Tipo de campo"
+                            :options="fieldTypeOptions"
+                            option-label="name"
+                            option-value="id"
+                            required
+                        />
                     </div>
-                </div>
-                <p v-if="hasDuplicateOptions" class="text-xs text-red-600">
-                    Cada opción debe ser única.
-                </p>
-                <div class="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Presione ENTER para agregar opciones</span>
-                    <button
-                        type="button"
-                        class="flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs text-primary hover:bg-primary/10"
-                        @click="addOptionAfter()"
-                    >
-                        <Plus class="h-3.5 w-3.5" />
-                        Nueva opción
-                    </button>
+                    <InputField
+                        v-model="localForm.default_value"
+                        label="Valor por defecto"
+                        placeholder="Valor por defecto"
+                    />
+                    <div v-if="isSelectField" class="space-y-3">
+                        <label class="text-sm font-medium text-slate-600">Opciones</label>
+                        <div class="space-y-3">
+                            <div
+                                v-for="(option, index) in localOptions"
+                                :key="index"
+                                class="relative"
+                            >
+                                <InputField
+                                    v-model="localOptions[index]"
+                                    placeholder="Opcion"
+                                    label=""
+                                    class="w-full pr-10"
+                                    @keydown.enter.prevent="addOptionAfter(index)"
+                                />
+                                <button
+                                    v-if="index > 0 || (index === 0 && localOptions.length > 1)"
+                                    type="button"
+                                    class="absolute inset-y-0 right-0 flex items-center px-2 text-slate-500 hover:text-slate-700"
+                                    @click="removeOption(index)"
+                                    aria-label="Eliminar opcion"
+                                >
+                                    <Trash class="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+                        <p v-if="hasDuplicateOptions" class="text-xs text-red-600">
+                            Cada opcion debe ser unica.
+                        </p>
+                        <div class="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>Presione ENTER para agregar opciones</span>
+                            <button
+                                type="button"
+                                class="flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs text-primary hover:bg-primary/10"
+                                @click="addOptionAfter()"
+                            >
+                                <Plus class="h-3.5 w-3.5" />
+                                Nueva opcion
+                            </button>
+                        </div>
+                    </div>
+                    <TextareaField
+                        label="Descripcion"
+                        placeholder="Opcional"
+                        :rows="3"
+                        v-model="localForm.description"
+                    />
                 </div>
             </div>
-            <div class="grid grid-cols-2 gap-5">
+            <div class="grid grid-cols-2 gap-5 pt-4">
                 <SwitchField class="gap-3" v-model="localForm.is_required" label="Obligatorio" />
                 <SwitchField class="gap-3" v-model="localForm.status" label="Activo" />
             </div>

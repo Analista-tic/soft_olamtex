@@ -40,6 +40,8 @@ interface AuditPageProps extends SharedData {
         user?: string | null;
         module?: string | null;
         action?: string | null;
+        start_date?: string | null;
+        end_date?: string | null;
     };
 }
 
@@ -57,10 +59,12 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Auditoría', href: route('auditoria.index') },
 ];
 
+const initialDate = props.filters.start_date ?? props.filters.end_date ?? '';
 const filters = reactive({
     user: props.filters.user ?? '',
     module: props.filters.module ?? '',
     action: props.filters.action ?? null,
+    date: initialDate,
 });
 
 const actionOptions = [
@@ -78,6 +82,7 @@ const selectModule = ref<string | null>(filters.module ?? '');
 
 const moduleFilterActive = computed(() => Boolean(selectModule.value?.trim()));
 const actionFilterActive = computed(() => Boolean(selectAction.value));
+const dateFilterActive = computed(() => Boolean(filters.date?.trim()));
 const moduleButtonClasses = useFilterButtonClasses(moduleFilterActive);
 const actionButtonClasses = useFilterButtonClasses(actionFilterActive);
 
@@ -133,6 +138,11 @@ async function fetchLogs(page = 1) {
     if (filters.action) {
         params.action = filters.action;
     }
+    const selectedDate = filters.date?.trim();
+    if (selectedDate) {
+        params.start_date = selectedDate;
+        params.end_date = selectedDate;
+    }
 
     try {
         const response = await axios.get(route('auditoria.data'), { params });
@@ -169,6 +179,16 @@ watch(selectAction, (value) => {
 
 watch(
     () => filters.user,
+    (value, oldValue) => {
+        if (value === oldValue) {
+            return;
+        }
+        fetchLogs(1);
+    },
+);
+
+watch(
+    () => filters.date,
     (value, oldValue) => {
         if (value === oldValue) {
             return;
@@ -403,6 +423,19 @@ watch(detailDialogOpen, (value) => {
                             :button-class="actionButtonClasses"
                         />
                     </FilterField>
+                    <FilterField
+                        label="Fecha"
+                        :active="dateFilterActive"
+                        class="min-w-[220px]"
+                    >
+                        <Input
+                            id="audit-filter-date"
+                            v-model="filters.date"
+                            type="date"
+                            placeholder="Fecha"
+                            class="h-10 w-full"
+                        />
+                    </FilterField>
                 </FilterBar>
             </div>
 
@@ -484,7 +517,6 @@ watch(detailDialogOpen, (value) => {
                         </TableRow>
                     </TableBody>
                 </Table>
-
 
                 <!-- Pie de tabla / paginación, mismo estilo de card -->
                 <div

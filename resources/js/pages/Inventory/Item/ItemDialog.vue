@@ -1,5 +1,4 @@
 <script setup lang="ts">
-// Importación de componentes y utilidades
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -8,7 +7,7 @@ import SubGroupDialog from '@/pages/Configuration/Category/SubGroupDialog.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import GroupDialog from '@/pages/Configuration/Category/GroupDialog.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
@@ -62,6 +61,11 @@ const errors = ref<Record<string, string[]>>({});
 const extraFieldNames = ref<string[]>([]);
 const additionalFieldOptions = ref<Record<string, string[]>>({});
 const additionalFieldsMeta = ref<AdditionalField[]>([]);
+const requiredAdditionalFieldNames = computed(() =>
+    (additionalFieldsMeta.value ?? [])
+        .filter((field) => field?.name && field.is_required)
+        .map((field) => field.name),
+);
 const extraFields = ref<ExtraFields>({});
 const additionalFieldOrder = computed(() => {
     const map = new Map<string, number>();
@@ -543,6 +547,13 @@ async function handleSubmit() {
     if (!localForm.value.reference || String(localForm.value.reference).trim() === '') {
         requiredErrors.push('Referencia');
     }
+    const missingRequiredAdditionalFields = requiredAdditionalFieldNames.value.filter((fieldName) => {
+        const value = extraFields.value[fieldName];
+        return value === undefined || String(value ?? '').trim() === '';
+    });
+    missingRequiredAdditionalFields.forEach((fieldName) => {
+        requiredErrors.push(`Campo adicional: ${fieldName}`);
+    });
     if (requiredErrors.length > 0) {
         alertType.value = 'warning';
         alertMessage.value = formatRequiredFieldsMessage(

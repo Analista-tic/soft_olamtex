@@ -23,6 +23,10 @@ class AdditionalFieldService
             $query->whereIn('field_type', $types);
         }
 
+        if (isset($filters['status']) && $filters['status'] !== null) {
+            $query->where('status', (bool) $filters['status']);
+        }
+
         return $query->orderBy('position', 'asc')->paginate($perPage);
     }
 

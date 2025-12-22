@@ -15,7 +15,7 @@ class AuditLogController extends Controller
      */
     public function index(Request $request)
     {
-        $filters = $request->only('user', 'module', 'action');
+        $filters = $this->extractFilters($request);
         $logs = $this->service->paginate($filters);
 
         return inertia('Audit/Index', [
@@ -26,7 +26,7 @@ class AuditLogController extends Controller
 
     public function data(Request $request)
     {
-        $filters = $request->only('user', 'module', 'action');
+        $filters = $this->extractFilters($request);
         $perPage = (int) $request->input('per_page', 50);
         $logs = $this->service->paginate($filters, $perPage);
 
@@ -37,6 +37,11 @@ class AuditLogController extends Controller
             'current_page' => $logs->currentPage(),
             'last_page' => $logs->lastPage(),
         ]);
+    }
+
+    protected function extractFilters(Request $request): array
+    {
+        return $request->only(['user', 'module', 'action', 'start_date', 'end_date']);
     }
 
     /**
