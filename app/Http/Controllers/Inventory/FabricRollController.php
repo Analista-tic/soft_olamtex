@@ -3,15 +3,19 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\Expenses\PurchaseInvoice;
+use App\Http\Requests\Inventory\StoreFabricRollRequest;
+use App\Http\Requests\Inventory\UpdateFabricRollOutputRequest;
+use App\Http\Requests\Inventory\UpdateFabricRollRequest;
+use App\Models\Inventory\FabricRoll;
 use App\Services\Inventory\FabricRollService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Validation\ValidationException;
 
 class FabricRollController extends Controller
 {
     public function __construct(protected FabricRollService $service) {}
+
     public function index()
     {
         return Inertia::render('Inventory/FabricRolls/Index');
@@ -56,32 +60,12 @@ class FabricRollController extends Controller
         return response()->json($fabricRolls);
     }
 
-    public function store(Request $request)
+    public function store(StoreFabricRollRequest $request)
     {
-        try {
-            $data = $request->validate([
-                'roll_number' => 'required|string|max:255|unique:fabric_rolls,roll_number',
-                'purchase_document_item_id' => 'required|integer|exists:purchase_document_items,id',
-                'quantity' => 'required|numeric|min:0.01',
-                'roll_width' => 'nullable|numeric|min:0',
-                'location' => 'nullable|string|max:255',
-                'description' => 'nullable|string',
-                'entry_date' => 'required|date',
-                'partial_output' => 'nullable|numeric|min:0',
-                'actual_output' => 'nullable|numeric|min:0',
-            ]);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Errores de validación',
-                'errors' => $e->errors(),
-            ], 422);
-        }
+        $data = $request->validated();
 
-        if (($data['actual_output'] ?? 0) > $data['quantity']) {
-            return response()->json([
-                'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
-                'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']]
-            ], 422);
+        if ($error = $this->validateActualOutput((float) $data['quantity'], (float) ($data['actual_output'] ?? 0))) {
+            return $error;
         }
 
         $fabricRoll = $this->service->create($data);
@@ -92,37 +76,17 @@ class FabricRollController extends Controller
         ], 201);
     }
 
-    public function show($id)
+    public function show(FabricRoll $fabricRoll)
     {
-        $fabricRoll = $this->service->findOrFail($id);
         return response()->json($fabricRoll);
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdateFabricRollRequest $request, FabricRoll $fabricRoll)
     {
-        $fabricRoll = $this->service->findOrFail($id);
+        $data = $request->validated();
 
-        try {
-            $data = $request->validate([
-                'roll_number' => 'required|string|max:255|unique:fabric_rolls,roll_number,' . $fabricRoll->id,
-                'purchase_document_item_id' => 'required|integer|exists:purchase_document_items,id',
-                'quantity' => 'required|numeric|min:0.01',
-                'partial_output' => 'nullable|numeric|min:0',
-                'actual_output' => 'nullable|numeric|min:0',
-                'entry_date' => 'required|date',
-            ]);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Errores de validación',
-                'errors' => $e->errors(),
-            ], 422);
-        }
-
-        if (($data['actual_output'] ?? 0) > $data['quantity']) {
-            return response()->json([
-                'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
-                'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']]
-            ], 422);
+        if ($error = $this->validateActualOutput((float) $data['quantity'], (float) ($data['actual_output'] ?? 0))) {
+            return $error;
         }
 
         $fabricRoll = $this->service->update($fabricRoll, $data);
@@ -130,28 +94,19 @@ class FabricRollController extends Controller
         return response()->json($fabricRoll);
     }
 
-    public function destroy($id)
+    public function destroy(FabricRoll $fabricRoll)
     {
-        $fabricRoll = $this->service->findOrFail($id);
         $this->service->delete($fabricRoll);
         return response()->noContent();
     }
 
-    public function updateOutput(Request $request, $id)
+    public function updateOutput(UpdateFabricRollOutputRequest $request, FabricRoll $fabricRoll)
     {
-        $fabricRoll = $this->service->findOrFail($id);
+        $data = $request->validated();
+        $actualOutput = array_key_exists('actual_output', $data) ? (float) $data['actual_output'] : $fabricRoll->actual_output;
 
-        $data = $request->validate([
-            'partial_output' => 'nullable|numeric|min:0',
-            'actual_output' => 'nullable|numeric|min:0',
-        ]);
-
-        $actualOutput = $data['actual_output'] ?? $fabricRoll->actual_output;
-        if ($actualOutput > $fabricRoll->quantity) {
-            return response()->json([
-                'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
-                'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']]
-            ], 422);
+        if ($error = $this->validateActualOutput((float) $fabricRoll->quantity, $actualOutput)) {
+            return $error;
         }
 
         $fabricRoll = $this->service->updateOutput($fabricRoll, $data);
@@ -192,32 +147,12 @@ class FabricRollController extends Controller
         }
     }
 
-    public function storeFromReception(Request $request)
+    public function storeFromReception(StoreFabricRollRequest $request)
     {
-        try {
-            $data = $request->validate([
-                'roll_number' => 'required|string|max:255|unique:fabric_rolls,roll_number',
-                'purchase_document_item_id' => 'required|integer|exists:purchase_document_items,id',
-                'quantity' => 'required|numeric|min:0.01',
-                'roll_width' => 'nullable|numeric|min:0',
-                'location' => 'nullable|string|max:255',
-                'description' => 'nullable|string',
-                'entry_date' => 'required|date',
-                'partial_output' => 'nullable|numeric|min:0',
-                'actual_output' => 'nullable|numeric|min:0',
-            ]);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Errores de validación',
-                'errors' => $e->errors(),
-            ], 422);
-        }
+        $data = $request->validated();
 
-        if (($data['actual_output'] ?? 0) > $data['quantity']) {
-            return response()->json([
-                'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
-                'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']]
-            ], 422);
+        if ($error = $this->validateActualOutput((float) $data['quantity'], (float) ($data['actual_output'] ?? 0))) {
+            return $error;
         }
 
         try {
@@ -235,10 +170,26 @@ class FabricRollController extends Controller
         }
     }
 
-    // Nuevo método para obtener rollos por item de factura
     public function getByInvoiceItem($itemId)
     {
         $rolls = $this->service->getByInvoiceItem($itemId);
         return response()->json($rolls);
+    }
+
+    protected function validateActualOutput(float $quantity, float $actualOutput): ?JsonResponse
+    {
+        if ($actualOutput > $quantity) {
+            return $this->actualOutputErrorResponse();
+        }
+
+        return null;
+    }
+
+    protected function actualOutputErrorResponse(): JsonResponse
+    {
+        return response()->json([
+            'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
+            'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']]
+        ], 422);
     }
 }

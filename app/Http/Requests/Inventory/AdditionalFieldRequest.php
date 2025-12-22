@@ -3,10 +3,9 @@
 namespace App\Http\Requests\Inventory;
 
 use App\Models\Inventory\AdditionalField;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class AdditionalFieldRequest extends FormRequest
+class AdditionalFieldRequest extends InventoryFormRequest
 {
     public function authorize(): bool
     {

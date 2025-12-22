@@ -50,7 +50,7 @@ class ItemController extends Controller
                 'negative_movement' => 'required',
                 'description' => 'required|string',
                 'extra_fields' => 'nullable',
-                'reference' => 'required|string|unique:items,reference',
+                'reference' => 'required|string',
                 'status' => 'sometimes|boolean',
                 'item_type' => 'required|string|in:product,service',
                 'unit_measure' => 'nullable|string',
@@ -91,7 +91,7 @@ class ItemController extends Controller
                 'negative_movement' => 'sometimes',
                 'description' => 'sometimes|string',
                 'extra_fields' => 'nullable',
-                'reference' => 'required|string|unique:items,reference,' . $article->id,
+                'reference' => 'required|string',
                 'status' => 'sometimes|boolean',
                 'item_type' => 'required|string|in:product,service',
                 'unit_measure' => 'nullable|string',
@@ -514,7 +514,6 @@ class ItemController extends Controller
         return $this->service->resolveWarehousePayload($request->input('warehouses'));
     }
 }
-
 
 
 

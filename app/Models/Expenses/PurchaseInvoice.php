@@ -2,82 +2,35 @@
 
 namespace App\Models\Expenses;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\Common\Contact;
-use App\Models\Expenses\PurchaseDocument;
+use App\Contracts\HasAuditLabel;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Expenses\PurchaseOrder;
+use App\Models\Inventory\FabricRoll;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
-class PurchaseInvoice extends Model implements \App\Contracts\HasAuditLabel
+class PurchaseInvoice extends PurchaseDocument implements HasAuditLabel
 {
-    use HasFactory, SoftDeletes;
-
     public static function auditLabel(): string
     {
         return 'Factura de compra';
     }
 
-    protected $table = 'purchase_documents';
-
     protected $attributes = [
-        'document_type' => PurchaseDocument::TYPE_INVOICE,
+        'document_type' => self::TYPE_INVOICE,
     ];
 
-    protected $fillable = [
-        'document_number',
-        'document_type',
-        'parent_document_id',
-        'contact_id',
-        'provider_name',
-        'provider_phone',
-        'date',
-        'delivery_date',
-        'reason',
-        'description',
-        'status',
-        'approval_status',
-        'supplier_order_number',
-        'supplier_invoice_number',
-        'withholdings',
-        'rejection_reason',
-        'rejection_evidence_image',
-        'rejection_notes',
-        'rejected_by_user_id',
-        'rejected_at',
-        'requested_at',
-        'ordered_at',
-        'invoiced_at',
-        'approved_at',
-    ];
-
-    protected $casts = [
-        'date' => 'date',
-        'delivery_date' => 'date',
-        'requested_at' => 'datetime',
-        'ordered_at' => 'datetime',
-        'invoiced_at' => 'datetime',
-        'approved_at' => 'datetime',
-        'rejected_at' => 'datetime',
-        'withholdings' => 'array',
-    ];
-
-    public function contact(): BelongsTo
+    protected static function booted(): void
     {
-        return $this->belongsTo(Contact::class);
-    }
-
-    public function items(): HasMany
-    {
-        return $this->hasMany(PurchaseDocumentItem::class, 'purchase_document_id');
+        static::addGlobalScope('invoice_type', function (Builder $builder) {
+            $builder->where('document_type', self::TYPE_INVOICE);
+        });
     }
 
     public function purchaseOrder(): BelongsTo
     {
-        return $this->belongsTo(PurchaseOrder::class);
+        return $this->belongsTo(PurchaseOrder::class, 'parent_document_id');
     }
 
     public function getPurchaseOrderIdAttribute(): ?int
@@ -88,5 +41,17 @@ class PurchaseInvoice extends Model implements \App\Contracts\HasAuditLabel
     public function setPurchaseOrderIdAttribute($value): void
     {
         $this->attributes['parent_document_id'] = $value;
+    }
+
+    public function rolls(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            FabricRoll::class,
+            PurchaseDocumentItem::class,
+            'purchase_document_id',
+            'purchase_document_item_id',
+            'id',
+            'id'
+        );
     }
 }

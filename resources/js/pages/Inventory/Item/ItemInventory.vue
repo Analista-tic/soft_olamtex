@@ -30,12 +30,13 @@ type InventoryViewItem = {
     status: boolean;
     average_cost: number;
     total: number;
-    warehouse?: Warehouse | null;
+    category_group_id?: number | null;
+    category_sub_group_id?: number | null;
 };
 
 const breadcrumbs = [
     { title: 'Panel administrativo', href: '/panel-administrativo' },
-    { title: 'Inventario articulos', href: '/inventario-item' },
+    { title: 'Inventario Ítems', href: '/inventario-item' },
 ];
 
 const statusOptions: Option[] = [
@@ -46,6 +47,8 @@ const statusOptions: Option[] = [
 
 const items = ref<InventoryViewItem[]>([]);
 const searchQuery = ref('');
+const dateFrom = ref('');
+const dateTo = ref('');
 const warehouseFilter = ref<Option['id'] | '' | null>(null);
 const warehouses = ref<Option[]>([]);
 const statusFilter = ref<Option['id']>('all');
@@ -93,6 +96,14 @@ async function fetchItems(page = 1) {
         params.search = searchQuery.value.trim();
     }
 
+    if (dateFrom.value.trim()) {
+        params.date_from = dateFrom.value.trim();
+    }
+
+    if (dateTo.value.trim()) {
+        params.date_to = dateTo.value.trim();
+    }
+
     if (selectedWarehouseId.value) {
         params.warehouse_id = selectedWarehouseId.value;
     }
@@ -126,7 +137,7 @@ function handlePageChange(newPage: number) {
     void fetchItems(newPage);
 }
 
-watch([searchQuery, selectedWarehouseId, resolvedStatusFilter], () => {
+watch([searchQuery, dateFrom, dateTo, selectedWarehouseId, resolvedStatusFilter], () => {
     currentPage.value = 1;
     void fetchItems(1);
 });
@@ -138,28 +149,41 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Inventario articulos" />
+    <Head title="Inventario Ítems" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Inventario articulos</h1>
+                <h1 class="text-lg font-bold">Inventario Ítems</h1>
             </div>
-            <div class="flex flex-wrap items-end gap-3">
-                <div class="relative w-full max-w-sm">
-                    <Input v-model="searchQuery" placeholder="Buscador por ref o articulo" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
+            <!-- FILTROS: UNA SOLA FILA -->
+            <div class="flex items-end gap-4 mb-2 flex-wrap">
+                <div class="relative max-w-xs flex-1 min-w-[220px]">
+                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Buscar referencia</span>
+                    <Input v-model="searchQuery" placeholder="Buscar ítem o referencia" class="h-10 w-full pl-12" />
+                    <span class="pt-5 absolute inset-y-0 start-3 flex items-center justify-center pointer-events-none">
+                        <Search :size="18" class="text-muted-foreground" />
                     </span>
                 </div>
                 <div class="flex-1 min-w-[220px]">
+                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Bodega</span>
                     <SelectField
                         v-model="warehouseFilter"
                         :options="warehouses"
-                        placeholder="Filtro bodega"
+                        placeholder="Selecciona una bodega"
+                        searchable
                         button-class="h-10"
                     />
                 </div>
-                <div class="flex-1 min-w-[220px] max-w-xs">
+                <div class="min-w-[200px]">
+                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Desde</span>
+                    <Input v-model="dateFrom" type="date" class="h-10" />
+                </div>
+                <div class="min-w-[200px]">
+                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Hasta</span>
+                    <Input v-model="dateTo" type="date" class="h-10" />
+                </div>
+                <div class="min-w-[180px]">
+                    <span class="text-sm font-medium text-muted-foreground mb-1 block">Estado</span>
                     <SelectField
                         v-model="statusFilter"
                         :options="statusOptions"
@@ -172,29 +196,27 @@ onMounted(() => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead class="text-start">Nombre articulo</TableHead>
-                            <TableHead>Referencia</TableHead>
-                            <TableHead>Cantidad</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead>Costo promedio</TableHead>
-                            <TableHead>Total</TableHead>
-                            <TableHead>Bodega</TableHead>
+                        <TableHead class="text-start">Nombre articulo</TableHead>
+                        <TableHead>Referencia</TableHead>
+                        <TableHead>Cantidad</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Costo promedio</TableHead>
+                        <TableHead>Total</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="item in items" :key="item.id">
-                            <TableCell class="text-start">{{ item.item_name }}</TableCell>
-                            <TableCell>{{ item.reference ?? '-' }}</TableCell>
-                            <TableCell>{{ formatQuantity(item.quantity) }}</TableCell>
-                            <TableCell>
-                                <StatusBadge :status="item.status" />
-                            </TableCell>
-                            <TableCell>{{ formatCurrency(item.average_cost) }}</TableCell>
-                            <TableCell>{{ formatCurrency(item.total) }}</TableCell>
-                            <TableCell>{{ item.warehouse?.name ?? '-' }}</TableCell>
+                        <TableCell class="text-start">{{ item.item_name }}</TableCell>
+                        <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
+                        <TableCell class="text-center">{{ formatQuantity(item.quantity) }}</TableCell>
+                        <TableCell class="text-center">
+                            <StatusBadge :status="item.status" />
+                        </TableCell>
+                        <TableCell class="text-center">{{ formatCurrency(item.average_cost) }}</TableCell>
+                        <TableCell class="text-center">{{ formatCurrency(item.total) }}</TableCell>
                         </TableRow>
                         <TableRow v-if="items.length === 0">
-                            <TableCell :colspan="7" class="text-center text-gray-400">No hay articulos en el inventario.</TableCell>
+                        <TableCell :colspan="6" class="text-center text-gray-400">No hay articulos en el inventario.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
