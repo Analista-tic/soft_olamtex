@@ -116,74 +116,6 @@ const detailDialogOpen = ref(false);
 const detailLog = ref<AuditLog | null>(null);
 const detailDiffEntries = ref<DiffEntry[]>([]);
 
-watch(
-    () => props.filters,
-    (values) => {
-        filters.user = values.user ?? '';
-        filters.module = values.module ?? '';
-        filters.action = values.action ?? null;
-    },
-    { deep: true },
-);
-
-watch(
-    () => props.logs?.current_page,
-    (page) => {
-        currentPage.value = page ?? 1;
-    },
-);
-
-watch(
-    () => props.logs?.data,
-    () => {
-        diffCache.clear();
-    },
-);
-
-const filterParams = computed(() => {
-    const params: Record<string, string> = {};
-    if (filters.user.trim()) {
-        params.user = filters.user.trim();
-    }
-    if (filters.module.trim()) {
-        params.module = filters.module.trim();
-    }
-    if (filters.action) {
-        params.action = filters.action;
-    }
-    return params;
-});
-
-function navigateTo(page = 1) {
-    router.visit(route('auditoria.index'), {
-        method: 'get',
-        data: {
-            ...filterParams.value,
-            page,
-        },
-        preserveScroll: true,
-        replace: true,
-    });
-}
-
-function applyFilters() {
-    navigateTo(1);
-}
-
-function resetFilters() {
-    filters.user = '';
-    filters.module = '';
-    filters.action = null;
-    navigateTo(1);
-}
-
-function handlePageChange(page: number) {
-    if (!page || page === currentPage.value) {
-        return;
-    }
-    navigateTo(page);
-}
-
 const dateFormatter = new Intl.DateTimeFormat('es-CO', {
     day: 'numeric',
     month: 'short',
@@ -613,4 +545,3 @@ watch(detailDialogOpen, (value) => {
         </Dialog>
     </AppLayout>
 </template>
-
