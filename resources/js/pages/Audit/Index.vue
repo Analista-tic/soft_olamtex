@@ -87,15 +87,29 @@ const itemsPerPage = ref(props.logs?.per_page ?? 50);
 const lastPage = ref(props.logs?.last_page ?? 1);
 const currentPage = ref(props.logs?.current_page ?? 1);
 
-const moduleOptions = computed(() => {
-    const set = new Set<string>();
-    for (const log of logs.value) {
-        const mod = log.module_label ?? (log.module ?? 'General');
-        set.add(String(mod));
+const moduleCandidates = ref(new Map<string, string>());
+
+function addModuleCandidates(payload: AuditLog[]) {
+    const next = new Map(moduleCandidates.value);
+    for (const log of payload) {
+        const value = log.module ?? 'General';
+        const label = log.module_label ?? value;
+        if (!next.has(value)) {
+            next.set(value, label);
+        }
     }
-    const arr = Array.from(set).map((m) => ({ id: m, name: m }));
+    moduleCandidates.value = next;
+}
+
+addModuleCandidates(logs.value);
+
+const moduleOptions = computed(() => {
+    const arr = Array.from(moduleCandidates.value.entries()).map(([value, label]) => ({
+        id: value,
+        name: label,
+    }));
     arr.sort((a, b) => a.name.localeCompare(b.name, 'es'));
-    return arr;
+    return [{ id: '', name: 'Todos los módulos' }, ...arr];
 });
 
 const diffCache = new Map<number, DiffEntry[]>();
@@ -123,7 +137,9 @@ async function fetchLogs(page = 1) {
     try {
         const response = await axios.get(route('auditoria.data'), { params });
         const data = response.data ?? {};
-        logs.value = data.data ?? [];
+        const fetched = data.data ?? [];
+        logs.value = fetched;
+        addModuleCandidates(fetched);
         totalItems.value = data.total ?? 0;
         currentPage.value = data.current_page ?? page;
         lastPage.value = data.last_page ?? 1;
