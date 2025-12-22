@@ -26,7 +26,8 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head, router } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Head } from '@inertiajs/vue3';
 import { computed, reactive, ref, watch } from 'vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { AuditLog, BreadcrumbItem, PaginatedData, SharedData } from '@/types';
@@ -116,72 +117,75 @@ const detailDialogOpen = ref(false);
 const detailLog = ref<AuditLog | null>(null);
 const detailDiffEntries = ref<DiffEntry[]>([]);
 
-watch(
-    () => props.filters,
-    (values) => {
-        filters.user = values.user ?? '';
-        filters.module = values.module ?? '';
-        filters.action = values.action ?? null;
-    },
-    { deep: true },
-);
-
-watch(
-    () => props.logs?.current_page,
-    (page) => {
-        currentPage.value = page ?? 1;
-    },
-);
-
-watch(
-    () => props.logs?.data,
-    () => {
-        diffCache.clear();
-    },
-);
-
-const filterParams = computed(() => {
-    const params: Record<string, string> = {};
-    if (filters.user.trim()) {
-        params.user = filters.user.trim();
+async function fetchLogs(page = 1) {
+    const params: Record<string, unknown> = {
+        page,
+        per_page: itemsPerPage.value,
+    };
+    const userFilter = filters.user.trim();
+    if (userFilter) {
+        params.user = userFilter;
     }
-    if (filters.module.trim()) {
-        params.module = filters.module.trim();
+    const moduleFilter = filters.module.trim();
+    if (moduleFilter) {
+        params.module = moduleFilter;
     }
     if (filters.action) {
         params.action = filters.action;
     }
-    return params;
+
+    try {
+        const response = await axios.get(route('auditoria.data'), { params });
+        const data = response.data ?? {};
+        const fetched = data.data ?? [];
+        logs.value = fetched;
+        addModuleCandidates(fetched);
+        totalItems.value = data.total ?? 0;
+        currentPage.value = data.current_page ?? page;
+        lastPage.value = data.last_page ?? 1;
+        itemsPerPage.value = data.per_page ?? itemsPerPage.value;
+    } catch (error) {
+        console.error('Error fetching audit logs', error);
+    }
+}
+
+watch(selectModule, (value) => {
+    const normalized = value ?? '';
+    const previous = filters.module;
+    filters.module = normalized;
+    if (normalized !== previous) {
+        fetchLogs(1);
+    }
 });
 
-function navigateTo(page = 1) {
-    router.visit(route('auditoria.index'), {
-        method: 'get',
-        data: {
-            ...filterParams.value,
-            page,
-        },
-        preserveScroll: true,
-        replace: true,
-    });
-}
+watch(selectAction, (value) => {
+    const normalized = value && value !== '' ? (value as string) : null;
+    const previous = filters.action;
+    filters.action = normalized;
+    if (normalized !== previous) {
+        fetchLogs(1);
+    }
+});
 
-function applyFilters() {
-    navigateTo(1);
-}
+watch(
+    () => filters.user,
+    (value, oldValue) => {
+        if (value === oldValue) {
+            return;
+        }
+        fetchLogs(1);
+    },
+);
 
-function resetFilters() {
-    filters.user = '';
-    filters.module = '';
-    filters.action = null;
-    navigateTo(1);
-}
+watch(logs, () => {
+    diffCache.clear();
+});
 
 function handlePageChange(page: number) {
     if (!page || page === currentPage.value) {
         return;
     }
-    navigateTo(page);
+    fetchLogs(page);
 }
 
 const dateFormatter = new Intl.DateTimeFormat('es-CO', {
@@ -375,7 +379,7 @@ watch(detailDialogOpen, (value) => {
                     </FilterField>
                     <FilterField
                         label="Módulo"
-                        :active="selectModule?.trim().length > 0"
+                        :active="Boolean(selectModule?.trim())"
                         class="min-w-[220px]"
                     >
                         <SelectField
