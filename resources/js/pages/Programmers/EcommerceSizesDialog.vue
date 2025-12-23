@@ -81,13 +81,10 @@ function saveSizes() {
         </DialogTrigger>
 
         <DialogContent class="sm:max-w-6xl">
-            <DialogHeader>
-                <DialogTitle>Asignar Cantidades E-commerce</DialogTitle>
-                <DialogDescription></DialogDescription>
-            </DialogHeader>
-            <p id="ecommerce-dialog-description" class="text-sm text-gray-500">
-                Aquí puedes asignar las cantidades de tallas para el producto seleccionado.
-            </p>
+            <FormHeader
+                :title="'Asignar Cantidades E-commerce'"
+                description="Aquí puedes asignar las cantidades de tallas para el producto seleccionado."
+            />
 
             <div>
                 <!-- Campo para editar la referencia -->

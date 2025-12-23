@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
@@ -18,7 +18,7 @@ import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
-    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Impuestos', href: '/impuestos' },
 ];
 
@@ -129,7 +129,7 @@ onMounted(() => fetchTaxes());
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
@@ -199,6 +199,7 @@ onMounted(() => fetchTaxes());
         />
     </AppLayout>
 </template>
+
 
 
 

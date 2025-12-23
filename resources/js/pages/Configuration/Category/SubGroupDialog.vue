@@ -183,7 +183,7 @@ async function confirmDeleteGroup() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                class="w-full justify-center text-xs bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                                class="w-full justify-center text-xs border border-border bg-muted text-muted-foreground hover:bg-muted/70"
                                 @click.stop="openGroupDialogFromDropdown"
                             >
                                 <Plus class="mr-2 h-4 w-4" />
@@ -202,7 +202,7 @@ async function confirmDeleteGroup() {
                         <span 
                             v-for="(subGroup, index) in subGroupList" 
                             :key="index" 
-                            class="px-3 py-1 bg-gray-200 rounded-full text-sm flex items-center space-x-2"
+                            class="px-3 py-1 bg-muted rounded-full text-sm flex items-center space-x-2"
                         >
                             <span>{{ subGroup.name }}</span>
                             <Trash class="w-4 h-4 hover:text-red-600 cursor-pointer" @click="removeSubGroupFromList(index)" />

@@ -34,10 +34,11 @@ function onInput(event: Event) {
         v-model="modelValue"
         @input="onInput"
         :class="
-        cn(
-            'focus:ring-blue-500 focus:border-blue-500 w-full rounded-md border border-gray-300 px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors focus:outline-none focus:ring-2',
-            props.class,
-        )
+    cn(
+        'w-full rounded-md border border-gray-300 px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors focus:outline-none focus:ring-2 focus:border-blue-500 focus:ring-blue-500/50 bg-white text-gray-900 placeholder:text-slate-500',
+        'dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-400 dark:shadow-none',
+        props.class,
+    )
         "
     />
 </template>

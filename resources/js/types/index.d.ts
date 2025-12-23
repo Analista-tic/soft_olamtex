@@ -46,11 +46,78 @@ export interface NavGroupItem extends NavItem {
 }
 
 // Datos compartidos en la aplicación
+export interface CompanyInfo {
+    id: number | null;
+    name: string | null;
+    nit: string | null;
+    phone: string | null;
+    email: string | null;
+    accounting_email: string | null;
+    website: string | null;
+    address: string | null;
+    municipality: string | null;
+    department: string | null;
+    description: string | null;
+    logo_path: string | null;
+    logo_url: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
 export interface SharedData extends PageProps {
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
     ziggy: Config & { location: string };
+    company?: CompanyInfo | null;
+}
+
+export interface PaginationLink {
+    url: string | null;
+    label: string;
+    active: boolean;
+}
+
+export interface PaginatedData<T> {
+    data: T[];
+    current_page: number;
+    first_page_url?: string | null;
+    from?: number | null;
+    last_page: number;
+    last_page_url?: string | null;
+    links: PaginationLink[];
+    next_page_url?: string | null;
+    path?: string;
+    per_page: number;
+    prev_page_url?: string | null;
+    to?: number | null;
+    total: number;
+    meta?: {
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+    };
+}
+
+export interface AuditLog {
+    id: number;
+    user_id: number | null;
+    user_name: string | null;
+    action: string;
+    auditable_type: string | null;
+    auditable_id: number | string | null;
+    module: string | null;
+    module_label?: string | null;
+    description: string | null;
+    resource_label?: string | null;
+    company_id: number | null;
+    old_values: Record<string, unknown> | null;
+    new_values: Record<string, unknown> | null;
+    ip_address: string | null;
+    user_agent: string | null;
+    created_at: string | null;
+    updated_at: string | null;
 }
 
 // Interfaces relacionadas con productos
@@ -122,10 +189,20 @@ export interface Warehouse {
     observation: string;
 }
 
-export interface Color {
-    id: number | undefined;
+export type AdditionalFieldType = 'text' | 'number' | 'decimal' | 'textarea' | 'date' | 'boolean' | 'select';
+
+export interface AdditionalField {
+    id?: number;
     name: string;
-    rgb_value: string;
+    field_type: AdditionalFieldType;
+    options?: string[];
+    default_value?: string | null;
+    description?: string;
+    is_required: boolean;
+    status: boolean;
+    position?: number;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface CategoryGroup {
@@ -146,7 +223,7 @@ export interface CategorySubGroup {
 
 // Tipos para SelectField y opciones de select
 export interface Option {
-    id: string | number;
+    id: string | number | boolean;
     name: string;
 }
 
@@ -160,14 +237,12 @@ export interface Tax {
     updated_at?: string;
 }
 
-export interface Article {
+export interface Item {
     id: number;
     warehouse_id: number;
     warehouse?: Warehouse;
     category_sub_group_id: number;
     category_sub_group?: CategorySubGroup;
-    color_id: number;
-    color?: Color;
     tax_id?: number | null; // Nuevo campo para la relación
     tax?: Tax | null;       // Relación con el objeto Tax
     name: string;
@@ -181,6 +256,7 @@ export interface Article {
     description: string;
     extra_fields?: ExtraFields | string;
     status: boolean;
+    item_type: 'product' | 'service';
     unit_measure?: string; // Añadido correctamente
     created_at?: string;
     updated_at?: string;
@@ -247,22 +323,11 @@ export interface AdditionalContactsListProps {
     onUpdateAdditionalContacts: (updatedContacts: AdditionalContact[]) => void;
 }
 
-export interface ColorDialogProps {
-    open: boolean;
-    dialogType: 'create' | 'edit';
-    form: Color;
-    loading?: boolean;
-    // Métodos de emisión
-    'onUpdate:open'?: (value: boolean) => void;
-    onSubmit?: (value: Color) => void;
-    onCancel?: () => void;
-}
-
 // Tipos para Órdenes de Compra (Gastos)
 export interface PurchaseOrderItem {
     id?: number;
-    article_id: number | null;
-    article?: Article;
+    item_id: number | null;
+    item?: Item;
     price: number;
     tax: number;
     quantity: number;
@@ -276,6 +341,7 @@ export interface PurchaseOrderItem {
 
 export interface PurchaseOrder {
     id?: number;
+    document_number?: string | null;
     contact_id: number | null;
     contact?: Contact;
     date: string;
@@ -298,8 +364,8 @@ export interface PurchaseInvoiceWithholding {
 export interface PurchaseInvoiceItem {
     id?: number;
     purchase_invoice_id?: number;
-    article_id: number | null;
-    article?: Article;
+    item_id: number | null;
+    item?: Item;
     price: number | string | '';
     tax: number;
     quantity: number | string | '';
@@ -318,6 +384,11 @@ export interface PurchaseInvoice {
     contact?: Contact;
     date: string;
     delivery_date: string;
+    document_number?: string | null;
+    parent_document_id?: number | null;
+    parent?: {
+        document_number?: string | null;
+    };
     supplier_invoice_number?: string;
     description?: string;
     status?: string;
@@ -326,9 +397,32 @@ export interface PurchaseInvoice {
     updated_at?: string;
     purchase_order_id?: number | null;
     withholdings?: PurchaseInvoiceWithholding[]; // Usar el tipo correcto aquí
+    reason: string | null;
+    evidence_path: string | null;
 }
 
-// Tipos para campos adicionales de artículos
+export interface PurchaseRequestItem {
+    item_id: number | string | null;
+    price: number | string;
+    quantity: number | string;
+    description: string;
+    total: number;
+    name?: string;
+}
+
+export interface PurchaseRequestForm {
+    id?: number;
+    request_number: string;
+    contact_id: number | string | null;
+    requester_user_id: number | null;
+    date: string;
+    estimated_amount: number | null;
+    description: string;
+    items: PurchaseRequestItem[];
+    status?: string | null;
+}
+
+// Tipos para campos adicionales de items
 export interface ExtraFields {
     [key: string]: string;
 }
@@ -337,8 +431,8 @@ export interface ExtraFields {
 export interface FabricRoll {
     id: number;
     roll_number: string;
-    purchase_invoice_item_id: number;
-    purchase_invoice_item?: PurchaseInvoiceItem;
+    purchase_document_item_id: number;
+    purchase_document_item?: PurchaseInvoiceItem;
     quantity: number;
     roll_width?: number;
     location?: string;

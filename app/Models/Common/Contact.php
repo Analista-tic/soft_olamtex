@@ -5,9 +5,14 @@ namespace App\Models\Common;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Contact extends Model
+class Contact extends Model implements \App\Contracts\HasAuditLabel
 {
     use SoftDeletes;
+
+    public static function auditLabel(): string
+    {
+        return 'Contacto';
+    }
 
     protected $fillable = [
         'contact_type',

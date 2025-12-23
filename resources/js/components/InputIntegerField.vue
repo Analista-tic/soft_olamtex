@@ -9,7 +9,6 @@ interface Props {
     required?: boolean;
     modelValue?: string | number;
     readonly?: boolean;
-    // 👇 NUEVO
     allowNegative?: boolean;
 }
 
@@ -81,7 +80,7 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
                 :placeholder="placeholder"
                 :readonly="readonly"
                 inputmode="numeric"
-                class="h-8 pr-5"
+                class="h-10 w-full pr-5"
                 @input="handleInput"
                 @blur="handleBlur"
             />

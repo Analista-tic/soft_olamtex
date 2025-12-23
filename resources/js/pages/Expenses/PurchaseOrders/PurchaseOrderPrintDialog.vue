@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import type { PurchaseOrder } from '@/types';
 import { computed, watch, ref } from 'vue';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -21,15 +22,17 @@ watch(dialogOpen, (val) => {
     if (!val) emit('close');
 });
 
-// Subtotal: suma de (precio * cantidad) de cada ítem
+const { company, logoUrl } = useCompanyInfo();
+
+// Subtotal: suma de (Precio SIN Impuesto * cantidad) de cada ítem
 const subtotal = computed(() =>
     (props.order?.items || []).reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity) || 0), 0)
 );
-// IVA total: suma de ((precio * cantidad) * (tax/100)) de cada ítem
+// IVA total: suma de ((Precio SIN Impuesto * cantidad) * (tax/100)) de cada ítem
 const iva = computed(() =>
     (props.order?.items || []).reduce((acc, item) => acc + ((Number(item.price) * Number(item.quantity) * (Number(item.tax) || 0)) / 100), 0)
 );
-// Total: suma de (precio * cantidad + IVA) de cada ítem, o simplemente subtotal + iva
+// Total: suma de (Precio SIN Impuesto * cantidad + IVA) de cada ítem, o simplemente subtotal + iva
 const total = computed(() => subtotal.value + iva.value);
 
 function print() {
@@ -53,13 +56,26 @@ function print() {
                             <div>{{ props.order?.id }}</div>
                         </div>
                         <div class="flex h-full items-center justify-center rounded p-4">
-                            <img src="/images/olamtex.png" alt="Logo Olamtex" class="max-h-12 object-contain" />
+                            <img
+                                :src="logoUrl"
+                                alt="Logotipo de la empresa"
+                                class="max-h-24 max-w-[160px] w-auto object-contain"
+                            />
                         </div>
                         <div>
                             <div class="text-sm font-semibold">Datos empresa</div>
-                            <p class="text-xs">Razón Social: <span class="font-normal">MANUFACTURAS OLAMTEX S.A.S.</span></p>
-                            <p class="text-xs">NIT: <span class="font-normal">900123456-7</span></p>
-                            <p class="text-xs">Correo: <span class="font-normal">info@olamtex.com</span></p>
+                            <p class="text-xs">
+                                Razón Social:
+                                <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+                            </p>
+                            <p class="text-xs">
+                                NIT:
+                                <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+                            </p>
+                            <p class="text-xs">
+                                Correo:
+                                <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+                            </p>
                         </div>
                     </div>
                     <div class="grid grid-cols-3 gap-4 mb-4">
@@ -96,10 +112,10 @@ function print() {
                             <thead>
                                 <tr class="bg-gray-100 print:bg-transparent">
                                     <th class="border px-2 py-1 print:border print:border-gray-300">#</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">Artículo</th>
+                                    <th class="border px-2 py-1 print:border print:border-gray-300">Item</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Descripción</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Cantidad</th>
-                                    <th class="border px-2 py-1 print:border print:border-gray-300">Precio unitario</th>
+                                    <th class="border px-2 py-1 print:border print:border-gray-300">Precio SIN Impuesto unitario</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">IVA</th>
                                     <th class="border px-2 py-1 print:border print:border-gray-300">Total</th>
                                 </tr>

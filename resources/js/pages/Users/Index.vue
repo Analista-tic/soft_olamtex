@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { BreadcrumbItem, Role, User } from '@/types'; // Importar los tipos centralizados
 import EditButton from '@/components/common/EditButton.vue';
 import UserDialog from './UserDialog.vue';
@@ -26,8 +26,8 @@ import { useAuthStore } from '@/stores/auth';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Configuración',
-        href: '/configuracion',
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
     },
     {
         title: 'Usuarios',
@@ -54,7 +54,7 @@ const form = ref<Partial<User>>({
 const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
-const searchQuery = ref(''); // Campo de búsqueda
+const searchQuery = ref(''); // Campo de b�squeda
 
 const authStore = useAuthStore();
 
@@ -66,7 +66,7 @@ function openDialog(type: 'create' | 'edit', user: User | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
     if (type === 'edit' && user) {
-        form.value = { ...user, password: '' }; // No se muestra la contraseña existente
+        form.value = { ...user, password: '' }; // No se muestra la contrase�a existente
     } else {
         form.value = { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
     }
@@ -138,7 +138,7 @@ watch(searchQuery, (newQuery) => {
 watch(isDialogOpen, (newValue) => {
     if (newValue) {
         form.value = dialogType.value === 'edit' && form.value.id
-            ? { ...form.value, password: '' } // Limpiar solo el campo de contraseña al editar
+            ? { ...form.value, password: '' } // Limpiar solo el campo de contrase�a al editar
             : { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
     }
 });
@@ -149,37 +149,42 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Gestión de Usuarios" />
+    <Head title="Gesti�n de Usuarios" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
+                <h1 class="text-lg font-bold">Gesti�n de Usuarios</h1>
                 <Button v-if="canCreate" @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Usuario</Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search_user" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-10 w-full pl-10" />
+                    <Input
+                        id="search_user"
+                        v-model="searchQuery"
+                        placeholder="Buscar por nombre o email"
+                        class="h-10 w-full pl-10 shadow-sm !bg-card !text-card-foreground !border-border focus:!border-blue-500 focus:!ring-blue-500/50"
+                    />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <Table>
+            <div class="relative min-h-0 flex-1 rounded-xl border border-border bg-card shadow-sm text-card-foreground md:min-h-min">
+                <Table class="text-center text-sm text-card-foreground">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Roles</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead class="text-center">Nombre</TableHead>
+                            <TableHead class="text-center">Email</TableHead>
+                            <TableHead class="text-center">Roles</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="(user, index) in users" :key="user.id ?? `user-${index}`">
-                            <TableCell class="font-medium">{{ user.name }}</TableCell>
-                            <TableCell>{{ user.email }}</TableCell>
-                            <TableCell>{{ user.roles?.map(role => role.name).join(', ') }}</TableCell> <!-- Mostrar roles -->
-                            <TableCell class="flex gap-1">
+                            <TableCell class="text-center font-medium">{{ user.name }}</TableCell>
+                            <TableCell class="text-center">{{ user.email }}</TableCell>
+                            <TableCell class="text-center">{{ user.roles?.map(role => role.name).join(', ') }}</TableCell> <!-- Mostrar roles -->
+                            <TableCell class="flex gap-1 justify-center">
                                 <EditButton v-if="canEdit" :onClick="() => openDialog('edit', user)" />
                                 <DeleteButton v-if="canDelete" :onClick="() => confirmDeleteUser(user)" />
                             </TableCell>
@@ -227,11 +232,11 @@ onMounted(() => {
         @submit="submitForm"
     />
 
-    <!-- Dialog para Confirmar Eliminación -->
+    <!-- Dialog para Confirmar Eliminaci�n -->
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminación"
-        description="¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer."
+        title="Confirmar eliminaci�n"
+        description="�Est�s seguro de que deseas eliminar este usuario? Esta acci�n no se puede deshacer."
         confirm-text="Eliminar"
         cancel-text="Cancelar"
         :destructive="true"

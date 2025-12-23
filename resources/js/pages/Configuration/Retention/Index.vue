@@ -1,5 +1,5 @@
-﻿<script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+<script setup lang="ts">
+import { computed, ref, onMounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import {
@@ -16,9 +16,13 @@ import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
-    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Retenciones', href: '/configuracion/retenciones' },
 ];
 
@@ -37,6 +41,20 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
+const DEFAULT_FILTER_VALUE = 'all';
+const typeFilter = ref('all');
+const statusFilter = ref('all');
+
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_FILTER_VALUE);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_FILTER_VALUE);
+const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+
+const typeOptions = computed(() => {
+    const types = Array.from(new Set(retentions.value.map((item) => item.type).filter(Boolean)));
+    return [{ id: 'all', name: 'Todos los tipos' }, ...types.map((type) => ({ id: type, name: type }))];
+});
 
 function openDialog(type: 'create' | 'edit', retention: any | null = null) {
     dialogType.value = type;
@@ -89,7 +107,13 @@ async function handleDialogSubmit(retentionData: any) {
 
 async function fetchRetentions(page = 1, search = '') {
     const { data } = await axios.get('/retenciones/data', {
-        params: { page, per_page: itemsPerPage, search }
+        params: {
+            page,
+            per_page: itemsPerPage,
+            search,
+            type: typeFilter.value !== DEFAULT_FILTER_VALUE ? typeFilter.value : undefined,
+            status: statusFilter.value !== DEFAULT_FILTER_VALUE ? statusFilter.value : undefined,
+        },
     });
     retentions.value = data.data;
     totalItems.value = data.total ?? data.data.length;
@@ -101,7 +125,9 @@ function handlePageChange(newPage: number) {
     fetchRetentions(newPage, searchQuery.value);
 }
 
-watch(searchQuery, (q) => fetchRetentions(1, q));
+watch([searchQuery, typeFilter, statusFilter], ([search]) => {
+    fetchRetentions(1, search);
+});
 onMounted(() => fetchRetentions());
 </script>
 
@@ -121,15 +147,37 @@ onMounted(() => fetchRetentions());
                 <h1 class="text-lg font-bold">Gestión de retenciones</h1>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Nueva Retención</Button>
             </div>
-            <div class="relative flex items-center gap-4">
-                <div class="relative w-full max-w-sm">
-                    <Input id="search_retention" v-model="searchQuery" placeholder="Buscar por nombre o tipo" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-            </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <FilterBar align="start" gap="gap-4">
+                <FilterField label="Buscar retención" :active="isSearchActive" class="flex-1 min-w-[240px] p-0">
+                    <div class="relative w-full">
+                        <Input id="search_retention" v-model="searchQuery" placeholder="Buscar por nombre o tipo" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Tipo" :active="isTypeFilterActive" class="min-w-[190px]">
+                    <SelectField
+                        v-model="typeFilter"
+                        label=""
+                        :options="typeOptions"
+                        :button-class="typeButtonClasses"
+                    />
+                </FilterField>
+                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[170px]">
+                    <SelectField
+                        v-model="statusFilter"
+                        label=""
+                        :options="[
+                            { id: 'all', name: 'Todos los estados' },
+                            { id: 'active', name: 'Activo' },
+                            { id: 'inactive', name: 'Inactivo' },
+                        ]"
+                        :button-class="statusButtonClasses"
+                    />
+                </FilterField>
+            </FilterBar>
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
@@ -203,9 +251,3 @@ onMounted(() => fetchRetentions());
         />
     </AppLayout>
 </template>
-
-
-
-
-
-

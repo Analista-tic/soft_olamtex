@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
 import type { Warehouse } from '@/types';
@@ -39,11 +39,14 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent>
+        <DialogContent class="w-full max-w-4xl">
             <DialogHeader>
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear Bodega' : 'Editar Bodega' }}
                 </DialogTitle>
+                <DialogDescription>
+                    {{ dialogType === 'create' ? 'Completa los campos para crear una nueva bodega.' : 'Actualiza los datos de la bodega seleccionada.' }}
+                </DialogDescription>
             </DialogHeader>
             <div class="space-y-4">
                 <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre" required />

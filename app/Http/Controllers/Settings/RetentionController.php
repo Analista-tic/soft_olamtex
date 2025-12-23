@@ -3,63 +3,47 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Settings\RetentionRequest;
+use App\Services\Settings\RetentionService;
 use App\Models\Settings\Retention;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class RetentionController extends Controller
 {
+    public function __construct(protected RetentionService $service) {}
     public function index()
     {
         return Inertia::render('Configuration/Retention/Index', [
-            'retentions' => Retention::all(),
+            'retentions' => $this->service->all(),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(RetentionRequest $request)
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'percent' => 'required|numeric|min:0|max:100',
-            'type' => 'required|string|max:100',
-            'description' => 'nullable|string',
-            'status' => 'required|in:active,inactive',
-        ]);
-        $retention = Retention::create($data);
+        $retention = $this->service->create($request->validated());
         return response()->json(['data' => $retention], 201);
     }
 
-    public function update(Request $request, $id)
+    public function update(RetentionRequest $request, $id)
     {
-        $retention = Retention::findOrFail($id);
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'percent' => 'required|numeric|min:0|max:100',
-            'type' => 'required|string|max:100',
-            'description' => 'nullable|string',
-            'status' => 'required|in:active,inactive',
-        ]);
-        $retention->update($data);
+        $retention = $this->service->findOrFail($id);
+        $retention = $this->service->update($retention, $request->validated());
         return response()->json(['data' => $retention]);
     }
 
     public function destroy($id)
     {
-        $retention = Retention::findOrFail($id);
-        $retention->delete();
+        $retention = $this->service->findOrFail($id);
+        $this->service->delete($retention);
         return response()->json(['message' => 'Retención eliminada']);
     }
 
     public function data(Request $request)
     {
-        $query = Retention::query();
-
-        if ($request->has('search') && $request->search) {
-            $query->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('type', 'like', '%' . $request->search . '%');
-        }
-
-        $retentions = $query->orderByDesc('id')->paginate($request->per_page ?? 20);
+        $filters = $request->only(['search']);
+        $perPage = $request->per_page ?? 20;
+        $retentions = $this->service->paginate($filters, $perPage);
 
         return response()->json([
             'data' => $retentions->items(),

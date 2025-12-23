@@ -2,7 +2,7 @@
 
 namespace App\Mail;
 
-use App\Models\Expenses\PurchaseOrder;
+use App\Models\Expenses\PurchaseDocument;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -14,7 +14,7 @@ class PurchaseOrderMail extends Mailable
     public $order;
     public $pdf;
 
-    public function __construct(PurchaseOrder $order, $pdf)
+    public function __construct(PurchaseDocument $order, $pdf)
     {
         $this->order = $order;
         $this->pdf = $pdf;

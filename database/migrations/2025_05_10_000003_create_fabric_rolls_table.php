@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('fabric_rolls', function (Blueprint $table) {
             $table->id();
             $table->string('roll_number')->unique(); // # de rollo
-            $table->foreignId('purchase_invoice_item_id')->constrained();
+            $table->foreignId('purchase_document_item_id')->constrained();
             $table->decimal('quantity', 10, 2); // Cantidad del rollo
             $table->decimal('roll_width', 8, 2)->nullable(); // Ancho del rollo
             $table->string('location')->nullable(); // Ubicación en bodega

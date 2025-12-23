@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 // import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import { Button } from '@/components/ui/button';
@@ -26,8 +26,8 @@ import { useAuthStore } from '@/stores/auth';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Configuración',
-        href: '/configuracion',
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
     },
     {
         title: 'Roles',
@@ -114,7 +114,7 @@ onMounted(fetchRoles);
 </script>
 
 <template>
-    <Head title="Gestión de Usuarios" />
+    <Head title="Gestión de Roles" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
@@ -131,7 +131,7 @@ onMounted(fetchRoles);
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -200,4 +200,5 @@ onMounted(fetchRoles);
         @submit="handleRoleSubmit"
     />
 </template>
+
 

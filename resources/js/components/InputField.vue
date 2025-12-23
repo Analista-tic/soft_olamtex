@@ -14,6 +14,7 @@ interface Props {
   readonly?: boolean;
   disabled?: boolean;
   error?: string | boolean;
+  decimals?: number;
 }
 
 const props = defineProps<Props>();
@@ -42,20 +43,147 @@ const errorMessage = computed(() =>
   typeof props.error === 'string' ? props.error : ''
 );
 
+const hasLabel = computed(() => Boolean(props.label?.trim()));
+
+const currencyDecimals = computed(() => {
+  if (typeof props.decimals === 'number' && Number.isFinite(props.decimals)) {
+    return Math.max(0, Math.floor(props.decimals));
+  }
+  return 0;
+});
+
+const computedPlaceholder = computed(() => {
+  if (props.placeholder !== undefined) {
+    return props.placeholder ?? '';
+  }
+  if (props.type === 'currency') {
+    const decimals = currencyDecimals.value;
+    if (decimals > 0) {
+      return `$ 0,${'0'.repeat(decimals)}`;
+    }
+    return '$ 0';
+  }
+  return '';
+});
+
+const isFocused = ref(false);
+const editingValue = ref('');
+
+function formatNumberForEditing(value?: string | number | null) {
+  if (value === undefined || value === null) return '';
+  const normalized =
+    typeof value === 'number'
+      ? value
+      : parseFloat(value.toString().replace(',', '.'));
+  if (Number.isNaN(normalized)) return '';
+  return normalized.toString();
+}
+
+function filterCurrencyChars(value: string) {
+  return value.replace(/[^0-9.,]/g, '');
+}
+
+function formatEditingValue(raw: string) {
+  if (!raw) return '';
+  const decimals = currencyDecimals.value;
+  const [integerPartRaw, decimalPartRaw] = raw.split(',', 2);
+  const integerDigits = (integerPartRaw ?? '').replace(/[.,]/g, '') || '0';
+  const formattedInteger = Number(integerDigits).toLocaleString('es-CO', {
+    maximumFractionDigits: 0,
+  });
+
+  if (!decimalPartRaw) {
+    return formattedInteger;
+  }
+
+  let decimalPart = decimalPartRaw.replace(/[.,]/g, '');
+  if (decimals >= 0 && decimalPart.length > decimals) {
+    decimalPart = decimalPart.slice(0, decimals);
+  }
+
+  return `${formattedInteger},${decimalPart}`;
+}
+
+function roundToDecimals(value: number, decimals: number) {
+  const factor = Math.pow(10, decimals || 0);
+  return Math.round(value * factor) / factor;
+}
+
+function parseCurrencyInput(value: string, decimals: number) {
+  const cleaned = value.replace(/\s+/g, '');
+  if (!cleaned) return 0;
+
+  const filtered = cleaned.replace(/[^0-9.,]/g, '');
+  if (!filtered) return 0;
+
+  if (decimals > 0) {
+    const lastComma = filtered.lastIndexOf(',');
+    const lastDot = filtered.lastIndexOf('.');
+    let decimalIndex = -1;
+    let decimalSymbol = '';
+
+    if (lastComma > lastDot) {
+      decimalIndex = lastComma;
+      decimalSymbol = ',';
+    } else if (lastDot > -1) {
+      decimalIndex = lastDot;
+      decimalSymbol = '.';
+    }
+
+    if (decimalIndex !== -1) {
+      const symbolCount =
+        decimalSymbol === ','
+          ? (filtered.match(/,/g)?.length ?? 0)
+          : (filtered.match(/\./g)?.length ?? 0);
+
+      if (symbolCount === 1) {
+        const integerPart =
+          filtered.slice(0, decimalIndex).replace(/[.,]/g, '') || '0';
+        const decimalPart = filtered
+          .slice(decimalIndex + 1)
+          .replace(/[.,]/g, '');
+        const normalized = decimalPart
+          ? `${integerPart}.${decimalPart}`
+          : integerPart;
+        const numericValue = parseFloat(normalized);
+        if (!Number.isNaN(numericValue)) {
+          return numericValue;
+        }
+      }
+    }
+  }
+
+  const integerValue = filtered.replace(/[.,]/g, '');
+  const numericValue = parseFloat(integerValue);
+  return Number.isNaN(numericValue) ? 0 : numericValue;
+}
+
 const formattedValue = computed({
   get() {
     const value = isControlled.value ? localModelValue.value : props.value;
 
-    if (props.type === 'currency' && value != null) {
-      const numericValue =
-        typeof value === 'number' ? value : parseFloat(value.toString());
-      return isNaN(numericValue)
-        ? ''
-        : numericValue.toLocaleString('es-CO', {
+    if (props.type === 'currency') {
+      const prefix = '$ ';
+      if (isFocused.value) {
+        const preview = formatEditingValue(editingValue.value);
+        return `${prefix}${preview}`;
+      }
+      if (value != null) {
+        const numericValue =
+          typeof value === 'number'
+            ? value
+            : parseFloat(value.toString().replace(',', '.'));
+        if (!isNaN(numericValue)) {
+          const decimals = currencyDecimals.value;
+          return numericValue.toLocaleString('es-CO', {
             style: 'currency',
             currency: 'COP',
-            minimumFractionDigits: 0,
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
           });
+        }
+      }
+      return '';
     }
 
     if (props.type === 'number' && value != null) {
@@ -69,8 +197,11 @@ const formattedValue = computed({
     const safeValue = val != null ? String(val) : '';
 
     if (props.type === 'currency') {
-      const numericValue = parseFloat(safeValue.replace(/[^0-9]/g, ''));
-      localModelValue.value = isNaN(numericValue) ? 0 : numericValue;
+      const filteredValue = filterCurrencyChars(safeValue);
+      const normalizedValue = filteredValue.replace(/\./g, '');
+      editingValue.value = normalizedValue;
+      const numericValue = parseCurrencyInput(normalizedValue, currencyDecimals.value);
+      localModelValue.value = roundToDecimals(numericValue, currencyDecimals.value);
     } else if (props.type === 'number') {
       const cleanValue = safeValue.replace(/[^0-9.]/g, '');
       const parts = cleanValue.split('.');
@@ -89,6 +220,33 @@ const formattedValue = computed({
   },
 });
 
+function handleFocus() {
+  if (props.type !== 'currency') return;
+  isFocused.value = true;
+  const sourceValue = isControlled.value ? localModelValue.value : props.value;
+  const formatted = formatNumberForEditing(sourceValue);
+  if (!formatted) {
+    editingValue.value = '';
+    return;
+  }
+  const withComma = formatted.replace('.', ',');
+  editingValue.value = withComma.replace(/\./g, '');
+}
+
+function handleBlur() {
+  if (props.type !== 'currency') return;
+  isFocused.value = false;
+  editingValue.value = '';
+}
+
+function handleBeforeInput(event: InputEvent) {
+  if (props.type !== 'currency') return;
+  const char = event.data;
+  if (!char) return;
+  if (/^[0-9.,]$/.test(char)) return;
+  event.preventDefault();
+}
+
 function togglePasswordVisibility() {
   isPasswordVisible.value = !isPasswordVisible.value;
 }
@@ -96,10 +254,12 @@ function togglePasswordVisibility() {
 
 <template>
   <div class="grid w-full items-center gap-1.5">
-    <Label>
-      {{ label }}
-      <span v-if="required" class="text-red-500">*</span>
-    </Label>
+    <template v-if="hasLabel">
+      <Label>
+        {{ label }}
+        <span v-if="required" class="text-red-500">*</span>
+      </Label>
+    </template>
 
     <div class="relative">
       <Input
@@ -115,17 +275,20 @@ function togglePasswordVisibility() {
               : props.type
             : 'text'
         "
-        :placeholder="placeholder"
+        :placeholder="computedPlaceholder"
         :readonly="readonly"
         :disabled="disabled"
-        :step="props.type === 'number' ? '0.01' : undefined"
+        :step="props.type === 'number' || props.type === 'currency' ? '0.01' : undefined"
         :inputmode="
-          props.type === 'number'
+          props.type === 'number' || props.type === 'currency'
             ? 'decimal'
             : props.type === 'email'
             ? 'email'
             : undefined
         "
+        @focus="handleFocus"
+        @blur="handleBlur"
+        @beforeinput="handleBeforeInput"
         :class="[
           'h-10 pr-5 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50',
           hasError
@@ -147,17 +310,20 @@ function togglePasswordVisibility() {
               : props.type
             : 'text'
         "
-        :placeholder="placeholder"
+        :placeholder="computedPlaceholder"
         :readonly="readonly ?? true"
         :disabled="disabled"
-        :step="props.type === 'number' ? '0.01' : undefined"
+        :step="props.type === 'number' || props.type === 'currency' ? '0.01' : undefined"
         :inputmode="
-          props.type === 'number'
+          props.type === 'number' || props.type === 'currency'
             ? 'decimal'
             : props.type === 'email'
             ? 'email'
             : undefined
         "
+        @focus="handleFocus"
+        @blur="handleBlur"
+        @beforeinput="handleBeforeInput"
         :class="[
           'h-10 pr-5 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50',
           hasError

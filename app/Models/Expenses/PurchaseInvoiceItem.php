@@ -2,38 +2,18 @@
 
 namespace App\Models\Expenses;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\Inventory\FabricRoll;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class PurchaseInvoiceItem extends Model
+class PurchaseInvoiceItem extends PurchaseDocumentItem
 {
     use HasFactory;
 
-    protected $fillable = [
-        'purchase_invoice_id',
-        'article_id',
-        'price',
-        'tax',
-        'quantity',
-        'description',
-        'supplier_code',
-        'supplier_color',
-        'order_width',
-        'total',
-        'total_tax',
-    ];
+    protected $table = 'purchase_document_items';
 
-    protected $casts = [
-        // 'order_width' => 'float', // Comentado/removido
-    ];
-
-    public function purchaseInvoice()
+    public function fabricRolls()
     {
-        return $this->belongsTo(PurchaseInvoice::class);
-    }
-
-    public function article()
-    {
-        return $this->belongsTo(\App\Models\Inventory\Article::class);
+        return $this->hasMany(FabricRoll::class, 'purchase_document_item_id');
     }
 }

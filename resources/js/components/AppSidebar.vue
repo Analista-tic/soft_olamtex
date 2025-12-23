@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavMainGroup from '@/components/NavMainGroup.vue';
@@ -7,7 +7,7 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, Sid
 import { useAuthStore } from '@/stores/auth';
 import { type NavGroupItem, type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, ChartNoAxesCombined, Cog, BanknoteArrowDown, Database, Folder, FolderKanban, Folders, LayoutGrid, Shell, UsersRound } from 'lucide-vue-next';
+import { BookOpen, ChartNoAxesCombined, Grip , BanknoteArrowDown, Database, Folder, FolderKanban, Folders, LayoutGrid, Shell, UsersRound } from 'lucide-vue-next';
 import { computed, onMounted } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -50,7 +50,12 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
         items: [
             {
-                title: 'Orden de Compra',
+                title: 'Solicitud de Compras',
+                href: '/gastos/solicitudes-compra',
+                permission: 'ver telas',
+            },
+            {
+                title: 'Orden de Compras',
                 href: '/gastos/ordenes-compra',
                 permission: 'ver telas',
             },
@@ -79,29 +84,34 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
         items: [
             {
-                title: 'Gestion de Articulos',
-                href: '/articulos',
-                permission: 'ver articulos',
+                title: 'Gestion de items',
+                href: '/item',
+                permission: 'ver inventario telas',
             },
             {
-                title: 'Inventario de Articulos',
-                href: '/inventario/articulos',
-                permission: 'ver inventario',
+                title: 'Inventario de items',
+                href: '/inventario-item',
+                permission: 'ver inventario telas',
             },
             {
                 title: 'Ajuste de Inventario',
                 href: '/inventario/ajuste-inventario',
-                permission: 'ver ajustes',
+                permission: 'ver inventario telas',
             },
             {
-                title: 'Gestión de Bodegas',
+                title: 'Gestion de Bodegas',
                 href: '/bodegas',
                 permission: 'ver bodegas',
             },
             {
-                title: 'Gestión de Categorías',
+                title: 'Campos adicionales',
+                href: '/campos-adicionales',
+                permission: 'ver inventario telas',
+            },
+            {
+                title: 'Gestion de Categorias',
                 href: '/categorias/subgrupos',
-                permission: 'ver categorías',
+                permission: 'ver categorias',
             },
         ],
     },
@@ -135,7 +145,7 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
         items: [
             {
-                title: 'Sabana de Productos',
+                title: 'Sábana de Productos',
                 href: '/diseno/sabana-productos',
                 permission: 'ver sabana productos', // Permiso necesario para este subitem
             },
@@ -153,7 +163,7 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
         items: [
             {
-                title: 'Ordenes de Producción',
+                title: 'Órdenes de Producción',
                 href: '',
                 permission: 'ver sabana productos', // Permiso necesario para este subitem
             },
@@ -176,9 +186,9 @@ const navMainGroup: NavGroupItem[] = [
         isActive: false,
     },
     {
-        title: 'Configuración',
-        href: '/configuracion',
-        icon: Cog,
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
+        icon: Grip ,
         isActive: false,
     },
 ];
@@ -186,7 +196,7 @@ const navMainGroup: NavGroupItem[] = [
 // Filtrar los elementos de navegación principales según roles o permisos
 const filteredMainNavItems = computed(() =>
     mainNavItems.filter((item) => {
-        if (item.title === 'Configuración') {
+        if (item.title === 'Panel administrativo') {
             return auth.hasRole('admin'); // Solo visible para administradores
         }
         return true; // Visible para todos los demás

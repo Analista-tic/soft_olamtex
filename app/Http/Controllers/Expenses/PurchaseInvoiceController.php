@@ -2,251 +2,98 @@
 
 namespace App\Http\Controllers\Expenses;
 
-use App\Http\Controllers\Controller;
-use App\Models\Expenses\PurchaseInvoice;
+use App\Http\Controllers\Expenses\Concerns\ValidatesPurchaseInvoiceRequest;
+use App\Models\Expenses\PurchaseDocument;
+use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 
-class PurchaseInvoiceController extends Controller
+class PurchaseInvoiceController extends PurchaseDocumentController
 {
-    /**
-     * Muestra la vista principal de facturas de compra.
-     */
+    use ValidatesPurchaseInvoiceRequest;
+
+    public function __construct(PurchaseDocumentInvoiceService $service)
+    {
+        parent::__construct($service);
+    }
+
     public function index()
     {
         return Inertia::render('Expenses/PurchaseInvoices/Index');
     }
 
-    /**
-     * Muestra una factura de compra específica.
-     */
-    public function show($purchaseInvoice)
+    public function getData(Request $request)
     {
-        try {
-            $invoice = PurchaseInvoice::with([
-                'contact',
-                'purchaseOrder',
-                'items.article.warehouses',
-                'items.article.categorySubGroup.categoryGroup',
-                'items.article.color',
-                'items.article.tax'
-            ])->findOrFail($purchaseInvoice);
+        $filters = $this->buildFilters($request);
+        $documents = $this->service->paginateDocuments(
+            PurchaseDocument::TYPE_INVOICE,
+            $filters,
+            $request->input('per_page', 20)
+        );
 
-            return response()->json(['data' => $invoice]);
-        } catch (ModelNotFoundException $e) {
-            return response()->json([
-                'error' => 'Factura no encontrada',
-                'message' => "No se encontró la factura con ID: {$purchaseInvoice}"
-            ], 404);
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Error interno del servidor',
-                'message' => 'Ocurrió un error al cargar la factura',
-                'debug' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'data' => $documents->items(),
+            'total' => $documents->total(),
+            'current_page' => $documents->currentPage(),
+        ]);
     }
 
-    /**
-     * Valida y almacena una nueva factura de compra.
-     */
     public function store(Request $request)
     {
-        $data = $this->validateInvoice($request);
+        $payload = $this->validateInvoiceRequest($request);
+        $items = $payload['items'] ?? [];
+        $withholdings = $payload['withholdings'] ?? [];
+        $invoice = $this->service->createInvoice($payload, $items, $withholdings);
 
-        // Elimina purchase_order_id si no tiene valor válido
-        if (empty($data['purchase_order_id'])) {
-            unset($data['purchase_order_id']);
-        }
-
-        // Asegura que withholdings sea array
-        $data['withholdings'] = $data['withholdings'] ?? [];
-
-        $data['is_fabric'] = false;
-
-        $invoice = PurchaseInvoice::create($data);
-
-        // Crea los items asociados
-        $this->syncInvoiceItems($invoice, $data['items'] ?? []);
-
-        // Actualiza el estado de la orden de compra si corresponde
-        $this->updatePurchaseOrderStatus($data['purchase_order_id'] ?? $request->purchase_order_id);
-
-        return response()->json(['data' => $invoice->load('items', 'contact', 'purchaseOrder')], 201);
+        return response()->json(['data' => $invoice], 201);
     }
 
-    /**
-     * Valida y actualiza una factura de compra existente.
-     */
-    public function update(Request $request, $id)
+    public function show(PurchaseDocument $purchaseDocument)
     {
-        $invoice = PurchaseInvoice::findOrFail($id);
-
-        $data = $this->validateInvoice($request, true);
-
-        if (empty($data['purchase_order_id'])) {
-            unset($data['purchase_order_id']);
-        }
-        $data['withholdings'] = $data['withholdings'] ?? [];
-        $data['is_fabric'] = false;
-
-        $invoice->update($data);
-
-        // Sincroniza los items de la factura
-        $this->syncInvoiceItems($invoice, $data['items'] ?? [], true);
-
-        // Actualiza el estado de la orden de compra si corresponde
-        $this->updatePurchaseOrderStatus($data['purchase_order_id'] ?? $request->purchase_order_id);
-
-        return response()->json(['data' => $invoice->load('items', 'contact', 'purchaseOrder')]);
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        return response()->json(['data' => $this->service->loadWithRelations($purchaseDocument)]);
     }
 
-    /**
-     * Elimina una factura de compra y sus items asociados.
-     */
-    public function destroy($id)
+    public function update(Request $request, PurchaseDocument $purchaseDocument)
     {
-        $invoice = PurchaseInvoice::findOrFail($id);
-        $invoice->items()->delete();
-        $invoice->delete();
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $payload = $this->validateInvoiceRequest($request, true);
+        $items = $request->has('items') ? $payload['items'] ?? [] : null;
+
+        $updated = $this->service->updateDocument($purchaseDocument, $payload, $items);
+        return response()->json(['data' => $updated]);
+    }
+
+    public function destroy(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $this->service->deleteDocument($purchaseDocument);
         return response()->json(['message' => 'Factura eliminada']);
     }
 
-    /**
-     * Devuelve datos paginados de facturas de compra según filtros.
-     */
-    public function getData(Request $request)
+    public function justify(Request $request, PurchaseDocument $purchaseDocument)
     {
-        $query = PurchaseInvoice::with([
-            'contact',
-            'purchaseOrder',
-            'items.article.warehouses',
-            'items.article.categorySubGroup.categoryGroup',
-            'items.article.color',
-            'items.article.tax'
-        ])
-        ->where('is_fabric', false);
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
 
-        // Filtros dinámicos
-        if ($request->filled('search')) {
-            $query->whereHas('contact', function ($q) use ($request) {
-                $q->where('full_name', 'like', '%' . $request->search . '%');
-            });
-        }
-        if ($request->filled('date_from')) {
-            $query->where('date', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->where('date', '<=', $request->date_to);
-        }
-        if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('provider_id') && $request->provider_id !== 'all') {
-            $query->where('contact_id', $request->provider_id);
-        }
-
-        // Ordena por fecha e id descendente
-        $invoices = $query->orderByDesc('date')->orderByDesc('id')->paginate($request->per_page ?? 20);
-
-        return response()->json([
-            'data' => $invoices->items(),
-            'total' => $invoices->total(),
-            'current_page' => $invoices->currentPage()
+        $validated = $request->validate([
+            'difference_reason' => 'required|string',
+            'difference_evidence_path' => 'nullable|string',
+            'difference_notes' => 'nullable|string',
         ]);
+
+        $invoice = $this->service->attachValidationDifference(
+            $purchaseDocument,
+            $validated['difference_reason'],
+            $validated['difference_evidence_path'] ?? null,
+            $validated['difference_notes'] ?? null
+        );
+
+        return response()->json(['data' => $invoice]);
     }
 
-    /**
-     * Valida los datos de la factura de compra.
-     * @param Request $request
-     * @param bool $isUpdate
-     * @return array
-     */
-    private function validateInvoice(Request $request, $isUpdate = false)
+    protected function buildFilters(Request $request): array
     {
-        $itemIdRule = $isUpdate ? ['sometimes', 'exists:purchase_invoice_items,id'] : [];
-        return $request->validate([
-            'contact_id' => 'required|exists:contacts,id',
-            'purchase_order_id' => 'nullable|exists:purchase_orders,id',
-            'date' => 'required|date',
-            'delivery_date' => 'nullable|date',
-            'supplier_invoice_number' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'status' => 'nullable|string|max:50',
-            'items' => 'array',
-            'items.*.id' => $itemIdRule,
-            'items.*.article_id' => 'required|exists:articles,id',
-            'items.*.price' => 'required|numeric',
-            'items.*.tax' => 'nullable|numeric',
-            'items.*.quantity' => 'required|numeric',
-            'items.*.description' => 'nullable|string',
-            'items.*.supplier_code' => 'nullable|string',
-            'items.*.supplier_color' => 'nullable|string',
-            'items.*.order_width' => 'nullable|string',
-            'items.*.total' => 'nullable|numeric',
-            'items.*.total_tax' => 'nullable|numeric',
-            'withholdings' => 'nullable|array',
-            'withholdings.*.name' => 'required_with:withholdings|string',
-            'withholdings.*.percentage' => 'required_with:withholdings|numeric',
-            'withholdings.*.base_amount' => 'required_with:withholdings|numeric',
-        ]);
-    }
-
-    /**
-     * Sincroniza los items de la factura (crea, actualiza y elimina según corresponda).
-     * @param PurchaseInvoice $invoice
-     * @param array $items
-     * @param bool $isUpdate
-     */
-    private function syncInvoiceItems($invoice, $items, $isUpdate = false)
-    {
-        if (!$isUpdate) {
-            // Solo crear (caso store)
-            foreach ($items as $item) {
-                $invoice->items()->create($item);
-            }
-            return;
-        }
-
-        // Actualizar, crear o eliminar (caso update)
-        $existingItems = $invoice->items()->get()->keyBy('id');
-        $incomingItems = collect($items);
-
-        // Actualizar o crear items
-        foreach ($incomingItems as $itemData) {
-            if (!empty($itemData['id']) && $existingItems->has($itemData['id'])) {
-                $existingItems[$itemData['id']]->update($itemData);
-            } else {
-                $invoice->items()->create($itemData);
-            }
-        }
-
-        // Eliminar items que no tengan rolls asociados
-        $incomingIds = $incomingItems->pluck('id')->filter()->all();
-        foreach ($existingItems as $item) {
-            if (!in_array($item->id, $incomingIds)) {
-                // Solo elimina si no tiene rolls asociados
-                if ($item->fabricRolls()->count() == 0) {
-                    $item->delete();
-                }
-                // Si tiene rolls asociados, no se elimina
-            }
-        }
-    }
-
-    /**
-     * Actualiza el estado de la orden de compra asociada a 'invoiced' si corresponde.
-     * @param mixed $purchaseOrderId
-     */
-    private function updatePurchaseOrderStatus($purchaseOrderId)
-    {
-        if (!empty($purchaseOrderId)) {
-            $order = \App\Models\Expenses\PurchaseOrder::find($purchaseOrderId);
-            if ($order) {
-                $order->status = 'invoiced'; // Usa el valor permitido por tu ENUM
-                $order->save();
-            }
-        }
+        $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id']);
+        return $filters;
     }
 }

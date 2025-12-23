@@ -223,7 +223,7 @@ function getTrueSizes(sizes: string | undefined): string {
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
             </DialogHeader>
 
-            <div class="grid grid-cols-2 gap-4 gap-y-1">
+            <div class="grid grid-cols-2 gap-4 gap-y-1 pt-5">
                 <div class="col-span-2">
                     <div class="flex space-x-4">
                         <!-- Campo para la referencia seleccionada -->

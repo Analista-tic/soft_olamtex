@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { BreadcrumbItem } from '@/types';
 import type { Warehouse } from '@/types';
@@ -6,6 +6,8 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
 import {
@@ -27,7 +29,7 @@ import WarehouseDialog from './WarehouseDialog.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Bodegas', href: '/bodegas' },
 ];
 
@@ -133,7 +135,7 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
             if (validationErrors?.name?.length || lower.includes('already') || lower.includes('taken')) {
                 setError('Ya existe una bodega con ese nombre.', 'warning');
             } else if (lower.includes('observation') && lower.includes('required')) {
-                setError('La observacion es obligatoria.', 'warning');
+                setError('La observación es obligatoria.', 'warning');
             } else if (rawMessage) {
                 setError(rawMessage, 'warning');
             } else {
@@ -183,25 +185,34 @@ onMounted(() => {
             :success-message="successMessage"
             :error-message="errorMessage"
             :error-type="errorType"
-            success-title="Operacion exitosa"
+            success-title="Operación exitosa"
             error-title="Aviso"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Bodegas</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Gestión de Bodegas</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Administra las bodegas de la empresa, su información y observaciones para ubicaciones físicas.
+                    </p>
+                </div>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4" /> Crear Nueva Bodega</Button>
             </div>
             <div class="relative flex items-center gap-4">
-                <div class="relative w-full max-w-sm">
-                    <Input id="search_warehouse" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
+                <FilterBar>
+                    <FilterField label="Buscar bodega" :active="searchQuery.trim().length > 0" class="flex-1 p-0">
+                        <div class="relative w-full max-w-sm">
+                            <Input id="search_warehouse" v-model="searchQuery" placeholder="Buscar por nombre u observación" class="h-10 w-full pl-10" />
+                            <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                                <Search :size="20" class="text-muted-foreground" />
+                            </span>
+                        </div>
+                    </FilterField>
+                </FilterBar>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
@@ -271,4 +282,5 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
+
 

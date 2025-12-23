@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import ContactGroupsSelect from '@/components/ContactGroupsSelect.vue';
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import type { Contact } from '@/types';
@@ -31,15 +32,35 @@ const defaultForm: Partial<Contact> = {
     phone: '',
 };
 
+function ensureArray(value: Contact['groups'] | undefined | null): Contact['groups'] {
+    if (Array.isArray(value)) {
+        return value;
+    }
+    if (value === undefined || value === null) {
+        return [];
+    }
+    return [value];
+}
+
+function normalizeFormPayload(form?: Partial<Contact> | Record<string, any>): Partial<Contact> {
+    const normalized = { ...(form || {}) } as Partial<Contact>;
+    normalized.groups = ensureArray(normalized.groups);
+    return normalized;
+}
+
 // Inicializar de forma segura: merge de defaults con el prop (si existe)
-const internalForm = ref<Partial<Contact>>(Object.assign({}, defaultForm, props.form || {}));
+const internalForm = ref<Partial<Contact>>(
+    Object.assign({}, defaultForm, normalizeFormPayload(props.form)),
+);
 
 // Sincronizar el objeto interno con el prop `form` sin causar recursividad
 watch(
     () => props.form,
     (newForm) => {
-        if (JSON.stringify(newForm) !== JSON.stringify(internalForm.value)) {
-            internalForm.value = { ...newForm };
+        const normalized = normalizeFormPayload(newForm);
+        const currentNormalized = normalizeFormPayload(internalForm.value);
+        if (JSON.stringify(normalized) !== JSON.stringify(currentNormalized)) {
+            internalForm.value = { ...defaultForm, ...normalized };
         }
     },
     { deep: true },
@@ -49,8 +70,10 @@ watch(
 watch(
     internalForm,
     (updatedForm) => {
-        if (JSON.stringify(updatedForm) !== JSON.stringify(props.form)) {
-            emit('update:form', updatedForm); // Emitir el formulario actualizado
+        const normalizedUpdated = normalizeFormPayload(updatedForm);
+        const normalizedPropsForm = normalizeFormPayload(props.form);
+        if (JSON.stringify(normalizedUpdated) !== JSON.stringify(normalizedPropsForm)) {
+            emit('update:form', normalizedUpdated); // Emitir el formulario actualizado
         }
     },
     { deep: true },
@@ -153,13 +176,13 @@ const validateField = (field: string) => {
             :searchable="false"
             @input="validateField('contact_type')"
         />
-        <SelectField
+        <ContactGroupsSelect
             v-model="internalForm.groups"
             label="Categoría proveedor/cliente"
-            :searchable="true"
-            required
-            multiple
             :options="groups.map((group) => ({ id: group.id, name: group.name }))"
+            placeholder="Selecciona categorías"
+            required
+            :searchable="true"
             :error="errors.groups?.[0]"
             @input="validateField('groups')"
         />

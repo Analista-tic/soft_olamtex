@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-        <DialogContent class="w-full max-w-md">
+        <FormDialogContent>
             <DialogHeader>
                 <DialogTitle>
                     {{ props.dialogType === 'create' ? 'Crear Impuesto' : 'Editar Impuesto' }}
@@ -81,6 +82,6 @@ function handleSubmit() {
                     {{ props.dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                 </Button>
             </DialogFooter>
-        </DialogContent>
+    </FormDialogContent>
     </Dialog>
 </template>

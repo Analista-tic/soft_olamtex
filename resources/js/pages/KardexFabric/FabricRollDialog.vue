@@ -11,7 +11,7 @@ import AlertBox from '@/components/AlertBox.vue';
 
 interface FabricRollForm {
     roll_number: string;
-    purchase_invoice_item_id: number | null;
+    purchase_document_item_id: number | null;
     quantity: number | string;
     roll_width: number | string;
     location: string;
@@ -59,7 +59,7 @@ function clearAlert() {
 
 const form = ref<FabricRollForm>({
     roll_number: '',
-    purchase_invoice_item_id: null,
+    purchase_document_item_id: null,
     quantity: '',
     roll_width: '',
     location: '',
@@ -70,7 +70,7 @@ const form = ref<FabricRollForm>({
 const itemInfo = computed(() => {
     if (!props.item) return null;
     return {
-        articleName: props.item.article?.name || 'N/A',
+        articleName: props.item.item?.name || 'N/A',
         supplierCode: props.item.supplier_code || 'N/A',
         supplierColor: props.item.supplier_color || 'N/A',
         orderWidth: props.item.order_width || 'N/A',
@@ -122,9 +122,9 @@ const overallStatus = computed(() => {
 });
 
 function resetForm() {
-    form.value = {
-        roll_number: '',
-        purchase_invoice_item_id: props.item?.id || null,
+        form.value = {
+            roll_number: '',
+            purchase_document_item_id: props.item?.id || null,
         quantity: '',
         roll_width: props.item?.order_width?.toString() || '',
         location: '',
@@ -142,7 +142,7 @@ async function handleSubmit() {
             ...form.value,
             quantity: Number(form.value.quantity),
             roll_width: Number(form.value.roll_width),
-            purchase_invoice_item_id: props.item?.id,
+            purchase_document_item_id: props.item?.id,
         };
 
         await axios.post(props.apiUrl!, payload);
@@ -282,7 +282,7 @@ function formatDate(dateStr: string) {
             </div>
 
             <div v-if="activeTab === 'form'">
-                <!-- Info artículo pedido simplificada -->
+                <!-- Info item pedido simplificada -->
                 <div v-if="itemInfo" class="grid grid-cols-2 gap-2 p-2 bg-blue-50 rounded text-xs mb-3">
                     <div><b>Pedido:</b> {{ itemInfo.orderedQuantity }} mts</div>
                     <div><b>Ingresado:</b> {{ totalReceived }} mts</div>

@@ -1,6 +1,8 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
@@ -10,7 +12,7 @@ import type { PurchaseInvoice } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -23,6 +25,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos/facturas-compra' },
@@ -54,7 +57,7 @@ const {
     clearAll,
 } = useAlertMessages({
     entityLabel: 'Factura',
-    entityArticle: '',
+    entityItem: '',
     successActions: {
         delete: 'eliminada correctamente.',
         sendMail: 'enviada por correo correctamente.',
@@ -64,10 +67,41 @@ const {
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
+const subgroupFilter = ref('all');
 const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
+const subgroups = ref<{ id: number; name: string }[]>([]);
+const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_PROVIDER_FILTER = 'all';
+const DEFAULT_SUBGROUP_FILTER = 'all';
+
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
+const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
+const isDateFromActive = computed(() => Boolean(dateFrom.value));
+const isDateToActive = computed(() => Boolean(dateTo.value));
+
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
+const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
 const purchaseOrdersMap = ref<Record<number, string>>({});
+const facturasRoute = '/gastos/facturas-compra';
+const receptionBaseRoute = '/kardex-telas/recepcion';
+const receptionReturnParam = 'return_to';
+
+function buildReceptionUrl(invoiceId?: number | string) {
+    const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
+    return `${basePath}?${receptionReturnParam}=${encodeURIComponent(facturasRoute)}`;
+}
+
+const formatDate = (value?: string | null) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('es-CO');
+};
 
 async function fetchProviders() {
     try {
@@ -76,6 +110,16 @@ async function fetchProviders() {
     } catch (e) {
         console.log('Error al cargar proveedores:', e);
         providers.value = [];
+    }
+}
+
+async function fetchSubgroups() {
+    try {
+        const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
+        subgroups.value = Array.isArray(data?.data) ? data.data : [];
+    } catch (error) {
+        console.log('Error al cargar subgrupos:', error);
+        subgroups.value = [];
     }
 }
 
@@ -138,6 +182,9 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
         params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
     }
+    if (subgroupFilter.value !== 'all' && subgroupFilter.value !== '' && subgroupFilter.value !== null) {
+        params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
+    }
     try {
         const response = await axios.get('/gastos/facturas-compra/data', { params });
         invoices.value = Array.isArray(response.data.data)
@@ -160,7 +207,8 @@ async function fetchPurchaseOrdersMap() {
         purchaseOrdersMap.value = orders.reduce((acc: Record<number, string>, order: any) => {
             const id = Number(order.id);
             if (!Number.isNaN(id)) {
-                acc[id] = order.supplier_order_number || order.order_number || String(id);
+                const docNumber = order.document_number || order.supplier_order_number || order.order_number;
+                acc[id] = docNumber || String(id);
             }
             return acc;
         }, {});
@@ -172,11 +220,12 @@ async function fetchPurchaseOrdersMap() {
 
 // Watcher único para filtros y búsqueda
 watch(
-    [statusFilter, providerFilter, dateFrom, dateTo, searchQuery],
-    ([newStatus, newProvider, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldFrom, oldTo, oldSearch]) => {
+    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
         if (
             newStatus !== oldStatus ||
             newProvider !== oldProvider ||
+            newSubgroup !== oldSubgroup ||
             newFrom !== oldFrom ||
             newTo !== oldTo ||
             newSearch !== oldSearch
@@ -202,6 +251,7 @@ onMounted(() => {
     fetchInvoices();
     fetchProviders();
     fetchPurchaseOrdersMap();
+    fetchSubgroups();
 });
 
 function openPrintDialog(invoice: PurchaseInvoice) {
@@ -227,12 +277,18 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
 
 function goToReception(invoice: PurchaseInvoice) {
     // Navegar a la página de recepción con el ID de la factura
-    router.visit(`/kardex-telas/recepcion/${invoice.id}`);
+    router.visit(buildReceptionUrl(invoice.id));
 }
 
-function viewInvoiceDetails(invoice: PurchaseInvoice) {
-    // Abrir el dialog de edición en modo solo lectura
-    openDialog('edit', invoice, true);
+async function viewInvoiceDetails(invoice: PurchaseInvoice) {
+    if (!invoice.id) return;
+    try {
+        const response = await axios.get(`/gastos/facturas-compra/${invoice.id}`);
+        openDialog('edit', response.data?.data, true);
+    } catch (error) {
+        console.error('Error al obtener factura para visualización', error);
+        showError('No se pudo cargar la factura para visualizar.');
+    }
 }
 
 function handleDialogRefresh(message?: string) {
@@ -249,17 +305,23 @@ function handleDialogError(message?: string) {
     clearSuccess();
 }
 
-const orderDisplay = (invoice: PurchaseInvoice) =>
-    purchaseOrdersMap.value[invoice.purchase_order_id as number] ||
-    (invoice as any)?.purchase_order?.supplier_order_number ||
-    (invoice as any)?.purchase_order?.order_number ||
-    invoice.purchase_order_id ||
-    (invoice as any)?.purchase_order?.id ||
-    '-';
+const orderDisplay = (invoice: PurchaseInvoice) => {
+    const parentDocNumber = (invoice as any)?.parent?.document_number;
+    if (parentDocNumber) {
+        return parentDocNumber;
+    }
+
+    const parentId = invoice.parent_document_id ?? (invoice as any)?.purchase_order_id;
+    if (parentId) {
+        return purchaseOrdersMap.value[parentId] || `ORD-${String(parentId).padStart(3, '0')}`;
+    }
+
+    return '-';
+};
 </script>
 
 <template>
-    <Head title="Facturas de Compra" />
+    <Head title="Facturas de Compras y Servicios" />
     <AppLayout :breadcrumbs="breadcrumbs">
             <AlertStack
                 :successMessage="successMessage"
@@ -270,10 +332,15 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
             />
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Facturas de Compra</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Facturas de Compras y Servicios</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Registra facturas para llevar la trazabilidad de la recepción y la aprobación.
+                    </p>
+                </div>
                 <div class="flex gap-2">
                     <Button 
-                        @click="router.visit('/kardex-telas/recepcion')" 
+                        @click="router.visit(buildReceptionUrl())" 
                         variant="outline" 
                         size="sm"
                     >
@@ -284,39 +351,51 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                     </Button>
                 </div>
             </div>
-            <div class="flex items-end gap-4 mb-2 flex-wrap">
-                <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-                <div class="min-w-[180px]">
+            <FilterBar align="start">
+                <FilterField label="Buscar factura" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                    <div class="relative">
+                        <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="statusFilter"
-                        label="Estado"
+                        label=""
                         :options="[
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobado' },
                             { id: 'rejected', name: 'Rechazado' }
                         ]"
+                        :button-class="statusButtonClasses"
                     />
-                </div>
-                <div class="min-w-[180px]">
+                </FilterField>
+                <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="providerFilter"
-                        label="Proveedor"
+                        label=""
                         :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map(prov => ({ id: String(prov.id), name: prov.full_name }))]"
+                        :button-class="providerButtonClasses"
                     />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" label="Desde" />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateTo" label="Hasta" />
-                </div>
-            </div>
+                </FilterField>
+                <FilterField label="Subgrupo" :active="isSubgroupFilterActive" class="min-w-[180px]">
+                    <SelectField
+                        v-model="subgroupFilter"
+                        label=""
+                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map(sub => ({ id: String(sub.id), name: sub.name }))]"
+                        :button-class="subgroupButtonClasses"
+                    />
+                </FilterField>
+                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFrom" placeholder="Desde" />
+                </FilterField>
+                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
+                    <InputDate v-model="dateTo" placeholder="Hasta" />
+                </FilterField>
+            </FilterBar>
             <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">
                 <Table>
                     <TableHeader>
@@ -327,19 +406,22 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Número Factura</TableHead>
                             <TableHead>Entrega</TableHead>
-                            <TableHead>Estado</TableHead>
                             <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                            <TableCell class="font-medium">{{ invoice.id }}</TableCell>
+                            <TableCell class="font-medium">
+                                {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
+                            </TableCell>
                             <TableCell>{{ orderDisplay(invoice) }}</TableCell>
-                            <TableCell>{{ invoice.contact?.full_name }}</TableCell>
-                            <TableCell>{{ invoice.date }}</TableCell>
+                            <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
+                            <TableCell>{{ formatDate(invoice.date) }}</TableCell>
                             <TableCell>{{ invoice.supplier_invoice_number || '-' }}</TableCell>
-                            <TableCell>{{ invoice.delivery_date }}</TableCell>
+                            <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
+                            <TableCell class="max-w-32 truncate">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>
                                 <span 
                                     v-if="invoice.status"
@@ -362,16 +444,15 @@ const orderDisplay = (invoice: PurchaseInvoice) =>
                                     Pendiente
                                 </span>
                             </TableCell>
-                            <TableCell class="max-w-32 truncate">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>
                                 <div class="flex justify-center gap-1 flex-wrap">
-                                    <button
-                                        class="flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-600"
-                                        @click="viewInvoiceDetails(invoice)"
-                                        title="Ver detalles"
-                                    >
+                                      <button
+                                          class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-blue-600"
+                                          @click="viewInvoiceDetails(invoice)"
+                                          title="Ver detalles"
+                                      >
                                         <Eye class="h-4 w-4" />
-                                    </button>
+                                      </button>
                                     <EditButton :onClick="() => openDialog('edit', invoice)" />
                                     <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->

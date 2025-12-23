@@ -1,6 +1,8 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import { Button } from '@/components/ui/button';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
@@ -10,13 +12,14 @@ import type { PurchaseOrder } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos/ordenes-compra' },
@@ -47,6 +50,25 @@ const providerFilter = ref('all');
 const dateFrom = ref('');
 const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
+
+const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_PROVIDER_FILTER = 'all';
+
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
+const isDateFromActive = computed(() => Boolean(dateFrom.value));
+const isDateToActive = computed(() => Boolean(dateTo.value));
+
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
+
+const formatDate = (value?: string | null) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString('es-CO');
+};
 
 async function fetchProviders() {
     // Consumir correctamente los contactos como proveedores
@@ -84,8 +106,14 @@ async function deleteOrder() {
         await axios.delete(`/gastos/ordenes-compra/${orderToDelete.value.id}`);
         successMessage.value = 'Orden eliminada correctamente.';
         fetchOrders(currentPage.value, searchQuery.value);
-    } catch {
-        setErrorMessage('Error al eliminar la orden.');
+    } catch (e: any) {
+        const documentError = e?.response?.data?.errors?.document;
+        const normalizedDocumentError = Array.isArray(documentError) ? documentError[0] : documentError;
+        const serverMessage =
+            normalizedDocumentError ||
+            e?.response?.data?.message ||
+            'Error al eliminar la orden.';
+        setErrorMessage(serverMessage);
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -193,47 +221,54 @@ function handleDialogError(message?: string) {
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Órdenes de Compra</h1>
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.
+                    </p>
+                </div>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="h-4 w-4" /> Nueva Orden</Button>
             </div>
-            <!-- FILTROS: UNA SOLA FILA -->
-            <div class="flex items-end gap-4 mb-2 flex-wrap">
-                <div class="relative max-w-xs flex-1 min-w-[220px]">
-                    <Input v-model="searchQuery" placeholder="Buscar orden" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-                <!-- Estado: usando SelectField -->
-                <div class="min-w-[180px]">
+            <FilterBar align="start">
+                <FilterField label="Buscar orden" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                    <div class="relative">
+                        <Input v-model="searchQuery" placeholder="Buscar orden" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="statusFilter"
-                        label="Estado"
+                        label=""
                         :options="[
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
-                            { id: 'invoiced', name: 'Facturada' },
+                            { id: 'approved', name: 'Aprobada' },
+                            { id: 'rejected', name: 'Rechazada' },
                         ]"
+                        :button-class="statusButtonClasses"
                     />
-                </div>
-                <!-- Proveedor: usando SelectField -->
-                <div class="min-w-[180px]">
+                </FilterField>
+                <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="providerFilter"
-                        label="Proveedor"
+                        label=""
                         :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map((prov: { id: number; full_name: string }) => ({ id: String(prov.id), name: prov.full_name }))]"
+                        :button-class="providerButtonClasses"
                     />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" label="Desde" placeholder="Desde" />
-                </div>
-                <div class="min-w-[140px]">
-                    <InputDate v-model="dateTo" label="Hasta" placeholder="Hasta" />
-                </div>
-            </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                </FilterField>
+                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFrom" placeholder="Desde" />
+                </FilterField>
+                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
+                    <InputDate v-model="dateTo" placeholder="Hasta" />
+                </FilterField>
+            </FilterBar>
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
-                    <TableHeader>
+                        <TableHeader>
                         <TableRow>
                             <TableHead>#Orden</TableHead>
                             <TableHead>Proveedor</TableHead>
@@ -241,17 +276,36 @@ function handleDialogError(message?: string) {
                             <TableHead>Número Orden</TableHead>
                             <TableHead>Entrega</TableHead>
                             <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
-                    </TableHeader>
+                        </TableHeader>
                     <TableBody>
                         <TableRow v-for="order in orders" :key="order.id" class="text-center">
-                            <TableCell>{{ order.id }}</TableCell>
-                            <TableCell>{{ order.contact?.full_name }}</TableCell>
-                            <TableCell>{{ order.date }}</TableCell>
+                            <TableCell>
+                                {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
+                            </TableCell>
+                            <TableCell>{{order.contact?.full_name || '-' }}</TableCell>
+                            <TableCell>{{ formatDate(order.date) }}</TableCell>
                             <TableCell>{{ order.supplier_order_number }}</TableCell>
-                            <TableCell>{{ order.delivery_date }}</TableCell>
+                            <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
                             <TableCell>{{ order.description }}</TableCell>
+                            <TableCell>
+                                <span
+                                    :class="[
+                                        'px-2 py-1 rounded-full text-xs font-semibold',
+                                        order.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                            order.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                            'bg-yellow-100 text-yellow-800',
+                                    ]"
+                                >
+                                    {{
+                                        order.status === 'approved' ? 'Aprobada' :
+                                        order.status === 'rejected' ? 'Rechazada' :
+                                        'Pendiente'
+                                    }}
+                                </span>
+                            </TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', order)" title="Editar orden" />
                                 <DeleteButton :onClick="() => confirmDeleteOrder(order)" title="Eliminar orden" />
@@ -311,4 +365,3 @@ function handleDialogError(message?: string) {
         />
     </AppLayout>
 </template>
-

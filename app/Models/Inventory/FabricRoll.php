@@ -4,7 +4,7 @@ namespace App\Models\Inventory;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Expenses\PurchaseInvoiceItem;
+use App\Models\Expenses\PurchaseDocumentItem;
 
 class FabricRoll extends Model
 {
@@ -12,7 +12,7 @@ class FabricRoll extends Model
 
     protected $fillable = [
         'roll_number',
-        'purchase_invoice_item_id',
+        'purchase_document_item_id',
         'quantity',
         'roll_width',
         'location',
@@ -31,9 +31,9 @@ class FabricRoll extends Model
     ];
 
     // Relación con el item de factura de compra
-    public function purchaseInvoiceItem()
+    public function purchaseDocumentItem()
     {
-        return $this->belongsTo(PurchaseInvoiceItem::class);
+        return $this->belongsTo(PurchaseDocumentItem::class, 'purchase_document_item_id');
     }
 
     // Obtener la cantidad disponible

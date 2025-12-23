@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
+import ItemDialog from '@/pages/Inventory/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
+import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
-import type { Article, PurchaseOrderItem } from '@/types';
+import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
+import type { Item, PurchaseOrderItem } from '@/types';
 import axios from 'axios';
-import { CirclePlus } from 'lucide-vue-next';
+import { Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import type { Tax } from '@/types';
 
@@ -14,11 +16,34 @@ const props = defineProps<{ items: PurchaseOrderItem[] }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseOrderItem[]>([]);
-const articles = ref<Article[]>([]);
+const catalogItems = ref<Item[]>([]); // renombrado desde `items`
 const taxes = ref<Tax[]>([]);
+const isTaxDialogOpen = ref(false);
+const taxDialogLoading = ref(false);
+const taxForm = ref({ name: '', percentage: 0, status: 'true' });
+const isItemDialogOpen = ref(false);
+const itemDialogForm = ref<Partial<Item>>({
+    reference: '',
+    description: '',
+    extra_fields: {},
+    negative_movement: false,
+    status: true,
+});
 
-const articleMap = computed(() => new Map<number, Article>(articles.value.map((a) => [a.id, a])));
+const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
 const taxOptions = computed(() => taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })));
+const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
+const showActionsColumn = computed(() => localItems.value.length > 1);
+const totalColumns = computed(() => {
+    let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripcion, Total
+    if (shouldShowFabricColumns.value) {
+        cols += 3;
+    }
+    if (showActionsColumn.value) {
+        cols += 1;
+    }
+    return cols;
+});
 
 watch(
     () => props.items,
@@ -40,9 +65,9 @@ watch(
     { immediate: true },
 );
 
-async function fetchArticles() {
-    const res = await axios.get('/articulos/data', { params: { per_page: 1000 } });
-    articles.value = res.data.data;
+async function fetchItems() {
+    const res = await axios.get('/item/data', { params: { per_page: 1000 } });
+    catalogItems.value = res.data.data;
 }
 
 async function fetchTaxes() {
@@ -51,19 +76,52 @@ async function fetchTaxes() {
 }
 
 onMounted(() => {
-    fetchArticles();
+    fetchItems();
     fetchTaxes();
 });
 
+function openTaxDialog() {
+    taxForm.value = { name: '', percentage: 0, status: 'true' };
+    isTaxDialogOpen.value = true;
+}
+
+function openItemDialog() {
+    itemDialogForm.value = {
+        reference: '',
+        description: '',
+        extra_fields: {},
+        negative_movement: false,
+        status: true,
+    };
+    isItemDialogOpen.value = true;
+}
+
+async function handleItemDialogRefresh() {
+    await fetchItems();
+}
+
+async function handleTaxDialogSubmit(formData: any) {
+    taxDialogLoading.value = true;
+    try {
+        await axios.post('/impuestos', formData);
+        await fetchTaxes();
+        isTaxDialogOpen.value = false;
+    } catch (error) {
+        console.error('Error creando impuesto', error);
+    } finally {
+        taxDialogLoading.value = false;
+    }
+}
+
 function isTela(item: PurchaseOrderItem) {
-    const articleId = Number(item.article_id);
-    const article = articleMap.value.get(articleId);
+    const itemId = Number(item.item_id);
+    const article = itemMap.value.get(itemId);
     return article?.category_sub_group?.name?.toLowerCase() === 'tela';
 }
 
 function addItem() {
     const newItem: PurchaseOrderItem = {
-        article_id: null,
+        item_id: null,
         price: 0,
         tax: 0,
         quantity: 1,
@@ -87,20 +145,43 @@ function removeItem(idx: number) {
     emit('update:items', localItems.value);
 }
 
+const currencyDecimals = 2;
+
+function roundCurrency(value: number) {
+    const factor = Math.pow(10, currencyDecimals);
+    return Math.round(value * factor) / factor;
+}
+
 function calcTotals(item: PurchaseOrderItem) {
     const price = Number(item.price) || 0;
     const quantity = Number(item.quantity) || 0;
     const tax = Number(item.tax) || 0;
 
-    item.total = Math.round(price * quantity);
-    item.total_tax = Math.round(price * (tax / 100) * quantity);
+    item.total = roundCurrency(price * quantity);
+    item.total_tax = roundCurrency(price * (tax / 100) * quantity);
 }
 
-function setTaxFromArticle(item: PurchaseOrderItem) {
-    const articleId = Number(item.article_id);
-    const article = articleMap.value.get(articleId);
+function setTaxFromItem(item: PurchaseOrderItem) {
+    const itemId = Number(item.item_id);
+    const article = itemMap.value.get(itemId);
     item.tax = article?.tax?.percentage ?? 0;
 }
+
+function syncItemsTaxWithCatalog() {
+    localItems.value.forEach((item) => {
+        if (item.item_id == null) return;
+        setTaxFromItem(item);
+        calcTotals(item);
+    });
+}
+
+watch(
+    catalogItems,
+    () => {
+        syncItemsTaxWithCatalog();
+    },
+    { immediate: true },
+);
 
 watch(
     localItems,
@@ -114,9 +195,9 @@ watch(
             if (!(item as any).__watching) {
                 (item as any).__watching = true;
                 watch(
-                    () => item.article_id,
+                    () => item.item_id,
                     () => {
-                        setTaxFromArticle(item);
+                        setTaxFromItem(item);
                         calcTotals(item);
                         emit('update:items', localItems.value);
                     },
@@ -133,90 +214,147 @@ watch(
     },
     { deep: true, immediate: true },
 );
+
+defineExpose({ addItem });
 </script>
 
 <template>
     <div
-        style="overflow: visible; max-height: none;" 
+        style="overflow: visible; max-height: none;"
         class="w-full"
     >
-        <div class="mb-2 flex items-center justify-between">
-            <span class="font-semibold">Items de la Orden</span>
-            <Button type="button" variant="default" size="sm" @click="addItem"> <CirclePlus /> Añadir Item </Button>
+
+        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none;">
+            <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
+                <TableHeader>
+                    <TableRow class="text-center border-b border-border/60">
+                        <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[160px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Código proveedor</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Color proveedor</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Ancho pedido</TableHead>
+                        <TableHead class="min-w-[90px] text-left">Total</TableHead>
+                        <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
+                    </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                    <TableRow v-for="(item, idx) in localItems" :key="idx">
+                        <TableCell class="p-1 text-left min-w-[150px]">
+                            <SelectField
+                                v-model="item.item_id"
+                                :options="catalogItems.map((a) => ({ id: a.id, name: a.name }))"
+                                label=""
+                                class="w-full"
+                            >
+                                <template #header>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                        @click.stop="openItemDialog"
+                                    >
+                                        <Plus class="h-4 w-4" />
+                                        Nuevo item
+                                    </Button>
+                                </template>
+                            </SelectField>
+                        </TableCell>
+                        <TableCell class="p-1 text-left" style="width: 120px;">
+                            <InputField
+                                v-model="item.price"
+                                type="currency"
+                                label=""
+                                :decimals="2"
+                                :min="0"
+                                class="h-10 w-full"
+                                @input="calcTotals(item)"
+                            />
+                        </TableCell>
+                        <TableCell class="p-1 text-left" style="width: 160px;">
+                            <SelectField
+                                v-model="item.tax"
+                                :options="taxOptions"
+                                label=""
+                                class="w-full"
+                                @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
+                            >
+                                <template #header>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                        @click.stop="openTaxDialog"
+                                    >
+                                        <Plus class="h-4 w-4" />
+                                        Nuevo impuesto
+                                    </Button>
+                                </template>
+                            </SelectField>
+                        </TableCell>
+                        <TableCell class="p-1 text-left" style="width: 110px;">
+                            <InputField
+                                v-model="item.quantity"
+                                type="number"
+                                label=""
+                                class="h-10 w-full"
+                                @input="calcTotals(item)"
+                            />
+                        </TableCell>
+                        <TableCell class="p-1 text-left" style="width: 160px;">
+                            <InputField v-model="item.description" label="" class="h-10 w-full" />
+                        </TableCell>
+                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
+                            <InputField v-model="item.supplier_code" label="" placeholder="C?digo proveedor" class="h-10 w-full" />
+                        </TableCell>
+                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
+                            <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" class="h-10 w-full" />
+                        </TableCell>
+                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
+                            <InputField v-model="item.order_width" type="number" label="" placeholder="Ancho pedido" step="any" class="h-10 w-full" />
+                        </TableCell>
+                        <TableCell class="p-1 text-left" style="width: 90px;">
+                            {{
+                                Number(item.total || 0).toLocaleString('es-CO', {
+                                    style: 'currency',
+                                    currency: 'COP',
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0,
+                                })
+                            }}
+                        </TableCell>
+                        <TableCell v-if="showActionsColumn" class="p-1 text-center">
+                            <div class="flex justify-center">
+                                <DeleteButton v-if="localItems.length > 1" @click="removeItem(idx)" />
+                            </div>
+                        </TableCell>
+                    </TableRow>
+
+                    <TableRow v-if="localItems.length === 0">
+                        <TableCell :colspan="totalColumns" class="text-center text-gray-400"> No hay items agregados. </TableCell>
+                    </TableRow>
+                </TableBody>
+            </Table>
         </div>
-
-    <Table
-        style="overflow: visible; max-height: none;"
-    >
-            <TableHeader>
-                <TableRow class="text-center">
-                    <TableCell class="min-w-[120px]">Artículo <span class="text-destructive">*</span></TableCell>
-                    <TableCell>Precio <span class="text-destructive">*</span></TableCell>
-                    <TableCell>Impuesto (%)</TableCell>
-                    <TableCell>Cantidad <span class="text-destructive">*</span></TableCell>
-                    <TableCell>Descripción</TableCell>
-                    <!-- Campos extra para tela -->
-                    <TableCell v-if="localItems.some(isTela)">Código proveedor</TableCell>
-                    <TableCell v-if="localItems.some(isTela)">Color proveedor</TableCell>
-                    <TableCell v-if="localItems.some(isTela)">Ancho pedido</TableCell>
-                    <TableCell>Total</TableCell>
-                    <TableCell>Acciones</TableCell>
-                </TableRow>
-            </TableHeader>
-
-            <TableBody>
-                <TableRow v-for="(item, idx) in localItems" :key="idx">
-                    <TableCell class="min-w-[120px] p-0 px-1">
-                        <SelectField v-model="item.article_id" :options="articles.map((a) => ({ id: a.id, name: a.name }))" label="" />
-                    </TableCell>
-                    <TableCell class="p-1">
-                        <InputField v-model="item.price" type="currency" label="" @input="calcTotals(item)" />
-                    </TableCell>
-                    <TableCell class="p-1">
-                        <SelectField
-                            v-model="item.tax"
-                            :options="taxOptions"
-                            label=""
-                            @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
-                        />
-                    </TableCell>
-                    <TableCell class="p-1">
-                        <InputField v-model="item.quantity" type="number" label="" @input="calcTotals(item)" />
-                    </TableCell>
-                    <TableCell class="p-1">
-                        <InputField v-model="item.description" label="" />
-                    </TableCell>
-                    <!-- Campos extra solo si es tela -->
-                    <TableCell v-if="isTela(item)" class="p-1">
-                        <InputField v-model="item.supplier_code" label="" placeholder="Código proveedor" />
-                    </TableCell>
-                    <TableCell v-if="isTela(item)" class="p-1">
-                        <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" />
-                    </TableCell>
-                    <TableCell v-if="isTela(item)" class="p-1">
-                        <InputField v-model="item.order_width" type="number" label="" placeholder="Ancho pedido" step="any" />
-                    </TableCell>
-                    <TableCell class="p-1">
-                        {{
-                            Number(item.total || 0).toLocaleString('es-CO', {
-                                style: 'currency',
-                                currency: 'COP',
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 0,
-                            })
-                        }}
-                    </TableCell>
-                    <TableCell class="p-1">
-                        <div class="flex justify-center">
-                            <DeleteButton v-if="localItems.length > 1" @click="removeItem(idx)" />
-                        </div>
-                    </TableCell>
-                </TableRow>
-
-                <TableRow v-if="localItems.length === 0">
-                    <TableCell :colspan="localItems.some(isTela) ? 11 : 8" class="text-center text-gray-400"> No hay items agregados. </TableCell>
-                </TableRow>
-            </TableBody>
-        </Table>
+        <ItemDialog
+            :isOpen="isItemDialogOpen"
+            dialog-type="create"
+            :form="itemDialogForm"
+            @refresh="handleItemDialogRefresh"
+            @close="isItemDialogOpen = false"
+        />
+        <TaxDialog
+            v-model:open="isTaxDialogOpen"
+            dialog-type="create"
+            :form="taxForm"
+            :loading="taxDialogLoading"
+            @submit="handleTaxDialogSubmit"
+            @cancel="isTaxDialogOpen = false"
+        />
     </div>
 </template>

@@ -34,8 +34,9 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
             :placeholder="placeholder"
             :readonly="readonly"
             :disabled="disabled"
+            :required="required"
             :rows="rows || 4"
-            class="block w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring"
+            class="block w-full rounded border border-border bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground transition duration-150 focus:border-blue-500 focus:outline-none focus:ring focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
         ></textarea>
     </div>
 </template>

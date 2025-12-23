@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             SectionsGroupsBrandsWorldsBasesSeeder::class,
             RolesAndPermissionsSeeder::class,
+            AdditionalFieldsSeeder::class,
             // FabricFabricBaseFabricProvidersFavricColorsSeeder::class,
             ExampleDataSeeder::class, // <-- Añadido aquí
         ]);

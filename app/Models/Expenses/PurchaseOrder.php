@@ -6,9 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class PurchaseOrder extends Model
+class PurchaseOrder extends Model implements \App\Contracts\HasAuditLabel
 {
     use HasFactory, SoftDeletes;
+
+    public static function auditLabel(): string
+    {
+        return 'Orden de compra';
+    }
 
     protected $fillable = [
         'contact_id',

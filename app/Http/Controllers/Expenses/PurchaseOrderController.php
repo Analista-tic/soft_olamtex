@@ -2,17 +2,22 @@
 
 namespace App\Http\Controllers\Expenses;
 
-use App\Http\Controllers\Controller;
-use App\Models\Expenses\PurchaseOrder;
-use App\Models\Expenses\PurchaseOrderItem;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Support\Facades\Mail;
-use Barryvdh\DomPDF\Facade\Pdf as DomPDF;
 use App\Mail\PurchaseOrderMail;
+use App\Models\Expenses\PurchaseDocument;
+use App\Services\Expenses\PurchaseDocumentOrderService;
+use Barryvdh\DomPDF\Facade\Pdf as DomPDF;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Inertia\Inertia;
 
-class PurchaseOrderController extends Controller
+class PurchaseOrderController extends PurchaseDocumentController
 {
+    public function __construct(PurchaseDocumentOrderService $service)
+    {
+        parent::__construct($service);
+    }
+
     public function index()
     {
         return Inertia::render('Expenses/PurchaseOrders/Index');
@@ -20,230 +25,105 @@ class PurchaseOrderController extends Controller
 
     public function getData(Request $request)
     {
-        $query = PurchaseOrder::with(['contact', 'items.article']);
+        $filters = $request->only(['search', 'status', 'provider_id', 'date_from', 'date_to']);
+        $documents = $this->service->paginateDocuments(
+            PurchaseDocument::TYPE_ORDER,
+            $filters,
+            $request->input('per_page', 10)
+        );
 
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
-            $query->where('supplier_order_number', 'like', "%$search%");
-        }
-
-        // FILTRO POR ESTADO
-        if ($request->has('status') && $request->status && strtolower($request->status) !== 'all') {
-            $query->where('status', strtolower($request->status));
-        }
-
-        // FILTRO POR PROVEEDOR
-        if ($request->has('provider_id') && $request->provider_id && $request->provider_id !== 'all') {
-            $query->where('contact_id', $request->provider_id);
-        }
-
-        // FILTRO POR RANGO DE FECHAS
-        if ($request->has('date_from') && $request->date_from) {
-            $query->whereDate('date', '>=', $request->date_from);
-        }
-        if ($request->has('date_to') && $request->date_to) {
-            $query->whereDate('date', '<=', $request->date_to);
-        }
-
-        // Ordenar por fecha descendente y luego por id descendente
-        $orders = $query->orderByDesc('date')->orderByDesc('id')->paginate($request->input('per_page', 10));
-
-        return response()->json($orders);
+        return response()->json([
+            'data' => $documents->items(),
+            'total' => $documents->total(),
+            'current_page' => $documents->currentPage(),
+        ]);
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'contact_id' => 'required|exists:contacts,id',
-            'date' => 'required|date',
-            'delivery_date' => 'required|date',
-            'supplier_order_number' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'items' => 'required|array|min:1',
-            'items.*.article_id' => 'required|exists:articles,id',
-            'items.*.price' => 'required|numeric',
-            'items.*.tax' => 'required|numeric',
-            'items.*.quantity' => 'required|numeric',
-            'items.*.description' => 'nullable|string',
-            'items.*.supplier_code' => 'nullable|string',
-            'items.*.supplier_color' => 'nullable|string',
-            'items.*.order_width' => 'nullable|string',
-            'items.*.total' => 'required|numeric',
-            'status' => 'sometimes|in:pending,invoiced',
-        ]);
-
-        $orderData = [
-            'contact_id' => $validated['contact_id'],
-            'date' => $validated['date'],
-            'delivery_date' => $validated['delivery_date'],
-            'supplier_order_number' => $validated['supplier_order_number'],
-            'description' => $validated['description'] ?? null,
-            'status' => $validated['status'] ?? 'pending', // <-- Valor por defecto
-        ];
-
-        $order = PurchaseOrder::create($orderData);
-
-        foreach ($validated['items'] as $item) {
-            $order->items()->create([
-                'article_id' => $item['article_id'],
-                'price' => $item['price'],
-                'tax' => $item['tax'],
-                'quantity' => $item['quantity'],
-                'description' => $item['description'] ?? null,
-                'supplier_code' => $item['supplier_code'] ?? null,
-                'supplier_color' => $item['supplier_color'] ?? null,
-                'order_width' => $item['order_width'] ?? null,
-                'total' => $item['total'],
-            ]);
-        }
+        $payload = $this->validateOrderPayload($request);
+        $items = $payload['items'] ?? [];
+        $order = $this->service->createOrder($payload, $items);
 
         return response()->json([
             'message' => 'Purchase order created.',
-            'data' => $order->load('items.article')
+            'data' => $order,
         ], 201);
     }
 
-    public function show(PurchaseOrder $purchaseOrder)
+    public function show(PurchaseDocument $purchaseDocument)
     {
-        $purchaseOrder->load(['contact', 'items.article']);
-
-        return response()->json($purchaseOrder);
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        return response()->json(['data' => $this->service->loadWithRelations($purchaseDocument)]);
     }
 
-    public function update(Request $request, PurchaseOrder $purchaseOrder)
+    public function update(Request $request, PurchaseDocument $purchaseDocument)
     {
-        $validated = $request->validate([
-            'contact_id' => 'required|exists:contacts,id',
-            'date' => 'required|date',
-            'delivery_date' => 'required|date',
-            'supplier_order_number' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'items' => 'required|array|min:1',
-            'items.*.article_id' => 'required|exists:articles,id',
-            'items.*.price' => 'required|numeric',
-            'items.*.tax' => 'required|numeric',
-            'items.*.quantity' => 'required|numeric',
-            'items.*.description' => 'nullable|string',
-            'items.*.supplier_code' => 'nullable|string',
-            'items.*.supplier_color' => 'nullable|string',
-            'items.*.order_width' => 'nullable|string',
-            'items.*.total' => 'required|numeric',
-            'status' => 'sometimes|in:pending,invoiced',
-        ]);
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $payload = $this->validateOrderPayload($request, true);
+        $items = $request->has('items') ? $payload['items'] ?? [] : null;
 
-        $orderData = [
-            'contact_id' => $validated['contact_id'],
-            'date' => $validated['date'],
-            'delivery_date' => $validated['delivery_date'],
-            'supplier_order_number' => $validated['supplier_order_number'],
-            'description' => $validated['description'] ?? null,
-            'status' => $validated['status'] ?? 'pending', // <-- Valor por defecto
-        ];
-
-        $purchaseOrder->update($orderData);
-
-        $purchaseOrder->items()->delete();
-        foreach ($validated['items'] as $item) {
-            $purchaseOrder->items()->create([
-                'article_id' => $item['article_id'],
-                'price' => $item['price'],
-                'tax' => $item['tax'],
-                'quantity' => $item['quantity'],
-                'description' => $item['description'] ?? null,
-                'supplier_code' => $item['supplier_code'] ?? null,
-                'supplier_color' => $item['supplier_color'] ?? null,
-                'order_width' => $item['order_width'] ?? null,
-                'total' => $item['total'],
-            ]);
-        }
-
+        $updated = $this->service->updateDocument($purchaseDocument, $payload, $items);
         return response()->json([
             'message' => 'Purchase order updated.',
-            'data' => $purchaseOrder->load('items.article')
+            'data' => $updated,
         ]);
     }
 
-    public function destroy(PurchaseOrder $purchaseOrder)
+    public function destroy(PurchaseDocument $purchaseDocument)
     {
-        $purchaseOrder->items()->delete();
-        $purchaseOrder->delete();
-
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $this->service->deleteDocument($purchaseDocument);
         return response()->json(['message' => 'Purchase order deleted.']);
     }
 
-    public function enviarCorreoPdf(PurchaseOrder $purchaseOrder)
+    public function sendOrderPdf(PurchaseDocument $purchaseDocument)
     {
-        $purchaseOrder->load(['contact', 'items.article']);
-
-        // Validar que el proveedor tenga email
-        if (empty($purchaseOrder->contact->email)) {
-            return response()->json(['message' => 'El proveedor no tiene correo electrónico registrado.'], 422);
-        }
-
-        // Generar PDF
-        $pdf = DomPDF::loadView('pdf.purchase_order', ['order' => $purchaseOrder]);
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
 
         try {
-            Mail::to($purchaseOrder->contact->email)
-                ->send(new PurchaseOrderMail($purchaseOrder, $pdf->output()));
+            $order = $this->service->loadWithRelations($purchaseDocument);
+            $email = $order->supplier?->email;
 
-            // Marcar como enviado
-            $purchaseOrder->email_sent = true;
-            $purchaseOrder->save();
+            if (empty($email)) {
+                throw new \RuntimeException('El proveedor no tiene correo electrónico registrado.');
+            }
+
+            $pdf = DomPDF::loadView('pdf.purchase_order', ['order' => $order]);
+            Mail::to($email)->send(new PurchaseOrderMail($order, $pdf->output()));
 
             return response()->json(['message' => 'Correo enviado correctamente.']);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-            \Log::error('Error enviando correo de orden de compra: ' . $e->getMessage());
+            Log::error('Error enviando correo de orden de compra: ' . $e->getMessage());
             return response()->json(['message' => 'Error enviando el correo: ' . $e->getMessage()], 500);
         }
     }
 
-    public function convertToInvoice(PurchaseOrder $purchaseOrder)
+    public function convertToInvoice(PurchaseDocument $purchaseDocument)
     {
-        $purchaseOrder->load(['contact', 'items', 'invoice']); // <-- Asegura que la relación 'invoice' esté cargada
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
 
-        // Check if already has an associated invoice
-        if ($purchaseOrder->invoice) {
+        if ($purchaseDocument->children()
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->exists()
+        ) {
+            throw new \RuntimeException('La orden de compra ya tiene una factura vinculada.');
+        }
+
+        try {
+            $invoice = $this->service->convertOrderToInvoice($purchaseDocument);
             return response()->json([
-                'message' => 'Esta orden de compra ya tiene una factura asociada.',
-                'error_code' => 'ORDER_ALREADY_INVOICED'
+                'message' => 'Purchase order successfully converted to invoice.',
+                'data' => $invoice,
+            ]);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'error_code' => 'ORDER_ALREADY_INVOICED',
             ], 422);
         }
-
-        // Create the purchase invoice
-        $invoice = \App\Models\Expenses\PurchaseInvoice::create([
-            'contact_id' => $purchaseOrder->contact_id,
-            'purchase_order_id' => $purchaseOrder->id,
-            'date' => $purchaseOrder->date,
-            'delivery_date' => $purchaseOrder->delivery_date,
-            'supplier_invoice_number' => $purchaseOrder->supplier_order_number,
-            'description' => $purchaseOrder->description,
-            'status' => 'pending',
-        ]);
-
-        // Copy items
-        foreach ($purchaseOrder->items as $item) {
-            $invoice->items()->create([
-                'article_id' => $item->article_id,
-                'price' => $item->price,
-                'tax' => $item->tax,
-                'quantity' => $item->quantity,
-                'description' => $item->description,
-                'supplier_code' => $item->supplier_code,
-                'supplier_color' => $item->supplier_color,
-                'order_width' => $item->order_width,
-                'total' => $item->total,
-                'total_tax' => isset($item->total_tax) ? $item->total_tax : 0,
-            ]);
-        }
-
-        // Cambia el status a 'invoiced' en vez de 'converted'
-        $purchaseOrder->status = 'invoiced';
-        $purchaseOrder->save();
-
-        return response()->json([
-            'message' => 'Purchase order successfully converted to invoice.',
-            'data' => $invoice->load('items', 'contact', 'purchaseOrder')
-        ]);
     }
+
 }
