@@ -163,14 +163,16 @@ export interface Programmer {
 export interface FabricOrder {
     id: number | null;
     fabric_provider_id: string;
-    fabric_provider? : { id: number; name: string } | null; // Declarar como objeto con id y nombre
+    fabric_provider? : { id: number; name: string } | null;
     status: string;
     items?: FabricOrderItem[];
 }
 
 export interface FabricOrderItem {
+    id?: number;
     fabric: string;
-    base_fabric_id: string | number;
+    base_fabric_id?: string | number;
+    base_fabric?: { id: number; name: string } | null;
     provider_color: string;
     provider_color_code: string;
     quantity: number;
