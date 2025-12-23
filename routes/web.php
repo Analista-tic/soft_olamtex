@@ -306,7 +306,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === KARDEX TELAS ===
     Route::prefix('kardex-telas')->name('kardex-telas.')->group(function () {
-        Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'kardex'])->name('index');
+          Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'kardex'])->name('index');
+          Route::get('/inventario-rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'inventoryRolls'])->name('inventario-rollos');
+          Route::get('/inventario-rollos/data', [App\Http\Controllers\Inventory\FabricRollController::class, 'inventoryRollsData'])->name('inventario-rollos.data');
+          Route::get('/exportar-rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'exportRolls'])->name('exportar-rollos');
         Route::prefix('recepcion')->name('reception.')->group(function () {
             Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'reception'])->name('index');
             Route::get('/{invoice}', [App\Http\Controllers\Inventory\FabricRollController::class, 'receptionShow'])->name('show');

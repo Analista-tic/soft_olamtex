@@ -223,6 +223,7 @@ export interface CategorySubGroup {
 export interface Option {
     id: string | number | boolean;
     name: string;
+    groupLabel?: string;
 }
 
 // Añade la interfaz Tax
@@ -443,4 +444,24 @@ export interface FabricRoll {
     is_depleted: boolean; // Computed attribute
     created_at?: string;
     updated_at?: string;
+}
+
+export interface FabricRollView {
+    id: number;
+    roll: string;
+    location: string | null;
+    fabric: string;
+    color: string;
+    colorCode: string;
+    width: string;
+    rollQty: string;
+    partialOutput: string;
+    partialAvailability: string;
+    exitQuantity: string;
+    realAvailability: string;
+    orderNumber: string;
+    provider: string;
+    createdAt: string | null;
+    creator: string | null;
+    status: 'available' | 'depleted';
 }
