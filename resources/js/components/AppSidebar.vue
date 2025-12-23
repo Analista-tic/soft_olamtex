@@ -115,17 +115,17 @@ const navMainGroup: NavGroupItem[] = [
             },
         ],
     },
-    {
-        title: 'Kardex de Telas',
-        href: '#',
-        icon: Shell,
-        isActive: false,
-        items: [
             {
-                title: 'Inventario Telas por Rollo',
+                title: 'Kardex de Telas',
                 href: '#',
-                permission: 'ver sabana productos', // Permiso necesario para este subitem
-            },
+                icon: Shell,
+                isActive: false,
+                items: [
+                    {
+                        title: 'Inventario Telas por Rollo',
+                        href: route('kardex-telas.inventario-rollos'),
+                        permission: 'ver sabana productos', // Permiso necesario para este subitem
+                    },
             {
                 title: 'Salida de Telas por Orden',
                 href: '#',

@@ -296,7 +296,7 @@ class FabricFabricBaseFabricProvidersFavricColorsSeeder extends Seeder
             ['name' => 'NYLON'],
             ['name' => 'PERCHA'],
             ['name' => 'PIEL DURAZNO'],
-            ['name' => 'PILILYCRA'],
+            ['name' => 'POLILYCRA'],
             ['name' => 'PLASTICO MINIMAL'],
             ['name' => 'POLIBENGALINA'],
             ['name' => 'POPELINA'],
@@ -305,7 +305,7 @@ class FabricFabricBaseFabricProvidersFavricColorsSeeder extends Seeder
             ['name' => 'SOLAR RECYCLED'],
             ['name' => 'TEJIDO'],
             ['name' => 'TWILL'],
-            ['name' => 'VISCOS'],
+            ['name' => 'VISCOSA'],
         ]);
 
         // Insert data into brands table

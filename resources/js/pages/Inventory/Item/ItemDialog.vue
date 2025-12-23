@@ -12,7 +12,7 @@ import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
 import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
-import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Warehouse, AdditionalField, AdditionalFieldType } from '@/types';
+import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Warehouse, AdditionalField, AdditionalFieldType, Option } from '@/types';
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
 import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
@@ -20,7 +20,7 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import FormHeader from '@/components/FormHeader.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
-import { unitMeasures } from '@/data/unitMeasures';
+import unitMeasureData from '@/data/unitMeasures.json';
 
 // Props y eventos
 const props = defineProps<{
@@ -122,7 +122,21 @@ const currentGroup = computed(() => {
 });
 
 const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
-// Lista de unidades importada desde resources/js/data/unitMeasures.js
+type UnitMeasureGroup = {
+    label: string;
+    options: Option[];
+};
+type UnitMeasureData = {
+    unitMeasureGroups: UnitMeasureGroup[];
+};
+const unitMeasureGroups: UnitMeasureGroup[] =
+    (unitMeasureData as UnitMeasureData)?.unitMeasureGroups ?? [];
+const unitMeasures = unitMeasureGroups.flatMap((group) =>
+    group.options.map((option) => ({
+        ...option,
+        groupLabel: group.label,
+    })),
+);
 const serviceUnitId = 'servicio';
 const defaultProductUnitValue = unitMeasures[0]?.id ?? 'unidad';
 const getInitialUnitMeasure = (form: Partial<Item>): string =>

@@ -12,7 +12,11 @@ class FabricRollService
 {
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
-        $query = FabricRoll::with(['purchaseDocumentItem.item']);
+        $query = FabricRoll::with([
+            'purchaseDocumentItem.item',
+            'purchaseDocumentItem.document.supplier',
+            'purchaseDocumentItem.document.creator',
+        ]);
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
@@ -52,7 +56,11 @@ class FabricRollService
             $data['roll_width'] = $data['roll_width'] ?? 0;
 
             $fabricRoll = FabricRoll::create($data);
-            $fabricRoll->load('purchaseDocumentItem.item');
+            $fabricRoll->load([
+                'purchaseDocumentItem.item',
+                'purchaseDocumentItem.document.supplier',
+                'purchaseDocumentItem.document.creator',
+            ]);
 
             return $fabricRoll;
         });
@@ -60,7 +68,11 @@ class FabricRollService
 
     public function findOrFail($id): FabricRoll
     {
-        return FabricRoll::with(['purchaseDocumentItem.item'])->findOrFail($id);
+        return FabricRoll::with([
+            'purchaseDocumentItem.item',
+            'purchaseDocumentItem.document.supplier',
+            'purchaseDocumentItem.document.creator',
+        ])->findOrFail($id);
     }
 
     public function update(FabricRoll $fabricRoll, array $data): FabricRoll
@@ -70,7 +82,11 @@ class FabricRollService
             $data['actual_output'] = $data['actual_output'] ?? 0;
 
             $fabricRoll->update($data);
-            $fabricRoll->load('purchaseDocumentItem.item');
+            $fabricRoll->load([
+                'purchaseDocumentItem.item',
+                'purchaseDocumentItem.document.supplier',
+                'purchaseDocumentItem.document.creator',
+            ]);
 
             return $fabricRoll;
         });
@@ -84,7 +100,11 @@ class FabricRollService
     public function updateOutput(FabricRoll $fabricRoll, array $data): FabricRoll
     {
         $fabricRoll->update($data);
-        $fabricRoll->load('purchaseDocumentItem.item');
+        $fabricRoll->load([
+            'purchaseDocumentItem.item',
+            'purchaseDocumentItem.document.supplier',
+            'purchaseDocumentItem.document.creator',
+        ]);
 
         return $fabricRoll;
     }
@@ -96,7 +116,25 @@ class FabricRollService
 
     public function getByInvoiceItem($itemId): Collection
     {
-        return FabricRoll::where('purchase_document_item_id', $itemId)->orderBy('entry_date')->get();
+        return FabricRoll::with([
+            'purchaseDocumentItem.item',
+            'purchaseDocumentItem.document.supplier',
+            'purchaseDocumentItem.document.creator',
+        ])
+            ->where('purchase_document_item_id', $itemId)
+            ->orderBy('entry_date')
+            ->get();
+    }
+
+    public function export(): Collection
+    {
+        return FabricRoll::with([
+            'purchaseDocumentItem.item',
+            'purchaseDocumentItem.document.supplier',
+            'purchaseDocumentItem.document.creator',
+        ])
+            ->orderBy('entry_date', 'desc')
+            ->get();
     }
 
     public function approveReception($invoiceId)
