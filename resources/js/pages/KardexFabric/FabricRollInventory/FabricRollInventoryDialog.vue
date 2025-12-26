@@ -118,9 +118,8 @@ function closeDialog() {
                 </div>
             </div>
 
-            <DialogFooter class="mt-4 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
-                <Button variant="outline" size="sm" class="w-full md:w-auto" @click="closeDialog">Cerrar</Button>
-                <Button variant="default" size="sm" class="w-full md:w-auto" @click="closeDialog">Aceptar</Button>
+            <DialogFooter class="mt-4 flex justify-end">
+                <Button variant="outline" class="w-full md:w-auto" @click="closeDialog">Cerrar</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

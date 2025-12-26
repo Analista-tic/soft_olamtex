@@ -119,10 +119,10 @@ function submitDownload() {
             </div>
 
             <DialogFooter class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                <Button variant="outline" size="sm" class="w-full sm:w-auto" @click="closeDialog">
+                <Button variant="outline" class="w-full sm:w-auto" @click="closeDialog">
                     Cancelar
                 </Button>
-                <Button variant="default" size="sm" class="w-full sm:w-auto" @click="submitDownload">
+                <Button variant="default" class="w-full sm:w-auto" @click="submitDownload">
                     Descargar
                 </Button>
             </DialogFooter>

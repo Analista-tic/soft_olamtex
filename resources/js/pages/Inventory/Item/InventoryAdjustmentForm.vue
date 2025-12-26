@@ -93,12 +93,13 @@ const itemSelectOptions = computed(() =>
   })),
 );
 
-const taxSelectOptions = computed(() =>
-  taxes.value.map(tax => ({
+const taxSelectOptions = computed(() => [
+  { id: 0, name: 'Ninguno (0%)' },
+  ...taxes.value.map(tax => ({
     id: tax.id,
     name: `${tax.name} (${Math.trunc(Number(tax.percentage) || 0)}%)`,
   })),
-);
+]);
 
 const warehouseSelectOptions = computed(() =>
   warehouses.value

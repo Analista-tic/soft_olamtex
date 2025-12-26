@@ -4,12 +4,14 @@ namespace App\Services\Inventory;
 
 use App\Services\Inventory\AdditionalFieldService;
 use App\Models\Common\CategorySubGroup;
+use App\Models\Common\Tax;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Expenses\PurchaseOrderItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Inventory\Item;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
+use Illuminate\Validation\ValidationException;
 
 class ItemService
 {
@@ -339,7 +341,7 @@ class ItemService
         $payload = [
             'category_sub_group_id' => $data['category_sub_group_id'],
             'img' => $data['img'] ?? null,
-            'tax_id' => $data['tax_id'] ?? null,
+            'tax_id' => $this->ensureTaxId($data['tax_id'] ?? null),
             'tax' => $data['tax'],
             'bar_code' => $data['bar_code'] ?? null,
             'negative_movement' => filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
@@ -397,7 +399,25 @@ class ItemService
         $subGroupId = $data['category_sub_group_id'] ?? $item->category_sub_group_id;
         $payload['name'] = $this->buildName($subGroupId, $extraFields);
 
+        if (array_key_exists('tax_id', $data)) {
+            $payload['tax_id'] = $this->ensureTaxId($data['tax_id']);
+        }
+
         return $payload;
+    }
+
+    protected function ensureTaxId(?int $taxId): ?int
+    {
+        if ($taxId !== null) {
+            return $taxId;
+        }
+
+        $tax = Tax::firstOrCreate(
+            ['name' => 'Ninguno (0%)', 'percentage' => 0],
+            ['status' => true]
+        );
+
+        return $tax->id;
     }
 
     protected function buildName(?int $subGroupId, array $extraFields): string
@@ -405,6 +425,84 @@ class ItemService
         $subGroupName = optional(CategorySubGroup::find($subGroupId))->name ?? '';
         $extrasString = $this->buildExtraFieldsNameSegment($extraFields);
         return trim("{$subGroupName} {$extrasString}");
+    }
+
+    public function computeName(?int $subGroupId, array $extraFields): string
+    {
+        return $this->buildName($subGroupId, $extraFields);
+    }
+
+    public function existsByReference(string $reference, ?int $excludeId = null): bool
+    {
+        $normalized = $this->normalizeForComparison($reference);
+        if ($normalized === '') {
+            return false;
+        }
+
+        $query = Item::query()->whereRaw('LOWER(reference) = ?', [$normalized]);
+        if ($excludeId) {
+            $query->where('id', '<>', $excludeId);
+        }
+
+        return $query->exists();
+    }
+
+    public function existsByName(string $name, ?int $excludeId = null): bool
+    {
+        $normalized = $this->normalizeForComparison($name);
+        if ($normalized === '') {
+            return false;
+        }
+
+        $query = Item::query()->whereRaw('LOWER(name) = ?', [$normalized]);
+        if ($excludeId) {
+            $query->where('id', '<>', $excludeId);
+        }
+
+        return $query->exists();
+    }
+
+    protected function normalizeForComparison(string $value): string
+    {
+        return mb_strtolower(trim($value));
+    }
+
+    public function duplicateStatus(string $reference, string $name, ?int $excludeId = null): array
+    {
+        if ($this->normalizeForComparison($name) === '') {
+            return [
+                'duplicate' => false,
+                'duplicate_by_reference' => false,
+                'duplicate_by_name' => false,
+                'message' => '',
+            ];
+        }
+
+        $duplicateByName = $this->existsByName($name, $excludeId);
+
+        return [
+            'duplicate' => $duplicateByName,
+            'duplicate_by_reference' => false,
+            'duplicate_by_name' => $duplicateByName,
+            'message' => $duplicateByName
+                ? 'El ítem ya existe.'
+                : '',
+        ];
+    }
+
+    public function assertUniqueReferenceAndName(string $reference, string $name, ?int $excludeId = null): void
+    {
+        $status = $this->duplicateStatus($reference, $name, $excludeId);
+        if (!$status['duplicate']) {
+            return;
+        }
+
+        $errors = [];
+        if ($status['duplicate_by_name']) {
+            $errors['reference'][] = 'Ya existe un ítem con los mismos datos de subgrupo y campos.';
+        }
+
+        throw ValidationException::withMessages($errors);
     }
 
     protected function syncWarehouses(Item $item, array $warehouses, bool $replace = false): void

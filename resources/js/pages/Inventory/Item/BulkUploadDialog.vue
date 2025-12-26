@@ -84,7 +84,7 @@ async function handleBulkUpload() {
         uploadSuccess.value = 'Artículos cargados correctamente.';
         emit('uploaded');
     } catch (e: any) {
-        uploadError.value = e?.response?.data?.message || 'Error al cargar los artículos.';
+        uploadError.value = e?.response?.data?.message || 'Error al cargar los ítems.';
     } finally {
         isUploading.value = false;
     }
@@ -97,7 +97,7 @@ async function handleBulkUpload() {
             <DialogHeader>
                 <DialogTitle>Carga Masiva de Artículos</DialogTitle>
                 <DialogDescription>
-                    Descarga la plantilla o sube el archivo Excel con los artículos para registrarlos en lote.
+                    Descarga la plantilla o sube el archivo Excel con los ítems para registrarlos en lote.
                 </DialogDescription>
             </DialogHeader>
             <Tabs default-value="descargar" class="w-full">
@@ -111,7 +111,7 @@ async function handleBulkUpload() {
                 </TabsList>
                 <TabsContent value="descargar">
                     <div class="flex flex-col items-center justify-center gap-4 py-6">
-                        <p>Descarga la plantilla de Excel para registrar artículos de forma masiva.</p>
+                        <p>Descarga la plantilla de Excel para registrar ítems de forma masiva.</p>
                         <Button @click="downloadTemplate" variant="outline" :disabled="isDownloading">
                             <template v-if="isDownloading">
                                 <svg class="animate-spin h-4 w-4 mr-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -129,7 +129,7 @@ async function handleBulkUpload() {
                 </TabsContent>
                 <TabsContent value="subir">
                     <div class="flex flex-col gap-4 py-6">
-                        <p>Selecciona el archivo Excel con los artículos a registrar.</p>
+                        <p>Selecciona el archivo Excel con los ítems a registrar.</p>
                         <input
                             type="file"
                             accept=".xlsx,.xls"
@@ -153,7 +153,6 @@ async function handleBulkUpload() {
         </DialogContent>
     </Dialog>
 </template>
-
 
 
 

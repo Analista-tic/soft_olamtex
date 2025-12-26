@@ -82,6 +82,13 @@ const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
 const taxes = ref<any[]>([]);
+const taxOptions = computed(() => [
+    { id: 'none', name: 'Ninguno (0%)' },
+    ...taxes.value.map((t) => ({
+        id: t.id,
+        name: `${t.name} (${Math.trunc(t.percentage)}%)`,
+    })),
+]);
 const isGroupDialogOpen = ref(false);
 const isSubGroupDialogOpen = ref(false);
 const subGroupDialogForm = ref<Partial<CategorySubGroup>>({
@@ -526,6 +533,30 @@ const buildErrorMessage = (err: any): string => {
     return resp?.message || 'Ocurrió un error inesperado al guardar el artículo.';
 };
 
+async function checkDuplicateName(): Promise<string | null> {
+    const reference = (localForm.value.reference ?? '').trim();
+    const subGroupId = localForm.value.category_sub_group_id;
+    if (!reference || !subGroupId) return null;
+
+    try {
+        const response = await axios.get('/item/check-duplicate', {
+            params: {
+                reference,
+                category_sub_group_id: subGroupId,
+                extra_fields: JSON.stringify(extraFields.value ?? {}),
+                item_id: props.form.id ?? null,
+            },
+        });
+        if (response.data?.duplicate) {
+            return response.data.message || 'Ya existe un ítem con ese nombre.';
+        }
+    } catch (error) {
+        console.error('Error verificando duplicados', error);
+    }
+
+    return null;
+}
+
 // Maneja el envío del formulario
 async function handleSubmit() {
     resetErrors();
@@ -537,7 +568,8 @@ async function handleSubmit() {
     if (!localForm.value.category_sub_group_id) {
         requiredErrors.push('Subgrupo');
     }
-    if (!localForm.value.tax_id && localForm.value.tax_id !== 0) {
+    const taxIdValue = localForm.value.tax_id;
+    if (taxIdValue === undefined || taxIdValue === null || String(taxIdValue).trim() === '') {
         requiredErrors.push('Impuesto');
     }
     if (!unitMeasure.value) {
@@ -563,6 +595,16 @@ async function handleSubmit() {
         dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
         return;
     }
+
+    const duplicateMessageResult = await checkDuplicateName();
+    if (duplicateMessageResult) {
+        alertType.value = 'warning';
+        alertMessage.value = duplicateMessageResult;
+        const dialogEl = document.querySelector('[role="dialog"]');
+        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+    }
+
     if (hasNegativeStock.value && !negativeMovementBool.value) {
         showNegativeMovementWarning();
         return; // NO se envía el formulario ni se cierra el diálogo
@@ -587,14 +629,16 @@ async function handleSubmit() {
     updateNameField(orderedExtraFields);
 
     // Prepara el formulario para enviar
+    const resolvedTaxId = localForm.value.tax_id === 'none' ? null : localForm.value.tax_id;
+
     const cleanForm: any = {
         ...localForm.value,
         category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
         tax_id:
-            localForm.value.tax_id !== undefined &&
-            localForm.value.tax_id !== null &&
-            String(localForm.value.tax_id) !== ''
-                ? Number(localForm.value.tax_id)
+            resolvedTaxId !== undefined &&
+            resolvedTaxId !== null &&
+            String(resolvedTaxId) !== ''
+                ? Number(resolvedTaxId)
                 : undefined,
         tax: localForm.value.tax && typeof localForm.value.tax === 'object'
             ? Number(localForm.value.tax.percentage)
@@ -996,10 +1040,9 @@ watch(
                                 <SelectField
                                     v-model="localForm.tax_id"
                                     label="Impuesto"
-                                    :options="taxes.map((t) => ({
-                                        id: t.id,
-                                        name: `${t.name} (${Math.trunc(t.percentage)}%)`,
-                                    }))"
+                                    :options="taxOptions"
+                                    option-label="name"
+                                    option-value="id"
                                     required
                                     searchable
                                     search-placeholder="Buscar..."
@@ -1340,3 +1383,8 @@ watch(
     transform: scale(0.95);
 }
 </style>
+
+
+
+
+

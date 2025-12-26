@@ -209,6 +209,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', [ItemController::class, 'index'])->name('index');
         Route::get('/data', [ItemController::class, 'getData'])->name('data');
         Route::post('/carga-masiva', [ItemController::class, 'bulkUpload'])->name('carga-masiva');
+        Route::get('/check-duplicate', [ItemController::class, 'checkDuplicate'])->name('check-duplicate');
         Route::get('/{id}', [ItemController::class, 'show'])->name('show');
         Route::post('/', [ItemController::class, 'store'])->name('store');
         Route::put('/{id}', [ItemController::class, 'update'])->name('update');
@@ -309,6 +310,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
           Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'kardex'])->name('index');
           Route::get('/inventario-rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'inventoryRolls'])->name('inventario-rollos');
           Route::get('/inventario-rollos/data', [App\Http\Controllers\Inventory\FabricRollController::class, 'inventoryRollsData'])->name('inventario-rollos.data');
+          Route::get('/descargue-orden', [App\Http\Controllers\Inventory\FabricRollController::class, 'downloadOrders'])->name('descargue-orden');
+          Route::get('/descargue-orden/descarga', [App\Http\Controllers\Inventory\FabricRollController::class, 'downloadWindow'])->name('descargue-orden.descarga');
           Route::get('/exportar-rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'exportRolls'])->name('exportar-rollos');
         Route::prefix('recepcion')->name('reception.')->group(function () {
             Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'reception'])->name('index');

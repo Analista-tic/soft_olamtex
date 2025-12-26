@@ -198,7 +198,7 @@ onMounted(() => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                        <TableHead class="text-start">Nombre articulo</TableHead>
+                        <TableHead class="text-start">Nombre ítem</TableHead>
                         <TableHead>Referencia</TableHead>
                         <TableHead>Cantidad</TableHead>
                         <TableHead>Estado</TableHead>
@@ -218,7 +218,7 @@ onMounted(() => {
                         <TableCell class="text-center">{{ formatCurrency(item.total) }}</TableCell>
                         </TableRow>
                         <TableRow v-if="items.length === 0">
-                        <TableCell :colspan="6" class="text-center text-gray-400">No hay articulos en el inventario.</TableCell>
+                        <TableCell :colspan="6" class="text-center text-gray-400">No hay ítems en el inventario.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>

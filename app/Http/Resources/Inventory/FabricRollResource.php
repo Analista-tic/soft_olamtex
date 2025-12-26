@@ -40,6 +40,9 @@ class FabricRollResource extends JsonResource
                 : null,
             'creator' => $document?->creator?->name,
             'status' => $this->is_depleted ? 'depleted' : 'available',
+            'quantityValue' => $this->quantity,
+            'partialOutputValue' => $this->partial_output,
+            'exitQuantityValue' => $this->actual_output,
         ];
     }
 

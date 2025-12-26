@@ -12,6 +12,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
 import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
+import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import { ArrowDownToLine, Download, Eye, Search } from 'lucide-vue-next';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
@@ -50,6 +51,8 @@ const isDeleteDialogOpen = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 const isLoadingRolls = ref(false);
+const isAdjustDialogOpen = ref(false);
+const rollToAdjust = ref<FabricRollView | null>(null);
 
 const isBaseFilterActive = computed(() => baseFilter.value !== 'all');
 const isProviderFilterActive = computed(() => providerFilter.value !== 'all');
@@ -118,12 +121,52 @@ function openDownloadDialog(roll: FabricRollView) {
     isDownloadDialogOpen.value = true;
 }
 
+function openAdjustDialog(roll?: FabricRollView | null) {
+    const target = roll ?? selectedRoll.value ?? filteredRolls.value[0] ?? null;
+    if (!target) {
+        errorMessage.value = 'Selecciona un rollo antes de ajustar la salida.';
+        return;
+    }
+    rollToAdjust.value = target;
+    isAdjustDialogOpen.value = true;
+}
+
 function handleDownloadRequest(payload: { roll: FabricRollView | null; data: Record<string, string> }) {
     const { adjustmentType, quantity } = payload.data;
     const rollLabel = payload.roll ? ` (${payload.roll.roll})` : '';
     successMessage.value = `Solicitud de ${adjustmentType || 'descarga'} ${quantity ? `de ${quantity}` : ''}${rollLabel} registrada.`;
     errorMessage.value = '';
     rollToDownload.value = null;
+}
+
+async function handleAdjustRequest(payload: { roll: FabricRollView | null; data: Record<string, string> }) {
+    const roll = payload.roll;
+    if (!roll) {
+        errorMessage.value = 'No se encontró el rollo seleccionado.';
+        return;
+    }
+    const exitQuantityValue = Number(roll.exitQuantity ?? 0);
+    const partialOutputValue = Number(roll.partialOutput ?? 0);
+    const actualOutput = payload.data.actualOutput
+        ? Number(payload.data.actualOutput)
+        : exitQuantityValue;
+    const partialOutput = payload.data.partialOutput
+        ? Number(payload.data.partialOutput)
+        : partialOutputValue;
+    try {
+        await axios.patch(`/rollos-tela/${roll.id}/update-output`, {
+            actual_output: actualOutput,
+            partial_output: partialOutput,
+        });
+        successMessage.value = `Salida actualizada para el rollo ${roll.roll}.`;
+        errorMessage.value = '';
+        await fetchFabricRolls();
+    } catch (error: any) {
+        errorMessage.value = error?.response?.data?.message || 'No se pudo actualizar la salida del rollo.';
+    } finally {
+        isAdjustDialogOpen.value = false;
+        rollToAdjust.value = null;
+    }
 }
 
 function setDownloadDialogOpen(value: boolean) {
@@ -173,15 +216,19 @@ onMounted(fetchFabricRolls);
                 <div class="flex flex-wrap gap-2">
                     <Button
                         variant="secondary"
-                        size="sm"
-                        class="text-sm font-medium"
+                        class="w-full md:w-auto"
                         type="button"
                         @click="exportFabricRollsExcel"
                     >
                         <Download class="h-4 w-4 mr-2" />
                         Exportar inventario
                     </Button>
-                    <Button variant="secondary" size="sm" class="text-sm font-medium" type="button">
+                    <Button
+                        variant="secondary"
+                        class="w-full md:w-auto"
+                        type="button"
+                        @click="openAdjustDialog()"
+                    >
                         Ajuste salida por rollo
                     </Button>
                 </div>
@@ -301,6 +348,13 @@ onMounted(fetchFabricRolls);
             :modelValue="isDialogOpen"
             :roll="selectedRoll"
             @update:modelValue="(value) => (isDialogOpen = value)"
+        />
+
+        <FabricRollAdjustDialog
+            :modelValue="isAdjustDialogOpen"
+            :roll="rollToAdjust"
+            @update:modelValue="(value) => (isAdjustDialogOpen = value)"
+            @submit-adjust="handleAdjustRequest"
         />
 
         <FabricRollDownloadDialog

@@ -4,6 +4,12 @@ import EditButton from '@/components/common/EditButton.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,7 +19,7 @@ import FilterField from '@/components/FilterField.vue';
 import type { Item } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Ban, CheckCircle, Download, PlusCircle, Search, Upload } from 'lucide-vue-next';
+import { Ban, CheckCircle, Download, FileSpreadsheet, PlusCircle, Search, Upload } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch, reactive } from 'vue';
 import ItemDialog from './ItemDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
@@ -42,6 +48,7 @@ const statusFilter = ref<string>(DEFAULT_STATUS_FILTER);
 const isStatusDialogOpen = ref(false);
 const itemToToggleStatus = ref<Item | null>(null);
 const isBulkDialogOpen = ref(false);
+const isTemplateDownloading = ref(false);
 
 const statusOptions = ref([
     reactive({ id: 'all', name: 'Todos' }),
@@ -162,6 +169,45 @@ onMounted(() => {
 function exportItemsExcel() {
     window.open('/item/exportar-excel', '_blank');
 }
+
+async function downloadTemplate() {
+    if (isTemplateDownloading.value) return;
+    isTemplateDownloading.value = true;
+    successMessage.value = '';
+    errorMessage.value = '';
+    try {
+        const response = await fetch('/item/descargar-plantilla', {
+            method: 'GET',
+            headers: {
+                Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            },
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(errorText || 'No se pudo descargar la plantilla Excel.');
+        }
+
+        const blob = await response.blob();
+        const objectUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = 'plantilla_items.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(objectUrl);
+        successMessage.value = 'Plantilla descargada correctamente.';
+    } catch (err: unknown) {
+        let message = 'No se pudo descargar la plantilla Excel.';
+        if (err instanceof Error && err.message) {
+            message = err.message || message;
+        }
+        errorMessage.value = message;
+    } finally {
+        isTemplateDownloading.value = false;
+    }
+}
 </script>
 
 <template>
@@ -187,12 +233,29 @@ function exportItemsExcel() {
                     <Button @click="openDialog('create')" variant="default" size="sm">
                         <PlusCircle class="h-4 w-4" /> Crear nuevo ítem
                     </Button>
-                    <Button @click="openBulkDialog" variant="secondary" size="sm">
-                        <Upload class="h-4 w-4" /> Carga Masiva
-                    </Button>
-                    <Button @click="exportItemsExcel" variant="secondary" size="sm">
-                        <Download class="h-4 w-4" /> Exportar a Excel
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger :as-child="true">
+                            <Button variant="outline" size="sm" class="flex items-center gap-1">
+                                <span>Otras acciones</span>
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-56">
+                            <DropdownMenuItem
+                                class="cursor-pointer gap-2"
+                                :class="isTemplateDownloading ? 'opacity-60 cursor-not-allowed' : ''"
+                                :disabled="isTemplateDownloading"
+                                @click="downloadTemplate"
+                            >
+                                <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla Excel
+                            </DropdownMenuItem>
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openBulkDialog">
+                                <Upload class="h-4 w-4" /> Importar ítems
+                            </DropdownMenuItem>
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportItemsExcel">
+                                <Download class="h-4 w-4" /> Exportar ítems
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
             <!-- FILTROS: UNA SOLA FILA -->
@@ -307,18 +370,6 @@ function exportItemsExcel() {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

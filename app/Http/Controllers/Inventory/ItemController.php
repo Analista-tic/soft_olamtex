@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -50,7 +51,7 @@ class ItemController extends Controller
                 'negative_movement' => 'required',
                 'description' => 'required|string',
                 'extra_fields' => 'nullable',
-                'reference' => 'required|string',
+                'reference' => ['required', 'string', Rule::unique('items', 'reference')],
                 'status' => 'sometimes|boolean',
                 'item_type' => 'required|string|in:product,service',
                 'unit_measure' => 'nullable|string',
@@ -66,6 +67,14 @@ class ItemController extends Controller
                 'errors' => [],
             ], 500);
         }
+
+        $extraFields = $this->service->normalizeExtraFields($request->input('extra_fields') ?? []);
+        $data['extra_fields'] = $extraFields;
+        $reference = trim($data['reference']);
+        $data['reference'] = $reference;
+        $subGroupId = (int) $data['category_sub_group_id'];
+        $itemName = $this->service->computeName($subGroupId, $extraFields);
+        $this->service->assertUniqueReferenceAndName($reference, $itemName);
 
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('articles', 'public');
@@ -79,7 +88,7 @@ class ItemController extends Controller
 
     public function update(Request $request, $id)
     {
-        $article = $this->service->find($id);
+        $item = $this->service->find($id);
 
         try {
             $data = $request->validate([
@@ -91,7 +100,7 @@ class ItemController extends Controller
                 'negative_movement' => 'sometimes',
                 'description' => 'sometimes|string',
                 'extra_fields' => 'nullable',
-                'reference' => 'required|string',
+                'reference' => ['required', 'string', Rule::unique('items', 'reference')->ignore($item->id)],
                 'status' => 'sometimes|boolean',
                 'item_type' => 'required|string|in:product,service',
                 'unit_measure' => 'nullable|string',
@@ -108,24 +117,36 @@ class ItemController extends Controller
             ], 500);
         }
 
+        $extraFields = $this->service->normalizeExtraFields(
+            $request->input('extra_fields') ?? $item->extra_fields
+        );
+        $subGroupId = $request->has('category_sub_group_id')
+            ? (int) $request->input('category_sub_group_id')
+            : $item->category_sub_group_id;
+        $data['extra_fields'] = $extraFields;
+        $reference = trim($data['reference']);
+        $data['reference'] = $reference;
+        $itemName = $this->service->computeName($subGroupId, $extraFields);
+        $this->service->assertUniqueReferenceAndName($reference, $itemName, $item->id);
+
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('articles', 'public');
+            $path = $request->file('image')->store('items', 'public');
             $data['img'] = $path;
         }
 
         $warehouses = $this->service->resolveWarehousePayload($request->input('warehouses'));
 
-        $updated = $this->service->update($article, $data, $warehouses);
+        $updated = $this->service->update($item, $data, $warehouses);
 
         return $updated;
     }
 
     public function destroy($id)
     {
-        $article = $this->service->find($id);
+        $item = $this->service->find($id);
 
         try {
-            $this->service->delete($article);
+            $this->service->delete($item);
             return response()->noContent();
         } catch (\RuntimeException $e) {
             return response()->json([
@@ -138,20 +159,39 @@ class ItemController extends Controller
     {
         $filters = $request->only(['search', 'status', 'item_type', 'warehouse_id']);
         $perPage = $request->input('per_page', 10);
-        $articles = $this->service->paginate($filters, $perPage);
+        $items = $this->service->paginate($filters, $perPage);
 
-        return response()->json($articles);
+        return response()->json($items);
     }
 
     public function togglestatus($id)
     {
-        $article = $this->service->find($id);
-        $status = $this->service->toggleStatus($article);
+        $item = $this->service->find($id);
+        $status = $this->service->toggleStatus($item);
 
         return response()->json([
             'status' => $status,
             'message' => $status ? 'item habilitado' : 'item deshabilitado',
         ]);
+    }
+
+    public function checkDuplicate(Request $request)
+    {
+        $data = $request->validate([
+            'reference' => 'required|string',
+            'category_sub_group_id' => 'required|integer',
+            'extra_fields' => 'nullable',
+            'item_id' => 'nullable|integer',
+        ]);
+
+        $extraFields = $this->service->normalizeExtraFields($request->input('extra_fields') ?? []);
+        $subGroupId = (int) $data['category_sub_group_id'];
+        $name = $this->service->computeName($subGroupId, $extraFields);
+        $excludeId = $data['item_id'] ?? null;
+
+        $status = $this->service->duplicateStatus($data['reference'], $name, $excludeId);
+
+        return response()->json($status);
     }
 
     public function downloadTemplate()
@@ -514,9 +554,3 @@ class ItemController extends Controller
         return $this->service->resolveWarehousePayload($request->input('warehouses'));
     }
 }
-
-
-
-
-
-

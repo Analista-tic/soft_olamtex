@@ -11,6 +11,7 @@ use App\Models\Inventory\FabricRoll;
 use App\Services\Inventory\FabricRollService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Inertia\Inertia;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -46,6 +47,29 @@ class FabricRollController extends Controller
     public function inventoryRolls()
     {
         return Inertia::render('KardexFabric/FabricRollInventory/Index');
+    }
+
+    public function downloadOrders()
+    {
+        return Inertia::render('KardexFabric/FabricRollOrders/Index');
+    }
+
+    public function downloadWindow(Request $request)
+    {
+        $roll = null;
+
+        if ($request->filled('roll')) {
+            try {
+                $fabricRoll = $this->service->findOrFail($request->input('roll'));
+                $roll = (new FabricRollResource($fabricRoll))->resolve();
+            } catch (ModelNotFoundException) {
+                $roll = null;
+            }
+        }
+
+        return Inertia::render('KardexFabric/FabricRollOrders/Download', [
+            'roll' => $roll,
+        ]);
     }
 
     public function inventoryRollsData()
