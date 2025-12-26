@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, withDefaults, onBeforeUnmount } from 'vue';
+import { ref, watch, computed, onBeforeUnmount } from 'vue';
 import { Combobox, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption } from '@headlessui/vue';
 import { Label } from '@/components/ui/label';
 import type { Option } from '@/types';

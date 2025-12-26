@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import axios from 'axios';
 import { ref, watch } from 'vue'; // Asegurar que watch esté importado
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import InputField from '@/components/InputField.vue';
-import SearchableSelect from '@/components/SearchableSelect.vue';
+import SelectField from '@/components/SelectField.vue';
 import { CategoryGroup, CategorySubGroup } from '@/types';
 import { Button } from '@/components/ui/button';
 import GroupDialog from './GroupDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import { Trash, Plus } from 'lucide-vue-next';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -53,8 +56,6 @@ watch(
 );
 
 const localGroups = ref<CategoryGroup[]>([...props.groups]);
-const groupSelectKey = ref(0);
-
 watch(
     () => props.groups,
     (newGroups: CategoryGroup[]) => {
@@ -105,8 +106,6 @@ function openGroupDialog() {
 
 function openGroupDialogFromDropdown() {
     openGroupDialog();
-    // Forzar cierre/redibujado del dropdown
-    groupSelectKey.value += 1;
 }
 
 function closeGroupDialog() {
@@ -160,8 +159,9 @@ async function confirmDeleteGroup() {
 </script>
 
 <template>
-    <Dialog v-model:open="internalIsOpen">
-        <DialogContent>
+  <Dialog v-model:open="internalIsOpen">
+         <DialogContent class="flex h-full max-h-[56dvh] min-h-0 w-full flex-1 flex-col overflow-y-auto p-6 sm:max-w-4xl">
+               <TooltipProvider>
             <DialogHeader>
                 <DialogTitle>{{ dialogType === 'create' ? 'Crear Subgrupo' : 'Editar Subgrupo' }}</DialogTitle>
                 <DialogDescription>
@@ -169,30 +169,49 @@ async function confirmDeleteGroup() {
                 </DialogDescription>
             </DialogHeader>
             <div class="space-y-4">
-                <div class="pt-5 flex items-center space-x-1">
-                    <SearchableSelect
-                        label="Grupo"
-                        :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
-                        v-model="form.category_group_id"
-                        required
-                        searchable
-                        :key="groupSelectKey"
-                    >
-                        <template #header>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                class="w-full justify-center text-xs border border-border bg-muted text-muted-foreground hover:bg-muted/70"
-                                @click.stop="openGroupDialogFromDropdown"
+                  <div class="pt-5 space-y-2">
+                    <div class="flex items-start gap-2">
+                        <div class="flex flex-col flex-1 gap-1">
+                            <div class="flex items-center gap-2">
+                                <Label class="text-sm font-medium">
+                                    Grupo<span class="text-red-500">*</span>
+                                </Label>
+                                <HelpTooltip
+                                    text="Selecciona el grupo principal que alojará este subgrupo."
+                                    aria-label="Ayuda sobre el grupo"
+                                />
+                            </div>
+                            <SelectField
+                                label=""
+                                :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
+                                v-model="form.category_group_id"
+                                required
+                                placeholder="Selecciona un grupo"
+                                :button-class="'w-full'"
+                                searchable
                             >
-                                <Plus class="mr-2 h-4 w-4" />
-                                Nuevo grupo
-                            </Button>
-                        </template>
-                    </SearchableSelect>
-                    <DeleteButton class="flex items-center justify-center" customClass="w-6 h-6 mt-5" @click="() => form.category_group_id !== null && form.category_group_id !== undefined && openDeleteDialog(form.category_group_id)" :disabled="!form.category_group_id"/>
-                </div>
+                                <template #header>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        class="w-full justify-center text-xs border border-border bg-muted text-muted-foreground hover:bg-muted/70"
+                                        @click.stop="openGroupDialogFromDropdown"
+                                    >
+                                        <Plus class="mr-2 h-4 w-4" />
+                                        Nuevo grupo
+                                    </Button>
+                                </template>
+                            </SelectField>
+                        </div>
+                        <DeleteButton
+                            class="flex items-center justify-center"
+                            customClass="w-6 h-6 mt-5"
+                            :disabled="!form.category_group_id"
+                            @click="() => form.category_group_id != null && openDeleteDialog(form.category_group_id)"
+                        />
+                    </div>
+                  </div>
                 <div class="flex items-end">
                     <InputField v-model="subGroupName" label="Nombre del Subgrupo" placeholder="Escribe el nombre del subgrupo" />
                     <Button size="sm" class="ml-2" @click="addSubGroupToList" :disabled="!subGroupName.trim()">Añadir</Button>
@@ -210,11 +229,12 @@ async function confirmDeleteGroup() {
                     </p>
                 </div>
             </div>
-            <DialogFooter class="mt-4">
-                <Button variant="outline" @click="closeDialog">Cancelar</Button>
-                <Button @click="submitForm">{{ dialogType === 'create' ? 'Crear' : 'Guardar' }}</Button>
-            </DialogFooter>
-        </DialogContent>
+              <DialogFooter class="mt-4">
+                  <Button variant="outline" @click="closeDialog">Cancelar</Button>
+                  <Button @click="submitForm">{{ dialogType === 'create' ? 'Crear' : 'Guardar' }}</Button>
+              </DialogFooter>
+              </TooltipProvider>
+         </DialogContent>
     </Dialog>
     <GroupDialog
         v-model:isOpen="isGroupDialogOpen"

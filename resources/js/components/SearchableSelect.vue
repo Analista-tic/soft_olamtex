@@ -20,6 +20,7 @@ const emit = defineEmits(['update:modelValue']);
 
 const searchQuery = ref('');
 const isOpen = ref(false);
+const allowFocusOpen = ref(false);
 
 onMounted(() => {
     const selectedOption = props.options.find(option => option.id === props.modelValue);
@@ -61,7 +62,7 @@ function useClickOutside(el: HTMLElement, callback: () => void) {
     function handleClickOutside(event: MouseEvent) {
         if (!el.contains(event.target as Node)) {
             callback();
-            // Eliminar el cierre automático aquí para que permanezca abierto
+            allowFocusOpen.value = false;
         }
     }
     onMounted(() => {
@@ -79,23 +80,33 @@ const vClickOutside = {
 };
 
 function handleInputFocus() {
-    if (!props.disabled) {
-        isOpen.value = true; // Asegurar que la lista se abra al enfocar
+    if (!props.disabled && allowFocusOpen.value) {
+        isOpen.value = true;
     }
 }
+
+function handleInputClick() {
+    if (props.disabled) {
+        return;
+    }
+    allowFocusOpen.value = true;
+    isOpen.value = true;
+}
+
 </script>
 
 <template>
     <div class="relative w-full" v-click-outside="closeDropdown">
         <Label class="mb-1">{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
-        <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Buscar y seleccionar..."
-            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
-            @focus="handleInputFocus"
-            :disabled="props.disabled"
-        />
+            <input
+                v-model="searchQuery"
+                type="text"
+                placeholder="Buscar y seleccionar..."
+                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                @focus="handleInputFocus"
+                @click="handleInputClick"
+                :disabled="props.disabled"
+            />
         <div
             v-if="isOpen"
             class="absolute top-full left-0 z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-md border border-border bg-card shadow-lg"
