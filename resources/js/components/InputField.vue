@@ -10,7 +10,7 @@ interface Props {
   required?: boolean;
   modelValue?: string | number;
   value?: string | number;
-  type?: 'text' | 'password' | 'number' | 'currency' | 'email';
+  type?: 'text' | 'password' | 'number' | 'currency' | 'email' | 'date';
   readonly?: boolean;
   disabled?: boolean;
   error?: string | boolean;

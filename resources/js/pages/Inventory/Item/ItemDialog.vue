@@ -32,6 +32,7 @@ const emit = defineEmits(['close', 'refresh', 'saved', 'error']);
 
 // Estado reactivo principal
 type ItemType = 'product' | 'service';
+type ItemForm = Omit<Partial<Item>, 'tax_id'> & { tax_id?: Item['tax_id'] | 'none' };
 const itemTypeOptions: { value: ItemType; label: string }[] = [
     { value: 'product', label: 'Producto' },
     { value: 'service', label: 'Servicio' },
@@ -45,14 +46,14 @@ const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce(
 );
 const normalizeItemType = (value?: string | null): ItemType =>
     value === 'service' ? 'service' : 'product';
-const prepareLocalForm = (source: Partial<Item>): Partial<Item> => ({
+const prepareLocalForm = (source: Partial<Item>): ItemForm => ({
     ...source,
     reference: source.reference || '',
     tax: typeof source.tax === 'object' && source.tax !== null ? source.tax : null,
     item_type: normalizeItemType(source.item_type),
-});
+}) as ItemForm;
 
-const localForm = ref<Partial<Item>>(prepareLocalForm(props.form));
+const localForm = ref<ItemForm>(prepareLocalForm(props.form));
 const warehouses = ref<Warehouse[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
 const categoryGroups = ref<CategoryGroup[]>([]);
@@ -68,6 +69,23 @@ const requiredAdditionalFieldNames = computed(() =>
         .map((field) => field.name),
 );
 const extraFields = ref<ExtraFields>({});
+const missingRequiredAdditionalFieldNames = computed(() => {
+    return requiredAdditionalFieldNames.value.filter((fieldName) => {
+        const value = extraFields.value[fieldName];
+        return value === undefined || String(value ?? '').trim() === '';
+    });
+});
+const hasMissingRequiredAdditionalFields = computed(
+    () => missingRequiredAdditionalFieldNames.value.length > 0,
+);
+const missingRequiredAdditionalFieldsMessage = computed(() => {
+    const missing = missingRequiredAdditionalFieldNames.value;
+    if (!missing.length) return '';
+    return formatRequiredFieldsMessage(
+        'Completa los campos adicionales obligatorios',
+        missing,
+    );
+});
 const additionalFieldOrder = computed(() => {
     const map = new Map<string, number>();
     (additionalFieldsMeta.value ?? []).forEach((field, index) => {
@@ -145,7 +163,7 @@ const unitMeasures = unitMeasureGroups.flatMap((group) =>
     })),
 );
 const serviceUnitId = 'servicio';
-const defaultProductUnitValue = unitMeasures[0]?.id ?? 'unidad';
+const defaultProductUnitValue = String(unitMeasures[0]?.id ?? 'unidad');
 const getInitialUnitMeasure = (form: Partial<Item>): string =>
     form.unit_measure ??
     (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
@@ -578,10 +596,7 @@ async function handleSubmit() {
     if (!localForm.value.reference || String(localForm.value.reference).trim() === '') {
         requiredErrors.push('Referencia');
     }
-    const missingRequiredAdditionalFields = requiredAdditionalFieldNames.value.filter((fieldName) => {
-        const value = extraFields.value[fieldName];
-        return value === undefined || String(value ?? '').trim() === '';
-    });
+    const missingRequiredAdditionalFields = missingRequiredAdditionalFieldNames.value;
     missingRequiredAdditionalFields.forEach((fieldName) => {
         requiredErrors.push(`Campo adicional: ${fieldName}`);
     });
@@ -810,7 +825,6 @@ function handleNegativeMovementChange(val: boolean) {
   localForm.value.negative_movement = val ? 1 : 0;
 }
 
-// Actualiza el campo nombre automáticamente
 function updateNameField(orderedFields?: Record<string, string>): void {
     const subGroup = categorySubGroups.value.find(
         (sg) => String(sg.id) === String(localForm.value.category_sub_group_id)
@@ -835,7 +849,6 @@ function updateNameField(orderedFields?: Record<string, string>): void {
     localForm.value.name = nameField.value;
 }
 
-// Previsualización de imagen
 watch(imageFile, (file) => {
     if (file) {
         const reader = new FileReader();
@@ -864,7 +877,6 @@ watch(
     },
 );
 
-// Actualiza nombre cuando cambian selects/campos extra
 watch(
     [
         () => localForm.value.category_sub_group_id,
@@ -874,7 +886,6 @@ watch(
     { immediate: true }
 );
 
-// Manejo de input de archivo
 function triggerFileInput() {
     fileInputRef.value?.click();
 }
@@ -884,7 +895,6 @@ function handleFileChange(e: Event) {
     imageFile.value = files && files.length > 0 ? files.item(0) : null;
 }
 
-// Actualiza tax_id y tax (objeto) automáticamente al cambiar tax_id
 watch(
     () => localForm.value.tax_id,
     (taxId) => {
@@ -894,10 +904,9 @@ watch(
 );
 </script>
 
-
 <template>
     <Dialog :open="dialogOpen" @update:open="handleClose">
-        <DialogContent class="flex h-full max-h-[100dvh] min-h-0 w-full flex-1 flex-col overflow-y-auto p-6 sm:max-w-4xl">
+        <DialogContent class="flex h-full max-h-[96dvh] min-h-0 w-full flex-1 flex-col overflow-y-auto p-6 sm:max-w-4xl">
             <transition name="fade">
                 <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2">
                     <AlertBox
@@ -1281,6 +1290,7 @@ watch(
                     </div>
 
                     <!-- Campos adicionales -->
+                    <div class="space-y-2">
                         <ExtraFieldsForm
                             :extra-field-names="extraFieldNames"
                             v-model:extra-fields="extraFields"
@@ -1289,6 +1299,13 @@ watch(
                             :field-options="additionalFieldOptions"
                             :additional-fields-meta="additionalFieldsMeta"
                         />
+                        <p
+                            v-if="hasMissingRequiredAdditionalFields"
+                            class="text-sm text-red-600"
+                        >
+                            {{ missingRequiredAdditionalFieldsMessage }}
+                        </p>
+                    </div>
                 </fieldset>
 
                 <!-- FOOTER -->
@@ -1306,6 +1323,7 @@ watch(
                         variant="default"
                         type="submit"
                         class="w-full md:w-auto"
+                        :disabled="hasMissingRequiredAdditionalFields"
                     >
                         {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                     </Button>
@@ -1383,8 +1401,5 @@ watch(
     transform: scale(0.95);
 }
 </style>
-
-
-
 
 

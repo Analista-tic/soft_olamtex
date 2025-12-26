@@ -13,6 +13,7 @@ import { Image } from 'lucide-vue-next';
 import colombiaData from '@/data/colombia.json';
 import ProfileSection from './Profile.vue';
 import AppearanceSection from './Appearance.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 
 interface CompanyData {
     name: string;
@@ -528,7 +529,7 @@ onBeforeUnmount(() => {
             <div class="space-y-1">
                 <h1 class="text-2xl font-semibold text-card-foreground">Configuración</h1>
                 <p class="max-w-2xl text-sm text-muted-foreground/70">
-                    Actualiza la información de la empresa que usa toda la plataforma.
+                    Centraliza la información corporativa que utiliza el sistema para identificar la empresa, comunicar con contactos y contextualizar los reportes operativos.
                 </p>
             </div>
 
@@ -670,7 +671,13 @@ onBeforeUnmount(() => {
                         </div>
 
                         <div class="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
-                            <p class="text-sm font-semibold text-card-foreground">Logotipo corporativo</p>
+                            <div class="flex items-center gap-2">
+                                <p class="text-sm font-semibold text-card-foreground">Logotipo corporativo</p>
+                                <HelpTooltip
+                                    text="Sube un logotipo que represente a tu marca."
+                                    aria-label="Ayuda sobre el logotipo corporativo"
+                                />
+                            </div>
                             <p class="text-xs text-muted-foreground/70 m-2">
                                 Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
                             </p>
@@ -749,4 +756,3 @@ onBeforeUnmount(() => {
         </div>
     </AppLayout>
 </template>
-

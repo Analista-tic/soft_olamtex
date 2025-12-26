@@ -3,7 +3,6 @@ import { ref, watch, onMounted, computed } from 'vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import type { ExtraFields, Option, AdditionalField } from '@/types';
 import { Plus } from 'lucide-vue-next';
@@ -40,6 +39,8 @@ const medidaValor = ref('');
 const medidaUnidad = ref(unidadesMedida[0]);
 
 const localExtraFields = ref<ExtraFields>({ ...props.extraFields });
+const extraFieldEntries = computed(() => Object.entries(localExtraFields.value));
+const hasExtraFields = computed(() => extraFieldEntries.value.length > 0);
 
 // Construir lista de campos disponibles (nombres simples + metadatos)
 const availableFieldNames = computed(() => {
@@ -82,6 +83,29 @@ const dynamicFieldOptions = computed(() => {
     }
     return base;
 });
+
+const additionalFieldsMetaMap = computed(() => {
+    const map: Record<string, AdditionalField> = {};
+    (props.additionalFieldsMeta ?? []).forEach((meta) => {
+        if (meta?.name) {
+            map[meta.name] = meta;
+        }
+    });
+    return map;
+});
+
+const formatFieldOptions = (field: string): Option[] =>
+    (dynamicFieldOptions.value[field] ?? []).map((option) => ({
+        id: option,
+        name: option,
+    }));
+
+const resolveFieldInputType = (field: string): 'text' | 'number' | 'date' => {
+    const meta = additionalFieldsMetaMap.value[field];
+    if (meta?.field_type === 'date') return 'date';
+    if (meta?.field_type === 'number' || meta?.field_type === 'decimal') return 'number';
+    return 'text';
+};
 
 // Mantener sincronización solo cuando cambian las props externamente
 watch(
@@ -297,43 +321,51 @@ onMounted(async () => {
             </Button>
         </div>
 
-        <div class="mt-2 overflow-x-auto">
-            <Table>
-                <TableHeader />
-                <TableBody>
-                    <TableRow
-                        v-for="(value, field) in localExtraFields"
-                        :key="field"
-                        class="transition hover:bg-gray-50"
-                    >
-                        <TableCell class="px-4 py-2 font-medium text-gray-800">
-                            {{ field }}
-                        </TableCell>
-                        <TableCell class="px-4 py-2 text-gray-600">
-                            {{ value }}
-                        </TableCell>
-                        <TableCell
-                            v-if="!props.readonly"
-                            class="px-4 py-2"
-                        >
-                            <DeleteButton
-                                class="ml-2"
-                                @click="removeExtraField(String(field))"
-                                title="Quitar"
-                            />
-                        </TableCell>
-                    </TableRow>
-
-                    <TableRow v-if="Object.keys(localExtraFields).length === 0">
-                        <TableCell
-                            :colspan="props.readonly ? 2 : 3"
-                            class="px-4 py-2 text-center text-gray-400"
-                        >
-                            No hay campos adicionales agregados.
-                        </TableCell>
-                    </TableRow>
-                </TableBody>
-            </Table>
+        <div class="mt-4 space-y-3">
+            <div
+                v-for="([field]) in extraFieldEntries"
+                :key="field"
+                class="flex flex-col gap-3 rounded-2xl border border-border bg-white/80 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+            >
+                <div class="flex-1 space-y-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {{ field }}
+                    </p>
+                    <div>
+                        <SelectField
+                            v-if="formatFieldOptions(field).length"
+                            v-model="localExtraFields[field]"
+                            label=""
+                            :options="formatFieldOptions(field)"
+                            option-label="name"
+                            option-value="id"
+                            placeholder="Selecciona un valor"
+                            :disabled="props.readonly"
+                            :searchable="false"
+                        />
+                        <InputField
+                            v-else
+                            v-model="localExtraFields[field]"
+                            label=""
+                            placeholder="Ingresa un valor"
+                            :readonly="props.readonly"
+                            :type="resolveFieldInputType(field)"
+                        />
+                    </div>
+                </div>
+                <DeleteButton
+                    v-if="!props.readonly"
+                    class="pt-4 ml-auto text-gray-400 transition hover:text-red-500"
+                    @click="removeExtraField(field)"
+                    title="Quitar"
+                />
+            </div>
+            <div
+                v-if="!hasExtraFields"
+                class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-center text-sm font-medium text-slate-500"
+            >
+                No hay campos adicionales agregados.
+            </div>
         </div>
     </div>
 </template>

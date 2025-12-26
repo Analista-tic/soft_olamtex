@@ -460,6 +460,9 @@ export interface FabricRollView {
     partialOutput: string;
     partialAvailability: string;
     exitQuantity: string;
+    // valores calculados por el Resource backend
+    quantityValue?: number | string;
+    exitQuantityValue?: number | string;
     realAvailability: string;
     orderNumber: string;
     provider: string;

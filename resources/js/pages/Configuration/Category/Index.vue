@@ -172,7 +172,7 @@ onMounted(() => {
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Gestión de Subgrupos</h1>
                     <p class="text-sm text-muted-foreground">
-                        Administra los subgrupos de categorías para organizar tus ítems.
+                        Define y clasifica subgrupos de categorías para que cada ítem se asocie con la estructura organizativa correcta.
                     </p>
                 </div>
                 <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Subgrupo</Button>

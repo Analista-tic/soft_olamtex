@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -315,17 +315,19 @@ onMounted(() => {
             @close-error="errorMessage = ''"
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <div class="flex items-center justify-between">
-                <div class="flex flex-col gap-1">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div class="flex flex-col gap-1 max-w-3xl">
                     <h1 class="text-lg font-bold">Campos adicionales</h1>
                     <p class="text-sm text-muted-foreground">
-                        Define y ordena campos adicionales para ítems; estos se usarán al completar información extra en los productos.
+                        Este módulo permite definir, ordenar y mantener los campos adicionales que enriquecen la información de ítems y productos, asegurando que cada área del negocio capture los atributos obligatorios y opcionales que requiere su operación.
                     </p>
                 </div>
-                <Button @click="openDialog('create')" variant="default" size="sm">
-                    <PlusCircle class="w-4 h-4" />
-                    Crear nuevo campo
-                </Button>
+                <div class="flex items-center justify-end pt-2 lg:pt-0">
+                    <Button @click="openDialog('create')" variant="default" size="sm">
+                        <PlusCircle class="w-4 h-4" />
+                        Crear nuevo campo
+                    </Button>
+                </div>
             </div>
             <FilterBar align="start" gap="gap-4" noMargin>
                 <FilterField

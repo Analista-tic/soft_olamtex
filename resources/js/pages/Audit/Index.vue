@@ -493,7 +493,7 @@ watch(detailDialogOpen, (value) => {
             <div class="mb-2 flex flex-col gap-1">
                 <h1 class="text-lg font-bold">Auditoría</h1>
                 <p class=" text-sm text-muted-foreground">
-                    Rastro completo de cambios: quién, dónde y cómo se modificó cada recurso.
+                    El módulo de auditoría documenta de forma detallada cada cambio realizado en el sistema: registra quién lo hizo, desde qué módulo y qué recursos fueron impactados, facilitando la trazabilidad y el monitoreo operativo para la empresa.
                 </p>
             </div>
 
@@ -743,4 +743,3 @@ watch(detailDialogOpen, (value) => {
         </Dialog>
     </AppLayout>
 </template>
-

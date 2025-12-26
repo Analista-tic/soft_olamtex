@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { computed } from 'vue';
 
 const props = defineProps<{
@@ -14,11 +13,11 @@ const computedDescription = computed(() => props.description ?? '');
 </script>
 
 <template>
-    <DialogHeader :class="props.headerClass">
-        <DialogTitle>{{ computedTitle }}</DialogTitle>
-        <DialogDescription v-if="computedDescription" :class="props.descriptionClass">
+    <div :class="['space-y-1', props.headerClass]">
+        <p class="text-lg font-semibold text-foreground">{{ computedTitle }}</p>
+        <p v-if="computedDescription" :class="['text-sm text-muted-foreground', props.descriptionClass]">
             {{ computedDescription }}
-        </DialogDescription>
+        </p>
         <slot />
-    </DialogHeader>
+    </div>
 </template>

@@ -169,7 +169,7 @@ async function confirmDeleteGroup() {
                 </DialogDescription>
             </DialogHeader>
             <div class="space-y-4">
-                <div class="flex items-center space-x-1">
+                <div class="pt-5 flex items-center space-x-1">
                     <SearchableSelect
                         label="Grupo"
                         :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
