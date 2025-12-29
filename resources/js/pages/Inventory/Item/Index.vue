@@ -21,6 +21,16 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Ban, CheckCircle, Download, FileSpreadsheet, PlusCircle, Search, Upload } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch, reactive } from 'vue';
+import {
+    Pagination,
+    PaginationEllipsis,
+    PaginationFirst,
+    PaginationLast,
+    PaginationList,
+    PaginationListItem,
+    PaginationNext,
+    PaginationPrev,
+} from '@/components/ui/pagination';
 import ItemDialog from './ItemDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
@@ -155,15 +165,22 @@ async function fetchItems(page = 1, search = '', status = 'all') {
     currentPage.value = response.data.current_page;
 }
 
+function handlePageChange(newPage: number) {
+    if (newPage === currentPage.value) return;
+    fetchItems(newPage, searchQuery.value, statusFilter.value);
+}
+
 watch(searchQuery, (newQuery) => {
+    currentPage.value = 1;
     fetchItems(1, newQuery, statusFilter.value);
 });
 watch(statusFilter, (newStatus) => {
+    currentPage.value = 1;
     fetchItems(1, searchQuery.value, newStatus);
 });
 
 onMounted(() => {
-    fetchItems();
+    fetchItems(currentPage.value, searchQuery.value, statusFilter.value);
 });
 
 function exportItemsExcel() {
@@ -327,6 +344,43 @@ async function downloadTemplate() {
                         </TableRow>
                     </TableBody>
                 </Table>
+                <Pagination
+                    class="mt-5 flex justify-center"
+                    :items-per-page="itemsPerPage"
+                    :total="totalItems"
+                    :sibling-count="1"
+                    show-edges
+                    v-model:current-page="currentPage"
+                    @page-changed="handlePageChange"
+                >
+                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
+                        <PaginationFirst />
+                        <PaginationPrev />
+
+                        <template
+                            v-for="(item, index) in items"
+                            :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`"
+                        >
+                            <PaginationListItem
+                                v-if="item.type === 'page'"
+                                :value="item.value"
+                                as-child
+                            >
+                                <Button
+                                    class="h-6 w-6 p-0"
+                                    :variant="item.value === currentPage ? 'default' : 'outline'"
+                                    @click="handlePageChange(item.value as number)"
+                                >
+                                    {{ item.value }}
+                                </Button>
+                            </PaginationListItem>
+                            <PaginationEllipsis v-else />
+                        </template>
+
+                        <PaginationNext />
+                        <PaginationLast />
+                    </PaginationList>
+                </Pagination>
             </div>
         </div>
         <ItemDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="handleDialogRefresh" />
@@ -370,10 +424,6 @@ async function downloadTemplate() {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
-
-
-
-
 
 
 

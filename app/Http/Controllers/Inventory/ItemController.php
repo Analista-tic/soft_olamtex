@@ -468,17 +468,20 @@ class ItemController extends Controller
     // Nueva función para exportar todos los items a Excel
     public function exportExcel()
     {
-        $articles = Item::with(['categorySubGroup'])->get();
+        $articles = Item::with(['categorySubGroup', 'tax'])->get();
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('items');
 
-        // Encabezados en el mismo orden que la plantilla de carga masiva
         $headers = [
+            'ID',
+            'NOMBRE',
+            'REFERENCIA',
             'SUBGRUPO',
             'COLOR',
-            'IMPUesta (%)',
+            'IMPUESTO',
+            'IMPUESTO (%)',
             'CÓDIGO DE BARRAS',
             'DESCRIPCIÓN',
             'BASE TELA',
@@ -491,34 +494,52 @@ class ItemController extends Controller
             'TALLA',
             'MEDIDA',
             'UNIDAD DE MEDIDA',
-            'NOMBRE',
-            'REFERENCIA',
+            'ESTADO',
+            'TIPO DE ÍTEM',
         ];
         $sheet->fromArray($headers, null, 'A1');
 
-        // Datos
         $rowNum = 2;
         foreach ($articles as $article) {
-            // Extra fields
             $extra = is_array($article->extra_fields) ? $article->extra_fields : (json_decode($article->extra_fields, true) ?: []);
-            $colorValue = $extra['COLOR'] ?? $extra['Color'] ?? '';
-            $sheet->setCellValue("A$rowNum", optional($article->categorySubGroup)->name); // SUBGRUPO
-            $sheet->setCellValue("B$rowNum", $colorValue); // COLOR
-            $sheet->setCellValue("C$rowNum", $article->tax); // IMPUesta (%)
-            $sheet->setCellValue("D$rowNum", $article->bar_code); // CÓDIGO DE BARRAS
-            $sheet->setCellValue("E$rowNum", $article->description); // DESCRIPCIÓN
-            $sheet->setCellValue("F$rowNum", $extra['BASE TELA'] ?? ''); // BASE TELA
-            $sheet->setCellValue("G$rowNum", $extra['BASE HILAZA'] ?? ''); // BASE HILAZA
-            $sheet->setCellValue("H$rowNum", $extra['CAMPO ADICIONAL'] ?? ''); // CAMPO ADICIONAL
-            $sheet->setCellValue("I$rowNum", $extra['MARCA'] ?? ''); // MARCA
-            $sheet->setCellValue("J$rowNum", $extra['MUNDO'] ?? ''); // MUNDO
-            $sheet->setCellValue("K$rowNum", $extra['LÍNEAS'] ?? ''); // LÍNEAS
-            $sheet->setCellValue("L$rowNum", $extra['TIPO PUNTERA'] ?? ''); // TIPO PUNTERA
-            $sheet->setCellValue("M$rowNum", $extra['TALLA'] ?? ''); // TALLA
-            $sheet->setCellValue("N$rowNum", $extra['MEDIDA'] ?? ''); // MEDIDA
-            $sheet->setCellValue("O$rowNum", $article->unit_measure); // UNIDAD DE MEDIDA
-            $sheet->setCellValue("P$rowNum", $article->name); // NOMBRE
-            $sheet->setCellValue("Q$rowNum", $article->reference); // REFERENCIA
+            $normalizedExtra = [];
+            foreach ($extra as $key => $value) {
+                $normalizedExtra[mb_strtoupper((string) $key, 'UTF-8')] = $value;
+            }
+
+            $resolveExtra = function (string $key) use ($normalizedExtra) {
+                return $normalizedExtra[$key] ?? '';
+            };
+
+            $tax = $article->tax;
+            $statusLabel = $article->status ? 'Activo' : 'Inactivo';
+            $typeLabel = $article->item_type === 'service' ? 'Servicio' : 'Producto';
+
+            $rowData = [
+                $article->id,
+                $article->name,
+                $article->reference,
+                optional($article->categorySubGroup)->name,
+                $resolveExtra('COLOR'),
+                optional($tax)->name,
+                $tax ? number_format((float) $tax->percentage, 2, '.', '') : '',
+                $article->bar_code,
+                $article->description,
+                $resolveExtra('BASE TELA'),
+                $resolveExtra('BASE HILAZA'),
+                $resolveExtra('CAMPO ADICIONAL'),
+                $resolveExtra('MARCA'),
+                $resolveExtra('MUNDO'),
+                $resolveExtra('LÍNEAS'),
+                $resolveExtra('TIPO PUNTERA'),
+                $resolveExtra('TALLA'),
+                $resolveExtra('MEDIDA'),
+                $article->unit_measure,
+                $statusLabel,
+                $typeLabel,
+            ];
+
+            $sheet->fromArray($rowData, null, "A{$rowNum}");
             $rowNum++;
         }
 
