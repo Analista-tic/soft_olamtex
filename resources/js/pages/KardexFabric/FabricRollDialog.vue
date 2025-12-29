@@ -168,7 +168,7 @@ function validateForm(): boolean {
         return false;
     }
     if (!form.value.quantity || Number(form.value.quantity) <= 0) {
-        setAlert('Por favor ingrese una cantidad válida', 'warning');
+        setAlert('Por favor ingrese una longitud válida', 'warning');
         return false;
     }
     if (!form.value.roll_width || Number(form.value.roll_width) <= 0) {
@@ -295,14 +295,14 @@ function formatDate(dateStr: string) {
                     <div class="grid grid-cols-2 gap-3">
                         <!-- Cantidad y Ancho -->
                         <div>
-                            <InputField
-                                v-model="form.quantity"
-                                label="Cantidad (mts)"
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                required
-                            />
+                        <InputField
+                            v-model="form.quantity"
+                            label="Longitud (mts)"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            required
+                        />
                             <div v-if="quantityTolerance" class="text-xs mt-1" :class="quantityTolerance.isApproved ? 'text-green-600' : 'text-red-600'">
                                 Dif: {{ quantityTolerance.difference.toFixed(2) }} mts ({{ quantityTolerance.percentageDiff.toFixed(2) }}%)
                             </div>
@@ -380,7 +380,7 @@ function formatDate(dateStr: string) {
                             <thead>
                                 <tr class="bg-gray-100">
                                     <th class="px-2 py-1 border"># Rollo</th>
-                                    <th class="px-2 py-1 border">Cantidad</th>
+                                    <th class="px-2 py-1 border">Longitud</th>
                                     <th class="px-2 py-1 border">Ancho</th>
                                     <th class="px-2 py-1 border">Ubicación</th>
                                     <th class="px-2 py-1 border">Fecha</th>
@@ -399,7 +399,7 @@ function formatDate(dateStr: string) {
                             </tbody>
                         </table>
                         <div class="mt-1 text-right text-xs font-semibold">
-                            Total: {{ totalReceived }} mts
+                            Longitud total: {{ totalReceived }} mts
                         </div>
                     </div>
                 </div>

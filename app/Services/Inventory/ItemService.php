@@ -5,10 +5,12 @@ namespace App\Services\Inventory;
 use App\Services\Inventory\AdditionalFieldService;
 use App\Models\Common\CategorySubGroup;
 use App\Models\Common\Tax;
+use App\Models\Common\Warehouse;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Expenses\PurchaseOrderItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Inventory\Item;
+use App\Models\Inventory\AdditionalField;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
@@ -16,6 +18,9 @@ use Illuminate\Validation\ValidationException;
 class ItemService
 {
     protected array $orderedAdditionalFieldNamesCache = [];
+    protected array $warehouseNameMapCache = [];
+    protected array $additionalFieldNameMap = [];
+    protected array $unitMeasureNameMap = [];
 
     public function __construct(protected AdditionalFieldService $fieldService) {}
 
@@ -202,8 +207,8 @@ class ItemService
     }
 
     /**
-     * Procesa filas extraídas de una hoja de cálculo para carga masiva.
-     * Espera que la fila 1 contenga encabezados (nombres en mayúsculas en español).
+     * Procesa filas extraidas de una hoja de calculo para carga masiva.
+     * Espera que la fila 1 contenga encabezados (nombres en mayusculas en espanol).
      * Retorna arreglo con 'inserted' y 'errors'.
      *
      * @param array $rows
@@ -228,7 +233,7 @@ class ItemService
             'CAMPO ADICIONAL',
             'MARCA',
             'MUNDO',
-            'LÍNEAS',
+            'Líneas',
             'TIPO PUNTERA',
             'TALLA',
             'MEDIDA'
@@ -247,7 +252,10 @@ class ItemService
                     $rowData[$colName] = $row[$colIdx] ?? null;
                 }
 
-                $subGroupName = $rowData['SUBGRUPO'] ?? '';
+                $normalized = $this->normalizeRowKeys($rowData);
+                $normalizedRow = $normalized['values'];
+                $headerMap = $normalized['map'];
+                $subGroupName = $normalizedRow['SUBGRUPO'] ?? '';
                 $subGroup = CategorySubGroup::where('name', $subGroupName)->first();
                 if (!$subGroup) {
                     $errors[] = "Fila $rowNum: Subgrupo '$subGroupName' no encontrado";
@@ -256,9 +264,15 @@ class ItemService
 
                 $extraFields = [];
                 foreach ($extraFieldsKeys as $key) {
-                    if (isset($rowData[$key]) && $rowData[$key] !== '') {
-                        $extraFields[$key] = $rowData[$key];
+                    $normalizedKey = $this->normalizeHeader($key);
+                    $value = $normalizedRow[$normalizedKey] ?? null;
+                    if ($value === null || $value === '') {
+                        continue;
                     }
+                    $actualHeader = $headerMap[$normalizedKey] ?? $key;
+                    $additionalFieldName = $this->getAdditionalFieldNameByNormalizedHeader($normalizedKey);
+                    $fieldKey = $additionalFieldName ?? $actualHeader;
+                    $extraFields[$fieldKey] = $value;
                 }
 
                 $extrasString = $this->buildExtraFieldsNameSegment($extraFields, $orderedFieldNames);
@@ -272,19 +286,20 @@ class ItemService
 
                 $itemData = [
                     'category_sub_group_id' => $subGroup->id,
-                    'tax' => isset($rowData['Impuesto (%)']) ? $rowData['Impuesto (%)'] : null,
-                    'bar_code' => $rowData['CÓDIGO DE BARRAS'] ?? null,
-                    'negative_movement' => filter_var($rowData['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
-                    'description' => $rowData['DESCRIPCIÓN'] ?? '',
+                    'tax' => $normalizedRow['IMPUESTO (%)'] ?? null,
+                    'bar_code' => $normalizedRow['CODIGO DE BARRAS'] ?? null,
+                    'negative_movement' => filter_var($normalizedRow['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+                    'description' => $normalizedRow['DESCRIPCION'] ?? '',
                     'extra_fields' => $extraFields,
                     'name' => $name,
-                    'reference' => $rowData['REFERENCIA'] ?? '',
+                    'reference' => $normalizedRow['REFERENCIA'] ?? '',
                     'status' => true,
                     'item_type' => 'product',
-                    'unit_measure' => $rowData['UNIDAD DE MEDIDA'] ?? null,
+                    'unit_measure' => $this->resolveUnitMeasureValue($normalizedRow['UNIDAD DE MEDIDA'] ?? null) ?? ($normalizedRow['UNIDAD DE MEDIDA'] ?? null),
                 ];
 
-                $this->create($itemData, []);
+                $warehouses = $this->buildWarehousePayloadFromRow($normalizedRow, $headerMap, $errors, $rowNum);
+                $this->create($itemData, $warehouses);
                 $inserted++;
             } catch (\Throwable $e) {
                 $errors[] = "Fila $rowNum: " . $e->getMessage();
@@ -294,6 +309,154 @@ class ItemService
         return ['inserted' => $inserted, 'errors' => $errors];
     }
 
+    protected function normalizeRowKeys(array $row): array
+    {
+        $values = [];
+        $map = [];
+        foreach ($row as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+            $normalized = $this->normalizeHeader($key);
+            $values[$normalized] = $value;
+            if (!isset($map[$normalized])) {
+                $map[$normalized] = $key;
+            }
+        }
+        return ['values' => $values, 'map' => $map];
+    }
+
+    protected function normalizeHeader(string $value): string
+    {
+        $clean = mb_strtoupper(trim($value), 'UTF-8');
+        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT', $clean);
+        return $transliterated !== false ? $transliterated : $clean;
+    }
+
+    protected function getAdditionalFieldNameByNormalizedHeader(string $normalized): ?string
+    {
+        $this->ensureAdditionalFieldNameMap();
+        return $this->additionalFieldNameMap[$normalized] ?? null;
+    }
+
+    protected function ensureAdditionalFieldNameMap(): void
+    {
+        if ($this->additionalFieldNameMap !== []) {
+            return;
+        }
+        AdditionalField::where('status', true)->get()->each(function (AdditionalField $field) {
+            $key = $this->normalizeHeader($field->name);
+            $this->additionalFieldNameMap[$key] = $field->name;
+        });
+    }
+
+    protected function ensureUnitMeasureNameMap(): void
+    {
+        if ($this->unitMeasureNameMap !== []) {
+            return;
+        }
+        $path = resource_path('js/data/unitMeasures.json');
+        if (!file_exists($path)) {
+            return;
+        }
+        $payload = json_decode(file_get_contents($path), true);
+        $groups = $payload['unitMeasureGroups'] ?? [];
+        foreach ($groups as $group) {
+            $options = $group['options'] ?? [];
+            foreach ($options as $option) {
+                $id = (string)($option['id'] ?? '');
+                $name = (string)($option['name'] ?? '');
+                if ($id !== '') {
+                    $this->unitMeasureNameMap[$this->normalizeHeader($id)] = $id;
+                }
+                if ($name !== '') {
+                    $this->unitMeasureNameMap[$this->normalizeHeader($name)] = $id;
+                }
+            }
+        }
+    }
+
+    protected function resolveUnitMeasureValue(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $this->ensureUnitMeasureNameMap();
+        return $this->unitMeasureNameMap[$this->normalizeHeader($value)] ?? null;
+    }
+
+    protected function buildWarehousePayloadFromRow(array $normalizedRow, array $headerMap, array &$errors, int $rowNum): array
+    {
+        $warehouseName = $this->getRowValueFromAlternatives($normalizedRow, ['BODEGA', 'BODEGAS'], '');
+        if ($warehouseName === '') {
+            return [];
+        }
+
+        $warehouseId = $this->getWarehouseIdByName($warehouseName);
+        if (!$warehouseId) {
+            $errors[] = "Fila $rowNum: Bodega '$warehouseName' no encontrada";
+            return [];
+        }
+
+        $quantity = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD', 'TOTAL CANTIDAD'], 0));
+        $stockMin = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD MIN', 'CANTIDAD MINIMA'], 0));
+        $stockMax = $this->parseDecimalValue($this->getRowValueFromAlternatives($normalizedRow, ['CANTIDAD MAX', 'CANTIDAD MAXIMA'], 0));
+
+        return [[
+            'warehouse_id' => $warehouseId,
+            'quantity' => $quantity,
+            'stock_min' => $stockMin,
+            'stock_max' => $stockMax,
+        ]];
+    }
+
+    protected function getRowValueFromAlternatives(array $normalizedRow, array $keys, $default = null)
+    {
+        foreach ($keys as $key) {
+            $value = $normalizedRow[$this->normalizeHeader($key)] ?? null;
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+        return $default;
+    }
+
+    protected function parseDecimalValue($value): float
+    {
+        if ($value === null || $value === '') {
+            return 0.0;
+        }
+        $normalized = str_replace(',', '.', (string) $value);
+        return is_numeric($normalized) ? (float) $normalized : 0.0;
+    }
+
+    protected function normalizeWarehouseName(string $name): string
+    {
+        return $this->normalizeHeader($name);
+    }
+
+    protected function ensureWarehouseNameMap(): void
+    {
+        if ($this->warehouseNameMapCache !== []) {
+            return;
+        }
+        Warehouse::select('id', 'name')->get()->each(function ($warehouse) {
+            $key = $this->normalizeWarehouseName($warehouse->name);
+            if ($key !== '') {
+                $this->warehouseNameMapCache[$key] = $warehouse->id;
+            }
+        });
+    }
+
+    protected function getWarehouseIdByName(string $name): ?int
+    {
+        $normalized = $this->normalizeWarehouseName($name);
+        if ($normalized === '') {
+            return null;
+        }
+        $this->ensureWarehouseNameMap();
+        return $this->warehouseNameMapCache[$normalized] ?? null;
+    }
     public function resolveWarehousePayload(mixed $payload): array
     {
         if (is_string($payload)) {
@@ -345,7 +508,7 @@ class ItemService
             'tax' => $data['tax'],
             'bar_code' => $data['bar_code'] ?? null,
             'negative_movement' => filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
-            'description' => $data['description'],
+            'description' => isset($data['description']) ? (string) $data['description'] : '',
             'extra_fields' => $extraFields,
             'reference' => $data['reference'],
             'status' => array_key_exists('status', $data) ? (bool) $data['status'] : true,

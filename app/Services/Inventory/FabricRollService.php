@@ -2,8 +2,9 @@
 
 namespace App\Services\Inventory;
 
-use App\Models\Inventory\FabricRoll;
 use App\Models\Expenses\PurchaseInvoice;
+use App\Models\Inventory\FabricRoll;
+use App\Models\Inventory\Item;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
@@ -62,6 +63,8 @@ class FabricRollService
                 'purchaseDocumentItem.document.creator',
             ]);
 
+            $this->syncItemWarehouseLength($fabricRoll);
+
             return $fabricRoll;
         });
     }
@@ -88,13 +91,19 @@ class FabricRollService
                 'purchaseDocumentItem.document.creator',
             ]);
 
+            $this->syncItemWarehouseLength($fabricRoll);
+
             return $fabricRoll;
         });
     }
 
     public function delete(FabricRoll $fabricRoll): void
     {
+        $item = $fabricRoll->purchaseDocumentItem->item ?? null;
         $fabricRoll->delete();
+        if ($item) {
+            $this->syncWarehouseLengthForItem($item);
+        }
     }
 
     public function updateOutput(FabricRoll $fabricRoll, array $data): FabricRoll
@@ -106,12 +115,64 @@ class FabricRollService
             'purchaseDocumentItem.document.creator',
         ]);
 
+        $this->syncItemWarehouseLength($fabricRoll);
+
         return $fabricRoll;
     }
 
     public function storeFromReception(array $data): FabricRoll
     {
         return $this->create($data);
+    }
+
+    protected function syncItemWarehouseLength(FabricRoll $fabricRoll): void
+    {
+        $item = $fabricRoll->purchaseDocumentItem->item;
+        if (!$item) {
+            return;
+        }
+
+        $this->syncWarehouseLengthForItem($item);
+    }
+
+    protected function syncWarehouseLengthForItem(Item $item): void
+    {
+        $warehouse = $item->warehouses()->first();
+        if (!$warehouse) {
+            return;
+        }
+
+        $totalQuantity = $this->sumRollQuantityForItem($item->id);
+
+        $row = DB::table('warehouse_items')
+            ->where('item_id', $item->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->first();
+
+        $payload = [
+            'quantity' => $totalQuantity,
+            'updated_at' => now(),
+        ];
+
+        if ($row) {
+            DB::table('warehouse_items')->where('id', $row->id)->update($payload);
+            return;
+        }
+
+        $payload['item_id'] = $item->id;
+        $payload['warehouse_id'] = $warehouse->id;
+        $payload['stock_min'] = 0;
+        $payload['stock_max'] = 0;
+        $payload['created_at'] = now();
+
+        DB::table('warehouse_items')->insert($payload);
+    }
+
+    protected function sumRollQuantityForItem(int $itemId): float
+    {
+        return (float) FabricRoll::whereHas('purchaseDocumentItem', function ($query) use ($itemId) {
+            $query->where('item_id', $itemId);
+        })->sum('quantity');
     }
 
     public function getByInvoiceItem($itemId): Collection

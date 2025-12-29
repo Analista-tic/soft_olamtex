@@ -4,16 +4,9 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\Item;
-use App\Models\ProductSheet\Brand;
-use App\Models\ProductSheet\FabricBase;
-use App\Models\ProductSheet\World;
-use App\Models\ProductSheet\YarnBase;
-use App\Models\Expenses\PurchaseOrderItem;
-use App\Models\Expenses\PurchaseInvoiceItem;
-use App\Models\Inventory\InventoryAdjustmentLine;
+// ProductSheet imports removed: extra fields are managed dynamically elsewhere
 use App\Services\Inventory\ItemService;
 use Illuminate\Http\Request;
-use Illuminate\Database\QueryException;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
@@ -30,7 +23,7 @@ class ItemController extends Controller
     public function index()
     {
         return Inertia::render('Inventory/Item/Index', [
-            'articles' => Item::with(['warehouses', 'categorySubGroup', 'tax'])->get(),
+            'items' => Item::with(['warehouses', 'categorySubGroup', 'tax'])->get(),
         ]);
     }
 
@@ -42,30 +35,11 @@ class ItemController extends Controller
     public function store(Request $request)
     {
         try {
-            $data = $request->validate([
-                'category_sub_group_id' => 'required|integer',
-                'img' => 'nullable|string',
-                'tax_id' => 'nullable|integer',
-                'tax' => 'required|numeric',
-                'bar_code' => 'nullable|string',
-                'negative_movement' => 'required',
-                'description' => 'required|string',
-                'extra_fields' => 'nullable',
-                'reference' => ['required', 'string', Rule::unique('items', 'reference')],
-                'status' => 'sometimes|boolean',
-                'item_type' => 'required|string|in:product,service',
-                'unit_measure' => 'nullable|string',
-            ]);
+            $data = $request->validate($this->itemValidationRules());
         } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Errores de validación',
-                'errors' => $e->errors(),
-            ], 422);
+            return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Ocurrió un error inesperado al procesar la solicitud.',
-                'errors' => [],
-            ], 500);
+            return $this->unexpectedErrorResponse();
         }
 
         $extraFields = $this->service->normalizeExtraFields($request->input('extra_fields') ?? []);
@@ -76,12 +50,8 @@ class ItemController extends Controller
         $itemName = $this->service->computeName($subGroupId, $extraFields);
         $this->service->assertUniqueReferenceAndName($reference, $itemName);
 
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('articles', 'public');
-            $data['img'] = $path;
-        }
-
-        $warehouses = $this->service->resolveWarehousePayload($request->input('warehouses')) ?? [];
+        $this->handleImageUploadIfPresent($request, $data, 'articles');
+        $warehouses = $this->resolveWarehouses($request) ?? [];
 
         return $this->service->create($data, $warehouses);
     }
@@ -91,30 +61,11 @@ class ItemController extends Controller
         $item = $this->service->find($id);
 
         try {
-            $data = $request->validate([
-                'category_sub_group_id' => 'sometimes|integer',
-                'img' => 'nullable|string',
-                'tax_id' => 'nullable|integer',
-                'tax' => 'sometimes|numeric',
-                'bar_code' => 'nullable|string',
-                'negative_movement' => 'sometimes',
-                'description' => 'sometimes|string',
-                'extra_fields' => 'nullable',
-                'reference' => ['required', 'string', Rule::unique('items', 'reference')->ignore($item->id)],
-                'status' => 'sometimes|boolean',
-                'item_type' => 'required|string|in:product,service',
-                'unit_measure' => 'nullable|string',
-            ]);
+            $data = $request->validate($this->itemValidationRules(true, $item));
         } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Errores de validación',
-                'errors' => $e->errors(),
-            ], 422);
+            return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Ocurrió un error inesperado al procesar la solicitud.',
-                'errors' => [],
-            ], 500);
+            return $this->unexpectedErrorResponse();
         }
 
         $extraFields = $this->service->normalizeExtraFields(
@@ -129,12 +80,8 @@ class ItemController extends Controller
         $itemName = $this->service->computeName($subGroupId, $extraFields);
         $this->service->assertUniqueReferenceAndName($reference, $itemName, $item->id);
 
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('items', 'public');
-            $data['img'] = $path;
-        }
-
-        $warehouses = $this->service->resolveWarehousePayload($request->input('warehouses'));
+        $this->handleImageUploadIfPresent($request, $data, 'items');
+        $warehouses = $this->resolveWarehouses($request);
 
         $updated = $this->service->update($item, $data, $warehouses);
 
@@ -201,149 +148,55 @@ class ItemController extends Controller
 
         $spreadsheet = new Spreadsheet();
 
-        // Extra fields (Español, para la plantilla)
-        $extraFieldNames = [
-            'Base tela',
-            'Base hilaza',
-            'Campo adicional',
-            'Marca',
-            'Mundo',
-            'Líneas',
-            'Tipo puntera',
-            'Talla',
-            'Medida',
-        ];
-
-        // Encabezados en español y mayúsculas
-        $headers = [
-            'SUBGRUPO',
-            'COLOR',
-            'IMPUESTO (%)',
-            'CÓDIGO DE BARRAS',
-            'DESCRIPCIÓN',
-            'BASE TELA',
-            'BASE HILAZA',
-            'CAMPO ADICIONAL',
-            'MARCA',
-            'MUNDO',
-            'LÍNEAS',
-            'TIPO PUNTERA',
-            'TALLA',
-            'MEDIDA',
-            'UNIDAD DE MEDIDA',
-            'NOMBRE',
-            'REFERENCIA',
-        ];
-
-        // Ejemplo de fila 2
-        $exampleRow = [
-            'CAMISETA', // SUBGRUPO
-            'ROJO',     // COLOR
-            '19',       // IMPUesta
-            '123456',   // CÓDIGO DE BARRAS
-            'Ejemplo de item', // DESCRIPCIÓN
-            'Algodón',  // BASE TELA
-            'Hilaza 20',// BASE HILAZA
-            'Adicional',// CAMPO ADICIONAL
-            'Nike',     // MARCA
-            'Mundo 1',  // MUNDO
-            'Línea A',  // LÍNEAS
-            'Redonda',  // TIPO PUNTERA
-            'M',        // TALLA
-            '42',       // MEDIDA
-            'cm',       // UNIDAD DE MEDIDA
-            '',         // NOMBRE (formula, se sobrescribe abajo)
-            'REF001',   // REFERENCIA
-        ];
+        // Encabezados de la hoja principal
+        $headers = $this->templateHeaders();
 
         // Hoja principal: items
         $mainSheet = $spreadsheet->getActiveSheet();
         $mainSheet->setTitle('items');
-        $mainSheet->fromArray([$headers, $exampleRow], '', 'A1');
+        $mainSheet->fromArray([$headers], '', 'A1');
 
-        // Poner los encabezados en negrita
-        $headerColEnd = $mainSheet->getHighestColumn(1);
-        $mainSheet->getStyle("A1:{$headerColEnd}1")->getFont()->setBold(true);
-
-        // Ajustar el ancho de las columnas automaticamente al texto
-        foreach (range('A', $headerColEnd) as $col) {
+        // Presentación básica de cabecera
+        $lastCol = $mainSheet->getHighestColumn();
+        $mainSheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
+        foreach (range('A', $lastCol) as $col) {
             $mainSheet->getColumnDimension($col)->setAutoSize(true);
         }
 
-        // Formula para autocompletar el nombre igual que en el frontend
-        $colLetters = range('A', 'Z');
-        $unidadColIdx = array_search('UNIDAD DE MEDIDA', $headers); // 15 (P)
-        $nombreColIdx = array_search('NOMBRE', $headers); // 16 (Q)
-        $formula = '=A2';
-        for ($i = 6; $i < 6 + count($extraFieldNames); $i++) {
-            $formula .= ' & IF(' . $colLetters[$i] . '2<>""," " & ' . $colLetters[$i] . '2,"")';
-        }
-        $formula .= ' & IF(B2<>""," " & B2,"")';
-        // Asignar la formula en la columna correcta de "NOMBRE"
-        if ($nombreColIdx !== false && isset($colLetters[$nombreColIdx])) {
-            $mainSheet->setCellValue($colLetters[$nombreColIdx] . '2', $formula);
-        }
+        $subGroups = CategorySubGroup::with('categoryGroup')->get()->map(function ($sg) {
+            return [
+                'id' => $sg->id,
+                'name' => $sg->name,
+                'group' => optional($sg->categoryGroup)->name ?? '',
+            ];
+        })->toArray();
 
-        // Hoja: Subgrupos
-        $subGroups = CategorySubGroup::select('id', 'name')->get()->toArray();
         $subGroupSheet = $spreadsheet->createSheet();
         $subGroupSheet->setTitle('Subgrupos');
-        $subGroupSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        $subGroupSheet->fromArray(['ID', 'Nombre', 'Grupo'], null, 'A1');
         if (!empty($subGroups)) {
-            $subGroupSheet->fromArray($subGroups, null, 'A2');
+            $rows = array_map(fn($s) => [$s['id'], $s['name'], $s['group']], $subGroups);
+            $subGroupSheet->fromArray($rows, null, 'A2');
         }
         $rowS = count($subGroups) + 1;
 
-        // Hoja: Unidades de medida
-        $unitMeasures = [
-            'cm',
-            'm',
-            'mm',
-            'kg',
-            'g',
-            'lb',
-            'oz',
-            'l',
-            'ml',
-            'unidad',
-            'par',
-            'docena',
-            'rollo',
-            'caja',
-            'bolsa'
-        ];
+        $unitMeasures = $this->loadUnitMeasureOptionsForTemplate();
         $unitSheet = $spreadsheet->createSheet();
         $unitSheet->setTitle('Unidades');
-        $unitSheet->fromArray(['Nombre'], null, 'A1');
-        $unitSheet->fromArray(array_map(fn($u) => [$u], $unitMeasures), null, 'A2');
-        $rowU = count($unitMeasures) + 1;
-
-        // Hojas para campos adicionales con opciones (relacionados a modelos)
-        $extraFieldOptions = [
-            'Base tela' => FabricBase::select('id', 'name')->get()->toArray(),
-            'Base hilaza' => YarnBase::select('id', 'name')->get()->toArray(),
-            'Marca' => Brand::select('id', 'name')->get()->toArray(),
-            'Mundo' => World::select('id', 'name')->get()->toArray(),
-            // 'Líneas', 'Talla', 'Medida' quedan abiertos (sin hoja ni validación)
-        ];
-
-        foreach ($extraFieldOptions as $fieldName => $options) {
-            $sheet = $spreadsheet->createSheet();
-            $sheet->setTitle($fieldName);
-            $sheet->fromArray(['ID', 'Nombre'], null, 'A1');
-            if (!empty($options)) {
-                $sheet->fromArray($options, null, 'A2');
-            }
+        $unitSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if (!empty($unitMeasures)) {
+            $unitSheet->fromArray(
+                array_map(fn($unit) => [$unit['id'], $unit['name']], $unitMeasures),
+                null,
+                'A2'
+            );
         }
+        $unitLastRow = max(1, count($unitMeasures)) + 1;
 
-        // Validaciones desplegables por nombre
         $mainSheet = $spreadsheet->setActiveSheetIndex(0);
         $subGroupLastRow = $rowS;
-        $unitLastRow = $rowU;
 
         $maxValidationRow = 1000;
-
-        // Validación para subgrupo
         if ($subGroupLastRow >= 2) {
             $validationSubGroup = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
             $validationSubGroup->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
@@ -353,74 +206,43 @@ class ItemController extends Controller
                 ->setShowErrorMessage(true)
                 ->setShowDropDown(true)
                 ->setFormula1("'Subgrupos'!B2:B{$subGroupLastRow}");
-            for ($row = 2; $row <= $maxValidationRow; $row++) {
-                $mainSheet->getCell('A' . $row)->setDataValidation(clone $validationSubGroup);
-            }
-        }
 
-        // Validacion para unidad de medida
-        $unitColIdx = array_search('UNIDAD DE MEDIDA', $headers);
-        if ($unitColIdx !== false && isset($colLetters[$unitColIdx])) {
-            $unitCol = $colLetters[$unitColIdx];
-            $validationUnit = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
-            $validationUnit->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
-                ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
-                ->setAllowBlank(true)
-                ->setShowInputMessage(true)
-                ->setShowErrorMessage(true)
-                ->setShowDropDown(true)
-                ->setFormula1("'Unidades'!A2:A{$unitLastRow}");
-            for ($row = 2; $row <= $maxValidationRow; $row++) {
-                $mainSheet->getCell($unitCol . $row)->setDataValidation(clone $validationUnit);
-            }
-            $mainSheet->getColumnDimension($unitCol)->setAutoSize(true);
-        }
-
-        // Validaciones para campos extra con opciones
-        foreach ($extraFieldNames as $idx => $fieldName) {
-            if (isset($extraFieldOptions[$fieldName])) {
-                $sheet = $spreadsheet->getSheetByName($fieldName);
-                $lastRow = $sheet->getHighestRow();
-                $col = $colLetters[6 + $idx];
-                $validation = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
-                $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
-                    ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
-                    ->setAllowBlank(true)
-                    ->setShowInputMessage(true)
-                    ->setShowErrorMessage(true)
-                    ->setShowDropDown(true)
-                    ->setFormula1("'{$fieldName}'!B2:B{$lastRow}");
+            // Apply validation to the column where 'SUBGRUPO' header is located
+            $colLetters = range('A', 'Z');
+            $subGroupColIdx = array_search('SUBGRUPO', $headers);
+            $groupColIdx = array_search('GRUPO', $headers);
+            if ($subGroupColIdx !== false && isset($colLetters[$subGroupColIdx])) {
+                $subGroupCol = $colLetters[$subGroupColIdx];
                 for ($row = 2; $row <= $maxValidationRow; $row++) {
-                    $mainSheet->getCell($col . $row)->setDataValidation(clone $validation);
+                    $mainSheet->getCell($subGroupCol . $row)->setDataValidation(clone $validationSubGroup);
                 }
-                $mainSheet->getColumnDimension($col)->setAutoSize(true);
+
+                // If we have a GRUPO column, auto-fill it via VLOOKUP from Subgrupos sheet
+                if ($groupColIdx !== false && isset($colLetters[$groupColIdx])) {
+                    $groupCol = $colLetters[$groupColIdx];
+                    // Use VLOOKUP on Subgrupos: lookup by SUBGRUPO name (column B) and return Grupo (column C)
+                    for ($row = 2; $row <= $maxValidationRow; $row++) {
+                        $formula = sprintf(
+                            '=IF(TRIM(%1$s%2$d)="","",IFERROR(VLOOKUP(%1$s%2$d,\'Subgrupos\'!B2:C%s,2,FALSE),""))',
+                            $subGroupCol,
+                            $row,
+                            $rowS
+                        );
+                        $mainSheet->setCellValue($groupCol . $row, $formula);
+                    }
+                }
             }
-            // Para 'Líneas', 'Talla', 'Medida' no se agrega validación, quedan abiertos
         }
+
+        $this->applyUnitValidationToSheet($mainSheet, $headers, $unitLastRow, $maxValidationRow);
 
         $spreadsheet->setActiveSheetIndex(0);
 
-        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
-
-        // Esperar si el archivo esta siendo usado por otro proceso (maximo 5 intentos)
-        $maxAttempts = 5;
-        $attempt = 0;
-        $waitMs = 200;
-        while (file_exists($filePath) && !is_writable($filePath) && $attempt < $maxAttempts) {
-            usleep($waitMs * 1000);
-            $attempt++;
-        }
-
         try {
-            $writer->save($filePath);
-            Log::info('Plantilla guardada exitosamente', ['path' => $filePath, 'size' => filesize($filePath)]);
+            $this->saveSpreadsheetToPath($spreadsheet, $filePath);
         } catch (\Exception $e) {
-            Log::error('No se pudo guardar la plantilla Excel', [
-                'error' => $e->getMessage(),
-                'path' => $filePath
-            ]);
             return response()->json([
-                'message' => 'No se pudo guardar la plantilla Excel. Intente cerrar el archivo si está abierto y vuelva a intentarlo.',
+                'message' => 'No se pudo guardar la plantilla Excel. Intente cerrar el archivo si est\u00e1 abierto y vuelva a intentarlo.',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -461,91 +283,26 @@ class ItemController extends Controller
 
     public function getWarehouses($id)
     {
-        $article = Item::findOrFail($id);
-        return response()->json($article->getWarehouseStocks());
+        $item = Item::findOrFail($id);
+        return response()->json($item->getWarehouseStocks());
     }
 
     // Nueva función para exportar todos los items a Excel
     public function exportExcel()
     {
-        $articles = Item::with(['categorySubGroup', 'tax', 'warehouses'])->get();
+        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouses'])->get();
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('items');
 
-        $headers = [
-            'ID',
-            'NOMBRE',
-            'REFERENCIA',
-            'SUBGRUPO',
-            'COLOR',
-            'IMPUESTO',
-            'IMPUESTO (%)',
-            'CÓDIGO DE BARRAS',
-            'DESCRIPCIÓN',
-            'BASE TELA',
-            'BASE HILAZA',
-            'MARCA',
-            'MUNDO',
-            'LÍNEAS',
-            'TIPO PUNTERA',
-            'TALLA',
-            'MEDIDA',
-            'BODEGAS',
-            'TOTAL CANTIDAD',
-            'UNIDAD DE MEDIDA',
-            'ESTADO',
-            'TIPO DE ÍTEM',
-        ];
+        // Headers aligned with the import template
+        $headers = $this->templateHeaders();
         $sheet->fromArray($headers, null, 'A1');
 
         $rowNum = 2;
-        foreach ($articles as $article) {
-            $extra = is_array($article->extra_fields) ? $article->extra_fields : (json_decode($article->extra_fields, true) ?: []);
-            $normalizedExtra = [];
-            foreach ($extra as $key => $value) {
-                $normalizedExtra[mb_strtoupper((string) $key, 'UTF-8')] = $value;
-            }
-
-            $resolveExtra = function (string $key) use ($normalizedExtra) {
-                return $normalizedExtra[$key] ?? '';
-            };
-
-            $tax = $article->tax;
-            $statusLabel = $article->status ? 'Activo' : 'Inactivo';
-            $typeLabel = $article->item_type === 'service' ? 'Servicio' : 'Producto';
-            $warehouseCollection = collect($article->warehouses ?? []);
-            $warehouseList = $warehouseCollection
-                ->map(fn ($warehouse) => sprintf('%s (%s)', $warehouse->name, $warehouse->pivot->quantity ?? 0))
-                ->filter()
-                ->implode('; ');
-            $totalQuantity = $warehouseCollection->sum(fn ($warehouse) => $warehouse->pivot->quantity ?? 0);
-
-            $rowData = [
-                $article->id,
-                $article->name,
-                $article->reference,
-                optional($article->categorySubGroup)->name,
-                $resolveExtra('COLOR'),
-                optional($tax)->name,
-                $tax ? number_format((float) $tax->percentage, 2, '.', '') : '',
-                $article->bar_code,
-                $article->description,
-                $resolveExtra('BASE TELA'),
-                $resolveExtra('BASE HILAZA'),
-                $resolveExtra('MARCA'),
-                $resolveExtra('MUNDO'),
-                $resolveExtra('LÍNEAS'),
-                $resolveExtra('TIPO PUNTERA'),
-                $resolveExtra('TALLA'),
-                $resolveExtra('MEDIDA'),
-                $warehouseList,
-                $totalQuantity,
-                $article->unit_measure,
-                $statusLabel,
-                $typeLabel,
-            ];
+        foreach ($items as $item) {
+            $rowData = $this->exportRowForItem($item);
 
             $sheet->fromArray($rowData, null, "A{$rowNum}");
             $rowNum++;
@@ -568,7 +325,7 @@ class ItemController extends Controller
     public function listView()
     {
         return Inertia::render('Inventory/Item/List', [
-            'articles' => Item::with(['categorySubGroup', 'tax'])->get(),
+            'items' => Item::with(['categorySubGroup', 'tax'])->get(),
         ]);
     }
 
@@ -582,4 +339,183 @@ class ItemController extends Controller
         // Delegar la resolución de payloads de bodegas al servicio
         return $this->service->resolveWarehousePayload($request->input('warehouses'));
     }
+    
+    private function itemValidationRules(bool $isUpdate = false, $item = null): array
+    {
+        $rules = [
+            'category_sub_group_id' => ($isUpdate ? 'sometimes' : 'required') . '|integer',
+            'img' => 'nullable|string',
+            'image' => 'nullable|file|image',
+            'tax_id' => 'nullable|integer',
+            'tax' => ($isUpdate ? 'sometimes' : 'required') . '|numeric',
+            'bar_code' => 'nullable|string',
+            'negative_movement' => $isUpdate ? 'sometimes' : 'required',
+            'description' => ($isUpdate ? 'sometimes' : 'required') . '|string',
+            'extra_fields' => 'nullable',
+            'reference' => ['required', 'string'],
+            'status' => 'sometimes|boolean',
+            'item_type' => 'required|string|in:product,service',
+            'unit_measure' => 'nullable|string',
+        ];
+
+        // Reference unique rule: ignore current item on update
+        $uniqueRule = Rule::unique('items', 'reference');
+        if ($isUpdate && $item) {
+            $uniqueRule = $uniqueRule->ignore($item->id);
+        }
+        $rules['reference'] = [$uniqueRule];
+
+        return $rules;
+    }
+
+    private function handleImageUploadIfPresent(Request $request, array &$data, string $folder = 'articles')
+    {
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store($folder, 'public');
+            $data['img'] = $path;
+        }
+    }
+
+    private function templateHeaders(): array
+    {
+        // Order optimized for user clarity in Excel
+        // Return headers with `NOMBRE` and `REFERENCIA` first
+        return [
+            'NOMBRE',
+            'REFERENCIA',
+            'GRUPO',
+            'SUBGRUPO',
+            'DESCRIPCIÓN',
+            'CÓDIGO DE BARRAS',
+            'IMPUESTO (%)',
+            'UNIDAD DE MEDIDA',
+            'ESTADO',
+            'TIPO DE ÍTEM',
+            'CAMPOS ADICIONALES',
+            'VALORES ADICIONALES',
+        ];
+    }
+
+    private function applyUnitValidationToSheet($sheet, array $headers, int $unitLastRow, int $maxValidationRow = 1000)
+    {
+        $colLetters = range('A', 'Z');
+        $unitColIdx = array_search('UNIDAD DE MEDIDA', $headers);
+        if ($unitColIdx !== false && isset($colLetters[$unitColIdx])) {
+            $unitCol = $colLetters[$unitColIdx];
+            $validationUnit = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
+            $validationUnit->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+                ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
+                ->setAllowBlank(true)
+                ->setShowInputMessage(true)
+                ->setShowErrorMessage(true)
+                ->setShowDropDown(true)
+                ->setFormula1("'Unidades'!A2:A{$unitLastRow}");
+            for ($row = 2; $row <= $maxValidationRow; $row++) {
+                $sheet->getCell($unitCol . $row)->setDataValidation(clone $validationUnit);
+            }
+            $sheet->getColumnDimension($unitCol)->setAutoSize(true);
+        }
+    }
+
+    private function loadUnitMeasureOptionsForTemplate(): array
+    {
+        $path = resource_path('js/data/unitMeasures.json');
+        if (!file_exists($path)) {
+            return [];
+        }
+
+        $content = file_get_contents($path);
+        $data = json_decode($content, true);
+        if (!is_array($data)) {
+            return [];
+        }
+
+        $groups = $data['unitMeasureGroups'] ?? [];
+        $options = [];
+        foreach ($groups as $group) {
+            if (!empty($group['options']) && is_array($group['options'])) {
+                foreach ($group['options'] as $opt) {
+                    if (isset($opt['id']) && isset($opt['name'])) {
+                        $options[] = [
+                            'id' => (string) $opt['id'],
+                            'name' => (string) $opt['name'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $options;
+    }
+    private function saveSpreadsheetToPath(Spreadsheet $spreadsheet, string $filePath)
+    {
+        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+
+        $maxAttempts = 5;
+        $attempt = 0;
+        $waitMs = 200;
+        while (file_exists($filePath) && !is_writable($filePath) && $attempt < $maxAttempts) {
+            usleep($waitMs * 1000);
+            $attempt++;
+        }
+
+        try {
+            $writer->save($filePath);
+            Log::info('Hoja Excel guardada', ['path' => $filePath, 'size' => filesize($filePath)]);
+        } catch (\Exception $e) {
+            Log::error('Error guardando Excel', ['error' => $e->getMessage(), 'path' => $filePath]);
+            throw $e;
+        }
+    }
+
+    private function exportRowForItem($item): array
+    {
+        $extra = is_array($item->extra_fields) ? $item->extra_fields : (json_decode($item->extra_fields, true) ?: []);
+
+        $tax = $item->tax;
+        $statusLabel = $item->status ? 'Activo' : 'Inactivo';
+        $typeLabel = $item->item_type === 'service' ? 'Servicio' : 'Producto';
+
+        $extraKeys = array_map(fn($k) => mb_strtoupper((string) $k, 'UTF-8'), array_keys($extra));
+        $extraVals = array_map(fn($v) => (string) $v, array_values($extra));
+        $fieldsCol = implode('; ', $extraKeys);
+        $valuesCol = implode('; ', $extraVals);
+
+        $groupName = optional(optional($item->categorySubGroup)->categoryGroup)->name ?? '';
+        $subGroupName = optional($item->categorySubGroup)->name;
+
+        return [
+            $item->name,
+            $item->reference,
+            $groupName,
+            $subGroupName,
+            $item->description,
+            $item->bar_code,
+            $tax ? number_format((float) $tax->percentage, 2, '.', '') : '',
+            $item->unit_measure,
+            $statusLabel,
+            $typeLabel,
+            $fieldsCol,
+            $valuesCol,
+        ];
+    }
+    
+
+    private function validationErrorResponse(ValidationException $exception)
+    {
+        return response()->json([
+            'message' => 'Errores de validacion',
+            'errors' => $exception->errors(),
+        ], 422);
+    }
+
+    private function unexpectedErrorResponse()
+    {
+        return response()->json([
+            'message' => 'Ocurrio un error inesperado al procesar la solicitud.',
+            'errors' => [],
+        ], 500);
+    }
+
 }
+

@@ -88,11 +88,6 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
   successMessage.value = `Descarga registrada${rollLabel}.`;
   errorMessage.value = '';
 }
-
-const downloadNotes = [
-  'La informacion de los colores sale de la informacion de color de los rollos.',
-  'Para el calculo de unidades solamente se debe tener en cuenta las telas principales, ya que en algunos casos los lotes salen en varios tipos de tela.',
-];
 </script>
 
 <template>
@@ -240,12 +235,6 @@ const downloadNotes = [
               </TableRow>
             </TableBody>
           </Table>
-        </div>
-
-        <div class="mt-4 grid gap-3 md:grid-cols-2">
-          <p v-for="note in downloadNotes" :key="note" class="text-xs text-muted-foreground">
-            {{ note }}
-          </p>
         </div>
       </section>
     </div>

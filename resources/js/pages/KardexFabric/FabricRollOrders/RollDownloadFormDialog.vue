@@ -181,18 +181,18 @@ function submitForm() {
                 <TableRow>
                   <TableHead>Rollo</TableHead>
                   <TableHead>Tela</TableHead>
-                  <TableHead class="md:text-right">Cantidad disponible</TableHead>
+                  <TableHead>Cantidad disponible</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                  <TableCell class="font-medium">
+                <TableRow class="text-center font-medium">
+                  <TableCell>
                     {{ props.roll?.roll ?? '-' }}
                   </TableCell>
-                  <TableCell class="font-medium">
+                  <TableCell>
                     {{ props.roll?.fabric ?? '-' }}
                   </TableCell>
-                  <TableCell class="font-medium md:text-right">
+                  <TableCell>
                     {{ toNumber(props.roll?.quantityValue).toFixed(2) }}
                   </TableCell>
                 </TableRow>
