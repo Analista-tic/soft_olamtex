@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Expenses;
 
 use App\Models\Expenses\PurchaseDocument;
+use App\Models\Expenses\PurchaseDocumentItem;
 use App\Services\Expenses\PurchaseDocumentRequestService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -37,6 +38,21 @@ class PurchaseRequestController extends PurchaseDocumentController
                 $estimated = (float) $doc->items()->sum('total');
             }
 
+            $items = $doc->relationLoaded('items')
+                ? $doc->items->map(function (PurchaseDocumentItem $item) {
+                    return [
+                        'item_id'     => $item->item_id,
+                        'item_name'   => $item->item_name,
+                        'description' => $item->description,
+                        'total'       => $item->total,
+                        'total_tax'   => $item->total_tax,
+                        'item'        => $item->item
+                            ? ['name' => $item->item->name]
+                            : null,
+                    ];
+                })->toArray()
+                : [];
+
             return [
                 'id' => $doc->id,
                 'request_number' => $doc->document_number,
@@ -49,6 +65,7 @@ class PurchaseRequestController extends PurchaseDocumentController
                 'provider' => $doc->supplier
                     ? ['full_name' => $doc->supplier->full_name]
                     : ($doc->provider_name ? ['full_name' => $doc->provider_name] : null),
+                'items' => $items,
             ];
         }, $documents->items());
 

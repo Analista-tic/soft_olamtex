@@ -91,22 +91,28 @@ class PurchaseDocumentService
 
     protected function applyFabricFilter(Builder $query, array $filters): Builder
     {
-        if (empty($filters['fabric_only'])) {
-            return $query;
-        }
-
         $allowed = $this->normalizeFabricSubgroupNames($filters['fabric_subgroup_names'] ?? $this->defaultFabricSubgroupNames);
         if (empty($allowed)) {
             return $query;
         }
 
-        return $query
-            ->whereHas('items.item.categorySubGroup', fn (Builder $builder) =>
+        if (!empty($filters['fabric_only'])) {
+            return $query
+                ->whereHas('items.item.categorySubGroup', fn (Builder $builder) =>
+                    $builder->whereIn(DB::raw('LOWER(name)'), $allowed)
+                )
+                ->whereDoesntHave('items.item.categorySubGroup', fn (Builder $builder) =>
+                    $builder->whereNotIn(DB::raw('LOWER(name)'), $allowed)
+                );
+        }
+
+        if (!empty($filters['exclude_fabric'])) {
+            return $query->whereDoesntHave('items.item.categorySubGroup', fn (Builder $builder) =>
                 $builder->whereIn(DB::raw('LOWER(name)'), $allowed)
-            )
-            ->whereDoesntHave('items.item.categorySubGroup', fn (Builder $builder) =>
-                $builder->whereNotIn(DB::raw('LOWER(name)'), $allowed)
             );
+        }
+
+        return $query;
     }
 
     protected function normalizeFabricSubgroupNames(array|string $names): array
@@ -153,6 +159,15 @@ class PurchaseDocumentService
         DB::transaction(function () use ($document) {
             $document->items()->delete();
             $document->delete();
+            if ($document->isInvoice() && $document->parent_document_id) {
+                $parentOrder = PurchaseDocument::find($document->parent_document_id);
+                if ($parentOrder && $parentOrder->isOrder()) {
+                    $parentOrder->update([
+                        'status' => 'pending',
+                        'invoiced_at' => null,
+                    ]);
+                }
+            }
         });
     }
 

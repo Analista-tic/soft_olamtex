@@ -70,6 +70,48 @@ const formatDate = (value?: string | null) => {
     return d.toLocaleDateString('es-CO');
 };
 
+const formatCurrency = (value: number) => {
+    if (!Number.isFinite(value)) return '-';
+    return value.toLocaleString('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    });
+};
+
+const computeOrderTotal = (order: PurchaseOrder) => {
+    if (!order.items?.length) return 0;
+    return order.items.reduce((acc, item) => {
+        const rootTotal = Number(item.total ?? 0);
+        const tax = Number(item.total_tax ?? 0);
+        return acc + rootTotal + tax;
+    }, 0);
+};
+
+const getOrderItemsPreview = (order: PurchaseOrder) => {
+    const names = (order.items || [])
+        .map((item) => {
+            const rawName = item.item?.name || item.item_name || item.description;
+            if (typeof rawName === 'string') {
+                return rawName.trim();
+            }
+            if (rawName != null) {
+                return String(rawName).trim();
+            }
+            return '';
+        })
+        .filter((name) => name.length > 0);
+
+    if (!names.length) {
+        return '-';
+    }
+    if (names.length <= 2) {
+        return names.join(', ');
+    }
+    return `${names.slice(0, 2).join(', ')} +${names.length - 2} más`;
+};
+
 async function fetchProviders() {
     // Consumir correctamente los contactos como proveedores
     const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
@@ -271,10 +313,11 @@ function handleDialogError(message?: string) {
                         <TableHeader>
                         <TableRow>
                             <TableHead>#Orden</TableHead>
+                            <TableHead>Fecha de creación</TableHead>
+                            <TableHead>Fecha de entrega</TableHead>
                             <TableHead>Proveedor</TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Número Orden</TableHead>
-                            <TableHead>Entrega</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Total</TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
@@ -282,14 +325,15 @@ function handleDialogError(message?: string) {
                         </TableHeader>
                     <TableBody>
                         <TableRow v-for="order in orders" :key="order.id" class="text-center">
-                            <TableCell>
+                            <TableCell class="font-medium">
                                 {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
                             </TableCell>
-                            <TableCell>{{order.contact?.full_name || '-' }}</TableCell>
                             <TableCell>{{ formatDate(order.date) }}</TableCell>
-                            <TableCell>{{ order.supplier_order_number }}</TableCell>
                             <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
-                            <TableCell>{{ order.description }}</TableCell>
+                            <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
+                            <TableCell class="text-start">{{ getOrderItemsPreview(order) }}</TableCell>
+                            <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
+                            <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
                             <TableCell>
                                 <span
                                     :class="[

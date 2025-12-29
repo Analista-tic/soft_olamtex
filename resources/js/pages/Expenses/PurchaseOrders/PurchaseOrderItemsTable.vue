@@ -313,7 +313,7 @@ defineExpose({ addItem });
                             <InputField v-model="item.description" label="" class="h-10 w-full" />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
-                            <InputField v-model="item.supplier_code" label="" placeholder="C?digo proveedor" class="h-10 w-full" />
+                            <InputField v-model="item.supplier_code" label="" placeholder="Código proveedor" class="h-10 w-full" />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
                             <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" class="h-10 w-full" />

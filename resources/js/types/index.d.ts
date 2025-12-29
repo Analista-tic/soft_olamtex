@@ -329,6 +329,7 @@ export interface PurchaseOrderItem {
     id?: number;
     item_id: number | null;
     item?: Item;
+    item_name?: string;
     price: number;
     tax: number;
     quantity: number;
@@ -345,6 +346,7 @@ export interface PurchaseOrder {
     document_number?: string | null;
     contact_id: number | null;
     contact?: Contact;
+    supplier?: Contact;
     date: string;
     delivery_date: string;
     supplier_order_number: string;
@@ -367,6 +369,7 @@ export interface PurchaseInvoiceItem {
     purchase_invoice_id?: number;
     item_id: number | null;
     item?: Item;
+    item_name?: string;
     price: number | string | '';
     tax: number;
     quantity: number | string | '';
@@ -383,6 +386,7 @@ export interface PurchaseInvoice {
     id?: number;
     contact_id: number | null;
     contact?: Contact;
+    supplier?: Contact;
     date: string;
     delivery_date: string;
     document_number?: string | null;
@@ -409,6 +413,21 @@ export interface PurchaseRequestItem {
     description: string;
     total: number;
     name?: string;
+    item?: Item;
+    item_name?: string;
+    total_tax?: number;
+}
+
+export interface PurchaseRequest {
+    id?: number;
+    request_number?: string;
+    date?: string;
+    provider?: Contact;
+    requester?: { name?: string };
+    estimated_amount?: number | null;
+    description?: string;
+    status?: string;
+    items?: PurchaseRequestItem[];
 }
 
 export interface PurchaseRequestForm {

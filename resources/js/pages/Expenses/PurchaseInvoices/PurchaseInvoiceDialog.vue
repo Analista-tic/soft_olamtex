@@ -257,7 +257,7 @@ async function fetchPendingPurchaseOrders() {
     selectedPurchaseOrderId.value = null;
     try {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { status: 'pending', per_page: 1000 },
+            params: { status: 'pending', per_page: 1000, exclude_fabric: true },
         });
         purchaseOrders.value = data.data || [];
     } catch {
@@ -545,15 +545,18 @@ watch(dialogOpen, (isOpen) => {
                         </div>
                     </div>
                 </DialogHeader>
-                <AlertStack
-                    :success-message="successMessage"
-                    :error-message="errorMessage"
-                    success-title="Éxito"
-                    error-title="Error"
-                    :error-type="errorType"
-                    @close-success="successMessage = ''"
-                    @close-error="errorMessage = ''"
-                />
+                <div class="relative min-h-[56px]">
+                    <AlertStack
+                        class="absolute inset-x-0 bottom-0"
+                        :success-message="successMessage"
+                        :error-message="errorMessage"
+                        success-title="Éxito"
+                        error-title="Error"
+                        :error-type="errorType"
+                        @close-success="successMessage = ''"
+                        @close-error="errorMessage = ''"
+                    />
+                </div>
                 <form
                     @submit.prevent="handleSubmit()"
                     :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"

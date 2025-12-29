@@ -24,29 +24,14 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import { useAlertMessages } from '@/composables/useAlertMessages';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { PurchaseRequest } from '@/types';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos' },
     { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra' },
 ];
 
-type PurchaseServiceRequest = {
-    id: number;
-    request_number?: string;
-    date?: string;
-    destination?: string;
-    estimated_amount?: number;
-    status?: string;
-    provider?: {
-        full_name?: string;
-    };
-    requester?: {
-        name?: string;
-    };
-    description?: string;
-};
-
-const requests = ref<PurchaseServiceRequest[]>([]);
+const requests = ref<PurchaseRequest[]>([]);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const searchQuery = ref('');
 const statusFilter = ref('all');
@@ -125,6 +110,43 @@ const formatDate = (value?: string | null) => {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return String(value);
     return d.toLocaleDateString('es-CO');
+};
+
+const computeRequestTotal = (request: PurchaseRequest) => {
+    if (typeof request.estimated_amount === 'number') {
+        return request.estimated_amount;
+    }
+    if (!request.items?.length) {
+        return 0;
+    }
+    return request.items.reduce((acc, item) => {
+        const total = Number(item.total ?? 0);
+        const totalTax = Number(item.total_tax ?? 0);
+        return acc + total + totalTax;
+    }, 0);
+};
+
+const getRequestItemsPreview = (request: PurchaseRequest) => {
+    const names = (request.items || [])
+        .map((item) => {
+            const rawName = item.item?.name || item.item_name || item.description;
+            if (typeof rawName === 'string') {
+                return rawName.trim();
+            }
+            if (rawName != null) {
+                return String(rawName).trim();
+            }
+            return '';
+        })
+        .filter((name) => name.length > 0);
+
+    if (!names.length) {
+        return '-';
+    }
+    if (names.length <= 2) {
+        return names.join(', ');
+    }
+    return `${names.slice(0, 2).join(', ')} +${names.length - 2} más`;
 };
 
 const isDialogOpen = ref(false);
@@ -326,10 +348,11 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead># Solicitud</TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead>Solicita</TableHead>
                             <TableHead>Fecha</TableHead>
-                            <TableHead>Precio estimado</TableHead>
+                            <TableHead>Proveedor</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Total estimado</TableHead>
+                            <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
@@ -350,12 +373,13 @@ onMounted(() => {
                             </TableRow>
                         </template>
                         <template v-else>
-                            <TableRow v-for="request in requests" :key="request.id">
+                            <TableRow v-for="request in requests" :key="request.id" class="text-center">
                                 <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
-                                <TableCell class="max-w-[180px] truncate">{{ request.provider?.full_name || '-' }}</TableCell>
-                                <TableCell class="max-w-[150px] truncate">{{ request.requester?.name || '-' }}</TableCell>
                                 <TableCell>{{ formatDate(request.date) }}</TableCell>
-                                <TableCell>{{ request.estimated_amount != null ? formatCurrency(request.estimated_amount as number) : '-' }}</TableCell>
+                                <TableCell class="max-w-[180px] truncate">{{ request.provider?.full_name || '-' }}</TableCell>
+                                <TableCell>{{ getRequestItemsPreview(request) }}</TableCell>
+                                <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
+                                <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
                                 <TableCell>
                                     <span
                                         :class="[

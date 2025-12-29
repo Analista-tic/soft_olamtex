@@ -211,25 +211,14 @@ async function fetchNextInvoiceId() {
     }
 }
 
-function isTelaOrderItem(orderItem: any) {
-    const subgroupName = orderItem?.item?.category_sub_group?.name;
-    return typeof subgroupName === 'string' && subgroupName.trim().toLowerCase() === 'tela';
-}
-
-function orderHasTelaItems(order: any) {
-    if (!order || !Array.isArray(order.items)) return false;
-    return order.items.some((orderItem: any) => isTelaOrderItem(orderItem));
-}
-
 async function fetchPendingPurchaseOrders() {
     purchaseOrders.value = [];
     selectedPurchaseOrderId.value = null;
     try {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { status: 'pending', per_page: 1000 },
+            params: { status: 'pending', per_page: 1000, fabric_only: true },
         });
-        const fetchedOrders = Array.isArray(data.data) ? data.data : [];
-        purchaseOrders.value = fetchedOrders.filter(orderHasTelaItems);
+        purchaseOrders.value = Array.isArray(data.data) ? data.data : [];
     } catch {
         purchaseOrders.value = [];
     }
@@ -494,15 +483,18 @@ watch(dialogOpen, (isOpen) => {
                         </div>
                     </div>
                 </DialogHeader>
-                <AlertStack
-                    :success-message="successMessage"
-                    :error-message="errorMessage"
-                    success-title="Éxito"
-                    error-title="Error"
-                    :error-type="errorType"
-                    @close-success="successMessage = ''"
-                    @close-error="errorMessage = ''"
-                />
+                <div class="relative min-h-[56px]">
+                    <AlertStack
+                        class="absolute inset-x-0 bottom-0"
+                        :success-message="successMessage"
+                        :error-message="errorMessage"
+                        success-title="Éxito"
+                        error-title="Error"
+                        :error-type="errorType"
+                        @close-success="successMessage = ''"
+                        @close-error="errorMessage = ''"
+                    />
+                </div>
                 <form
                     @submit.prevent="handleSubmit()"
                     :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"

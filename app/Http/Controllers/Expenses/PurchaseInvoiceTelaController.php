@@ -18,6 +18,11 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         parent::__construct($service);
     }
 
+    private function invoiceService(): PurchaseDocumentInvoiceService
+    {
+        return $this->service;
+    }
+
     public function indexFabric()
     {
         return Inertia::render('Expenses/PurchaseInvoices/indexFabric');
@@ -39,7 +44,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
             unset($payload['purchase_order_id']);
         }
 
-        $invoice = $this->service->createInvoice($payload, $items, $withholdings);
+        $invoice = $this->invoiceService()->createInvoice($payload, $items, $withholdings);
 
         return response()->json(['data' => $invoice], 201);
     }
@@ -54,7 +59,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
             unset($payload['purchase_order_id']);
         }
 
-        $updated = $this->service->updateDocument($purchaseInvoice, $payload, $items);
+        $updated = $this->invoiceService()->updateDocument($purchaseInvoice, $payload, $items);
         return response()->json(['data' => $updated]);
     }
 
@@ -86,6 +91,6 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
 
     protected function buildFilters(Request $request): array
     {
-        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id']);
+        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'subgroup_id']);
     }
 }
