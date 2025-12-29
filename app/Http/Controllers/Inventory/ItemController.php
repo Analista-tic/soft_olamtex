@@ -468,7 +468,7 @@ class ItemController extends Controller
     // Nueva función para exportar todos los items a Excel
     public function exportExcel()
     {
-        $articles = Item::with(['categorySubGroup', 'tax'])->get();
+        $articles = Item::with(['categorySubGroup', 'tax', 'warehouses'])->get();
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -486,13 +486,14 @@ class ItemController extends Controller
             'DESCRIPCIÓN',
             'BASE TELA',
             'BASE HILAZA',
-            'CAMPO ADICIONAL',
             'MARCA',
             'MUNDO',
             'LÍNEAS',
             'TIPO PUNTERA',
             'TALLA',
             'MEDIDA',
+            'BODEGAS',
+            'TOTAL CANTIDAD',
             'UNIDAD DE MEDIDA',
             'ESTADO',
             'TIPO DE ÍTEM',
@@ -514,6 +515,12 @@ class ItemController extends Controller
             $tax = $article->tax;
             $statusLabel = $article->status ? 'Activo' : 'Inactivo';
             $typeLabel = $article->item_type === 'service' ? 'Servicio' : 'Producto';
+            $warehouseCollection = collect($article->warehouses ?? []);
+            $warehouseList = $warehouseCollection
+                ->map(fn ($warehouse) => sprintf('%s (%s)', $warehouse->name, $warehouse->pivot->quantity ?? 0))
+                ->filter()
+                ->implode('; ');
+            $totalQuantity = $warehouseCollection->sum(fn ($warehouse) => $warehouse->pivot->quantity ?? 0);
 
             $rowData = [
                 $article->id,
@@ -527,13 +534,14 @@ class ItemController extends Controller
                 $article->description,
                 $resolveExtra('BASE TELA'),
                 $resolveExtra('BASE HILAZA'),
-                $resolveExtra('CAMPO ADICIONAL'),
                 $resolveExtra('MARCA'),
                 $resolveExtra('MUNDO'),
                 $resolveExtra('LÍNEAS'),
                 $resolveExtra('TIPO PUNTERA'),
                 $resolveExtra('TALLA'),
                 $resolveExtra('MEDIDA'),
+                $warehouseList,
+                $totalQuantity,
                 $article->unit_measure,
                 $statusLabel,
                 $typeLabel,
