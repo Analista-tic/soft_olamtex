@@ -22,6 +22,7 @@ class CategorySeeder extends Seeder
             ['name' => 'Repuestos'],
             ['name' => 'Papelería y Aseo'],
             ['name' => 'EPP'],
+            ['name' => 'Servicios'],
         ];
 
         DB::table('category_groups')->insert($groups);
@@ -109,6 +110,12 @@ class CategorySeeder extends Seeder
             ['name' => 'Dedale', 'category_group_id' => $groupIds['EPP']],
             ['name' => 'Guante', 'category_group_id' => $groupIds['EPP']],
             ['name' => 'Tapón', 'category_group_id' => $groupIds['EPP']],
+
+            // Subgrupos para "Servicios"
+            ['name' => 'Mantenimiento', 'category_group_id' => $groupIds['Servicios']],
+            ['name' => 'Transporte', 'category_group_id' => $groupIds['Servicios']],
+            ['name' => 'Consultoría', 'category_group_id' => $groupIds['Servicios']],
+            ['name' => 'Capacitación', 'category_group_id' => $groupIds['Servicios']],
         ];
 
         DB::table('category_sub_groups')->insert($subGroups);

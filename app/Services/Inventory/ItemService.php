@@ -349,8 +349,8 @@ class ItemService
                     'extra_fields' => $extraFields,
                     'name' => $name,
                     'reference' => $normalizedRow['REFERENCIA'] ?? '',
-                    'status' => true,
-                    'item_type' => 'product',
+                    'status' => $this->resolveRowStatus($normalizedRow),
+                    'item_type' => $this->resolveItemTypeFromRow($normalizedRow),
                     'unit_measure' => $this->resolveUnitMeasureValue($normalizedRow['UNIDAD DE MEDIDA'] ?? null) ?? ($normalizedRow['UNIDAD DE MEDIDA'] ?? null),
                 ];
                 // debug logs removed
@@ -457,6 +457,55 @@ class ItemService
         }
         $this->ensureUnitMeasureNameMap();
         return $this->unitMeasureNameMap[$this->normalizeHeader($value)] ?? null;
+    }
+
+    protected function resolveItemTypeFromRow(array $normalizedRow): string
+    {
+        $rawType = $this->getRowValueFromAlternatives(
+            $normalizedRow,
+            ['TIPO DE ITEM', 'TIPO DE ÍTEM', 'TIPO'],
+            '',
+        );
+
+        return $this->mapItemTypeLabel((string) $rawType);
+    }
+
+    protected function mapItemTypeLabel(string $value): string
+    {
+        $clean = trim(mb_strtolower($value, 'UTF-8'));
+        if ($clean === '') {
+            return 'product';
+        }
+        if (str_contains($clean, 'serv')) {
+            return 'service';
+        }
+        if (str_contains($clean, 'prod')) {
+            return 'product';
+        }
+        return 'product';
+    }
+
+    protected function resolveRowStatus(array $normalizedRow): bool
+    {
+        $rawStatus = $this->getRowValueFromAlternatives(
+            $normalizedRow,
+            ['ESTADO', 'ESTADO ITEM', 'STATUS'],
+            '',
+        );
+
+        return $this->mapStatusLabelToBool((string) $rawStatus);
+    }
+
+    protected function mapStatusLabelToBool(string $value): bool
+    {
+        $clean = trim(mb_strtolower($value, 'UTF-8'));
+        if ($clean === '') {
+            return true;
+        }
+        if (preg_match('/^(0|false|deshabil|inactiv|inhabil|no|off)/', $clean)) {
+            return false;
+        }
+        return true;
     }
 
     protected function resolveTaxIdFromImportValue(mixed $value): ?int
