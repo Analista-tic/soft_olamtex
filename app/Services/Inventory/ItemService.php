@@ -14,6 +14,7 @@ use App\Models\Inventory\AdditionalField;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
 
 class ItemService
 {
@@ -221,6 +222,11 @@ class ItemService
         }
 
         $header = array_map('trim', $rows[1]);
+        try {
+            Log::debug('Import - raw header', ['header' => $header]);
+        } catch (\Throwable $e) {
+            // ignore
+        }
         unset($rows[1]);
 
         $inserted = 0;
@@ -252,9 +258,36 @@ class ItemService
                     $rowData[$colName] = $row[$colIdx] ?? null;
                 }
 
+                    try {
+                        Log::debug('Import - rowData sample', [
+                            'row' => $rowNum,
+                            'rowData_keys' => array_keys($rowData),
+                            'raw_row_keys' => array_keys($row),
+                            'maybe_description' => $rowData['DESCRIPCIÓN'] ?? ($rowData['DESCRIPCION'] ?? null),
+                            'maybe_barcode' => $rowData['CÓDIGO DE BARRAS'] ?? ($rowData['CODIGO DE BARRAS'] ?? ($rowData['BARCODE'] ?? null)),
+                        ]);
+                    } catch (\Throwable $e) {
+                        // ignore
+                    }
+
                 $normalized = $this->normalizeRowKeys($rowData);
                 $normalizedRow = $normalized['values'];
                 $headerMap = $normalized['map'];
+                    try {
+                        $descKey = $this->normalizeHeader('DESCRIPCION');
+                        $barKey = $this->normalizeHeader('CODIGO DE BARRAS');
+                        Log::debug('Import - normalized keys', [
+                            'row' => $rowNum,
+                            'normalized_keys' => array_keys($normalizedRow),
+                            'header_map_sample' => array_slice($headerMap, 0, 10),
+                            'desc_key' => $descKey,
+                            'bar_key' => $barKey,
+                            'desc_value' => $normalizedRow[$descKey] ?? null,
+                            'bar_value' => $normalizedRow[$barKey] ?? null,
+                        ]);
+                    } catch (\Throwable $e) {
+                        // ignore
+                    }
                 $subGroupName = $normalizedRow['SUBGRUPO'] ?? '';
                 $subGroup = CategorySubGroup::where('name', $subGroupName)->first();
                 if (!$subGroup) {
@@ -288,14 +321,56 @@ class ItemService
                 $name = trim(implode(' ', $nameParts));
 
                 $taxValue = $normalizedRow['IMPUESTO (%)'] ?? null;
-                $descriptionValue = $this->getRowValueFromAlternatives($normalizedRow, ['DESCRIPCION', 'DESCRIPCION DEL ARTICULO', 'DESCRIPTION'], '');
-                $barCodeValue = $this->getRowValueFromAlternatives($normalizedRow, ['CODIGO DE BARRAS', 'BARCODE', 'CODE BAR'], null);
+                $descriptionValue = $this->getRowValueFromAlternatives(
+                    $normalizedRow,
+                    ['DESCRIPCION', 'DESCRIPCION DEL ARTICULO', 'DESCRIPTION'],
+                    null,
+                );
+                if ($descriptionValue === null || trim((string) $descriptionValue) === '') {
+                    $descriptionValue = $this->findValueByKeySubstring(
+                        $normalizedRow,
+                        ['DESCRIPCION', 'DESCRIPTION', 'DESCRIPCION DEL ARTICULO'],
+                    );
+                }
+                // Fallback: search using original header names (handles odd characters/encodings)
+                if ($descriptionValue === null || trim((string) $descriptionValue) === '') {
+                    $fallback = $this->findValueByOriginalHeader(
+                        $rowData,
+                        ['DESCRIPCION', 'DESCRIPCION DEL ARTICULO', 'DESCRIPCIÓN', 'DESCRIPCIÓN DEL ARTÍCULO', 'DESCRIPTION']
+                    );
+                    if ($fallback !== null && trim((string) $fallback) !== '') {
+                        $descriptionValue = $fallback;
+                    }
+                }
+                $descriptionValue = $descriptionValue === null ? '' : trim((string) $descriptionValue);
+
+                $barCodeValue = $this->getRowValueFromAlternatives(
+                    $normalizedRow,
+                    ['CODIGO DE BARRAS', 'BARCODE', 'CODE BAR'],
+                    null,
+                );
+                if ($barCodeValue === null || trim((string) $barCodeValue) === '') {
+                    $barCodeValue = $this->findValueByKeySubstring(
+                        $normalizedRow,
+                        ['CODIGO', 'BARCODE', 'CODIGO DE BARRAS'],
+                    );
+                }
+                // Fallback: try original headers if still missing
+                if ($barCodeValue === null || trim((string) $barCodeValue) === '') {
+                    $fallbackBar = $this->findValueByOriginalHeader(
+                        $rowData,
+                        ['CODIGO DE BARRAS', 'CODIGO', 'CÓDIGO', 'BARCODE', 'CODE BAR']
+                    );
+                    if ($fallbackBar !== null && trim((string) $fallbackBar) !== '') {
+                        $barCodeValue = $fallbackBar;
+                    }
+                }
+                $barCodeValue = $barCodeValue === null ? null : trim((string) $barCodeValue);
 
                 $itemData = [
                     'category_sub_group_id' => $subGroup->id,
                     'tax_id' => $this->resolveTaxIdFromImportValue($taxValue),
                     'tax' => $taxValue,
-                    'bar_code' => $barCodeValue,
                     'bar_code' => $barCodeValue,
                     'negative_movement' => filter_var($normalizedRow['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
                     'description' => $descriptionValue,
@@ -306,6 +381,12 @@ class ItemService
                     'item_type' => 'product',
                     'unit_measure' => $this->resolveUnitMeasureValue($normalizedRow['UNIDAD DE MEDIDA'] ?? null) ?? ($normalizedRow['UNIDAD DE MEDIDA'] ?? null),
                 ];
+                // Log item data for debugging import issues (bar_code/description)
+                try {
+                    Log::debug('Import - itemData before create', ['row' => $rowNum, 'itemData' => $itemData]);
+                } catch (\Throwable $e) {
+                    // ignore logging failures
+                }
 
                 $warehouses = $this->buildWarehousePayloadFromRow($normalizedRow, $headerMap, $errors, $rowNum);
                 $this->create($itemData, $warehouses);
@@ -337,9 +418,26 @@ class ItemService
 
     protected function normalizeHeader(string $value): string
     {
-        $clean = mb_strtoupper(trim($value), 'UTF-8');
-        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT', $clean);
-        return $transliterated !== false ? $transliterated : $clean;
+        // Normalize whitespace and remove common invisible chars
+        $val = (string) $value;
+        // Remove control characters (portable POSIX class)
+        $val = preg_replace('/[[:cntrl:]]+/u', ' ', $val);
+        // Replace Unicode separator characters (spaces, no-break spaces, etc.) with regular space
+        $val = preg_replace('/\p{Z}+/u', ' ', $val);
+        // Trim and collapse spaces
+        $val = preg_replace('/\s+/u', ' ', trim($val));
+        $clean = mb_strtoupper($val, 'UTF-8');
+
+        // Try transliteration to ASCII; fallback to cleaned UTF-8 value
+        $transliterated = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $clean);
+        $result = $transliterated !== false && $transliterated !== null ? $transliterated : $clean;
+
+        // Remove punctuation commonly present in headers (commas, dots, parentheses)
+        $result = preg_replace('/[()\[\].,;:\/\\-]+/u', ' ', $result);
+        // Collapse spaces again and trim
+        $result = preg_replace('/\s+/u', ' ', trim($result));
+
+        return $result;
     }
 
     protected function getAdditionalFieldNameByNormalizedHeader(string $normalized): ?string
@@ -508,6 +606,55 @@ class ItemService
         return $default;
     }
 
+    protected function findValueByKeySubstring(array $normalizedRow, array $substrings): ?string
+    {
+        $needles = array_filter(array_map(fn($substring) => $this->normalizeHeader($substring), $substrings));
+        if (empty($needles)) {
+            return null;
+        }
+        foreach ($normalizedRow as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+            foreach ($needles as $needle) {
+                if ($needle !== '' && strpos($key, $needle) !== false) {
+                    if ($value !== null && $value !== '') {
+                        return (string) $value;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    protected function findValueByOriginalHeader(array $rowData, array $candidates): ?string
+    {
+        if (empty($rowData)) {
+            return null;
+        }
+
+        $needles = array_filter(array_map(fn($s) => $this->normalizeHeader((string) $s), $candidates));
+        if (empty($needles)) {
+            return null;
+        }
+
+        foreach ($rowData as $origHeader => $value) {
+            if (!is_string($origHeader)) {
+                continue;
+            }
+            $normHeader = $this->normalizeHeader($origHeader);
+            foreach ($needles as $needle) {
+                if ($needle !== '' && strpos($normHeader, $needle) !== false) {
+                    if ($value !== null && $value !== '') {
+                        return (string) $value;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
     protected function parseDecimalValue($value): float
     {
         if ($value === null || $value === '') {
@@ -604,6 +751,12 @@ class ItemService
         ];
 
         $payload['name'] = $this->buildName($payload['category_sub_group_id'], $extraFields);
+
+        try {
+            Log::debug('Import - buildCreatePayload payload', ['payload' => $payload]);
+        } catch (\Throwable $e) {
+            // ignore logging issues
+        }
 
         return $payload;
     }

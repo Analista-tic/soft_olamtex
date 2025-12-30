@@ -396,9 +396,9 @@ function normalizeExtraFieldsValue(value: unknown): Record<string, unknown> {
             }
         } catch {
             return {};
+    return {};
         }
     }
-    return {};
 }
 
 function fillExtraFields(obj: unknown) {
