@@ -112,7 +112,11 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
           </p>
         </div>
 
-        <Button size="sm" class="flex items-center gap-1" @click="openDownloadForm">
+        <Button
+          size="sm"
+          class="flex items-center gap-1 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+          @click="openDownloadForm"
+        >
           Descargar
         </Button>
       </div>
@@ -157,7 +161,12 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
               <TableCell>{{ metersToUse }}</TableCell>
 
               <TableCell class="flex justify-center">
-                <Button variant="outline" size="sm" class="w-full md:w-auto" @click="openDownloadForm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="w-full md:w-auto rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                  @click="openDownloadForm"
+                >
                   Descargar
                 </Button>
               </TableCell>

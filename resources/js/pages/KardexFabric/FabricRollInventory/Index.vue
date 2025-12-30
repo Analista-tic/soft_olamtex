@@ -213,19 +213,19 @@ onMounted(fetchFabricRolls);
                         Mantén el control preciso de cada rollo.
                     </p>
                 </div>
-                <div class="flex flex-wrap gap-2">
+                <div class="flex flex-wrap gap-2 items-center">
                     <Button
                         variant="secondary"
-                        class="w-full md:w-auto"
+                        class="w-full md:w-auto rounded-full px-5 py-2 text-sm font-semibold h-10 shadow-sm flex items-center gap-2 justify-center"
                         type="button"
                         @click="exportFabricRollsExcel"
                     >
-                        <Download class="h-4 w-4 mr-2" />
+                        <Download class="h-4 w-4" />
                         Exportar inventario
                     </Button>
                     <Button
                         variant="secondary"
-                        class="w-full md:w-auto"
+                        class="w-full md:w-auto rounded-full px-5 py-2 text-sm font-semibold h-10 shadow-sm flex items-center justify-center"
                         type="button"
                         @click="openAdjustDialog()"
                     >

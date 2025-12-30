@@ -426,14 +426,29 @@ onMounted(async () => {
             <AlertDialogDescription>
                 �Est�s seguro de que deseas eliminar este programador? Esta acci�n no se puede deshacer.
             </AlertDialogDescription>
-            <AlertDialogFooter>
-                <AlertDialogCancel @click="isDialogOpen = false">Cancelar</AlertDialogCancel>
-                <AlertDialogAction @click="deleteProgrammer">Eliminar</AlertDialogAction>
+            <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
+                <AlertDialogCancel asChild>
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="isDialogOpen = false"
+                    >
+                        Cancelar
+                    </button>
+                </AlertDialogCancel>
+                <AlertDialogAction asChild>
+                    <Button
+                        variant="destructive"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                        @click="deleteProgrammer"
+                    >
+                        Eliminar
+                    </Button>
+                </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
 </template>
-
 
 
 

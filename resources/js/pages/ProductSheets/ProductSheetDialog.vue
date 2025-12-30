@@ -338,10 +338,30 @@ function handleClose() {
             </div>
 
             <!-- Botón Guardar -->
-            <DialogFooter class="sticky bottom-0 bg-white py-4 flex justify-end">
-                <Button size="sm" type="submit" @click="saveProductSheet">
-                    {{ props.mode === 'edit' ? 'Actualizar' : 'Guardar' }}
-                </Button>
+            <DialogFooter class="sticky bottom-0 bg-white py-4 flex flex-col gap-2 md:flex-row md:justify-end border-t border-border">
+                <div class="w-full md:w-auto">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="handleClose"
+                    >
+                        Cancelar
+                    </button>
+                </div>
+                <div class="w-full md:w-auto">
+                    <Button
+                        size="sm"
+                        type="button"
+                        :class="[
+                            'mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm',
+                            overallStatus === false ? 'border border-red-600 bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500' : '',
+                        ]"
+                        :disabled="isLoading"
+                        @click="saveProductSheet"
+                    >
+                        {{ props.mode === 'edit' ? 'Actualizar' : 'Guardar' }}
+                    </Button>
+                </div>
             </DialogFooter>
             </div>
         </DialogContent>

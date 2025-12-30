@@ -118,8 +118,14 @@ onMounted(fetchRoles);
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Roles</h1>
-                <Button v-if="canCreate" @click="openFormDialog()" variant="default" size="sm">
+                <h1 class="text-lg font-bold">Gestiön de Roles</h1>
+                <Button
+                    v-if="canCreate"
+                    @click="openFormDialog()"
+                    variant="default"
+                    size="sm"
+                    class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                >
                     <PlusCircle class="h-4 w-4" /> Crear Nuevo Rol
                 </Button>
             </div>
@@ -200,5 +206,4 @@ onMounted(fetchRoles);
         @submit="handleRoleSubmit"
     />
 </template>
-
 

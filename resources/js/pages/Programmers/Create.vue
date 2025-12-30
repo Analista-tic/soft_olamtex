@@ -168,6 +168,11 @@ function resetForm() {
     formErrors.value = []; // Limpiar los errores del formulario
 }
 
+function closeDialog() {
+    resetForm();
+    isDialogOpen.value = false;
+}
+
 const productSheets = ref<ProductSheet[]>(props.productSheets);
 
 function addProductSheet(response: { success: boolean; message: string; data: ProductSheet } | undefined) {
@@ -202,7 +207,14 @@ function getTrueSizes(sizes: string | undefined): string {
 <template>
     <Dialog @open="resetForm" v-model:open="isDialogOpen">
         <DialogTrigger as-child>
-            <Button variant="default" size="sm"><PlusCircle /> Nuevo Programador</Button>
+            <Button
+                variant="default"
+                size="sm"
+                class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+            >
+                <PlusCircle class="h-4 w-4" />
+                Nuevo Programador
+            </Button>
         </DialogTrigger>
         <DialogContent class="sm:max-w-6xl max-h-screen overflow-y-auto">
             <div ref="dialogInnerRef" class="relative">
@@ -368,10 +380,27 @@ function getTrueSizes(sizes: string | undefined): string {
                 </table>
             </div>
 
-            <DialogFooter class="mt-6 flex justify-end">
-                <Button size="sm" type="submit" :disabled="formErrors.length > 0" @click="createProgrammer">
-                    Guardar
-                </Button>
+            <DialogFooter class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
+                <div class="w-full md:w-auto">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="closeDialog"
+                    >
+                        Cancelar
+                    </button>
+                </div>
+                <div class="w-full md:w-auto">
+                    <Button
+                        size="sm"
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                        :disabled="formErrors.length > 0"
+                        @click="createProgrammer"
+                    >
+                        Guardar
+                    </Button>
+                </div>
             </DialogFooter>
             </div>
         </DialogContent>

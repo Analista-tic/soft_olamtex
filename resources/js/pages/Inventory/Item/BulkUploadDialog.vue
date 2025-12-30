@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Button from '@/components/ui/button/Button.vue';
-import { Upload, ClipboardList, CloudUpload, Download } from 'lucide-vue-next';
+import { ClipboardList, CloudUpload, Download } from 'lucide-vue-next';
 import axios from 'axios';
 
 const props = defineProps<{

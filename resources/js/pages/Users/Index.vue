@@ -149,12 +149,20 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Gesti�n de Usuarios" />
+    <Head title="Gestión de Usuarios" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gesti�n de Usuarios</h1>
-                <Button v-if="canCreate" @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Usuario</Button>
+                <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
+                <Button
+                    v-if="canCreate"
+                    @click="openDialog('create')"
+                    variant="default"
+                    size="sm"
+                    class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                >
+                    <PlusCircle class="w-4 h-4" /> Crear Nuevo Usuario
+                </Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
@@ -232,15 +240,14 @@ onMounted(() => {
         @submit="submitForm"
     />
 
-    <!-- Dialog para Confirmar Eliminaci�n -->
+    <!-- Dialog para Confirmar Eliminación -->
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminaci�n"
-        description="�Est�s seguro de que deseas eliminar este usuario? Esta acci�n no se puede deshacer."
+        title="Confirmar eliminación"
+        description="¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer."
         confirm-text="Eliminar"
         cancel-text="Cancelar"
         :destructive="true"
         @confirm="deleteUser"
     />
 </template>
-

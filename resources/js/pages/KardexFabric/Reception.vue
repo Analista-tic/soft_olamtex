@@ -888,9 +888,25 @@ function onFabricRollSuccess() {
                             Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" @click="isRejectDialogOpen = false">Cancelar</Button>
-                        <Button variant="destructive" @click="confirmRejectReception">Rechazar</Button>
+                    <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+                        <div class="w-full md:w-auto">
+                            <button
+                                type="button"
+                                class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                                @click="isRejectDialogOpen = false"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                        <div class="w-full md:w-auto">
+                            <Button
+                                variant="destructive"
+                                class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                                @click="confirmRejectReception"
+                            >
+                                Rechazar
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
