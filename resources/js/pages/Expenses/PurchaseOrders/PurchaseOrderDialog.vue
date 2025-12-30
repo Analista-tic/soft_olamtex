@@ -2,7 +2,6 @@
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Contact, Option, PurchaseOrder } from '@/types';
 import axios from 'axios';
@@ -426,16 +425,14 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             />
                         </div>
                         <div class="w-[100px]">
-                            <Button
-                                variant="outline"
-                                size="sm"
+                            <button
                                 type="button"
-                                class="h-10 w-full"
+                                class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-3 text-xs font-semibold uppercase tracking-wide text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                 :disabled="!selectedPurchaseRequestId"
                                 @click="clearSelectedPurchaseRequest"
                             >
                                 Limpiar
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 </DialogHeader>
@@ -582,23 +579,29 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 
                     <!-- Botones -->
                     <DialogFooter class="mt-4 flex justify-end gap-4">
-                        <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
-                        <Button
-                            variant="default"
-                            type="button"
-                            :disabled="isLoading || isSendingMail"
-                            @click.prevent="handleSubmit(false)"
-                        >
-                            {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                        </Button>
-                        <Button
-                            variant="default"
-                            type="button"
-                            :disabled="isLoading || isSendingMail"
-                            @click.prevent="handleSubmit(true)"
-                        >
-                            {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                        </Button>
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="dialogOpen = false"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="isLoading || isSendingMail"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        @click.prevent="handleSubmit(false)"
+                    >
+                        {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="isLoading || isSendingMail"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        @click.prevent="handleSubmit(true)"
+                    >
+                        {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
+                    </button>
                     </DialogFooter>
                 </form>
             </div>

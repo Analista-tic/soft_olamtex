@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Branch, AdditionalContact, Contact } from '@/types';
 import { computed, ref, watch } from 'vue';
@@ -288,7 +287,7 @@ const updateBranches = (branches: any[]) => {
         <DialogContent class="max-w-3xl h-screen flex flex-col">
             <DialogHeader>
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
-                <DialogDescription>
+                <DialogDescription class="pb-4">
                     Completa los campos para {{ dialogType === 'create' ? 'crear' : 'editar' }} un contacto. Haz
                     clic en {{ dialogType === 'create' ? 'crear' : 'actualizar' }} cuando termines.
                 </DialogDescription>
@@ -349,11 +348,21 @@ const updateBranches = (branches: any[]) => {
                 </TabsContent>
             </Tabs>
 
-            <DialogFooter class="mt-4">
-                <Button variant="outline" class="text-sm px-3 py-1" @click="closeDialog"> Cancelar </Button>
-                <Button class="text-sm px-3 py-1" @click="submitForm">
+            <DialogFooter class="mt-4 flex justify-end gap-2">
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="closeDialog"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="submitForm"
+                >
                     {{ dialogType === 'create' ? 'Crear' : 'Actualizar' }}
-                </Button>
+                </button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

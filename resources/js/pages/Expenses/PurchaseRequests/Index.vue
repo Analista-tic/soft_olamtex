@@ -5,7 +5,6 @@ import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Button } from '@/components/ui/button';
 import {
     Table,
     TableBody,
@@ -25,6 +24,7 @@ import { useAlertMessages } from '@/composables/useAlertMessages';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseRequest } from '@/types';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
     { title: 'Gastos', href: '/gastos' },
@@ -151,8 +151,10 @@ const getRequestItemsPreview = (request: PurchaseRequest) => {
 
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
-const dialogForm = ref<Partial<PurchaseServiceRequest>>({});
+const dialogForm = ref<Partial<PurchaseRequestService>>({});
 const dialogReadonly = ref(false);
+const isDeleteDialogOpen = ref(false);
+const requestToDelete = ref<PurchaseRequestService | null>(null);
 
 function closeDialog() {
     isDialogOpen.value = false;
@@ -165,7 +167,7 @@ function openCreateRequest() {
     isDialogOpen.value = true;
 }
 
-async function viewRequest(request: PurchaseServiceRequest) {
+async function viewRequest(request: PurchaseRequestService) {
     if (!request.id) return;
     dialogType.value = 'edit';
     try {
@@ -179,7 +181,7 @@ async function viewRequest(request: PurchaseServiceRequest) {
     }
 }
 
-async function editRequest(request: PurchaseServiceRequest) {
+async function editRequest(request: PurchaseRequestService) {
     if (!request.id) return;
     dialogType.value = 'edit';
     try {
@@ -193,18 +195,26 @@ async function editRequest(request: PurchaseServiceRequest) {
     }
 }
 
-async function deleteRequest(request: PurchaseServiceRequest) {
-    if (!request.id) return;
-    const confirmed = window.confirm('¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer.');
-    if (!confirmed) return;
+function confirmDeleteRequest(request: PurchaseRequestService) {
+    requestToDelete.value = request.id ? request : null;
+    isDeleteDialogOpen.value = true;
+}
 
+async function handleDeleteRequest() {
+    if (!requestToDelete.value?.id) {
+        isDeleteDialogOpen.value = false;
+        return;
+    }
     try {
-        await axios.delete(`/gastos/solicitudes-compra/${request.id}`);
+        await axios.delete(`/gastos/solicitudes-compra/${requestToDelete.value.id}`);
         successMessage.value = 'Solicitud eliminada correctamente.';
         fetchRequests();
     } catch (err) {
         showError('No se pudo eliminar la solicitud. Intenta nuevamente.');
         console.error('Error eliminando solicitud', err);
+    } finally {
+        isDeleteDialogOpen.value = false;
+        requestToDelete.value = null;
     }
 }
 
@@ -303,9 +313,14 @@ onMounted(() => {
                         Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.
                     </p>
                 </div>
-                <Button variant="default" size="sm" class="flex items-center gap-2" @click="openCreateRequest">
-                    <PlusCircle class="h-4 w-4" /> Nueva solicitud
-                </Button>
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="openCreateRequest"
+                >
+                    <PlusCircle class="h-4 w-4" />
+                    Nueva solicitud
+                </button>
             </div>
 
             <FilterBar align="start">
@@ -398,7 +413,7 @@ onMounted(() => {
                                             <Eye class="w-4 h-4" />
                                         </button>
                                         <EditButton :onClick="() => editRequest(request)" />
-                                        <DeleteButton :onClick="() => deleteRequest(request)" />
+                                <DeleteButton :onClick="() => confirmDeleteRequest(request)" />
                                 </TableCell>
                             </TableRow>
                         </template>
@@ -415,4 +430,14 @@ onMounted(() => {
             />
         </div>
     </AppLayout>
+
+    <ConfirmDialog
+        v-model:open="isDeleteDialogOpen"
+        title="Confirmar eliminación"
+        description="¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="handleDeleteRequest"
+    />
 </template>

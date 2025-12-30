@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import AlertBox from '@/components/AlertBox.vue';
-import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
 import Textarea from '@/components/ui/textarea/Textarea.vue';
@@ -708,16 +707,14 @@ onBeforeUnmount(() => {
                                                                 </div>
                                                             </template>
                                                         </div>
-                                                        <Button
+                                                        <button
                                                             type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            class="self-start"
+                                                            class="self-start inline-flex items-center justify-center gap-1 rounded-full border border-border/80 bg-white px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                                             :disabled="!hasCustomLogo"
                                                             @click="resetLogoPreview"
                                                         >
                                                             Restablecer
-                                                        </Button>
+                                                        </button>
                                                     </div>
                                                     <input
                                                         ref="iconInputRef"
@@ -729,12 +726,21 @@ onBeforeUnmount(() => {
                                                 </div>
                         
                                                 <div class="flex flex-wrap gap-3 border-t pt-4">
-                                                    <Button type="submit" variant="default" :disabled="isSaving">
+                                                    <button
+                                                        type="submit"
+                                                        :disabled="isSaving"
+                                                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
                                                         {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
-                                                    </Button>
-                                                    <Button type="button" variant="outline" :disabled="isSaving" @click="resetForm">
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        :disabled="isSaving"
+                                                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        @click="resetForm"
+                                                    >
                                                         Restablecer valores
-                                                    </Button>
+                                                    </button>
                                                 </div>
                                             </form>
                     </div>

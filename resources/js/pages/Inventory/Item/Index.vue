@@ -246,15 +246,23 @@ async function downloadTemplate() {
                         Gestiona los ítems del inventario: categorías, stock y estado.
                     </p>
                 </div>
-                <div class="flex gap-2">
-                    <Button @click="openDialog('create')" variant="default" size="sm">
+                <div class="flex items-center gap-2">
+                    <Button
+                        @click="openDialog('create')"
+                        variant="default"
+                        size="sm"
+                        class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                    >
                         <PlusCircle class="h-4 w-4" /> Crear nuevo ítem
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger :as-child="true">
-                            <Button variant="outline" size="sm" class="flex items-center gap-1">
+                            <button
+                                type="button"
+                                class="flex items-center justify-center gap-1 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary h-10"
+                            >
                                 <span>Otras acciones</span>
-                            </Button>
+                            </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" class="w-56">
                             <DropdownMenuItem
@@ -404,29 +412,38 @@ async function downloadTemplate() {
                         este ítem?
                     </DialogDescription>
                 </DialogHeader>
-                <DialogFooter>
-                    <button type="button" class="mr-2 rounded border px-3 py-1" @click="isStatusDialogOpen = false">Cancelar</button>
-                    <button
-                        type="button"
-                        :class="[
-                            'inline-flex items-center rounded px-3 py-1',
-                            itemToToggleStatus?.status ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-green-600 text-white hover:bg-green-700',
-                        ]"
-                        @click="toggleStatus"
-                    >
-                        <Ban v-if="itemToToggleStatus?.status" class="mr-1 h-4 w-4" />
-                        <CheckCircle v-else class="mr-1 h-4 w-4" />
-                        {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }}
-                    </button>
+                <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+                    <div class="w-full md:w-auto">
+                        <button
+                            type="button"
+                            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                            @click="isStatusDialogOpen = false"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                    <div class="w-full md:w-auto">
+                        <button
+                            type="button"
+                            :class="[
+                                'mx-auto flex w-full max-w-[140px] items-center justify-center gap-1 rounded-full px-5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                                itemToToggleStatus?.status
+                                    ? 'border border-red-600 bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500'
+                                    : 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500',
+                            ]"
+                            @click="toggleStatus"
+                        >
+                            <Ban v-if="itemToToggleStatus?.status" class="mr-1 h-4 w-4" />
+                            <CheckCircle v-else class="mr-1 h-4 w-4" />
+                            {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }}
+                        </button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
-
-
-
 
 
 

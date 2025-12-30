@@ -119,7 +119,14 @@ onMounted(() => fetchTaxes());
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Gestión de impuestos</h1>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Nuevo Impuesto</Button>
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="openDialog('create')"
+                >
+                    <PlusCircle class="w-4 h-4" />
+                    Nuevo Impuesto
+                </button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
@@ -199,7 +206,6 @@ onMounted(() => fetchTaxes());
         />
     </AppLayout>
 </template>
-
 
 
 

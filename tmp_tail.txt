@@ -1,0 +1,11 @@
+    </AppLayout>
+    <ConfirmDialog
+        v-model:open=" isDeleteDialogOpen\
+ title=\Confirmar eliminación\
+ description=\¿Estás seguro de que deseas eliminar esta factura? Esta acción no se puede deshacer.\
+ confirm-text=\Eliminar\
+ cancel-text=\Cancelar\
+ :destructive=\true\
+ @confirm=\deleteInvoice\
+ />
+</template>

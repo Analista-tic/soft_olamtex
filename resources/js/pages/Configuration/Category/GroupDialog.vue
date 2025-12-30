@@ -3,7 +3,6 @@ import { ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
 import { CategoryGroup } from '@/types';
-import { Button } from '@/components/ui/button';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -56,9 +55,21 @@ function submitForm() {
             <div class="space-y-4 pt-5">
                 <InputField v-model="form.name" label="Nombre" placeholder="Nombre del grupo" required />
             </div>
-            <DialogFooter class="mt-4">
-                <Button variant="outline" @click="closeDialog">Cancelar</Button>
-                <Button @click="submitForm">Crear</Button>
+            <DialogFooter class="mt-4 flex justify-end gap-2">
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="closeDialog"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="submitForm"
+                >
+                    Crear
+                </button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

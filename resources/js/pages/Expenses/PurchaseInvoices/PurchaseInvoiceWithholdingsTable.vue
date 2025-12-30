@@ -3,7 +3,6 @@ import { ref, watch, onMounted, computed } from 'vue';
 import axios from 'axios';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Button } from '@/components/ui/button';
 import { CirclePlus, Plus } from 'lucide-vue-next';
 import type { PurchaseInvoiceWithholding } from '@/types';
 import DeleteButton from '@/components/common/DeleteButton.vue';
@@ -133,16 +132,15 @@ async function handleRetentionSubmit(formData: any) {
         <div class="mb-2 flex items-center justify-between">
             <span class="font-semibold text-xs">Retenciones</span>
             <div class="flex items-center gap-2">
-                <Button
+                <button
                     v-if="!isReadOnly"
                     type="button"
-                    variant="default"
-                    size="sm"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="addWithholding"
-                    class="text-xs"
                 >
-                    <CirclePlus /> Añadir Retención
-                </Button>
+                    <CirclePlus class="h-4 w-4" />
+                    Añadir Retención
+                </button>
             </div>
         </div>
         <div class="min-w-full text-xs rounded" v-if="localWithholdings.length">
@@ -175,16 +173,14 @@ async function handleRetentionSubmit(formData: any) {
                                 }"
                             >
                                 <template #header>
-                                    <Button
+                                    <button
                                         type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        class="w-full justify-center text-xs bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                                        class="inline-flex h-8 w-full items-center justify-center gap-2 rounded-full border border-border/70 bg-muted px-3 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                                         @click.stop="openRetentionDialogFromDropdown"
                                     >
                                         <Plus class="mr-2 h-4 w-4" />
                                         Nueva retención
-                                    </Button>
+                                    </button>
                                 </template>
                             </SelectField>
                         </td>
@@ -239,4 +235,3 @@ async function handleRetentionSubmit(formData: any) {
         />
     </div>
 </template>
-

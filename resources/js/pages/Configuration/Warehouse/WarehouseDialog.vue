@@ -2,7 +2,6 @@
 import { ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
-import { Button } from '@/components/ui/button';
 import type { Warehouse } from '@/types';
 
 const props = defineProps<{
@@ -52,11 +51,22 @@ function handleSubmit() {
                 <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre" required />
                 <InputField label="Observacion" v-model="localForm.observation" placeholder="Observacion" required />
             </div>
-            <DialogFooter>
-                <Button variant="outline" @click="handleClose">Cancel</Button>
-                <Button variant="default" :disabled="loading" @click="handleSubmit">
+            <DialogFooter class="flex justify-end gap-2">
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="handleClose"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    :disabled="loading"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    @click="handleSubmit"
+                >
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                </Button>
+                </button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import type { PurchaseInvoice } from '@/types';
 import { computed, watch, ref } from 'vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
@@ -234,9 +233,21 @@ function print() {
                         </div>
                     </div>
                 </div>
-                <DialogFooter class="mt-4 flex justify-end gap-4 print:hidden">
-                    <Button variant="outline" type="button" @click="dialogOpen = false">Cerrar</Button>
-                    <Button variant="default" type="button" @click="print">Imprimir</Button>
+                <DialogFooter class="mt-4 flex justify-end gap-3 print:hidden">
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="dialogOpen = false"
+                    >
+                        Cerrar
+                    </button>
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="print"
+                    >
+                        Imprimir
+                    </button>
                 </DialogFooter>
             </div>
         </DialogContent>

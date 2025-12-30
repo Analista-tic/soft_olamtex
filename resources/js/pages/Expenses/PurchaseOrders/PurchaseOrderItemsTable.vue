@@ -4,7 +4,6 @@ import InputField from '@/components/InputField.vue';
 import ItemDialog from '@/pages/Inventory/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
-import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
 import type { Item, PurchaseOrderItem } from '@/types';
 import axios from 'axios';
@@ -254,16 +253,14 @@ defineExpose({ addItem });
                                 class="w-full"
                             >
                                 <template #header>
-                                    <Button
+                                    <button
                                         type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                                         @click.stop="openItemDialog"
                                     >
                                         <Plus class="h-4 w-4" />
                                         Nuevo item
-                                    </Button>
+                                    </button>
                                 </template>
                             </SelectField>
                         </TableCell>
@@ -287,16 +284,14 @@ defineExpose({ addItem });
                                 @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
                             >
                                 <template #header>
-                                    <Button
+                                    <button
                                         type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                                         @click.stop="openTaxDialog"
                                     >
                                         <Plus class="h-4 w-4" />
                                         Nuevo impuesto
-                                    </Button>
+                                    </button>
                                 </template>
                             </SelectField>
                         </TableCell>

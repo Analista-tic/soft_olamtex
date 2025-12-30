@@ -1,8 +1,7 @@
 ﻿<script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -341,16 +340,22 @@ function handleDialogError(message?: string) {
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <Button 
-                        @click="router.visit(buildReceptionUrl())" 
-                        variant="outline" 
-                        size="sm"
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="router.visit(buildReceptionUrl())"
                     >
-                        <Package class="h-4 w-4" /> Ver Todas las Recepciones
-                    </Button>
-                    <Button @click="openDialog('create')" variant="default" size="sm">
-                        <PlusCircle class="h-4 w-4" /> Nueva Factura
-                    </Button>
+                        <Package class="h-4 w-4" />
+                        Ver Todas las Recepciones
+                    </button>
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="openDialog('create')"
+                    >
+                        <PlusCircle class="h-4 w-4" />
+                        Nueva Factura
+                    </button>
                 </div>
             </div>
             <FilterBar align="start">
@@ -515,19 +520,14 @@ function handleDialogError(message?: string) {
             :invoice="invoiceToPrint"
             @close="isPrintDialogOpen = false"
         />
-        <Dialog v-if="isDeleteDialogOpen" v-model:open="isDeleteDialogOpen">
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Confirmar eliminación</DialogTitle>
-                    <DialogDescription>
-                        ¿Estás seguro de que deseas eliminar esta factura? Esta acción no se puede deshacer.
-                    </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                    <Button variant="outline" @click="isDeleteDialogOpen = false">Cancelar</Button>
-                    <Button variant="destructive" @click="deleteInvoice">Eliminar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+        v-model:open="isDeleteDialogOpen"
+        title="Confirmar eliminación"
+        description="¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="deleteInvoice"
+    />
     </AppLayout>
 </template>

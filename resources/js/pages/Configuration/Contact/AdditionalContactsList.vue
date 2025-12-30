@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import Button from '@/components/ui/button/Button.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import { PlusCircle } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
@@ -124,9 +123,14 @@ defineExpose({
         </transition>
 
         <div class="flex justify-end mb-2">
-            <Button @click="addContact" variant="default" size="sm">
-                <PlusCircle class="h-4 w-4" />Agregar contacto
-            </Button>
+            <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-70 disabled:cursor-not-allowed"
+                @click="addContact"
+            >
+                <PlusCircle class="h-4 w-4" />
+                Agregar contacto
+            </button>
         </div>
 
         <div v-for="(contact, index) in internalContacts" :key="index" class="p-2">

@@ -6,7 +6,6 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { CategoryGroup, CategorySubGroup } from '@/types';
-import { Button } from '@/components/ui/button';
 import GroupDialog from './GroupDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import { Trash, Plus } from 'lucide-vue-next';
@@ -191,16 +190,14 @@ async function confirmDeleteGroup() {
                                 searchable
                             >
                                 <template #header>
-                                    <Button
+                                    <button
                                         type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        class="w-full justify-center text-xs border border-border bg-muted text-muted-foreground hover:bg-muted/70"
+                                        class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                                         @click.stop="openGroupDialogFromDropdown"
                                     >
                                         <Plus class="mr-2 h-4 w-4" />
                                         Nuevo grupo
-                                    </Button>
+                                    </button>
                                 </template>
                             </SelectField>
                         </div>
@@ -214,7 +211,14 @@ async function confirmDeleteGroup() {
                   </div>
                 <div class="flex items-end">
                     <InputField v-model="subGroupName" label="Nombre del Subgrupo" placeholder="Escribe el nombre del subgrupo" />
-                    <Button size="sm" class="ml-2" @click="addSubGroupToList" :disabled="!subGroupName.trim()">Añadir</Button>
+                    <button
+                        type="button"
+                        class="ml-2 inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        @click="addSubGroupToList"
+                        :disabled="!subGroupName.trim()"
+                    >
+                        Añadir
+                    </button>
                 </div>
                 <div class="mt-4 space-y-2">
                     <p class="flex flex-wrap gap-2">
@@ -229,10 +233,22 @@ async function confirmDeleteGroup() {
                     </p>
                 </div>
             </div>
-              <DialogFooter class="mt-4">
-                  <Button variant="outline" @click="closeDialog">Cancelar</Button>
-                  <Button @click="submitForm">{{ dialogType === 'create' ? 'Crear' : 'Guardar' }}</Button>
-              </DialogFooter>
+            <DialogFooter class="mt-4 flex justify-end gap-2">
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="closeDialog"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="submitForm"
+                >
+                    {{ dialogType === 'create' ? 'Crear' : 'Guardar' }}
+                </button>
+            </DialogFooter>
               </TooltipProvider>
          </DialogContent>
     </Dialog>

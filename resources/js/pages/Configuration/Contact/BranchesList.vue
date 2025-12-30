@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
-import Button from '@/components/ui/button/Button.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import { PlusCircle } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
@@ -129,9 +128,14 @@ defineExpose({
         </transition>
 
         <div class="flex justify-end mb-2">
-            <Button @click="addBranch" variant="default" size="sm">
-                <PlusCircle class="h-4 w-4" />Agregar sucursal
-            </Button>
+            <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-70 disabled:cursor-not-allowed"
+                @click="addBranch"
+            >
+                <PlusCircle class="h-4 w-4" />
+                Agregar sucursal
+            </button>
         </div>
 
         <div v-for="(branch, index) in internalBranches" :key="index" class="p-2">

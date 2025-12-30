@@ -2,7 +2,6 @@
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
-import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -504,20 +503,32 @@ watch(dialogOpen, (isOpen) => {
                         </div>
                     </div>
 
-                    <DialogFooter class="mt-4 flex justify-end gap-4">
+                    <DialogFooter class="mt-4 flex justify-end gap-2">
                         <template v-if="props.readonly">
-                            <Button variant="default" type="button" @click="dialogOpen = false">Cerrar</Button>
+                            <button
+                                type="button"
+                                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                                @click="dialogOpen = false"
+                            >
+                                Cerrar
+                            </button>
                         </template>
                         <template v-else>
-                            <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
-                            <Button
-                                variant="default"
+                            <button
+                                type="button"
+                                class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                                @click="dialogOpen = false"
+                            >
+                                Cancelar
+                            </button>
+                            <button
                                 type="button"
                                 :disabled="isLoading"
+                                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                 @click.prevent="handleSubmit"
                             >
                                 {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                            </Button>
+                            </button>
                         </template>
                     </DialogFooter>
                 </form>

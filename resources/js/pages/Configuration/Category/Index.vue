@@ -175,7 +175,14 @@ onMounted(() => {
                         Define y clasifica subgrupos de categorías para que cada ítem se asocie con la estructura organizativa correcta.
                     </p>
                 </div>
-                <Button @click="openDialog('create')" variant="default" size="sm"><PlusCircle class="w-4 h-4"/> Crear Nuevo Subgrupo</Button>
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="openDialog('create')"
+                >
+                    <PlusCircle class="w-4 h-4" />
+                    Crear Nuevo Subgrupo
+                </button>
             </div>
             <AlertStack
                 :success-message="successMessage"
