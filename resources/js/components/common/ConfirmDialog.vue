@@ -46,9 +46,21 @@ function handleConfirm() {
         <DialogTitle>{{ props.title }}</DialogTitle>
         <DialogDescription v-if="props.description">{{ props.description }}</DialogDescription>
       </DialogHeader>
-      <DialogFooter>
-        <Button variant="outline" size="sm" @click="closeDialog">{{ props.cancelText }}</Button>
-        <Button :variant="props.destructive ? 'destructive' : 'default'" size="sm" @click="handleConfirm">
+      <DialogFooter class="justify-end gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          class="rounded-full px-5 py-2 text-sm font-semibold"
+          @click="closeDialog"
+        >
+          {{ props.cancelText }}
+        </Button>
+        <Button
+          :variant="props.destructive ? 'destructive' : 'default'"
+          size="sm"
+          class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+          @click="handleConfirm"
+        >
           {{ props.confirmText }}
         </Button>
       </DialogFooter>

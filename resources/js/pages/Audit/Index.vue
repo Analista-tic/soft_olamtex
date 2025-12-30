@@ -736,7 +736,12 @@ watch(detailDialogOpen, (value) => {
                 </div>
                 <DialogFooter class="flex justify-end gap-2 border-t border-border px-6 py-3">
                     <DialogClose as-child>
-                        <Button variant="outline" size="sm">Cerrar</Button>
+                        <button
+                            type="button"
+                            class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        >
+                            Cerrar
+                        </button>
                     </DialogClose>
                 </DialogFooter>
             </DialogContent>

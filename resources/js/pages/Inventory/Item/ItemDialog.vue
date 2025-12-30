@@ -1349,23 +1349,26 @@ watch(
 
                 <!-- FOOTER -->
                 <DialogFooter class="mt-6 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
-                    <Button
-                        variant="outline"
+                <div class="w-full md:w-auto">
+                    <button
                         type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="handleClose"
-                        class="w-full md:w-auto"
                     >
                         {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
-                    </Button>
+                    </button>
+                </div>
+                <div class="w-full md:w-auto">
                     <Button
                         v-if="dialogType !== 'view'"
                         variant="default"
                         type="submit"
-                        class="w-full md:w-auto"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                         :disabled="hasMissingRequiredAdditionalFields"
                     >
                         {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                     </Button>
+                </div>
                 </DialogFooter>
             </form>
         </DialogContent>

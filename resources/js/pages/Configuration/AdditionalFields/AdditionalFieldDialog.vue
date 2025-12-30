@@ -7,7 +7,6 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import SwitchField from '@/components/SwitchField.vue';
-import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { AdditionalField, AdditionalFieldType } from '@/types';
@@ -312,10 +311,21 @@ function handleSubmit() {
                 </div>
             </div>
             <DialogFooter class="justify-end gap-2">
-                <Button variant="outline" @click="handleClose">Cancelar</Button>
-                <Button variant="default" :disabled="loading || hasDuplicateOptions" @click="handleSubmit">
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="handleClose"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    :disabled="loading || hasDuplicateOptions"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    @click="handleSubmit"
+                >
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                </Button>
+                </button>
             </DialogFooter>
         </TooltipProvider>
     </FormDialogContent>
