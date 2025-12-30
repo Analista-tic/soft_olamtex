@@ -262,7 +262,7 @@ class ItemService
                     continue;
                 }
 
-                $extraFields = [];
+                $extraFields = $this->parseAdditionalFieldsColumns($normalizedRow);
                 foreach ($extraFieldsKeys as $key) {
                     $normalizedKey = $this->normalizeHeader($key);
                     $value = $normalizedRow[$normalizedKey] ?? null;
@@ -272,6 +272,9 @@ class ItemService
                     $actualHeader = $headerMap[$normalizedKey] ?? $key;
                     $additionalFieldName = $this->getAdditionalFieldNameByNormalizedHeader($normalizedKey);
                     $fieldKey = $additionalFieldName ?? $actualHeader;
+                    if (array_key_exists($fieldKey, $extraFields) && $extraFields[$fieldKey] !== '') {
+                        continue;
+                    }
                     $extraFields[$fieldKey] = $value;
                 }
 
@@ -284,12 +287,18 @@ class ItemService
                 ]);
                 $name = trim(implode(' ', $nameParts));
 
+                $taxValue = $normalizedRow['IMPUESTO (%)'] ?? null;
+                $descriptionValue = $this->getRowValueFromAlternatives($normalizedRow, ['DESCRIPCION', 'DESCRIPCION DEL ARTICULO', 'DESCRIPTION'], '');
+                $barCodeValue = $this->getRowValueFromAlternatives($normalizedRow, ['CODIGO DE BARRAS', 'BARCODE', 'CODE BAR'], null);
+
                 $itemData = [
                     'category_sub_group_id' => $subGroup->id,
-                    'tax' => $normalizedRow['IMPUESTO (%)'] ?? null,
-                    'bar_code' => $normalizedRow['CODIGO DE BARRAS'] ?? null,
+                    'tax_id' => $this->resolveTaxIdFromImportValue($taxValue),
+                    'tax' => $taxValue,
+                    'bar_code' => $barCodeValue,
+                    'bar_code' => $barCodeValue,
                     'negative_movement' => filter_var($normalizedRow['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
-                    'description' => $normalizedRow['DESCRIPCION'] ?? '',
+                    'description' => $descriptionValue,
                     'extra_fields' => $extraFields,
                     'name' => $name,
                     'reference' => $normalizedRow['REFERENCIA'] ?? '',
@@ -383,6 +392,84 @@ class ItemService
         }
         $this->ensureUnitMeasureNameMap();
         return $this->unitMeasureNameMap[$this->normalizeHeader($value)] ?? null;
+    }
+
+    protected function resolveTaxIdFromImportValue(mixed $value): ?int
+    {
+        $percentage = $this->normalizeTaxPercentageForImport($value);
+        if ($percentage === null) {
+            return null;
+        }
+
+        $rounded = round($percentage, 2);
+        $tax = Tax::where('percentage', $rounded)->first();
+        if ($tax) {
+            return $tax->id;
+        }
+
+        $name = $rounded === 0.0 ? 'Ninguno (0%)' : 'Impuesto ' . $this->formatTaxPercentageLabel($rounded) . '%';
+        $newTax = Tax::create([
+            'name' => $name,
+            'percentage' => $rounded,
+            'status' => true,
+        ]);
+
+        return $newTax->id;
+    }
+
+    protected function normalizeTaxPercentageForImport(mixed $value): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+        $sanitized = preg_replace('/[^0-9,.\-]/', '', $raw);
+        if ($sanitized === null || $sanitized === '') {
+            return null;
+        }
+        $normalized = str_replace(',', '.', $sanitized);
+        if (!is_numeric($normalized)) {
+            return null;
+        }
+        return (float) $normalized;
+    }
+
+    protected function formatTaxPercentageLabel(float $value): string
+    {
+        $formatted = number_format($value, 2, '.', '');
+        return rtrim(rtrim($formatted, '0'), '.');
+    }
+
+    protected function parseAdditionalFieldsColumns(array $normalizedRow): array
+    {
+        $fields = $this->splitAdditionalFieldsString($normalizedRow['CAMPOS ADICIONALES'] ?? null);
+        $values = $this->splitAdditionalFieldsString($normalizedRow['VALORES ADICIONALES'] ?? null);
+
+        $parsed = [];
+        $count = min(count($fields), count($values));
+        for ($i = 0; $i < $count; $i++) {
+            $fieldName = $fields[$i];
+            $value = $values[$i];
+            if ($fieldName === '' || $value === '') {
+                continue;
+            }
+            $parsed[$fieldName] = $value;
+        }
+
+        return $parsed;
+    }
+
+    protected function splitAdditionalFieldsString(?string $value): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $parts = array_map(fn($segment) => trim((string) $segment), explode(';', $value));
+        return array_values(array_filter($parts, fn($segment) => $segment !== ''));
     }
 
     protected function buildWarehousePayloadFromRow(array $normalizedRow, array $headerMap, array &$errors, int $rowNum): array

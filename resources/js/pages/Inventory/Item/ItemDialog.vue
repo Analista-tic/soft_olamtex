@@ -380,15 +380,47 @@ async function handleTaxDialogSubmit(formData: any) {
 }
 
 // Rellena los campos extra desde el objeto recibido
-function fillExtraFields(obj: any) {
-    extraFields.value = {};
-    if (obj && typeof obj === 'object') {
-        for (const key of extraFieldNames.value) {
-            if (obj[key] !== undefined && obj[key] !== null && String(obj[key]).trim() !== '') {
-                extraFields.value[key] = String(obj[key]);
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeExtraFieldsValue(value: unknown): Record<string, unknown> {
+    if (isPlainObject(value)) {
+        return value;
+    }
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            if (isPlainObject(parsed)) {
+                return parsed;
             }
+        } catch {
+            return {};
         }
     }
+    return {};
+}
+
+function fillExtraFields(obj: unknown) {
+    extraFields.value = {};
+    const normalized = normalizeExtraFieldsValue(obj);
+    Object.entries(normalized).forEach(([key, value]) => {
+        if (typeof key !== 'string') {
+            return;
+        }
+        const fieldName = key.trim();
+        if (!fieldName) {
+            return;
+        }
+        if (value === undefined || value === null) {
+            return;
+        }
+        const stringValue = typeof value === 'string' ? value.trim() : String(value).trim();
+        if (!stringValue) {
+            return;
+        }
+        extraFields.value[fieldName] = stringValue;
+    });
 }
 
 function syncGroupFromSubgroup() {
@@ -1401,5 +1433,3 @@ watch(
     transform: scale(0.95);
 }
 </style>
-
-
