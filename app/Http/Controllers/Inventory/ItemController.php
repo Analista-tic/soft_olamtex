@@ -151,10 +151,30 @@ class ItemController extends Controller
         // Encabezados de la hoja principal
         $headers = $this->templateHeaders();
 
-        // Hoja principal: items
+        // Hoja principal: items (solo encabezados + fila de ejemplo)
         $mainSheet = $spreadsheet->getActiveSheet();
         $mainSheet->setTitle('items');
-        $mainSheet->fromArray([$headers], '', 'A1');
+        // Fila de ejemplo alineada con los encabezados (orden solicitado)
+        $exampleRow = [
+            'Producto', // TIPO DE ÍTEM
+            'Ejemplo artículo', // NOMBRE
+            'Suministros', // GRUPO
+            'Papel', // SUBGRUPO
+            '19', // IMPUESTO (%)
+            'kilogramo', // UNIDAD DE MEDIDA
+            'ART-001', // CÓDIGO DE BARRAS
+            'ART-001', // REFERENCIA
+            'Descripción de artículo de prueba', // DESCRIPCIÓN
+            '0', // MOVIMIENTO NEGATIVO (0/1)
+            '', // CAMPOS ADICIONALES
+            '', // VALORES ADICIONALES
+            'Activo', // ESTADO
+        ];
+
+        $mainSheet->fromArray([
+            $headers,
+            $exampleRow,
+        ], '', 'A1');
 
         // Presentación básica de cabecera
         $lastCol = $mainSheet->getHighestColumn();
@@ -381,18 +401,19 @@ class ItemController extends Controller
         // Order optimized for user clarity in Excel
         // Return headers with `NOMBRE` and `REFERENCIA` first
         return [
+            'TIPO DE ÍTEM',
             'NOMBRE',
-            'REFERENCIA',
             'GRUPO',
             'SUBGRUPO',
-            'DESCRIPCIÓN',
-            'CÓDIGO DE BARRAS',
             'IMPUESTO (%)',
             'UNIDAD DE MEDIDA',
-            'ESTADO',
-            'TIPO DE ÍTEM',
+            'CÓDIGO DE BARRAS',
+            'REFERENCIA',
+            'DESCRIPCIÓN',
+            'MOVIMIENTO NEGATIVO',
             'CAMPOS ADICIONALES',
             'VALORES ADICIONALES',
+            'ESTADO',
         ];
     }
 
@@ -485,18 +506,20 @@ class ItemController extends Controller
         $subGroupName = optional($item->categorySubGroup)->name;
 
         return [
+            // Orden: TIPO, NOMBRE, GRUPO, SUBGRUPO, IMPUESTO, UNIDAD, CODIGO, REFERENCIA, DESCRIPCION, MOVIMIENTO NEGATIVO, CAMPOS, VALORES, ESTADO
+            $typeLabel,
             $item->name,
-            $item->reference,
             $groupName,
             $subGroupName,
-            $item->description,
-            $item->bar_code,
             $tax ? number_format((float) $tax->percentage, 2, '.', '') : '',
             $item->unit_measure,
-            $statusLabel,
-            $typeLabel,
+            $item->bar_code,
+            $item->reference,
+            $item->description,
+            $item->negative_movement ? 1 : 0,
             $fieldsCol,
             $valuesCol,
+            $statusLabel,
         ];
     }
     

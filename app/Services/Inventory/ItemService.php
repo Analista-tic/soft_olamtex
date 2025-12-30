@@ -222,11 +222,7 @@ class ItemService
         }
 
         $header = array_map('trim', $rows[1]);
-        try {
-            Log::debug('Import - raw header', ['header' => $header]);
-        } catch (\Throwable $e) {
-            // ignore
-        }
+        // debug logs removed
         unset($rows[1]);
 
         $inserted = 0;
@@ -258,36 +254,12 @@ class ItemService
                     $rowData[$colName] = $row[$colIdx] ?? null;
                 }
 
-                    try {
-                        Log::debug('Import - rowData sample', [
-                            'row' => $rowNum,
-                            'rowData_keys' => array_keys($rowData),
-                            'raw_row_keys' => array_keys($row),
-                            'maybe_description' => $rowData['DESCRIPCIÓN'] ?? ($rowData['DESCRIPCION'] ?? null),
-                            'maybe_barcode' => $rowData['CÓDIGO DE BARRAS'] ?? ($rowData['CODIGO DE BARRAS'] ?? ($rowData['BARCODE'] ?? null)),
-                        ]);
-                    } catch (\Throwable $e) {
-                        // ignore
-                    }
+                    // debug logs removed
 
                 $normalized = $this->normalizeRowKeys($rowData);
                 $normalizedRow = $normalized['values'];
                 $headerMap = $normalized['map'];
-                    try {
-                        $descKey = $this->normalizeHeader('DESCRIPCION');
-                        $barKey = $this->normalizeHeader('CODIGO DE BARRAS');
-                        Log::debug('Import - normalized keys', [
-                            'row' => $rowNum,
-                            'normalized_keys' => array_keys($normalizedRow),
-                            'header_map_sample' => array_slice($headerMap, 0, 10),
-                            'desc_key' => $descKey,
-                            'bar_key' => $barKey,
-                            'desc_value' => $normalizedRow[$descKey] ?? null,
-                            'bar_value' => $normalizedRow[$barKey] ?? null,
-                        ]);
-                    } catch (\Throwable $e) {
-                        // ignore
-                    }
+                    // debug logs removed
                 $subGroupName = $normalizedRow['SUBGRUPO'] ?? '';
                 $subGroup = CategorySubGroup::where('name', $subGroupName)->first();
                 if (!$subGroup) {
@@ -381,12 +353,7 @@ class ItemService
                     'item_type' => 'product',
                     'unit_measure' => $this->resolveUnitMeasureValue($normalizedRow['UNIDAD DE MEDIDA'] ?? null) ?? ($normalizedRow['UNIDAD DE MEDIDA'] ?? null),
                 ];
-                // Log item data for debugging import issues (bar_code/description)
-                try {
-                    Log::debug('Import - itemData before create', ['row' => $rowNum, 'itemData' => $itemData]);
-                } catch (\Throwable $e) {
-                    // ignore logging failures
-                }
+                // debug logs removed
 
                 $warehouses = $this->buildWarehousePayloadFromRow($normalizedRow, $headerMap, $errors, $rowNum);
                 $this->create($itemData, $warehouses);
@@ -752,11 +719,7 @@ class ItemService
 
         $payload['name'] = $this->buildName($payload['category_sub_group_id'], $extraFields);
 
-        try {
-            Log::debug('Import - buildCreatePayload payload', ['payload' => $payload]);
-        } catch (\Throwable $e) {
-            // ignore logging issues
-        }
+        // debug logs removed
 
         return $payload;
     }

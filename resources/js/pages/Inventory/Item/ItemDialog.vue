@@ -46,12 +46,19 @@ const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce(
 );
 const normalizeItemType = (value?: string | null): ItemType =>
     value === 'service' ? 'service' : 'product';
-const prepareLocalForm = (source: Partial<Item>): ItemForm => ({
-    ...source,
-    reference: source.reference || '',
-    tax: typeof source.tax === 'object' && source.tax !== null ? source.tax : null,
-    item_type: normalizeItemType(source.item_type),
-}) as ItemForm;
+const prepareLocalForm = (source: Partial<Item>): ItemForm => {
+    const resolvedTaxId =
+        source.tax_id ??
+        (typeof source.tax === 'object' && source.tax !== null ? source.tax.id : undefined);
+
+    return {
+        ...source,
+        reference: source.reference || '',
+        tax: typeof source.tax === 'object' && source.tax !== null ? source.tax : null,
+        tax_id: resolvedTaxId,
+        item_type: normalizeItemType(source.item_type),
+    } as ItemForm;
+};
 
 const localForm = ref<ItemForm>(prepareLocalForm(props.form));
 const warehouses = ref<Warehouse[]>([]);
@@ -396,9 +403,9 @@ function normalizeExtraFieldsValue(value: unknown): Record<string, unknown> {
             }
         } catch {
             return {};
-    return {};
         }
     }
+    return {};
 }
 
 function fillExtraFields(obj: unknown) {
