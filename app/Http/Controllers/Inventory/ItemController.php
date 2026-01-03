@@ -344,9 +344,14 @@ class ItemController extends Controller
 
     public function listView()
     {
-        return Inertia::render('Inventory/Item/List', [
+        return Inertia::render('Inventory/Item/Index', [
             'items' => Item::with(['categorySubGroup', 'tax'])->get(),
         ]);
+    }
+
+    public function advancedForm()
+    {
+        return Inertia::render('Inventory/Item/AdvancedForm');
     }
 
     public function adjustmentView()
@@ -541,4 +546,3 @@ class ItemController extends Controller
     }
 
 }
-

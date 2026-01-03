@@ -325,6 +325,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === INVENTARIO ===
     Route::get('inventario/item', [ItemController::class, 'listView'])->name('listado');
+    Route::get('inventario/item/formulario-avanzado', [ItemController::class, 'advancedForm'])
+        ->name('inventario.item.formulario-avanzado');
     Route::get('inventario/ajuste-inventario', [ItemController::class, 'adjustmentView'])->name('inventario.ajuste-inventario');
     Route::get('inventario/ajuste-inventario/crear', function () {
         return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
