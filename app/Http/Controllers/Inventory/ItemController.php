@@ -154,20 +154,24 @@ class ItemController extends Controller
         // Hoja principal: items (solo encabezados + fila de ejemplo)
         $mainSheet = $spreadsheet->getActiveSheet();
         $mainSheet->setTitle('items');
-        // Fila de ejemplo alineada con los encabezados (orden solicitado)
+        // Fila de ejemplo alineada con el orden oficial y los nuevos campos (bodega/stock)
         $exampleRow = [
-            'Producto', // TIPO DE ÍTEM
-            'Ejemplo artículo', // NOMBRE
+            'Producto', // TIPO DE ITEM
+            'Ejemplo articulo', // NOMBRE
             'Suministros', // GRUPO
             'Papel', // SUBGRUPO
             '19', // IMPUESTO (%)
-            'kilogramo', // UNIDAD DE MEDIDA
-            'ART-001', // CÓDIGO DE BARRAS
+            'Principal', // BODEGA
+            '100', // CANTIDAD
+            '10', // CANTIDAD MIN
+            '200', // CANTIDAD MAX
+            'Kilogramo', // UNIDAD DE MEDIDA
+            'ART-001', // CODIGO DE BARRAS
             'ART-001', // REFERENCIA
-            'Descripción de artículo de prueba', // DESCRIPCIÓN
-            '0', // MOVIMIENTO NEGATIVO (0/1)
-            '', // CAMPOS ADICIONALES
-            '', // VALORES ADICIONALES
+            'Descripcion de articulo de prueba', // DESCRIPCION
+            '0', // MOVIMIENTO NEGATIVO
+            'COLOR', // CAMPOS ADICIONALES
+            'Rojo', // VALORES ADICIONALES
             'Activo', // ESTADO
         ];
 
@@ -403,18 +407,21 @@ class ItemController extends Controller
 
     private function templateHeaders(): array
     {
-        // Order optimized for user clarity in Excel
-        // Return headers with `NOMBRE` and `REFERENCIA` first
+        // Order optimized for clarity and matches the download/upload layout
         return [
-            'TIPO DE ÍTEM',
+            'TIPO DE ITEM',
             'NOMBRE',
             'GRUPO',
             'SUBGRUPO',
             'IMPUESTO (%)',
+            'BODEGA',
+            'CANTIDAD',
+            'CANTIDAD MIN',
+            'CANTIDAD MAX',
             'UNIDAD DE MEDIDA',
-            'CÓDIGO DE BARRAS',
+            'CODIGO DE BARRAS',
             'REFERENCIA',
-            'DESCRIPCIÓN',
+            'DESCRIPCION',
             'MOVIMIENTO NEGATIVO',
             'CAMPOS ADICIONALES',
             'VALORES ADICIONALES',
@@ -509,14 +516,24 @@ class ItemController extends Controller
 
         $groupName = optional(optional($item->categorySubGroup)->categoryGroup)->name ?? '';
         $subGroupName = optional($item->categorySubGroup)->name;
+        $warehouse = $item->warehouses->first();
+        $warehouseName = optional($warehouse)->name ?? '';
+        $warehousePivot = $warehouse ? $warehouse->pivot : null;
+        $quantityValue = $warehousePivot && isset($warehousePivot->quantity) ? $warehousePivot->quantity : '';
+        $stockMinValue = $warehousePivot && isset($warehousePivot->stock_min) ? $warehousePivot->stock_min : '';
+        $stockMaxValue = $warehousePivot && isset($warehousePivot->stock_max) ? $warehousePivot->stock_max : '';
 
         return [
-            // Orden: TIPO, NOMBRE, GRUPO, SUBGRUPO, IMPUESTO, UNIDAD, CODIGO, REFERENCIA, DESCRIPCION, MOVIMIENTO NEGATIVO, CAMPOS, VALORES, ESTADO
+            // Orden: TIPO, NOMBRE, GRUPO, SUBGRUPO, IMPUESTO, BODEGA, CANTIDAD, CANTIDAD MIN, CANTIDAD MAX, UNIDAD, CODIGO, REFERENCIA, DESCRIPCION, MOVIMIENTO NEGATIVO, CAMPOS, VALORES, ESTADO
             $typeLabel,
             $item->name,
             $groupName,
             $subGroupName,
             $tax ? number_format((float) $tax->percentage, 2, '.', '') : '',
+            $warehouseName,
+            $quantityValue,
+            $stockMinValue,
+            $stockMaxValue,
             $item->unit_measure,
             $item->bar_code,
             $item->reference,
@@ -546,3 +563,5 @@ class ItemController extends Controller
     }
 
 }
+
+

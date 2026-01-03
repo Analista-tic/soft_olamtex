@@ -257,14 +257,23 @@ async function downloadTemplate() {
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger :as-child="true">
-                            <button
+                            <Button
+                                variant="outline"
+                                size="default"
+                                class="flex h-10 items-center justify-center rounded-full px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10"
                                 type="button"
-                                class="flex items-center justify-center gap-1 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary h-10"
                             >
                                 <span>Otras acciones</span>
-                            </button>
+                            </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" class="w-56">
+                        <DropdownMenuContent
+                            align="end"
+                            side="bottom"
+                            side-offset="1"
+                            :avoid-collisions="false"
+                            collision-padding="0"
+                            class="w-56"
+                        >
                             <DropdownMenuItem
                                 class="cursor-pointer gap-2"
                                 :class="isTemplateDownloading ? 'opacity-60 cursor-not-allowed' : ''"
@@ -444,11 +453,6 @@ async function downloadTemplate() {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
-
-
-
-
-
 
 
 
