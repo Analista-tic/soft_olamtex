@@ -12,7 +12,7 @@ import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
 import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
-import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Warehouse, AdditionalField, AdditionalFieldType, Option } from '@/types';
+import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Tax, Warehouse, AdditionalField, AdditionalFieldType, Option } from '@/types';
 import axios from 'axios';
 import { Image, Plus, Trash2 } from 'lucide-vue-next';
 import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
@@ -20,6 +20,7 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import FormHeader from '@/components/FormHeader.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import unitMeasureData from '@/data/unitMeasures.json';
 
 // Props y eventos
@@ -106,14 +107,42 @@ const nameField = ref('');
 const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
-const taxes = ref<any[]>([]);
-const taxOptions = computed(() => [
-    { id: 'none', name: 'Ninguno (0%)' },
-    ...taxes.value.map((t) => ({
-        id: t.id,
-        name: `${t.name} (${Math.trunc(t.percentage)}%)`,
-    })),
-]);
+const taxes = ref<Tax[]>([]);
+const defaultTaxEntry = computed(() => taxes.value.find(isDefaultTax));
+const taxOptions = computed<Option[]>(() => {
+    const defaultTax = defaultTaxEntry.value;
+    const filteredTaxes = taxes.value.filter((tax) => !isDefaultTax(tax));
+    const baseOption = { id: defaultTax?.id ?? 'none', name: DEFAULT_TAX_LABEL };
+
+    return [
+        baseOption,
+        ...filteredTaxes.map((tax) => ({
+            id: tax.id,
+            name: formatTaxOptionLabel(tax),
+        })),
+    ];
+});
+
+const isTaxIdBlank = (value: unknown): boolean => {
+    if (value === undefined || value === null) {
+        return true;
+    }
+    const trimmed = String(value).trim();
+    return trimmed === '' || trimmed === 'none';
+};
+
+watch(
+    () => defaultTaxEntry.value?.id,
+    (defaultTaxId) => {
+        if (!defaultTaxId) {
+            return;
+        }
+        if (isTaxIdBlank(localForm.value.tax_id)) {
+            localForm.value.tax_id = defaultTaxId;
+        }
+    },
+    { immediate: true },
+);
 const isGroupDialogOpen = ref(false);
 const isSubGroupDialogOpen = ref(false);
 const subGroupDialogForm = ref<Partial<CategorySubGroup>>({

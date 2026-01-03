@@ -11,8 +11,9 @@ import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
-import type { Item, Warehouse } from '@/types';
+import type { Item, Warehouse, Tax } from '@/types';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
 const props = defineProps<{
@@ -61,7 +62,7 @@ const documentNumber = ref<string>('Automatico');
 const date = ref<string>('');
 const observation = ref<string>('');
 const productionOrder = ref<string>('');
-const taxes = ref<any[]>([]);
+const taxes = ref<Tax[]>([]);
 const items = ref<Item[]>([]);
 const warehouses = ref<Warehouse[]>([]);
 const selectedWarehouseId = ref<number | null>(null);
@@ -94,11 +95,13 @@ const itemSelectOptions = computed(() =>
 );
 
 const taxSelectOptions = computed(() => [
-  { id: 0, name: 'Ninguno (0%)' },
-  ...taxes.value.map(tax => ({
-    id: tax.id,
-    name: `${tax.name} (${Math.trunc(Number(tax.percentage) || 0)}%)`,
-  })),
+  { id: 0, name: DEFAULT_TAX_LABEL },
+  ...taxes.value
+    .filter((tax) => !isDefaultTax(tax))
+    .map((tax) => ({
+      id: tax.id,
+      name: formatTaxOptionLabel(tax),
+    })),
 ]);
 
 const warehouseSelectOptions = computed(() =>

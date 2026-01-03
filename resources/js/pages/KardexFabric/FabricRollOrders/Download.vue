@@ -4,7 +4,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Head } from '@inertiajs/vue3';
 import RollDownloadFormDialog from '@/pages/KardexFabric/FabricRollOrders/RollDownloadFormDialog.vue';
-import { computed, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import type { FabricRollView } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -24,6 +24,7 @@ const toNumber = (value: string | number | null | undefined): number => {
 };
 
 const sizeLabels = ['S', 'M', 'L', 'XL'] as const;
+type SizeKey = (typeof sizeLabels)[number];
 const fallbackQuantity = 18;
 
 const baseQuantity = computed(() => {
@@ -42,14 +43,84 @@ const createCurve = (distribution: number[]) => {
 const primaryCurve = computed(() => createCurve([0.25, 0.35, 0.25, 0.15]));
 const liquidationCurve = computed(() => createCurve([0.2, 0.35, 0.25, 0.2]));
 
+type CurveEntry = { size: SizeKey; value: number; manual: boolean };
+
+const createManualCurveTemplate = (): Record<SizeKey, string> => ({
+  S: '',
+  M: '',
+  L: '',
+  XL: '',
+});
+
+const manualPrimaryCurveValues = reactive<Record<SizeKey, string>>(createManualCurveTemplate());
+const manualLiquidationCurveValues = reactive<Record<SizeKey, string>>(createManualCurveTemplate());
+
+const createDisplayCurve = (
+  manualValues: Record<SizeKey, string>,
+  fallbackEntries: { size: string; value: number }[],
+): CurveEntry[] => {
+  return sizeLabels.map((size, index) => {
+    const key = size as SizeKey;
+    const manualValue = manualValues[key];
+    const hasManual = manualValue?.trim() !== '';
+    const fallbackValue = fallbackEntries[index]?.value ?? 0;
+    const displayValue = hasManual ? Math.max(0, toNumber(manualValue)) : fallbackValue;
+    return { size: key, value: displayValue, manual: hasManual };
+  });
+};
+
+const primaryCurveDisplay = computed(() => createDisplayCurve(manualPrimaryCurveValues, primaryCurve.value));
+const liquidationCurveDisplay = computed(() =>
+  createDisplayCurve(manualLiquidationCurveValues, liquidationCurve.value),
+);
+
+const resetManualCurves = () => {
+  Object.assign(manualPrimaryCurveValues, createManualCurveTemplate());
+  Object.assign(manualLiquidationCurveValues, createManualCurveTemplate());
+};
+
+watch(() => props.roll?.id, resetManualCurves);
+
+const colorBaseWeights = [0.5, 0.3, 0.15, 0.05];
+
+const colorBaseSizes = computed(() => {
+  return sizeLabels.map((_, idx) => {
+    const weight = colorBaseWeights[idx] ?? 0;
+    return Math.max(0, Math.round(baseQuantity.value * weight));
+  });
+});
+
+const manualColorSizes = computed(() => {
+  return sizeLabels.map((size, index) => {
+    const primaryValue = manualPrimaryCurveValues[size];
+    const liquidationValue = manualLiquidationCurveValues[size];
+    const hasManual =
+      (primaryValue ?? '').trim() !== '' || (liquidationValue ?? '').trim() !== '';
+
+    if (!hasManual) {
+      return colorBaseSizes.value[index] ?? 0;
+    }
+
+    const manualTotal = toNumber(primaryValue) + toNumber(liquidationValue);
+    return Math.max(0, manualTotal);
+  });
+});
+
+const manualColorTotal = computed(() => manualColorSizes.value.reduce((sum, value) => sum + value, 0));
+
 const colorReport = computed(() => {
+  const manualRow = {
+    label: props.roll?.color ?? 'Rojo',
+    sizes: manualColorSizes.value,
+    total: manualColorTotal.value,
+  };
+
   const distributions = [
-    { label: props.roll?.color ?? 'Rojo', weights: [0.5, 0.3, 0.15, 0.05] },
     { label: 'Verde', weights: [0.25, 0.25, 0.25, 0.25] },
     { label: 'Azul', weights: [0.15, 0.35, 0.35, 0.15] },
   ];
 
-  const rows = distributions.map(({ label, weights }) => {
+  const otherRows = distributions.map(({ label, weights }) => {
     const sizes = sizeLabels.map((_, idx) => {
       const weight = weights[idx] ?? 0;
       return Math.max(0, Math.round(baseQuantity.value * weight));
@@ -58,6 +129,7 @@ const colorReport = computed(() => {
     return { label, sizes, total };
   });
 
+  const rows = [manualRow, ...otherRows];
   const totals = sizeLabels.map((_, idx) => rows.reduce((sum, row) => sum + row.sizes[idx], 0));
   const grandTotal = totals.reduce((sum, value) => sum + value, 0);
 
@@ -129,7 +201,6 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
               <TableHead>Ubicación</TableHead>
               <TableHead>Tela</TableHead>
               <TableHead>Color</TableHead>
-              <TableHead>Código color</TableHead>
               <TableHead>Ancho</TableHead>
               <TableHead>Cantidad real</TableHead>
               <TableHead>Metros a usar</TableHead>
@@ -144,17 +215,6 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
               <TableCell>{{ props.roll?.fabric ?? '-' }}</TableCell>
               <TableCell>{{ props.roll?.color ?? 'Color' }}</TableCell>
 
-              <TableCell>
-                <div
-                  class="mx-auto flex h-6 min-w-[4rem] items-center justify-center rounded-full border border-sidebar-border/70 text-[11px]"
-                  :style="{
-                    background: props.roll?.colorCode ?? '#E5E7EB',
-                    color: '#1F2937',
-                  }"
-                >
-                  {{ props.roll?.colorCode ?? '#E5E7EB' }}
-                </div>
-              </TableCell>
 
               <TableCell>{{ props.roll?.width ?? '0 m' }}</TableCell>
               <TableCell>{{ props.roll?.exitQuantity ?? '0 m' }}</TableCell>
@@ -184,13 +244,22 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
 
           <div class="mt-4 grid gap-4 text-center text-sm sm:grid-cols-2">
             <div
-              v-for="entry in primaryCurve"
+              v-for="entry in primaryCurveDisplay"
               :key="`primary-${entry.size}`"
               class="flex flex-col items-center gap-1 rounded-xl border border-dashed border-sidebar-border/70 bg-white px-4 py-4 shadow-sm transition hover:border-primary hover:shadow-md"
             >
               <span class="text-xs font-medium text-muted-foreground">{{ entry.size }}</span>
-              <span class="text-2xl font-semibold text-card-foreground">{{ entry.value }}</span>
-              <span class="text-xs text-muted-foreground">unidades</span>
+              <input
+                v-model="manualPrimaryCurveValues[entry.size]"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                placeholder="Cantidad"
+                :aria-label="'Valor manual ' + entry.size"
+                class="mt-2 h-9 w-24 rounded-full border border-dashed border-sidebar-border/70 px-2 text-center text-xs text-muted-foreground focus:border-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+              <span class="text-[10px] text-muted-foreground">{{ entry.manual ? 'Manual' : 'Unidades' }}</span>
             </div>
           </div>
         </article>
@@ -203,13 +272,22 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
 
           <div class="mt-4 grid gap-4 text-center text-sm sm:grid-cols-2">
             <div
-              v-for="entry in liquidationCurve"
+              v-for="entry in liquidationCurveDisplay"
               :key="`liquid-${entry.size}`"
               class="flex flex-col items-center gap-1 rounded-xl border border-dashed border-sidebar-border/70 bg-white px-4 py-4 shadow-sm transition hover:border-primary hover:shadow-md"
             >
               <span class="text-xs font-medium text-muted-foreground">{{ entry.size }}</span>
-              <span class="text-2xl font-semibold text-card-foreground">{{ entry.value }}</span>
-              <span class="text-xs text-muted-foreground">unidades</span>
+              <input
+                v-model="manualLiquidationCurveValues[entry.size]"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                placeholder="Cantidad"
+                :aria-label="'Valor manual ' + entry.size"
+                class="mt-2 h-9 w-24 rounded-full border border-dashed border-sidebar-border/70 px-2 text-center text-xs text-muted-foreground focus:border-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              />
+              <span class="text-[10px] text-muted-foreground">{{ entry.manual ? 'Manual' : 'Unidades' }}</span>
             </div>
           </div>
         </article>

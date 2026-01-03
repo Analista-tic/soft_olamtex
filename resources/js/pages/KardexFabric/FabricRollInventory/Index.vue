@@ -276,7 +276,6 @@ onMounted(fetchFabricRolls);
                                 <TableHead>Ubicación</TableHead>
                                 <TableHead>Tela</TableHead>
                                 <TableHead>Color</TableHead>
-                                <TableHead>Cod. color</TableHead>
                                 <TableHead>Ancho</TableHead>
                                 <TableHead>Cant. rollo</TableHead>
                                 <TableHead>Salida parcial</TableHead>
@@ -293,16 +292,7 @@ onMounted(fetchFabricRolls);
                                     {{ roll.location }}
                                 </TableCell>
                                 <TableCell class="text-center text-sm ">{{ roll.fabric }}</TableCell>
-                                <TableCell>
-                                    <div class="flex items-center justify-center gap-2">
-                                        <span
-                                            class="h-3 w-3 rounded-full border"
-                                            :style="{ backgroundColor: roll.colorCode }"
-                                        />
-                                        <span class="text-sm ">{{ roll.color }}</span>
-                                    </div>
-                                </TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.colorCode }}</TableCell>
+                                <TableCell class="text-center text-sm ">{{ roll.color }}</TableCell>
                                 <TableCell class="text-center text-sm ">{{ roll.width }}</TableCell>
                                 <TableCell class="text-center text-sm ">{{ roll.rollQty }}</TableCell>
                                 <TableCell class="text-center text-sm ">{{ roll.partialOutput }}</TableCell>

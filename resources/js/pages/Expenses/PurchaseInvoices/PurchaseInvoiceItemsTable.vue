@@ -5,11 +5,11 @@ import ItemDialog from '@/pages/Inventory/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
-import type { Item, PurchaseInvoiceItem } from '@/types';
+import type { Item, PurchaseInvoiceItem, Tax } from '@/types';
 import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import type { Tax } from '@/types';
+import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 
 const props = defineProps<{ 
     items: PurchaseInvoiceItem[]; 
@@ -37,8 +37,13 @@ const isReadOnly = computed(() => !!props.isReadOnly);
 
 const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
 const taxOptions = computed(() => [
-    { id: 0, name: 'Ninguno (0%)' },
-    ...taxes.value.map((t) => ({ id: t.percentage, name: `${t.name} (${Number(t.percentage)}%)` })),
+    { id: 0, name: DEFAULT_TAX_LABEL },
+    ...taxes.value
+        .filter((tax) => !isDefaultTax(tax))
+        .map((tax) => ({
+            id: Number(tax.percentage) || 0,
+            name: formatTaxOptionLabel(tax),
+        })),
 ]);
 
 const itemOptions = computed(() => {

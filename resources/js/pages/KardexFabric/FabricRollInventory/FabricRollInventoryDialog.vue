@@ -70,14 +70,7 @@ function closeDialog() {
                             </div>
                             <div class="flex items-center justify-between">
                                 <p class="text-xs text-muted-foreground">Color</p>
-                                <p class="text-sm font-medium text-slate-900 flex items-center gap-2">
-                                    <span class="h-3 w-3 rounded-full border" :style="{ backgroundColor: props.roll.colorCode }" />
-                                    {{ props.roll.color }}
-                                </p>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <p class="text-xs text-muted-foreground">Cod. color</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.colorCode }}</p>
+                                <p class="text-sm font-medium text-slate-900">{{ props.roll.color }}</p>
                             </div>
                             <div class="flex items-center justify-between">
                                 <p class="text-xs text-muted-foreground">Ubicación</p>
