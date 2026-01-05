@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
-import { CategoryGroup } from '@/types';
+import type { CategoryGroup } from '@/domain/inventory';
 
 const props = defineProps<{
     isOpen: boolean;

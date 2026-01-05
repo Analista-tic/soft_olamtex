@@ -14,7 +14,8 @@ import SelectField from '@/components/SelectField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { BreadcrumbItem, AdditionalField } from '@/types';
+import type { BreadcrumbItem } from '@/domain/shared';
+import type { AdditionalField } from '@/domain/inventory';
 import {
     Pagination,
     PaginationEllipsis,

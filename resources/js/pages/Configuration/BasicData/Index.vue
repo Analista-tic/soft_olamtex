@@ -4,7 +4,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
 import Textarea from '@/components/ui/textarea/Textarea.vue';
-import type { BreadcrumbItem, SharedData } from '@/types';
+import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';

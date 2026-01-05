@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { BreadcrumbItem, Contact } from '@/types';
+import type { BreadcrumbItem } from '@/domain/shared/types';
+import type { Contact } from '@/domain/purchases';
 import EditButton from '@/components/common/EditButton.vue';
 import ContactDialog from './ContactDialog.vue';
 import { Button } from '@/components/ui/button';

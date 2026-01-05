@@ -4,7 +4,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { OptionParams, ProductSheet, Programmer } from '@/types';
+import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
 import { computed, ref } from 'vue';

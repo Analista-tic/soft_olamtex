@@ -5,7 +5,7 @@ import NavMainGroup from '@/components/NavMainGroup.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/stores/auth';
-import { type NavGroupItem, type NavItem } from '@/types';
+import type { NavGroupItem, NavItem } from '@/domain/shared';
 import { Link } from '@inertiajs/vue3';
 import { BookOpen, ChartNoAxesCombined, Grip , BanknoteArrowDown, Database, Folder, FolderKanban, Folders, LayoutGrid, Shell, UsersRound } from 'lucide-vue-next';
 import { computed, onMounted } from 'vue';

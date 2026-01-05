@@ -6,7 +6,7 @@ import axios from 'axios';
 import { Pencil } from 'lucide-vue-next';
 import { router } from '@inertiajs/vue3';
 import { reactive, ref, watch } from 'vue';
-import type { SharedData } from '@/types';
+import type { SharedData } from '@/domain/shared/types';
 
 const props = defineProps<{
     user?: SharedData['auth']['user'];

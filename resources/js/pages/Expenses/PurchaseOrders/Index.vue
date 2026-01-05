@@ -8,7 +8,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { PurchaseOrder } from '@/types';
+import type { PurchaseOrder } from '@/domain/purchases';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText } from 'lucide-vue-next';

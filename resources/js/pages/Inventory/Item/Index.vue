@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/AppLayout.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import type { Item } from '@/types';
+import type { Item } from '@/domain/inventory/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Ban, CheckCircle, Download, FileSpreadsheet, PlusCircle, Search, Upload } from 'lucide-vue-next';

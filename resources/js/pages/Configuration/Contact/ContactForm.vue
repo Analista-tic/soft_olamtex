@@ -4,7 +4,7 @@ import SelectField from '@/components/SelectField.vue';
 import ContactGroupsSelect from '@/components/ContactGroupsSelect.vue';
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
-import type { Contact } from '@/types';
+import type { Contact } from '@/domain/purchases';
 import colombiaData from '../../../data/colombia.json';
 
 const props = defineProps<{

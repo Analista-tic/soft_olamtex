@@ -23,7 +23,7 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import { useAlertMessages } from '@/composables/useAlertMessages';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { PurchaseRequest } from '@/types';
+import type { PurchaseRequest } from '@/domain/purchases';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [

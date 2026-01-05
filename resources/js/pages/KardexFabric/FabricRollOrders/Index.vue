@@ -13,7 +13,7 @@ import { ArrowDownToLine, Eye, Search } from 'lucide-vue-next';
 import { Inertia } from '@inertiajs/inertia';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
-import type { FabricRollView } from '@/types';
+import type { FabricRollView } from '@/domain/fabric';
 
 type FabricRollViewUI = FabricRollView & {
   // Campos “solo UI” por ahora (frontend). Cuando llegue el backend, simplemente los llenas.

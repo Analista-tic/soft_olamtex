@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { BreadcrumbItem } from '@/types';
+import type { BreadcrumbItem } from '@/domain/shared';
 import { Head, Link } from '@inertiajs/vue3';
 
 const breadcrumbs: BreadcrumbItem[] = [

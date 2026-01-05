@@ -31,7 +31,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
-import { OptionParams, ProductSheet, type BreadcrumbItem, type SharedData } from '@/types';
+import type { OptionParams, ProductSheet } from '@/domain/product-sheet';
+import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';

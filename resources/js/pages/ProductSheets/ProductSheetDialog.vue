@@ -6,7 +6,7 @@ import SizeSelector from '@/components/SizeSelector.vue';
 import SwitchField from '@/components/SwitchField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ProductSheet } from '@/types';
+import type { ProductSheet } from '@/domain/product-sheet';
 import { ref, watch } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';

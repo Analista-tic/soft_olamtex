@@ -5,7 +5,7 @@ import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Contact, PurchaseInvoice } from '@/types';
+import type { Contact, PurchaseInvoice } from '@/domain/purchases';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';

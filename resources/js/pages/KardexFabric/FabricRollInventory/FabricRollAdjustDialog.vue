@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import FormHeader from '@/components/FormHeader.vue';
 import Input from '@/components/ui/input/Input.vue';
-import type { FabricRollView } from '@/types';
+import type { FabricRollView } from '@/domain/fabric';
 import { reactive, watch } from 'vue';
 
 type AdjustForm = {

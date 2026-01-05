@@ -4,7 +4,7 @@ import axios from 'axios';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { CirclePlus, Plus } from 'lucide-vue-next';
-import type { PurchaseInvoiceWithholding } from '@/types';
+import type { PurchaseInvoiceWithholding } from '@/domain/purchases';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import RetentionDialog from '@/pages/Configuration/Retention/RetentionDialog.vue';
 import AlertBox from '@/components/AlertBox.vue';

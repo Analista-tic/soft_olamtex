@@ -3,7 +3,7 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { Label } from '@/components/ui/label';
 import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
 import { ChevronDown, Check, X } from 'lucide-vue-next';
-import type { Option } from '@/types';
+import type { Option } from '@/domain/shared';
 
 const props = withDefaults(
     defineProps<{

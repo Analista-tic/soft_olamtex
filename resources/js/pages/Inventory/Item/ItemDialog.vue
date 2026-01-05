@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import ItemFormContent from './ItemFormContent.vue';
-import type { Item } from '@/types';
+import type { Item } from '@/domain/inventory/types';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ref, watch, withDefaults } from 'vue';
 

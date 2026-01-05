@@ -1,4 +1,4 @@
-import type { Tax } from '@/types';
+import type { Tax } from '@/domain/inventory';
 
 export const DEFAULT_TAX_LABEL = 'Ninguno (0%)';
 export const DEFAULT_TAX_PERCENTAGE = 0;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { BreadcrumbItem, Role, User } from '@/types'; // Importar los tipos centralizados
+import type { BreadcrumbItem } from '@/domain/shared';
+import type { Role, User } from '@/domain/auth/types'; // Importar los tipos centralizados
 import EditButton from '@/components/common/EditButton.vue';
 import UserDialog from './UserDialog.vue';
 import { Button } from '@/components/ui/button';

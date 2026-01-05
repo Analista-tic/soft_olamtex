@@ -25,7 +25,8 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { OptionParams, ProductSheet, Programmer, type BreadcrumbItem } from '@/types';
+import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
+import type { BreadcrumbItem } from '@/domain/shared/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';

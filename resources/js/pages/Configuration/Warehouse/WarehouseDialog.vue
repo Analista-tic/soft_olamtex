@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
-import type { Warehouse } from '@/types';
+import type { Warehouse } from '@/domain/inventory';
 
 const props = defineProps<{
     open: boolean;

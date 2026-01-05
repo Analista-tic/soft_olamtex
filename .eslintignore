@@ -1,0 +1,5 @@
+# Ignore temporary or script files that are not valid JS/TS modules
+script.js
+tmp_replace.js
+
+# You can add other generated or temporary files here

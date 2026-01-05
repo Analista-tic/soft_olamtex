@@ -30,7 +30,7 @@ import axios from 'axios';
 import { Head } from '@inertiajs/vue3';
 import { computed, reactive, ref, watch } from 'vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
-import type { AuditLog, BreadcrumbItem, PaginatedData, SharedData } from '@/types';
+import type { AuditLog, BreadcrumbItem, PaginatedData, SharedData } from '@/domain/shared';
 import { Eye } from 'lucide-vue-next';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 

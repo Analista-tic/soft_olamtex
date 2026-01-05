@@ -3,7 +3,7 @@ import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import OrderItemManager from './OrderItemManager.vue';
-import type { FabricOrder, FabricOrderItem } from '@/types';
+import type { FabricOrder, FabricOrderItem } from '@/domain/fabric';
 import { ref, computed, watch, onMounted } from 'vue';
 import type { PropType } from 'vue';
 import axios from 'axios';

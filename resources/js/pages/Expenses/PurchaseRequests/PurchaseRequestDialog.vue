@@ -10,14 +10,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import type { Contact } from '@/types';
+import type { Contact } from '@/domain/purchases';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
-import type { PurchaseRequestForm, PurchaseRequestItem } from '@/types';
+import type { PurchaseRequestForm, PurchaseRequestItem } from '@/domain/purchases';
 
 const props = defineProps<{
     isOpen: boolean;

@@ -2,8 +2,25 @@
 import { ref, watch, computed, onBeforeUnmount } from 'vue';
 import { Combobox, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption } from '@headlessui/vue';
 import { Label } from '@/components/ui/label';
-import type { Option } from '@/types';
+import type { Option } from '@/domain/shared';
 import { ChevronDown, Check, X } from 'lucide-vue-next';
+
+type LocalModelValue = Option['id'] | Option['id'][] | null;
+
+const normalizeModelValue = (
+    value: Option['id'] | Option['id'][] | undefined | null,
+    multiple: boolean,
+): LocalModelValue => {
+    if (multiple) {
+        return Array.isArray(value) ? value : [];
+    }
+    if (Array.isArray(value)) {
+        return value[0] ?? null;
+    }
+    return value ?? null;
+};
+
+const isLocalModelArray = (value: LocalModelValue): value is Option['id'][] => Array.isArray(value);
 
 const props = withDefaults(defineProps<{
     label?: string;
@@ -35,13 +52,20 @@ const emit = defineEmits<{
     (e: 'search', searchTerm: string): void;
 }>();
 
-const localModelValue = ref<Option['id'] | Option['id'][]>(props.modelValue ?? (props.multiple ? [] : ''));
+const localModelValue = ref<LocalModelValue>(normalizeModelValue(props.modelValue, props.multiple));
 
 watch(
     () => props.modelValue,
     (newVal) => {
-        localModelValue.value = newVal ?? (props.multiple ? [] : '');
+        localModelValue.value = normalizeModelValue(newVal, props.multiple);
     }
+);
+
+watch(
+    () => props.multiple,
+    (multiple) => {
+        localModelValue.value = normalizeModelValue(props.modelValue, multiple);
+    },
 );
 
 watch(localModelValue, (newValue) => {
@@ -104,25 +128,29 @@ const groupedOptions = computed(() => {
 
 const comboboxValue = computed<Option | Option[] | null>(() => {
     if (props.multiple) {
-        if (!Array.isArray(localModelValue.value)) {
+        const modelValue = localModelValue.value;
+        if (!isLocalModelArray(modelValue)) {
             return [];
         }
         return props.options.filter((option) =>
-            localModelValue.value.some((selectedId) => selectedId == option.id),
+            modelValue.some((selectedId) => selectedId == option.id),
         );
     }
-    return props.options.find((option) => option.id == localModelValue.value) ?? null;
+    const modelValue = localModelValue.value;
+    if (modelValue === null || isLocalModelArray(modelValue)) {
+        return null;
+    }
+    return props.options.find((option) => option.id == modelValue) ?? null;
 });
 
 const selectedOptions = computed(() => {
     if (!props.multiple) return [] as Option[];
-    const val = comboboxValue.value as Option[] | null;
-    return Array.isArray(val) ? val : [];
+    return Array.isArray(comboboxValue.value) ? comboboxValue.value : [];
 });
 
 function removeSelected(optionId: Option['id']) {
     if (!props.multiple) return;
-    if (!Array.isArray(localModelValue.value)) return;
+    if (!isLocalModelArray(localModelValue.value)) return;
     localModelValue.value = localModelValue.value.filter((id) => id != optionId);
 }
 
@@ -133,7 +161,7 @@ const placeholderText = computed(() => {
     return props.searchPlaceholder;
 });
 
-function displayValue(item: Option | Option[] | null) {
+function displayValue(item: Option | Option[] | null): string {
     if (props.multiple) {
         if (!Array.isArray(item) || item.length === 0) {
             return '';
@@ -144,17 +172,27 @@ function displayValue(item: Option | Option[] | null) {
 }
 
 function getOptionId(option: Option | null | undefined) {
-    return option?.id ?? option;
+    const id = option?.id ?? option;
+    if (id === undefined || id === null) return undefined;
+    if (typeof id === 'number' || typeof id === 'string' || typeof id === 'symbol') {
+        return id;
+    }
+    return String(id);
 }
 
 function isOptionSelected(option: Option) {
     if (props.multiple) {
-        if (!Array.isArray(localModelValue.value)) {
+        const modelValue = localModelValue.value;
+        if (!isLocalModelArray(modelValue)) {
             return false;
         }
-        return localModelValue.value.some((selectedId) => selectedId == option.id);
+        return modelValue.some((selectedId) => selectedId == option.id);
     }
-    return localModelValue.value == option.id;
+    const modelValue = localModelValue.value;
+    if (modelValue === null || isLocalModelArray(modelValue)) {
+        return false;
+    }
+    return modelValue == option.id;
 }
 
 function handleComboboxChange(value: Option | Option[] | null) {
@@ -163,7 +201,7 @@ function handleComboboxChange(value: Option | Option[] | null) {
         localModelValue.value = selected.map(option => option.id);
     } else {
         const selected = value as Option | null;
-        localModelValue.value = selected?.id ?? '';
+        localModelValue.value = selected?.id ?? null;
     }
     searchTerm.value = '';
 }
@@ -197,7 +235,7 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                 <div class="relative">
                     <!-- Selected chips (only for multiple) -->
                     <div v-if="multiple && selectedOptions.length" class="absolute left-3 top-2 z-0 flex max-w-[70%] flex-wrap items-center gap-2">
-                        <template v-for="opt in selectedOptions" :key="opt.id">
+                        <template v-for="opt in selectedOptions" :key="String(opt.id)">
                             <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 shadow-sm">
                                 <span class="truncate max-w-[10rem]">{{ opt.name }}</span>
                                 <button type="button" @click.stop.prevent="removeSelected(opt.id)" class="inline-flex items-center justify-center rounded-full p-0.5 text-blue-700 hover:bg-blue-100">
@@ -211,7 +249,7 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                         class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
                         :class="[!isSearchEnabled ? 'cursor-default' : '', buttonClass, multiple ? 'pl-28' : '']"
                         :placeholder="placeholderText"
-                        :display-value="displayValue"
+                        :display-value="displayValue as (item: unknown) => string"
                         :disabled="disabled"
                         @input="handleInput"
                     />
@@ -249,7 +287,7 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                                 </div>
                                 <ComboboxOption
                                     v-for="option in group.options"
-                                    :key="option.id"
+                                    :key="String(option.id)"
                                     :value="option"
                                 >
                                     <template #default="{ active }">

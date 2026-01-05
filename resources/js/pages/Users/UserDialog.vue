@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Role, User } from '@/types'; // Importar los tipos centralizados
+import type { Role, User } from '@/domain/auth'; // Importar los tipos centralizados
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';

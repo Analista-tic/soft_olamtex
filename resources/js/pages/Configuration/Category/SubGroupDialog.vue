@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { CategoryGroup, CategorySubGroup } from '@/types';
+import type { CategoryGroup, CategorySubGroup } from '@/domain/inventory';
 import GroupDialog from './GroupDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import { Trash, Plus } from 'lucide-vue-next';

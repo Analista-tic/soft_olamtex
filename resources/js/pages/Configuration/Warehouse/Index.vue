@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import { BreadcrumbItem } from '@/types';
-import type { Warehouse } from '@/types';
+import type { BreadcrumbItem } from '@/domain/shared';
+import type { Warehouse } from '@/domain/inventory';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';

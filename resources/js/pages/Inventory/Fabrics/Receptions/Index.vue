@@ -14,7 +14,7 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { FabricOrder } from '@/types';
+import type { FabricOrder } from '@/domain/fabric';
 import axios from 'axios';
 import { MonitorDown, Search } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';

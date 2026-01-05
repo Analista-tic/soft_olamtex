@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import ItemFormContent from './ItemFormContent.vue';
-import type { Item } from '@/types';
+import type { Item } from '@/domain/inventory';
 import { ref } from 'vue';
 
 const breadcrumbs = [

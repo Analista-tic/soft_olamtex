@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { BreadcrumbItem, Role } from '@/types';
+import type { BreadcrumbItem } from '@/domain/shared';
+import type { Role } from '@/domain/auth/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';

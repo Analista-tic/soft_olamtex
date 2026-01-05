@@ -16,7 +16,7 @@ import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import { ArrowDownToLine, Download, Eye, Search } from 'lucide-vue-next';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
-import type { FabricRollView } from '@/types';
+import type { FabricRollView } from '@/domain/fabric';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [

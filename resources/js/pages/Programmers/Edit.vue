@@ -5,7 +5,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { OptionParams, ProductSheet, Programmer } from '@/types';
+import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
 import axios from 'axios';
 import { defineEmits, defineExpose, ref, computed } from 'vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';

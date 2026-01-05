@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Branch, AdditionalContact, Contact } from '@/types';
+import type { AdditionalContact, Contact } from '@/domain/purchases';
+import type { Branch } from '@/domain/shared';
 import { computed, ref, watch } from 'vue';
 import AdditionalContactsList from './AdditionalContactsList.vue';
 import ContactForm from './ContactForm.vue';

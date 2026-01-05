@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import type { PurchaseInvoice } from '@/types';
+import type { PurchaseInvoice } from '@/domain/purchases';
 import { computed, watch, ref } from 'vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 

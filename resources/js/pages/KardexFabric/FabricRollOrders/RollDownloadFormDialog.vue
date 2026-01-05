@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
-import type { FabricRollView } from '@/types';
+import type { FabricRollView } from '@/domain/fabric';
 import { computed, reactive, watch } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
