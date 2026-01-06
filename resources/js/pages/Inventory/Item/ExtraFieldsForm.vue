@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, watch, computed } from 'vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import type { ExtraFields, AdditionalField, AdditionalFieldType } from '@/domain/inventory/types';
+import type { ExtraFields, AdditionalField } from '@/domain/inventory/types';
 import type { Option } from '@/domain/shared/types';
 import { Plus } from 'lucide-vue-next';
-import axios from 'axios';
 
 const props = withDefaults(defineProps<{
     extraFieldNames: string[],
@@ -28,16 +27,8 @@ const emit = defineEmits<{
     (e: 'create-additional-field'): void;
 }>();
 
-const unidadesMedida = [
-    'cm', 'mm', 'm', 'in', 'ft', 'yd', 'kg', 'g', 'lb', 'oz', 'l', 'ml', 'unidad'
-];
-
-const catalogFieldOptions = ref<Record<string, string[]>>({});
-
 const selectedExtraField = ref('');
 const extraFieldValue = ref('');
-const medidaValor = ref('');
-const medidaUnidad = ref(unidadesMedida[0]);
 
 const localExtraFields = ref<ExtraFields>({ ...props.extraFields });
 const extraFieldEntries = computed(() => Object.entries(localExtraFields.value));
@@ -76,7 +67,7 @@ const fieldSelectOptions = computed(() =>
 
 // dynamicFieldOptions incluye catálogos, props.fieldOptions y opciones desde metadatos
 const dynamicFieldOptions = computed(() => {
-    const base = { ...catalogFieldOptions.value, ...(props.fieldOptions ?? {}) } as Record<string, string[]>;
+    const base = { ...(props.fieldOptions ?? {}) } as Record<string, string[]>;
     for (const meta of props.additionalFieldsMeta ?? []) {
         if (Array.isArray(meta.options) && meta.options.length) {
             base[meta.name] = meta.options as string[];
@@ -129,8 +120,6 @@ watch(
 
 watch(selectedExtraField, () => {
     extraFieldValue.value = '';
-    medidaValor.value = '';
-    medidaUnidad.value = unidadesMedida[0];
     // precargar default_value desde metadatos si existe
     const meta = (props.additionalFieldsMeta ?? []).find((m) => m.name === selectedExtraField.value);
     if (meta && meta.default_value !== undefined && meta.default_value !== null) {
@@ -141,13 +130,7 @@ watch(selectedExtraField, () => {
 function addExtraField() {
     const field = selectedExtraField.value;
     if (!field) return;
-    // campos especiales
-    if (field === 'Medida') {
-        if (medidaValor.value.trim() && medidaUnidad.value) {
-            localExtraFields.value['Medida'] = `${medidaValor.value} ${medidaUnidad.value}`;
-            selectedExtraField.value = '';
-        }
-    } else if (field === 'Campo adicional') {
+    if (field === 'Campo adicional') {
         if (extraFieldValue.value.trim()) {
             localExtraFields.value['Campo adicional'] = extraFieldValue.value.trim();
             selectedExtraField.value = '';
@@ -188,8 +171,6 @@ function addExtraField() {
     }
     // Limpiar valores auxiliares
     extraFieldValue.value = '';
-    medidaValor.value = '';
-    medidaUnidad.value = unidadesMedida[0];
 }
 
 function removeExtraField(field: string) {
@@ -204,35 +185,12 @@ function isAddDisabled() {
     const field = selectedExtraField.value;
     if (!field) return true;
     if (localExtraFields.value[field]) return true;
-    if (field === 'Medida') {
-        return !medidaValor.value.trim() || !medidaUnidad.value;
-    }
     if (field === 'Campo adicional') {
         return !extraFieldValue.value.trim();
     }
     return !extraFieldValue.value.trim();
 }
 
-// Cargar catálogos dinámicamente
-onMounted(async () => {
-    const catalogos = [
-        { campo: 'Sección', url: '/catalogos/sections' },
-        { campo: 'Grupo', url: '/catalogos/groups' },
-        { campo: 'Marca', url: '/catalogos/brands' },
-        { campo: 'Mundo', url: '/catalogos/worlds' },
-        { campo: 'Base tela', url: '/catalogos/fabric-bases' },
-        { campo: 'Base hilaza', url: '/catalogos/yarn-bases' },
-    ];
-    for (const cat of catalogos) {
-        try {
-            const res = await axios.get(cat.url);
-            catalogFieldOptions.value[cat.campo] = res.data.data.map((item: any) => item.name);
-        } catch (e) {
-            console.log(e)
-            catalogFieldOptions.value[cat.campo] = [];
-        }
-    }
-});
 </script>
 
 <template>
@@ -279,21 +237,6 @@ onMounted(async () => {
                     :disabled="!selectedExtraField"
                     placeholder="Ingrese valor"
                 />
-                <div v-else-if="selectedExtraField === 'Medida'" class="flex gap-2">
-                    <InputField
-                        label="Valor"
-                        type="text"
-                        v-model="medidaValor"
-                        :disabled="!selectedExtraField"
-                        placeholder="Ingrese valor"
-                    />
-                    <SelectField
-                        label="Unidad"
-                        v-model="medidaUnidad"
-                        :options="unidadesMedida.map(u => ({ id: u, name: u }))"
-                        :disabled="!selectedExtraField"
-                    />
-                </div>
                 <SelectField
                     v-else-if="selectedExtraField && dynamicFieldOptions[selectedExtraField]"
                     label="Valor"

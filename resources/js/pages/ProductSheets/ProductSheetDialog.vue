@@ -7,7 +7,7 @@ import SwitchField from '@/components/SwitchField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { ProductSheet } from '@/domain/product-sheet';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 
@@ -32,6 +32,7 @@ const alertMessage = ref('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
 const showAlert = ref(false);
 const dialogInnerRef = ref<HTMLElement | null>(null);
+const isLoading = ref(false);
 
 function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
     alertMessage.value = message;
@@ -95,6 +96,36 @@ const sizeGroups = {
     tallas_3: ['28', '30', '32', '34', '36', '38'],
 };
 
+const parsedSizes = computed<Record<string, boolean>>(() => {
+    const sizesValue = form.value.sizes;
+    if (!sizesValue) return {};
+    if (typeof sizesValue === 'string') {
+        try {
+            const parsed = JSON.parse(sizesValue);
+            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                return parsed as Record<string, boolean>;
+            }
+        } catch {
+            // ignore invalid JSON and fall back to empty record
+        }
+        return {};
+    }
+    if (typeof sizesValue === 'object' && !Array.isArray(sizesValue)) {
+        return sizesValue as Record<string, boolean>;
+    }
+    return {};
+});
+
+const overallStatus = computed<boolean>(() => {
+    const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
+    return (
+        Boolean(form.value.reference) &&
+        Boolean(form.value.billing_price) &&
+        Boolean(form.value.selling_price) &&
+        hasSelectedSize
+    );
+});
+
 const allProcesses = ref(['Tejido', 'Corte', 'Bordado', 'Sublimado', 'Estampado', 'Lavanderia', 'Muestra', 'Confección', 'Terminación', 'Bodega']);
 
 watch(
@@ -155,16 +186,7 @@ watch(
 );
 
 function determineStatus() {
-    if (
-        form.value.reference &&
-        form.value.billing_price &&
-        form.value.selling_price &&
-        Object.values(JSON.parse(form.value.sizes || '{}')).some((size) => size)
-    ) {
-        form.value.status = 'complete';
-    } else {
-        form.value.status = 'incomplete';
-    }
+    form.value.status = overallStatus.value ? 'complete' : 'incomplete';
 }
 
 function saveProductSheet() {
@@ -174,6 +196,7 @@ function saveProductSheet() {
     }
 
     determineStatus();
+    isLoading.value = true;
 
     const payload = { ...form.value };
     payload.sizes = form.value.sizes || JSON.stringify({}); // Asegurar que las tallas estén serializadas como cadena JSON
@@ -192,6 +215,9 @@ function saveProductSheet() {
         .catch((error) => {
             console.error(`Error al ${props.mode === 'edit' ? 'actualizar' : 'crear'} el product sheet:`, error);
             setAlert(`Hubo un error al ${props.mode === 'edit' ? 'actualizar' : 'crear'} el product sheet.`, 'error');
+        })
+        .finally(() => {
+            isLoading.value = false;
         });
 }
 

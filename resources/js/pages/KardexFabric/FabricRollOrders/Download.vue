@@ -28,7 +28,7 @@ type SizeKey = (typeof sizeLabels)[number];
 const fallbackQuantity = 18;
 
 const baseQuantity = computed(() => {
-  const raw = Math.max(0, Math.round(toNumber(props.roll?.quantityValue)));
+  const raw = Math.max(0, Math.round(toNumber(props.roll?.quantity_value)));
   return raw || fallbackQuantity;
 });
 
@@ -142,8 +142,8 @@ function formatMeters(value?: string | number | null) {
 }
 
 const metersToUse = computed(() => {
-  const total = toNumber(props.roll?.quantityValue);
-  const used = toNumber(props.roll?.exitQuantityValue);
+  const total = toNumber(props.roll?.quantity_value);
+  const used = toNumber(props.roll?.exit_quantity);
   return formatMeters(Math.max(0, total - used));
 });
 
@@ -217,7 +217,7 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
 
 
               <TableCell>{{ props.roll?.width ?? '0 m' }}</TableCell>
-              <TableCell>{{ props.roll?.exitQuantity ?? '0 m' }}</TableCell>
+              <TableCell>{{ props.roll?.exit_quantity ?? '0 m' }}</TableCell>
               <TableCell>{{ metersToUse }}</TableCell>
 
               <TableCell class="flex justify-center">

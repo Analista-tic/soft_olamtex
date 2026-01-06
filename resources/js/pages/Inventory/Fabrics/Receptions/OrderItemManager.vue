@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import type { FabricOrderItem, FabricRoll } from '@/domain/fabric';
+import type { FabricOrderItem, FabricRollReceptionForm } from '@/domain/fabric';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -25,7 +25,7 @@ watch(
 const receptionDialogOpen = ref(false);
 const receptionItem = ref<FabricOrderItem | null>(null);
 
-const fabricRoll = ref<FabricRoll>({
+const fabricRoll = ref<FabricRollReceptionForm>({
     location: '',
     fabric_color_id: null,
     fabric_order_item_id: 0,

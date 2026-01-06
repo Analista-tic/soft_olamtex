@@ -28,7 +28,7 @@ export interface ProgrammerDto {
     destination?: { id: number; name: string } | null;
     destination_id: number | null;
     priority: string | null;
-    isEcommerce: boolean;
+    is_ecommerce: boolean;
     ecommerce_units: Record<string, number> | string | null;
     units: number | null;
     status: 'complete' | 'incomplete';

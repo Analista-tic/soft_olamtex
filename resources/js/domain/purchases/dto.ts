@@ -1,3 +1,5 @@
+
+import type { Item } from '@/domain/inventory/types';
 export interface AdditionalContactDto {
     name: string;
     phone: string;
@@ -27,7 +29,7 @@ export interface ContactDto {
 export interface PurchaseOrderItemDto {
     id?: number;
     item_id: number | null;
-    item?: number | null;
+    item?: Item;
     item_name?: string;
     price: number;
     tax: number;
@@ -39,7 +41,6 @@ export interface PurchaseOrderItemDto {
     supplier_color?: string;
     order_width?: number;
 }
-
 export interface PurchaseOrderDto {
     id?: number;
     document_number?: string | null;
@@ -66,7 +67,7 @@ export interface PurchaseInvoiceItemDto {
     id?: number;
     purchase_invoice_id?: number;
     item_id: number | null;
-    item?: number | null;
+    item?: Item;
     item_name?: string;
     price: number | string | '';
     tax: number;
@@ -79,6 +80,7 @@ export interface PurchaseInvoiceItemDto {
     order_width?: string;
     original_order_item?: PurchaseOrderItemDto;
 }
+
 
 export interface PurchaseInvoiceDto {
     id?: number;

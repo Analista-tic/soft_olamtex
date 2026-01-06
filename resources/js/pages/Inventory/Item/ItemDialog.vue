@@ -2,7 +2,7 @@
 import ItemFormContent from './ItemFormContent.vue';
 import type { Item } from '@/domain/inventory/types';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ref, watch, withDefaults } from 'vue';
+import { ref, watch } from 'vue';
 
 const props = withDefaults(
     defineProps<{

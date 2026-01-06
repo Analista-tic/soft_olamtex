@@ -25,6 +25,7 @@ const props = defineProps<{
 }>();
 
 const isDialogOpen = ref(false);
+const productSheetDialogOpen = ref(false);
 
 // Alert state
 const alertMessage = ref('');
@@ -56,6 +57,22 @@ const form = ref<{
 }>({
     lotsCount: null,
     productSheetId: null,
+});
+
+const lotsCountModel = computed({
+    get() {
+        return form.value.lotsCount ?? '';
+    },
+    set(value: string | number) {
+        if (value === '' || value === null || value === undefined) {
+            form.value.lotsCount = null;
+            return;
+        }
+
+        const normalized =
+            typeof value === 'number' ? value : Number(value.toString().replace(',', '.'));
+        form.value.lotsCount = Number.isNaN(normalized) ? null : normalized;
+    },
 });
 
 // Asegurar que las opciones de `SelectField` sean válidas
@@ -166,6 +183,7 @@ function resetForm() {
     }; // Reiniciar los valores del formulario
     lotsForm.value = []; // Limpiar los lotes generados
     formErrors.value = []; // Limpiar los errores del formulario
+    productSheetDialogOpen.value = false;
 }
 
 function closeDialog() {
@@ -246,16 +264,24 @@ function getTrueSizes(sizes: string | undefined): string {
                             required
                         />
                         <!-- Campo para la cantidad de lotes -->
-                        <InputField 
-                            v-model="form.lotsCount as number | undefined"
-                            label="Cantidad de Lotes" 
-                            placeholder="Número de lotes" 
-                            type="integer" 
-                            required 
-                            @input="generateLots"
+                        <InputField
+                            v-model="lotsCountModel"
+                            label="Cantidad de Lotes"
+                            placeholder="Numero de lotes"
+                            type="number"
+                            required
+                            @update:modelValue="generateLots"
                         />
-                        <div class="flex items-end">
-                            <!-- Crear ficha de producto -->
+                        <div class="flex flex-col items-end gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                class="px-4 rounded-full"
+                                type="button"
+                                @click="productSheetDialogOpen = true"
+                            >
+                                Crear ficha de producto
+                            </Button>
                             <CreateProductSheetDialog
                                 mode="create"
                                 :sections="props.sections"
@@ -264,6 +290,8 @@ function getTrueSizes(sizes: string | undefined): string {
                                 :worlds="props.worlds"
                                 :fabricBases="props.fabricBases"
                                 :yarnBases="props.yarnBases"
+                                :open="productSheetDialogOpen"
+                                @update:open="(value) => (productSheetDialogOpen = value)"
                                 @productSheetSaved="addProductSheet"
                             />
                         </div>
@@ -313,7 +341,7 @@ function getTrueSizes(sizes: string | undefined): string {
 
             <div v-if="lotsForm.length > 0" class="mt-2">
                 <h3 class="text-base font-bold mb-2">Lotes Generados:</h3>
-                <table class="w-full text-sm text-left border border-gray-300 rounded-lg overflow-hidden shadow-sm text-center">
+                <table class="w-full text-sm border border-gray-300 rounded-lg overflow-hidden shadow-sm text-center">
                     <thead>
                         <tr>
                             <th class="px-3 py-2 border">Lote</th>

@@ -28,6 +28,7 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { Option } from '@/domain/shared';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -60,17 +61,21 @@ const currentPage = ref<number>(1);
 const itemsPerPage = 10;
 const totalItems = ref<number>(0);
 const searchQuery = ref<string>(''); // Campo de búsqueda
-const selectedGroup = ref<number | null | undefined>(null); // Filtro por grupo
+const selectedGroup = ref<Option['id'] | ''>(''); // Filtro por grupo
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isGroupFilterActive = computed(() => selectedGroup.value != null);
 const groupFilterButtonClasses = useFilterButtonClasses(isGroupFilterActive);
-const groupOptions = computed(() => [
-    { id: null, name: 'Todos los grupos' },
+const groupOptions = computed<Option[]>(() => [
+    { id: '', name: 'Todos los grupos' },
     ...props.groups.map((group) => ({ id: group.id, name: group.name })),
 ]);
+
+const normalizedGroupId = computed<Option['id'] | null>(() =>
+    selectedGroup.value === '' ? null : selectedGroup.value,
+);
 
 // Funciones con tipado explícito
 function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
@@ -129,7 +134,7 @@ async function submitForm(subGroupData: Partial<CategorySubGroup>): Promise<void
     }
 }
 
-async function fetchSubGroups(page: number = 1, search: string = '', groupId: number | null | undefined = null): Promise<void> {
+async function fetchSubGroups(page: number = 1, search: string = '', groupId: Option['id'] | null = null): Promise<void> {
     console.log('Fetching subgroups:', { page, search, groupId });
     try {
         const response = await axios.get('/categorias/subgrupos-data', {
@@ -137,7 +142,7 @@ async function fetchSubGroups(page: number = 1, search: string = '', groupId: nu
                 page,
                 per_page: itemsPerPage,
                 search,
-                group_id: groupId,
+                group_id: typeof groupId === 'string' && groupId !== '' ? Number(groupId) : groupId,
             },
         });
 
@@ -151,11 +156,11 @@ async function fetchSubGroups(page: number = 1, search: string = '', groupId: nu
 
 function handlePageChange(newPage: number): void {
     currentPage.value = newPage;
-    fetchSubGroups(newPage, searchQuery.value, selectedGroup.value);
+    fetchSubGroups(newPage, searchQuery.value, normalizedGroupId.value);
 }
 
 // Observadores con tipado explícito
-watch([searchQuery, selectedGroup], ([newQuery, newGroup]: [string, number | null | undefined]) => {
+watch([searchQuery, normalizedGroupId], ([newQuery, newGroup]) => {
     fetchSubGroups(1, newQuery, newGroup);
 });
 

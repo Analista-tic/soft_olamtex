@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Role, User } from '@/domain/auth'; // Importar los tipos centralizados
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue'; // Importar el nuevo componente SelectField
 import { ref, watch } from 'vue';

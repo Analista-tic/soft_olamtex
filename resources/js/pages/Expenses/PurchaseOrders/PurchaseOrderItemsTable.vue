@@ -34,7 +34,7 @@ const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) 
 const taxOptions = computed(() => [
     { id: 0, name: DEFAULT_TAX_LABEL },
     ...taxes.value
-        .filter((tax) => !isDefaultTax(tax))
+        .filter((tax): tax is Tax => !isDefaultTax(tax))
         .map((tax) => ({
             id: Number(tax.percentage) || 0,
             name: formatTaxOptionLabel(tax),

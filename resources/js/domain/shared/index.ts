@@ -1,4 +1,7 @@
 export type {
+    Auth,
+    Role,
+    User,
     BreadcrumbItem,
     BreadcrumbItemType,
     NavItem,
@@ -10,6 +13,8 @@ export type {
     AuditLog,
     Option,
     OptionParams,
+    Branch,
+    BranchesListProps,
 } from './types';
 
 export type { CompanyInfoDto, AuditLogDto, PaginationLinkDto } from './dto';

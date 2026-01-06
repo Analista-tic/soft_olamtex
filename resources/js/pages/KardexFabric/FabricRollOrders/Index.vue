@@ -57,7 +57,7 @@ const filteredRolls = computed(() => {
       roll.fabric,
       roll.color,
       roll.provider,
-      roll.orderNumber,
+      roll.order_number,
     ];
     const matchesSearch =
       !query || fieldsToSearch.some((field) => normalizedValue(field).includes(query));
@@ -119,7 +119,7 @@ const getPriorityLabel = (roll: FabricRollViewUI) =>
   getFieldValue(roll, 'priority', roll.status === 'depleted' ? 'Baja' : 'Alta');
 
 const getScheduledUnitsLabel = (roll: FabricRollViewUI) =>
-  getFieldValue(roll, 'scheduledUnits', roll.rollQty ?? '-');
+  getFieldValue(roll, 'scheduledUnits', roll.roll_qty ?? '-');
 
 async function fetchFabricRolls() {
   isLoadingRolls.value = true;
@@ -204,7 +204,7 @@ onMounted(fetchFabricRolls);
                 <TableCell class="text-center text-sm">{{ roll.roll }}</TableCell>
 
                 <TableCell class="text-center text-sm">
-                  {{ roll.orderNumber || '—' }}
+                  {{ roll.order_number || '—' }}
                 </TableCell>
 
                 <TableCell class="text-center text-sm">{{ getSeasonLabel(roll) }}</TableCell>

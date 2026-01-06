@@ -94,14 +94,16 @@ const itemSelectOptions = computed(() =>
   })),
 );
 
+const nonDefaultTaxes = computed(() =>
+  taxes.value.filter((tax): tax is Tax => !isDefaultTax(tax)),
+);
+
 const taxSelectOptions = computed(() => [
   { id: 0, name: DEFAULT_TAX_LABEL },
-  ...taxes.value
-    .filter((tax) => !isDefaultTax(tax))
-    .map((tax) => ({
-      id: tax.id,
-      name: formatTaxOptionLabel(tax),
-    })),
+  ...nonDefaultTaxes.value.map((tax) => ({
+    id: tax.id,
+    name: formatTaxOptionLabel(tax),
+  })),
 ]);
 
 const warehouseSelectOptions = computed(() =>

@@ -21,6 +21,8 @@ import type {
     PurchaseRequestItemDto,
 } from './dto';
 
+import type { Item } from '@/domain/inventory/types';
+
 function mapAdditionalContactDto(dto: AdditionalContactDto): AdditionalContact {
     return {
         name: dto.name,
@@ -52,7 +54,11 @@ export function mapContactDto(dto: ContactDto): Contact {
 }
 
 export function mapPurchaseOrderItemDto(dto: PurchaseOrderItemDto): PurchaseOrderItem {
-    return { ...dto };
+    const rawItem = (dto as any).item;
+    return {
+        ...dto,
+        item: rawItem && typeof rawItem === 'object' ? (rawItem as Item) : undefined,
+    };
 }
 
 export function mapPurchaseOrderDto(dto: PurchaseOrderDto): PurchaseOrder {
@@ -69,8 +75,10 @@ export function mapPurchaseInvoiceWithholdingDto(dto: PurchaseInvoiceWithholding
 }
 
 export function mapPurchaseInvoiceItemDto(dto: PurchaseInvoiceItemDto): PurchaseInvoiceItem {
+    const rawItem = (dto as any).item;
     return {
         ...dto,
+        item: rawItem && typeof rawItem === 'object' ? (rawItem as Item) : undefined,
         original_order_item: dto.original_order_item ? mapPurchaseOrderItemDto(dto.original_order_item) : undefined,
     };
 }
@@ -86,7 +94,11 @@ export function mapPurchaseInvoiceDto(dto: PurchaseInvoiceDto): PurchaseInvoice 
 }
 
 export function mapPurchaseRequestItemDto(dto: PurchaseRequestItemDto): PurchaseRequestItem {
-    return { ...dto };
+    const rawItem = (dto as any).item;
+    return {
+        ...dto,
+        item: rawItem && typeof rawItem === 'object' ? (rawItem as Item) : undefined,
+    };
 }
 
 export function mapPurchaseRequestDto(dto: PurchaseRequestDto): PurchaseRequest {

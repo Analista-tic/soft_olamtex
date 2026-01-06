@@ -9,6 +9,7 @@ import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { PurchaseOrder } from '@/domain/purchases';
+import type { Item } from '@/domain/inventory';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText } from 'lucide-vue-next';
@@ -92,7 +93,8 @@ const computeOrderTotal = (order: PurchaseOrder) => {
 const getOrderItemsPreview = (order: PurchaseOrder) => {
     const names = (order.items || [])
         .map((item) => {
-            const rawName = item.item?.name || item.item_name || item.description;
+            const linkedItem = (item.item as Item | null) ?? null;
+            const rawName = linkedItem?.name ?? item.item_name ?? item.description;
             if (typeof rawName === 'string') {
                 return rawName.trim();
             }

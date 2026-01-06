@@ -1,26 +1,29 @@
 <script setup lang="ts">
 import { Plus } from 'lucide-vue-next';
+import { toRefs } from 'vue';
 
-const props = defineProps({
-  title: {
-    type: String,
-    default: 'Detalle de inventario',
+const props = withDefaults(
+  defineProps<{
+    title?: string;
+    showCreateLineButton?: boolean;
+    createLineButtonDisabled?: boolean;
+    buttonLabel?: string;
+  }>(),
+  {
+    title: 'Detalle de inventario',
+    showCreateLineButton: true,
+    createLineButtonDisabled: false,
+    buttonLabel: 'Crear item',
   },
-  showCreateLineButton: {
-    type: Boolean,
-    default: true,
-  },
-  createLineButtonDisabled: {
-    type: Boolean,
-    default: false,
-  },
-  buttonLabel: {
-    type: String,
-    default: 'Crear item',
-  },
-});
+);
 
-const emit = defineEmits(['create-line']);
+const { title, showCreateLineButton, createLineButtonDisabled, buttonLabel } = toRefs(props);
+
+const emit = defineEmits<{
+  (e: 'create-line'): void;
+}>();
+
+const handleCreateLineClick = () => emit('create-line');
 </script>
 
 <template>
@@ -33,7 +36,7 @@ const emit = defineEmits(['create-line']);
           type="button"
           class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="createLineButtonDisabled"
-          @click="$emit('create-line')"
+          @click="handleCreateLineClick"
         >
           <Plus class="h-4 w-4" />
           {{ buttonLabel }}

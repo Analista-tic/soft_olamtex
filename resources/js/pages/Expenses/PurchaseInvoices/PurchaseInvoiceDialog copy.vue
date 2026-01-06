@@ -12,7 +12,7 @@ import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
-// Props y eventos del di├ílogo
+// Props y eventos del diálogo
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
@@ -39,12 +39,12 @@ const { company, logoUrl } = useCompanyInfo();
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
 
-// C├ílculos de totales
+// Cálculos de totales
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
 
-// C├ílculo de retenciones y total a pagar
+// Cálculo de retenciones y total a pagar
 const retencionesTotal = computed(() =>
     (localForm.value.withholdings || []).reduce(
         (acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100),
@@ -58,7 +58,7 @@ const selectedContactData = computed(() => contacts.value.find((c) => Number(c.i
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 
-// ID de la factura (nuevo o edici├│n)
+// ID de la factura (nuevo o edición)
 const id = computed(() => {
     if (props.dialogType === 'edit') return props.form?.id?.toString() || '';
     if (isLoadingInvoiceId.value) return 'Cargando...';
@@ -66,7 +66,7 @@ const id = computed(() => {
     return nextInvoiceId.value.toString();
 });
 
-// Crea un formulario vac├¡o por defecto
+// Crea un formulario vacío por defecto
 function createDefaultForm(): Partial<PurchaseInvoice> {
     return {
         contact_id: null,
@@ -109,7 +109,7 @@ function toDateInputValue(dateStr: string | undefined | null): string {
     return `${d.getFullYear()}-${month}-${day}`;
 }
 
-// Restaura el formulario local seg├║n el modo (nuevo o edici├│n)
+// Restaura el formulario local según el modo (nuevo o edición)
 function resetForm() {
     if (props.form && Object.keys(props.form).length > 0) {
         const formCopy = JSON.parse(JSON.stringify(props.form));
@@ -127,7 +127,7 @@ function resetForm() {
     }
 }
 
-// Sincroniza el formulario local cuando cambian los props de edici├│n
+// Sincroniza el formulario local cuando cambian los props de edición
 watch(
     () => props.form,
     () => {
@@ -172,7 +172,7 @@ async function fetchNextInvoiceId() {
     }
 }
 
-// Obtiene las ├│rdenes de compra pendientes
+// Obtiene las órdenes de compra pendientes
 async function fetchPendingPurchaseOrders() {
     purchaseOrders.value = [];
     selectedPurchaseOrderId.value = null;
@@ -215,14 +215,14 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
               original_order_item: { ...item }
           }))
         : [];
-    if (!localForm.value.items.length) {
+    if (!(localForm.value.items?.length)) {
         localForm.value.items = [createEmptyItem()];
     }
     selectedPurchaseOrderId.value = Number(orderId);
     localForm.value.purchase_order_id = Number(orderId);
 }
 
-// Env├¡a el formulario (guardar o guardar y enviar por correo)
+// Envía el formulario (guardar o guardar y enviar por correo)
 async function handleSubmit(sendMail = false) {
     if (isReadOnly.value) return;
     if (!validateForm()) return;
@@ -259,7 +259,7 @@ async function handleSubmit(sendMail = false) {
     }
 }
 
-// Validaci├│n b├ísica del formulario
+// Validación básica del formulario
 function validateForm(): boolean {
     if (!localForm.value.contact_id) {
         alert('Por favor seleccione un proveedor');
@@ -276,7 +276,7 @@ function validateForm(): boolean {
     return true;
 }
 
-// Convierte contact_id a n├║mero si es necesario
+// Convierte contact_id a número si es necesario
 watch(
     () => localForm.value.contact_id,
     (val) => {
@@ -295,7 +295,7 @@ watch(selectedPurchaseOrderId, (orderId) => {
     }
 });
 
-// Inicializaci├│n al montar el componente
+// Inicialización al montar el componente
 onMounted(async () => {
     if (props.isOpen) {
         await fetchContacts();
@@ -308,7 +308,7 @@ onMounted(async () => {
     }
 });
 
-// Sincroniza el estado cuando se abre/cierra el di├ílogo
+// Sincroniza el estado cuando se abre/cierra el diálogo
 watch(
     () => props.isOpen,
     async (isOpen) => {
@@ -332,7 +332,7 @@ watch(
     },
 );
 
-// Emite evento de cierre cuando se cierra el di├ílogo
+// Emite evento de cierre cuando se cierra el diálogo
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) emit('close');
 });

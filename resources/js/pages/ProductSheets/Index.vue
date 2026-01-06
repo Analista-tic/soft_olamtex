@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el bot�n de eliminar
-import EditButton from '@/components/common/EditButton.vue'; // Importar el bot�n de editar
-import ViewButton from '@/components/common/ViewButton.vue'; // Importar el bot�n de visualizar
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import EditButton from '@/components/common/EditButton.vue';
+import ViewButton from '@/components/common/ViewButton.vue';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -43,7 +43,7 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Dise�o',
+        title: 'Diseño',
         href: '/diseno/sabana-productos',
     },
     {
@@ -70,8 +70,8 @@ interface StatusOption {
 const props = defineProps<ProductSheetPageProps>();
 const products_sheet = ref<ProductSheet[]>([]);
 const productSheetToDelete = ref<ProductSheet | null>(null);
-const isEditDialogOpen = ref(false); // Estado para el di�logo de edici�n/creaci�n
-const isDeleteDialogOpen = ref(false); // Estado para el di�logo de confirmaci�n de eliminaci�n
+const isEditDialogOpen = ref(false); // Estado para el diálogo de edición/creación
+const isDeleteDialogOpen = ref(false); // Estado para el diálogo de confirmación de eliminación
 const editProductSheetData = ref<ProductSheet | undefined>(undefined); // Cambiar null por undefined
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -121,7 +121,7 @@ function clearAlert() {
 
 async function loadPermissions() {
     try {
-        await authStore.fetchUser(); // Asegurarse de que los datos del usuario est�n cargados
+        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estén cargados
         canView.value = authStore.can('ver sabana productos');
         canCreate.value = authStore.can('crear sabana productos');
         canEdit.value = authStore.can('editar sabana productos');
@@ -153,7 +153,7 @@ async function deleteProductSheet() {
     }
 }
 
-// Modificar la funci�n fetchProductSheets para aceptar un par�metro de b�squeda y filtro de estado
+// Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
 async function fetchProductSheets(page = 1, search = '', status: string | null = null) {
     try {
         const response = await axios.get('/diseno/product-sheets', {
@@ -169,7 +169,7 @@ async function fetchProductSheets(page = 1, search = '', status: string | null =
             products_sheet.value = response.data.products_sheets.data;
             totalItems.value = response.data.products_sheets.total;
         } else {
-            console.error('Error al obtener los product sheets: Respuesta inv�lida');
+            console.error('Error al obtener los product sheets: Respuesta inválida');
         }
     } catch (error) {
         console.error('Error al obtener los product sheets:', error);
@@ -191,8 +191,8 @@ function viewProductSheet(product: ProductSheet) {
 }
 
 function openCreateDialog() {
-    editProductSheetData.value = undefined; // Asegurarse de que no haya datos de edici�n
-    isEditDialogOpen.value = true; // Usar el mismo estado para abrir el di�logo
+    editProductSheetData.value = undefined; // Asegurarse de que no haya datos de edición
+    isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diálogo
 }
 
 onMounted(async () => {
@@ -212,7 +212,7 @@ onMounted(async () => {
                 >
                     <AlertBox
                         :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? '�xito' : alertType === 'info' ? 'Informaci�n' : 'Error'"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
                         :message="alertMessage"
                         class="pointer-events-auto"
                         @close="clearAlert"
@@ -365,9 +365,9 @@ onMounted(async () => {
     <AlertDialog v-model:open="isDeleteDialogOpen" @close="isDeleteDialogOpen = false">
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Confirmar eliminaci�n</AlertDialogTitle>
+                <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
                 <AlertDialogDescription>
-                    �Est�s seguro de que deseas eliminar este product sheet? Esta acci�n no se puede deshacer.
+                    ¿Estás seguro de que deseas eliminar este product sheet? Esta acción no se puede deshacer.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">

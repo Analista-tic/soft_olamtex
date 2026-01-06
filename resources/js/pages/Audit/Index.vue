@@ -362,6 +362,10 @@ function normalizeValues(values: Record<string, unknown> | null | undefined): Re
     return values as Record<string, unknown>;
 }
 
+function isStructuredValue(value: unknown): value is Record<string, unknown> | unknown[] {
+    return typeof value === 'object' && value !== null;
+}
+
 function formatValue(value: unknown): string {
     if (value === null || value === undefined) {
         return 'nulo';
@@ -372,7 +376,7 @@ function formatValue(value: unknown): string {
     if (typeof value === 'number') {
         return String(value);
     }
-    if (typeof value === 'object') {
+    if (isStructuredValue(value)) {
         return formatStructured(value);
     }
     const text = String(value).trim();

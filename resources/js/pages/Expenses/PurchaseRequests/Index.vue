@@ -151,10 +151,10 @@ const getRequestItemsPreview = (request: PurchaseRequest) => {
 
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
-const dialogForm = ref<Partial<PurchaseRequestService>>({});
+const dialogForm = ref<Partial<PurchaseRequest>>({});
 const dialogReadonly = ref(false);
 const isDeleteDialogOpen = ref(false);
-const requestToDelete = ref<PurchaseRequestService | null>(null);
+const requestToDelete = ref<PurchaseRequest | null>(null);
 
 function closeDialog() {
     isDialogOpen.value = false;
@@ -167,7 +167,7 @@ function openCreateRequest() {
     isDialogOpen.value = true;
 }
 
-async function viewRequest(request: PurchaseRequestService) {
+async function viewRequest(request: PurchaseRequest) {
     if (!request.id) return;
     dialogType.value = 'edit';
     try {
@@ -181,7 +181,7 @@ async function viewRequest(request: PurchaseRequestService) {
     }
 }
 
-async function editRequest(request: PurchaseRequestService) {
+async function editRequest(request: PurchaseRequest) {
     if (!request.id) return;
     dialogType.value = 'edit';
     try {
@@ -195,7 +195,7 @@ async function editRequest(request: PurchaseRequestService) {
     }
 }
 
-function confirmDeleteRequest(request: PurchaseRequestService) {
+function confirmDeleteRequest(request: PurchaseRequest) {
     requestToDelete.value = request.id ? request : null;
     isDeleteDialogOpen.value = true;
 }

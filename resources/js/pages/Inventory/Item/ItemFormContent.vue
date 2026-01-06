@@ -17,7 +17,7 @@ import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { Image, Plus, Trash2, ExternalLink } from 'lucide-vue-next';
 import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
-import { computed, onMounted, onBeforeUnmount, ref, watch, withDefaults } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import FormHeader from '@/components/FormHeader.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -132,18 +132,32 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
 const taxes = ref<Tax[]>([]);
 const defaultTaxEntry = computed(() => taxes.value.find(isDefaultTax));
+const nonDefaultTaxes = computed(() =>
+    taxes.value.filter((tax): tax is Tax => !isDefaultTax(tax)),
+);
 const taxOptions = computed<Option[]>(() => {
     const defaultTax = defaultTaxEntry.value;
-    const filteredTaxes = taxes.value.filter((tax) => !isDefaultTax(tax));
     const baseOption = { id: defaultTax?.id ?? 'none', name: DEFAULT_TAX_LABEL };
 
     return [
         baseOption,
-        ...filteredTaxes.map((tax) => ({
+        ...nonDefaultTaxes.value.map((tax) => ({
             id: tax.id,
             name: formatTaxOptionLabel(tax),
         })),
     ];
+});
+
+const displayedTaxLabel = computed(() => {
+    if (localForm.value.tax_id === undefined || localForm.value.tax_id === null || String(localForm.value.tax_id).trim() === '') {
+        return '-';
+    }
+    const selected = taxes.value.find((t) => String(t.id) === String(localForm.value.tax_id));
+    if (!selected) {
+        return '-';
+    }
+    const percentage = Math.trunc(Number(selected.percentage ?? 0));
+    return `${selected.name} (${percentage}%)`;
 });
 
 const isTaxIdBlank = (value: unknown): boolean => {
@@ -1093,12 +1107,7 @@ watch(
                                 <div class="flex flex-col gap-1">
                                     <Label>Impuesto</Label>
                                     <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{
-                                            taxes.find((t) => String(t.id) === String(localForm.tax_id))
-                                                ? `${taxes.find((t) => String(t.id) === String(localForm.tax_id)).name}
-                                                    (${Math.trunc(taxes.find((t) => String(t.id) === String(localForm.tax_id)).percentage)}%)`
-                                                : '-'
-                                        }}
+                                        {{ displayedTaxLabel }}
                                     </div>
                                 </div>
                             </template>

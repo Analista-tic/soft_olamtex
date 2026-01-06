@@ -487,10 +487,10 @@ function onFabricRollSuccess() {
                             :button-class="subgroupButtonClasses"
                         />
                     </FilterField>
-                    <FilterField label="Desde" :active="Boolean(dateFrom.value)" class="min-w-[140px]">
+                    <FilterField label="Desde" :active="Boolean(dateFrom.valueOf)" class="min-w-[140px]">
                         <InputDate v-model="dateFrom" label="" placeholder="Desde" />
                     </FilterField>
-                    <FilterField label="Hasta" :active="Boolean(dateTo.value)" class="min-w-[140px]">
+                    <FilterField label="Hasta" :active="Boolean(dateTo.valueOf)" class="min-w-[140px]">
                         <InputDate v-model="dateTo" label="" placeholder="Hasta" />
                     </FilterField>
                 </FilterBar>

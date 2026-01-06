@@ -3,6 +3,7 @@ export type {
     FabricOrderItem,
     FabricRoll,
     FabricRollView,
+    FabricRollReceptionForm,
 } from './types';
 
 export type {

@@ -1,3 +1,5 @@
+import type { Auth as SharedAuth, User as SharedUser } from '@/domain/shared';
+
 export interface Permission {
     name: string;
 }
@@ -8,16 +10,7 @@ export interface Role {
     permissions: Permission[];
 }
 
-export interface User {
-    id: number | null;
-    name: string;
-    email: string;
-    avatar?: string | null;
-    roles?: Role[];
-    email_verified_at?: string | null;
-    created_at?: string;
-    updated_at?: string;
-}
+export type User = SharedUser;
 
 export interface AuthState {
     user: User | null;
@@ -25,6 +18,4 @@ export interface AuthState {
     permissions: string[];
 }
 
-export interface Auth {
-    user: User;
-}
+export type Auth = SharedAuth;

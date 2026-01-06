@@ -23,7 +23,6 @@ export interface User {
     created_at: string;
     updated_at: string;
 }
-
 export interface BreadcrumbItem {
     title: string;
     href: string;
@@ -128,4 +127,15 @@ export interface OptionParams {
     name: string;
     created_at: string;
     updated_at: string;
+}
+
+export interface Branch {
+    name: string;
+    address: string;
+    phone: string;
+}
+
+export interface BranchesListProps {
+    branches: Branch[];
+    onUpdateBranches: (updatedBranches: Branch[]) => void;
 }

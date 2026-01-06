@@ -32,8 +32,8 @@ const form = reactive<AdjustForm>({
 watch(
     () => props.roll,
     (roll) => {
-        form.actualOutput = roll?.exitQuantity?.toString() ?? '';
-        form.partialOutput = roll?.partialOutput?.toString() ?? '';
+        form.actualOutput = roll?.exit_quantity?.toString() ?? '';
+        form.partialOutput = roll?.partial_output?.toString() ?? '';
     },
     { immediate: true },
 );
@@ -73,11 +73,11 @@ function submitAdjust() {
                         </div>
                         <div>
                             <p class="text-muted-foreground text-xs">Cantidad actual</p>
-                            <p class="font-semibold">{{ props.roll.rollQty }}</p>
+                            <p class="font-semibold">{{ props.roll.roll_qty }}</p>
                         </div>
                         <div>
                             <p class="text-muted-foreground text-xs">Salida reportada</p>
-                            <p class="font-semibold">{{ props.roll.exitQuantity }}</p>
+                            <p class="font-semibold">{{ props.roll.exit_quantity }}</p>
                         </div>
                     </div>
                 </div>

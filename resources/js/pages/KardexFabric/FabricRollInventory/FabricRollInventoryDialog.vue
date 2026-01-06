@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import FormHeader from '@/components/FormHeader.vue';
 import { computed } from 'vue';
 import type { FabricRollView } from '@/domain/fabric';
@@ -24,9 +23,9 @@ function handleOpenChange(open: boolean) {
 const detailRows = computed(() => {
     if (!props.roll) return [];
     return [
-        { label: 'N. Pedido', value: props.roll.orderNumber },
+        { label: 'N. Pedido', value: props.roll.order_number },
         { label: 'Proveedor', value: props.roll.provider },
-        { label: 'Fecha de creación', value: props.roll.createdAt },
+        { label: 'Fecha de creación', value: props.roll.created_at },
         { label: 'Usuario creador', value: props.roll.creator },
     ];
 });
@@ -88,23 +87,23 @@ function closeDialog() {
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Cant. rollo</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.rollQty }}</p>
+                                <p class="text-sm font-medium text-slate-900">{{ props.roll.roll_qty }}</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Salida parcial</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.partialOutput }}</p>
+                                <p class="text-sm font-medium text-slate-900">{{ props.roll.partial_output }}</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Disponibilidad parcial</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.partialAvailability }}</p>
+                                <p class="text-sm font-medium text-slate-900">{{ props.roll.partial_availability }}</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Cantidad salida</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.exitQuantity }}</p>
+                                <p class="text-sm font-medium text-slate-900">{{ props.roll.exit_quantity }}</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Disponibilidad real</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.realAvailability }}</p>
+                                <p class="text-sm font-medium text-slate-900">{{ props.roll.real_availability }}</p>
                             </div>
                         </div>
                     </div>

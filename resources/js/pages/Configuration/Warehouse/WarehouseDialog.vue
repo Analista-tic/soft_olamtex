@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
 import type { Warehouse } from '@/domain/inventory';
@@ -18,6 +18,18 @@ const emit = defineEmits<{
 }>();
 
 const localForm = ref<Warehouse>({ ...props.form });
+const nameValue = computed({
+    get: () => localForm.value.name ?? '',
+    set: (value: string) => {
+        localForm.value.name = value ?? '';
+    },
+});
+const observationValue = computed({
+    get: () => localForm.value.observation ?? '',
+    set: (value: string) => {
+        localForm.value.observation = value ?? null;
+    },
+});
 
 watch(
     () => props.form,
@@ -48,8 +60,8 @@ function handleSubmit() {
                 </DialogDescription>
             </DialogHeader>
             <div class="space-y-4">
-                <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre" required />
-                <InputField label="Observacion" v-model="localForm.observation" placeholder="Observacion" required />
+                <InputField label="Nombre" v-model="nameValue" placeholder="Nombre" required />
+                <InputField label="Observacion" v-model="observationValue" placeholder="Observacion" />
             </div>
             <DialogFooter class="flex justify-end gap-2">
                 <button

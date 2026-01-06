@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
 import axios from 'axios';
-import { defineEmits, defineExpose, ref, computed } from 'vue';
+import { ref, computed } from 'vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 /**

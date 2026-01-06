@@ -1,33 +1,33 @@
+import type { Item } from '@/domain/inventory';
+
 export interface Contact {
-    id?: number | null;
-    contact_type?: string;
-    id_type?: string;
-    id_number?: string;
+    id: number;
+    contact_type: string;
+    id_type: string;
+    id_number: string;
     dv?: string;
-    full_name?: string;
-    person_type?: string;
-    category?: string;
+    full_name: string;
+    person_type: string;
+    category: string;
     municipality?: string;
     department?: string;
     address?: string;
-    email?: string;
+    email: string;
     phone?: string;
-    additional_contacts?: Array<{ name: string; phone?: string; email?: string }>;
-    groups?: string[];
+    additional_contacts?: AdditionalContact[]; // Contactos adicionales
+    groups?: string[]; // Cambiar subgroups a groups
     created_at?: string;
     updated_at?: string;
 }
-
 export interface AdditionalContact {
     name: string;
     phone: string;
     email: string;
 }
-
 export interface PurchaseOrderItem {
     id?: number;
     item_id: number | null;
-    item?: number | null;
+    item?: Item;
     item_name?: string;
     price: number;
     tax: number;
@@ -39,7 +39,6 @@ export interface PurchaseOrderItem {
     supplier_color?: string;
     order_width?: number;
 }
-
 export interface PurchaseOrder {
     id?: number;
     document_number?: string | null;
@@ -65,8 +64,8 @@ export interface PurchaseInvoiceWithholding {
 export interface PurchaseInvoiceItem {
     id?: number;
     purchase_invoice_id?: number;
-    item_id?: number | null;
-    item?: any;
+    item_id: number | null;
+    item?: Item;
     item_name?: string;
     price: number | string | '';
     tax: number;
@@ -78,12 +77,6 @@ export interface PurchaseInvoiceItem {
     supplier_color?: string;
     order_width?: string;
     original_order_item?: PurchaseOrderItem;
-    created_at?: string;
-    updated_at?: string;
-    extra_fields?: Record<string, unknown>;
-    extraFields?: Record<string, unknown>;
-    negative_movement?: boolean;
-    negativeMovement?: boolean;
 }
 
 export interface PurchaseInvoice {
@@ -115,7 +108,7 @@ export interface PurchaseRequestItem {
     description: string;
     total: number;
     name?: string;
-    item?: number | null;
+    item?: Item;
     item_name?: string;
     total_tax?: number;
 }

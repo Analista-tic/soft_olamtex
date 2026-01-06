@@ -138,7 +138,7 @@ const pillClasses = 'inline-flex items-center gap-1 rounded-full border border-b
                             </template>
                             <template v-else>
                                 <div class="flex flex-wrap gap-1">
-                                    <span v-for="option in selectedOptions" :key="option.id" :class="pillClasses">
+                            <span v-for="option in selectedOptions" :key="String(option.id)" :class="pillClasses">
                                         <span class="truncate max-w-[8rem]">{{ option.name }}</span>
                                         <button
                                             type="button"
@@ -172,7 +172,7 @@ const pillClasses = 'inline-flex items-center gap-1 rounded-full border border-b
                         </div>
                         <ListboxOption
                             v-for="option in filteredOptions"
-                            :key="option.id"
+                            :key="String(option.id)"
                             :value="option.id"
                         >
                             <template #default="{ active, selected }">

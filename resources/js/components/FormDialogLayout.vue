@@ -14,12 +14,12 @@
   </div>
 </template>
 
-<script setup>
-import { toRef } from 'vue'
-const props = defineProps({
-  maxWidth: { type: String, default: 'max-w-lg' },
-  fullHeight: { type: Boolean, default: false }
-})
-const maxWidth = toRef(props, 'maxWidth')
-const fullHeight = toRef(props, 'fullHeight')
+<script setup lang="ts">
+  import { toRef } from 'vue'
+  const props = defineProps({
+    maxWidth: { type: String, default: 'max-w-lg' },
+    fullHeight: { type: Boolean, default: false }
+  })
+  const maxWidth = toRef(props, 'maxWidth')
+  const fullHeight = toRef(props, 'fullHeight')
 </script>

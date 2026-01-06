@@ -131,7 +131,7 @@ function print() {
                                     <tr v-for="(item, idx) in props.invoice?.items || []" :key="idx">
                                         <td class="border px-2 py-1 print:border print:border-gray-300">{{ idx + 1 }}</td>
                                         <td class="border px-2 py-1 print:border print:border-gray-300">
-                                            {{ item.article?.name || '' }}
+                                            {{ item.item?.name || '' }}
                                         </td>
                                         <td class="border px-2 py-1 print:border print:border-gray-300">{{ item.description }}</td>
                                         <td class="border px-2 py-1 print:border print:border-gray-300 text-center">{{ item.quantity }}</td>

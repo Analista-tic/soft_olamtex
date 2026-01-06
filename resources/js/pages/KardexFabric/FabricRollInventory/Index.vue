@@ -78,7 +78,7 @@ const filteredRolls = computed(() => {
             roll.fabric,
             roll.color,
             roll.provider,
-            roll.orderNumber,
+            roll.order_number,
         ];
         const matchesSearch =
             !query ||
@@ -145,8 +145,8 @@ async function handleAdjustRequest(payload: { roll: FabricRollView | null; data:
         errorMessage.value = 'No se encontró el rollo seleccionado.';
         return;
     }
-    const exitQuantityValue = Number(roll.exitQuantity ?? 0);
-    const partialOutputValue = Number(roll.partialOutput ?? 0);
+    const exitQuantityValue = Number(roll.exit_quantity ?? 0);
+    const partialOutputValue = Number(roll.partial_output ?? 0);
     const actualOutput = payload.data.actualOutput
         ? Number(payload.data.actualOutput)
         : exitQuantityValue;
@@ -294,11 +294,11 @@ onMounted(fetchFabricRolls);
                                 <TableCell class="text-center text-sm ">{{ roll.fabric }}</TableCell>
                                 <TableCell class="text-center text-sm ">{{ roll.color }}</TableCell>
                                 <TableCell class="text-center text-sm ">{{ roll.width }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.rollQty }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.partialOutput }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.partialAvailability }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.exitQuantity }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.realAvailability }}</TableCell>
+                                <TableCell class="text-center text-sm ">{{ roll.roll_qty }}</TableCell>
+                                <TableCell class="text-center text-sm ">{{ roll.partial_output }}</TableCell>
+                                <TableCell class="text-center text-sm ">{{ roll.partial_availability }}</TableCell>
+                                <TableCell class="text-center text-sm ">{{ roll.exit_quantity }}</TableCell>
+                                <TableCell class="text-center text-sm ">{{ roll.real_availability }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <button
                                         class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-blue-600"

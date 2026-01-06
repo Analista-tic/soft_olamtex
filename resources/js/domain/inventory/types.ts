@@ -4,9 +4,6 @@ export type ID = number;
 export interface Timestamps {
     created_at?: string;
     updated_at?: string;
-    // Algunas partes del código usan camelCase; aceptamos ambas formas
-    createdAt?: string;
-    updatedAt?: string;
 }
 
 export interface Named extends Timestamps {
@@ -73,4 +70,10 @@ export interface Item extends Timestamps {
     status: boolean;
     item_type: 'product' | 'service';
     unit_measure?: string; // Añadido correctamente
+    income_account?: string | null;
+    inventory_account?: string | null;
+    cost_of_sale_account?: string | null;
+    export_tariff_code?: string | null;
+    export_brand?: string | null;
+    export_model?: string | null;
 }

@@ -1,37 +1,35 @@
 export interface OptionParams {
     id: number;
     name: string;
-    createdAt: string;
-    updatedAt: string;
+    created_at: string;
+    updated_at: string;
 }
-
 export interface ProductSheet {
     id: number;
     reference: string;
-    sectionId: number;
-    groupId: number;
-    brandId: number;
-    worldId: number;
-    baseId: number;
-    billingPrice?: number;
-    sellingPrice?: number;
+    section_id: number;
+    group_id: number;
+    brand_id: number;
+    world_id: number;
+    base_id: number;
+    billing_price?: number;
+    selling_price?: number;
     sizes?: string;
     description?: string;
-    metadata?: Record<string, unknown>;
+    [key: string]: any;
 }
-
 export interface Programmer {
     id: number;
-    productSheetId: number | null;
-    productSheet?: ProductSheet | null;
+    product_sheet_id: number | null;
+    product_sheet?: ProductSheet | null;
     season: string | null;
     destination?: { id: number; name: string } | null;
-    destinationId: number | null;
+    destination_id: number | null;
     priority: string | null;
     isEcommerce: boolean;
-    ecommerceUnits: Record<string, number> | string | null;
+    ecommerce_units: Record<string, number> | string | null;
     units: number | null;
     status: 'complete' | 'incomplete';
-    createdAt: string;
-    updatedAt: string;
+    created_at: string;
+    updated_at: string;
 }
