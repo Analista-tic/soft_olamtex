@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
+use App\Http\Controllers\ProductSheet\ProductOperationListController;
 use App\Http\Controllers\ProductSheet\ProductSheetController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
 use App\Http\Controllers\Settings\UserController;
@@ -76,6 +77,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('sabana-productos/{sabana}', [ProductSheetController::class, 'destroy'])
             ->middleware('permission:eliminar sabana productos')
             ->name('sabana-productos.destroy');
+
+        Route::get('listados-operacionales', fn () => Inertia::render('ProductOperationList/Index'))
+            ->middleware('permission:ver listados operacionales')
+            ->name('listados-operacionales.index');
+
+        Route::prefix('listados-operacionales')->name('listados-operacionales.')->group(function () {
+            Route::get('/data', [ProductOperationListController::class, 'index'])
+                ->middleware('permission:ver listados operacionales')
+                ->name('data');
+            Route::post('/', [ProductOperationListController::class, 'store'])
+                ->middleware('permission:crear listados operacionales')
+                ->name('store');
+            Route::put('/{listItem}', [ProductOperationListController::class, 'update'])
+                ->middleware('permission:editar listados operacionales')
+                ->name('update');
+            Route::delete('/{listItem}', [ProductOperationListController::class, 'destroy'])
+                ->middleware('permission:eliminar listados operacionales')
+                ->name('destroy');
+            Route::post('/copiar-desde-producto', [ProductOperationListController::class, 'copyFromProduct'])
+                ->middleware('permission:crear listados operacionales')
+                ->name('copy-from-product');
+        });
     });
 
     // === DISEÑO ===

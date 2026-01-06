@@ -186,9 +186,10 @@ const navMainGroup: NavGroupItem[] = [
     },
     {
         title: 'Listados Operacionales',
-        href: '#',
+        href: route('diseno.listados-operacionales.index'),
         icon: FolderKanban,
         isActive: false,
+        permission: 'ver listados operacionales',
     },
     {
         title: 'Panel administrativo',
