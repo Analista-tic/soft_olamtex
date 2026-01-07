@@ -1,324 +1,421 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import InputField from '@/components/InputField.vue';
+import Button from '@/components/ui/button/Button.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Button } from '@/components/ui/button';
-import { computed, ref } from 'vue';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
+import ProductOperationListDialog from './ProductOperationListDialog.vue';
+import { Head, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
+import { computed, onMounted, ref, watch } from 'vue';
+import { Search, Eye, PlusCircle } from 'lucide-vue-next';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type {
+    ProductOperationListPageProps,
+    ProductOperationPayload,
+} from '@/domain/product-sheet';
 
-interface ProductSheetOption {
-    id: number;
-    reference: string;
-    type: 'muestra' | 'productivo';
-}
+const page = usePage<ProductOperationListPageProps>();
 
-interface OperationOption {
-    id: number;
-    name: string;
-    category: string;
-    standard_time: number;
-}
-
-interface MachineOption {
-    id: number;
-    code: string;
-    name: string;
-    supplement_factor: number;
-}
-
-interface ProductOperationListRow {
-    id: number;
-    product_sheet_id: number;
-    section: string;
-    operation: OperationOption;
-    machine: MachineOption;
-    sequence_order: number;
-    optimal_time: number;
-    operator_efficiency_factor: number;
-    machine_supplement_factor: number;
-    production_time: number;
-    operator_name?: string;
-    notes?: string;
-    is_active: boolean;
-}
-
-const sections = [
-    { value: 'delantero', label: 'Delantero' },
-    { value: 'trasero', label: 'Trasero' },
-    { value: 'pretina', label: 'Pretina' },
-    { value: 'ensamble', label: 'Ensamble' },
-    { value: 'terminacion', label: 'Terminación' },
-    { value: 'presentacion', label: 'Presentación' },
+const breadcrumbs = [
+    { title: 'Diseño', href: '/diseno' },
+    { title: 'Listados operacionales', href: '/diseno/listados-operacionales' },
 ];
 
-const productSheets = ref<ProductSheetOption[]>([
-    { id: 1, reference: 'MUESTRA-001', type: 'muestra' },
-    { id: 2, reference: 'PROD-001', type: 'productivo' },
-]);
+const sections = computed(() => page.props.sections || []);
+const operations = computed(() => page.props.operations || []);
+const machines = computed(() => page.props.machines || []);
+const productSheets = computed(() => page.props.productSheets || []);
+const actions = computed(() => page.props.actions || []);
+const garmentParts = computed(() => page.props.garmentParts || []);
+const productSheetOptions = computed(() =>
+    productSheets.value.map(sheet => ({
+        id: sheet.id,
+        name: `${sheet.reference} (${sheet.type})`,
+    })),
+);
 
-const operations = ref<OperationOption[]>([
-    { id: 1, category: 'Costura', name: 'Cerrar tiro delantero', standard_time: 0.17 },
-    { id: 2, category: 'Terminación', name: 'Planchar bolsillo trasero', standard_time: 1.26 },
-]);
+const isDialogOpen = ref(false);
+const searchQuery = ref('');
+const statusFilter = ref<'all' | 'active' | 'inactive'>('all');
+const selectedProductSheetId = ref<number | null>(productSheets.value[0]?.id ?? null);
 
-const machines = ref<MachineOption[]>([
-    { id: 1, code: 'MF5H', name: 'Fileteadora 5 hilos', supplement_factor: 1.08 },
-    { id: 2, code: 'PLANC', name: 'Plancha corta', supplement_factor: 1.05 },
-]);
+const DEFAULT_SELECT_VALUE = 'all';
 
-const operationList = ref<ProductOperationListRow[]>([]);
-const errors = ref<string[]>([]);
-const isSaving = ref(false);
+const statusIsActive = computed(() => Boolean(statusFilter.value) && statusFilter.value !== DEFAULT_SELECT_VALUE);
+const statusButtonClasses = useFilterButtonClasses(statusIsActive);
 
-const form = ref({
-    product_sheet_id: productSheets.value[0]?.id ?? null,
-    section: sections[0].value,
-    operation_id: operations.value[0]?.id ?? null,
-    machine_id: machines.value[0]?.id ?? null,
-    sequence_order: 1,
-    optimal_time: '0.00',
-    operator_efficiency_factor: 1.25,
-    machine_supplement_factor: machines.value[0]?.supplement_factor ?? 1.0,
-    operator_name: '',
-    notes: '',
-});
+const statusOptions = [
+    { id: 'all', name: 'Todos' },
+    { id: 'active', name: 'Habilitados' },
+    { id: 'inactive', name: 'Deshabilitados' },
+];
 
-const previewProductionTime = computed(() => {
-    return calculateProductionTime(
-        Number.parseFloat(form.value.optimal_time) || 0,
-        form.value.operator_efficiency_factor,
-        form.value.machine_supplement_factor,
-    );
-});
+type OperationSummary = {
+    product_sheet_id: number;
+    reference: string;
+    total_sam_confeccion: number;
+    total_cost_product: number;
+    is_active: boolean;
+    search_text: string;
+};
 
-const sectionTotals = computed(() => {
-    return sections.reduce<Record<string, number>>((acc, section) => {
-        const total = operationList.value
-            .filter(item => item.section === section.value)
-            .reduce((sum, record) => sum + record.production_time, 0);
-        acc[section.value] = total;
-        return acc;
-    }, {} as Record<string, number>);
-});
+const operationSummaries = ref<OperationSummary[]>([]);
+const isLoading = ref(false);
+const isDeleteDialogOpen = ref(false);
+const summaryToDelete = ref<OperationSummary | null>(null);
 
-const completionSummary = computed(() => {
-    const total = operationList.value.reduce((sum, record) => sum + record.production_time, 0);
-    return {
-        total,
-        records: operationList.value.length,
-    };
-});
-
-function calculateProductionTime(optimal: number, operatorFactor: number, machineSupplement: number): number {
-    return parseFloat((optimal * operatorFactor * machineSupplement).toFixed(4));
+function normalizeText(value: string): string {
+    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-function resetForm(): void {
-    form.value.sequence_order = operationList.value.length + 1;
-    form.value.optimal_time = '0.00';
-    form.value.operator_name = '';
-    form.value.notes = '';
-    form.value.operator_efficiency_factor = 1.25;
-    form.value.machine_supplement_factor = machines.value[0]?.supplement_factor ?? 1.0;
+function resolveSectionName(entry: any): string {
+    const relationName = entry.operation_section?.name ?? entry.operationSection?.name ?? '';
+    if (relationName) {
+        return relationName;
+    }
+    const sectionId = entry.operation_section_id ?? entry.section_id ?? null;
+    if (!sectionId) {
+        return '';
+    }
+    return sections.value.find(section => section.id === sectionId)?.name ?? '';
 }
 
-function addOperation(): void {
-    errors.value = [];
+function isConfeccionSection(sectionName: string): boolean {
+    if (!sectionName) {
+        return false;
+    }
+    return normalizeText(sectionName).includes('confeccion');
+}
 
-    const selectedOperation = operations.value.find(op => op.id === form.value.operation_id);
-    const selectedMachine = machines.value.find(m => m.id === form.value.machine_id);
+function calculateTotals(rows: any[]) {
+    let totalSamConfeccion = 0;
+    let totalCostProduct = 0;
+    let isActive = rows.length > 0;
+    const searchParts: string[] = [];
 
-    if (!selectedOperation || !selectedMachine) {
-        errors.value.push('Selecciona operación y máquina válidas.');
+    rows.forEach((row) => {
+        const samValue = Number(row.sam ?? row.optimal_time ?? 0);
+        const productionValue = Number(row.production_time ?? 0);
+        const sectionName = resolveSectionName(row);
+
+        if (sectionName) {
+            searchParts.push(sectionName);
+        }
+        if (row.operation?.name) {
+            searchParts.push(row.operation.name);
+        }
+        if (row.machine?.name) {
+            searchParts.push(row.machine.name);
+        }
+        if (row.machine?.code) {
+            searchParts.push(row.machine.code);
+        }
+
+        if (isConfeccionSection(sectionName)) {
+            totalSamConfeccion += samValue;
+        }
+        totalCostProduct += productionValue;
+
+        if (row.is_active === false) {
+            isActive = false;
+        }
+    });
+
+    return { totalSamConfeccion, totalCostProduct, isActive, searchText: searchParts.join(' ') };
+}
+
+async function fetchOperationSummaries() {
+    if (productSheets.value.length === 0) {
+        operationSummaries.value = [];
         return;
     }
 
-    const optimalTime = Number.parseFloat(form.value.optimal_time);
+    isLoading.value = true;
 
-    if (Number.isNaN(optimalTime) || optimalTime <= 0) {
-        errors.value.push('Ingresa un tiempo óptimo válido mayor que cero.');
+    const summaries = await Promise.all(
+        productSheets.value.map(async (sheet) => {
+            try {
+                const { data } = await axios.get('/diseno/listados-operacionales/data', {
+                    params: { product_sheet_id: sheet.id },
+                });
+                const rows = Array.isArray(data?.data) ? data.data : [];
+                const totals = calculateTotals(rows);
+                const searchText = normalizeText(`${sheet.reference} ${totals.searchText}`.trim());
+                return {
+                    product_sheet_id: sheet.id,
+                    reference: sheet.reference,
+                    total_sam_confeccion: totals.totalSamConfeccion,
+                    total_cost_product: totals.totalCostProduct,
+                    is_active: totals.isActive,
+                    search_text: searchText,
+                };
+            } catch (error) {
+                console.error('Error al cargar operaciones:', error);
+                return {
+                    product_sheet_id: sheet.id,
+                    reference: sheet.reference,
+                    total_sam_confeccion: 0,
+                    total_cost_product: 0,
+                    is_active: false,
+                    search_text: normalizeText(sheet.reference),
+                };
+            }
+        }),
+    );
+
+    operationSummaries.value = summaries;
+    isLoading.value = false;
+}
+
+async function handleDialogSave(payloads: ProductOperationPayload[]) {
+    if (payloads.length === 0) {
         return;
     }
 
-    isSaving.value = true;
+    const targetSheetId = payloads.find(payload => payload.product_sheet_id)?.product_sheet_id ?? null;
+    if (targetSheetId) {
+        selectedProductSheetId.value = targetSheetId;
+    }
 
-    const productionTime = calculateProductionTime(
-        optimalTime,
-        form.value.operator_efficiency_factor,
-        form.value.machine_supplement_factor,
-    );
+    const requests = payloads
+        .filter((payload) => (
+            payload.product_sheet_id &&
+            payload.section_id &&
+            payload.operation_id &&
+            payload.machine_id
+        ))
+        .map((payload) => axios.post('/diseno/listados-operacionales', {
+            product_sheet_id: payload.product_sheet_id,
+            operation_id: payload.operation_id,
+            machine_id: payload.machine_id,
+            operation_section_id: payload.section_id,
+            sequence_order: payload.sequence_order,
+            optimal_time: Number(payload.optimal_time),
+            operator_efficiency_factor: payload.operator_efficiency_factor,
+            machine_supplement_factor: payload.machine_supplement_factor,
+            notes: payload.notes,
+        }));
 
-    const entry: ProductOperationListRow = {
-        id: Date.now(),
-        product_sheet_id: form.value.product_sheet_id ?? 0,
-        section: form.value.section,
-        operation: selectedOperation,
-        machine: selectedMachine,
-        sequence_order: form.value.sequence_order,
-        optimal_time: optimalTime,
-        operator_efficiency_factor: form.value.operator_efficiency_factor,
-        machine_supplement_factor: form.value.machine_supplement_factor,
-        production_time: productionTime,
-        operator_name: form.value.operator_name || undefined,
-        notes: form.value.notes || undefined,
-        is_active: true,
-    };
+    if (requests.length === 0) {
+        return;
+    }
 
-    operationList.value = [...operationList.value, entry];
-    form.value.sequence_order = operationList.value.length + 1;
-    resetForm();
-    isSaving.value = false;
+    try {
+        await Promise.all(requests);
+        await fetchOperationSummaries();
+    } catch (error) {
+        console.error('Error al guardar operaciones:', error);
+    }
 }
+
+function confirmDeleteSummary(summary: OperationSummary) {
+    summaryToDelete.value = summary;
+    isDeleteDialogOpen.value = true;
+}
+
+async function deleteSummaryOperations() {
+    if (!summaryToDelete.value) {
+        return;
+    }
+
+    try {
+        const { data } = await axios.get('/diseno/listados-operacionales/data', {
+            params: { product_sheet_id: summaryToDelete.value.product_sheet_id },
+        });
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        const deleteRequests = rows.map((row: { id: number }) =>
+            axios.delete(`/diseno/listados-operacionales/${row.id}`),
+        );
+
+        if (deleteRequests.length > 0) {
+            await Promise.all(deleteRequests);
+        }
+        await fetchOperationSummaries();
+    } catch (error) {
+        console.error('Error al eliminar operaciones:', error);
+    } finally {
+        summaryToDelete.value = null;
+    }
+}
+
+const filteredSummaries = computed(() => {
+    const term = normalizeText(searchQuery.value.trim());
+
+    return operationSummaries.value.filter(summary => {
+        const matchesSearch = term === '' || summary.search_text.includes(term);
+        const matchesSheet = !selectedProductSheetId.value || summary.product_sheet_id === selectedProductSheetId.value;
+        const matchesStatus =
+            statusFilter.value === 'all' ||
+            (statusFilter.value === 'active' && summary.is_active) ||
+            (statusFilter.value === 'inactive' && !summary.is_active);
+
+        return matchesSearch && matchesSheet && matchesStatus;
+    });
+});
+
+function formatTotal(value: number): string {
+    return value.toFixed(4);
+}
+
+onMounted(() => {
+    if (!selectedProductSheetId.value && productSheets.value.length > 0) {
+        selectedProductSheetId.value = productSheets.value[0].id;
+    }
+    fetchOperationSummaries();
+});
+
+watch(productSheets, () => {
+    if (!selectedProductSheetId.value && productSheets.value.length > 0) {
+        selectedProductSheetId.value = productSheets.value[0].id;
+    }
+    fetchOperationSummaries();
+});
 </script>
 
 <template>
-    <Head title="Listados Operacionales" />
-
-    <div class="space-y-8">
-        <header class="space-y-2">
-            <p class="text-sm uppercase tracking-[0.3em] text-muted-foreground">Módulo</p>
-            <div class="flex items-center justify-between gap-6">
-                <div>
-                    <h1 class="text-3xl font-semibold text-foreground">Listados Operacionales</h1>
-                    <p class="text-base text-muted-foreground">
-                        Registra operaciones, máquinas y tiempos en una sola tabla para muestras y productos.
+    <Head title="Listados operacionales" />
+    <AppLayout :breadcrumbs="breadcrumbs">
+        <div class="relative flex h-full flex-1 flex-col gap-6 rounded-xl p-3">
+            <div class="flex items-center justify-between">
+                <div class="space-y-1">
+                    <h1 class="text-lg font-bold text-foreground">Listados operacionales</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Registra operaciones, máquinas y tiempos en una sola tabla para Lotes de muestra y productivas.
                     </p>
                 </div>
-                <Button size="sm">Ver catálogo de máquinas</Button>
-            </div>
-        </header>
-
-        <section class="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <h2 class="text-lg font-semibold text-foreground">Nueva operación</h2>
-            <p class="text-sm text-muted-foreground mb-4">Completa los campos para agregar una operación al listado.</p>
-
-            <div v-if="errors.length" class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-                <ul>
-                    <li v-for="error in errors" :key="error">{{ error }}</li>
-                </ul>
-            </div>
-
-            <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <SelectField
-                    v-model="form.product_sheet_id"
-                    label="Ficha"
-                    :options="productSheets.map(sheet => ({ id: sheet.id, name: `${sheet.reference} (${sheet.type})` }))"
-                    required
-                />
-                <SelectField
-                    v-model="form.section"
-                    label="Sección"
-                    :options="sections.map(section => ({ id: section.value, name: section.label }))"
-                    required
-                />
-                <SelectField
-                    v-model="form.operation_id"
-                    label="Operación"
-                    :options="operations.map(op => ({ id: op.id, name: `${op.category} · ${op.name}` }))"
-                    required
-                />
-                <SelectField
-                    v-model="form.machine_id"
-                    label="Máquina"
-                    :options="machines.map(machine => ({ id: machine.id, name: `${machine.code} · ${machine.name}` }))"
-                    required
-                />
-                <InputField
-                    v-model="form.optimal_time"
-                    label="Tiempo óptimo (SAM)"
-                    placeholder="0.00"
-                    type="number"
-                    step="0.01"
-                    required
-                />
-                <InputField
-                    v-model="form.operator_efficiency_factor"
-                    label="Factor operario"
-                    placeholder="1.25"
-                    type="number"
-                    step="0.01"
-                    min="1"
-                    max="2"
-                    required
-                />
-                <InputField
-                    v-model="form.machine_supplement_factor"
-                    label="Suplemento máquina"
-                    placeholder="1.00"
-                    type="number"
-                    step="0.01"
-                    min="1"
-                    required
-                />
-                <InputField
-                    v-model="form.operator_name"
-                    label="Operario experto"
-                />
-                <InputField
-                    v-model="form.notes"
-                    label="Notas"
-                />
-            </div>
-
-            <div class="mt-4 flex flex-wrap items-center justify-between gap-4">
-                <div class="text-sm text-muted-foreground">
-                    Producción estimada: <span class="font-semibold text-foreground">{{ previewProductionTime.toFixed(4) }} min</span>
-                </div>
-                <Button @click="addOperation" :disabled="isSaving" size="sm">
-                    {{ isSaving ? 'Agregando...' : 'Agregar operación' }}
-                </Button>
-            </div>
-        </section>
-
-        <section class="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <h2 class="text-lg font-semibold text-foreground">Listado actual</h2>
-                <p class="text-sm text-muted-foreground">
-                    Operaciones registradas: <strong>{{ completionSummary.records }}</strong>
-                </p>
-            </div>
-
-            <div class="mt-4 overflow-x-auto">
-                <table class="w-full text-sm text-left">
-                    <thead class="text-xs uppercase text-muted-foreground">
-                        <tr>
-                            <th class="py-2 pr-6">#</th>
-                            <th class="py-2 pr-6">Sección</th>
-                            <th class="py-2 pr-6">Operación</th>
-                            <th class="py-2 pr-6">Máquina</th>
-                            <th class="py-2 pr-6">SAM</th>
-                            <th class="py-2 pr-6">Prod Time</th>
-                            <th class="py-2 pr-6">Operario</th>
-                            <th class="py-2 pr-6">Notas</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-if="operationList.length === 0">
-                            <td colspan="8" class="py-6 text-center text-muted-foreground">Aún no se han guardado operaciones.</td>
-                        </tr>
-                        <tr v-for="(entry, index) in operationList" :key="entry.id">
-                            <td class="py-3 pr-6 font-semibold text-foreground">{{ index + 1 }}</td>
-                            <td class="py-3 pr-6 text-muted-foreground">{{ entry.section }}</td>
-                            <td class="py-3 pr-6">{{ entry.operation.name }}</td>
-                            <td class="py-3 pr-6">{{ entry.machine.code }}</td>
-                            <td class="py-3 pr-6">{{ entry.optimal_time.toFixed(4) }}</td>
-                            <td class="py-3 pr-6 font-semibold text-foreground">{{ entry.production_time.toFixed(4) }}</td>
-                            <td class="py-3 pr-6 text-muted-foreground">{{ entry.operator_name || '—' }}</td>
-                            <td class="py-3 pr-6 text-muted-foreground">{{ entry.notes || '—' }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div v-for="section in sections" :key="section.value" class="rounded-xl border border-dashed border-border p-4">
-                    <p class="text-xs uppercase tracking-[0.3em] text-muted-foreground">{{ section.label }}</p>
-                    <p class="text-2xl font-semibold text-foreground">{{ sectionTotals[section.value].toFixed(4) }} min</p>
+                <div class="flex items-center gap-3">
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="isDialogOpen = true"
+                    >
+                        <PlusCircle class="w-4 h-4" />
+                        Nueva operacion
+                    </button>
                 </div>
             </div>
 
-            <div class="mt-6 rounded-xl border border-border bg-muted px-4 py-3 text-sm text-foreground">
-                Total producción estimada: <strong>{{ completionSummary.total.toFixed(4) }} min</strong>
+            <FilterBar align="start" gap="gap-4">
+                <FilterField 
+                    label="Buscar operación" 
+                    :active="searchQuery.trim().length > 0" 
+                    class="flex-1 min-w-[220px] p-0"
+                >
+                    <div class="relative w-full max-w-sm">
+                        <Input
+                            v-model="searchQuery"
+                            type="text"
+                            placeholder="Buscar sección, operación o máquina"
+                            class="h-10 w-full pl-10"
+                        />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField
+                    label="Lote"
+                    :active="Boolean(selectedProductSheetId)"
+                    class="min-w-[240px]"
+                >
+                    <SelectField
+                        v-model="selectedProductSheetId"
+                        placeholder="Selecciona Lote"
+                        :options="productSheetOptions"
+                    />
+                </FilterField>
+                <FilterField 
+                    label="Estado" 
+                    :active="statusIsActive" 
+                    class="min-w-[160px]"
+                >
+                    <SelectField
+                        v-model="statusFilter"
+                        placeholder="Filtrar Estado"
+                        :options="statusOptions"
+                        :button-class="statusButtonClasses"
+                    />
+                </FilterField>
+            </FilterBar>
+
+            <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Lote</TableHead>
+                            <TableHead class="text-center">Total SAM Confección</TableHead>
+                            <TableHead class="text-center">Costo Total Producto</TableHead>
+                            <TableHead class="text-center">Accion</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow v-if="isLoading">
+                            <TableCell colspan="4" class="text-center text-sm text-muted-foreground">Cargando totales...</TableCell>
+                        </TableRow>
+                        <TableRow v-else-if="filteredSummaries.length === 0">
+                            <TableCell colspan="4" class="text-center text-sm text-muted-foreground">Aun no se han guardado operaciones.</TableCell>
+                        </TableRow>
+                        <TableRow v-for="summary in filteredSummaries" :key="summary.product_sheet_id" class="text-sm">
+                            <TableCell>{{ summary.reference }}</TableCell>
+                            <TableCell class="text-center">{{ formatTotal(summary.total_sam_confeccion) }}</TableCell>
+                            <TableCell class="text-center">{{ formatTotal(summary.total_cost_product) }}</TableCell>
+                            <TableCell class="text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        class="h-8 w-8"
+                                        title="Ver operaciones del lote"
+                                        @click="selectedProductSheetId = summary.product_sheet_id"
+                                    >
+                                        <Eye class="h-4 w-4" />
+                                    </Button>
+                                    <DeleteButton
+                                        :onClick="() => confirmDeleteSummary(summary)"
+                                        customClass="h-4 w-4"
+                                    />
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
             </div>
-        </section>
-    </div>
+
+            <ProductOperationListDialog
+                :open="isDialogOpen"
+                :productSheets="productSheets"
+                :sections="sections"
+                :operations="operations"
+                :machines="machines"
+                :actions="actions"
+                :garmentParts="garmentParts"
+                @save="handleDialogSave"
+                @close="isDialogOpen = false"
+            />
+
+            <ConfirmDialog
+                v-model:open="isDeleteDialogOpen"
+                title="Confirmar eliminacion"
+                :description="`Estas seguro de que deseas eliminar todas las operaciones del lote ${summaryToDelete?.reference ?? ''}? Esta accion no se puede deshacer.`"
+                confirm-text="Eliminar"
+                cancel-text="Cancelar"
+                :destructive="true"
+                @confirm="deleteSummaryOperations"
+            />
+        </div>
+    </AppLayout>
 </template>
+
+

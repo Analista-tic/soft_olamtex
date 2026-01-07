@@ -7,19 +7,11 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Builder;
 
 class ProductOperationList extends Model
 {
     use HasFactory, SoftDeletes, HasAuditLabel;
-
-    public const SECTIONS = [
-        'delantero',
-        'trasero',
-        'pretina',
-        'ensamble',
-        'terminacion',
-        'presentacion',
-    ];
 
     protected $table = 'product_operation_lists';
 
@@ -27,16 +19,16 @@ class ProductOperationList extends Model
         'product_sheet_id',
         'operation_id',
         'machine_id',
+        'operation_section_id',
         'sequence_order',
-        'section',
         'is_active',
         'optimal_time',
+        'sam',
         'operator_efficiency_factor',
         'machine_supplement_factor',
         'production_time',
         'actual_time',
         'variance',
-        'operator_name',
         'notes',
         'created_by',
         'updated_by',
@@ -46,6 +38,7 @@ class ProductOperationList extends Model
         'sequence_order' => 'integer',
         'is_active' => 'boolean',
         'optimal_time' => 'float',
+        'sam' => 'float',
         'operator_efficiency_factor' => 'float',
         'machine_supplement_factor' => 'float',
         'production_time' => 'float',
@@ -53,6 +46,7 @@ class ProductOperationList extends Model
         'variance' => 'float',
     ];
 
+    // Relaciones
     public function productSheet()
     {
         return $this->belongsTo(ProductSheet::class);
@@ -68,6 +62,11 @@ class ProductOperationList extends Model
         return $this->belongsTo(Machine::class);
     }
 
+    public function operationSection()
+    {
+        return $this->belongsTo(OperationSection::class);
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -76,5 +75,26 @@ class ProductOperationList extends Model
     public function updatedBy()
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    // Scopes
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeBySheet(Builder $query, int $sheetId): Builder
+    {
+        return $query->where('product_sheet_id', $sheetId);
+    }
+
+    public function scopeBySection(Builder $query, int $sectionId): Builder
+    {
+        return $query->where('operation_section_id', $sectionId);
+    }
+
+    public function scopeOrdered(Builder $query): Builder
+    {
+        return $query->orderBy('sequence_order');
     }
 }

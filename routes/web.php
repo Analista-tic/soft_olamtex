@@ -8,6 +8,8 @@ use App\Http\Controllers\Expenses\PurchaseRequestController;
 use App\Http\Controllers\ProductSheet\BrandController;
 use App\Http\Controllers\ProductSheet\FabricBaseController;
 use App\Http\Controllers\ProductSheet\GroupController;
+use App\Http\Controllers\ProductSheet\MachineController;
+use App\Http\Controllers\ProductSheet\OperationController;
 use App\Http\Controllers\ProductSheet\SectionController;
 use App\Http\Controllers\ProductSheet\WorldController;
 use App\Http\Controllers\ProductSheet\YarnBaseController;
@@ -78,26 +80,50 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->middleware('permission:eliminar sabana productos')
             ->name('sabana-productos.destroy');
 
-        Route::get('listados-operacionales', fn () => Inertia::render('ProductOperationList/Index'))
-            ->middleware('permission:ver listados operacionales')
+        Route::get('listados-operacionales', [ProductOperationListController::class, 'indexView'])
+            ->middleware('permission:ver listados operacionales|ver sabana productos')
             ->name('listados-operacionales.index');
 
         Route::prefix('listados-operacionales')->name('listados-operacionales.')->group(function () {
             Route::get('/data', [ProductOperationListController::class, 'index'])
-                ->middleware('permission:ver listados operacionales')
+                ->middleware('permission:ver listados operacionales|ver sabana productos')
                 ->name('data');
             Route::post('/', [ProductOperationListController::class, 'store'])
-                ->middleware('permission:crear listados operacionales')
+                ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('store');
             Route::put('/{listItem}', [ProductOperationListController::class, 'update'])
-                ->middleware('permission:editar listados operacionales')
+                ->middleware('permission:editar listados operacionales|editar sabana productos')
                 ->name('update');
             Route::delete('/{listItem}', [ProductOperationListController::class, 'destroy'])
-                ->middleware('permission:eliminar listados operacionales')
+                ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
                 ->name('destroy');
             Route::post('/copiar-desde-producto', [ProductOperationListController::class, 'copyFromProduct'])
-                ->middleware('permission:crear listados operacionales')
+                ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('copy-from-product');
+        });
+
+        // Secciones de operaciones
+        Route::prefix('secciones')->name('secciones.')->group(function () {
+            Route::get('/data', [SectionController::class, 'data'])->name('data');
+            Route::post('/', [SectionController::class, 'store'])
+                ->middleware('permission:crear listados operacionales|crear sabana productos')
+                ->name('store');
+        });
+
+        // Operaciones
+        Route::prefix('operaciones')->name('operaciones.')->group(function () {
+            Route::get('/data', [OperationController::class, 'data'])->name('data');
+            Route::post('/', [OperationController::class, 'store'])
+                ->middleware('permission:crear listados operacionales|crear sabana productos')
+                ->name('store');
+        });
+
+        // Máquinas
+        Route::prefix('maquinas')->name('maquinas.')->group(function () {
+            Route::get('/data', [MachineController::class, 'data'])->name('data');
+            Route::post('/', [MachineController::class, 'store'])
+                ->middleware('permission:crear listados operacionales|crear sabana productos')
+                ->name('store');
         });
     });
 

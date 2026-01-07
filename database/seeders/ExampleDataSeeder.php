@@ -277,6 +277,121 @@ class ExampleDataSeeder extends Seeder
                 'updated_at' => now(),
             ]);
         }
+
+        // Secciones para listados operacionales
+        DB::table('operation_sections')->insert([
+            ['code' => 'delantero', 'name' => 'Delantero', 'order' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'trasero', 'name' => 'Trasero', 'order' => 2, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'pretina', 'name' => 'Pretina', 'order' => 3, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'ensamble', 'name' => 'Ensamble', 'order' => 4, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'terminacion', 'name' => 'Terminación', 'order' => 5, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'presentacion', 'name' => 'Presentación', 'order' => 6, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        // Máquinas
+        DB::table('machines')->insert([
+            ['code' => 'MF5H', 'name' => 'Fileteadora 5 hilos', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'MF3H', 'name' => 'Fileteadora 3 hilos', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'MPP', 'name' => 'Máquina plana pespunte', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'PLANC', 'name' => 'Plancha', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'OFM', 'name' => 'Ojaladora de franela manual', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'MASH', 'name' => 'Máquina atracadora semiautomática horizontal', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['code' => 'COLL', 'name' => 'Collaretera', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        // Operaciones
+        DB::table('operations')->insert([
+            ['action' => 'CERRAR', 'garment_part' => 'TIRO DELANTERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'CERRAR', 'garment_part' => 'TIRO TRASERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO TRASERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO PARCHE TRASERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'ARMAR', 'garment_part' => 'PRETINA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'COSER', 'garment_part' => 'BOLSILLO DELANTERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'FILETEAR', 'garment_part' => 'COSTADOS', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'PEGAR', 'garment_part' => 'PRETINA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'HACER', 'garment_part' => 'OJALES', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'PEGAR', 'garment_part' => 'BOTONES', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'ASENTAR', 'garment_part' => 'ELASTICO PRETINA INCORPORADA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'ASENTAR', 'garment_part' => 'LOMO BOLSILLO DELANTERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'ASENTAR', 'garment_part' => 'PRENDIDA DE TAPA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'ASENTAR', 'garment_part' => 'PRETINA ANTIFLUIDA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR BOTAS', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR CINTURA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'ATRACAR', 'garment_part' => 'HILADILLA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO BOCA OJAL', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO DELANTERO CURVO CON MALLA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        // Fichas de producto (ProductSheets)
+        // Primero verificamos/creamos los datos necesarios para las fichas
+        $sectionId = DB::table('sections')->insertGetId([
+            'name' => 'Sección Ejemplo',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $groupId = DB::table('groups')->insertGetId([
+            'name' => 'Grupo Ejemplo',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $brandId = DB::table('brands')->insertGetId([
+            'name' => 'Marca Ejemplo',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $worldId = DB::table('worlds')->insertGetId([
+            'name' => 'Mundo Ejemplo',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $fabricBaseId = DB::table('fabric_bases')->insertGetId([
+            'name' => 'Base de tela ejemplo',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('product_sheets')->insert([
+            [
+                'reference' => 'MUESTRA-001',
+                'section_id' => $sectionId,
+                'group_id' => $groupId,
+                'brand_id' => $brandId,
+                'world_id' => $worldId,
+                'fabric_base_id' => $fabricBaseId,
+                'yarn_base_id' => null,
+                'description' => 'Pantalón jean básico - Muestra',
+                'billing_price' => null,
+                'selling_price' => null,
+                'sizes' => null,
+                'woven_product' => 0,
+                'processes' => json_encode([]),
+                'status' => 'incomplete',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'reference' => 'PROD-001',
+                'section_id' => $sectionId,
+                'group_id' => $groupId,
+                'brand_id' => $brandId,
+                'world_id' => $worldId,
+                'fabric_base_id' => $fabricBaseId,
+                'yarn_base_id' => null,
+                'description' => 'Pantalón jean clásico - Producción',
+                'billing_price' => null,
+                'selling_price' => null,
+                'sizes' => null,
+                'woven_product' => 0,
+                'processes' => json_encode([]),
+                'status' => 'incomplete',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
     }
 }
 

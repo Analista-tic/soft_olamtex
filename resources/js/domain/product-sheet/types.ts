@@ -1,3 +1,5 @@
+import type { SharedData } from '@/domain/shared/types';
+
 export interface OptionParams {
     id: number;
     name: string;
@@ -32,4 +34,60 @@ export interface Programmer {
     status: 'complete' | 'incomplete';
     created_at: string;
     updated_at: string;
+}
+
+// Product Operation List Types
+export interface OperationSection {
+    id: number;
+    code: string;
+    name: string;
+}
+
+export interface OperationOption {
+    id: number;
+    name: string;
+    action?: string;
+    garment_part?: string;
+}
+
+export interface MachineOption {
+    id: number;
+    code: string;
+    name: string;
+}
+
+export interface ProductOperationListRow {
+    id: number;
+    product_sheet_id: number;
+    section_id: number;
+    operation: OperationOption;
+    machine: MachineOption;
+    sequence_order: number;
+    optimal_time: number;
+    operator_efficiency_factor: number;
+    machine_supplement_factor: number;
+    production_time: number;
+    notes?: string;
+    is_active: boolean;
+}
+
+export interface ProductOperationListPageProps extends SharedData {
+    sections: OperationSection[];
+    operations: Array<{ id: number; name: string; action: string; garment_part: string }>;
+    machines: Array<{ id: number; code: string; name: string }>;
+    productSheets: Array<{ id: number; reference: string; type: string }>;
+    actions: string[];
+    garmentParts: string[];
+}
+
+export interface ProductOperationPayload {
+    product_sheet_id: number | null;
+    section_id: number | null;
+    operation_id: number | null;
+    machine_id: number | null;
+    sequence_order: number;
+    optimal_time: string;
+    operator_efficiency_factor: number;
+    machine_supplement_factor: number;
+    notes?: string;
 }

@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Builder;
 
 class Operation extends Model
 {
@@ -15,29 +16,48 @@ class Operation extends Model
     protected $table = 'operations';
 
     protected $fillable = [
-        'code',
-        'name',
-        'description',
-        'category',
-        'standard_time',
-        'usage_count',
+        'action',
+        'garment_part',
         'is_active',
         'created_by',
     ];
 
     protected $casts = [
-        'standard_time' => 'float',
-        'usage_count' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    protected $appends = ['name'];
+
+    // Relaciones
+    public function productOperationLists()
+    {
+        return $this->hasMany(ProductOperationList::class);
+    }
 
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function operationLists()
+    // Accessors
+    public function getNameAttribute(): string
     {
-        return $this->hasMany(ProductOperationList::class);
+        return "{$this->action} {$this->garment_part}";
+    }
+
+    // Scopes
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeByAction(Builder $query, string $action): Builder
+    {
+        return $query->where('action', $action);
+    }
+
+    public function scopeByGarmentPart(Builder $query, string $garmentPart): Builder
+    {
+        return $query->where('garment_part', $garmentPart);
     }
 }

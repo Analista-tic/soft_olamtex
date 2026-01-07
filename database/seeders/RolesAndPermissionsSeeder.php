@@ -29,6 +29,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'editar roles',
             'eliminar roles',
             'ver auditoria',
+            'ver listados operacionales',
+            'crear listados operacionales',
+            'editar listados operacionales',
+            'eliminar listados operacionales',
+            'generar listado desde muestra',
             'ver telas',
             'crear telas',
             'editar telas',
@@ -67,6 +72,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $general->givePermissionTo([
             'ver programador',
             'ver sabana productos',
+            'ver listados operacionales',
         ]);
 
         // Crear usuarios de ejemplo

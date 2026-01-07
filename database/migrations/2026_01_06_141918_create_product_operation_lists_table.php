@@ -13,9 +13,7 @@ return new class extends Migration
             Schema::create('machines', function (Blueprint $table) {
                 $table->id();
                 $table->string('code')->unique();
-                $table->string('name');
-                $table->string('category')->nullable();
-                $table->decimal('supplement_factor', 5, 3)->default(1.000);
+                $table->string('name')->unique();
                 $table->boolean('is_active')->default(true)->index();
                 $table->foreignId('created_by')->nullable()->constrained('users')->cascadeOnUpdate()->nullOnDelete();
                 $table->timestamps();
@@ -26,12 +24,23 @@ return new class extends Migration
         if (!Schema::hasTable('operations')) {
             Schema::create('operations', function (Blueprint $table) {
                 $table->id();
+                $table->string('action');
+                $table->string('garment_part');
+                $table->boolean('is_active')->default(true)->index();
+                $table->foreignId('created_by')->nullable()->constrained('users')->cascadeOnUpdate()->nullOnDelete();
+                $table->timestamps();
+                $table->softDeletes();
+                
+                $table->unique(['action', 'garment_part'], 'operations_action_garment_unique');
+            });
+        }
+
+        if (!Schema::hasTable('operation_sections')) {
+            Schema::create('operation_sections', function (Blueprint $table) {
+                $table->id();
                 $table->string('code')->unique();
                 $table->string('name');
-                $table->text('description')->nullable();
-                $table->string('category')->index();
-                $table->decimal('standard_time', 10, 4)->nullable();
-                $table->unsignedInteger('usage_count')->default(0);
+                $table->unsignedInteger('order')->default(0);
                 $table->boolean('is_active')->default(true)->index();
                 $table->foreignId('created_by')->nullable()->constrained('users')->cascadeOnUpdate()->nullOnDelete();
                 $table->timestamps();
@@ -48,32 +57,26 @@ return new class extends Migration
             $table->foreignId('product_sheet_id')->constrained('product_sheets')->cascadeOnUpdate()->cascadeOnDelete();
             $table->foreignId('operation_id')->constrained('operations')->cascadeOnUpdate()->restrictOnDelete();
             $table->foreignId('machine_id')->constrained('machines')->cascadeOnUpdate()->restrictOnDelete();
+            $table->foreignId('operation_section_id')->constrained('operation_sections')->cascadeOnUpdate()->restrictOnDelete();
 
             $table->index('product_sheet_id', 'pol_sheet_idx');
             $table->index('operation_id', 'pol_operation_idx');
             $table->index('machine_id', 'pol_machine_idx');
+            $table->index('operation_section_id', 'pol_section_idx');
 
             $table->unsignedInteger('sequence_order')->default(1);
-            $table->enum('section', [
-                'delantero',
-                'trasero',
-                'pretina',
-                'ensamble',
-                'terminacion',
-                'presentacion',
-            ])->index();
 
             $table->boolean('is_active')->default(true)->index();
 
-            $table->decimal('optimal_time', 10, 4)->comment('Tiempo óptimo (SAM base)');
-            $table->decimal('operator_efficiency_factor', 6, 3)->default(1.250)->comment('Factor de eficiencia del operario');
-            $table->decimal('machine_supplement_factor', 6, 3)->default(1.000)->comment('Suplemento de la máquina');
-            $table->decimal('production_time', 10, 4)->comment('Tiempo productivo = optimal × factores');
+            $table->decimal('optimal_time', 10, 4);
+            $table->decimal('sam', 10, 4);
+            $table->decimal('operator_efficiency_factor', 6, 3)->default(1.250);
+            $table->decimal('machine_supplement_factor', 6, 3)->default(1.000);
+            $table->decimal('production_time', 10, 4);
 
-            $table->decimal('actual_time', 10, 4)->nullable()->comment('Tiempo real registrado en producción');
-            $table->decimal('variance', 8, 2)->nullable()->comment('Desviación porcentual respecto al tiempo productivo');
+            $table->decimal('actual_time', 10, 4)->nullable();
+            $table->decimal('variance', 8, 2)->nullable();
 
-            $table->string('operator_name')->nullable()->comment('Operario experto que registró la muestra');
             $table->text('notes')->nullable();
 
             $table->foreignId('created_by')->nullable()->constrained('users')->cascadeOnUpdate()->nullOnDelete();
@@ -82,7 +85,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->index(['product_sheet_id', 'section'], 'pol_sheet_section_idx');
+            $table->index(['product_sheet_id', 'operation_section_id'], 'pol_sheet_section_idx');
             $table->index(['product_sheet_id', 'is_active'], 'pol_sheet_active_idx');
             $table->index(['product_sheet_id', 'sequence_order'], 'pol_sheet_order_idx');
             $table->unique(['product_sheet_id', 'sequence_order'], 'pol_sheet_order_unique');
@@ -100,5 +103,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('product_operation_lists');
+        Schema::dropIfExists('operation_sections');
+        Schema::dropIfExists('operations');
+        Schema::dropIfExists('machines');
     }
 };
