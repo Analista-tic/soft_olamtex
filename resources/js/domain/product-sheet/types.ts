@@ -39,8 +39,8 @@ export interface Programmer {
 // Product Operation List Types
 export interface OperationSection {
     id: number;
-    code: string;
     name: string;
+    type: string;
 }
 
 export interface OperationOption {

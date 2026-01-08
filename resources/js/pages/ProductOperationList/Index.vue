@@ -5,6 +5,7 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import {
     Table,
     TableBody,
@@ -16,11 +17,11 @@ import {
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductOperationListDialog from './ProductOperationListDialog.vue';
+import ProductOperationListView from './ProductOperationListView.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
-import { Search, Eye, PlusCircle } from 'lucide-vue-next';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { Search, Eye, PlusCircle, Pencil } from 'lucide-vue-next';
 import type {
     ProductOperationListPageProps,
     ProductOperationPayload,
@@ -39,28 +40,17 @@ const machines = computed(() => page.props.machines || []);
 const productSheets = computed(() => page.props.productSheets || []);
 const actions = computed(() => page.props.actions || []);
 const garmentParts = computed(() => page.props.garmentParts || []);
-const productSheetOptions = computed(() =>
-    productSheets.value.map(sheet => ({
+const productSheetOptions = computed(() => [
+    { id: 'all', name: 'Todos' },
+    ...productSheets.value.map(sheet => ({
         id: sheet.id,
         name: `${sheet.reference} (${sheet.type})`,
     })),
-);
+]);
 
 const isDialogOpen = ref(false);
 const searchQuery = ref('');
-const statusFilter = ref<'all' | 'active' | 'inactive'>('all');
-const selectedProductSheetId = ref<number | null>(productSheets.value[0]?.id ?? null);
-
-const DEFAULT_SELECT_VALUE = 'all';
-
-const statusIsActive = computed(() => Boolean(statusFilter.value) && statusFilter.value !== DEFAULT_SELECT_VALUE);
-const statusButtonClasses = useFilterButtonClasses(statusIsActive);
-
-const statusOptions = [
-    { id: 'all', name: 'Todos' },
-    { id: 'active', name: 'Habilitados' },
-    { id: 'inactive', name: 'Deshabilitados' },
-];
+const selectedProductSheetId = ref<number | 'all'>('all');
 
 type OperationSummary = {
     product_sheet_id: number;
@@ -71,13 +61,46 @@ type OperationSummary = {
     search_text: string;
 };
 
+type OperationRowInput = {
+    section_id: number | null;
+    operation_id: number | null;
+    machine_id: number | null;
+    optimal_time: string;
+};
+
+type DialogInitialData = {
+    productSheetId: number | null;
+    operations: OperationRowInput[];
+    operatorEfficiencyFactor: number;
+    machineSupplementFactor: number;
+    notes: string;
+};
+
 const operationSummaries = ref<OperationSummary[]>([]);
 const isLoading = ref(false);
 const isDeleteDialogOpen = ref(false);
 const summaryToDelete = ref<OperationSummary | null>(null);
+const isViewOpen = ref(false);
+const summaryToView = ref<OperationSummary | null>(null);
+const errorMessage = ref('');
+const successMessage = ref('');
+const dialogMode = ref<'create' | 'edit'>('create');
+const dialogInitialData = ref<DialogInitialData | null>(null);
 
 function normalizeText(value: string): string {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function toNumberOrNull(value: unknown): number | null {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+function formatOptimalTime(value: unknown): string {
+    if (value === null || value === undefined || value === '') {
+        return '0.00';
+    }
+    return String(value);
 }
 
 function resolveSectionName(entry: any): string {
@@ -151,6 +174,12 @@ async function fetchOperationSummaries() {
                     params: { product_sheet_id: sheet.id },
                 });
                 const rows = Array.isArray(data?.data) ? data.data : [];
+                
+                // Solo incluir lotes que tienen operaciones registradas
+                if (rows.length === 0) {
+                    return null;
+                }
+                
                 const totals = calculateTotals(rows);
                 const searchText = normalizeText(`${sheet.reference} ${totals.searchText}`.trim());
                 return {
@@ -163,19 +192,12 @@ async function fetchOperationSummaries() {
                 };
             } catch (error) {
                 console.error('Error al cargar operaciones:', error);
-                return {
-                    product_sheet_id: sheet.id,
-                    reference: sheet.reference,
-                    total_sam_confeccion: 0,
-                    total_cost_product: 0,
-                    is_active: false,
-                    search_text: normalizeText(sheet.reference),
-                };
+                return null;
             }
         }),
     );
 
-    operationSummaries.value = summaries;
+    operationSummaries.value = summaries.filter((s): s is OperationSummary => s !== null);
     isLoading.value = false;
 }
 
@@ -185,9 +207,6 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
     }
 
     const targetSheetId = payloads.find(payload => payload.product_sheet_id)?.product_sheet_id ?? null;
-    if (targetSheetId) {
-        selectedProductSheetId.value = targetSheetId;
-    }
 
     const requests = payloads
         .filter((payload) => (
@@ -212,11 +231,73 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
         return;
     }
 
+    // Solo eliminar operaciones existentes en modo EDIT
+    // En modo CREATE solo agregamos nuevas operaciones
+    if (dialogMode.value === 'edit' && targetSheetId) {
+        try {
+            await deleteOperationsBySheetId(targetSheetId);
+        } catch (error) {
+            console.error('Error al limpiar operaciones existentes:', error);
+            errorMessage.value = 'Error al preparar la edición. Por favor intenta nuevamente.';
+            setTimeout(() => { errorMessage.value = ''; }, 8000);
+            return;
+        }
+    }
+
     try {
         await Promise.all(requests);
+        successMessage.value = dialogMode.value === 'edit'
+            ? 'Operaciones actualizadas correctamente.'
+            : `${requests.length} operación(es) guardada(s) correctamente.`;
+        
+        // Cambiar el filtro primero al lote que acabamos de guardar
+        if (targetSheetId) {
+            selectedProductSheetId.value = targetSheetId;
+        }
+        
+        // Luego recargar los datos para que aparezca en la lista
         await fetchOperationSummaries();
-    } catch (error) {
+        
+        setTimeout(() => { successMessage.value = ''; }, 5000);
+    } catch (error: any) {
         console.error('Error al guardar operaciones:', error);
+        
+        // Aunque haya error, recargar los datos porque algunas operaciones podrían haberse guardado
+        await fetchOperationSummaries();
+        
+        // Si el lote tiene operaciones guardadas, cambiar el filtro para mostrarlo
+        if (targetSheetId) {
+            selectedProductSheetId.value = targetSheetId;
+        }
+        
+        // Manejar errores de validación del backend
+        if (error.response?.status === 422) {
+            const errors = error.response?.data?.errors;
+            if (errors) {
+                const firstError = Object.values(errors)[0] as string[];
+                errorMessage.value = firstError[0] || 'Error de validación';
+            } else {
+                errorMessage.value = error.response?.data?.message || 'Algunas operaciones no se pudieron guardar';
+            }
+        } else {
+            errorMessage.value = 'Algunas operaciones no se pudieron guardar correctamente.';
+        }
+        
+        setTimeout(() => { errorMessage.value = ''; }, 8000);
+    }
+}
+
+async function deleteOperationsBySheetId(productSheetId: number) {
+    const { data } = await axios.get('/diseno/listados-operacionales/data', {
+        params: { product_sheet_id: productSheetId },
+    });
+    const rows = Array.isArray(data?.data) ? data.data : [];
+    const deleteRequests = rows.map((row: { id: number }) =>
+        axios.delete(`/diseno/listados-operacionales/${row.id}`),
+    );
+
+    if (deleteRequests.length > 0) {
+        await Promise.all(deleteRequests);
     }
 }
 
@@ -225,23 +306,68 @@ function confirmDeleteSummary(summary: OperationSummary) {
     isDeleteDialogOpen.value = true;
 }
 
+function openSummaryView(summary: OperationSummary) {
+    summaryToView.value = summary;
+    isViewOpen.value = true;
+}
+
+function closeSummaryView() {
+    isViewOpen.value = false;
+    summaryToView.value = null;
+}
+
+function openCreateDialog() {
+    errorMessage.value = '';
+    successMessage.value = '';
+    dialogMode.value = 'create';
+    dialogInitialData.value = null;
+    isDialogOpen.value = true;
+}
+
+async function openEditDialog(summary: OperationSummary) {
+    errorMessage.value = '';
+    successMessage.value = '';
+    try {
+        const { data } = await axios.get('/diseno/listados-operacionales/data', {
+            params: { product_sheet_id: summary.product_sheet_id },
+        });
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        const sortedRows = [...rows].sort((a: any, b: any) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0));
+        const firstRow = sortedRows[0] ?? {};
+        dialogMode.value = 'edit';
+        dialogInitialData.value = {
+            productSheetId: summary.product_sheet_id,
+            operations: sortedRows.map((row: any) => ({
+                section_id: toNumberOrNull(row.operation_section_id ?? row.section_id ?? row.operation_section?.id ?? row.operationSection?.id),
+                operation_id: toNumberOrNull(row.operation_id ?? row.operation?.id),
+                machine_id: toNumberOrNull(row.machine_id ?? row.machine?.id),
+                optimal_time: formatOptimalTime(row.optimal_time ?? row.sam ?? 0),
+            })),
+            operatorEfficiencyFactor: Number(firstRow.operator_efficiency_factor ?? 1.25) || 1.25,
+            machineSupplementFactor: Number(firstRow.machine_supplement_factor ?? 1.0) || 1.0,
+            notes: firstRow.notes ?? '',
+        };
+        isDialogOpen.value = true;
+    } catch (error) {
+        console.error('Error al cargar operaciones para editar:', error);
+        errorMessage.value = 'Error al cargar las operaciones para editar.';
+        setTimeout(() => { errorMessage.value = ''; }, 8000);
+    }
+}
+
+function closeDialog() {
+    isDialogOpen.value = false;
+    dialogMode.value = 'create';
+    dialogInitialData.value = null;
+}
+
 async function deleteSummaryOperations() {
     if (!summaryToDelete.value) {
         return;
     }
 
     try {
-        const { data } = await axios.get('/diseno/listados-operacionales/data', {
-            params: { product_sheet_id: summaryToDelete.value.product_sheet_id },
-        });
-        const rows = Array.isArray(data?.data) ? data.data : [];
-        const deleteRequests = rows.map((row: { id: number }) =>
-            axios.delete(`/diseno/listados-operacionales/${row.id}`),
-        );
-
-        if (deleteRequests.length > 0) {
-            await Promise.all(deleteRequests);
-        }
+        await deleteOperationsBySheetId(summaryToDelete.value.product_sheet_id);
         await fetchOperationSummaries();
     } catch (error) {
         console.error('Error al eliminar operaciones:', error);
@@ -255,13 +381,9 @@ const filteredSummaries = computed(() => {
 
     return operationSummaries.value.filter(summary => {
         const matchesSearch = term === '' || summary.search_text.includes(term);
-        const matchesSheet = !selectedProductSheetId.value || summary.product_sheet_id === selectedProductSheetId.value;
-        const matchesStatus =
-            statusFilter.value === 'all' ||
-            (statusFilter.value === 'active' && summary.is_active) ||
-            (statusFilter.value === 'inactive' && !summary.is_active);
+        const matchesSheet = selectedProductSheetId.value === 'all' || summary.product_sheet_id === selectedProductSheetId.value;
 
-        return matchesSearch && matchesSheet && matchesStatus;
+        return matchesSearch && matchesSheet;
     });
 });
 
@@ -270,16 +392,10 @@ function formatTotal(value: number): string {
 }
 
 onMounted(() => {
-    if (!selectedProductSheetId.value && productSheets.value.length > 0) {
-        selectedProductSheetId.value = productSheets.value[0].id;
-    }
     fetchOperationSummaries();
 });
 
 watch(productSheets, () => {
-    if (!selectedProductSheetId.value && productSheets.value.length > 0) {
-        selectedProductSheetId.value = productSheets.value[0].id;
-    }
     fetchOperationSummaries();
 });
 </script>
@@ -287,6 +403,13 @@ watch(productSheets, () => {
 <template>
     <Head title="Listados operacionales" />
     <AppLayout :breadcrumbs="breadcrumbs">
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
+        
         <div class="relative flex h-full flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="space-y-1">
@@ -299,7 +422,7 @@ watch(productSheets, () => {
                     <button
                         type="button"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="isDialogOpen = true"
+                        @click="openCreateDialog"
                     >
                         <PlusCircle class="w-4 h-4" />
                         Nueva operacion
@@ -313,7 +436,7 @@ watch(productSheets, () => {
                     :active="searchQuery.trim().length > 0" 
                     class="flex-1 min-w-[220px] p-0"
                 >
-                    <div class="relative w-full max-w-sm">
+                    <div class="relative w-full">
                         <Input
                             v-model="searchQuery"
                             type="text"
@@ -327,25 +450,13 @@ watch(productSheets, () => {
                 </FilterField>
                 <FilterField
                     label="Lote"
-                    :active="Boolean(selectedProductSheetId)"
+                    :active="selectedProductSheetId !== 'all'"
                     class="min-w-[240px]"
                 >
                     <SelectField
                         v-model="selectedProductSheetId"
                         placeholder="Selecciona Lote"
                         :options="productSheetOptions"
-                    />
-                </FilterField>
-                <FilterField 
-                    label="Estado" 
-                    :active="statusIsActive" 
-                    class="min-w-[160px]"
-                >
-                    <SelectField
-                        v-model="statusFilter"
-                        placeholder="Filtrar Estado"
-                        :options="statusOptions"
-                        :button-class="statusButtonClasses"
                     />
                 </FilterField>
             </FilterBar>
@@ -378,9 +489,18 @@ watch(productSheets, () => {
                                         size="icon"
                                         class="h-8 w-8"
                                         title="Ver operaciones del lote"
-                                        @click="selectedProductSheetId = summary.product_sheet_id"
+                                        @click="openSummaryView(summary)"
                                     >
                                         <Eye class="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        class="h-8 w-8"
+                                        title="Editar operaciones del lote"
+                                        @click="openEditDialog(summary)"
+                                    >
+                                        <Pencil class="h-4 w-4" />
                                     </Button>
                                     <DeleteButton
                                         :onClick="() => confirmDeleteSummary(summary)"
@@ -395,6 +515,8 @@ watch(productSheets, () => {
 
             <ProductOperationListDialog
                 :open="isDialogOpen"
+                :mode="dialogMode"
+                :initial-data="dialogInitialData"
                 :productSheets="productSheets"
                 :sections="sections"
                 :operations="operations"
@@ -402,7 +524,15 @@ watch(productSheets, () => {
                 :actions="actions"
                 :garmentParts="garmentParts"
                 @save="handleDialogSave"
-                @close="isDialogOpen = false"
+                @close="closeDialog"
+            />
+
+            <ProductOperationListView
+                :open="isViewOpen"
+                :productSheetId="summaryToView?.product_sheet_id ?? null"
+                :productSheetReference="summaryToView?.reference ?? ''"
+                :sections="sections"
+                @close="closeSummaryView"
             />
 
             <ConfirmDialog
@@ -417,5 +547,3 @@ watch(productSheets, () => {
         </div>
     </AppLayout>
 </template>
-
-

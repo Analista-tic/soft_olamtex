@@ -234,10 +234,15 @@ function getTrueSizes(sizes: string | undefined): string {
                 Nuevo Programador
             </Button>
         </DialogTrigger>
-        <DialogContent class="sm:max-w-6xl max-h-screen overflow-y-auto">
-            <div ref="dialogInnerRef" class="relative">
+        <DialogContent class="sm:max-w-6xl max-h-[90vh] flex flex-col">
+            <DialogHeader class="flex-shrink-0">
+                <DialogTitle>Crear Nuevo Programador</DialogTitle>
+                <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
+            </DialogHeader>
+            
+            <div ref="dialogInnerRef" class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <transition name="fade">
-                    <div v-if="showAlert && alertMessage" class="pointer-events-none absolute left-1/2 top-4 z-30 w-full max-w-xl -translate-x-1/2">
+                    <div v-if="showAlert && alertMessage" class="mb-4">
                         <AlertBox
                             :type="alertType"
                             :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
@@ -248,12 +253,7 @@ function getTrueSizes(sizes: string | undefined): string {
                     </div>
                 </transition>
 
-                <DialogHeader>
-                <DialogTitle>Crear Nuevo Programador</DialogTitle>
-                <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
-            </DialogHeader>
-
-            <div class="grid grid-cols-2 gap-4 gap-y-1 pt-5">
+                <div class="grid grid-cols-2 gap-4 gap-y-1 pt-5">
                 <div class="col-span-2">
                     <div class="flex space-x-4">
                         <!-- Campo para la referencia seleccionada -->

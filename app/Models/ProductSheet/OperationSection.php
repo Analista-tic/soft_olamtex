@@ -16,15 +16,13 @@ class OperationSection extends Model
     protected $table = 'operation_sections';
 
     protected $fillable = [
-        'code',
         'name',
-        'order',
+        'type',
         'is_active',
         'created_by',
     ];
 
     protected $casts = [
-        'order' => 'integer',
         'is_active' => 'boolean',
     ];
 
@@ -47,11 +45,11 @@ class OperationSection extends Model
 
     public function scopeOrdered(Builder $query): Builder
     {
-        return $query->orderBy('order');
+        return $query->orderBy('name');
     }
 
-    public function scopeByCode(Builder $query, string $code): Builder
+    public function scopeByType(Builder $query, string $type): Builder
     {
-        return $query->where('code', $code);
+        return $query->where('type', $type);
     }
 }

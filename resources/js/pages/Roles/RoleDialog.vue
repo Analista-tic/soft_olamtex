@@ -157,14 +157,15 @@ function handleCheckboxChange(event: Event, module: string): void {
 
 <template>
     <Dialog v-model:open="localIsOpen">
-        <DialogContent class="max-h-[80vh] overflow-y-auto w-[90vw] max-w-4xl">
-            <DialogHeader>
+        <DialogContent class="max-h-[90vh] flex flex-col w-[90vw] max-w-4xl">
+            <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ role?.id ? 'Editar Rol' : 'Crear Rol' }}</DialogTitle>
                 <DialogDescription>
                     {{ role?.id ? 'Edita la información del rol.' : 'Completa la información para crear un nuevo rol.' }}
                 </DialogDescription>
             </DialogHeader>
 
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <form @submit.prevent="submit">
                 <div class="mb-4">
                     <InputField label="Nombre del Rol" v-model="form.name" placeholder="Nombre del rol" required />
@@ -201,7 +202,7 @@ function handleCheckboxChange(event: Event, module: string): void {
                     </div>
                 </div>
 
-                <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                     <div class="w-full md:w-auto">
                         <button
                             type="button"
@@ -221,6 +222,7 @@ function handleCheckboxChange(event: Event, module: string): void {
                     </div>
                 </DialogFooter>
             </form>
+            </div>
         </DialogContent>
     </Dialog>
 </template>

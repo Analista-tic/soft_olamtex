@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import { Plus } from 'lucide-vue-next';
 import axios from 'axios';
 
@@ -21,9 +22,17 @@ const emit = defineEmits(['close', 'created']);
 
 const internalIsOpen = ref(props.isOpen);
 const isSubmitting = ref(false);
+const successMessage = ref('');
+const errorMessage = ref('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
 watch(() => props.isOpen, (newValue) => {
     internalIsOpen.value = newValue;
+    if (newValue) {
+        successMessage.value = '';
+        errorMessage.value = '';
+        errorType.value = 'error';
+    }
 });
 
 watch(() => internalIsOpen.value, (newValue) => {
@@ -49,6 +58,11 @@ const showActionInput = ref(false);
 const showGarmentPartInput = ref(false);
 const newActionValue = ref('');
 const newGarmentPartValue = ref('');
+const sectionOptions = [
+    { id: 'confeccion', label: 'Confección' },
+    { id: 'presentacion', label: 'Presentación' },
+] as const;
+const selectedSectionType = ref<typeof sectionOptions[number]['id']>('confeccion');
 
 watch(() => props.actions, (newActions) => {
     if (newActions) actionsList.value = [...newActions];
@@ -57,6 +71,17 @@ watch(() => props.actions, (newActions) => {
 watch(() => props.garmentParts, (newParts) => {
     if (newParts) garmentPartsList.value = [...newParts];
 });
+
+watch(newActionValue, (value) => {
+    const normalized = value.toUpperCase();
+    if (value !== normalized) newActionValue.value = normalized;
+});
+
+watch(newGarmentPartValue, (value) => {
+    const normalized = value.toUpperCase();
+    if (value !== normalized) newGarmentPartValue.value = normalized;
+});
+
 
 const entityLabels = {
     section: {
@@ -93,20 +118,34 @@ function closeDialog() {
 
 function addNewAction() {
     const value = newActionValue.value.trim().toUpperCase();
-    if (value && !actionsList.value.includes(value)) {
-        actionsList.value.push(value);
-        form.value.action = value;
+    if (!value) return;
+    if (actionsList.value.includes(value)) {
+        errorType.value = 'warning';
+        errorMessage.value = 'La accion ya existe.';
+        successMessage.value = '';
+        return;
     }
+    actionsList.value.push(value);
+    form.value.action = value;
+    successMessage.value = 'Accion agregada.';
+    errorMessage.value = '';
     newActionValue.value = '';
     showActionInput.value = false;
 }
 
 function addNewGarmentPart() {
     const value = newGarmentPartValue.value.trim().toUpperCase();
-    if (value && !garmentPartsList.value.includes(value)) {
-        garmentPartsList.value.push(value);
-        form.value.garment_part = value;
+    if (!value) return;
+    if (garmentPartsList.value.includes(value)) {
+        errorType.value = 'warning';
+        errorMessage.value = 'La parte de la prenda ya existe.';
+        successMessage.value = '';
+        return;
     }
+    garmentPartsList.value.push(value);
+    form.value.garment_part = value;
+    successMessage.value = 'Parte de la prenda agregada.';
+    errorMessage.value = '';
     newGarmentPartValue.value = '';
     showGarmentPartInput.value = false;
 }
@@ -114,6 +153,9 @@ function addNewGarmentPart() {
 async function submitForm() {
     if (isSubmitting.value) return;
     isSubmitting.value = true;
+    successMessage.value = '';
+    errorMessage.value = '';
+    errorType.value = 'error';
 
     try {
         let response;
@@ -121,6 +163,7 @@ async function submitForm() {
         if (props.entity === 'section') {
             response = await axios.post('/diseno/secciones', {
                 name: form.value.name,
+                type: selectedSectionType.value,
             });
         } else if (props.entity === 'operation') {
             response = await axios.post('/diseno/operaciones', {
@@ -138,6 +181,9 @@ async function submitForm() {
             emit('created', response.data.data);
         }
 
+        successMessage.value = response?.data?.message || 'Elemento creado correctamente.';
+        errorMessage.value = '';
+
         form.value = {
             name: '',
             code: '',
@@ -148,35 +194,84 @@ async function submitForm() {
             operation_id: props.operations[0]?.id ?? null,
             machine_id: props.machines[0]?.id ?? null,
         };
-        closeDialog();
+        selectedSectionType.value = 'confeccion';
+        setTimeout(() => {
+            closeDialog();
+            clearSuccessMessage();
+        }, 900);
     } catch (error: any) {
         console.error('Error al crear entidad:', error);
-        alert(error.response?.data?.message || 'Error al crear el elemento');
+        const serverMessage =
+            error.response?.data?.message ||
+            Object.values(error.response?.data?.errors || {})?.flat()?.[0] ||
+            'Error al crear el elemento';
+        
+        // Manejar errores de validación (422) con tipo warning
+        if (error.response?.status === 422 && error.response?.data?.type === 'warning') {
+            errorType.value = 'warning';
+            errorMessage.value = serverMessage || 'Esta operacion ya existe en el sistema.';
+        } else {
+            errorType.value = 'error';
+            errorMessage.value = serverMessage || 'Error al crear el elemento';
+        }
     } finally {
         isSubmitting.value = false;
     }
+}
+
+function clearSuccessMessage() {
+    successMessage.value = '';
+}
+
+function clearErrorMessage() {
+    errorMessage.value = '';
 }
 
 </script>
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent class="max-w-3xl max-h-[100vh]">
-            <DialogHeader>
+        <DialogContent class="max-w-3xl max-h-[90vh] flex flex-col">
+            <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ entityConfig.title }}</DialogTitle>
                 <DialogDescription>
                     {{ entityConfig.description }}
                 </DialogDescription>
             </DialogHeader>
-            <div class="space-y-4 pt-4">
-                <!-- Formulario para Sección -->
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                :error-type="errorType"
+                @close-success="clearSuccessMessage"
+                @close-error="clearErrorMessage"
+            />
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
+                <div class="space-y-4 pt-4">
+                <!-- Formulario para Seccion -->
                 <template v-if="entity === 'section'">
-                    <InputField
-                        v-model="form.name"
-                        label="Nombre de la sección"
-                        placeholder="Ej: Corte, Confecciones, etc."
-                        required
-                    />
+                    <div class="space-y-3">
+                        <label class="text-sm font-medium">Tipo de seccion <span class="text-destructive">*</span></label>
+                        <div class="flex rounded-full border border-border bg-muted/40 p-1">
+                            <button
+                                v-for="option in sectionOptions"
+                                :key="option.id"
+                                type="button"
+                                class="flex-1 rounded-full px-4 py-2 text-sm font-semibold transition"
+                                :class="selectedSectionType === option.id
+                                    ? 'bg-primary text-white shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground'"
+                                @click="selectedSectionType = option.id"
+                            >
+                                {{ option.label }}
+                            </button>
+                        </div>
+                        <InputField
+                            v-model="form.name"
+                            label="Nombre de la seccion"
+                            placeholder="Ej: Confeccion especial"
+                            required
+                        />
+                    </div>
                 </template>
 
                 <!-- Formulario para Operación -->
@@ -188,7 +283,9 @@ async function submitForm() {
                         disabled
                         class="bg-muted/30"
                     />
-                    
+
+                    <div class="grid gap-4 md:grid-cols-2">
+
                     <!-- Acción -->
                     <div>
                         <label class="text-sm font-medium mb-1.5 block">Acción <span class="text-destructive">*</span></label>
@@ -282,6 +379,7 @@ async function submitForm() {
                             </button>
                         </div>
                     </div>
+                </div>
                 </template>
 
                 <!-- Formulario para Máquina -->
@@ -299,8 +397,9 @@ async function submitForm() {
                         required
                     />
                 </template>
+                </div>
             </div>
-            <DialogFooter class="mt-6 flex justify-end gap-2">
+            <DialogFooter class="mt-6 flex justify-end gap-2 flex-shrink-0 border-t pt-4">
                 <button
                     type="button"
                     class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"

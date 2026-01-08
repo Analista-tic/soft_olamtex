@@ -26,6 +26,48 @@ class ProductOperationListService
     }
 
     /**
+     * Lista operaciones filtradas por sección
+     */
+    public function listBySection(int $productSheetId, int $sectionId): Collection
+    {
+        return $this->model
+            ->with(['operation', 'machine', 'operationSection'])
+            ->bySheet($productSheetId)
+            ->bySection($sectionId)
+            ->ordered()
+            ->get();
+    }
+
+    /**
+     * Obtiene totales calculados de una ficha de producto
+     */
+    public function getSheetTotals(int $productSheetId): array
+    {
+        $operations = $this->listBySheet($productSheetId);
+
+        $totalSam = $operations->sum('sam');
+        $totalProductionTime = $operations->sum('production_time');
+        
+        // Totales por tipo de sección
+        $samConfeccion = $operations
+            ->where('operationSection.type', 'confeccion')
+            ->sum('sam');
+        
+        $samPresentacion = $operations
+            ->where('operationSection.type', 'presentacion')
+            ->sum('sam');
+
+        return [
+            'total_sam' => round($totalSam, 4),
+            'total_production_time' => round($totalProductionTime, 4),
+            'sam_confeccion' => round($samConfeccion, 4),
+            'sam_presentacion' => round($samPresentacion, 4),
+            'total_operations' => $operations->count(),
+            'units_per_hour_100' => $totalProductionTime > 0 ? round(60 / $totalProductionTime, 2) : 0,
+        ];
+    }
+
+    /**
      * Crea una nueva operación en el listado
      * Calcula automáticamente production_time y sam
      */
@@ -51,6 +93,38 @@ class ProductOperationListService
             }
 
             return $this->model->create($data);
+        });
+    }
+
+    /**
+     * Crea múltiples operaciones en lote (bulk insert optimizado)
+     */
+    public function createBulk(array $operations): Collection
+    {
+        return DB::transaction(function () use ($operations) {
+            $created = collect();
+
+            foreach ($operations as $data) {
+                // Calcular campos automáticos
+                $data['production_time'] = $this->calculateProductionTime(
+                    $data['optimal_time'],
+                    $data['operator_efficiency_factor'] ?? 1.25,
+                    $data['machine_supplement_factor'] ?? 1.0,
+                );
+
+                $data['sam'] = $data['optimal_time'];
+
+                if (isset($data['actual_time']) && $data['actual_time'] > 0) {
+                    $data['variance'] = $this->calculateVariance(
+                        $data['actual_time'],
+                        $data['production_time']
+                    );
+                }
+
+                $created->push($this->model->create($data));
+            }
+
+            return $created;
         });
     }
 
@@ -97,6 +171,17 @@ class ProductOperationListService
     public function delete(ProductOperationList $item): void
     {
         $item->delete();
+    }
+
+    /**
+     * Elimina múltiples operaciones en lote
+     */
+    public function deleteBulk(array $operationIds, int $productSheetId): int
+    {
+        return $this->model
+            ->whereIn('id', $operationIds)
+            ->where('product_sheet_id', $productSheetId)
+            ->delete();
     }
 
     /**

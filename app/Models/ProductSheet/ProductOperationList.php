@@ -35,6 +35,10 @@ class ProductOperationList extends Model
     ];
 
     protected $casts = [
+        'product_sheet_id' => 'integer',
+        'operation_id' => 'integer',
+        'machine_id' => 'integer',
+        'operation_section_id' => 'integer',
         'sequence_order' => 'integer',
         'is_active' => 'boolean',
         'optimal_time' => 'float',
@@ -44,7 +48,12 @@ class ProductOperationList extends Model
         'production_time' => 'float',
         'actual_time' => 'float',
         'variance' => 'float',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
+
+    protected $with = [];
 
     // Relaciones
     public function productSheet()
@@ -93,8 +102,23 @@ class ProductOperationList extends Model
         return $query->where('operation_section_id', $sectionId);
     }
 
+    public function scopeByOperation(Builder $query, int $operationId): Builder
+    {
+        return $query->where('operation_id', $operationId);
+    }
+
+    public function scopeByMachine(Builder $query, int $machineId): Builder
+    {
+        return $query->where('machine_id', $machineId);
+    }
+
     public function scopeOrdered(Builder $query): Builder
     {
         return $query->orderBy('sequence_order');
+    }
+
+    public function scopeWithRelations(Builder $query): Builder
+    {
+        return $query->with(['operation', 'machine', 'operationSection', 'productSheet']);
     }
 }

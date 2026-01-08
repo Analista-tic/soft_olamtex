@@ -70,14 +70,15 @@ function resetLocalModelValue() {
         </div>
         <Button class="w-full text-start" variant="outline" size="md" @click="isDialogOpen = true">Seleccionar Tallas <SquareArrowOutUpRight/></Button>
         <Dialog v-model:open="isDialogOpen" @close="resetLocalModelValue">
-            <DialogContent class="max-h-screen overflow-y-auto text-sm sm:max-w-2xl">
-                <DialogHeader>
+            <DialogContent class="max-h-[90vh] flex flex-col text-sm sm:max-w-2xl">
+                <DialogHeader class="flex-shrink-0">
                     <DialogTitle>Seleccionar Tallas</DialogTitle>
                     <DialogDescription>
                         Selecciona las tallas disponibles para este producto. Puedes marcar todas las tallas de un grupo o elegirlas individualmente.
                     </DialogDescription>
                 </DialogHeader>
-                <div class="space-y-4">
+                <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
+                    <div class="space-y-4">
                     <div v-for="(sizes, group) in sizeGroups" :key="group" class="rounde py-2">
                         <!-- Checkbox para seleccionar/deseleccionar todo el grupo -->
                         <label class="flex items-center font-medium text-gray-700">

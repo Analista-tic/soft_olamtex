@@ -17,7 +17,7 @@ class SectionService
         return $this->model
             ->active()
             ->ordered()
-            ->select(['id', 'code', 'name'])
+            ->select(['id', 'name', 'type'])
             ->get();
     }
 
@@ -26,10 +26,8 @@ class SectionService
      */
     public function create(array $data): OperationSection
     {
-        // Obtener el orden más alto y sumar 1
-        $maxOrder = $this->model->max('order') ?? 0;
-        $data['order'] = $maxOrder + 1;
-
         return $this->model->create($data);
     }
 }
+
+

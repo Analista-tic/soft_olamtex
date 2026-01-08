@@ -24,9 +24,14 @@ class Operation extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
-    protected $appends = ['name'];
+    protected $appends = ['name', 'normalized_name'];
+
+    protected $with = [];
 
     // Relaciones
     public function productOperationLists()
@@ -45,6 +50,11 @@ class Operation extends Model
         return "{$this->action} {$this->garment_part}";
     }
 
+    public function getNormalizedNameAttribute(): string
+    {
+        return strtoupper(trim("{$this->action} {$this->garment_part}"));
+    }
+
     // Scopes
     public function scopeActive(Builder $query): Builder
     {
@@ -59,5 +69,12 @@ class Operation extends Model
     public function scopeByGarmentPart(Builder $query, string $garmentPart): Builder
     {
         return $query->where('garment_part', $garmentPart);
+    }
+
+    public function scopeByNormalizedName(Builder $query, string $action, string $garmentPart): Builder
+    {
+        return $query->whereRaw('UPPER(TRIM(CONCAT(action, " ", garment_part))) = ?', [
+            strtoupper(trim("{$action} {$garmentPart}"))
+        ]);
     }
 }

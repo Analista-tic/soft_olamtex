@@ -340,13 +340,14 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-6xl">
-            <DialogHeader>
+        <DialogContent class="max-h-[90vh] flex flex-col sm:max-w-6xl">
+            <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
                 <DialogDescription>
                     Completa los campos y añade los ítems de la factura.
                 </DialogDescription>
             </DialogHeader>
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <form
                 @submit.prevent="handleSubmit()"
                 :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }"
@@ -510,7 +511,7 @@ watch(dialogOpen, (isOpen) => {
                         />
                     </div>
                 </div>
-                <DialogFooter class="mt-4 flex justify-end gap-4">
+                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4">
                     <Button variant="outline" type="button" @click="dialogOpen = false">Cancelar</Button>
                     <Button variant="default" type="button" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(false)">
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
@@ -520,6 +521,7 @@ watch(dialogOpen, (isOpen) => {
                     </Button>
                 </DialogFooter>
             </form>
+            </div>
         </DialogContent>
     </Dialog>
 </template>

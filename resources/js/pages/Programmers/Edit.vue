@@ -175,11 +175,12 @@ async function saveChanges() {
         aria-labelledby="dialog-title" 
         aria-describedby="dialog-description"
     >
-        <DialogContent>
-            <DialogHeader>
+        <DialogContent class="max-h-[90vh] flex flex-col max-w-2xl">
+            <DialogHeader class="flex-shrink-0">
                 <DialogTitle>Editar Lote Programado</DialogTitle>
                 <DialogDescription> Aquí puedes editar los detalles del programador seleccionado. </DialogDescription>
             </DialogHeader>
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-4">
                 <!-- Mostrar mensaje de error -->
                 <div v-if="errorMessage" class="text-sm text-red-500">
@@ -254,7 +255,8 @@ async function saveChanges() {
                     />
                 </div>
             </div>
-            <DialogFooter class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
+            </div>
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <button
                         type="button"

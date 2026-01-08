@@ -10,6 +10,7 @@ use App\Http\Controllers\ProductSheet\FabricBaseController;
 use App\Http\Controllers\ProductSheet\GroupController;
 use App\Http\Controllers\ProductSheet\MachineController;
 use App\Http\Controllers\ProductSheet\OperationController;
+use App\Http\Controllers\ProductSheet\ParameterController;
 use App\Http\Controllers\ProductSheet\SectionController;
 use App\Http\Controllers\ProductSheet\WorldController;
 use App\Http\Controllers\ProductSheet\YarnBaseController;
@@ -100,6 +101,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/copiar-desde-producto', [ProductOperationListController::class, 'copyFromProduct'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('copy-from-product');
+        });
+
+        // Parametros
+        Route::prefix('parametros')->name('parametros.')->group(function () {
+            Route::get('/data', [ParameterController::class, 'data'])
+                ->middleware('permission:ver listados operacionales|ver sabana productos')
+                ->name('data');
         });
 
         // Secciones de operaciones

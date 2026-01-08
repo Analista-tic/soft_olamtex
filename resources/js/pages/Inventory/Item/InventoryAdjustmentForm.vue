@@ -459,9 +459,8 @@ async function handleSubmit() {
 
 <template>
   <Dialog :open="isOpen" @update:open="emit('close')">
-    <DialogContent class="max-w-[200vh] p-0">
-      <div class="max-h-[90vh] overflow-y-auto px-4 py-4">
-        <DialogHeader class="pb-5">
+    <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+      <DialogHeader class="pb-5 flex-shrink-0 px-4 pt-4">
           <DialogTitle>{{ props.dialogType === 'edit' ? 'Editar ajuste de inventario' : 'Nuevo ajuste de inventario' }}</DialogTitle>
           <DialogDescription>
             Registra un movimiento de entrada o salida de inventario.
@@ -491,6 +490,7 @@ async function handleSubmit() {
           </div>
         </transition>
 
+        <div class="overflow-y-auto flex-1 px-4 scroll-smooth" style="scrollbar-width: thin;">
         <form class="space-y-4" novalidate @submit.prevent="handleSubmit">
           <div class="rounded-xl border border-sidebar-border/70 bg-white p-4 dark:border-sidebar-border">
             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -689,7 +689,7 @@ async function handleSubmit() {
             </div>
           </div>
 
-          <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+          <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end px-4 pb-4">
             <div class="w-full md:w-auto">
               <button
                 type="button"
@@ -711,7 +711,7 @@ async function handleSubmit() {
             </div>
           </DialogFooter>
         </form>
-      </div>
+        </div>
     </DialogContent>
   </Dialog>
 </template>

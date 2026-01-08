@@ -699,14 +699,14 @@ watch(detailDialogOpen, (value) => {
 
         <!-- Diálogo de detalle de cambios (igual que ya tenías) -->
         <Dialog v-model:open="detailDialogOpen">
-            <DialogContent class="max-w-3xl rounded-2xl p-0">
-                <DialogHeader class="space-y-1 border-b border-border px-6 py-4">
+            <DialogContent class="max-w-3xl max-h-[90vh] flex flex-col rounded-2xl p-0">
+                <DialogHeader class="space-y-1 border-b border-border px-6 py-4 flex-shrink-0">
                     <DialogTitle>Detalle de cambios</DialogTitle>
                     <DialogDescription v-if="detailLog">
                         {{ buildDetailHeader(detailLog) }}
                     </DialogDescription>
                 </DialogHeader>
-                <div class="px-6 py-4">
+                <div class="overflow-y-auto flex-1 px-6 py-4 scroll-smooth" style="scrollbar-width: thin;">
                     <div v-if="detailDiffEntries.length">
                         <Table class="text-xs">
                             <TableHeader>
@@ -738,7 +738,7 @@ watch(detailDialogOpen, (value) => {
                         No se encontraron campos modificados.
                     </p>
                 </div>
-                <DialogFooter class="flex justify-end gap-2 border-t border-border px-6 py-3">
+                <DialogFooter class="flex-shrink-0 flex justify-end gap-2 border-t border-border px-6 py-3">
                     <DialogClose as-child>
                         <button
                             type="button"

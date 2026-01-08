@@ -80,12 +80,14 @@ function saveSizes() {
             <Button variant="default" size="sm">E-commerce</Button>
         </DialogTrigger>
 
-        <DialogContent class="sm:max-w-6xl">
+        <DialogContent class="sm:max-w-6xl max-h-[90vh] flex flex-col">
             <FormHeader
+                class="flex-shrink-0"
                 :title="'Asignar Cantidades E-commerce'"
                 description="Aquí puedes asignar las cantidades de tallas para el producto seleccionado."
             />
 
+            <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div>
                 <!-- Campo para editar la referencia -->
                 <div class="mb-4 flex items-center">
@@ -116,8 +118,9 @@ function saveSizes() {
                 <!-- Mensaje si no hay tallas habilitadas -->
                 <div v-else class="text-center text-gray-500">No hay tallas habilitadas para este producto.</div>
             </div>
+            </div>
 
-            <DialogFooter class="mt-4">
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4">
                 <Button variant="default" size="sm" @click="saveSizes">Guardar</Button>
             </DialogFooter>
         </DialogContent>

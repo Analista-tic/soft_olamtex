@@ -38,9 +38,8 @@ return new class extends Migration
         if (!Schema::hasTable('operation_sections')) {
             Schema::create('operation_sections', function (Blueprint $table) {
                 $table->id();
-                $table->string('code')->unique();
                 $table->string('name');
-                $table->unsignedInteger('order')->default(0);
+                $table->string('type');
                 $table->boolean('is_active')->default(true)->index();
                 $table->foreignId('created_by')->nullable()->constrained('users')->cascadeOnUpdate()->nullOnDelete();
                 $table->timestamps();

@@ -72,11 +72,13 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent class="space-y-6 bg-card text-card-foreground w-full max-w-4xl">
+        <DialogContent class="max-h-[90vh] flex flex-col bg-card text-card-foreground w-full max-w-4xl">
             <FormHeader
+                class="flex-shrink-0"
                 :title="dialogType === 'create' ? 'Crear Usuario' : 'Editar Usuario'"
                 :description="dialogType === 'create' ? 'Completa los campos para crear un nuevo usuario.' : 'Completa los campos para editar el usuario.'"
             />
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-4">
                 <InputField v-model="form.name" label="Nombre" placeholder="Nombre del usuario" required />
                 <InputField v-model="form.email" label="Email" placeholder="Correo electrónico" required />
@@ -123,7 +125,8 @@ function submitForm() {
                 <!-- Mensaje de error -->
                 <p v-if="errorMessage" class="text-red-500 text-sm">{{ errorMessage }}</p>
             </div>
-            <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+            </div>
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <button
                         type="button"

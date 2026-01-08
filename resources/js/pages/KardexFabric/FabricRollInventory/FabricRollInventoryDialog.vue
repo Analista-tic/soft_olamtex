@@ -37,13 +37,14 @@ function closeDialog() {
 
 <template>
             <Dialog :open="props.modelValue" @openChange="handleOpenChange">
-        <DialogContent class="max-w-2xl rounded-3xl border border-muted-foreground/40 bg-white p-6 shadow-lg">
+        <DialogContent class="max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border border-muted-foreground/40 bg-white p-6 shadow-lg">
             <FormHeader
                 title="Detalle del rollo"
                 description="Verifica medidas clave, origen y disponibilidad real."
-                class="mb-4"
+                class="mb-4 flex-shrink-0"
             />
 
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div v-if="props.roll" class="space-y-5 text-sm text-muted-foreground">
                 <div class="rounded-2xl border border-muted-foreground/40 bg-white p-4 shadow-sm space-y-6">
                     <div>
@@ -109,8 +110,9 @@ function closeDialog() {
                     </div>
                 </div>
             </div>
+            </div>
 
-            <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <button
                         type="button"

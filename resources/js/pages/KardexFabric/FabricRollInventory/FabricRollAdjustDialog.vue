@@ -57,13 +57,14 @@ function submitAdjust() {
 
 <template>
     <Dialog :open="props.modelValue" @openChange="handleOpenChange">
-        <DialogContent class="max-w-2xl rounded-3xl border border-muted-foreground/40 bg-white p-6 shadow-lg">
+        <DialogContent class="max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border border-muted-foreground/40 bg-white p-6 shadow-lg">
             <FormHeader
                 title="Ajustar salida del rollo"
                 description="Modifica la salida registrada antes de continuar con la descarga."
-                class="mb-4"
+                class="mb-4 flex-shrink-0"
             />
 
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-5">
                 <div v-if="props.roll" class="rounded-2xl border border-muted-foreground/40 bg-muted/30 p-4">
                     <div class="grid grid-cols-3 gap-4 text-sm text-center justify-items-center">
@@ -105,8 +106,9 @@ function submitAdjust() {
                     </div>
                 </div>
             </div>
+            </div>
 
-            <DialogFooter class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <button
                         type="button"

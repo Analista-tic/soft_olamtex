@@ -280,12 +280,12 @@ class ExampleDataSeeder extends Seeder
 
         // Secciones para listados operacionales
         DB::table('operation_sections')->insert([
-            ['code' => 'delantero', 'name' => 'Delantero', 'order' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'trasero', 'name' => 'Trasero', 'order' => 2, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'pretina', 'name' => 'Pretina', 'order' => 3, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'ensamble', 'name' => 'Ensamble', 'order' => 4, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'terminacion', 'name' => 'Terminación', 'order' => 5, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'presentacion', 'name' => 'Presentación', 'order' => 6, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Delantero', 'type' => 'confección', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Trasero', 'type' => 'confección', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Pretina', 'type' => 'confección', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Ensamble', 'type' => 'confección', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Terminacion', 'type' => 'presentación', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Presentacion', 'type' => 'presentación', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
         ]);
 
         // Máquinas

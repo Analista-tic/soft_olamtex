@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
+use App\Models\ProductSheet\Operation;
 use App\Services\ProductSheet\OperationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ class OperationController extends Controller
 
     /**
      * Lista todas las opciones de operaciones activas
-     * GET /api/operations/data
+     * GET /diseno/operaciones/data
      */
     public function data(): JsonResponse
     {
@@ -23,8 +24,22 @@ class OperationController extends Controller
     }
 
     /**
-     * Crea una nueva operación
-     * POST /api/operations
+     * Obtiene valores únicos de acciones y partes de prenda
+     * GET /diseno/operaciones/metadata
+     */
+    public function metadata(): JsonResponse
+    {
+        return response()->json([
+            'data' => [
+                'actions' => $this->service->getUniqueActions(),
+                'garment_parts' => $this->service->getUniqueGarmentParts(),
+            ]
+        ]);
+    }
+
+    /**
+     * Crea una nueva operación (con validación de duplicados)
+     * POST /diseno/operaciones
      */
     public function store(Request $request): JsonResponse
     {
@@ -37,11 +52,59 @@ class OperationController extends Controller
         $validated['created_by'] = auth()->id();
         $validated['is_active'] = $validated['is_active'] ?? true;
 
-        $operation = $this->service->create($validated);
+        try {
+            $operation = $this->service->create($validated);
+
+            return response()->json([
+                'message' => 'Operación registrada correctamente.',
+                'data' => $operation
+            ], 201);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'type' => 'warning'
+            ], 422);
+        }
+    }
+
+    /**
+     * Actualiza una operación existente
+     * PUT /diseno/operaciones/{operation}
+     */
+    public function update(Request $request, Operation $operation): JsonResponse
+    {
+        $validated = $request->validate([
+            'action' => ['sometimes', 'string', 'max:255'],
+            'garment_part' => ['sometimes', 'string', 'max:255'],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+
+        $operation = $this->service->update($operation, $validated);
 
         return response()->json([
-            'message' => 'Operación creada correctamente.',
+            'message' => 'Operación actualizada correctamente.',
             'data' => $operation
-        ], 201);
+        ]);
+    }
+
+    /**
+     * Actualiza el tiempo estándar de una operación
+     * POST /diseno/operaciones/{operation}/update-standard-time
+     */
+    public function updateStandardTime(Request $request, Operation $operation): JsonResponse
+    {
+        $validated = $request->validate([
+            'optimal_time' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $operation = $this->service->updateStandardTime(
+            $operation, 
+            $validated['optimal_time']
+        );
+
+        return response()->json([
+            'message' => 'Tiempo estándar actualizado y recalculado en todas las listas.',
+            'data' => $operation
+        ]);
     }
 }

@@ -535,7 +535,7 @@ onMounted(async () => {
     }
 });
 
-// Carga de stocks por bodega para el artículo
+// Carga de stocks por bodega para el ítem
 async function fetchWarehouseStocks(itemId: number) {
     try {
         const { data } = await axios.get(`/bodegas/${itemId}/warehouses`);
@@ -666,7 +666,7 @@ const buildErrorMessage = (err: any): string => {
             .join('. ');
         if (joined.trim()) return joined;
     }
-    return resp?.message || 'Ocurrió un error inesperado al guardar el artículo.';
+    return resp?.message || 'Ocurrió un error inesperado al guardar el ítem.';
 };
 
 async function checkDuplicateName(): Promise<string | null> {
@@ -1026,7 +1026,7 @@ watch(
 </script>
 
 <template>
-    <div class="relative space-y-6 pt-5">
+    <div class="flex flex-col h-full">
             <transition name="fade">
                 <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2">
                     <AlertBox
@@ -1039,11 +1039,13 @@ watch(
                 </div>
             </transition>
             <FormHeader
+                class="flex-shrink-0"
                 headerClass="mb-4"
                 :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
-                :description="dialogType === 'create' ? 'Complete los campos para crear un nuevo artículo.' : dialogType === 'edit' ? 'Edite los campos del artículo seleccionado.' : 'Visualice la información del artículo.'"
+                :description="dialogType === 'create' ? 'Complete los campos para crear un nuevo ítem.' : dialogType === 'edit' ? 'Edite los campos del ítem seleccionado.' : 'Visualice la información del ítem.'"
             />
 
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <form @submit.prevent="handleSubmit">
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
@@ -1337,7 +1339,7 @@ watch(
                                             <div
                                                 class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
                                             >
-                                                {{ isViewMode ? 'Imagen del artículo' : 'Cambiar imagen' }}
+                                                {{ isViewMode ? 'Imagen del ítem' : 'Cambiar imagen' }}
                                             </div>
                                         </template>
                                         <template v-else>
@@ -1486,9 +1488,11 @@ watch(
                         </div>
                     </section>
                 </fieldset>
+            </form>
+            </div>
 
                 <!-- FOOTER -->
-                <DialogFooter class="mt-6 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
+                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
                     <div
                         v-if="dialogType !== 'view' && showAdvancedLink"
                         class="w-full md:w-auto"
@@ -1523,7 +1527,6 @@ watch(
                         </Button>
                     </div>
                 </DialogFooter>
-            </form>
         </div>
     <GroupDialog
         v-model:isOpen="isGroupDialogOpen"

@@ -285,8 +285,8 @@ const updateBranches = (branches: any[]) => {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent class="max-w-3xl h-screen flex flex-col">
-            <DialogHeader>
+        <DialogContent class="max-w-3xl max-h-[90vh] flex flex-col">
+            <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription class="pb-4">
                     Completa los campos para {{ dialogType === 'create' ? 'crear' : 'editar' }} un contacto. Haz
@@ -317,8 +317,9 @@ const updateBranches = (branches: any[]) => {
                     @close="showEmptyAlert = false"
                 />
             </div>
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <!-- Pestañas -->
-            <Tabs defaultValue="basic-info" class="flex-1 overflow-y-auto px-2 pt-1">
+            <Tabs defaultValue="basic-info" class="px-2 pt-1">
                 <TabsList class="flex justify-center space-x-4">
                     <TabsTrigger value="basic-info" class="flex-1 text-center py-2">Información básica</TabsTrigger>
                     <TabsTrigger value="additional-info" class="flex-1 text-center py-2">Contactos adicionales</TabsTrigger>
@@ -349,6 +350,7 @@ const updateBranches = (branches: any[]) => {
                 </TabsContent>
             </Tabs>
 
+            </div>
             <DialogFooter class="mt-4 flex justify-end gap-2">
                 <button
                     type="button"

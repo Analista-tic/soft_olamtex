@@ -77,13 +77,14 @@ function submitDownload() {
 
 <template>
     <Dialog :open="props.modelValue" @openChange="handleOpenChange">
-        <DialogContent class="max-w-3xl rounded-3xl border border-muted-foreground/40 bg-white p-6 shadow-lg">
+        <DialogContent class="max-w-3xl max-h-[90vh] flex flex-col rounded-3xl border border-muted-foreground/40 bg-white p-6 shadow-lg">
             <FormHeader
                 title="Descarga por rollo"
                 description="Registra los datos de la salida antes de procesarla."
-                class="mb-4"
+                class="mb-4 flex-shrink-0"
             />
 
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-6">
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div class="space-y-1">
@@ -117,8 +118,9 @@ function submitDownload() {
                     </div>
                 </div>
             </div>
+            </div>
 
-            <DialogFooter class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <button
                         type="button"

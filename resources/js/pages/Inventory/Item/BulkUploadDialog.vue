@@ -93,8 +93,8 @@ function preventDrag(event: DragEvent) {
 
 <template>
     <Dialog v-model:open="isOpen">
-        <DialogContent class="w-full max-w-4xl">
-            <DialogHeader class="space-y-1">
+        <DialogContent class="w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <DialogHeader class="space-y-1 flex-shrink-0">
                 <div class="flex items-center gap-3">
                     <ClipboardList class="h-6 w-6 text-primary" />
                     <DialogTitle class="text-lg font-semibold">Importación de ítems</DialogTitle>
@@ -104,6 +104,7 @@ function preventDrag(event: DragEvent) {
                 </p>
             </DialogHeader>
 
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="grid gap-6 lg:grid-cols-[1.3fr,1.7fr]">
                 <section class="rounded-2xl border border-muted bg-muted/40 p-4 text-sm text-muted-foreground">
                     <header class="flex items-center gap-2 text-base font-semibold text-foreground">
@@ -166,8 +167,9 @@ function preventDrag(event: DragEvent) {
                     </div>
                 </section>
             </div>
+            </div>
 
-            <DialogFooter class="mt-4 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <button
                         type="button"

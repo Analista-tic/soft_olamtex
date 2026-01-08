@@ -241,8 +241,7 @@ function formatDate(dateStr: string) {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div ref="dialogInnerRef" class="relative">
+        <DialogContent class="max-w-2xl max-h-[90vh] flex flex-col">
                     <transition name="fade">
                         <div
                             v-if="showAlert && alertMessage"
@@ -258,12 +257,15 @@ function formatDate(dateStr: string) {
                         </div>
                     </transition>
 
-                    <DialogHeader>
+                    <DialogHeader class="flex-shrink-0">
                         <DialogTitle>Registrar Rollo de Tela</DialogTitle>
                         <DialogDescription>
                             Relacione cada rollo al ítem de la orden.
                         </DialogDescription>
                     </DialogHeader>
+
+                    <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
+                    <div ref="dialogInnerRef" class="relative">
 
             <!-- Tabs simplificados -->
             <div class="flex gap-2 mb-2">
@@ -412,7 +414,8 @@ function formatDate(dateStr: string) {
                         </div>
                     </div>
                 </div>
-                <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+                </div>
+                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                     <div class="w-full md:w-auto">
                         <button
                             type="button"

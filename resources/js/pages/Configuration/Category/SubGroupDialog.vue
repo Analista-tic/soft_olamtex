@@ -159,14 +159,15 @@ async function confirmDeleteGroup() {
 
 <template>
   <Dialog v-model:open="internalIsOpen">
-         <DialogContent class="flex h-full max-h-[56dvh] min-h-0 w-full flex-1 flex-col overflow-y-auto p-6 sm:max-w-4xl">
+         <DialogContent class="max-h-[90vh] flex flex-col w-full p-6 sm:max-w-4xl">
                <TooltipProvider>
-            <DialogHeader>
+            <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogType === 'create' ? 'Crear Subgrupo' : 'Editar Subgrupo' }}</DialogTitle>
                 <DialogDescription>
                     Completa los campos para {{ dialogType === 'create' ? 'crear un nuevo subgrupo' : 'editar el subgrupo' }}.
                 </DialogDescription>
             </DialogHeader>
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-4">
                   <div class="pt-5 space-y-2">
                     <div class="flex items-start gap-2">
@@ -233,7 +234,8 @@ async function confirmDeleteGroup() {
                     </p>
                 </div>
             </div>
-            <DialogFooter class="mt-4 flex justify-end gap-2">
+            </div>
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2">
                 <button
                     type="button"
                     class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"

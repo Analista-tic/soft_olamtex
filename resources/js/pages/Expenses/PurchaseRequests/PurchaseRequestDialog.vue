@@ -375,9 +375,8 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[200vh] p-0">
-            <div class="max-h-[90vh] overflow-y-auto px-4 py-4">
-                <DialogHeader class="relative">
+        <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
                         <DialogDescription>
@@ -394,6 +393,7 @@ watch(dialogOpen, (isOpen) => {
                     @close-success="successMessage = ''"
                     @close-error="errorMessage = ''"
                 />
+                <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form
                     @submit.prevent="handleSubmit()"
                     :class="{'pointer-events-none opacity-50': dialogType === 'create' && isLoadingRequestId}"
@@ -503,7 +503,7 @@ watch(dialogOpen, (isOpen) => {
                         </div>
                     </div>
 
-                    <DialogFooter class="mt-4 flex justify-end gap-2">
+                    <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2 px-4 pb-4">
                         <template v-if="props.readonly">
                             <button
                                 type="button"
@@ -532,7 +532,7 @@ watch(dialogOpen, (isOpen) => {
                         </template>
                     </DialogFooter>
                 </form>
-            </div>
+                </div>
         </DialogContent>
     </Dialog>
 </template>

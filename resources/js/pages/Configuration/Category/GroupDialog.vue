@@ -45,17 +45,19 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent>
-            <DialogHeader>
+        <DialogContent class="max-h-[90vh] flex flex-col max-w-md">
+            <DialogHeader class="flex-shrink-0">
                 <DialogTitle>Crear Grupo</DialogTitle>
                 <DialogDescription>
                     Completa los campos para crear un nuevo grupo.
                 </DialogDescription>
             </DialogHeader>
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-4 pt-5">
                 <InputField v-model="form.name" label="Nombre" placeholder="Nombre del grupo" required />
             </div>
-            <DialogFooter class="mt-4 flex justify-end gap-2">
+            </div>
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2">
                 <button
                     type="button"
                     class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"

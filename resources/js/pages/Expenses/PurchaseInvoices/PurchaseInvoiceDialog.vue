@@ -510,9 +510,8 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[200vh] p-0">
-            <div class="max-h-[90vh] overflow-y-auto px-4 py-4">
-                <DialogHeader class="relative">
+        <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
                         <DialogDescription>
@@ -555,6 +554,7 @@ watch(dialogOpen, (isOpen) => {
                         @close-error="errorMessage = ''"
                     />
                 </div>
+                <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form
                     @submit.prevent="handleSubmit()"
                     :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"
@@ -744,7 +744,7 @@ watch(dialogOpen, (isOpen) => {
                         </button>
                     </DialogFooter>
                 </form>
-            </div>
+                </div>
         </DialogContent>
     </Dialog>
     <DifferenceDialog

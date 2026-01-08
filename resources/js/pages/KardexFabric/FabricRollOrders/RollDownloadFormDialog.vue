@@ -164,15 +164,16 @@ function submitForm() {
 
 <template>
   <Dialog :open="props.modelValue" @openChange="handleOpenChange">
-    <DialogContent class="flex h-full max-h-[96dvh] min-h-0 w-full flex-1 flex-col overflow-y-auto p-6 sm:max-w-4xl">
-      <DialogHeader>
+    <DialogContent class="max-h-[96dvh] flex flex-col w-full p-6 sm:max-w-4xl">
+      <DialogHeader class="flex-shrink-0">
         <DialogTitle>Registro de descarga</DialogTitle>
         <DialogDescription>
           Completa los largos, consumos, retazos y tallas antes de procesar el rollo.
         </DialogDescription>
       </DialogHeader>
 
-      <div class="space-y-6 pt-5">
+      <div class="overflow-y-auto flex-1 pr-2 scroll-smooth pt-5" style="scrollbar-width: thin;">
+      <div class="space-y-6">
         <!-- RESUMEN DEL ROLLO -->
         <section class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <div class="overflow-x-auto">
@@ -326,8 +327,9 @@ function submitForm() {
           </div>
         </div>
       </div>
+      </div>
 
-      <DialogFooter class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
+      <DialogFooter class="flex-shrink-0 border-t pt-4 mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
         <div class="w-full md:w-auto">
           <button
             type="button"

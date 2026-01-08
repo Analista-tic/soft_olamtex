@@ -404,9 +404,8 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[200vh] p-0">
-            <div class="max-h-[90vh] overflow-y-auto px-4 py-4">
-                <DialogHeader class="relative">
+        <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
                         <DialogDescription>
@@ -437,15 +436,19 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                         </div>
                     </div>
                 </DialogHeader>
-                <AlertStack
-                    :success-message="successMessage"
-                    :error-message="errorMessage"
-                    success-title="Exito"
-                    error-title="Error"
-                    :error-type="errorType"
-                    @close-success="successMessage = ''"
-                    @close-error="errorMessage = ''"
-                />
+                <div class="relative min-h-[56px]">
+                    <AlertStack
+                        class="absolute inset-x-0 bottom-0"
+                        :success-message="successMessage"
+                        :error-message="errorMessage"
+                        success-title="Éxito"
+                        error-title="Error"
+                        :error-type="errorType"
+                        @close-success="successMessage = ''"
+                        @close-error="errorMessage = ''"
+                    />
+                </div>
+                <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form
                     @submit.prevent="handleSubmit()"
                     :class="{'pointer-events-none opacity-50':dialogType === 'create' && isLoadingOrderId}"
@@ -579,7 +582,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                     </div>
 
                     <!-- Botones -->
-                    <DialogFooter class="mt-4 flex justify-end gap-4">
+                    <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4 px-4 pb-4">
                     <button
                         type="button"
                         class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
@@ -605,7 +608,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                     </button>
                     </DialogFooter>
                 </form>
-            </div>
+                </div>
         </DialogContent>
     </Dialog>
 </template>

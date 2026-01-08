@@ -291,10 +291,17 @@ function handleClose() {
 
 <template>
     <Dialog v-model:open="localDialogOpen" @close="handleClose">
-        <DialogContent class="max-h-screen overflow-y-auto sm:max-w-4xl">
-            <div ref="dialogInnerRef" class="relative">
+        <DialogContent class="max-h-[90vh] flex flex-col sm:max-w-4xl">
+            <DialogHeader class="flex-shrink-0">
+                <DialogTitle>{{ props.mode === 'edit' ? 'Editar' : 'Crear' }} Sabana de Productos</DialogTitle>
+                <DialogDescription>
+                    Completa los campos para {{ props.mode === 'edit' ? 'editar' : 'crear' }} un producto. Haz clic en guardar cuando termines.
+                </DialogDescription>
+            </DialogHeader>
+            
+            <div ref="dialogInnerRef" class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <transition name="fade">
-                    <div v-if="showAlert && alertMessage" class="pointer-events-none absolute left-1/2 top-4 z-30 w-full max-w-xl -translate-x-1/2">
+                    <div v-if="showAlert && alertMessage" class="mb-4">
                         <AlertBox
                             :type="alertType"
                             :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
@@ -304,13 +311,6 @@ function handleClose() {
                         />
                     </div>
                 </transition>
-
-                <DialogHeader>
-                <DialogTitle>{{ props.mode === 'edit' ? 'Editar' : 'Crear' }} Sabana de Productos</DialogTitle>
-                <DialogDescription>
-                    Completa los campos para {{ props.mode === 'edit' ? 'editar' : 'crear' }} un producto. Haz clic en guardar cuando termines.
-                </DialogDescription>
-            </DialogHeader>
 
             <!-- Primera sección: Identificación del producto -->
             <div class="grid grid-cols-3 gap-4 mb-4">
@@ -362,9 +362,10 @@ function handleClose() {
                     :wovenProduct="form.woven_product"
                 />
             </div>
+            </div>
 
             <!-- Botón Guardar -->
-            <DialogFooter class="sticky bottom-0 bg-white py-4 flex flex-col gap-2 md:flex-row md:justify-end border-t border-border">
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <button
                         type="button"
@@ -389,7 +390,6 @@ function handleClose() {
                     </Button>
                 </div>
             </DialogFooter>
-            </div>
         </DialogContent>
     </Dialog>
 </template>

@@ -105,10 +105,11 @@ function registerModel() {
 
         <!-- Diálogo para Recepcionar Ítem -->
         <Dialog v-model:open="receptionDialogOpen">
-            <DialogContent class="max-w-4xl">
-                <DialogHeader>
+            <DialogContent class="max-w-4xl max-h-[90vh] flex flex-col">
+                <DialogHeader class="flex-shrink-0">
                     <DialogTitle>Recepcionar Tela</DialogTitle>
                 </DialogHeader>
+                <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <div v-if="receptionItem">
                     <!-- Tabla Informativa -->
                     <Table class="mb-6">
@@ -151,7 +152,7 @@ function registerModel() {
                             <InputField v-model="fabricRoll.width" label="Ancho" type="number" step="0.01" placeholder="Ancho" />
                             <InputField v-model="fabricRoll.quantity" label="Cantidad" type="number" step="0.01" placeholder="Cantidad" />
                         </div>
-                        <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+                        <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                             <div class="w-full md:w-auto">
                                 <button
                                     type="button"
@@ -175,6 +176,7 @@ function registerModel() {
                 <div v-else>
                     <p class="text-red-500">No se ha seleccionado ningún ítem para recepcionar.</p>
                 </div>
+            </div>
             </DialogContent>
         </Dialog>
     </div>
