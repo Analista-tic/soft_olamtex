@@ -300,7 +300,7 @@ function handleClose() {
                 <DialogTitle>
                     {{ props.mode === 'view' ? 'Visualizar' : props.mode === 'edit' ? 'Editar' : 'Crear' }} Sabana de Productos
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription class="pb-3">
                     {{ props.mode === 'view' ? 'Visualiza los detalles del producto.' : `Completa los campos para ${props.mode === 'edit' ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.` }}
                 </DialogDescription>
             </DialogHeader>
@@ -388,10 +388,7 @@ function handleClose() {
                     <Button
                         variant="default"
                         type="button"
-                        :class="[
-                            'mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm',
-                            overallStatus === false ? 'border border-red-600 bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500' : '',
-                        ]"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                         :disabled="isLoading"
                         @click="saveProductSheet"
                     >
