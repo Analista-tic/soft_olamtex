@@ -71,6 +71,7 @@ const props = defineProps<ProductSheetPageProps>();
 const products_sheet = ref<ProductSheet[]>([]);
 const productSheetToDelete = ref<ProductSheet | null>(null);
 const isEditDialogOpen = ref(false); // Estado para el diálogo de edición/creación
+const isViewMode = ref(false); // Estado para modo de solo lectura
 const isDeleteDialogOpen = ref(false); // Estado para el diálogo de confirmación de eliminación
 const editProductSheetData = ref<ProductSheet | undefined>(undefined); // Cambiar null por undefined
 const currentPage = ref(1);
@@ -183,15 +184,19 @@ watch([searchQuery, statusFilter], ([newQuery, newStatus]) => {
 
 function openEditDialog(product: ProductSheet) {
     editProductSheetData.value = { ...product }; // Clonar el producto para evitar referencias directas
+    isViewMode.value = false; // Desactivar modo de solo lectura
     isEditDialogOpen.value = true;
 }
 
 function viewProductSheet(product: ProductSheet) {
-    setAlert(`Visualizando el producto: ${product.reference}`, 'info');
+    editProductSheetData.value = { ...product }; // Cargar el producto
+    isViewMode.value = true; // Activar modo de solo lectura
+    isEditDialogOpen.value = true; // Abrir el diálogo
 }
 
 function openCreateDialog() {
     editProductSheetData.value = undefined; // Asegurarse de que no haya datos de edición
+    isViewMode.value = false; // Desactivar modo de solo lectura
     isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diálogo
 }
 
@@ -221,7 +226,13 @@ onMounted(async () => {
             </transition>
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Lista Sabana de Productos</h1>
-                <Button v-if="canCreate" variant="default" size="sm" @click="openCreateDialog">
+                <Button
+                    v-if="canCreate"
+                    variant="default"
+                    size="sm"
+                    class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                    @click="openCreateDialog"
+                >
                     <PlusCircle class="h-4 w-4" /> Nuevo Producto
                 </Button>
             </div>
@@ -348,8 +359,8 @@ onMounted(async () => {
     </AppLayout>
 
     <ProductSheetDialog
-        v-if="canCreate || canEdit"
-        :mode="editProductSheetData ? 'edit' : 'create'"
+        v-if="canCreate || canEdit || canView"
+        :mode="editProductSheetData ? (isViewMode ? 'view' : 'edit') : 'create'"
         :productSheet="editProductSheetData"
         :sections="props.sections"
         :groups="props.groups"
@@ -358,6 +369,7 @@ onMounted(async () => {
         :fabricBases="props.fabricBases"
         :yarnBases="props.yarnBases"
         v-model:open="isEditDialogOpen"
+        :readonly="isViewMode"
         @productSheetSaved="fetchProductSheets"
         @close="isEditDialogOpen = false"
     />

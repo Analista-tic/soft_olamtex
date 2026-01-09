@@ -31,14 +31,6 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Insertar color de ejemplo si no existe
-        DB::table('colors')->insert([
-            'name' => 'Rojo',
-            'rgb_value' => '255,0,0',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
         // Insertar usuario de ejemplo
         $userId = DB::table('users')->insertGetId([
             'name' => 'Ejemplo Usuario',
@@ -323,36 +315,21 @@ class ExampleDataSeeder extends Seeder
         ]);
 
         // Fichas de producto (ProductSheets)
-        // Primero verificamos/creamos los datos necesarios para las fichas
-        $sectionId = DB::table('sections')->insertGetId([
-            'name' => 'Sección Ejemplo',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // Obtener IDs desde la tabla parameters (ya no insertamos en tablas de catálogos)
+        $sectionsParam = DB::table('parameters')->where('nombre', 'sections')->first();
+        $sectionId = $sectionsParam ? json_decode($sectionsParam->valor, true)[0]['id'] : 1;
 
-        $groupId = DB::table('groups')->insertGetId([
-            'name' => 'Grupo Ejemplo',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $groupsParam = DB::table('parameters')->where('nombre', 'groups')->first();
+        $groupId = $groupsParam ? json_decode($groupsParam->valor, true)[0]['id'] : 1;
 
-        $brandId = DB::table('brands')->insertGetId([
-            'name' => 'Marca Ejemplo',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $brandsParam = DB::table('parameters')->where('nombre', 'brands')->first();
+        $brandId = $brandsParam ? json_decode($brandsParam->valor, true)[0]['id'] : 1;
 
-        $worldId = DB::table('worlds')->insertGetId([
-            'name' => 'Mundo Ejemplo',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $worldsParam = DB::table('parameters')->where('nombre', 'worlds')->first();
+        $worldId = $worldsParam ? json_decode($worldsParam->valor, true)[0]['id'] : 1;
 
-        $fabricBaseId = DB::table('fabric_bases')->insertGetId([
-            'name' => 'Base de tela ejemplo',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $fabricBasesParam = DB::table('parameters')->where('nombre', 'fabric_bases')->first();
+        $fabricBaseId = $fabricBasesParam ? json_decode($fabricBasesParam->valor, true)[0]['id'] : 1;
 
         DB::table('product_sheets')->insert([
             [

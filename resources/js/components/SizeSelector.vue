@@ -109,6 +109,7 @@ function resetLocalModelValue() {
                         </div>
                     </div>
                 </div>
+                </div>
                 <DialogFooter class="flex justify-end">
                     <Button variant="default" size="sm" @click="isDialogOpen = false">Cerrar</Button>
                 </DialogFooter>

@@ -12,7 +12,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 
 interface Props {
-    mode: 'create' | 'edit'; // Define si es creación o edición
+    mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
     productSheet?: ProductSheet; // Producto a editar (opcional)
     sections: any[];
     groups: any[];
@@ -20,6 +20,7 @@ interface Props {
     worlds: any[];
     fabricBases: any[]; // Cambiar bases a fabricBases
     yarnBases: any[]; // Asegúrate de que el tipo sea un arreglo
+    readonly?: boolean; // Prop para modo de solo lectura
 }
 
 const props = defineProps<Props & { open: boolean }>(); // Agregar la propiedad `open`
@@ -49,6 +50,9 @@ function clearAlert() {
     alertMessage.value = '';
     showAlert.value = false;
 }
+
+// Computed para determinar si está en modo de solo lectura
+const isReadonly = computed(() => props.readonly || props.mode === 'view');
 
 const form = ref<Partial<ProductSheet>>({
     reference: '',
@@ -293,9 +297,11 @@ function handleClose() {
     <Dialog v-model:open="localDialogOpen" @close="handleClose">
         <DialogContent class="max-h-[90vh] flex flex-col sm:max-w-4xl">
             <DialogHeader class="flex-shrink-0">
-                <DialogTitle>{{ props.mode === 'edit' ? 'Editar' : 'Crear' }} Sabana de Productos</DialogTitle>
+                <DialogTitle>
+                    {{ props.mode === 'view' ? 'Visualizar' : props.mode === 'edit' ? 'Editar' : 'Crear' }} Sabana de Productos
+                </DialogTitle>
                 <DialogDescription>
-                    Completa los campos para {{ props.mode === 'edit' ? 'editar' : 'crear' }} un producto. Haz clic en guardar cuando termines.
+                    {{ props.mode === 'view' ? 'Visualiza los detalles del producto.' : `Completa los campos para ${props.mode === 'edit' ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.` }}
                 </DialogDescription>
             </DialogHeader>
             
@@ -314,25 +320,25 @@ function handleClose() {
 
             <!-- Primera sección: Identificación del producto -->
             <div class="grid grid-cols-3 gap-4 mb-4">
-                <InputField v-model="form.reference" label="Referencia" placeholder="ejemplo: 901010" />
-                <InputField v-model="form.billing_price" type="currency" label="Precio Facturación" placeholder="$ 0" />
-                <InputField v-model="form.selling_price" type="currency" label="Precio de Venta" placeholder="$ 0" />
+                <InputField v-model="form.reference" label="Referencia" placeholder="ejemplo: 901010" :disabled="isReadonly" />
+                <InputField v-model="form.billing_price" type="currency" label="Precio Facturación" placeholder="$ 0" :disabled="isReadonly" />
+                <InputField v-model="form.selling_price" type="currency" label="Precio de Venta" placeholder="$ 0" :disabled="isReadonly" />
             </div>
 
             <!-- Segunda sección: Clasificación -->
             <div class="grid grid-cols-4 gap-4 mb-4">
-                <SelectField v-model="form.section_id" label="Sección" :options="props.sections" required />
-                <SelectField v-model="form.group_id" label="Grupo" :options="props.groups" required />
-                <SelectField v-model="form.brand_id" label="Marca" :options="props.brands" required />
-                <SelectField class="w-full" v-model="form.world_id" label="Mundo" :options="props.worlds" required />
+                <SelectField v-model="form.section_id" label="Sección" :options="props.sections" required :disabled="isReadonly" />
+                <SelectField v-model="form.group_id" label="Grupo" :options="props.groups" required :disabled="isReadonly" />
+                <SelectField v-model="form.brand_id" label="Marca" :options="props.brands" required :disabled="isReadonly" />
+                <SelectField class="w-full" v-model="form.world_id" label="Mundo" :options="props.worlds" required :disabled="isReadonly" />
             </div>
 
             <!-- Nueva sección: Mundo, Base, Tallas y Producto Tejido -->
             <div :class="`grid gap-4 mb-4 ${form.woven_product ? 'grid-cols-4' : 'grid-cols-3'}`">
                 <div class="flex items-center w-auto">
-                    <SwitchField v-model="form.woven_product" label="Producto Tejido" id="woven_product" required />
+                    <SwitchField v-model="form.woven_product" label="Producto Tejido" id="woven_product" required :disabled="isReadonly" />
                 </div>
-                <SelectField class="w-full" v-model="form.fabric_base_id" label="Base" :options="props.fabricBases" required /> <!-- Asegurar que esté enlazado -->
+                <SelectField class="w-full" v-model="form.fabric_base_id" label="Base" :options="props.fabricBases" required :disabled="isReadonly" /> <!-- Asegurar que esté enlazado -->
                 <SelectField
                     v-if="form.woven_product"
                     class="w-full"
@@ -372,12 +378,12 @@ function handleClose() {
                         class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="handleClose"
                     >
-                        Cancelar
+                        {{ props.mode === 'view' ? 'Cerrar' : 'Cancelar' }}
                     </button>
                 </div>
-                <div class="w-full md:w-auto">
+                <div v-if="props.mode !== 'view'" class="w-full md:w-auto">
                     <Button
-                        size="sm"
+                        variant="default"
                         type="button"
                         :class="[
                             'mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm',

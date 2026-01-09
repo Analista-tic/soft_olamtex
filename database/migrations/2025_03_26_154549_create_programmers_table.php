@@ -15,10 +15,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('product_sheet_id')->constrained();
             $table->string('season');
-            $table->foreignId('destination_id')->constrained();
+            $table->unsignedBigInteger('destination_id'); // ID referenciado en parameters - sin foreign key
             $table->string('priority');
             $table->integer('units');
-            $table->json('ecommerce_units')->nullable(); // Asegúrate de que sea JSON
+            $table->json('ecommerce_units')->nullable();
             $table->string('status');
             $table->timestamps();
             $table->softDeletes();

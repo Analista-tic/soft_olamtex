@@ -57,7 +57,7 @@ class ProductOperationListController extends Controller
         $lists = $this->service->listBySheet((int) $request->input('product_sheet_id'));
 
         return response()->json([
-            'data' => ProductOperationListResource::collection($lists)
+            'data' => ProductOperationListResource::collection($lists)->resolve()
         ]);
     }
 
@@ -197,7 +197,7 @@ class ProductOperationListController extends Controller
 
         return response()->json([
             'message' => count($copied) . ' operaciones copiadas correctamente.',
-            'data' => ProductOperationListResource::collection($copied),
+            'data' => ProductOperationListResource::collection($copied)->resolve(),
         ]);
     }
 

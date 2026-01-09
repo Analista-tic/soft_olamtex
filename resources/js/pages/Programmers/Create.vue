@@ -255,7 +255,7 @@ function getTrueSizes(sizes: string | undefined): string {
 
                 <div class="grid grid-cols-2 gap-4 gap-y-1 pt-5">
                 <div class="col-span-2">
-                    <div class="flex space-x-4">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                         <!-- Campo para la referencia seleccionada -->
                         <SelectField
                             v-model="form.productSheetId"
@@ -272,11 +272,13 @@ function getTrueSizes(sizes: string | undefined): string {
                             required
                             @update:modelValue="generateLots"
                         />
-                        <div class="flex flex-col items-end gap-2">
+                        <div class="flex flex-col gap-2">
+                            <span aria-hidden="true" class="block text-sm font-medium leading-tight text-transparent select-none">
+                                Accion
+                            </span>
                             <Button
-                                size="sm"
                                 variant="outline"
-                                class="px-4 rounded-full"
+                                class="h-10 rounded-full px-4 text-sm font-semibold"
                                 type="button"
                                 @click="productSheetDialogOpen = true"
                             >

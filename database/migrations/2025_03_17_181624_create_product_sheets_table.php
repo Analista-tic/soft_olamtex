@@ -13,12 +13,13 @@ return new class extends Migration
     {
         Schema::create('product_sheets', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('section_id')->constrained();
-            $table->foreignId('group_id')->constrained();
-            $table->foreignId('brand_id')->constrained();
-            $table->foreignId('world_id')->constrained();
-            $table->foreignId('fabric_base_id')->constrained();
-            $table->foreignId('yarn_base_id')->nullable()->constrained(); // Relación con la tabla 'bases'
+            // IDs referenciados en parameters - sin foreign keys
+            $table->unsignedBigInteger('section_id');
+            $table->unsignedBigInteger('group_id');
+            $table->unsignedBigInteger('brand_id');
+            $table->unsignedBigInteger('world_id');
+            $table->unsignedBigInteger('fabric_base_id');
+            $table->unsignedBigInteger('yarn_base_id')->nullable();
             $table->string('reference')->unique();
             $table->float('billing_price')->nullable();
             $table->float('selling_price')->nullable();

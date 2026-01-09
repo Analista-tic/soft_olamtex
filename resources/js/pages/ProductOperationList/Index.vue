@@ -206,30 +206,19 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
         return;
     }
 
-    const targetSheetId = payloads.find(payload => payload.product_sheet_id)?.product_sheet_id ?? null;
-
-    const requests = payloads
+    const validPayloads = payloads
         .filter((payload) => (
             payload.product_sheet_id &&
             payload.section_id &&
             payload.operation_id &&
             payload.machine_id
-        ))
-        .map((payload) => axios.post('/diseno/listados-operacionales', {
-            product_sheet_id: payload.product_sheet_id,
-            operation_id: payload.operation_id,
-            machine_id: payload.machine_id,
-            operation_section_id: payload.section_id,
-            sequence_order: payload.sequence_order,
-            optimal_time: Number(payload.optimal_time),
-            operator_efficiency_factor: payload.operator_efficiency_factor,
-            machine_supplement_factor: payload.machine_supplement_factor,
-            notes: payload.notes,
-        }));
+        ));
 
-    if (requests.length === 0) {
+    if (validPayloads.length === 0) {
         return;
     }
+
+    const targetSheetId = validPayloads.find(payload => payload.product_sheet_id)?.product_sheet_id ?? null;
 
     // Solo eliminar operaciones existentes en modo EDIT
     // En modo CREATE solo agregamos nuevas operaciones
@@ -245,6 +234,18 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
     }
 
     try {
+        const requests = validPayloads.map((payload) => axios.post('/diseno/listados-operacionales', {
+            product_sheet_id: payload.product_sheet_id,
+            operation_id: payload.operation_id,
+            machine_id: payload.machine_id,
+            operation_section_id: payload.section_id,
+            sequence_order: payload.sequence_order,
+            optimal_time: Number(payload.optimal_time),
+            operator_efficiency_factor: payload.operator_efficiency_factor,
+            machine_supplement_factor: payload.machine_supplement_factor,
+            notes: payload.notes,
+        }));
+
         await Promise.all(requests);
         successMessage.value = dialogMode.value === 'edit'
             ? 'Operaciones actualizadas correctamente.'

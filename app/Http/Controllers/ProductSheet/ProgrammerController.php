@@ -3,15 +3,9 @@
 namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProductSheet\Base;
-use App\Models\ProductSheet\Brand;
-use App\Models\ProductSheet\Destination;
-use App\Models\ProductSheet\Group;
 use App\Models\ProductSheet\ProductSheet;
 use App\Models\ProductSheet\Programmer;
-use App\Models\ProductSheet\Section;
-use App\Models\ProductSheet\World;
-use App\Models\ProductSheet\FabricBase; // Cambiar Base a FabricBase
+use App\Services\ParameterService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -22,29 +16,38 @@ class ProgrammerController extends Controller
      */
     public function index()
     {
-        $sections = Section::all();
-        $groups = Group::all();
-        $brands = Brand::all();
-        $worlds = World::all();
-        $fabricBases = FabricBase::all(); // Cambiar bases a fabricBases
-        $yarnBases = FabricBase::all(); // Añadir yarnBases
+        $sections = ParameterService::getList('sections')->keyBy('id');
+        $groups = ParameterService::getList('groups')->keyBy('id');
+        $brands = ParameterService::getList('brands')->keyBy('id');
+        $worlds = ParameterService::getList('worlds')->keyBy('id');
+        $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
+        $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
 
-        $productSheets = ProductSheet::with('section', 'group', 'brand', 'world', 'fabricBase')
-            ->where('status', 'complete')
-            ->get();
+        $productSheets = ProductSheet::all(); // Traer todos los product sheets
 
-        $destination = Destination::all();
+        // Enriquecer productSheets con los nombres desde parameters
+        $productSheets->transform(function ($product) use ($sections, $groups, $brands, $worlds, $fabricBases, $yarnBases) {
+            $product->section = $sections->get($product->section_id, ['id' => $product->section_id, 'name' => 'N/A']);
+            $product->group = $groups->get($product->group_id, ['id' => $product->group_id, 'name' => 'N/A']);
+            $product->brand = $brands->get($product->brand_id, ['id' => $product->brand_id, 'name' => 'N/A']);
+            $product->world = $worlds->get($product->world_id, ['id' => $product->world_id, 'name' => 'N/A']);
+            $product->fabric_base = $fabricBases->get($product->fabric_base_id, ['id' => $product->fabric_base_id, 'name' => 'N/A']);
+            $product->yarn_base = $product->yarn_base_id ? $yarnBases->get($product->yarn_base_id, ['id' => $product->yarn_base_id, 'name' => 'N/A']) : null;
+            return $product;
+        });
+
+        $destination = ParameterService::getList('destinations');
 
         // Asegurarse de que los datos sean arreglos antes de pasarlos a la vista
         return Inertia::render('Programmers/Index', [
             'productSheets' => $productSheets ?? [],
             'destinations' => $destination ?? [],
-            'sections' => $sections ?? [],
-            'groups' => $groups ?? [],
-            'brands' => $brands ?? [],
-            'worlds' => $worlds ?? [],
-            'fabricBases' => $fabricBases ?? [], // Cambiar bases a fabricBases
-            'yarnBases' => $yarnBases ?? [], // Añadir yarnBases
+            'sections' => $sections->values() ?? [],
+            'groups' => $groups->values() ?? [],
+            'brands' => $brands->values() ?? [],
+            'worlds' => $worlds->values() ?? [],
+            'fabricBases' => $fabricBases->values() ?? [],
+            'yarnBases' => $yarnBases->values() ?? [],
         ]);
     }
 
@@ -69,7 +72,7 @@ class ProgrammerController extends Controller
             'lots' => 'required|array', // Validar que se envíe un array de lotes
             'lots.*.product_sheet_id' => 'required|exists:product_sheets,id',
             'lots.*.season' => 'required|string|max:255',
-            'lots.*.destination_id' => 'required|integer|exists:destinations,id', // Validar que sea un ID válido
+            'lots.*.destination_id' => 'required|integer', // ID referencia parameters
             'lots.*.priority' => 'required|string|max:1',
             'lots.*.units' => 'required|integer|min:0',
             'lots.*.ecommerce_units' => 'nullable|array', // Validar que sea un array o null
@@ -122,7 +125,7 @@ class ProgrammerController extends Controller
         $validatedData = $request->validate([
             'product_sheet_id' => 'sometimes|exists:product_sheets,id',
             'season' => 'sometimes|string|max:255',
-            'destination_id' => 'sometimes|integer|exists:destinations,id',
+            'destination_id' => 'sometimes|integer', // ID referencia parameters
             'priority' => 'sometimes|string|max:1',
             'units' => 'sometimes|integer|min:0',
             'ecommerce_units' => 'sometimes|json', // Validar que sea un JSON válido
@@ -164,7 +167,7 @@ class ProgrammerController extends Controller
         $perPage = $request->input('per_page', 10);
         $page = $request->input('page', 1);
 
-        $query = Programmer::with('productSheet', 'destination');
+        $query = Programmer::with('productSheet');
 
         // Aplicar filtros dinámicamente
         if (!empty($filters['season']) && $filters['season'] !== 'all') {
@@ -190,6 +193,14 @@ class ProgrammerController extends Controller
         }
 
         $programmers = $query->paginate($perPage, ['*'], 'page', $page);
+
+        // Enriquecer con destinations desde parameters
+        $destinations = ParameterService::getList('destinations')->keyBy('id');
+        
+        $programmers->getCollection()->transform(function ($programmer) use ($destinations) {
+            $programmer->destination = $destinations->get($programmer->destination_id, ['id' => $programmer->destination_id, 'name' => 'N/A']);
+            return $programmer;
+        });
 
         return response()->json([
             'data' => $programmers->items(),

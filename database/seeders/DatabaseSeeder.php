@@ -18,7 +18,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CompanySettingSeeder::class,
             CategorySeeder::class,
-            SectionsGroupsBrandsWorldsBasesSeeder::class,
+            MigrateToParametersSeeder::class, // Reemplaza SectionsGroupsBrandsWorldsBasesSeeder
             RolesAndPermissionsSeeder::class,
             AdditionalFieldsSeeder::class,
             ParametersSeeder::class,

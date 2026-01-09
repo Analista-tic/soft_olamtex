@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProductSheet\FabricBase;
+use App\Services\ParameterService;
 use Illuminate\Http\JsonResponse;
 
 class FabricBaseController extends Controller
@@ -11,7 +11,7 @@ class FabricBaseController extends Controller
     public function data(): JsonResponse
     {
         return response()->json([
-            'data' => FabricBase::select('id', 'name')->orderBy('name')->get()
+            'data' => ParameterService::getList('fabric_bases')
         ]);
     }
 }

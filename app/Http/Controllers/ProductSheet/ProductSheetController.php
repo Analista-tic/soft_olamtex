@@ -4,12 +4,7 @@ namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductSheet\ProductSheet;
-use App\Models\ProductSheet\Section;
-use App\Models\ProductSheet\Group;
-use App\Models\ProductSheet\Brand;
-use App\Models\ProductSheet\World;
-use App\Models\ProductSheet\FabricBase; // Cambiar Base a FabricBase
-use App\Models\ProductSheet\YarnBase;
+use App\Services\ParameterService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -20,19 +15,19 @@ class ProductSheetController extends Controller
      */
     public function index()
     {
-        $sections = Section::all();
-        $groups = Group::all();
-        $brands = Brand::all();
-        $worlds = World::all();
-        $fabricBases = FabricBase::all(); // Cambiar bases a fabricBases
-        $yarnBases = YarnBase::all();
+        $sections = ParameterService::getList('sections');
+        $groups = ParameterService::getList('groups');
+        $brands = ParameterService::getList('brands');
+        $worlds = ParameterService::getList('worlds');
+        $fabricBases = ParameterService::getList('fabric_bases');
+        $yarnBases = ParameterService::getList('yarn_bases');
 
         return Inertia::render('ProductSheets/Index', [
             'sections' => $sections,
             'groups' => $groups,
             'brands' => $brands,
             'worlds' => $worlds,
-            'fabricBases' => $fabricBases, // Cambiar bases a fabricBases
+            'fabricBases' => $fabricBases,
             'yarnBases' => $yarnBases,
         ]);
     }
@@ -43,20 +38,20 @@ class ProductSheetController extends Controller
     public function store(Request $request)
     {
         $validatedData = $request->validate([
-            'reference' => 'required|string|max:255', // Campo obligatorio.
-            'section_id' => 'required|integer|exists:sections,id', // Relación válida.
-            'group_id' => 'required|integer|exists:groups,id', // ID del grupo.
-            'brand_id' => 'required|integer|exists:brands,id', // ID de la marca.
-            'world_id' => 'required|integer|exists:worlds,id', // ID del mundo.
-            'fabric_base_id' => 'required|integer|exists:fabric_bases,id', // Asegurar que sea requerido
-            'billing_price' => 'required|numeric', // Precio de facturación.
-            'selling_price' => 'required|numeric', // Precio de venta.
-            'sizes' => 'required|json', // Tamaños en formato JSON.
-            'woven_product' => 'required|boolean', // Indica si es un producto tejido.
-            'description' => 'nullable|string', // Descripción opcional.
-            'processes' => 'required|json', // Procesos en formato JSON.
-            'status' => 'required|string|in:incomplete,complete', // Estado del producto.
-            'yarn_base_id' => 'nullable|integer|exists:yarn_bases,id', // Validar yarnBases
+            'reference' => 'required|string|max:255',
+            'section_id' => 'required|integer', // ID referencia parameters
+            'group_id' => 'required|integer', // ID referencia parameters
+            'brand_id' => 'required|integer', // ID referencia parameters
+            'world_id' => 'required|integer', // ID referencia parameters
+            'fabric_base_id' => 'required|integer', // ID referencia parameters
+            'billing_price' => 'required|numeric',
+            'selling_price' => 'required|numeric',
+            'sizes' => 'required|json',
+            'woven_product' => 'required|boolean',
+            'description' => 'nullable|string',
+            'processes' => 'required|json',
+            'status' => 'required|string|in:incomplete,complete',
+            'yarn_base_id' => 'nullable|integer', // ID referencia parameters
         ]);
 
         $productSheet = ProductSheet::create($validatedData); // Asegurarse de que se incluya fabric_base_id
@@ -75,11 +70,11 @@ class ProductSheetController extends Controller
     {
         $validatedData = $request->validate([
             'reference' => 'required|string|max:255',
-            'section_id' => 'required|integer|exists:sections,id',
-            'group_id' => 'required|integer|exists:groups,id',
-            'brand_id' => 'required|integer|exists:brands,id',
-            'world_id' => 'required|integer|exists:worlds,id',
-            'fabric_base_id' => 'required|integer|exists:fabric_bases,id', // Asegurar que fabric_base_id sea requerido
+            'section_id' => 'required|integer', // ID referencia parameters
+            'group_id' => 'required|integer', // ID referencia parameters
+            'brand_id' => 'required|integer', // ID referencia parameters
+            'world_id' => 'required|integer', // ID referencia parameters
+            'fabric_base_id' => 'required|integer', // ID referencia parameters
             'billing_price' => 'required|numeric',
             'selling_price' => 'required|numeric',
             'sizes' => 'required|json',
@@ -87,7 +82,7 @@ class ProductSheetController extends Controller
             'description' => 'nullable|string',
             'processes' => 'required|json',
             'status' => 'required|string|in:incomplete,complete',
-            'yarn_base_id' => 'nullable|integer|exists:yarn_bases,id', // Validar yarnBases
+            'yarn_base_id' => 'nullable|integer', // ID referencia parameters
         ]);
 
         $productSheet = ProductSheet::findOrFail($id); // Busca el registro.
@@ -112,17 +107,36 @@ class ProductSheetController extends Controller
      */
     public function getData(Request $request)
     {
-        $query = ProductSheet::with(['section', 'group', 'brand', 'world', 'fabricBase', 'yarnBase']); // Asegurarse de que fabricBase esté definido correctamente
+        $query = ProductSheet::query();
 
         if ($request->has('search') && $request->search != '') {
-            $query->where('reference', 'like', '%' . $request->search . '%'); // Filtro por referencia.
+            $query->where('reference', 'like', '%' . $request->search . '%');
         }
 
         if ($request->has('status') && $request->status != '') {
-            $query->where('status', $request->status); // Filtro por estado.
+            $query->where('status', $request->status);
         }
 
-        $products_sheets = $query->orderBy('id', 'desc')->paginate(10); // Orden y paginación.
+        $products_sheets = $query->orderBy('id', 'desc')->paginate(10);
+
+        // Cargar los catálogos desde parameters
+        $sections = ParameterService::getList('sections')->keyBy('id');
+        $groups = ParameterService::getList('groups')->keyBy('id');
+        $brands = ParameterService::getList('brands')->keyBy('id');
+        $worlds = ParameterService::getList('worlds')->keyBy('id');
+        $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
+        $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
+
+        // Enriquecer los productos con los nombres
+        $products_sheets->getCollection()->transform(function ($product) use ($sections, $groups, $brands, $worlds, $fabricBases, $yarnBases) {
+            $product->section = $sections->get($product->section_id, ['id' => $product->section_id, 'name' => 'N/A']);
+            $product->group = $groups->get($product->group_id, ['id' => $product->group_id, 'name' => 'N/A']);
+            $product->brand = $brands->get($product->brand_id, ['id' => $product->brand_id, 'name' => 'N/A']);
+            $product->world = $worlds->get($product->world_id, ['id' => $product->world_id, 'name' => 'N/A']);
+            $product->fabric_base = $fabricBases->get($product->fabric_base_id, ['id' => $product->fabric_base_id, 'name' => 'N/A']);
+            $product->yarn_base = $product->yarn_base_id ? $yarnBases->get($product->yarn_base_id, ['id' => $product->yarn_base_id, 'name' => 'N/A']) : null;
+            return $product;
+        });
 
         return response()->json([
             'products_sheets' => $products_sheets,
