@@ -3,11 +3,11 @@ import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
 
@@ -175,21 +175,12 @@ const errorSummary = computed(() => {
 });
 
 function validateForm(): void {
-    formErrors.value = [];
-
-    lotsForm.value.forEach((lot, index) => {
-        const lotErrors: string[] = [];
-        
-        if (!lot.product_sheet_id) lotErrors.push('Referencia');
-        if (!lot.season) lotErrors.push('Temporada');
-        if (!lot.destination_id) lotErrors.push('Destino');
-        if (!lot.priority) lotErrors.push('Prioridad');
-        if (!lot.units || lot.units <= 0) lotErrors.push('Unidades');
-        
-        if (lotErrors.length > 0) {
-            formErrors.value.push({ lotIndex: index, fields: lotErrors });
-        }
-    });
+    formErrors.value = lotsForm.value
+        .map((lot, index) => {
+            const fields = getLotErrors(lot);
+            return fields.length > 0 ? { lotIndex: index, fields } : null;
+        })
+        .filter((error): error is { lotIndex: number; fields: string[] } => Boolean(error));
 }
 
 function createProgrammer(): void {
@@ -258,19 +249,40 @@ const allProductSheets = ref<ProductSheet[]>([...props.productSheets]);
 
 const productSheets = computed(() => allProductSheets.value);
 
+watch(
+    () => form.value.productSheetId,
+    (newProductSheetId) => {
+        if (!newProductSheetId) {
+            lotsForm.value = [];
+            formErrors.value = [];
+            return;
+        }
+        if (lotsForm.value.length > 0) {
+            lotsForm.value = lotsForm.value.map((lot) => ({
+                ...lot,
+                product_sheet_id: newProductSheetId,
+            }));
+        }
+    },
+);
+
+function getLotErrors(lot: Partial<Programmer>): string[] {
+    const lotErrors: string[] = [];
+    if (!lot.product_sheet_id) lotErrors.push('Referencia');
+    if (!lot.season) lotErrors.push('Temporada');
+    if (!lot.destination_id) lotErrors.push('Destino');
+    if (!lot.priority) lotErrors.push('Prioridad');
+    if (!lot.units || lot.units <= 0) lotErrors.push('Unidades');
+    return lotErrors;
+}
+
 // Validación en tiempo real al cambiar valores de los lotes
 function validateLotField(lotIndex: number): void {
     const lot = lotsForm.value[lotIndex];
     if (!lot) return;
 
     const existingErrorIndex = formErrors.value.findIndex(e => e.lotIndex === lotIndex);
-    const lotErrors: string[] = [];
-    
-    if (!lot.product_sheet_id) lotErrors.push('Referencia');
-    if (!lot.season) lotErrors.push('Temporada');
-    if (!lot.destination_id) lotErrors.push('Destino');
-    if (!lot.priority) lotErrors.push('Prioridad');
-    if (!lot.units || lot.units <= 0) lotErrors.push('Unidades');
+    const lotErrors = getLotErrors(lot);
 
     if (lotErrors.length > 0) {
         if (existingErrorIndex >= 0) {
@@ -534,7 +546,6 @@ function getTrueSizes(sizes: string | undefined): string {
                     Cancelar
                 </button>
                 <Button
-                    size="sm"
                     type="button"
                     class="flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold shadow-sm"
                     :disabled="formErrors.length > 0"
