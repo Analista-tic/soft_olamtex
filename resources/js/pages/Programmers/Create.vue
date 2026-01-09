@@ -8,7 +8,7 @@ import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sh
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
 
 const emit = defineEmits(['programmerCreated']);
@@ -24,63 +24,10 @@ const props = defineProps<{
     yarnBases: OptionParams[];
 }>();
 
-const isDialogOpen = ref(false);
-const productSheetDialogOpen = ref(false);
+// Constants
+type AlertType = 'success' | 'error' | 'info' | 'warning';
 
-// Alert state
-const alertMessage = ref('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
-const showAlert = ref(false);
-const dialogInnerRef = ref<HTMLElement | null>(null);
-
-function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
-    alertMessage.value = message;
-    alertType.value = type;
-    showAlert.value = true;
-    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
-        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-}
-
-function clearAlert() {
-    alertMessage.value = '';
-    showAlert.value = false;
-}
-
-const lotsForm = ref<Array<Partial<Programmer>>>([]);
-
-const form = ref<{
-    lotsCount: number | null | undefined;
-    productSheetId: number | null; // Asegurar que sea del tipo correcto
-}>({
-    lotsCount: null,
-    productSheetId: null,
-});
-
-const lotsCountModel = computed({
-    get() {
-        return form.value.lotsCount ?? '';
-    },
-    set(value: string | number) {
-        if (value === '' || value === null || value === undefined) {
-            form.value.lotsCount = null;
-            return;
-        }
-
-        const normalized =
-            typeof value === 'number' ? value : Number(value.toString().replace(',', '.'));
-        form.value.lotsCount = Number.isNaN(normalized) ? null : normalized;
-    },
-});
-
-// Asegurar que las opciones de `SelectField` sean válidas
-const productSheetOptions = computed(() =>
-    props.productSheets.map(sheet => ({ id: sheet.id, name: sheet.reference }))
-);
-
-const months = [
+const MONTHS = [
     { id: 'ENERO', name: 'ENERO' },
     { id: 'FEBRERO', name: 'FEBRERO' },
     { id: 'MARZO', name: 'MARZO' },
@@ -93,32 +40,116 @@ const months = [
     { id: 'OCTUBRE', name: 'OCTUBRE' },
     { id: 'NOVIEMBRE', name: 'NOVIEMBRE' },
     { id: 'DICIEMBRE', name: 'DICIEMBRE' },
-];
+] as const;
 
-const priorities = [
+const PRIORITIES = [
     { id: 'A', name: 'A' },
     { id: 'B', name: 'B' },
     { id: 'C', name: 'C' },
     { id: 'D', name: 'D' },
-];
+] as const;
 
-const selectedProductSheet = computed(() => {
-    return props.productSheets.find(sheet => sheet.id === form.value.productSheetId) || null;
+const ALERT_TITLES: Record<AlertType, string> = {
+    warning: 'Advertencia',
+    success: 'Éxito',
+    info: 'Información',
+    error: 'Error',
+};
+
+// State
+const isDialogOpen = ref(false);
+const productSheetDialogOpen = ref(false);
+const lotsForm = ref<Array<Partial<Programmer>>>([]);
+const formErrors = ref<{ lotIndex: number; fields: string[] }[]>([]);
+const dialogInnerRef = ref<HTMLElement | null>(null);
+
+// Alert state
+const successMessage = ref('');
+const errorMessage = ref('');
+const errorType = ref<AlertType>('info');
+const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
+
+// Alert functions
+function setAlert(message: string, type: AlertType = 'info'): void {
+    if (type === 'success') {
+        successMessage.value = message;
+        errorMessage.value = '';
+    } else {
+        errorMessage.value = message;
+        errorType.value = type;
+        successMessage.value = '';
+    }
+    
+    if (dialogInnerRef.value?.scrollTo) {
+        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+function clearAlert(): void {
+    successMessage.value = '';
+    errorMessage.value = '';
+}
+
+// Form state
+const form = ref<{
+    lotsCount: number | null | undefined;
+    productSheetId: number | null; // Asegurar que sea del tipo correcto
+}>({
+    lotsCount: null,
+    productSheetId: null,
 });
 
-function generateLots() {
+const lotsCountModel = computed<string | number>({
+    get(): string | number {
+        return form.value.lotsCount ?? '';
+    },
+    set(value: string | number): void {
+        if (value === '' || value === null || value === undefined) {
+            form.value.lotsCount = null;
+            return;
+        }
+
+        const normalized =
+            typeof value === 'number' ? value : Number(value.toString().replace(',', '.'));
+        form.value.lotsCount = Number.isNaN(normalized) ? null : normalized;
+    },
+});
+
+const productSheetOptions = computed(() =>
+    productSheets.value.map(sheet => ({ id: sheet.id, name: sheet.reference }))
+);
+
+const selectedProductSheet = computed(() => {
+    return productSheets.value.find(sheet => sheet.id === form.value.productSheetId) || null;
+});
+
+const destinationOptions = computed(() =>
+    props.destinations.map(destination => ({ id: destination.id, name: destination.name }))
+);
+
+function generateLots(): void {
+    // Validar cantidad de lotes
     if (!form.value.lotsCount || form.value.lotsCount <= 0) {
         setAlert('Por favor, ingresa una cantidad válida de lotes.', 'warning');
+        lotsForm.value = [];
         return;
     }
 
+    // Validar que exista una ficha de producto seleccionada
     if (!form.value.productSheetId) {
         setAlert('Por favor, selecciona una referencia de ficha de producto.', 'warning');
+        lotsForm.value = [];
         return;
     }
 
-    lotsForm.value = Array.from({ length: form.value.lotsCount }, (_, index) => ({
-        lot: `MF${index + 1}`,
+    // Limpiar errores previos al regenerar lotes
+    formErrors.value = [];
+    clearAlert();
+
+    // Generar los lotes con valores iniciales
+    lotsForm.value = Array.from({ length: form.value.lotsCount }, () => ({
         product_sheet_id: form.value.productSheetId,
         season: '',
         destination_id: null,
@@ -130,25 +161,49 @@ function generateLots() {
     }));
 }
 
-const formErrors = ref<string[]>([]);
+const errorSummary = computed(() => {
+    if (formErrors.value.length === 0) return null;
+    
+    const totalLots = formErrors.value.length;
+    const totalErrors = formErrors.value.reduce((sum, lot) => sum + lot.fields.length, 0);
+    
+    return {
+        totalLots,
+        totalErrors,
+        message: `${totalLots} ${totalLots === 1 ? 'lote tiene' : 'lotes tienen'} campos incompletos (${totalErrors} ${totalErrors === 1 ? 'campo' : 'campos'} en total)`
+    };
+});
 
-function validateForm() {
+function validateForm(): void {
     formErrors.value = [];
 
     lotsForm.value.forEach((lot, index) => {
-        if (!lot.product_sheet_id) formErrors.value.push(`El ID de Ficha de Producto es requerido para el lote ${index + 1}.`);
-        if (!lot.season) formErrors.value.push(`La Temporada es requerida para el lote ${index + 1}.`);
-        if (!lot.destination_id) formErrors.value.push(`El Destino es requerido para el lote ${index + 1}.`);
-        if (!lot.priority) formErrors.value.push(`La Prioridad es requerida para el lote ${index + 1}.`);
-        if (!lot.units || lot.units <= 0) formErrors.value.push(`Las unidades deben ser mayores a 0 para el lote ${index + 1}.`);
+        const lotErrors: string[] = [];
+        
+        if (!lot.product_sheet_id) lotErrors.push('Referencia');
+        if (!lot.season) lotErrors.push('Temporada');
+        if (!lot.destination_id) lotErrors.push('Destino');
+        if (!lot.priority) lotErrors.push('Prioridad');
+        if (!lot.units || lot.units <= 0) lotErrors.push('Unidades');
+        
+        if (lotErrors.length > 0) {
+            formErrors.value.push({ lotIndex: index, fields: lotErrors });
+        }
     });
 }
 
-function createProgrammer() {
+function createProgrammer(): void {
+    // Validar que existan lotes
+    if (lotsForm.value.length === 0) {
+        setAlert('Debes generar al menos un lote antes de guardar.', 'warning');
+        return;
+    }
+
+    // Validar todos los campos
     validateForm();
 
     if (formErrors.value.length > 0) {
-        setAlert('Por favor, corrige los errores antes de continuar.', 'warning');
+        setAlert(`Por favor, completa todos los campos requeridos. ${errorSummary.value?.message}`, 'warning');
         return;
     }
 
@@ -167,58 +222,93 @@ function createProgrammer() {
         .then(() => {
             setAlert('Programadores creados exitosamente.', 'success');
             emit('programmerCreated');
-            resetForm(); // Llamar a resetForm para limpiar el formulario
-            isDialogOpen.value = false; // Cerrar el diálogo
+            resetForm();
+            isDialogOpen.value = false;
         })
-        .catch(error => {
+        .catch((error: unknown) => {
             console.error('Error al crear los programadores:', error);
-            setAlert('Hubo un error al crear los programadores.', 'error');
+            
+            let errorText = 'Hubo un error al crear los programadores.';
+            if (axios.isAxiosError(error) && error.response?.data?.message) {
+                errorText = error.response.data.message;
+            }
+            
+            setAlert(errorText, 'error');
         });
 }
 
-function resetForm() {
+function resetForm(): void {
     form.value = {
         lotsCount: null,
         productSheetId: null,
-    }; // Reiniciar los valores del formulario
-    lotsForm.value = []; // Limpiar los lotes generados
-    formErrors.value = []; // Limpiar los errores del formulario
+    };
+    lotsForm.value = [];
+    formErrors.value = [];
     productSheetDialogOpen.value = false;
+    dialogInnerRef.value = null;
+    clearAlert();
 }
 
-function closeDialog() {
+function closeDialog(): void {
     resetForm();
     isDialogOpen.value = false;
 }
 
-const productSheets = ref<ProductSheet[]>(props.productSheets);
+const allProductSheets = ref<ProductSheet[]>([...props.productSheets]);
 
-function addProductSheet(response: { success: boolean; message: string; data: ProductSheet } | undefined) {
-    if (!response || !response.success || !response.data || !response.data.id) {
+const productSheets = computed(() => allProductSheets.value);
+
+// Validación en tiempo real al cambiar valores de los lotes
+function validateLotField(lotIndex: number): void {
+    const lot = lotsForm.value[lotIndex];
+    if (!lot) return;
+
+    const existingErrorIndex = formErrors.value.findIndex(e => e.lotIndex === lotIndex);
+    const lotErrors: string[] = [];
+    
+    if (!lot.product_sheet_id) lotErrors.push('Referencia');
+    if (!lot.season) lotErrors.push('Temporada');
+    if (!lot.destination_id) lotErrors.push('Destino');
+    if (!lot.priority) lotErrors.push('Prioridad');
+    if (!lot.units || lot.units <= 0) lotErrors.push('Unidades');
+
+    if (lotErrors.length > 0) {
+        if (existingErrorIndex >= 0) {
+            formErrors.value[existingErrorIndex].fields = lotErrors;
+        } else {
+            formErrors.value.push({ lotIndex, fields: lotErrors });
+        }
+    } else if (existingErrorIndex >= 0) {
+        formErrors.value.splice(existingErrorIndex, 1);
+    }
+}
+
+function addProductSheet(response: { success: boolean; message: string; data: ProductSheet } | undefined): void {
+    if (!response?.success || !response?.data?.id) {
         console.error('El ProductSheet creado no es válido:', response);
         setAlert('Hubo un problema al crear la ficha de producto. Intenta nuevamente.', 'error');
         return;
     }
 
     const newProductSheet = response.data;
-    productSheets.value = [...productSheets.value, newProductSheet];
+    allProductSheets.value = [...allProductSheets.value, newProductSheet];
     form.value.productSheetId = newProductSheet.id;
 }
 
 // Función para obtener las claves con valores `true` en `sizes`
 function getTrueSizes(sizes: string | undefined): string {
-    if (!sizes) return ''; // Manejar el caso en que sizes sea undefined
-    let parsedSizes: Record<string, boolean>;
+    if (!sizes) return '';
+    
     try {
-        parsedSizes = JSON.parse(sizes); // Convertir el string en JSON
+        const parsedSizes: Record<string, boolean> = JSON.parse(sizes);
+        return Object.entries(parsedSizes)
+            .filter(([, value]) => value === true)
+            .map(([key]) => key)
+            .join(', ');
     } catch (error) {
         console.error('Error al parsear sizes:', error);
         return '';
     }
-    return Object.entries(parsedSizes)
-        .filter(([, value]) => value === true) // Filtrar solo los valores `true`
-        .map(([key]) => key) // Obtener solo las claves
-        .join(', '); // Unirlas con comas
 }
 </script>
 
@@ -234,27 +324,23 @@ function getTrueSizes(sizes: string | undefined): string {
                 Nuevo Programador
             </Button>
         </DialogTrigger>
-        <DialogContent class="sm:max-w-6xl max-h-[90vh] flex flex-col">
-            <DialogHeader class="flex-shrink-0">
+        <DialogContent class="sm:max-w-[90vw] h-[90vh] flex flex-col p-0 gap-0">
+            <DialogHeader class="flex-shrink-0 px-6 pt-6 pb-4">
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
             </DialogHeader>
-            
-            <div ref="dialogInnerRef" class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
-                <transition name="fade">
-                    <div v-if="showAlert && alertMessage" class="mb-4">
-                        <AlertBox
-                            :type="alertType"
-                            :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
-                            :message="alertMessage"
-                            class="pointer-events-auto"
-                            @close="clearAlert"
-                        />
-                    </div>
-                </transition>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                :error-type="errorType"
+                :success-title="ALERT_TITLES.success"
+                :error-title="errorTitle"
+                @close-success="successMessage = ''"
+                @close-error="errorMessage = ''"
+            />
 
-                <div class="grid grid-cols-2 gap-4 gap-y-1 pt-5">
-                <div class="col-span-2">
+            <div ref="dialogInnerRef" class="overflow-y-auto flex-1 px-6 pb-24 scroll-smooth" style="scrollbar-width: thin;">
+                <div class="grid grid-cols-1 gap-4 pt-4">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                         <!-- Campo para la referencia seleccionada -->
                         <SelectField
@@ -269,20 +355,19 @@ function getTrueSizes(sizes: string | undefined): string {
                             label="Cantidad de Lotes"
                             placeholder="Numero de lotes"
                             type="number"
+                            min="1"
                             required
                             @update:modelValue="generateLots"
                         />
                         <div class="flex flex-col gap-2">
-                            <span aria-hidden="true" class="block text-sm font-medium leading-tight text-transparent select-none">
-                                Accion
-                            </span>
+                            <span class="text-sm font-medium leading-tight text-foreground">Accion</span>
                             <Button
                                 variant="outline"
                                 class="h-10 rounded-full px-4 text-sm font-semibold"
                                 type="button"
                                 @click="productSheetDialogOpen = true"
                             >
-                                Crear ficha de producto
+                                Crear Sabana de Productos
                             </Button>
                             <CreateProductSheetDialog
                                 mode="create"
@@ -299,7 +384,7 @@ function getTrueSizes(sizes: string | undefined): string {
                         </div>
                     </div>
                     <!-- Tabla informativa para mostrar detalles del ProductSheet seleccionado -->
-                    <div v-if="selectedProductSheet" class="mt-4">
+                    <div v-if="selectedProductSheet" class="mb-4">
                         <h3 class="text-lg font-bold mb-2">Detalles de la Ficha de Producto</h3>
                         <table class="w-full text-sm text-left border border-gray-300 rounded-lg overflow-hidden">
                             <tbody>
@@ -333,73 +418,101 @@ function getTrueSizes(sizes: string | undefined): string {
                         </table>
                     </div>
                 </div>
-            </div>
+                
+                <div v-if="formErrors.length > 0" class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded mb-4 mt-4">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-amber-800">Campos incompletos</h3>
+                            <div class="mt-2 text-sm text-amber-700">
+                                <p>{{ errorSummary?.message }}</p>
+                                <details class="mt-2">
+                                    <summary class="cursor-pointer font-medium hover:text-amber-900">Ver detalles</summary>
+                                    <ul class="mt-2 space-y-1 list-disc list-inside">
+                                        <li v-for="(error, index) in formErrors" :key="index">
+                                            Lote {{ error.lotIndex + 1 }}: {{ error.fields.join(', ') }}
+                                        </li>
+                                    </ul>
+                                </details>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-            <div v-if="formErrors.length > 0" class="bg-red-100 text-red-700 p-4 rounded mb-4">
-                <ul>
-                    <li v-for="(error, index) in formErrors" :key="index">{{ error }}</li>
-                </ul>
-            </div>
-
-            <div v-if="lotsForm.length > 0" class="mt-2">
-                <h3 class="text-base font-bold mb-2">Lotes Generados:</h3>
-                <table class="w-full text-sm border border-gray-300 rounded-lg overflow-hidden shadow-sm text-center">
+                <div v-if="lotsForm.length > 0" class="mt-4">
+                    <h3 class="text-base font-bold mb-2">Lotes Generados:</h3>
+                    <table class="w-full text-sm border border-gray-300 rounded-lg overflow-visible shadow-sm text-center">
                     <thead>
-                        <tr>
-                            <th class="px-3 py-2 border">Lote</th>
-                            <th class="px-3 py-2 border">Referencia</th>
-                            <th class="px-3 py-2 border">Temporada</th>
-                            <th class="px-3 py-2 border">Destino</th>
-                            <th class="px-3 py-2 border">Prioridad</th>
-                            <th class="px-3 py-2 border">E-commerce?</th>
-                            <th class="px-3 py-2 border">Cant. Almacenes</th>
-                            <th v-if="lotsForm.some(lot => lot.isEcommerce)" class="px-3 py-2 border">Cant. E-commerce</th>
+                        <tr class="bg-gray-50">
+                            <th class="px-4 py-3 border font-semibold">Lote</th>
+                            <th class="px-4 py-3 border font-semibold">Referencia</th>
+                            <th class="px-4 py-3 border font-semibold">Temporada</th>
+                            <th class="px-4 py-3 border font-semibold">Destino</th>
+                            <th class="px-4 py-3 border font-semibold">Prioridad</th>
+                            <th class="px-4 py-3 border font-semibold">E-commerce?</th>
+                            <th class="px-4 py-3 border font-semibold">Cant. Almacenes</th>
+                            <th v-if="lotsForm.some(lot => lot.isEcommerce)" class="px-4 py-3 border font-semibold">Cant. E-commerce</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(lot, index) in lotsForm" :key="index">
-                            <td class="px-3 py-2 border">MF300{{ index + 1 }}</td>
-                            <td class="px-3 py-2 border">{{ lot.product_sheet_id }}</td>
-                            <td class="px-3 py-2 border">
+                        <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
+                            <td class="px-4 py-4 border whitespace-nowrap">MF300{{ index + 1 }}</td>
+                            <td class="px-4 py-4 border">{{ lot.product_sheet_id }}</td>
+                            <td class="px-4 py-4 border" style="min-width: 180px;">
                                 <SelectField
                                     v-model="lot.season"
-                                    :options="months"
+                                    :options="MONTHS"
                                     label=""
+                                    :aria-label="`Temporada para lote ${index + 1}`"
                                     :class="{ 'border-red-500': !lot.season }"
+                                    @update:modelValue="validateLotField(index)"
                                 />
                             </td>
-                            <td class="px-3 py-2 border">
+                            <td class="px-4 py-4 border" style="min-width: 200px;">
                                 <SelectField
                                     v-model="lot.destination_id"
-                                    :options="props.destinations.map(destination => ({ id: destination.id, name: destination.name }))"
+                                    :options="destinationOptions"
                                     label=""
+                                    :aria-label="`Destino para lote ${index + 1}`"
                                     :class="{ 'border-red-500': !lot.destination_id }"
+                                    @update:modelValue="validateLotField(index)"
                                 />
                             </td>
-                            <td class="px-3 py-2 border">
+                            <td class="px-4 py-4 border" style="min-width: 150px;">
                                 <SelectField
                                     v-model="lot.priority"
-                                    :options="priorities"
+                                    :options="PRIORITIES"
                                     label=""
+                                    :aria-label="`Prioridad para lote ${index + 1}`"
                                     :class="{ 'border-red-500': !lot.priority }"
+                                    @update:modelValue="validateLotField(index)"
                                 />
                             </td>
-                            <td class="px-3 py-2 border">
+                            <td class="px-4 py-4 border text-center">
                                 <input 
                                     type="checkbox" 
                                     v-model="lot.isEcommerce" 
-                                    class="form-checkbox h-5 w-5 text-blue-600"
+                                    :aria-label="`Habilitar e-commerce para lote ${index + 1}`"
+                                    class="form-checkbox h-5 w-5 text-blue-600 cursor-pointer"
                                 />
                             </td>
-                            <td class="px-3 py-2 border">
+                            <td class="px-4 py-4 border" style="min-width: 180px;">
                                 <InputField
                                     v-model="lot.units as number | undefined"
                                     label=""
                                     placeholder="Unds. a programar"
-                                    :class="{ 'border-red-500': !lot.units }"
+                                    type="number"
+                                    min="1"
+                                    :aria-label="`Unidades para lote ${index + 1}`"
+                                    :class="{ 'border-red-500': !lot.units || lot.units <= 0 }"
+                                    @update:modelValue="validateLotField(index)"
                                 />
                             </td>
-                            <td v-if="lot.isEcommerce" class="px-3 py-2 border">
+                            <td v-if="lot.isEcommerce" class="px-4 py-4 border text-center">
                                 <EcommerceSizesDialog
                                     :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet?.reference || '' }"
                                     @sizesUpdated="(sizes) => lot.ecommerce_units = sizes"
@@ -409,29 +522,26 @@ function getTrueSizes(sizes: string | undefined): string {
                     </tbody>
                 </table>
             </div>
+            </div>
 
-            <DialogFooter class="mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
-                <div class="w-full md:w-auto">
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="closeDialog"
-                    >
-                        Cancelar
-                    </button>
-                </div>
-                <div class="w-full md:w-auto">
-                    <Button
-                        size="sm"
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                        :disabled="formErrors.length > 0"
-                        @click="createProgrammer"
-                    >
-                        Guardar
-                    </Button>
-                </div>
-            </DialogFooter>
+            <!-- Botones flotantes en la esquina inferior derecha -->
+            <div class="absolute bottom-0 right-0 left-0 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-end gap-3">
+                <button
+                    type="button"
+                    class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    @click="closeDialog"
+                >
+                    Cancelar
+                </button>
+                <Button
+                    size="sm"
+                    type="button"
+                    class="flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold shadow-sm"
+                    :disabled="formErrors.length > 0"
+                    @click="createProgrammer"
+                >
+                    Guardar
+                </Button>
             </div>
         </DialogContent>
     </Dialog>

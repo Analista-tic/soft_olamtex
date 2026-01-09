@@ -182,16 +182,38 @@ watch([searchQuery, statusFilter], ([newQuery, newStatus]) => {
     fetchProductSheets(1, newQuery, newStatus);
 });
 
-function openEditDialog(product: ProductSheet) {
-    editProductSheetData.value = { ...product }; // Clonar el producto para evitar referencias directas
-    isViewMode.value = false; // Desactivar modo de solo lectura
-    isEditDialogOpen.value = true;
+async function openEditDialog(product: ProductSheet) {
+    try {
+        // Hacer petición al backend para obtener los datos completos
+        const response = await axios.get(`/diseno/sabana-productos/${product.id}`);
+        if (response && response.data && response.data.success) {
+            editProductSheetData.value = response.data.data;
+            isViewMode.value = false;
+            isEditDialogOpen.value = true;
+        } else {
+            setAlert('Error al cargar los datos del producto', 'error');
+        }
+    } catch (error) {
+        console.error('Error al cargar el producto:', error);
+        setAlert('Error al cargar los datos del producto', 'error');
+    }
 }
 
-function viewProductSheet(product: ProductSheet) {
-    editProductSheetData.value = { ...product }; // Cargar el producto
-    isViewMode.value = true; // Activar modo de solo lectura
-    isEditDialogOpen.value = true; // Abrir el diálogo
+async function viewProductSheet(product: ProductSheet) {
+    try {
+        // Hacer petición al backend para obtener los datos completos
+        const response = await axios.get(`/diseno/sabana-productos/${product.id}`);
+        if (response && response.data && response.data.success) {
+            editProductSheetData.value = response.data.data;
+            isViewMode.value = true;
+            isEditDialogOpen.value = true;
+        } else {
+            setAlert('Error al cargar los datos del producto', 'error');
+        }
+    } catch (error) {
+        console.error('Error al cargar el producto:', error);
+        setAlert('Error al cargar los datos del producto', 'error');
+    }
 }
 
 function openCreateDialog() {

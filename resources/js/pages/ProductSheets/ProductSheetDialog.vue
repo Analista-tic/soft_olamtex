@@ -150,7 +150,7 @@ watch(
 watch(
     () => props.productSheet,
     (newProductSheet) => {
-        if (props.mode === 'edit' && newProductSheet) {
+        if ((props.mode === 'edit' || props.mode === 'view') && newProductSheet) {
             form.value = { ...newProductSheet }; // Clonar los datos del producto para evitar referencias directas
             try {
                 form.value.sizes = typeof newProductSheet.sizes === 'string'
@@ -346,8 +346,9 @@ function handleClose() {
                     label="Base Hilaza"
                     :options="props.yarnBases"
                     required
+                    :disabled="isReadonly"
                 />
-                <SizeSelector class="w-full" v-model="form.sizes" :sizeGroups="sizeGroups" />
+                <SizeSelector class="w-full" v-model="form.sizes" :sizeGroups="sizeGroups" :disabled="isReadonly" />
             </div>
             
             <!-- Tercera sección: Propiedades adicionales -->
@@ -357,6 +358,7 @@ function handleClose() {
                     label="Descripción de Producto"
                     type="text"
                     placeholder="Añade descripción o observaciones del producto"
+                    :disabled="isReadonly"
                 />
             </div>
 
@@ -366,6 +368,7 @@ function handleClose() {
                     v-model="form.processes"
                     :availableProcesses="allProcesses"
                     :wovenProduct="form.woven_product"
+                    :disabled="isReadonly"
                 />
             </div>
             </div>

@@ -22,6 +22,12 @@ class CreateItemsTable extends Migration
             $table->string('unit_measure')->nullable();
             $table->boolean('status')->default(true);
             $table->string('item_type')->default('product');
+            $table->string('income_account_id')->nullable();
+            $table->string('inventory_account_id')->nullable();
+            $table->string('cost_of_sale_account_id')->nullable();
+            $table->string('tariff_heading')->nullable();
+            $table->string('brand')->nullable();
+            $table->string('model')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

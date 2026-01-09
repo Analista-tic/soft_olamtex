@@ -13,7 +13,10 @@ use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use App\Models\Common\CategoryGroup;
 use App\Models\Common\CategorySubGroup;
+use App\Models\Common\Tax;
+use App\Models\Common\Warehouse;
 use Illuminate\Support\Facades\Log;
 
 class ItemController extends Controller
@@ -151,6 +154,21 @@ class ItemController extends Controller
         // Encabezados de la hoja principal
         $headers = $this->templateHeaders();
 
+        $groups = CategoryGroup::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $subGroups = CategorySubGroup::with('categoryGroup')->get()->map(function ($sg) {
+            return [
+                'id' => $sg->id,
+                'name' => $sg->name,
+                'group' => optional($sg->categoryGroup)->name ?? '',
+            ];
+        })->toArray();
+
+        $exampleGroup = $subGroups[0]['group'] ?? ($groups->first()?->name ?? 'Suministros');
+        $exampleSubGroup = $subGroups[0]['name'] ?? 'Papel';
+
         // Hoja principal: items (solo encabezados + fila de ejemplo)
         $mainSheet = $spreadsheet->getActiveSheet();
         $mainSheet->setTitle('items');
@@ -158,8 +176,8 @@ class ItemController extends Controller
         $exampleRow = [
             'Producto', // TIPO DE ITEM
             'Ejemplo articulo', // NOMBRE
-            'Suministros', // GRUPO
-            'Papel', // SUBGRUPO
+            $exampleGroup, // GRUPO
+            $exampleSubGroup, // SUBGRUPO
             '19', // IMPUESTO (%)
             'Principal', // BODEGA
             '100', // CANTIDAD
@@ -169,7 +187,7 @@ class ItemController extends Controller
             'ART-001', // CODIGO DE BARRAS
             'ART-001', // REFERENCIA
             'Descripcion de articulo de prueba', // DESCRIPCION
-            '0', // MOVIMIENTO NEGATIVO
+            'NO', // MOVIMIENTO NEGATIVO
             'COLOR', // CAMPOS ADICIONALES
             'Rojo', // VALORES ADICIONALES
             'Activo', // ESTADO
@@ -187,14 +205,6 @@ class ItemController extends Controller
             $mainSheet->getColumnDimension($col)->setAutoSize(true);
         }
 
-        $subGroups = CategorySubGroup::with('categoryGroup')->get()->map(function ($sg) {
-            return [
-                'id' => $sg->id,
-                'name' => $sg->name,
-                'group' => optional($sg->categoryGroup)->name ?? '',
-            ];
-        })->toArray();
-
         $subGroupSheet = $spreadsheet->createSheet();
         $subGroupSheet->setTitle('Subgrupos');
         $subGroupSheet->fromArray(['ID', 'Nombre', 'Grupo'], null, 'A1');
@@ -203,6 +213,18 @@ class ItemController extends Controller
             $subGroupSheet->fromArray($rows, null, 'A2');
         }
         $rowS = count($subGroups) + 1;
+
+        $groupSheet = $spreadsheet->createSheet();
+        $groupSheet->setTitle('Grupos');
+        $groupSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if ($groups->isNotEmpty()) {
+            $groupSheet->fromArray(
+                $groups->map(fn($group) => [$group->id, $group->name])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $groupLastRow = $groups->count() + 1;
 
         $unitMeasures = $this->loadUnitMeasureOptionsForTemplate();
         $unitSheet = $spreadsheet->createSheet();
@@ -216,6 +238,54 @@ class ItemController extends Controller
             );
         }
         $unitLastRow = max(1, count($unitMeasures)) + 1;
+
+        $taxes = Tax::query()
+            ->where('status', true)
+            ->orderBy('percentage')
+            ->get(['id', 'name', 'percentage']);
+        $taxSheet = $spreadsheet->createSheet();
+        $taxSheet->setTitle('Impuestos');
+        $taxSheet->fromArray(['ID', 'Nombre', 'Porcentaje'], null, 'A1');
+        if ($taxes->isNotEmpty()) {
+            $taxSheet->fromArray(
+                $taxes->map(fn($tax) => [
+                    $tax->id,
+                    $tax->name,
+                    number_format((float) $tax->percentage, 2, '.', ''),
+                ])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $taxLastRow = $taxes->count() + 1;
+
+        $warehouses = Warehouse::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $warehouseSheet = $spreadsheet->createSheet();
+        $warehouseSheet->setTitle('Bodegas');
+        $warehouseSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if ($warehouses->isNotEmpty()) {
+            $warehouseSheet->fromArray(
+                $warehouses->map(fn($warehouse) => [
+                    $warehouse->id,
+                    $warehouse->name,
+                ])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $warehouseLastRow = $warehouses->count() + 1;
+
+        $listRows = [
+            ['Activo', 'NO'],
+            ['Inactivo', 'SI'],
+        ];
+        $listSheet = $spreadsheet->createSheet();
+        $listSheet->setTitle('Listas');
+        $listSheet->fromArray(['ESTADO', 'MOVIMIENTO NEGATIVO'], null, 'A1');
+        $listSheet->fromArray($listRows, null, 'A2');
+        $listLastRow = count($listRows) + 1;
 
         $mainSheet = $spreadsheet->setActiveSheetIndex(0);
         $subGroupLastRow = $rowS;
@@ -234,31 +304,61 @@ class ItemController extends Controller
             // Apply validation to the column where 'SUBGRUPO' header is located
             $colLetters = range('A', 'Z');
             $subGroupColIdx = array_search('SUBGRUPO', $headers);
-            $groupColIdx = array_search('GRUPO', $headers);
             if ($subGroupColIdx !== false && isset($colLetters[$subGroupColIdx])) {
                 $subGroupCol = $colLetters[$subGroupColIdx];
                 for ($row = 2; $row <= $maxValidationRow; $row++) {
                     $mainSheet->getCell($subGroupCol . $row)->setDataValidation(clone $validationSubGroup);
                 }
-
-                // If we have a GRUPO column, auto-fill it via VLOOKUP from Subgrupos sheet
-                if ($groupColIdx !== false && isset($colLetters[$groupColIdx])) {
-                    $groupCol = $colLetters[$groupColIdx];
-                    // Use VLOOKUP on Subgrupos: lookup by SUBGRUPO name (column B) and return Grupo (column C)
-                    for ($row = 2; $row <= $maxValidationRow; $row++) {
-                        $formula = sprintf(
-                            '=IF(TRIM(%1$s%2$d)="","",IFERROR(VLOOKUP(%1$s%2$d,\'Subgrupos\'!B2:C%s,2,FALSE),""))',
-                            $subGroupCol,
-                            $row,
-                            $rowS
-                        );
-                        $mainSheet->setCellValue($groupCol . $row, $formula);
-                    }
-                }
             }
         }
 
         $this->applyUnitValidationToSheet($mainSheet, $headers, $unitLastRow, $maxValidationRow);
+        if ($groups->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'GRUPO',
+                "'Grupos'!B2:B{$groupLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        if ($taxes->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'IMPUESTO (%)',
+                "'Impuestos'!C2:C{$taxLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        if ($warehouses->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'BODEGA',
+                "'Bodegas'!B2:B{$warehouseLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        $this->applyListValidationToSheet(
+            $mainSheet,
+            $headers,
+            'ESTADO',
+            "'Listas'!A2:A{$listLastRow}",
+            $maxValidationRow,
+            true
+        );
+        $this->applyListValidationToSheet(
+            $mainSheet,
+            $headers,
+            'MOVIMIENTO NEGATIVO',
+            "'Listas'!B2:B{$listLastRow}",
+            $maxValidationRow,
+            true
+        );
 
         $spreadsheet->setActiveSheetIndex(0);
 
@@ -331,6 +431,171 @@ class ItemController extends Controller
             $sheet->fromArray($rowData, null, "A{$rowNum}");
             $rowNum++;
         }
+
+        $groups = CategoryGroup::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $subGroups = CategorySubGroup::with('categoryGroup')->get()->map(function ($sg) {
+            return [
+                'id' => $sg->id,
+                'name' => $sg->name,
+                'group' => optional($sg->categoryGroup)->name ?? '',
+            ];
+        })->toArray();
+
+        $subGroupSheet = $spreadsheet->createSheet();
+        $subGroupSheet->setTitle('Subgrupos');
+        $subGroupSheet->fromArray(['ID', 'Nombre', 'Grupo'], null, 'A1');
+        if (!empty($subGroups)) {
+            $rows = array_map(fn($s) => [$s['id'], $s['name'], $s['group']], $subGroups);
+            $subGroupSheet->fromArray($rows, null, 'A2');
+        }
+        $subGroupLastRow = count($subGroups) + 1;
+
+        $groupSheet = $spreadsheet->createSheet();
+        $groupSheet->setTitle('Grupos');
+        $groupSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if ($groups->isNotEmpty()) {
+            $groupSheet->fromArray(
+                $groups->map(fn($group) => [$group->id, $group->name])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $groupLastRow = $groups->count() + 1;
+
+        $unitMeasures = $this->loadUnitMeasureOptionsForTemplate();
+        $unitSheet = $spreadsheet->createSheet();
+        $unitSheet->setTitle('Unidades');
+        $unitSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if (!empty($unitMeasures)) {
+            $unitSheet->fromArray(
+                array_map(fn($unit) => [$unit['id'], $unit['name']], $unitMeasures),
+                null,
+                'A2'
+            );
+        }
+        $unitLastRow = max(1, count($unitMeasures)) + 1;
+
+        $taxes = Tax::query()
+            ->where('status', true)
+            ->orderBy('percentage')
+            ->get(['id', 'name', 'percentage']);
+        $taxSheet = $spreadsheet->createSheet();
+        $taxSheet->setTitle('Impuestos');
+        $taxSheet->fromArray(['ID', 'Nombre', 'Porcentaje'], null, 'A1');
+        if ($taxes->isNotEmpty()) {
+            $taxSheet->fromArray(
+                $taxes->map(fn($tax) => [
+                    $tax->id,
+                    $tax->name,
+                    number_format((float) $tax->percentage, 2, '.', ''),
+                ])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $taxLastRow = $taxes->count() + 1;
+
+        $warehouses = Warehouse::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $warehouseSheet = $spreadsheet->createSheet();
+        $warehouseSheet->setTitle('Bodegas');
+        $warehouseSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if ($warehouses->isNotEmpty()) {
+            $warehouseSheet->fromArray(
+                $warehouses->map(fn($warehouse) => [
+                    $warehouse->id,
+                    $warehouse->name,
+                ])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $warehouseLastRow = $warehouses->count() + 1;
+
+        $listRows = [
+            ['Activo', 'NO'],
+            ['Inactivo', 'SI'],
+        ];
+        $listSheet = $spreadsheet->createSheet();
+        $listSheet->setTitle('Listas');
+        $listSheet->fromArray(['ESTADO', 'MOVIMIENTO NEGATIVO'], null, 'A1');
+        $listSheet->fromArray($listRows, null, 'A2');
+        $listLastRow = count($listRows) + 1;
+
+        $mainSheet = $spreadsheet->setActiveSheetIndex(0);
+        $maxValidationRow = max(1000, $rowNum);
+
+        if ($subGroupLastRow >= 2) {
+            $validationSubGroup = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
+            $validationSubGroup->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+                ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
+                ->setAllowBlank(true)
+                ->setShowInputMessage(true)
+                ->setShowErrorMessage(true)
+                ->setShowDropDown(true)
+                ->setFormula1("'Subgrupos'!B2:B{$subGroupLastRow}");
+
+            $colLetters = range('A', 'Z');
+            $subGroupColIdx = array_search('SUBGRUPO', $headers);
+            if ($subGroupColIdx !== false && isset($colLetters[$subGroupColIdx])) {
+                $subGroupCol = $colLetters[$subGroupColIdx];
+                for ($row = 2; $row <= $maxValidationRow; $row++) {
+                    $mainSheet->getCell($subGroupCol . $row)->setDataValidation(clone $validationSubGroup);
+                }
+            }
+        }
+
+        $this->applyUnitValidationToSheet($mainSheet, $headers, $unitLastRow, $maxValidationRow);
+        if ($groups->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'GRUPO',
+                "'Grupos'!B2:B{$groupLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        if ($taxes->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'IMPUESTO (%)',
+                "'Impuestos'!C2:C{$taxLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        if ($warehouses->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'BODEGA',
+                "'Bodegas'!B2:B{$warehouseLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        $this->applyListValidationToSheet(
+            $mainSheet,
+            $headers,
+            'ESTADO',
+            "'Listas'!A2:A{$listLastRow}",
+            $maxValidationRow,
+            true
+        );
+        $this->applyListValidationToSheet(
+            $mainSheet,
+            $headers,
+            'MOVIMIENTO NEGATIVO',
+            "'Listas'!B2:B{$listLastRow}",
+            $maxValidationRow,
+            true
+        );
 
         // Ajustar ancho de columnas
         foreach (range('A', $sheet->getHighestColumn()) as $col) {
@@ -450,6 +715,34 @@ class ItemController extends Controller
         }
     }
 
+    private function applyListValidationToSheet(
+        $sheet,
+        array $headers,
+        string $headerName,
+        string $formula,
+        int $maxValidationRow = 1000,
+        bool $allowBlank = true
+    ) {
+        $colLetters = range('A', 'Z');
+        $colIdx = array_search($headerName, $headers);
+        if ($colIdx === false || !isset($colLetters[$colIdx])) {
+            return;
+        }
+        $col = $colLetters[$colIdx];
+        $validation = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
+        $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+            ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
+            ->setAllowBlank($allowBlank)
+            ->setShowInputMessage(true)
+            ->setShowErrorMessage(true)
+            ->setShowDropDown(true)
+            ->setFormula1($formula);
+        for ($row = 2; $row <= $maxValidationRow; $row++) {
+            $sheet->getCell($col . $row)->setDataValidation(clone $validation);
+        }
+        $sheet->getColumnDimension($col)->setAutoSize(true);
+    }
+
     private function loadUnitMeasureOptionsForTemplate(): array
     {
         $path = resource_path('js/data/unitMeasures.json');
@@ -538,7 +831,7 @@ class ItemController extends Controller
             $item->bar_code,
             $item->reference,
             $item->description,
-            $item->negative_movement ? 1 : 0,
+            $item->negative_movement ? 'SI' : 'NO',
             $fieldsCol,
             $valuesCol,
             $statusLabel,
@@ -563,5 +856,3 @@ class ItemController extends Controller
     }
 
 }
-
-

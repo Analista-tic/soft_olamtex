@@ -344,7 +344,7 @@ class ItemService
                     'tax_id' => $this->resolveTaxIdFromImportValue($taxValue),
                     'tax' => $taxValue,
                     'bar_code' => $barCodeValue,
-                    'negative_movement' => filter_var($normalizedRow['MOVIMIENTO NEGATIVO'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+                    'negative_movement' => $this->resolveNegativeMovementFromRow($normalizedRow),
                     'description' => $descriptionValue,
                     'extra_fields' => $extraFields,
                     'name' => $name,
@@ -494,6 +494,41 @@ class ItemService
         );
 
         return $this->mapStatusLabelToBool((string) $rawStatus);
+    }
+
+    protected function resolveNegativeMovementFromRow(array $normalizedRow): int
+    {
+        $rawValue = $this->getRowValueFromAlternatives(
+            $normalizedRow,
+            ['MOVIMIENTO NEGATIVO', 'NEGATIVE MOVEMENT'],
+            null,
+        );
+        if ($rawValue === null || $rawValue === '') {
+            return 0;
+        }
+        if (is_bool($rawValue)) {
+            return $rawValue ? 1 : 0;
+        }
+        if (is_numeric($rawValue)) {
+            return (float) $rawValue !== 0.0 ? 1 : 0;
+        }
+
+        $normalized = $this->normalizeHeader((string) $rawValue);
+        if ($normalized === '') {
+            return 0;
+        }
+
+        $truthy = ['SI', 'S', 'YES', 'Y', 'TRUE', 'VERDADERO', '1'];
+        if (in_array($normalized, $truthy, true)) {
+            return 1;
+        }
+
+        $falsy = ['NO', 'N', 'FALSE', 'FALSO', '0'];
+        if (in_array($normalized, $falsy, true)) {
+            return 0;
+        }
+
+        return filter_var($rawValue, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
     }
 
     protected function mapStatusLabelToBool(string $value): bool

@@ -4,8 +4,8 @@
             <Label class="text-sm font-medium">Procesos<span class="text-red-500">*</span></Label>
             <div>
                 <div class="border-gray-300 bg-white p-2 shadow-sm">
-                    <div class="mb-3">
-                        <Select v-model="localSelectedProcess">
+                    <div class="mb-3" v-if="!props.disabled">
+                        <Select v-model="localSelectedProcess" :disabled="props.disabled">
                             <SelectTrigger class="h-9 w-full rounded border border-gray-300 text-sm shadow-sm">
                                 <SelectValue placeholder="Selecciona un proceso para añadir" />
                             </SelectTrigger>
@@ -32,6 +32,7 @@
                                 <span class="text-xs font-semibold text-gray-900">{{ process }}</span>
                             </div>
                             <Button
+                                v-if="!props.disabled"
                                 variant="ghost"
                                 size="sm"
                                 @click="removeProcess(process)"
@@ -59,14 +60,28 @@ interface Props {
     availableProcesses: string[];
     modelValue: string | undefined;
     wovenProduct: boolean | undefined;
+    disabled?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+    disabled: false,
+});
 const emit = defineEmits(['update:modelValue']);
 
 const localSelectedProcess = ref<string | null>(null);
 const nonRemovableProcesses = ['Muestra', 'Confección', 'Terminación', 'Bodega'];
-const selectedProcesses = ref<Record<string, boolean>>(JSON.parse(props.modelValue || '{}'));
+
+// Función helper para parsear JSON de forma segura
+function safeJsonParse(value: string | undefined): Record<string, boolean> {
+    try {
+        return JSON.parse(value || '{}');
+    } catch (error) {
+        console.error('Error parsing processes JSON:', error, 'Value:', value);
+        return {};
+    }
+}
+
+const selectedProcesses = ref<Record<string, boolean>>(safeJsonParse(props.modelValue));
 const processOrder = ['Tejido', 'Corte', 'Bordado', 'Sublimado', 'Estampado', 'Lavanderia', 'Muestra', 'Confección', 'Terminación', 'Bodega'];
 
 const orderedSelectedProcesses = computed(() => {
@@ -96,7 +111,7 @@ watch(
 watch(
     () => props.modelValue,
     (newValue) => {
-        selectedProcesses.value = JSON.parse(newValue || '{}');
+        selectedProcesses.value = safeJsonParse(newValue);
         nonRemovableProcesses.forEach((process) => {
             selectedProcesses.value[process] = true;
         });

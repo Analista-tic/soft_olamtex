@@ -10,6 +10,7 @@
       type="checkbox"
       class="toggle-checkbox"
       v-model="proxyValue"
+      :disabled="disabled"
     />
   </div>
 </template>
@@ -23,6 +24,7 @@ const props = defineProps<{
   label?: string;
   id?: string;
   required?: boolean;
+  disabled?: boolean;
 }>();
 
 const emit = defineEmits<{
