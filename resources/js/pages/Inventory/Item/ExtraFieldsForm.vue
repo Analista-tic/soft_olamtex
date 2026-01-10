@@ -99,14 +99,45 @@ const resolveFieldInputType = (field: string): 'text' | 'number' | 'date' => {
     return 'text';
 };
 
+// Función para inicializar campos obligatorios
+function initializeRequiredFields() {
+    const requiredFields = (props.additionalFieldsMeta ?? []).filter(f => f.is_required);
+    let hasChanges = false;
+    const updated = { ...localExtraFields.value };
+    
+    requiredFields.forEach(field => {
+        if (!updated[field.name]) {
+            // Agregar campo con valor por defecto o vacío
+            updated[field.name] = field.default_value !== undefined && field.default_value !== null 
+                ? String(field.default_value) 
+                : '';
+            hasChanges = true;
+        }
+    });
+    
+    if (hasChanges) {
+        localExtraFields.value = updated;
+    }
+}
+
 // Mantener sincronización solo cuando cambian las props externamente
 watch(
     () => props.extraFields,
     (val) => {
         if (JSON.stringify(val) !== JSON.stringify(localExtraFields.value)) {
             localExtraFields.value = { ...val };
+            initializeRequiredFields();
         }
     }
+);
+
+// Inicializar campos obligatorios cuando cambien los metadatos
+watch(
+    () => props.additionalFieldsMeta,
+    () => {
+        initializeRequiredFields();
+    },
+    { immediate: true, deep: true }
 );
 
 // Emitir cambios solo cuando localExtraFields cambia realmente
@@ -174,6 +205,12 @@ function addExtraField() {
 }
 
 function removeExtraField(field: string) {
+    // No permitir eliminar campos obligatorios
+    const meta = additionalFieldsMetaMap.value[field];
+    if (meta?.is_required) {
+        return;
+    }
+    
     if (localExtraFields.value[field] !== undefined) {
         const updated = { ...localExtraFields.value };
         delete updated[field];
@@ -274,6 +311,12 @@ function isAddDisabled() {
                 <div class="flex-1 space-y-2">
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         {{ field }}
+                        <span
+                            v-if="additionalFieldsMetaMap[field]?.is_required"
+                            class="text-red-500"
+                        >
+                            *
+                        </span>
                     </p>
                     <div>
                         <SelectField
@@ -298,7 +341,7 @@ function isAddDisabled() {
                     </div>
                 </div>
                 <DeleteButton
-                    v-if="!props.readonly"
+                    v-if="!props.readonly && !additionalFieldsMetaMap[field]?.is_required"
                     class="pt-4 ml-auto text-gray-400 transition hover:text-red-500"
                     @click="removeExtraField(field)"
                     title="Quitar"

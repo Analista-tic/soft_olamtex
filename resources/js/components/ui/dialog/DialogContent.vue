@@ -38,7 +38,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
             "
         >
             <div class="flex h-full max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[24px]">
-                <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-10">
+                <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-10 scroll-smooth" style="scrollbar-width: thin;">
                     <slot />
                 </div>
             </div>

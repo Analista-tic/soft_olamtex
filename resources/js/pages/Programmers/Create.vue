@@ -537,7 +537,7 @@ function getTrueSizes(sizes: string | undefined): string {
             </div>
 
             <!-- Botones flotantes en la esquina inferior derecha -->
-            <div class="absolute bottom-0 right-0 left-0 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-end gap-3">
+            <div class="absolute bottom-0 right-0 left-0 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-end gap-3 rounded-b-[24px]">
                 <button
                     type="button"
                     class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"

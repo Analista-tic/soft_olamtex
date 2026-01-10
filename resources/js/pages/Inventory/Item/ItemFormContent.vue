@@ -109,14 +109,7 @@ const missingRequiredAdditionalFieldNames = computed(() => {
 const hasMissingRequiredAdditionalFields = computed(
     () => missingRequiredAdditionalFieldNames.value.length > 0,
 );
-const missingRequiredAdditionalFieldsMessage = computed(() => {
-    const missing = missingRequiredAdditionalFieldNames.value;
-    if (!missing.length) return '';
-    return formatRequiredFieldsMessage(
-        'Completa los campos adicionales obligatorios',
-        missing,
-    );
-});
+
 const additionalFieldOrder = computed(() => {
     const map = new Map<string, number>();
     (additionalFieldsMeta.value ?? []).forEach((field, index) => {
@@ -1026,9 +1019,9 @@ watch(
 </script>
 
 <template>
-    <div class="flex flex-col h-full">
+    <div class="flex flex-col -mx-6 -my-10">
             <transition name="fade">
-                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2">
+                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2 px-6">
                     <AlertBox
                         :type="alertType"
                         :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
@@ -1039,13 +1032,13 @@ watch(
                 </div>
             </transition>
             <FormHeader
-                class="flex-shrink-0"
+                class="flex-shrink-0 px-6 pt-10"
                 headerClass="mb-4"
                 :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
                 :description="dialogType === 'create' ? 'Complete los campos para crear un nuevo ítem.' : dialogType === 'edit' ? 'Edite los campos del ítem seleccionado.' : 'Visualice la información del ítem.'"
             />
 
-            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
+            <div class="px-6">
             <form @submit.prevent="handleSubmit">
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
@@ -1416,12 +1409,6 @@ watch(
                             :field-options="additionalFieldOptions"
                             :additional-fields-meta="additionalFieldsMeta"
                         />
-                        <p
-                            v-if="hasMissingRequiredAdditionalFields"
-                            class="text-sm text-red-600"
-                        >
-                            {{ missingRequiredAdditionalFieldsMessage }}
-                        </p>
                     </div>
                     <section
                         v-if="props.showAdvancedSections"
@@ -1492,7 +1479,7 @@ watch(
             </div>
 
                 <!-- FOOTER -->
-                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
+                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 px-6 pb-10 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
                     <div
                         v-if="dialogType !== 'view' && showAdvancedLink"
                         class="w-full md:w-auto"
