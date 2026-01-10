@@ -16,6 +16,7 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import { useAlertStack } from '@/composables/useAlert';
 
 const breadcrumbs = [
     { title: 'Panel administrativo', href: '/panel-administrativo' },
@@ -29,9 +30,7 @@ const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<any>({ id: undefined, name: '', percentage: 0, status: '' });
 const isSubmitting = ref(false);
-const successMessage = ref('');
-const errorMessage = ref('');
-const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 
 const currentPage = ref(1);
 const itemsPerPage = 10;
@@ -57,11 +56,10 @@ async function deleteTax() {
     if (!taxToDelete.value) return;
     try {
         await axios.delete(`/impuestos/${taxToDelete.value.id}`);
-        successMessage.value = 'Impuesto eliminado correctamente.';
+        showSuccess('Impuesto eliminado correctamente.');
         fetchTaxes();
     } catch {
-        errorType.value = 'error';
-        errorMessage.value = 'Error al eliminar el impuesto.';
+        showError('Error al eliminar el impuesto.');
     } finally {
         isDeleteDialogOpen.value = false;
     }
@@ -73,15 +71,14 @@ async function handleDialogSubmit(taxData: any) {
     const method = dialogType.value === 'create' ? 'POST' : 'PUT';
     try {
         await axios({ method, url, data: taxData });
-        successMessage.value = dialogType.value === 'create' ? 'Impuesto creado correctamente.' : 'Impuesto actualizado correctamente.';
+        showSuccess(dialogType.value === 'create' ? 'Impuesto creado correctamente.' : 'Impuesto actualizado correctamente.');
         fetchTaxes();
         closeDialog();
     } catch {
-        errorType.value = 'warning';
-        errorMessage.value = formatRequiredFieldsMessage(
+        showWarning(formatRequiredFieldsMessage(
             'Debes completar los campos obligatorios',
             ['Nombre', 'Porcentaje', 'Tipo', 'Estado'],
-        );
+        ));
     } finally {
         isSubmitting.value = false;
     }
@@ -113,8 +110,8 @@ onMounted(() => fetchTaxes());
             :errorMessage="errorMessage"
             :errorType="errorType"
             class="mb-2"
-            @close-success="successMessage = ''"
-            @close-error="errorMessage = ''"
+            @close-success="clearSuccess"
+            @close-error="clearError"
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">

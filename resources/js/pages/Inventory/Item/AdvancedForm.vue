@@ -34,7 +34,7 @@ function handleError(message: string) {
   <Head title="Formulario avanzado de ítems" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <section class="flex w-full justify-center">
+    <section class="p-2 flex w-full justify-center">
       <div class="w-full max-w-6xl rounded-2xl border border-sidebar-border/70 bg-card p-6 shadow-sm dark:border-sidebar-border sm:p-8">
         <h1 class="text-lg font-semibold text-card-foreground">Formulario avanzado</h1>
         <p class="mb-4 text-sm text-muted-foreground">

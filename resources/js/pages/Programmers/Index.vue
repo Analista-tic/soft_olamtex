@@ -35,9 +35,9 @@ import { Search } from 'lucide-vue-next';
 import EditProgrammerDialog from './Edit.vue';
 import CreateProgrammerDialog from './Create.vue';
 import Badge from '@/components/ui/badge/Badge.vue';
-import EditButton from '@/components/common/EditButton.vue'; // Importar el bot�n de editar
-import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el bot�n de eliminar
-import ViewButton from '@/components/common/ViewButton.vue'; // Importar el bot�n de visualizar
+import EditButton from '@/components/common/EditButton.vue'; // Importar el botón de editar
+import DeleteButton from '@/components/common/DeleteButton.vue'; // Importar el botón de eliminar
+import ViewButton from '@/components/common/ViewButton.vue'; // Importar el botón de visualizar
 import Button from '@/components/ui/button/Button.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -51,7 +51,7 @@ const canDelete = ref(false);
 
 async function loadPermissions() {
     try {
-        await authStore.fetchUser(); // Asegurarse de que los datos del usuario est�n cargados
+        await authStore.fetchUser(); // Asegurarse de que los datos del usuario estén cargados
         canView.value = authStore.can('ver programador');
         canCreate.value = authStore.can('crear programador');
         canEdit.value = authStore.can('editar programador');
@@ -171,17 +171,17 @@ async function fetchProgrammers(page = 1) {
             totalItems.value = response.data.total;
             currentPage.value = response.data.current_page;
         } else {
-            console.error('Error al obtener los programadores: Respuesta inv�lida');
+            console.error('Error al obtener los programadores: Respuesta invalida');
         }
     } catch (error) {
         console.error('Error al obtener los programadores:', error);
     }
 }
 
-// Reactivar la b�squeda cuando cambien los filtros o el t�rmino de b�squeda
+// Reactivar la búsqueda cuando cambien los filtros o el término de búsqueda
 watch([searchQuery, filters], () => {
-    fetchProgrammers(1); // Reactivar la b�squeda cuando cambien los filtros o el t�rmino de b�squeda
-}, { deep: true }); // Aseg�rate de observar cambios profundos en los filtros
+    fetchProgrammers(1); // Reactivar la búsqueda cuando cambien los filtros o el término de búsqueda
+}, { deep: true }); // Asegúrate de observar cambios profundos en los filtros
 
 function openEditDialog(programmer: Programmer) {
     editProgrammerDialogRef.value?.openDialog(programmer);
@@ -204,7 +204,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <Head title="Comercial/Diseño" />
+    <Head title="Programador" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <transition name="fade">
@@ -214,7 +214,7 @@ onMounted(async () => {
                 >
                     <AlertBox
                         :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? '�xito' : alertType === 'info' ? 'Informaci�n' : 'Error'"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
                         :message="alertMessage"
                         class="pointer-events-auto"
                         @close="clearAlert"
@@ -422,10 +422,10 @@ onMounted(async () => {
     <AlertDialog v-model:open="isDialogOpen">
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Confirmar eliminaci�n</AlertDialogTitle>
+                <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
             </AlertDialogHeader>
             <AlertDialogDescription>
-                �Est�s seguro de que deseas eliminar este programador? Esta acci�n no se puede deshacer.
+                ¿Estás seguro de que deseas eliminar este programador? Esta acción no se puede deshacer.
             </AlertDialogDescription>
             <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
                 <AlertDialogCancel asChild>

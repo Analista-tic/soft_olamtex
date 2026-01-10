@@ -10,6 +10,7 @@ import { PlusCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
+import { useAlertStack } from '@/composables/useAlert';
 
 const emit = defineEmits(['programmerCreated']);
 
@@ -64,20 +65,15 @@ const formErrors = ref<{ lotIndex: number; fields: string[] }[]>([]);
 const dialogInnerRef = ref<HTMLElement | null>(null);
 
 // Alert state
-const successMessage = ref('');
-const errorMessage = ref('');
-const errorType = ref<AlertType>('info');
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
 
 // Alert functions
 function setAlert(message: string, type: AlertType = 'info'): void {
     if (type === 'success') {
-        successMessage.value = message;
-        errorMessage.value = '';
+        showSuccess(message);
     } else {
-        errorMessage.value = message;
-        errorType.value = type;
-        successMessage.value = '';
+        showError(message, type);
     }
     
     if (dialogInnerRef.value?.scrollTo) {
@@ -88,8 +84,7 @@ function setAlert(message: string, type: AlertType = 'info'): void {
 }
 
 function clearAlert(): void {
-    successMessage.value = '';
-    errorMessage.value = '';
+    clearAlerts();
 }
 
 // Form state
@@ -347,8 +342,8 @@ function getTrueSizes(sizes: string | undefined): string {
                 :error-type="errorType"
                 :success-title="ALERT_TITLES.success"
                 :error-title="errorTitle"
-                @close-success="successMessage = ''"
-                @close-error="errorMessage = ''"
+                @close-success="clearSuccess"
+                @close-error="clearError"
             />
 
             <div ref="dialogInnerRef" class="overflow-y-auto flex-1 px-6 pb-24 scroll-smooth" style="scrollbar-width: thin;">

@@ -13,6 +13,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useAlertStack } from '@/composables/useAlert';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -34,9 +35,7 @@ const isLoading = ref(false);
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
 const isSendingMail = ref(false);
-const successMessage = ref('');
-const errorMessage = ref('');
-const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref<string>('');
 const itemsTableRef = ref<{ addItem: () => void } | null>(null);
 
@@ -151,9 +150,7 @@ function resetForm() {
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
     }
-    successMessage.value = '';
-    errorMessage.value = '';
-    errorType.value = 'error';
+    clearAlerts();
     originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
@@ -235,8 +232,7 @@ const scrollToDialogTop = () => {
 };
 
 const setErrorMessage = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') => {
-    errorType.value = type;
-    errorMessage.value = msg;
+    showError(msg, type);
     scrollToDialogTop();
 };
 
@@ -261,9 +257,7 @@ function handleAddLine() {
 }
 
 async function handleSubmit(sendMail = false) {
-    successMessage.value = '';
-    errorMessage.value = '';
-    errorType.value = 'error';
+    clearAlerts();
     if (!validateForm()) return;
     if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value) {
         return;
@@ -297,11 +291,11 @@ async function handleSubmit(sendMail = false) {
             await axios.post(`/gastos/ordenes-compra/${data.data.id}/enviar-correo-pdf`);
             const msg = 'Orden guardada y enviada por correo correctamente.';
             emit('refresh', msg);
-            successMessage.value = msg;
+            showSuccess(msg);
         } else {
             const msg = props.dialogType === 'create' ? 'Orden creada correctamente.' : 'Orden actualizada correctamente.';
             emit('refresh', msg);
-            successMessage.value = msg;
+            showSuccess(msg);
             const createdId = Number(data?.data?.id);
             if (!Number.isNaN(createdId)) {
                 nextOrderId.value = createdId + 1;
@@ -444,8 +438,8 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                         success-title="Éxito"
                         error-title="Error"
                         :error-type="errorType"
-                        @close-success="successMessage = ''"
-                        @close-error="errorMessage = ''"
+                        @close-success="clearSuccess"
+                        @close-error="clearError"
                     />
                 </div>
                 <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">

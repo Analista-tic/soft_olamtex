@@ -237,6 +237,7 @@ const unitMeasure = ref(getInitialUnitMeasure(props.form));
 const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isViewMode = computed(() => props.dialogType === 'view');
+const dialogInnerRef = ref<HTMLElement | null>(null);
 const isImageZoomOpen = ref(false);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
@@ -686,6 +687,15 @@ async function checkDuplicateName(): Promise<string | null> {
     return null;
 }
 
+function scrollDialogToTop() {
+    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
+        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+    }
+    const dialogEl = document.querySelector('[role="dialog"]') as HTMLElement | null;
+    dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 // Maneja el envío del formulario
 async function handleSubmit() {
     resetErrors();
@@ -717,8 +727,7 @@ async function handleSubmit() {
             'Por favor, completa todos los campos obligatorios',
             requiredErrors,
         );
-        const dialogEl = document.querySelector('[role="dialog"]');
-        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+        scrollDialogToTop();
         return;
     }
 
@@ -726,8 +735,7 @@ async function handleSubmit() {
     if (duplicateMessageResult) {
         alertType.value = 'warning';
         alertMessage.value = duplicateMessageResult;
-        const dialogEl = document.querySelector('[role="dialog"]');
-        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+        scrollDialogToTop();
         return;
     }
 
@@ -828,8 +836,7 @@ async function handleSubmit() {
         const msg = buildErrorMessage(error);
         alertType.value = error?.response?.data?.errors ? 'warning' : 'error';
         alertMessage.value = msg;
-        const dialogEl = document.querySelector('[role="dialog"]');
-        dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+        scrollDialogToTop();
         emit('error', msg);
     }
 }
@@ -918,8 +925,7 @@ function showNegativeMovementWarning() {
   alertType.value = 'warning';
   alertMessage.value = NEGATIVE_STOCK_WARNING;
 
-  const dialogEl = document.querySelector('[role="dialog"]');
-  dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+  scrollDialogToTop();
 }
 
 const hasNegativeStock = computed(() =>
@@ -1019,7 +1025,7 @@ watch(
 </script>
 
 <template>
-    <div class="flex flex-col -mx-6 -my-10">
+    <div class="flex min-h-0 flex-1 flex-col -mx-6 -my-10">
             <transition name="fade">
                 <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2 px-6">
                     <AlertBox
@@ -1031,6 +1037,7 @@ watch(
                     />
                 </div>
             </transition>
+            <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
             <FormHeader
                 class="flex-shrink-0 px-6 pt-10"
                 headerClass="mb-4"
@@ -1038,8 +1045,7 @@ watch(
                 :description="dialogType === 'create' ? 'Complete los campos para crear un nuevo ítem.' : dialogType === 'edit' ? 'Edite los campos del ítem seleccionado.' : 'Visualice la información del ítem.'"
             />
 
-            <div class="px-6">
-            <form @submit.prevent="handleSubmit">
+            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto px-6 scroll-smooth" style="scrollbar-width: thin;">
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
@@ -1475,7 +1481,6 @@ watch(
                         </div>
                     </section>
                 </fieldset>
-            </form>
             </div>
 
                 <!-- FOOTER -->
@@ -1514,6 +1519,7 @@ watch(
                         </Button>
                     </div>
                 </DialogFooter>
+            </form>
         </div>
     <GroupDialog
         v-model:isOpen="isGroupDialogOpen"

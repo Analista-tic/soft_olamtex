@@ -11,11 +11,16 @@ import {
 } from 'radix-vue';
 import { computed, type HTMLAttributes } from 'vue';
 
-const props = defineProps<DialogContentProps & { class?: HTMLAttributes['class'] }>();
+const props = defineProps<
+    DialogContentProps & {
+        class?: HTMLAttributes['class'];
+        closeClass?: HTMLAttributes['class'];
+    }
+>();
 const emits = defineEmits<DialogContentEmits>();
 
 const delegatedProps = computed(() => {
-    const { class: _, ...delegated } = props;
+    const { class: _, closeClass: __, ...delegated } = props;
 
     return delegated;
 });
@@ -38,13 +43,18 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
             "
         >
             <div class="flex h-full max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[24px]">
-                <div class="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-10 scroll-smooth" style="scrollbar-width: thin;">
+                <div class="dialog-scroll-area flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-10 scroll-smooth">
                     <slot />
                 </div>
             </div>
 
             <DialogClose
-                class="absolute right-5 top-2 z-10 rounded border-0 bg-transparent px-2 py-1 text-lg font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                :class="
+                    cn(
+                        'absolute right-5 top-2 z-10 rounded border-0 bg-transparent px-2 py-1 text-lg font-medium text-muted-foreground transition hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                        props.closeClass,
+                    )
+                "
             >
                 <span aria-hidden="true">&times;</span>
                 <span class="sr-only">Close</span>
@@ -52,3 +62,14 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
         </DialogContent>
     </DialogPortal>
 </template>
+
+<style scoped>
+.dialog-scroll-area {
+    scrollbar-width: thin;
+}
+
+.dialog-scroll-area::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+</style>

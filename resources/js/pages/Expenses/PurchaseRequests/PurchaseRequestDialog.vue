@@ -18,6 +18,7 @@ import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { PurchaseRequestForm, PurchaseRequestItem } from '@/domain/purchases';
+import { useAlertStack } from '@/composables/useAlert';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -39,9 +40,7 @@ const isLoading = ref(false);
 const contactPhoneInput = ref('');
 const nextRequestId = ref<number | null>(null);
 const isLoadingRequestId = ref(false);
-const successMessage = ref('');
-const errorMessage = ref('');
-const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref('');
 const itemsTableRef = ref<{ addItem: () => void } | null>(null);
 const { company, logoUrl } = useCompanyInfo();
@@ -219,8 +218,7 @@ function scrollToDialogTop() {
 }
 
 function setErrorMessage(msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') {
-    errorType.value = type;
-    errorMessage.value = msg;
+    showError(msg, type);
     scrollToDialogTop();
 }
 
@@ -318,7 +316,7 @@ async function handleSubmit() {
         await axios({ method, url, data: payload });
         const msg = props.dialogType === 'create' ? 'Solicitud creada correctamente.' : 'Solicitud actualizada correctamente.';
         emit('refresh', msg);
-        successMessage.value = msg;
+        showSuccess(msg);
         dialogOpen.value = false;
     } catch (e) {
         const serverMessage =
@@ -379,7 +377,7 @@ watch(dialogOpen, (isOpen) => {
             <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
-                        <DialogDescription>
+                        <DialogDescription class="pb-2">
                             Completa los campos y añade los artículos requeridos.
                         </DialogDescription>
                     </div>
@@ -390,8 +388,8 @@ watch(dialogOpen, (isOpen) => {
                     success-title="Éxito"
                     error-title="Error"
                     :error-type="errorType"
-                    @close-success="successMessage = ''"
-                    @close-error="errorMessage = ''"
+                    @close-success="clearSuccess"
+                    @close-error="clearError"
                 />
                 <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form

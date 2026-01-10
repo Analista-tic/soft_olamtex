@@ -26,6 +26,7 @@ import type {
     ProductOperationListPageProps,
     ProductOperationPayload,
 } from '@/domain/product-sheet';
+import { useAlertStack } from '@/composables/useAlert';
 
 const page = usePage<ProductOperationListPageProps>();
 
@@ -82,8 +83,7 @@ const isDeleteDialogOpen = ref(false);
 const summaryToDelete = ref<OperationSummary | null>(null);
 const isViewOpen = ref(false);
 const summaryToView = ref<OperationSummary | null>(null);
-const errorMessage = ref('');
-const successMessage = ref('');
+const { errorMessage, successMessage, showError, showSuccess, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const dialogMode = ref<'create' | 'edit'>('create');
 const dialogInitialData = ref<DialogInitialData | null>(null);
 
@@ -227,8 +227,8 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
             await deleteOperationsBySheetId(targetSheetId);
         } catch (error) {
             console.error('Error al limpiar operaciones existentes:', error);
-            errorMessage.value = 'Error al preparar la edición. Por favor intenta nuevamente.';
-            setTimeout(() => { errorMessage.value = ''; }, 8000);
+            showError('Error al preparar la edición. Por favor intenta nuevamente.');
+            setTimeout(() => { clearError(); }, 8000);
             return;
         }
     }
@@ -247,9 +247,9 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
         }));
 
         await Promise.all(requests);
-        successMessage.value = dialogMode.value === 'edit'
+        showSuccess(dialogMode.value === 'edit'
             ? 'Operaciones actualizadas correctamente.'
-            : `${requests.length} operación(es) guardada(s) correctamente.`;
+            : `${requests.length} operación(es) guardada(s) correctamente.`);
         
         // Cambiar el filtro primero al lote que acabamos de guardar
         if (targetSheetId) {
@@ -259,7 +259,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
         // Luego recargar los datos para que aparezca en la lista
         await fetchOperationSummaries();
         
-        setTimeout(() => { successMessage.value = ''; }, 5000);
+        setTimeout(() => { clearSuccess(); }, 5000);
     } catch (error: any) {
         console.error('Error al guardar operaciones:', error);
         
@@ -276,15 +276,15 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
             const errors = error.response?.data?.errors;
             if (errors) {
                 const firstError = Object.values(errors)[0] as string[];
-                errorMessage.value = firstError[0] || 'Error de validación';
+                showError(firstError[0] || 'Error de validación');
             } else {
-                errorMessage.value = error.response?.data?.message || 'Algunas operaciones no se pudieron guardar';
+                showError(error.response?.data?.message || 'Algunas operaciones no se pudieron guardar');
             }
         } else {
-            errorMessage.value = 'Algunas operaciones no se pudieron guardar correctamente.';
+            showError('Algunas operaciones no se pudieron guardar correctamente.');
         }
         
-        setTimeout(() => { errorMessage.value = ''; }, 8000);
+        setTimeout(() => { clearError(); }, 8000);
     }
 }
 
@@ -318,16 +318,14 @@ function closeSummaryView() {
 }
 
 function openCreateDialog() {
-    errorMessage.value = '';
-    successMessage.value = '';
+    clearAlerts();
     dialogMode.value = 'create';
     dialogInitialData.value = null;
     isDialogOpen.value = true;
 }
 
 async function openEditDialog(summary: OperationSummary) {
-    errorMessage.value = '';
-    successMessage.value = '';
+    clearAlerts();
     try {
         const { data } = await axios.get('/diseno/listados-operacionales/data', {
             params: { product_sheet_id: summary.product_sheet_id },
@@ -351,8 +349,8 @@ async function openEditDialog(summary: OperationSummary) {
         isDialogOpen.value = true;
     } catch (error) {
         console.error('Error al cargar operaciones para editar:', error);
-        errorMessage.value = 'Error al cargar las operaciones para editar.';
-        setTimeout(() => { errorMessage.value = ''; }, 8000);
+        showError('Error al cargar las operaciones para editar.');
+        setTimeout(() => { clearError(); }, 8000);
     }
 }
 
@@ -407,8 +405,8 @@ watch(productSheets, () => {
         <AlertStack
             :success-message="successMessage"
             :error-message="errorMessage"
-            @close-success="successMessage = ''"
-            @close-error="errorMessage = ''"
+            @close-success="clearSuccess"
+            @close-error="clearError"
         />
         
         <div class="relative flex h-full flex-1 flex-col gap-6 rounded-xl p-3">

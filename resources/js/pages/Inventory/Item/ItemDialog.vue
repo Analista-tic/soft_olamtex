@@ -53,7 +53,7 @@ function handleFormError(message: string) {
 
 <template>
     <Dialog :open="dialogOpen" @update:open="handleDialogOpenChange">
-        <DialogContent class="max-h-[96dvh] w-full sm:max-w-4xl">
+        <DialogContent class="max-h-[96dvh] w-full sm:max-w-4xl" close-class="right-2">
             <ItemFormContent
                 :is-open="dialogOpen"
                 :dialog-type="props.dialogType"
