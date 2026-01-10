@@ -12,27 +12,34 @@ class ExampleDataSeeder extends Seeder
     public function run(): void
     {
         // Insertar warehouse de ejemplo si no existe
-        $warehouseId = DB::table('warehouses')->insertGetId([
+        $warehouse = DB::table('warehouses')->where('name', 'Principal')->first();
+        $warehouseId = $warehouse ? $warehouse->id : DB::table('warehouses')->insertGetId([
             'name' => 'Principal',
             'observation' => 'Almacén principal',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
+        // Insertar category_group de ejemplo si no existe
+        $categoryGroup = DB::table('category_groups')->where('name', 'Grupo Ejemplo')->first();
+        $categoryGroupId = $categoryGroup ? $categoryGroup->id : DB::table('category_groups')->insertGetId([
+            'name' => 'Grupo Ejemplo',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         // Insertar category_sub_group de ejemplo si no existe
-        $categorySubGroupId = DB::table('category_sub_groups')->insertGetId([
+        $categorySubGroup = DB::table('category_sub_groups')->where('name', 'Subgrupo Ejemplo')->first();
+        $categorySubGroupId = $categorySubGroup ? $categorySubGroup->id : DB::table('category_sub_groups')->insertGetId([
             'name' => 'Subgrupo Ejemplo',
-            'category_group_id' => DB::table('category_groups')->insertGetId([
-                'name' => 'Grupo Ejemplo',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]),
+            'category_group_id' => $categoryGroupId,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         // Insertar usuario de ejemplo
-        $userId = DB::table('users')->insertGetId([
+        $user = DB::table('users')->where('email', 'ejemplo@correo.com')->first();
+        $userId = $user ? $user->id : DB::table('users')->insertGetId([
             'name' => 'Ejemplo Usuario',
             'email' => 'ejemplo@correo.com',
             'password' => Hash::make('password'),
@@ -43,7 +50,8 @@ class ExampleDataSeeder extends Seeder
         ]);
 
         // Insertar proveedor de ejemplo si no existe
-        $providerId = DB::table('contacts')->insertGetId([
+        $provider = DB::table('contacts')->where('id_number', '900000001')->first();
+        $providerId = $provider ? $provider->id : DB::table('contacts')->insertGetId([
             'contact_type' => 'proveedor',
             'id_type' => 'NIT',
             'id_number' => '900000001',
@@ -63,14 +71,17 @@ class ExampleDataSeeder extends Seeder
         ]);
 
         // Insertar impuestos (taxes) de ejemplo si no existen
-        $tax19Id = DB::table('taxes')->insertGetId([
+        $tax19 = DB::table('taxes')->where('name', 'IVA 19%')->first();
+        $tax19Id = $tax19 ? $tax19->id : DB::table('taxes')->insertGetId([
             'name' => 'IVA 19%',
             'percentage' => 19,
             'status' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $tax0Id = DB::table('taxes')->insertGetId([
+        
+        $tax0 = DB::table('taxes')->where('name', 'Exento')->first();
+        $tax0Id = $tax0 ? $tax0->id : DB::table('taxes')->insertGetId([
             'name' => 'Exento',
             'percentage' => 0,
             'status' => true,
@@ -79,29 +90,28 @@ class ExampleDataSeeder extends Seeder
         ]);
 
         // Insertar retenciones (retentions) de ejemplo si no existen
-        // Depuración: revisa que los campos requeridos existan en la migración
-        // Si tienes más campos obligatorios, agrégalos aquí
-        DB::table('retentions')->insert([
+        DB::table('retentions')->updateOrInsert(
+            ['name' => 'Retefuente', 'type' => 'fuente'],
             [
-                'name' => 'Retefuente',
                 'percent' => 2.5,
-                'type' => 'fuente', // Debe coincidir con los valores válidos de tu sistema
                 'status' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            ]
+        );
+        DB::table('retentions')->updateOrInsert(
+            ['name' => 'ReteICA', 'type' => 'ica'],
             [
-                'name' => 'ReteICA',
                 'percent' => 1.0,
-                'type' => 'ica', // Debe coincidir con los valores válidos de tu sistema
                 'status' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
-        ]);
+            ]
+        );
 
         // Insertar artículo de ejemplo (ajustado a los campos reales)
-        $itemId = DB::table('items')->insertGetId([
+        $item = DB::table('items')->where('bar_code', 'ART-001')->first();
+        $itemId = $item ? $item->id : DB::table('items')->insertGetId([
             'category_sub_group_id' => $categorySubGroupId,
             'tax_id' => $tax19Id, // Relación con tabla taxes
             'name' => 'Artículo de prueba',
@@ -271,48 +281,66 @@ class ExampleDataSeeder extends Seeder
         }
 
         // Secciones para listados operacionales
-        DB::table('operation_sections')->insert([
-            ['name' => 'Delantero', 'type' => 'confección', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Trasero', 'type' => 'confección', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Pretina', 'type' => 'confección', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Ensamble', 'type' => 'confección', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Terminacion', 'type' => 'presentación', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Presentacion', 'type' => 'presentación', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-        ]);
+        $operationSections = [
+            ['name' => 'Delantero', 'type' => 'confección'],
+            ['name' => 'Trasero', 'type' => 'confección'],
+            ['name' => 'Pretina', 'type' => 'confección'],
+            ['name' => 'Ensamble', 'type' => 'confección'],
+            ['name' => 'Terminacion', 'type' => 'presentación'],
+            ['name' => 'Presentacion', 'type' => 'presentación'],
+        ];
+        foreach ($operationSections as $section) {
+            DB::table('operation_sections')->updateOrInsert(
+                ['name' => $section['name'], 'type' => $section['type']],
+                ['is_active' => true, 'created_at' => now(), 'updated_at' => now()]
+            );
+        }
 
         // Máquinas
-        DB::table('machines')->insert([
-            ['code' => 'MF5H', 'name' => 'Fileteadora 5 hilos', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'MF3H', 'name' => 'Fileteadora 3 hilos', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'MPP', 'name' => 'Máquina plana pespunte', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'PLANC', 'name' => 'Plancha', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'OFM', 'name' => 'Ojaladora de franela manual', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'MASH', 'name' => 'Máquina atracadora semiautomática horizontal', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'COLL', 'name' => 'Collaretera', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-        ]);
+        $machines = [
+            ['code' => 'MF5H', 'name' => 'Fileteadora 5 hilos'],
+            ['code' => 'MF3H', 'name' => 'Fileteadora 3 hilos'],
+            ['code' => 'MPP', 'name' => 'Máquina plana pespunte'],
+            ['code' => 'PLANC', 'name' => 'Plancha'],
+            ['code' => 'OFM', 'name' => 'Ojaladora de franela manual'],
+            ['code' => 'MASH', 'name' => 'Máquina atracadora semiautomática horizontal'],
+            ['code' => 'COLL', 'name' => 'Collaretera'],
+        ];
+        foreach ($machines as $machine) {
+            DB::table('machines')->updateOrInsert(
+                ['code' => $machine['code']],
+                ['name' => $machine['name'], 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]
+            );
+        }
 
         // Operaciones
-        DB::table('operations')->insert([
-            ['action' => 'CERRAR', 'garment_part' => 'TIRO DELANTERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'CERRAR', 'garment_part' => 'TIRO TRASERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO TRASERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO PARCHE TRASERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'ARMAR', 'garment_part' => 'PRETINA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'COSER', 'garment_part' => 'BOLSILLO DELANTERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'FILETEAR', 'garment_part' => 'COSTADOS', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'PEGAR', 'garment_part' => 'PRETINA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'HACER', 'garment_part' => 'OJALES', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'PEGAR', 'garment_part' => 'BOTONES', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'ASENTAR', 'garment_part' => 'ELASTICO PRETINA INCORPORADA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'ASENTAR', 'garment_part' => 'LOMO BOLSILLO DELANTERO', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'ASENTAR', 'garment_part' => 'PRENDIDA DE TAPA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'ASENTAR', 'garment_part' => 'PRETINA ANTIFLUIDA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR BOTAS', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR CINTURA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'ATRACAR', 'garment_part' => 'HILADILLA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO BOCA OJAL', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO DELANTERO CURVO CON MALLA', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-        ]);
+        $operations = [
+            ['action' => 'CERRAR', 'garment_part' => 'TIRO DELANTERO'],
+            ['action' => 'CERRAR', 'garment_part' => 'TIRO TRASERO'],
+            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO TRASERO'],
+            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO PARCHE TRASERO'],
+            ['action' => 'ARMAR', 'garment_part' => 'PRETINA'],
+            ['action' => 'COSER', 'garment_part' => 'BOLSILLO DELANTERO'],
+            ['action' => 'FILETEAR', 'garment_part' => 'COSTADOS'],
+            ['action' => 'PEGAR', 'garment_part' => 'PRETINA'],
+            ['action' => 'HACER', 'garment_part' => 'OJALES'],
+            ['action' => 'PEGAR', 'garment_part' => 'BOTONES'],
+            ['action' => 'ASENTAR', 'garment_part' => 'ELASTICO PRETINA INCORPORADA'],
+            ['action' => 'ASENTAR', 'garment_part' => 'LOMO BOLSILLO DELANTERO'],
+            ['action' => 'ASENTAR', 'garment_part' => 'PRENDIDA DE TAPA'],
+            ['action' => 'ASENTAR', 'garment_part' => 'PRETINA ANTIFLUIDA'],
+            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR BOTAS'],
+            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR CINTURA'],
+            ['action' => 'ATRACAR', 'garment_part' => 'HILADILLA'],
+            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO BOCA OJAL'],
+            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO DELANTERO CURVO CON MALLA'],
+        ];
+        foreach ($operations as $operation) {
+            DB::table('operations')->updateOrInsert(
+                ['action' => $operation['action'], 'garment_part' => $operation['garment_part']],
+                ['is_active' => true, 'created_at' => now(), 'updated_at' => now()]
+            );
+        }
 
         // Fichas de producto (ProductSheets)
         // Obtener IDs desde la tabla parameters (ya no insertamos en tablas de catálogos)
@@ -331,9 +359,10 @@ class ExampleDataSeeder extends Seeder
         $fabricBasesParam = DB::table('parameters')->where('nombre', 'fabric_bases')->first();
         $fabricBaseId = $fabricBasesParam ? json_decode($fabricBasesParam->valor, true)[0]['id'] : 1;
 
-        DB::table('product_sheets')->insert([
+        // Product Sheets - Usar updateOrInsert para evitar duplicados
+        DB::table('product_sheets')->updateOrInsert(
+            ['reference' => 'MUESTRA-001'],
             [
-                'reference' => 'MUESTRA-001',
                 'section_id' => $sectionId,
                 'group_id' => $groupId,
                 'brand_id' => $brandId,
@@ -349,9 +378,12 @@ class ExampleDataSeeder extends Seeder
                 'status' => 'incomplete',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            ]
+        );
+
+        DB::table('product_sheets')->updateOrInsert(
+            ['reference' => 'PROD-001'],
             [
-                'reference' => 'PROD-001',
                 'section_id' => $sectionId,
                 'group_id' => $groupId,
                 'brand_id' => $brandId,
@@ -365,6 +397,39 @@ class ExampleDataSeeder extends Seeder
                 'woven_product' => 0,
                 'processes' => json_encode([]),
                 'status' => 'incomplete',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        // Programador (Programmer)
+        // Obtener el ID de la ficha de producto recién creada
+        $productSheetId = DB::table('product_sheets')->where('reference', 'MUESTRA-001')->value('id');
+
+        // Obtener el ID del destino desde parameters
+        $destinationsParam = DB::table('parameters')->where('nombre', 'destinations')->first();
+        $destinationId = $destinationsParam ? json_decode($destinationsParam->valor, true)[0]['id'] : 1;
+
+        DB::table('programmers')->insert([
+            [
+                'product_sheet_id' => $productSheetId,
+                'season' => 'ENERO',
+                'destination_id' => $destinationId,
+                'priority' => 'A',
+                'units' => 500,
+                'ecommerce_units' => null,
+                'status' => 'incomplete',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'product_sheet_id' => $productSheetId,
+                'season' => 'FEBRERO',
+                'destination_id' => $destinationId,
+                'priority' => 'B',
+                'units' => 300,
+                'ecommerce_units' => json_encode(['28' => 50, '30' => 80, '32' => 100, '34' => 80, '36' => 50]),
+                'status' => 'complete',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],

@@ -7,10 +7,16 @@ use App\Models\ProductSheet\ProductSheet;
 use App\Models\ProductSheet\Programmer;
 use App\Services\ParameterService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ProgrammerController extends Controller
 {
+    private const PRIORITIES = ['A', 'B', 'C', 'D'];
+    private const STATUSES = ['complete', 'incomplete'];
+
     /**
      * Display a listing of the resource.
      */
@@ -64,32 +70,31 @@ class ProgrammerController extends Controller
      */
     public function store(Request $request)
     {
-        \Log::info('Datos recibidos:', $request->all()); // Registrar los datos recibidos
-        \Log::info('Datos recibidos para ecommerce_units:', $request->input('lots.*.ecommerce_units'));
-        \Log::info('Datos recibidos para destination_id:', $request->input('lots.*.destination_id'));
-
         $validatedData = $request->validate([
-            'lots' => 'required|array', // Validar que se envíe un array de lotes
+            'lots' => 'required|array|min:1',
             'lots.*.product_sheet_id' => 'required|exists:product_sheets,id',
             'lots.*.season' => 'required|string|max:255',
-            'lots.*.destination_id' => 'required|integer', // ID referencia parameters
-            'lots.*.priority' => 'required|string|max:1',
-            'lots.*.units' => 'required|integer|min:0',
-            'lots.*.ecommerce_units' => 'nullable|array', // Validar que sea un array o null
-            'lots.*.status' => 'required|string|max:255',
+            'lots.*.destination_id' => 'required|integer|min:1',
+            'lots.*.priority' => ['required', 'string', Rule::in(self::PRIORITIES)],
+            'lots.*.units' => 'required|integer|min:1',
+            'lots.*.ecommerce_units' => 'nullable',
+            'lots.*.status' => ['required', 'string', Rule::in(self::STATUSES)],
         ]);
 
-        // Insertar múltiples lotes en la tabla programmers
-        $programmers = collect($validatedData['lots'])->map(function ($lot) {
-            return Programmer::create([
-                'product_sheet_id' => $lot['product_sheet_id'],
-                'season' => $lot['season'],
-                'destination_id' => $lot['destination_id'], // Guardar el ID de la destinación
-                'priority' => $lot['priority'],
-                'units' => $lot['units'],
-                'ecommerce_units' => isset($lot['ecommerce_units']) ? json_encode($lot['ecommerce_units']) : null, // Convertir a JSON
-                'status' => $lot['status'],
-            ]);
+        $programmers = DB::transaction(function () use ($validatedData) {
+            return collect($validatedData['lots'])->map(function (array $lot) {
+                $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
+
+                return Programmer::create([
+                    'product_sheet_id' => $lot['product_sheet_id'],
+                    'season' => $lot['season'],
+                    'destination_id' => $lot['destination_id'],
+                    'priority' => $lot['priority'],
+                    'units' => $lot['units'],
+                    'ecommerce_units' => $ecommerceUnits,
+                    'status' => $lot['status'],
+                ]);
+            });
         });
 
         return response()->json([
@@ -98,9 +103,6 @@ class ProgrammerController extends Controller
         ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Programmer $programmer)
     {
         return response()->json(['data' => $programmer], 200);
@@ -119,38 +121,29 @@ class ProgrammerController extends Controller
      */
     public function update(Request $request, Programmer $programador)
     {
-        \Log::info('Datos recibidos para actualizar:', $request->all());
-
-        // Validar los datos recibidos
         $validatedData = $request->validate([
             'product_sheet_id' => 'sometimes|exists:product_sheets,id',
             'season' => 'sometimes|string|max:255',
-            'destination_id' => 'sometimes|integer', // ID referencia parameters
-            'priority' => 'sometimes|string|max:1',
-            'units' => 'sometimes|integer|min:0',
-            'ecommerce_units' => 'sometimes|json', // Validar que sea un JSON válido
-            'status' => 'sometimes|string|max:255',
+            'destination_id' => 'sometimes|integer|min:1',
+            'priority' => ['sometimes', 'string', Rule::in(self::PRIORITIES)],
+            'units' => 'sometimes|integer|min:1',
+            'ecommerce_units' => 'sometimes|nullable',
+            'status' => ['sometimes', 'string', Rule::in(self::STATUSES)],
         ]);
 
-        \Log::info('Datos validados:', $validatedData);
+        if (array_key_exists('ecommerce_units', $validatedData)) {
+            $validatedData['ecommerce_units'] = $this->normalizeEcommerceUnits($validatedData['ecommerce_units']);
+        }
 
-        // Actualizar los datos del programador
         $programador->update($validatedData);
-
-        // Refrescar el modelo para obtener los datos actualizados
         $programador->refresh();
-
-        \Log::info('Programador actualizado:', $programador->toArray());
 
         return response()->json([
             'message' => 'Programmer updated successfully.',
-            'data' => $programador, // Devolver los datos actualizados
+            'data' => $programador,
         ]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Programmer $programador)
     {
         $programador->delete();
@@ -222,4 +215,37 @@ class ProgrammerController extends Controller
             'per_page' => $programmers->perPage(),
         ]);
     }
+
+    protected function normalizeEcommerceUnits($value): ?array
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw ValidationException::withMessages([
+                    'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+                ]);
+            }
+
+            if ($decoded !== null && !is_array($decoded)) {
+                throw ValidationException::withMessages([
+                    'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+                ]);
+            }
+
+            return $decoded;
+        }
+
+        throw ValidationException::withMessages([
+            'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+        ]);
+    }
 }
+
