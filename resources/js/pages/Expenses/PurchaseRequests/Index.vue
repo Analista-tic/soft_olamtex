@@ -20,7 +20,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Eye, PlusCircle, Search } from 'lucide-vue-next';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import { useAlertMessages } from '@/composables/useAlertMessages';
+import { useAlertStack } from '@/composables/useAlert';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseRequest } from '@/domain/purchases';
@@ -59,10 +59,7 @@ const {
     clearSuccess,
     clearError,
     showError,
-} = useAlertMessages({
-    entityLabel: 'Solicitud',
-    defaultErrorMessage: 'No se pudieron cargar las solicitudes de compra.',
-});
+} = useAlertStack();
 
 const statusOptions = [
     { id: 'all', name: 'Todos los estados' },

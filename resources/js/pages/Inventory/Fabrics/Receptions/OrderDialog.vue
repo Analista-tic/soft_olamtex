@@ -34,7 +34,7 @@ const baseFabricOptions = ref<{ id: number; name: string }[]>([]);
 const localForm = computed(() => ({
     ...props.form,
     id: props.form?.id ?? '',
-    fabricProviderId: props.form?.fabricProviderId ?? '',
+    fabric_provider_id: props.form?.fabric_provider_id ?? '',
     status: props.form?.status ?? '',
     items: props.form?.items ?? [],
 }));
@@ -111,7 +111,7 @@ watch(
                         readonly
                     />
                     <InputField
-                        v-model="localForm.fabricProviderId"
+                        v-model="localForm.fabric_provider_id"
                         label="Proveedor"
                         disabled
                         readonly

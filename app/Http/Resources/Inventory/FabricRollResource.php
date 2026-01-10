@@ -22,27 +22,26 @@ class FabricRollResource extends JsonResource
                 ?? $this->purchaseDocumentItem?->item_name
                 ?? 'Tela',
             'color' => $this->purchaseDocumentItem?->supplier_color ?? 'N/A',
-            'colorCode' => $this->deriveColorCode($this->purchaseDocumentItem?->supplier_color),
+            'color_code' => $this->deriveColorCode($this->purchaseDocumentItem?->supplier_color),
             'width' => $this->formatMeters($this->roll_width),
-            'rollQty' => $this->formatMeters($this->quantity),
-            'partialOutput' => $this->formatMeters($this->partial_output),
-            'exitQuantity' => $this->formatMeters($this->actual_output),
-            'partialAvailability' => $this->formatMeters($partialAvailability),
-            'realAvailability' => $this->formatMeters($this->available_quantity),
-            'orderNumber' => $document?->supplier_order_number
+            'roll_qty' => $this->formatMeters($this->quantity),
+            'partial_output' => $this->formatMeters($this->partial_output),
+            'exit_quantity' => $this->formatMeters($this->actual_output),
+            'partial_availability' => $this->formatMeters($partialAvailability),
+            'real_availability' => $this->formatMeters($this->available_quantity),
+            'order_number' => $document?->supplier_order_number
                 ?? $document?->document_number
                 ?? 'N/A',
             'provider' => $document?->supplier?->full_name
                 ?? $document?->provider_name
                 ?? 'Proveedor',
-            'createdAt' => $document?->created_at
+            'created_at' => $document?->created_at
                 ? Carbon::parse($document->created_at)->format('d M Y')
                 : null,
             'creator' => $document?->creator?->name,
             'status' => $this->is_depleted ? 'depleted' : 'available',
-            'quantityValue' => $this->quantity,
-            'partialOutputValue' => $this->partial_output,
-            'exitQuantityValue' => $this->actual_output,
+            'quantity_value' => $this->quantity,
+            'exit_quantity_value' => $this->actual_output,
         ];
     }
 

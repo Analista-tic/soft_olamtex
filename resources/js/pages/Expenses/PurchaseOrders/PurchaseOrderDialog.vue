@@ -511,7 +511,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                         <div class="grid grid-cols-3 gap-4">
                             <InputDate v-model="localForm.date" label="Fecha de creacion" required />
                             <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
-                            <InputField v-model="localForm.supplier_order_number" label="# orden de compra proveedor" />
+                            <InputField v-model="localForm.supplier_order_number" label="# orden de compra proveedor" required />
                 
                         </div>
 

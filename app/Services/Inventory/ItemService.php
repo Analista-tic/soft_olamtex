@@ -6,8 +6,8 @@ use App\Services\Inventory\AdditionalFieldService;
 use App\Models\Common\CategorySubGroup;
 use App\Models\Common\Tax;
 use App\Models\Common\Warehouse;
+use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
-use App\Models\Expenses\PurchaseOrderItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Inventory\Item;
 use App\Models\Inventory\AdditionalField;
@@ -985,12 +985,16 @@ class ItemService
             $reasons[] = $warehouseCount === 1 ? '1 bodega asignada' : "{$warehouseCount} bodegas asignadas";
         }
 
-        $poCount = PurchaseOrderItem::where('item_id', $item->id)->count();
-        if ($poCount > 0) {
-            $reasons[] = $poCount === 1 ? '1 orden de compra' : "{$poCount} ordenes de compra";
+        $documentCounts = $this->countPurchaseDocumentItemsByType($item->id);
+        $requestCount = $documentCounts[PurchaseDocument::TYPE_REQUEST] ?? 0;
+        if ($requestCount > 0) {
+            $reasons[] = $requestCount === 1 ? '1 solicitud de compra' : "{$requestCount} solicitudes de compra";
         }
-
-        $invoiceCount = PurchaseDocumentItem::where('item_id', $item->id)->count();
+        $orderCount = $documentCounts[PurchaseDocument::TYPE_ORDER] ?? 0;
+        if ($orderCount > 0) {
+            $reasons[] = $orderCount === 1 ? '1 orden de compra' : "{$orderCount} ordenes de compra";
+        }
+        $invoiceCount = $documentCounts[PurchaseDocument::TYPE_INVOICE] ?? 0;
         if ($invoiceCount > 0) {
             $reasons[] = $invoiceCount === 1 ? '1 factura de compra' : "{$invoiceCount} facturas de compra";
         }
@@ -1001,6 +1005,18 @@ class ItemService
         }
 
         return $reasons;
+    }
+
+    protected function countPurchaseDocumentItemsByType(int $itemId): array
+    {
+        $counts = [];
+        foreach ([PurchaseDocument::TYPE_REQUEST, PurchaseDocument::TYPE_ORDER, PurchaseDocument::TYPE_INVOICE] as $type) {
+            $counts[$type] = PurchaseDocumentItem::query()
+                ->where('item_id', $itemId)
+                ->whereHas('document', fn($query) => $query->where('document_type', $type))
+                ->count();
+        }
+        return $counts;
     }
 
     protected function formatReasonList(array $reasons): string

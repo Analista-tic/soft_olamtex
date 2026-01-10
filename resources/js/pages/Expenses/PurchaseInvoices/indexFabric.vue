@@ -17,7 +17,7 @@ import InputDate from '@/components/InputDate.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import { useAlertMessages } from '@/composables/useAlertMessages';
+import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import {
     DropdownMenu,
@@ -53,16 +53,8 @@ const {
     showError,
     clearSuccess,
     clearError,
-    clearAll,
-} = useAlertMessages({
-    entityLabel: 'Factura',
-    entityItem: '',
-    successActions: {
-        delete: 'eliminada correctamente.',
-        sendMail: 'enviada por correo correctamente.',
-    },
-    defaultErrorMessage: 'Ocurrio un error al procesar la factura.',
-});
+    clearAlerts,
+} = useAlertStack();
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
@@ -166,7 +158,7 @@ function openDialog(type: 'create' | 'edit', invoice: PurchaseInvoice | null = n
     isDialogOpen.value = true;
     // Asegura el tipado correcto y evita referencias reactivas no deseadas
     form.value = invoice ? JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice> : {};
-    clearAll();
+    clearAlerts();
 }
 
 function closeDialog() {
@@ -188,7 +180,7 @@ async function deleteInvoice(): Promise<void> {
     if (!invoiceToDelete.value) return;
     try {
         await axios.delete(`/gastos/facturas-compra-tela/${invoiceToDelete.value.id}`);
-        showSuccess('delete');
+        showSuccess('Factura eliminada correctamente.');
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
         console.log('Error al eliminar factura:', e);
@@ -287,7 +279,7 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
     isSendingMail.value = true;
     try {
         await axios.post(`/gastos/facturas-compra-tela/${invoice.id}/enviar-correo`);
-        showSuccess('sendMail');
+        showSuccess('Factura enviada por correo correctamente.');
     } catch {
         showError('Error al enviar el correo.');
     } finally {
@@ -308,7 +300,7 @@ function viewInvoiceDetails(invoice: PurchaseInvoice) {
 function handleDialogRefresh(message?: string) {
     if (message) {
         clearError();
-        showSuccess(undefined, message);
+        showSuccess(message);
     }
     fetchInvoices(currentPage.value, searchQuery.value);
     isDialogOpen.value = false;

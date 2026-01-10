@@ -342,7 +342,7 @@ onMounted(async () => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Lote</TableHead>
+                            <TableHead>OP</TableHead>
                             <TableHead>Referencia</TableHead>
                             <TableHead>Temporada</TableHead>
                             <TableHead>Prioridad</TableHead>

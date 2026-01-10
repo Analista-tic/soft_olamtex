@@ -24,7 +24,7 @@ const fabricOrders = ref<FabricOrder[]>([]);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<FabricOrder>({
     id: null,
-    fabricProviderId: '',
+    fabric_provider_id: '',
     status: 'not_received',
     items: [],
 });
@@ -75,11 +75,11 @@ async function fetchOrders(page = 1): Promise<void> {
         });
         fabricOrders.value = response.data.data.map((order: FabricOrder) => ({
             ...order,
-            fabricProviderId: String(order.fabricProviderId),
+            fabric_provider_id: String(order.fabric_provider_id),
             items:
                 order.items?.map((item) => ({
                     ...item,
-                    baseFabricId: String(item.baseFabricId),
+                    base_fabric_id: String(item.base_fabric_id),
                 })) || [],
         }));
         totalItems.value = response.data.total;
@@ -104,22 +104,22 @@ function initializeForm(type: 'create' | 'edit', order: Partial<FabricOrder> | n
         type === 'create'
                 ? {
                     id: (lastOrderNumber.value ?? 0) + 1,
-                    fabricProviderId: '',
+                    fabric_provider_id: '',
                     status: 'not_received',
                     items: [],
                 }
                 : {
                     id: order?.id ?? null,
-                    fabricProviderId: String(order?.fabricProviderId ?? ''),
+                    fabric_provider_id: String(order?.fabric_provider_id ?? ''),
                     status: order?.status ?? 'not_received',
                     items: (order?.items ?? []).map((item) => ({
                         fabric: item.fabric ?? '',
                         quantity: item.quantity ?? 0,
                         price: item.price ?? 0,
-                        baseFabricId: String(item.baseFabricId ?? ''),
-                        providerColor: item.providerColor ?? '',
-                        providerColorCode: item.providerColorCode ?? '',
-                        estimatedWidth: item.estimatedWidth ?? 0,
+                        base_fabric_id: String(item.base_fabric_id ?? ''),
+                        provider_color: item.provider_color ?? '',
+                        provider_color_code: item.provider_color_code ?? '',
+                        estimated_width: item.estimated_width ?? 0,
                     })),
                 };
 }
@@ -172,9 +172,9 @@ onMounted(async () => {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                <TableRow v-for="order in fabricOrders" :key="order.id ?? order.fabricProviderId">
+                <TableRow v-for="order in fabricOrders" :key="order.id ?? order.fabric_provider_id">
                     <TableCell>{{ order.id }}</TableCell>
-                    <TableCell>{{ order.fabricProvider?.name ?? 'Sin proveedor' }}</TableCell>
+                    <TableCell>{{ order.fabric_provider?.name ?? 'Sin proveedor' }}</TableCell>
                     <TableCell>
                         <Badge
                             :variant="order.status === 'received' ? 'outline' : ['in_reception'].includes(order.status) ? 'default' : 'destructive'"
