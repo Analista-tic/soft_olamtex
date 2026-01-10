@@ -196,9 +196,21 @@ class ProgrammerController extends Controller
 
         // Enriquecer con destinations desde parameters
         $destinations = ParameterService::getList('destinations')->keyBy('id');
+        $sections = ParameterService::getList('sections')->keyBy('id');
+        $groups = ParameterService::getList('groups')->keyBy('id');
         
-        $programmers->getCollection()->transform(function ($programmer) use ($destinations) {
+        $programmers->getCollection()->transform(function ($programmer) use ($destinations, $sections, $groups) {
             $programmer->destination = $destinations->get($programmer->destination_id, ['id' => $programmer->destination_id, 'name' => 'N/A']);
+            if ($programmer->productSheet) {
+                $sectionId = $programmer->productSheet->section_id ?? null;
+                $groupId = $programmer->productSheet->group_id ?? null;
+                $programmer->productSheet->section = $sectionId
+                    ? $sections->get($sectionId, ['id' => $sectionId, 'name' => 'N/A'])
+                    : null;
+                $programmer->productSheet->group = $groupId
+                    ? $groups->get($groupId, ['id' => $groupId, 'name' => 'N/A'])
+                    : null;
+            }
             return $programmer;
         });
 

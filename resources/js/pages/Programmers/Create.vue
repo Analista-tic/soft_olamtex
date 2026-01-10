@@ -108,7 +108,10 @@ const lotsCountModel = computed<string | number>({
 
         const normalized =
             typeof value === 'number' ? value : Number(value.toString().replace(',', '.'));
-        form.value.lotsCount = Number.isNaN(normalized) ? null : normalized;
+        
+        // Redondear al entero más cercano y asegurar que sea positivo
+        const integerValue = Math.max(0, Math.floor(normalized));
+        form.value.lotsCount = Number.isNaN(integerValue) ? null : integerValue;
     },
 });
 
@@ -303,11 +306,12 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
 }
 
 // Función para obtener las claves con valores `true` en `sizes`
-function getTrueSizes(sizes: string | undefined): string {
+function getTrueSizes(sizes: string | Record<string, boolean> | undefined | null): string {
     if (!sizes) return '';
     
     try {
-        const parsedSizes: Record<string, boolean> = JSON.parse(sizes);
+        // Si sizes ya es un objeto, usarlo directamente
+        const parsedSizes: Record<string, boolean> = typeof sizes === 'string' ? JSON.parse(sizes) : sizes;
         return Object.entries(parsedSizes)
             .filter(([, value]) => value === true)
             .map(([key]) => key)
@@ -317,6 +321,14 @@ function getTrueSizes(sizes: string | undefined): string {
         return '';
     }
 }
+
+// Función para filtrar solo números enteros en el campo de lotes
+function handleLotsCountInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    // Eliminar cualquier carácter que no sea un dígito
+    input.value = input.value.replace(/[^0-9]/g, '');
+}
+
 </script>
 
 <template>
@@ -363,7 +375,9 @@ function getTrueSizes(sizes: string | undefined): string {
                             placeholder="Numero de lotes"
                             type="number"
                             min="1"
+                            step="1"
                             required
+                            @input="handleLotsCountInput"
                             @update:modelValue="generateLots"
                         />
                         <div class="flex flex-col gap-2">

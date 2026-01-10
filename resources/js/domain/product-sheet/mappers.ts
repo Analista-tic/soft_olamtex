@@ -15,6 +15,8 @@ export function mapProductSheetDto(dto: ProductSheetDto): ProductSheet {
         sizes: dto.sizes,
         description: dto.description,
         metadata: dto.metadata ?? undefined,
+        section: dto.section ?? undefined,
+        group: dto.group ?? undefined,
     };
 }
 

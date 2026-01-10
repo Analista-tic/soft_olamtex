@@ -18,6 +18,8 @@ export interface ProductSheet {
     selling_price?: number;
     sizes?: string;
     description?: string;
+    section?: { id: number; name: string } | null;
+    group?: { id: number; name: string } | null;
     [key: string]: any;
 }
 export interface Programmer {

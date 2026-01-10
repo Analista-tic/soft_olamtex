@@ -1,28 +1,16 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import DeleteButton from '@/components/common/DeleteButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import FabricRollInventoryDialog from '@/pages/KardexFabric/FabricRollInventory/FabricRollInventoryDialog.vue';
-import { ArrowDownToLine, Eye, Search } from 'lucide-vue-next';
+import { ArrowDownToLine, Search } from 'lucide-vue-next';
 import { Inertia } from '@inertiajs/inertia';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
-import type { FabricRollView } from '@/domain/fabric';
-
-type FabricRollViewUI = FabricRollView & {
-  // Campos “solo UI” por ahora (frontend). Cuando llegue el backend, simplemente los llenas.
-  season?: string | null;
-  section?: string | null;
-  group?: string | null;
-  priority?: string | null;
-  scheduledUnits?: string | number | null;
-};
+import type { Programmer } from '@/domain/product-sheet';
 
 const breadcrumbs = [
   { title: 'Kardex de Telas', href: '/kardex-telas' },
@@ -31,14 +19,10 @@ const breadcrumbs = [
 
 const searchQuery = ref('');
 
-const rolls = ref<FabricRollViewUI[]>([]);
-const selectedRoll = ref<FabricRollViewUI | null>(null);
-const isDialogOpen = ref(false);
-const rollToDelete = ref<FabricRollViewUI | null>(null);
-const isDeleteDialogOpen = ref(false);
+const programmers = ref<Programmer[]>([]);
 const successMessage = ref('');
 const errorMessage = ref('');
-const isLoadingRolls = ref(false);
+const isLoadingProgrammers = ref(false);
 
 const normalizedValue = (value?: string | null) =>
   (value ?? '')
@@ -48,16 +32,16 @@ const normalizedValue = (value?: string | null) =>
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
 
-const filteredRolls = computed(() => {
+const filteredProgrammers = computed(() => {
   const query = normalizedValue(searchQuery.value);
-  return rolls.value.filter((roll) => {
+  return programmers.value.filter((programmer) => {
     const fieldsToSearch = [
-      roll.roll,
-      roll.location,
-      roll.fabric,
-      roll.color,
-      roll.provider,
-      roll.order_number,
+      String(programmer.id),
+      programmer.product_sheet?.reference,
+      programmer.season,
+      programmer.product_sheet?.section?.name,
+      programmer.product_sheet?.group?.name,
+      programmer.priority,
     ];
     const matchesSearch =
       !query || fieldsToSearch.some((field) => normalizedValue(field).includes(query));
@@ -65,80 +49,50 @@ const filteredRolls = computed(() => {
   });
 });
 
-function selectRoll(roll: FabricRollViewUI) {
-  selectedRoll.value = roll;
-  isDialogOpen.value = true;
-}
+const getLotLabel = (programmer: Programmer) => `MF${programmer.id}`;
 
-function confirmDeleteRoll(roll: FabricRollViewUI) {
-  rollToDelete.value = roll;
-  isDeleteDialogOpen.value = true;
-}
+const getReferenceLabel = (programmer: Programmer) =>
+  programmer.product_sheet?.reference ?? '-';
 
-function deleteRoll() {
-  if (!rollToDelete.value) return;
-  const index = rolls.value.findIndex((r) => r.id === rollToDelete.value?.id);
-  if (index !== -1) {
-    rolls.value.splice(index, 1);
-    successMessage.value = 'El rollo se elimino correctamente.';
-    errorMessage.value = '';
-  }
-  isDeleteDialogOpen.value = false;
-}
+const getSeasonLabel = (programmer: Programmer) => programmer.season ?? '-';
 
-function openDownloadWindow(roll: FabricRollViewUI) {
-  if (!roll?.id) return;
-  const url = route('kardex-telas.descargue-orden.descarga', { roll: roll.id });
+const getSectionLabel = (programmer: Programmer) =>
+  programmer.product_sheet?.section?.name ?? '-';
+
+const getGroupLabel = (programmer: Programmer) =>
+  programmer.product_sheet?.group?.name ?? '-';
+
+const getPriorityLabel = (programmer: Programmer) => programmer.priority ?? '-';
+
+const getScheduledUnitsLabel = (programmer: Programmer) =>
+  programmer.units ?? '-';
+
+function openDownloadWindow(programmer: Programmer) {
+  if (!programmer?.id) return;
+  const url = route('kardex-telas.descargue-orden.descarga', { programmer: programmer.id });
   Inertia.visit(url);
 }
 
-/**
- * Helper tipado (sin Record<string, unknown> ni index signature).
- * Solo permite keys reales de FabricRollViewUI.
- */
-const getFieldValue = <K extends keyof FabricRollViewUI>(
-  roll: FabricRollViewUI,
-  key: K,
-  fallback = '-',
-) => {
-  const value = roll[key];
-  if (value === undefined || value === null || value === '') return fallback;
-  return String(value);
-};
-
-const getSeasonLabel = (roll: FabricRollViewUI) =>
-  getFieldValue(roll, 'season', roll.fabric ?? '-');
-
-const getSectionLabel = (roll: FabricRollViewUI) =>
-  getFieldValue(roll, 'section', roll.location ?? '-');
-
-const getGroupLabel = (roll: FabricRollViewUI) =>
-  getFieldValue(roll, 'group', roll.provider ?? '-');
-
-const getPriorityLabel = (roll: FabricRollViewUI) =>
-  getFieldValue(roll, 'priority', roll.status === 'depleted' ? 'Baja' : 'Alta');
-
-const getScheduledUnitsLabel = (roll: FabricRollViewUI) =>
-  getFieldValue(roll, 'scheduledUnits', roll.roll_qty ?? '-');
-
-async function fetchFabricRolls() {
-  isLoadingRolls.value = true;
+async function fetchProgrammers() {
+  isLoadingProgrammers.value = true;
   errorMessage.value = '';
   try {
-    const response = await axios.get('/kardex-telas/inventario-rollos/data');
+    const response = await axios.get('/comercial/programmers', {
+      params: {
+        per_page: 1000,
+      },
+    });
     const payload = response.data?.data ?? response.data;
-
-    // Tipado: por ahora lo tratamos como UI sin “forzar” el backend.
-    rolls.value = Array.isArray(payload) ? (payload as FabricRollViewUI[]) : [];
+    programmers.value = Array.isArray(payload) ? (payload as Programmer[]) : [];
   } catch {
-    rolls.value = [];
-    errorMessage.value = 'No se pudo cargar el inventario de rollos.';
+    programmers.value = [];
+    errorMessage.value = 'No se pudo cargar el programador.';
   } finally {
-    isLoadingRolls.value = false;
+    isLoadingProgrammers.value = false;
   }
 }
 
-onMounted(fetchFabricRolls);
+onMounted(fetchProgrammers);
 </script>
 
 <template>
@@ -200,36 +154,25 @@ onMounted(fetchFabricRolls);
             </TableHeader>
 
             <TableBody>
-              <TableRow v-for="roll in filteredRolls" :key="roll.id" class="border-b">
-                <TableCell class="text-center text-sm">{{ roll.roll }}</TableCell>
+              <TableRow v-for="programmer in filteredProgrammers" :key="programmer.id" class="border-b">
+                <TableCell class="text-center text-sm">{{ getLotLabel(programmer) }}</TableCell>
 
                 <TableCell class="text-center text-sm">
-                  {{ roll.order_number || '—' }}
+                  {{ getReferenceLabel(programmer) }}
                 </TableCell>
 
-                <TableCell class="text-center text-sm">{{ getSeasonLabel(roll) }}</TableCell>
-                <TableCell class="text-center text-sm">{{ getSectionLabel(roll) }}</TableCell>
-                <TableCell class="text-center text-sm">{{ getGroupLabel(roll) }}</TableCell>
-                <TableCell class="text-center text-sm">{{ getPriorityLabel(roll) }}</TableCell>
-                <TableCell class="text-center text-sm">{{ getScheduledUnitsLabel(roll) }}</TableCell>
+                <TableCell class="text-center text-sm">{{ getSeasonLabel(programmer) }}</TableCell>
+                <TableCell class="text-center text-sm">{{ getSectionLabel(programmer) }}</TableCell>
+                <TableCell class="text-center text-sm">{{ getGroupLabel(programmer) }}</TableCell>
+                <TableCell class="text-center text-sm">{{ getPriorityLabel(programmer) }}</TableCell>
+                <TableCell class="text-center text-sm">{{ getScheduledUnitsLabel(programmer) }}</TableCell>
 
                 <TableCell class="flex justify-center gap-1">
                   <button
-                    class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-blue-600"
-                    title="Ver rollo"
-                    type="button"
-                    @click="selectRoll(roll)"
-                  >
-                    <Eye class="h-4 w-4" />
-                  </button>
-
-                  <DeleteButton @click="confirmDeleteRoll(roll)" />
-
-                  <button
                     class="inline-flex items-center justify-center text-gray-500 transition-colors hover:text-blue-600"
-                    title="Descargar rollo"
+                    title="Descargar orden"
                     type="button"
-                    @click="openDownloadWindow(roll)"
+                    @click="openDownloadWindow(programmer)"
                   >
                     <ArrowDownToLine class="h-4 w-4" />
                   </button>
@@ -238,34 +181,28 @@ onMounted(fetchFabricRolls);
             </TableBody>
           </Table>
 
-          <div v-if="isLoadingRolls" class="p-4 text-center text-sm text-muted-foreground">
-            Cargando rollos...
+          <div v-if="isLoadingProgrammers" class="p-4 text-center text-sm text-muted-foreground">
+            Cargando programadores...
           </div>
 
           <div
-            v-else-if="!isLoadingRolls && filteredRolls.length === 0"
+            v-else-if="!isLoadingProgrammers && filteredProgrammers.length === 0"
             class="p-4 text-center text-sm text-muted-foreground"
           >
-            No hay rollos disponibles.
+            No hay programadores disponibles.
           </div>
         </div>
       </div>
     </div>
-
-    <FabricRollInventoryDialog
-      :modelValue="isDialogOpen"
-      :roll="selectedRoll"
-      @update:modelValue="(value) => (isDialogOpen = value)"
-    />
-
-    <ConfirmDialog
-      v-model:open="isDeleteDialogOpen"
-      title="Confirmar eliminacion"
-      description="Estas seguro de que deseas eliminar este rollo? Esta accion no se puede deshacer."
-      confirm-text="Eliminar"
-      cancel-text="Cancelar"
-      :destructive="true"
-      @confirm="deleteRoll"
-    />
   </AppLayout>
 </template>
+
+
+
+
+
+
+
+
+
+

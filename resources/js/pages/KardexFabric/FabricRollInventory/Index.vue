@@ -13,7 +13,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
 import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
 import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
-import { ArrowDownToLine, Download, Eye, Search } from 'lucide-vue-next';
+import { ArrowDownToLine, Download, Eye, Search, SlidersHorizontal } from 'lucide-vue-next';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import type { FabricRollView } from '@/domain/fabric';
@@ -122,7 +122,7 @@ function openDownloadDialog(roll: FabricRollView) {
 }
 
 function openAdjustDialog(roll?: FabricRollView | null) {
-    const target = roll ?? selectedRoll.value ?? filteredRolls.value[0] ?? null;
+    const target = roll ?? selectedRoll.value ?? null;
     if (!target) {
         errorMessage.value = 'Selecciona un rollo antes de ajustar la salida.';
         return;
@@ -316,6 +316,14 @@ onMounted(fetchFabricRolls);
                                         @click="openDownloadDialog(roll)"
                                     >
                                         <ArrowDownToLine class="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        class="inline-flex items-center justify-center text-gray-500 transition-colors hover:text-blue-600"
+                                        title="Ajustar salida"
+                                        type="button"
+                                        @click="openAdjustDialog(roll)"
+                                    >
+                                        <SlidersHorizontal class="h-4 w-4" />
                                     </button>
                                 </TableCell>
                             </TableRow>

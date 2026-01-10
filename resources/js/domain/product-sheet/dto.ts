@@ -18,6 +18,8 @@ export interface ProductSheetDto {
     sizes?: string;
     description?: string;
     metadata?: Record<string, unknown>;
+    section?: { id: number; name: string } | null;
+    group?: { id: number; name: string } | null;
 }
 
 export interface ProgrammerDto {
