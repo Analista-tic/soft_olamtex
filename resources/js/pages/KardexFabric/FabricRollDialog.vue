@@ -259,7 +259,7 @@ function formatDate(dateStr: string) {
 
                     <DialogHeader class="flex-shrink-0">
                         <DialogTitle>Registrar Rollo de Tela</DialogTitle>
-                        <DialogDescription>
+                        <DialogDescription class="pb-2">
                             Relacione cada rollo al ítem de la orden.
                         </DialogDescription>
                     </DialogHeader>
