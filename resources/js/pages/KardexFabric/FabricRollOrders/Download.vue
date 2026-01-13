@@ -2,7 +2,6 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
-import Input from '@/components/ui/input/Input.vue';
 import { Head } from '@inertiajs/vue3';
 import RollDownloadFormDialog from '@/pages/KardexFabric/FabricRollOrders/RollDownloadFormDialog.vue';
 import { computed, reactive, ref, watch } from 'vue';
@@ -29,24 +28,6 @@ const pageTitle = computed(() => {
 
 const availableRolls = ref<FabricRollView[]>(Array.isArray(props.rolls) ? props.rolls : []);
 const selectedRoll = ref<FabricRollView | null>(props.roll ?? null);
-const searchQuery = ref('');
-
-const normalizedValue = (value?: string | null) =>
-  (value ?? '')
-    .toString()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-
-const filteredRolls = computed(() => {
-  const query = normalizedValue(searchQuery.value);
-  return availableRolls.value.filter((roll) => {
-    if (!query) return true;
-    const fieldsToSearch = [roll.roll, roll.location, roll.fabric, roll.color, roll.provider];
-    return fieldsToSearch.some((field) => normalizedValue(field).includes(query));
-  });
-});
 
 const activeRoll = computed(() => selectedRoll.value ?? null);
 
@@ -98,12 +79,11 @@ const sizeLabels = computed(() => {
     if (typeof props.sizes === 'object' && !Array.isArray(props.sizes)) {
       // Extraer solo las claves donde el valor sea estrictamente true (booleano)
       extractedSizes = Object.entries(props.sizes)
-        .filter(([_, value]) => value === true) // Filtrar solo valores true
-        .map(([key]) => String(key).trim()) // Tomar solo la clave
-        .filter(key => {
+        .filter(([, isEnabled]) => isEnabled === true) // Filtrar solo valores true
+        .map(([sizeName]) => String(sizeName).trim()) // Tomar solo la clave
+        .filter(size => {
           // Filtrar claves válidas (no vacías y que no sean "false" o "true")
-          const trimmed = key.trim();
-          return trimmed.length > 0 && trimmed !== 'false' && trimmed !== 'true';
+          return size.length > 0 && size !== 'false' && size !== 'true';
         })
         .sort((a, b) => {
           // Ordenar: primero numéricos ascendente, luego alfabéticos
@@ -277,24 +257,9 @@ function formatMeters(value?: string | number | null) {
   return `${n.toFixed(2)} m`;
 }
 
-const metersToUse = computed(() => {
-  const total = toNumber(activeRoll.value?.quantity_value);
-  const used = toNumber(activeRoll.value?.exit_quantity);
-  return formatMeters(Math.max(0, total - used));
-});
-
 const isDialogOpen = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
-
-function openDownloadForm() {
-  if (!activeRoll.value) {
-    errorMessage.value = 'Selecciona un rollo para descargar.';
-    successMessage.value = '';
-    return;
-  }
-  isDialogOpen.value = true;
-}
 
 function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Record<string, unknown> }) {
   const rollLabel = payload.roll?.roll ? ` para el rollo ${payload.roll.roll}` : '';

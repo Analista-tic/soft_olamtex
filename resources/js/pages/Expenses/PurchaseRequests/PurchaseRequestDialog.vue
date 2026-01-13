@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
@@ -19,6 +19,9 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { PurchaseRequestForm, PurchaseRequestItem } from '@/domain/purchases';
 import { useAlertStack } from '@/composables/useAlert';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -375,15 +378,15 @@ watch(dialogOpen, (isOpen) => {
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
             <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
-                    <div class="flex flex-col gap-1">
-                        <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
-                        <DialogDescription class="pb-2">
-                            Completa los campos y añade los artículos requeridos.
-                        </DialogDescription>
-                    </div>
-                </DialogHeader>
-                <AlertStack
-                    :success-message="successMessage"
+                <div class="flex flex-col gap-1">
+                    <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
+                    <DialogDescription class="pb-2">
+                        Completa los campos y añade los artículos requeridos.
+                    </DialogDescription>
+                </div>
+            </DialogHeader>
+            <AlertStack
+                :success-message="successMessage"
                     :error-message="errorMessage"
                     success-title="Éxito"
                     error-title="Error"
@@ -392,11 +395,12 @@ watch(dialogOpen, (isOpen) => {
                     @close-error="clearError"
                 />
                 <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
-                <form
-                    @submit.prevent="handleSubmit()"
-                    :class="{'pointer-events-none opacity-50': dialogType === 'create' && isLoadingRequestId}"
-                    class="space-y-6"
-                >
+                    <TooltipProvider>
+                        <form
+                            @submit.prevent="handleSubmit()"
+                            :class="{'pointer-events-none opacity-50': dialogType === 'create' && isLoadingRequestId}"
+                            class="space-y-6"
+                        >
                     <div class="mt-8 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
@@ -434,21 +438,43 @@ watch(dialogOpen, (isOpen) => {
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
-                            <InputField
-                                v-model="providerInput"
-                                label="Proveedor"
-                                placeholder="Escribe un proveedor"
-                                list="providers-list"
-                                :readonly="props.readonly"
-                                :disabled="props.readonly"
-                            />
-                            <InputField
-                                v-model="contactPhoneInput"
-                                label="Número de contacto"
-                                placeholder="Escribe un número"
-                                :readonly="props.readonly"
-                                :disabled="props.readonly"
-                            />
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        Proveedor
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Escribe o selecciona el proveedor al que se le solicitarán los productos."
+                                        aria-label="Ayuda sobre proveedor"
+                                    />
+                                </div>
+                                <InputField
+                                    v-model="providerInput"
+                                    label=""
+                                    placeholder="Escribe un proveedor"
+                                    list="providers-list"
+                                    :readonly="props.readonly"
+                                    :disabled="props.readonly"
+                                />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        Número de contacto
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Número telefónico del proveedor para coordinar la solicitud."
+                                        aria-label="Ayuda sobre número de contacto"
+                                    />
+                                </div>
+                                <InputField
+                                    v-model="contactPhoneInput"
+                                    label=""
+                                    placeholder="Escribe un número"
+                                    :readonly="props.readonly"
+                                    :disabled="props.readonly"
+                                />
+                            </div>
                         </div>
                         <datalist id="providers-list">
                             <option
@@ -459,7 +485,18 @@ watch(dialogOpen, (isOpen) => {
                         </datalist>
 
                         <div class="grid grid-cols-1 gap-4">
-                            <InputDate v-model="localForm.date" label="Fecha de solicitud" :disabled="props.readonly" />
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        Fecha de solicitud
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Fecha en la que se registra la solicitud de compra."
+                                        aria-label="Ayuda sobre fecha de solicitud"
+                                    />
+                                </div>
+                                <InputDate v-model="localForm.date" label="" :disabled="props.readonly" />
+                            </div>
                         </div>
 
                                         <InventoryDetailTableLayout :showCreateLineButton="!props.readonly" :createLineButtonDisabled="props.readonly" @create-line="handleAddLine">
@@ -489,19 +526,25 @@ watch(dialogOpen, (isOpen) => {
                             </div>
                         </div>
 
-                        <div>
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <Label class="text-sm font-medium">
+                                    Descripción<span class="text-red-500">*</span>
+                                </Label>
+                                <HelpTooltip
+                                    text="Describe brevemente la solicitud de compra y su propósito."
+                                    aria-label="Ayuda sobre descripción"
+                                />
+                            </div>
                             <TextareaField
                                 v-model="localForm.description"
-                                label="Descripción "
                                 placeholder="Agrega observaciones adicionales y el motivo para esta solicitud"
-                                required
                                 :readonly="props.readonly"
-                                :disabled="props.readonly"
                             />
                         </div>
                     </div>
 
-                    <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2 px-4 pb-4">
+                    <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2 px-4 pb-4">`
                         <template v-if="props.readonly">
                             <button
                                 type="button"
@@ -529,8 +572,10 @@ watch(dialogOpen, (isOpen) => {
                             </button>
                         </template>
                     </DialogFooter>
-                </form>
+                        </form>
+                    </TooltipProvider>
                 </div>
         </DialogContent>
     </Dialog>
 </template>
+

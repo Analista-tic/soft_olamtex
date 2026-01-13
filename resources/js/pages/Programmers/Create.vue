@@ -11,6 +11,9 @@ import { computed, ref, watch } from 'vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
 import { useAlertStack } from '@/composables/useAlert';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const emit = defineEmits(['programmerCreated']);
 
@@ -377,28 +380,51 @@ function handleLotsCountInput(event: Event): void {
                 @close-error="clearError"
             />
 
+            <TooltipProvider>
             <div ref="dialogInnerRef" class="overflow-y-auto flex-1 px-6 pb-24 scroll-smooth" style="scrollbar-width: thin;">
                 <div class="grid grid-cols-1 gap-4 pt-4">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                         <!-- Campo para la referencia seleccionada -->
-                        <SelectField
-                            v-model="form.productSheetId"
-                            label="Referencia Seleccionada"
-                            :options="productSheetOptions"
-                            required
-                        />
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <Label class="text-sm font-medium">
+                                    Referencia Seleccionada<span class="text-red-500">*</span>
+                                </Label>
+                                <HelpTooltip
+                                    text="Selecciona la sábana de producto que deseas programar para producción."
+                                    aria-label="Ayuda sobre referencia"
+                                />
+                            </div>
+                            <SelectField
+                                v-model="form.productSheetId"
+                                label=""
+                                :options="productSheetOptions"
+                                required
+                            />
+                        </div>
                         <!-- Campo para la cantidad de lotes -->
-                        <InputField
-                            v-model="lotsCountModel"
-                            label="Cantidad de Lotes"
-                            placeholder="Numero de lotes"
-                            type="number"
-                            min="1"
-                            step="1"
-                            required
-                            @input="handleLotsCountInput"
-                            @update:modelValue="generateLots"
-                        />
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <Label class="text-sm font-medium">
+                                    Cantidad de Lotes<span class="text-red-500">*</span>
+                                </Label>
+                                <HelpTooltip
+                                    text="Número de lotes de producción que deseas crear para esta referencia."
+                                    aria-label="Ayuda sobre cantidad de lotes"
+                                />
+                            </div>
+                            <InputField
+                                v-model="lotsCountModel"
+                                label=""
+                                placeholder="Numero de lotes"
+                                type="number"
+                                min="1"
+                                step="1"
+                                required
+                                @input="handleLotsCountInput"
+                                @update:modelValue="generateLots"
+                            />
+                        </div>
                         <div class="flex flex-col gap-2">
                             <span class="text-sm font-medium leading-tight text-foreground">Accion</span>
                             <Button
@@ -592,6 +618,7 @@ function handleLotsCountInput(event: Event): void {
                 </table>
             </div>
             </div>
+            </TooltipProvider>
 
             <!-- Botones flotantes en la esquina inferior derecha -->
             <div class="absolute bottom-0 right-0 left-0 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-end gap-3 rounded-b-[24px]">

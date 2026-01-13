@@ -9,6 +9,9 @@ import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sh
 import axios from 'axios';
 import { ref, computed } from 'vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 /**
  * Definición de las propiedades recibidas desde el componente padre.
@@ -191,6 +194,7 @@ async function saveChanges() {
         aria-describedby="dialog-description"
     >
         <DialogContent class="max-h-[90vh] flex flex-col max-w-2xl">
+            <TooltipProvider>
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription>{{ dialogDescription }}</DialogDescription>
@@ -203,19 +207,37 @@ async function saveChanges() {
                 </div>
 
                 <!-- Campos del formulario -->
-                <div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Referencia<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Sábana de producto asignada a este lote de producción."
+                            aria-label="Ayuda sobre referencia"
+                        />
+                    </div>
                     <SelectField
                         id="reference"
                         v-model="programmer.product_sheet_id"
                         :options="productSheets.map((sheet) => ({ id: sheet.id, name: sheet.reference }))"
-                        label="Referencia"
+                        label=""
                         required
                         :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-                <div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Temporada<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Temporada o mes en el que se programará la producción de este lote."
+                            aria-label="Ayuda sobre temporada"
+                        />
+                    </div>
                     <SelectField
                         id="season"
                         v-model="programmer.season"
@@ -223,49 +245,84 @@ async function saveChanges() {
                             id: new Date(0, i).toLocaleString('es', { month: 'long' }).toUpperCase(),
                             name: new Date(0, i).toLocaleString('es', { month: 'long' }).toUpperCase(),
                         }))"
-                        label="Temporada"
+                        label=""
                         required
                         :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-                <div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Prioridad<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Nivel de urgencia del lote: A (máxima), B (alta), C (media), D (baja)."
+                            aria-label="Ayuda sobre prioridad"
+                        />
+                    </div>
                     <SelectField
                         id="priority"
                         v-model="programmer.priority"
                         :options="[ { id: 'A', name: 'A' }, { id: 'B', name: 'B' }, { id: 'C', name: 'C' }, { id: 'D', name: 'D' } ]"
-                        label="Prioridad"
+                        label=""
                         required
                         :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-                <div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Destino<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Canal o mercado destino donde se distribuirá el producto (tiendas, distribuidores, etc.)."
+                            aria-label="Ayuda sobre destino"
+                        />
+                    </div>
                     <SelectField
                         id="destination"
                         v-model="programmer.destination_id"
                         :options="destinations.map((destination) => ({ id: destination.id, name: destination.name }))"
-                        label="Destino"
+                        label=""
                         required
                         :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-                <div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Unidades<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Cantidad total de unidades a programar para producción en este lote."
+                            aria-label="Ayuda sobre unidades"
+                        />
+                    </div>
                     <InputField
                         type="number"
                         v-model="programmerUnits"
-                        label="Unidades"
+                        label=""
                         placeholder="Unds. a programar"
                         :class="{ 'border-red-500': !programmer.units }"
                         :disabled="isReadOnly"
                     />
                 </div>
-                <div>
-                    <label class="block text-sm font-medium">E-commerce</label>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            E-commerce
+                        </Label>
+                        <HelpTooltip
+                            text="Distribución de unidades específica para ventas en línea. Puedes definir cantidades por talla."
+                            aria-label="Ayuda sobre e-commerce"
+                        />
+                    </div>
                     <EcommerceSizesDialog
                         :productSheet="{
                             sizes: productSheets.find(ps => ps.id === programmer.product_sheet_id)?.sizes || '{}',
@@ -282,6 +339,7 @@ async function saveChanges() {
                 </div>
             </div>
             </div>
+            </TooltipProvider>
             <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <button

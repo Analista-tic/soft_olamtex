@@ -6,6 +6,9 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue'; // Importar el nuevo componente SelectField
 import { ref, watch } from 'vue';
 import FormHeader from '@/components/FormHeader.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -73,6 +76,7 @@ function submitForm() {
 <template>
     <Dialog v-model:open="internalIsOpen">
         <DialogContent class="max-h-[90vh] flex flex-col bg-card text-card-foreground w-full max-w-4xl">
+            <TooltipProvider>
             <FormHeader
                 class="flex-shrink-0"
                 :title="dialogType === 'create' ? 'Crear Usuario' : 'Editar Usuario'"
@@ -80,52 +84,110 @@ function submitForm() {
             />
             <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-4">
-                <InputField v-model="form.name" label="Nombre" placeholder="Nombre del usuario" required />
-                <InputField v-model="form.email" label="Email" placeholder="Correo electrónico" required />
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Nombre<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Nombre completo del usuario que tendrá acceso al sistema."
+                            aria-label="Ayuda sobre nombre"
+                        />
+                    </div>
+                    <InputField v-model="form.name" label="" placeholder="Nombre del usuario" required />
+                </div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Email<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Correo electrónico que se usará como nombre de usuario para iniciar sesión."
+                            aria-label="Ayuda sobre email"
+                        />
+                    </div>
+                    <InputField v-model="form.email" label="" placeholder="Correo electrónico" required />
+                </div>
                 <!-- Campo para contraseña en modo "crear" -->
-                <div class="relative">
+                <div v-if="dialogType === 'create'" class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Contraseña<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Contraseña para acceder al sistema. Debe ser segura y única."
+                            aria-label="Ayuda sobre contraseña"
+                        />
+                    </div>
                     <InputField
-                        v-if="dialogType === 'create'"
                         v-model="form.password"
                         :type="showPassword ? 'text' : 'password'"
-                        label="Contraseña"
+                        label=""
                         placeholder="Contraseña"
                         required
                     />
                 </div>
                 <!-- Campo para contraseña en modo "editar" -->
-                <div class="relative">
+                <div v-if="dialogType === 'edit'" class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Nueva Contraseña
+                        </Label>
+                        <HelpTooltip
+                            text="Dejar en blanco si no deseas cambiar la contraseña actual del usuario."
+                            aria-label="Ayuda sobre nueva contraseña"
+                        />
+                    </div>
                     <InputField
-                        v-if="dialogType === 'edit'"
                         v-model="form.password"
                         :type="showPassword ? 'text' : 'password'"
-                        label="Nueva Contraseña (opcional)"
+                        label=""
                         placeholder="Dejar en blanco para no cambiar"
                     />
                 </div>
                 <!-- Campo para confirmar contraseña -->
-                <div class="relative">
+                <div v-if="form.password" class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Confirmar Contraseña<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Confirma la contraseña ingresada para evitar errores."
+                            aria-label="Ayuda sobre confirmar contraseña"
+                        />
+                    </div>
                     <InputField
-                        v-if="form.password"
                         v-model="confirmPassword"
                         :type="showConfirmPassword ? 'text' : 'password'"
-                        label="Confirmar Contraseña"
+                        label=""
                         placeholder="Repite la contraseña"
                         required
                     />
                 </div>
                 <!-- Select para roles usando SelectField -->
-                <SelectField
-                    label="Roles"
-                    :options="props.roles.map(role => ({ id: role.name, name: role.name }))"
-                    v-model="selectedRoles"
-                    multiple
-                    required
-                />
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Roles<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Asigna uno o más roles al usuario para definir sus permisos en el sistema."
+                            aria-label="Ayuda sobre roles"
+                        />
+                    </div>
+                    <SelectField
+                        label=""
+                        :options="props.roles.map(role => ({ id: role.name, name: role.name }))"
+                        v-model="selectedRoles"
+                        multiple
+                        required
+                    />
+                </div>
                 <!-- Mensaje de error -->
                 <p v-if="errorMessage" class="text-red-500 text-sm">{{ errorMessage }}</p>
             </div>
             </div>
+            </TooltipProvider>
             <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
                     <button

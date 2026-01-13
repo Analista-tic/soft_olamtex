@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { HelpCircle } from 'lucide-vue-next';
 import {
     Tooltip,
@@ -16,16 +16,48 @@ const props = withDefaults(defineProps<{
 }>(), {
     side: 'top',
     align: 'center',
-    delayDuration: 0,
+    delayDuration: 200,
 });
 
+const isOpen = ref(false);
+
 const computedAriaLabel = computed(() => props.ariaLabel ?? props.text ?? 'Mostrar ayuda');
+
+function handleMouseEnter() {
+    isOpen.value = true;
+}
+
+function handleMouseLeave() {
+    isOpen.value = false;
+}
+
+function handleClick() {
+    isOpen.value = !isOpen.value;
+}
+
+function handleBlur() {
+    isOpen.value = false;
+}
 </script>
 
 <template>
-    <Tooltip :delayDuration="delayDuration" :side="side" :align="align">
+    <Tooltip 
+        v-model:open="isOpen"
+        :delayDuration="delayDuration"
+        :disableHoverableContent="false"
+    >
         <TooltipTrigger asChild>
-            <span class="help-tooltip-trigger" :aria-label="computedAriaLabel" role="button" tabindex="0">
+            <span 
+                class="help-tooltip-trigger" 
+                :aria-label="computedAriaLabel" 
+                role="button" 
+                tabindex="0"
+                @mouseenter="handleMouseEnter"
+                @mouseleave="handleMouseLeave"
+                @click="handleClick"
+                @blur="handleBlur"
+                @keydown.escape="isOpen = false"
+            >
                 <HelpCircle class="h-4 w-4" />
             </span>
         </TooltipTrigger>
@@ -33,6 +65,8 @@ const computedAriaLabel = computed(() => props.ariaLabel ?? props.text ?? 'Mostr
             class="help-tooltip-content max-w-[220px]"
             :side="side"
             :align="align"
+            @pointerDownOutside="isOpen = false"
+            @escapeKeyDown="isOpen = false"
         >
             <slot>{{ text }}</slot>
         </TooltipContent>
@@ -46,6 +80,7 @@ const computedAriaLabel = computed(() => props.ariaLabel ?? props.text ?? 'Mostr
     justify-content: center;
     color: rgba(15, 23, 42, 0.5);
     transition: color 0.15s ease;
+    cursor: pointer;
 }
 
 .help-tooltip-trigger:hover {
@@ -61,6 +96,7 @@ const computedAriaLabel = computed(() => props.ariaLabel ?? props.text ?? 'Mostr
     border-radius: 0.75rem;
     box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.2), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
     position: relative;
+    z-index: 50;
 }
 
 :global(.help-tooltip-content::after),

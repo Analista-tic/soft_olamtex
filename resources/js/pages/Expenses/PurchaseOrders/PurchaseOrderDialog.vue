@@ -14,6 +14,9 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useAlertStack } from '@/composables/useAlert';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -399,6 +402,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 <template>
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+            <TooltipProvider>
             <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
@@ -485,12 +489,23 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 
                         <!-- Proveedor -->
                         <div class="grid grid-cols-3 gap-4">
-                            <SelectField
-                                v-model="localForm.contact_id"
-                                label="Proveedor"
-                                :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
-                                required
-                            />
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        Proveedor<span class="text-red-500">*</span>
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Selecciona el proveedor que suministrará los productos de esta orden de compra."
+                                        aria-label="Ayuda sobre proveedor"
+                                    />
+                                </div>
+                                <SelectField
+                                    v-model="localForm.contact_id"
+                                    label=""
+                                    :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
+                                    required
+                                />
+                            </div>
                             <InputField
                                 :key="String(localForm.contact_id ?? '')"
                                 label="Numero de identificacion"
@@ -509,10 +524,42 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 
                         <!-- Fechas -->
                         <div class="grid grid-cols-3 gap-4">
-                            <InputDate v-model="localForm.date" label="Fecha de creacion" required />
-                            <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
-                            <InputField v-model="localForm.supplier_order_number" label="# orden de compra proveedor" required />
-                
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        Fecha de creación<span class="text-red-500">*</span>
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Fecha en la que se crea la orden de compra."
+                                        aria-label="Ayuda sobre fecha de creación"
+                                    />
+                                </div>
+                                <InputDate v-model="localForm.date" label="" required />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        Fecha de entrega<span class="text-red-500">*</span>
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Fecha estimada en la que el proveedor debe entregar los productos."
+                                        aria-label="Ayuda sobre fecha de entrega"
+                                    />
+                                </div>
+                                <InputDate v-model="localForm.delivery_date" label="" required />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        # orden de compra proveedor<span class="text-red-500">*</span>
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Número de orden de compra asignado por el proveedor para seguimiento."
+                                        aria-label="Ayuda sobre orden proveedor"
+                                    />
+                                </div>
+                                <InputField v-model="localForm.supplier_order_number" label="" required />
+                            </div>
                         </div>
 
                         <!-- Items -->
@@ -566,10 +613,19 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                         </div>
 
                         <!-- Observaciones -->
-                        <div>
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <Label class="text-sm font-medium">
+                                    Observación
+                                </Label>
+                                <HelpTooltip
+                                    text="Notas o comentarios adicionales sobre esta orden de compra que consideres importantes."
+                                    aria-label="Ayuda sobre observación"
+                                />
+                            </div>
                             <TextareaField
                                 v-model="localForm.description"
-                                label="Observacion"
+                                label=""
                                 placeholder="Agrega aqui observaciones adicionales para la orden de compra"
                             />
                         </div>
@@ -603,6 +659,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                     </DialogFooter>
                 </form>
                 </div>
+            </TooltipProvider>
         </DialogContent>
     </Dialog>
 </template>

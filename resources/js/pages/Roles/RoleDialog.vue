@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { ref, watch } from 'vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const emit = defineEmits(['submit', 'close']);
 
@@ -158,6 +161,7 @@ function handleCheckboxChange(event: Event, module: string): void {
 <template>
     <Dialog v-model:open="localIsOpen">
         <DialogContent class="max-h-[90vh] flex flex-col w-[90vw] max-w-4xl">
+            <TooltipProvider>
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ role?.id ? 'Editar Rol' : 'Crear Rol' }}</DialogTitle>
                 <DialogDescription>
@@ -167,13 +171,28 @@ function handleCheckboxChange(event: Event, module: string): void {
 
             <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <form @submit.prevent="submit">
-                <div class="mb-4">
-                    <InputField label="Nombre del Rol" v-model="form.name" placeholder="Nombre del rol" required />
+                <div class="mb-4 flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Nombre del Rol<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Nombre descriptivo para el rol que agrupa permisos específicos (ej: Administrador, Vendedor, etc.)."
+                            aria-label="Ayuda sobre nombre del rol"
+                        />
+                    </div>
+                    <InputField label="" v-model="form.name" placeholder="Nombre del rol" required />
                 </div>
                 
                 <div class="mb-4">
                     <div class="flex items-center justify-between">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Permisos</label>
+                        <div class="flex items-center gap-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Permisos</label>
+                            <HelpTooltip
+                                text="Selecciona los permisos que tendrá este rol. Los usuarios con este rol podrán realizar solo las acciones permitidas."
+                                aria-label="Ayuda sobre permisos"
+                            />
+                        </div>
                         <div class="flex items-center">
                             <input type="checkbox" id="global-select-all" v-model="globalSelectAll" class="mr-1" />
                             <label for="global-select-all" class="text-xs text-gray-700">Seleccionar todos los módulos</label>
@@ -223,6 +242,7 @@ function handleCheckboxChange(event: Event, module: string): void {
                 </DialogFooter>
             </form>
             </div>
+            </TooltipProvider>
         </DialogContent>
     </Dialog>
 </template>
