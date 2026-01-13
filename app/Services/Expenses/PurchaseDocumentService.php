@@ -101,8 +101,10 @@ class PurchaseDocumentService
                 ->whereHas('items.item.categorySubGroup', fn (Builder $builder) =>
                     $builder->whereIn(DB::raw('LOWER(name)'), $allowed)
                 )
-                ->whereDoesntHave('items.item.categorySubGroup', fn (Builder $builder) =>
-                    $builder->whereNotIn(DB::raw('LOWER(name)'), $allowed)
+                ->whereDoesntHave('items', fn (Builder $builder) =>
+                    $builder->whereHas('item.categorySubGroup', fn (Builder $subBuilder) =>
+                        $subBuilder->whereNotIn(DB::raw('LOWER(name)'), $allowed)
+                    )->orWhereDoesntHave('item.categorySubGroup')
                 );
         }
 

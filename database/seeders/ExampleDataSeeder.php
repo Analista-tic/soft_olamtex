@@ -37,6 +37,15 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
+        // Insertar category_sub_group TELA para items de tela
+        $telaSubGroup = DB::table('category_sub_groups')->where('name', 'Tela')->first();
+        $telaSubGroupId = $telaSubGroup ? $telaSubGroup->id : DB::table('category_sub_groups')->insertGetId([
+            'name' => 'Tela',
+            'category_group_id' => $categoryGroupId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
         // Insertar usuario de ejemplo
         $user = DB::table('users')->where('email', 'ejemplo@correo.com')->first();
         $userId = $user ? $user->id : DB::table('users')->insertGetId([
@@ -128,12 +137,47 @@ class ExampleDataSeeder extends Seeder
         ]);
 
         // Insertar relación en warehouse_item para stock y bodega
-        DB::table('warehouse_items')->insert([
-            'warehouse_id' => $warehouseId,
-            'item_id' => $itemId,
-            'quantity' => 100,
-            'stock_min' => 10,
-            'stock_max' => 200,
+        DB::table('warehouse_items')->updateOrInsert(
+            ['warehouse_id' => $warehouseId, 'item_id' => $itemId],
+            [
+                'quantity' => 100,
+                'stock_min' => 10,
+                'stock_max' => 200,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        // Crear items de TELA específicos
+        $lanaBeige = DB::table('items')->where('bar_code', 'TELA-LANA-001')->first();
+        $lanaBeige = DB::table('items')->where('bar_code', 'TELA-LANA-001')->first();
+        $lanaId = $lanaBeige ? $lanaBeige->id : DB::table('items')->insertGetId([
+            'category_sub_group_id' => $telaSubGroupId,
+            'tax_id' => $tax19Id,
+            'name' => 'Tela LANA Beige',
+            'reference' => 'LANA-BEIGE',
+            'img' => null,
+            'bar_code' => 'TELA-LANA-001',
+            'negative_movement' => false,
+            'description' => 'Tela LANA Beige Genérica Químicos LÍNEA 3',
+            'extra_fields' => null,
+            'status' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $algodon = DB::table('items')->where('bar_code', 'TELA-ALGODON-001')->first();
+        $algodonId = $algodon ? $algodon->id : DB::table('items')->insertGetId([
+            'category_sub_group_id' => $telaSubGroupId,
+            'tax_id' => $tax19Id,
+            'name' => 'Tela ALGODÓN 100%',
+            'reference' => 'ALGODON-100',
+            'img' => null,
+            'bar_code' => 'TELA-ALGODON-001',
+            'negative_movement' => false,
+            'description' => 'Tela ALGODÓN 100% Premium LÍNEA 1',
+            'extra_fields' => null,
+            'status' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -482,7 +526,7 @@ class ExampleDataSeeder extends Seeder
             // Crear item de documento para la tela LANA Beige
             $docItem1 = DB::table('purchase_document_items')->insertGetId([
                 'purchase_document_id' => $fabricInvoice1Id,
-                'item_id' => $itemId,
+                'item_id' => $lanaId,
                 'quantity' => 600, // Total metros (suma de los 3 rollos)
                 'price' => 50.00,
                 'tax' => 19,
@@ -544,7 +588,7 @@ class ExampleDataSeeder extends Seeder
             // Crear item de documento para la tela ALGODÓN
             $docItem2 = DB::table('purchase_document_items')->insertGetId([
                 'purchase_document_id' => $fabricInvoice2Id,
-                'item_id' => $itemId,
+                'item_id' => $algodonId,
                 'quantity' => 430, // Total metros (250 + 180)
                 'price' => 50.00,
                 'tax' => 19,
@@ -580,75 +624,5 @@ class ExampleDataSeeder extends Seeder
                 ]);
             }
         }
-
-        // Crear factura de tela 3 usando purchase_documents con descarga parcial (evitar duplicados)
-        $fabricInvoice3 = DB::table('purchase_documents')
-            ->where('document_number', 'FT-2026-003')
-            ->where('document_type', 'purchase_invoice')
-            ->first();
-            
-        if (!$fabricInvoice3) {
-            $fabricInvoice3Id = DB::table('purchase_documents')->insertGetId([
-                'document_number' => 'FT-2026-003',
-                'document_type' => 'purchase_invoice',
-                'contact_id' => $fabricProviderId,
-                'date' => now()->subDays(5)->toDateString(),
-                'delivery_date' => now()->subDays(5)->toDateString(),
-                'description' => '[KARDEX-TELA] Factura de tela DENIM para jean clásico',
-                'created_by_user_id' => $userId,
-                'status' => 'pending',
-                'supplier_invoice_number' => 'FT-2026-003',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            // Crear item de documento para la tela DENIM
-            $docItem3 = DB::table('purchase_document_items')->insertGetId([
-                'purchase_document_id' => $fabricInvoice3Id,
-                'item_id' => $itemId,
-                'quantity' => 750, // Total metros (400 + 350)
-                'price' => 50.00,
-                'tax' => 19,
-                'total' => 37500.00,
-                'total_tax' => 7125.00,
-                'supplier_code' => 'DENIM-001',
-                'supplier_color' => 'AZUL ÍNDIGO',
-                'order_width' => 1.60,
-                'description' => 'Tela DENIM Stretch LÍNEA 2',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            // Crear rollos para la factura 3 (DENIM) - algunos con descarga
-            DB::table('fabric_rolls')->insert([
-                [
-                    'roll_number' => 'RL06',
-                    'purchase_document_item_id' => $docItem3,
-                    'quantity' => 400.00,
-                    'roll_width' => 1.60,
-                    'location' => 'PRINCIPAL',
-                    'description' => 'Tela DENIM Stretch AZUL ÍNDIGO - Rollo 6',
-                    'partial_output' => 150.00, // Ya se descargaron 150m
-                    'actual_output' => 150.00,
-                    'entry_date' => now()->subDays(5)->toDateString(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ],
-                [
-                    'roll_number' => 'RL07',
-                    'purchase_document_item_id' => $docItem3,
-                    'quantity' => 350.00,
-                    'roll_width' => 1.60,
-                    'location' => 'PRINCIPAL',
-                    'description' => 'Tela DENIM Stretch NEGRO - Rollo 7',
-                    'partial_output' => 0.00,
-                    'actual_output' => 0.00,
-                    'entry_date' => now()->subDays(5)->toDateString(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ],
-            ]);
-        }
     }
 }
-
