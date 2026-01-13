@@ -58,6 +58,11 @@ async function handleBulkUpload() {
         });
         uploadSuccess.value = 'Artículos cargados correctamente.';
         emit('uploaded');
+        
+        // Cerrar el diálogo después de 1.5 segundos para que el usuario vea el mensaje
+        setTimeout(() => {
+            close();
+        }, 1500);
     } catch (e: any) {
         uploadError.value = e?.response?.data?.message || 'Error al cargar los ítems.';
     } finally {
