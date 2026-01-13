@@ -672,7 +672,7 @@ function onFabricRollSuccess() {
                                         <TableHead class="text-sm py-2">Código Proveedor</TableHead>
                                         <TableHead class="text-sm py-2">Color Proveedor</TableHead>
                                         <TableHead class="text-sm py-2">Ancho</TableHead>
-                                        <TableHead class="text-sm py-2">Cantidad</TableHead>
+                                        <TableHead class="text-sm py-2">Longitud</TableHead>
                                         <TableHead class="text-sm py-2">Precio</TableHead>
                                         <TableHead class="text-sm py-2">IVA</TableHead>
                                         <TableHead class="text-sm py-2">Total</TableHead>
@@ -680,14 +680,14 @@ function onFabricRollSuccess() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    <TableRow v-for="item in selectedInvoice.items" :key="item.id" class="text-sm">
+                                    <TableRow v-for="item in selectedInvoice.items" :key="item.id" class="text-sm text-center">
                                         <TableCell class="py-2">{{ item.item?.name || 'N/A' }}</TableCell>
                                         <TableCell class="py-2">{{ item.item?.code || 'N/A' }}</TableCell>
                                         <TableCell class="py-2">{{ item.description || '-' }}</TableCell>
                                         <TableCell class="py-2">{{ item.supplier_code || '-' }}</TableCell>
                                         <TableCell class="py-2">{{ item.supplier_color || '-' }}</TableCell>
                                         <TableCell class="py-2">{{ item.order_width ? `${item.order_width} cm` : '-' }}</TableCell>
-                                        <TableCell class="py-2">{{ item.quantity }}</TableCell>
+                                        <TableCell class="py-2">{{ `${item.quantity} mts` }}</TableCell>
                                         <TableCell class="py-2">
                                             {{
                                                 Number(item.price || 0).toLocaleString('es-CO', {
@@ -718,14 +718,14 @@ function onFabricRollSuccess() {
                                                 })
                                             }}
                                         </TableCell>
-                                        <TableCell class="py-2 text-center">
+                                        <TableCell class="py-2">
                                             <template v-if="isFabricItem(item)">
                                                 <button
                                                     class="flex h-full items-center justify-center text-gray-500 transition-colors duration-200 hover:text-blue-600"
                                                     @click="openFabricRollDialog(item)"
                                                     title="Registrar rollo"
                                                 >
-                                                    <Package2 class="h-4 w-4" />
+                                                    <Package2 class=" h-4 w-4" />
                                                 </button>
                                             </template>
                                         </TableCell>
