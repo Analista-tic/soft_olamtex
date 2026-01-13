@@ -198,6 +198,18 @@ class FabricRollService
             ->get();
     }
 
+    public function available(): Collection
+    {
+        return FabricRoll::with([
+            'purchaseDocumentItem.item',
+            'purchaseDocumentItem.document.supplier',
+            'purchaseDocumentItem.document.creator',
+        ])
+            ->whereColumn('quantity', '>', 'actual_output')
+            ->orderBy('entry_date', 'desc')
+            ->get();
+    }
+
     public function approveReception($invoiceId)
     {
         $invoice = PurchaseInvoice::findOrFail($invoiceId);

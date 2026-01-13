@@ -155,7 +155,7 @@ function generateLots(): void {
         status: 'incomplete',
         isEcommerce: false,
         ecommerce_units: null,
-        units: undefined,
+        units: null,
     }));
 }
 
@@ -196,15 +196,29 @@ function createProgrammer(): void {
         return;
     }
 
-    const lotsToSend = lotsForm.value.map(lot => ({
-        product_sheet_id: lot.product_sheet_id,
-        season: lot.season,
-        destination_id: lot.destination_id || null,
-        priority: lot.priority,
-        units: lot.units,
-        ecommerce_units: lot.ecommerce_units || null,
-        status: lot.status,
-    }));
+    const lotsToSend = lotsForm.value.map(lot => {
+        // Determinar el valor de ecommerce_units
+        let ecommerceUnitsValue = null;
+        
+        if (lot.isEcommerce && lot.ecommerce_units) {
+            // Solo enviar si hay tallas configuradas
+            const hasValidSizes = Object.keys(lot.ecommerce_units).length > 0;
+            ecommerceUnitsValue = hasValidSizes ? lot.ecommerce_units : null;
+        }
+        
+        // Asegurar que units sea un número válido
+        const unitsValue = lot.units ? Number(lot.units) : null;
+        
+        return {
+            product_sheet_id: lot.product_sheet_id,
+            season: lot.season,
+            destination_id: lot.destination_id || null,
+            priority: lot.priority,
+            units: unitsValue,
+            ecommerce_units: ecommerceUnitsValue,
+            status: lot.status,
+        };
+    });
 
     axios
         .post('/comercial/programador', { lots: lotsToSend })
@@ -270,7 +284,12 @@ function getLotErrors(lot: Partial<Programmer>): string[] {
     if (!lot.season) lotErrors.push('Temporada');
     if (!lot.destination_id) lotErrors.push('Destino');
     if (!lot.priority) lotErrors.push('Prioridad');
-    if (!lot.units || lot.units <= 0) lotErrors.push('Unidades');
+    
+    // Validación robusta de unidades
+    const units = lot.units;
+    const isValidUnits = units !== null && units !== undefined && !isNaN(Number(units)) && Number(units) > 0;
+    if (!isValidUnits) lotErrors.push('Unidades');
+    
     return lotErrors;
 }
 
@@ -519,24 +538,52 @@ function handleLotsCountInput(event: Event): void {
                                     v-model="lot.isEcommerce" 
                                     :aria-label="`Habilitar e-commerce para lote ${index + 1}`"
                                     class="form-checkbox h-5 w-5 text-blue-600 cursor-pointer"
+                                    @change="() => {
+                                        // Si se desmarca e-commerce, limpiar los datos
+                                        if (!lot.isEcommerce) {
+                                            lot.ecommerce_units = null;
+                                        }
+                                    }"
                                 />
                             </td>
                             <td class="px-4 py-4 border" style="min-width: 180px;">
                                 <InputField
-                                    v-model="lot.units as number | undefined"
+                                    :model-value="lot.units"
+                                    @update:model-value="(value) => {
+                                        // Convertir a número y validar
+                                        const numValue = value === '' || value === null || value === undefined 
+                                            ? null 
+                                            : Number(value);
+                                        lot.units = numValue && !isNaN(numValue) ? Math.max(1, Math.floor(numValue)) : null;
+                                        validateLotField(index);
+                                    }"
                                     label=""
                                     placeholder="Unds. a programar"
                                     type="number"
                                     min="1"
+                                    step="1"
                                     :aria-label="`Unidades para lote ${index + 1}`"
                                     :class="{ 'border-red-500': !lot.units || lot.units <= 0 }"
-                                    @update:modelValue="validateLotField(index)"
                                 />
                             </td>
                             <td v-if="lot.isEcommerce" class="px-4 py-4 border text-center">
                                 <EcommerceSizesDialog
                                     :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet?.reference || '' }"
-                                    @sizesUpdated="(sizes) => lot.ecommerce_units = sizes"
+                                    @sizesUpdated="(data) => {
+                                        // Asegurar que los valores sean números y no null
+                                        if (data?.sizes && Object.keys(data.sizes).length > 0) {
+                                            const sanitizedSizes = Object.fromEntries(
+                                                Object.entries(data.sizes).map(([size, value]) => [
+                                                    size, 
+                                                    typeof value === 'number' ? Math.max(0, value) : 0
+                                                ])
+                                            );
+                                            lot.ecommerce_units = sanitizedSizes;
+                                        } else {
+                                            // Si no hay tallas válidas, establecer como objeto vacío
+                                            lot.ecommerce_units = {};
+                                        }
+                                    }"
                                 />
                             </td>
                         </tr>

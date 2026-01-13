@@ -48,7 +48,9 @@ const filteredSizes = computed(() => {
 function initializeSizes() {
     ecommerceSizes.value = Object.entries(parsedSizes.value).reduce(
         (acc, [size, value]) => {
-            acc[size] = ecommerceSizes.value[size] ?? value; // Mantener valores existentes o inicializar en 0
+            // Asegurar que siempre sea un número, nunca null o undefined
+            const existingValue = ecommerceSizes.value[size];
+            acc[size] = typeof existingValue === 'number' ? existingValue : (typeof value === 'number' ? value : 0);
             return acc;
         },
         {} as Record<string, number>,
@@ -66,7 +68,11 @@ function handleDialogOpen(open: boolean) {
 // Guarda las tallas y emite los datos actualizados
 function saveSizes() {
     const sanitizedSizes = Object.fromEntries(
-        Object.entries(ecommerceSizes.value).map(([size, value]) => [size, value || 0]) // Asegura que las cantidades sean al menos 0
+        Object.entries(ecommerceSizes.value).map(([size, value]) => {
+            // Convertir valores null, undefined o vacíos a 0
+            const numValue = typeof value === 'number' ? value : (value ? Number(value) : 0);
+            return [size, Math.max(0, numValue)]; // Asegurar que no sea negativo
+        })
     );
 
     emit('sizesUpdated', { sizes: sanitizedSizes, reference: editableReference.value });
@@ -116,7 +122,9 @@ function saveSizes() {
                                 v-model="ecommerceSizes[size]" 
                                 placeholder="0"
                                 min="0"
+                                step="1"
                                 class="text-center"
+                                @blur="ecommerceSizes[size] = ecommerceSizes[size] ?? 0"
                             />
                         </div>
                     </div>

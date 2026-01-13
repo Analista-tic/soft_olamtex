@@ -54,6 +54,9 @@ class ProductSheetController extends Controller
             'yarn_base_id' => 'nullable|integer', // ID referencia parameters
         ]);
 
+        // Normalizar sizes antes de guardar
+        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes']);
+
         $productSheet = ProductSheet::create($validatedData); // Asegurarse de que se incluya fabric_base_id
 
         return response()->json([
@@ -84,6 +87,9 @@ class ProductSheetController extends Controller
             'status' => 'required|string|in:incomplete,complete',
             'yarn_base_id' => 'nullable|integer', // ID referencia parameters
         ]);
+
+        // Normalizar sizes antes de actualizar
+        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes']);
 
         $productSheet = ProductSheet::findOrFail($id); // Busca el registro.
         $productSheet->update($validatedData); // Actualiza en la base de datos.
@@ -188,5 +194,41 @@ class ProductSheetController extends Controller
         return response()->json([
             'products_sheets' => $products_sheets,
         ]);
+    }
+
+    /**
+     * Normaliza el campo sizes para guardar solo las tallas seleccionadas (true).
+     * Convierte {"28": true, "30": false} -> ["28"]
+     * 
+     * @param string $sizesJson JSON string con las tallas
+     * @return string JSON normalizado
+     */
+    private function normalizeSizes($sizesJson)
+    {
+        try {
+            $sizes = json_decode($sizesJson, true);
+            
+            if (!is_array($sizes)) {
+                return $sizesJson;
+            }
+            
+            // Si es un array asociativo con valores booleanos, filtrar solo los true
+            if (array_keys($sizes) !== range(0, count($sizes) - 1)) {
+                // Es array asociativo - extraer solo claves donde el valor sea true
+                $filteredSizes = array_values(array_filter(
+                    array_keys($sizes),
+                    fn($key) => $sizes[$key] === true
+                ));
+                
+                // Retornar como array JSON simple
+                return json_encode($filteredSizes);
+            }
+            
+            // Si ya es un array indexado, retornar como está
+            return $sizesJson;
+        } catch (\Exception $e) {
+            // Si hay algún error, retornar el valor original
+            return $sizesJson;
+        }
     }
 }

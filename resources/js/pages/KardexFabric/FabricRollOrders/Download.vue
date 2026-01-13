@@ -2,6 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
+import Input from '@/components/ui/input/Input.vue';
 import { Head } from '@inertiajs/vue3';
 import RollDownloadFormDialog from '@/pages/KardexFabric/FabricRollOrders/RollDownloadFormDialog.vue';
 import { computed, reactive, ref, watch } from 'vue';
@@ -9,13 +10,75 @@ import type { FabricRollView } from '@/domain/fabric/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type BreadcrumbItem = { title: string; href: string };
-
-const props = defineProps<{ roll?: FabricRollView | null }>();
 const breadcrumbs: BreadcrumbItem[] = [
   { title: 'Kardex de Telas', href: '/kardex-telas' },
   { title: 'Descargue de tela por orden', href: '/kardex-telas/descargue-orden' },
   { title: 'Descarga detallada', href: '' },
 ];
+
+const props = defineProps<{
+  roll?: FabricRollView | null;
+  lotName?: string | null;
+  sizes?: string[] | Record<string, boolean> | null;
+  rolls?: FabricRollView[];
+}>();
+
+const pageTitle = computed(() => {
+  return props.lotName ? `Descarga por rollo de ${props.lotName}` : 'Descarga por rollo';
+});
+
+const availableRolls = ref<FabricRollView[]>(Array.isArray(props.rolls) ? props.rolls : []);
+const selectedRoll = ref<FabricRollView | null>(props.roll ?? null);
+const searchQuery = ref('');
+
+const normalizedValue = (value?: string | null) =>
+  (value ?? '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+const filteredRolls = computed(() => {
+  const query = normalizedValue(searchQuery.value);
+  return availableRolls.value.filter((roll) => {
+    if (!query) return true;
+    const fieldsToSearch = [roll.roll, roll.location, roll.fabric, roll.color, roll.provider];
+    return fieldsToSearch.some((field) => normalizedValue(field).includes(query));
+  });
+});
+
+const activeRoll = computed(() => selectedRoll.value ?? null);
+
+watch(
+  () => props.rolls,
+  (value) => {
+    availableRolls.value = Array.isArray(value) ? value : [];
+  },
+);
+
+watch(
+  () => props.roll,
+  (value) => {
+    if (value) {
+      selectedRoll.value = value;
+    }
+  },
+);
+
+watch(
+  availableRolls,
+  (list) => {
+    if (!selectedRoll.value && list.length > 0) {
+      selectedRoll.value = list[0];
+    }
+  },
+  { immediate: true },
+);
+
+function selectRoll(roll: FabricRollView) {
+  selectedRoll.value = roll;
+}
 
 const toNumber = (value: string | number | null | undefined): number => {
   if (value === null || value === undefined) return 0;
@@ -23,34 +86,101 @@ const toNumber = (value: string | number | null | undefined): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-const sizeLabels = ['S', 'M', 'L', 'XL'] as const;
-type SizeKey = (typeof sizeLabels)[number];
+const sizeLabels = computed(() => {
+  // Si props.sizes no existe o es null, usar tallas por defecto
+  if (!props.sizes) {
+    return ['S', 'M', 'L', 'XL'];
+  }
+  
+  let extractedSizes: string[] = [];
+  
+  try {
+    if (typeof props.sizes === 'object' && !Array.isArray(props.sizes)) {
+      // Extraer solo las claves donde el valor sea estrictamente true (booleano)
+      extractedSizes = Object.entries(props.sizes)
+        .filter(([_, value]) => value === true) // Filtrar solo valores true
+        .map(([key]) => String(key).trim()) // Tomar solo la clave
+        .filter(key => {
+          // Filtrar claves válidas (no vacías y que no sean "false" o "true")
+          const trimmed = key.trim();
+          return trimmed.length > 0 && trimmed !== 'false' && trimmed !== 'true';
+        })
+        .sort((a, b) => {
+          // Ordenar: primero numéricos ascendente, luego alfabéticos
+          const aNum = Number(a);
+          const bNum = Number(b);
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return aNum - bNum;
+          }
+          return a.localeCompare(b);
+        });
+    }
+    // Si es un array
+    else if (Array.isArray(props.sizes)) {
+      extractedSizes = props.sizes
+        .map(s => String(s).trim())
+        .filter(s => s.length > 0 && s !== 'false' && s !== 'true')
+        .sort((a, b) => {
+          const aNum = Number(a);
+          const bNum = Number(b);
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return aNum - bNum;
+          }
+          return a.localeCompare(b);
+        });
+    }
+  } catch (error) {
+    console.error('Error al procesar las tallas:', error);
+    return ['S', 'M', 'L', 'XL'];
+  }
+  
+  // Si se extrajeron tallas válidas, usarlas; si no, usar por defecto
+  return extractedSizes.length > 0 ? extractedSizes : ['S', 'M', 'L', 'XL'];
+});
+type SizeKey = string;
 const fallbackQuantity = 18;
 
 const baseQuantity = computed(() => {
-  const raw = Math.max(0, Math.round(toNumber(props.roll?.quantity_value)));
+  const raw = Math.max(0, Math.round(toNumber(activeRoll.value?.quantity_value)));
   return raw || fallbackQuantity;
 });
 
 const createCurve = (distribution: number[]) => {
-  return sizeLabels.map((size, index) => {
+  return sizeLabels.value.map((size, index) => {
     const portion = distribution[index] ?? 0;
     const value = Math.max(1, Math.round(baseQuantity.value * portion));
     return { size, value };
   });
 };
 
-const primaryCurve = computed(() => createCurve([0.25, 0.35, 0.25, 0.15]));
-const liquidationCurve = computed(() => createCurve([0.2, 0.35, 0.25, 0.2]));
+const getDefaultDistribution = (numSizes: number) => {
+  // Distribución equitativa si no coincide con las distribuciones predefinidas
+  if (numSizes === 4) return [0.25, 0.35, 0.25, 0.15];
+  const portion = 1 / numSizes;
+  return Array(numSizes).fill(portion);
+};
+
+const primaryCurve = computed(() => {
+  const numSizes = sizeLabels.value.length;
+  const distribution = numSizes === 4 ? [0.25, 0.35, 0.25, 0.15] : getDefaultDistribution(numSizes);
+  return createCurve(distribution);
+});
+
+const liquidationCurve = computed(() => {
+  const numSizes = sizeLabels.value.length;
+  const distribution = numSizes === 4 ? [0.2, 0.35, 0.25, 0.2] : getDefaultDistribution(numSizes);
+  return createCurve(distribution);
+});
 
 type CurveEntry = { size: SizeKey; value: number; manual: boolean };
 
-const createManualCurveTemplate = (): Record<SizeKey, string> => ({
-  S: '',
-  M: '',
-  L: '',
-  XL: '',
-});
+const createManualCurveTemplate = (): Record<SizeKey, string> => {
+  const template: Record<string, string> = {};
+  sizeLabels.value.forEach(size => {
+    template[size] = '';
+  });
+  return template;
+};
 
 const manualPrimaryCurveValues = reactive<Record<SizeKey, string>>(createManualCurveTemplate());
 const manualLiquidationCurveValues = reactive<Record<SizeKey, string>>(createManualCurveTemplate());
@@ -59,7 +189,7 @@ const createDisplayCurve = (
   manualValues: Record<SizeKey, string>,
   fallbackEntries: { size: string; value: number }[],
 ): CurveEntry[] => {
-  return sizeLabels.map((size, index) => {
+  return sizeLabels.value.map((size, index) => {
     const key = size as SizeKey;
     const manualValue = manualValues[key];
     const hasManual = manualValue?.trim() !== '';
@@ -79,19 +209,25 @@ const resetManualCurves = () => {
   Object.assign(manualLiquidationCurveValues, createManualCurveTemplate());
 };
 
-watch(() => props.roll?.id, resetManualCurves);
+watch(() => activeRoll.value?.id, resetManualCurves);
+watch(() => props.sizes, resetManualCurves, { deep: true });
 
 const colorBaseWeights = [0.5, 0.3, 0.15, 0.05];
 
 const colorBaseSizes = computed(() => {
-  return sizeLabels.map((_, idx) => {
-    const weight = colorBaseWeights[idx] ?? 0;
+  const numSizes = sizeLabels.value.length;
+  const weights = numSizes === 4 
+    ? colorBaseWeights 
+    : Array(numSizes).fill(1 / numSizes);
+  
+  return sizeLabels.value.map((_, idx) => {
+    const weight = weights[idx] ?? 0;
     return Math.max(0, Math.round(baseQuantity.value * weight));
   });
 });
 
 const manualColorSizes = computed(() => {
-  return sizeLabels.map((size, index) => {
+  return sizeLabels.value.map((size, index) => {
     const primaryValue = manualPrimaryCurveValues[size];
     const liquidationValue = manualLiquidationCurveValues[size];
     const hasManual =
@@ -110,7 +246,7 @@ const manualColorTotal = computed(() => manualColorSizes.value.reduce((sum, valu
 
 const colorReport = computed(() => {
   const manualRow = {
-    label: props.roll?.color ?? 'Rojo',
+    label: activeRoll.value?.color ?? 'Rojo',
     sizes: manualColorSizes.value,
     total: manualColorTotal.value,
   };
@@ -121,8 +257,8 @@ const colorReport = computed(() => {
   ];
 
   const otherRows = distributions.map(({ label, weights }) => {
-    const sizes = sizeLabels.map((_, idx) => {
-      const weight = weights[idx] ?? 0;
+    const sizes = sizeLabels.value.map((_, idx) => {
+      const weight = weights[idx] ?? (1 / sizeLabels.value.length);
       return Math.max(0, Math.round(baseQuantity.value * weight));
     });
     const total = sizes.reduce((sum, value) => sum + value, 0);
@@ -130,7 +266,7 @@ const colorReport = computed(() => {
   });
 
   const rows = [manualRow, ...otherRows];
-  const totals = sizeLabels.map((_, idx) => rows.reduce((sum, row) => sum + row.sizes[idx], 0));
+  const totals = sizeLabels.value.map((_, idx) => rows.reduce((sum, row) => sum + row.sizes[idx], 0));
   const grandTotal = totals.reduce((sum, value) => sum + value, 0);
 
   return [...rows, { label: 'Total', sizes: totals, total: grandTotal }];
@@ -142,8 +278,8 @@ function formatMeters(value?: string | number | null) {
 }
 
 const metersToUse = computed(() => {
-  const total = toNumber(props.roll?.quantity_value);
-  const used = toNumber(props.roll?.exit_quantity);
+  const total = toNumber(activeRoll.value?.quantity_value);
+  const used = toNumber(activeRoll.value?.exit_quantity);
   return formatMeters(Math.max(0, total - used));
 });
 
@@ -152,6 +288,11 @@ const successMessage = ref('');
 const errorMessage = ref('');
 
 function openDownloadForm() {
+  if (!activeRoll.value) {
+    errorMessage.value = 'Selecciona un rollo para descargar.';
+    successMessage.value = '';
+    return;
+  }
   isDialogOpen.value = true;
 }
 
@@ -159,6 +300,16 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
   const rollLabel = payload.roll?.roll ? ` para el rollo ${payload.roll.roll}` : '';
   successMessage.value = `Descarga registrada${rollLabel}.`;
   errorMessage.value = '';
+}
+
+// Función helper para limpiar el formato de las tallas
+function cleanSizeLabel(size: string | number): string {
+  // Convertir a string y eliminar comillas, corchetes y espacios extra
+  return String(size)
+    .replace(/^"|"$/g, '') // Eliminar comillas dobles al inicio y final
+    .replace(/^\[|\]$/g, '') // Eliminar corchetes al inicio y final
+    .replace(/^\'|\'$/g, '') // Eliminar comillas simples al inicio y final
+    .trim();
 }
 </script>
 
@@ -178,19 +329,69 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
 
       <div class="flex items-center justify-between">
         <div class="flex flex-col gap-1">
-          <h1 class="text-lg font-bold">Descarga por rollo</h1>
+          <h1 class="text-lg font-bold">{{ pageTitle }}</h1>
           <p class="text-sm text-muted-foreground">
             Registra el descargue con la información estructurada para curvas y reportes de colores.
           </p>
         </div>
+      </div>
 
-        <Button
-          size="sm"
-          class="flex items-center gap-1 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
-          @click="openDownloadForm"
-        >
-          Descargar
-        </Button>
+      <div class="relative rounded-xl border border-sidebar-border/70 bg-white md:min-h-min">
+        <div class="flex flex-col gap-3 border-b border-sidebar-border/70 p-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-card-foreground">Rollos disponibles</p>
+            <p class="text-xs text-muted-foreground">Selecciona un rollo para este lote.</p>
+          </div>
+          <div class="w-full md:w-72">
+            <Input
+              v-model="searchQuery"
+              placeholder="Buscar rollo"
+              class="h-10 w-full rounded-md border border-gray-200 bg-white text-sm focus:border-primary focus:ring-0"
+            />
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <Table class="min-w-full text-[0.9rem]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Rollo</TableHead>
+                <TableHead>UbicaciÇün</TableHead>
+                <TableHead>Tela</TableHead>
+                <TableHead>Color</TableHead>
+                <TableHead>Disponibilidad</TableHead>
+                <TableHead class="w-[140px]">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow
+                v-for="roll in filteredRolls"
+                :key="roll.id"
+                :class="roll.id === selectedRoll?.id ? 'bg-primary/5' : ''"
+              >
+                <TableCell class="text-center text-sm">{{ roll.roll }}</TableCell>
+                <TableCell class="text-center text-sm">{{ roll.location ?? '-' }}</TableCell>
+                <TableCell class="text-center text-sm">{{ roll.fabric ?? '-' }}</TableCell>
+                <TableCell class="text-center text-sm">{{ roll.color ?? '-' }}</TableCell>
+                <TableCell class="text-center text-sm">{{ roll.real_availability ?? '-' }}</TableCell>
+                <TableCell class="flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="w-full md:w-auto rounded-full px-4 py-2 text-xs font-semibold shadow-sm h-9"
+                    @click="selectRoll(roll)"
+                  >
+                    Seleccionar
+                  </Button>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+
+          <div v-if="filteredRolls.length === 0" class="p-4 text-center text-sm text-muted-foreground">
+            No hay rollos disponibles.
+          </div>
+        </div>
       </div>
 
       <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -210,14 +411,14 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
 
           <TableBody>
             <TableRow>
-              <TableCell class="font-medium">{{ props.roll?.roll ?? '-' }}</TableCell>
-              <TableCell>{{ props.roll?.location ?? '-' }}</TableCell>
-              <TableCell>{{ props.roll?.fabric ?? '-' }}</TableCell>
-              <TableCell>{{ props.roll?.color ?? 'Color' }}</TableCell>
+              <TableCell class="font-medium">{{ activeRoll?.roll ?? '-' }}</TableCell>
+              <TableCell>{{ activeRoll?.location ?? '-' }}</TableCell>
+              <TableCell>{{ activeRoll?.fabric ?? '-' }}</TableCell>
+              <TableCell>{{ activeRoll?.color ?? 'Color' }}</TableCell>
 
 
-              <TableCell>{{ props.roll?.width ?? '0 m' }}</TableCell>
-              <TableCell>{{ props.roll?.exit_quantity ?? '0 m' }}</TableCell>
+              <TableCell>{{ activeRoll?.width ?? '0 m' }}</TableCell>
+              <TableCell>{{ activeRoll?.exit_quantity ?? '0 m' }}</TableCell>
               <TableCell>{{ metersToUse }}</TableCell>
 
               <TableCell class="flex justify-center">
@@ -226,6 +427,7 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
                   size="sm"
                   class="w-full md:w-auto rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
                   @click="openDownloadForm"
+                  :disabled="!activeRoll"
                 >
                   Descargar
                 </Button>
@@ -248,7 +450,7 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
               :key="`primary-${entry.size}`"
               class="flex flex-col items-center gap-1 rounded-xl border border-dashed border-sidebar-border/70 bg-white px-4 py-4 shadow-sm transition hover:border-primary hover:shadow-md"
             >
-              <span class="text-xs font-medium text-muted-foreground">{{ entry.size }}</span>
+              <span class="text-xs font-medium text-muted-foreground">{{ cleanSizeLabel(entry.size) }}</span>
               <input
                 v-model="manualPrimaryCurveValues[entry.size]"
                 type="number"
@@ -276,7 +478,7 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
               :key="`liquid-${entry.size}`"
               class="flex flex-col items-center gap-1 rounded-xl border border-dashed border-sidebar-border/70 bg-white px-4 py-4 shadow-sm transition hover:border-primary hover:shadow-md"
             >
-              <span class="text-xs font-medium text-muted-foreground">{{ entry.size }}</span>
+              <span class="text-xs font-medium text-muted-foreground">{{ cleanSizeLabel(entry.size) }}</span>
               <input
                 v-model="manualLiquidationCurveValues[entry.size]"
                 type="number"
@@ -328,7 +530,7 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
 
     <RollDownloadFormDialog
       :modelValue="isDialogOpen"
-      :roll="props.roll"
+      :roll="activeRoll"
       @update:modelValue="(value) => (isDialogOpen = value)"
       @submit="handleDownloadSubmit"
     />

@@ -18,12 +18,12 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CompanySettingSeeder::class,
             CategorySeeder::class,
-            MigrateToParametersSeeder::class, // Reemplaza SectionsGroupsBrandsWorldsBasesSeeder
+            // SectionsGroupsBrandsWorldsBasesSeeder::class, // OBSOLETO - Usa tablas antiguas que ya no existen
+            ParametersSeeder::class, // Ahora usa la tabla 'parameters' para todos los catálogos
             RolesAndPermissionsSeeder::class,
             AdditionalFieldsSeeder::class,
-            ParametersSeeder::class,
             // FabricFabricBaseFabricProvidersFavricColorsSeeder::class,
-            ExampleDataSeeder::class, // <-- Añadido aquí
+            ExampleDataSeeder::class, // Datos de ejemplo
         ]);
     }
 }

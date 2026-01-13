@@ -8,6 +8,7 @@ use App\Http\Requests\Inventory\UpdateFabricRollOutputRequest;
 use App\Http\Requests\Inventory\UpdateFabricRollRequest;
 use App\Http\Resources\Inventory\FabricRollResource;
 use App\Models\Inventory\FabricRoll;
+use App\Models\ProductSheet\Programmer;
 use App\Services\Inventory\FabricRollService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -67,8 +68,45 @@ class FabricRollController extends Controller
             }
         }
 
+        $programmerId = $request->input('programmer');
+        $lotName = $programmerId ? "MF{$programmerId}" : null;
+
+        $sizes = null;
+        if ($programmerId) {
+            $programmer = Programmer::with('productSheet')->find($programmerId);
+            if ($programmer) {
+                $reference = $programmer->productSheet?->reference;
+                $lotName = $reference ? "MF{$programmer->id} - {$reference}" : "MF{$programmer->id}";
+
+                if ($programmer->productSheet && $programmer->productSheet->sizes) {
+                    $rawSizes = $programmer->productSheet->sizes;
+                    
+                    // Procesamiento robusto de tallas - solo tallas activas (true)
+                    if (is_array($rawSizes)) {
+                        // Si es array asociativo (objeto en JSON), extraer solo las claves con valor true
+                        if (array_keys($rawSizes) !== range(0, count($rawSizes) - 1)) {
+                            // Es array asociativo - extraer SOLO claves donde el valor sea estrictamente true
+                            $sizes = array_values(array_filter(
+                                array_keys($rawSizes),
+                                fn($key) => $rawSizes[$key] === true // Solo valores booleanos true
+                            ));
+                        } else {
+                            // Es array indexado - filtrar valores vacíos y trimear
+                            $sizes = array_values(array_filter(array_map('trim', $rawSizes), fn($s) => !empty($s)));
+                        }
+                    } elseif (is_string($rawSizes)) {
+                        // Si es string, separar por coma y limpiar
+                        $sizes = array_values(array_filter(array_map('trim', explode(',', $rawSizes)), fn($s) => !empty($s)));
+                    }
+                }
+            }
+        }
+
         return Inertia::render('KardexFabric/FabricRollOrders/Download', [
             'roll' => $roll,
+            'lotName' => $lotName,
+            'rolls' => FabricRollResource::collection($this->service->available())->resolve(),
+            'sizes' => $sizes,
         ]);
     }
 
