@@ -314,7 +314,7 @@ function handleDialogError(message?: string) {
 </script>
 
 <template>
-    <Head title="Facturas de Compras y Servicios Tela" />
+    <Head title="Facturas de Compras Tela" />
     <AppLayout :breadcrumbs="breadcrumbs">
             <AlertStack
                 :successMessage="successMessage"
@@ -326,7 +326,7 @@ function handleDialogError(message?: string) {
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Facturas de Compras y Servicios Tela</h1>
+                    <h1 class="text-lg font-bold">Facturas de Compras Tela</h1>
                     <p class="text-sm text-muted-foreground">
                         Registra facturas de tela para llevar la trazabilidad de la recepción y la aprobación.
                     </p>
