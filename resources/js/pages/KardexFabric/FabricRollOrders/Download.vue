@@ -336,64 +336,6 @@ function cleanSizeLabel(size: string | number): string {
         </div>
       </div>
 
-      <div class="relative rounded-xl border border-sidebar-border/70 bg-white md:min-h-min">
-        <div class="flex flex-col gap-3 border-b border-sidebar-border/70 p-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p class="text-sm font-semibold text-card-foreground">Rollos disponibles</p>
-            <p class="text-xs text-muted-foreground">Selecciona un rollo para este lote.</p>
-          </div>
-          <div class="w-full md:w-72">
-            <Input
-              v-model="searchQuery"
-              placeholder="Buscar rollo"
-              class="h-10 w-full rounded-md border border-gray-200 bg-white text-sm focus:border-primary focus:ring-0"
-            />
-          </div>
-        </div>
-
-        <div class="overflow-x-auto">
-          <Table class="min-w-full text-[0.9rem]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Rollo</TableHead>
-                <TableHead>UbicaciÇün</TableHead>
-                <TableHead>Tela</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead>Disponibilidad</TableHead>
-                <TableHead class="w-[140px]">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow
-                v-for="roll in filteredRolls"
-                :key="roll.id"
-                :class="roll.id === selectedRoll?.id ? 'bg-primary/5' : ''"
-              >
-                <TableCell class="text-center text-sm">{{ roll.roll }}</TableCell>
-                <TableCell class="text-center text-sm">{{ roll.location ?? '-' }}</TableCell>
-                <TableCell class="text-center text-sm">{{ roll.fabric ?? '-' }}</TableCell>
-                <TableCell class="text-center text-sm">{{ roll.color ?? '-' }}</TableCell>
-                <TableCell class="text-center text-sm">{{ roll.real_availability ?? '-' }}</TableCell>
-                <TableCell class="flex justify-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    class="w-full md:w-auto rounded-full px-4 py-2 text-xs font-semibold shadow-sm h-9"
-                    @click="selectRoll(roll)"
-                  >
-                    Seleccionar
-                  </Button>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-
-          <div v-if="filteredRolls.length === 0" class="p-4 text-center text-sm text-muted-foreground">
-            No hay rollos disponibles.
-          </div>
-        </div>
-      </div>
-
       <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
         <Table class="text-center">
           <TableHeader>
@@ -410,31 +352,35 @@ function cleanSizeLabel(size: string | number): string {
           </TableHeader>
 
           <TableBody>
-            <TableRow>
-              <TableCell class="font-medium">{{ activeRoll?.roll ?? '-' }}</TableCell>
-              <TableCell>{{ activeRoll?.location ?? '-' }}</TableCell>
-              <TableCell>{{ activeRoll?.fabric ?? '-' }}</TableCell>
-              <TableCell>{{ activeRoll?.color ?? 'Color' }}</TableCell>
-
-
-              <TableCell>{{ activeRoll?.width ?? '0 m' }}</TableCell>
-              <TableCell>{{ activeRoll?.exit_quantity ?? '0 m' }}</TableCell>
-              <TableCell>{{ metersToUse }}</TableCell>
-
+            <TableRow 
+              v-for="roll in availableRolls" 
+              :key="roll.id"
+              :class="roll.id === selectedRoll?.id ? 'bg-primary/5' : ''"
+            >
+              <TableCell class="font-medium">{{ roll.roll ?? '-' }}</TableCell>
+              <TableCell>{{ roll.location ?? '-' }}</TableCell>
+              <TableCell>{{ roll.fabric ?? '-' }}</TableCell>
+              <TableCell>{{ roll.color ?? 'Color' }}</TableCell>
+              <TableCell>{{ roll.width ?? '0 m' }}</TableCell>
+              <TableCell>{{ roll.exit_quantity ?? '0 m' }}</TableCell>
+              <TableCell>{{ formatMeters(Math.max(0, toNumber(roll.quantity_value) - toNumber(roll.exit_quantity))) }}</TableCell>
               <TableCell class="flex justify-center">
                 <Button
                   variant="outline"
                   size="sm"
-                  class="w-full md:w-auto rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
-                  @click="openDownloadForm"
-                  :disabled="!activeRoll"
+                  class="w-full md:w-auto rounded-full px-4 py-2 text-xs font-semibold shadow-sm h-9"
+                  @click="selectRoll(roll)"
                 >
-                  Descargar
+                  Seleccionar
                 </Button>
               </TableCell>
             </TableRow>
           </TableBody>
         </Table>
+
+        <div v-if="availableRolls.length === 0" class="p-4 text-center text-sm text-muted-foreground">
+          No hay rollos disponibles.
+        </div>
       </div>
 
       <div class="grid gap-4 md:grid-cols-2">
@@ -459,7 +405,12 @@ function cleanSizeLabel(size: string | number): string {
                 inputmode="numeric"
                 placeholder="Cantidad"
                 :aria-label="'Valor manual ' + entry.size"
-                class="mt-2 h-9 w-24 rounded-full border border-dashed border-sidebar-border/70 px-2 text-center text-xs text-muted-foreground focus:border-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                :class="[
+                  'mt-2 h-9 w-24 rounded-full border px-2 text-center text-xs focus:outline-none focus-visible:ring-2',
+                  entry.manual 
+                    ? 'border-green-400 text-card-foreground focus:border-green-500 focus-visible:ring-green-400' 
+                    : 'border-blue-400 border-dashed text-muted-foreground focus:border-primary focus-visible:ring-primary'
+                ]"
               />
               <span class="text-[10px] text-muted-foreground">{{ entry.manual ? 'Manual' : 'Unidades' }}</span>
             </div>
@@ -487,7 +438,12 @@ function cleanSizeLabel(size: string | number): string {
                 inputmode="numeric"
                 placeholder="Cantidad"
                 :aria-label="'Valor manual ' + entry.size"
-                class="mt-2 h-9 w-24 rounded-full border border-dashed border-sidebar-border/70 px-2 text-center text-xs text-muted-foreground focus:border-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                :class="[
+                  'mt-2 h-9 w-24 rounded-full border px-2 text-center text-xs focus:outline-none focus-visible:ring-2',
+                  entry.manual 
+                    ? 'border-green-400 text-card-foreground focus:border-green-500 focus-visible:ring-green-400' 
+                    : 'border-blue-400 border-dashed text-muted-foreground focus:border-primary focus-visible:ring-primary'
+                ]"
               />
               <span class="text-[10px] text-muted-foreground">{{ entry.manual ? 'Manual' : 'Unidades' }}</span>
             </div>

@@ -434,6 +434,221 @@ class ExampleDataSeeder extends Seeder
                 'updated_at' => now(),
             ],
         ]);
+
+        // ========== KARDEX DE TELAS - FACTURAS Y ROLLOS ==========
+        
+        // Crear proveedor de tela si no existe
+        $fabricProvider = DB::table('contacts')->where('id_number', '900000002')->first();
+        $fabricProviderId = $fabricProvider ? $fabricProvider->id : DB::table('contacts')->insertGetId([
+            'contact_type' => 'proveedor',
+            'id_type' => 'NIT',
+            'id_number' => '900000002',
+            'dv' => '5',
+            'full_name' => 'Textiles del Valle S.A.S',
+            'person_type' => 'jurídica',
+            'groups' => null,
+            'municipality' => 'Medellín',
+            'department' => 'Antioquia',
+            'address' => 'Calle 50 # 45-67',
+            'email' => 'ventas@texvalle.com',
+            'phone' => '3001234567',
+            'additional_contacts' => null,
+            'branches' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Crear factura de tela 1 usando purchase_documents (evitar duplicados)
+        $fabricInvoice1 = DB::table('purchase_documents')
+            ->where('document_number', 'FT-2026-001')
+            ->where('document_type', 'purchase_invoice')
+            ->first();
+            
+        if (!$fabricInvoice1) {
+            $fabricInvoice1Id = DB::table('purchase_documents')->insertGetId([
+                'document_number' => 'FT-2026-001',
+                'document_type' => 'purchase_invoice',
+                'contact_id' => $fabricProviderId,
+                'date' => now()->subDays(15)->toDateString(),
+                'delivery_date' => now()->subDays(15)->toDateString(),
+                'description' => '[KARDEX-TELA] Factura de tela LANA Beige para producción de enero',
+                'created_by_user_id' => $userId,
+                'status' => 'pending',
+                'supplier_invoice_number' => 'FT-2026-001',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Crear item de documento para la tela LANA Beige
+            $docItem1 = DB::table('purchase_document_items')->insertGetId([
+                'purchase_document_id' => $fabricInvoice1Id,
+                'item_id' => $itemId,
+                'quantity' => 600, // Total metros (suma de los 3 rollos)
+                'price' => 50.00,
+                'tax' => 19,
+                'total' => 30000.00,
+                'total_tax' => 5700.00,
+                'supplier_code' => 'LANA-BEIGE-001',
+                'supplier_color' => 'VERDE',
+                'order_width' => 2.00,
+                'description' => 'Tela LANA Beige Genérica Químicos LÍNEA 3',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Crear rollos para la factura 1 (LANA Beige)
+            $rolls1 = [
+                ['roll_number' => 'RL01', 'width' => 2.00, 'quantity' => 300.00, 'location' => 'PRINCIPAL', 'description' => 'Tela LANA Beige - Rollo 1'],
+                ['roll_number' => 'RL02', 'width' => 2.00, 'quantity' => 200.00, 'location' => 'PRINCIPAL', 'description' => 'Tela LANA Beige - Rollo 2'],
+                ['roll_number' => 'RL03', 'width' => 1.80, 'quantity' => 100.00, 'location' => 'PRINCIPAL', 'description' => 'Tela LANA Beige - Rollo 3'],
+            ];
+
+            foreach ($rolls1 as $rollData) {
+                DB::table('fabric_rolls')->insert([
+                    'roll_number' => $rollData['roll_number'],
+                    'purchase_document_item_id' => $docItem1,
+                    'quantity' => $rollData['quantity'],
+                    'roll_width' => $rollData['width'],
+                    'location' => $rollData['location'],
+                    'description' => $rollData['description'],
+                    'partial_output' => 0.00,
+                    'actual_output' => 0.00,
+                    'entry_date' => now()->subDays(15)->toDateString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
+        // Crear factura de tela 2 usando purchase_documents (evitar duplicados)
+        $fabricInvoice2 = DB::table('purchase_documents')
+            ->where('document_number', 'FT-2026-002')
+            ->where('document_type', 'purchase_invoice')
+            ->first();
+            
+        if (!$fabricInvoice2) {
+            $fabricInvoice2Id = DB::table('purchase_documents')->insertGetId([
+                'document_number' => 'FT-2026-002',
+                'document_type' => 'purchase_invoice',
+                'contact_id' => $fabricProviderId,
+                'date' => now()->subDays(10)->toDateString(),
+                'delivery_date' => now()->subDays(10)->toDateString(),
+                'description' => '[KARDEX-TELA] Factura de tela ALGODÓN para línea premium',
+                'created_by_user_id' => $userId,
+                'status' => 'pending',
+                'supplier_invoice_number' => 'FT-2026-002',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Crear item de documento para la tela ALGODÓN
+            $docItem2 = DB::table('purchase_document_items')->insertGetId([
+                'purchase_document_id' => $fabricInvoice2Id,
+                'item_id' => $itemId,
+                'quantity' => 430, // Total metros (250 + 180)
+                'price' => 50.00,
+                'tax' => 19,
+                'total' => 21500.00,
+                'total_tax' => 4085.00,
+                'supplier_code' => 'ALGODON-001',
+                'supplier_color' => 'AZUL',
+                'order_width' => 1.50,
+                'description' => 'Tela ALGODÓN 100% Premium LÍNEA 1',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Crear rollos para la factura 2 (ALGODÓN)
+            $rolls2 = [
+                ['roll_number' => 'RL04', 'width' => 1.50, 'quantity' => 250.00, 'location' => 'BODEGA 2', 'description' => 'Tela ALGODÓN Premium - Rollo 4'],
+                ['roll_number' => 'RL05', 'width' => 1.50, 'quantity' => 180.00, 'location' => 'BODEGA 2', 'description' => 'Tela ALGODÓN Premium - Rollo 5'],
+            ];
+
+            foreach ($rolls2 as $rollData) {
+                DB::table('fabric_rolls')->insert([
+                    'roll_number' => $rollData['roll_number'],
+                    'purchase_document_item_id' => $docItem2,
+                    'quantity' => $rollData['quantity'],
+                    'roll_width' => $rollData['width'],
+                    'location' => $rollData['location'],
+                    'description' => $rollData['description'],
+                    'partial_output' => 0.00,
+                    'actual_output' => 0.00,
+                    'entry_date' => now()->subDays(10)->toDateString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
+        // Crear factura de tela 3 usando purchase_documents con descarga parcial (evitar duplicados)
+        $fabricInvoice3 = DB::table('purchase_documents')
+            ->where('document_number', 'FT-2026-003')
+            ->where('document_type', 'purchase_invoice')
+            ->first();
+            
+        if (!$fabricInvoice3) {
+            $fabricInvoice3Id = DB::table('purchase_documents')->insertGetId([
+                'document_number' => 'FT-2026-003',
+                'document_type' => 'purchase_invoice',
+                'contact_id' => $fabricProviderId,
+                'date' => now()->subDays(5)->toDateString(),
+                'delivery_date' => now()->subDays(5)->toDateString(),
+                'description' => '[KARDEX-TELA] Factura de tela DENIM para jean clásico',
+                'created_by_user_id' => $userId,
+                'status' => 'pending',
+                'supplier_invoice_number' => 'FT-2026-003',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Crear item de documento para la tela DENIM
+            $docItem3 = DB::table('purchase_document_items')->insertGetId([
+                'purchase_document_id' => $fabricInvoice3Id,
+                'item_id' => $itemId,
+                'quantity' => 750, // Total metros (400 + 350)
+                'price' => 50.00,
+                'tax' => 19,
+                'total' => 37500.00,
+                'total_tax' => 7125.00,
+                'supplier_code' => 'DENIM-001',
+                'supplier_color' => 'AZUL ÍNDIGO',
+                'order_width' => 1.60,
+                'description' => 'Tela DENIM Stretch LÍNEA 2',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Crear rollos para la factura 3 (DENIM) - algunos con descarga
+            DB::table('fabric_rolls')->insert([
+                [
+                    'roll_number' => 'RL06',
+                    'purchase_document_item_id' => $docItem3,
+                    'quantity' => 400.00,
+                    'roll_width' => 1.60,
+                    'location' => 'PRINCIPAL',
+                    'description' => 'Tela DENIM Stretch AZUL ÍNDIGO - Rollo 6',
+                    'partial_output' => 150.00, // Ya se descargaron 150m
+                    'actual_output' => 150.00,
+                    'entry_date' => now()->subDays(5)->toDateString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+                [
+                    'roll_number' => 'RL07',
+                    'purchase_document_item_id' => $docItem3,
+                    'quantity' => 350.00,
+                    'roll_width' => 1.60,
+                    'location' => 'PRINCIPAL',
+                    'description' => 'Tela DENIM Stretch NEGRO - Rollo 7',
+                    'partial_output' => 0.00,
+                    'actual_output' => 0.00,
+                    'entry_date' => now()->subDays(5)->toDateString(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            ]);
+        }
     }
 }
 
