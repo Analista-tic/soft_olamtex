@@ -105,7 +105,7 @@ function saveSizes() {
     >
         <DialogTrigger as-child>
             <Button
-                :variant="isReadOnly ? 'outline' : 'default'"
+                variant="default"
                 size="sm"
                 class="rounded-full"
             >

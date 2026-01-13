@@ -365,8 +365,10 @@ onMounted(async () => {
                             <TableCell>{{ programmer.product_sheet?.selling_price ?? 'N/A' }}</TableCell>
                             <TableCell>{{ programmer.units }}</TableCell>
                             <TableCell>
-                                <Badge :variant="programmer.status === 'complete' ? 'default' : 'outline'" 
-                                       :class="programmer.status === 'complete' ? '' : 'border-red-500 text-red-500'">
+                                <Badge
+                                    :variant="'outline'"
+                                    :class="programmer.status === 'complete' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'"
+                                >
                                     {{ programmer.status === 'complete' ? 'Completo' : 'Incompleto' }}
                                 </Badge>
                             </TableCell>
