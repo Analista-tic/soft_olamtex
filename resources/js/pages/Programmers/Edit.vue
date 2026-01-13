@@ -32,6 +32,7 @@ const emits = defineEmits<{
  * Variables reactivas para el estado del componente.
  */
 const isDialogOpen = ref(false); // Estado del diálogo (abierto/cerrado)
+const dialogMode = ref<'edit' | 'view'>('edit');
 const programmer = ref<Programmer>({
     id: 0,
     product_sheet_id: null,
@@ -40,6 +41,16 @@ const programmer = ref<Programmer>({
 } as Programmer); // Asegúrate de que Programmer tenga todas las propiedades necesarias
 const isLoading = ref(false); // Estado de carga (true mientras se guarda)
 const errorMessage = ref<string | null>(null); // Mensaje de error para mostrar al usuario
+
+const isReadOnly = computed(() => dialogMode.value === 'view');
+const dialogTitle = computed(() =>
+    isReadOnly.value ? 'Ver Lote Programado' : 'Editar Lote Programado'
+);
+const dialogDescription = computed(() =>
+    isReadOnly.value
+        ? 'Aqui puedes ver los detalles del programador seleccionado.'
+        : 'Aqui puedes editar los detalles del programador seleccionado.'
+);
 
 /**
  * Propiedad computada para manejar el valor predeterminado de `programmer.units`
@@ -65,25 +76,29 @@ function getReferenceName(productSheetId: number | null): string {
 function initializeEcommerceSizes() {
     try {
         const ecommerceData = programmer.value.ecommerce_units;
-        const parsedData = typeof ecommerceData === 'string' ? JSON.parse(ecommerceData || '{}') : ecommerceData || {};
-        const sizes = parsedData.sizes || {};
-        programmer.value.ecommerce_units = Object.fromEntries(
-            Object.entries(sizes).map(([key, value]) => [key, Number(value) || 0])
-        );
+        
+        // Si es string JSON, parsearlo
+        if (typeof ecommerceData === 'string') {
+            programmer.value.ecommerce_units = JSON.parse(ecommerceData || '{}');
+        } else if (ecommerceData && typeof ecommerceData === 'object') {
+            // Si ya es un objeto, usarlo directamente
+            programmer.value.ecommerce_units = ecommerceData;
+        } else {
+            // Si es null o undefined, inicializar como objeto vacío
+            programmer.value.ecommerce_units = {};
+        }
     } catch (error) {
         console.error('Error al parsear ecommerce_units:', error);
-        programmer.value.ecommerce_units = null; // Fallback a null para cumplir con el tipo
+        programmer.value.ecommerce_units = {};
     }
 }
 
 /**
  * Función para abrir el diálogo y cargar los datos del programador seleccionado.
  */
-function openDialog(selectedProgrammer: Programmer) {
-    programmer.value = {
-        ...selectedProgrammer,
-        ecommerce_units: selectedProgrammer.ecommerce_units || '{}', // Asegurarse de que sea un string válido
-    };
+function openDialog(selectedProgrammer: Programmer, mode: 'edit' | 'view' = 'edit') {
+    dialogMode.value = mode;
+    programmer.value = { ...selectedProgrammer };
     initializeEcommerceSizes(); // Inicializar las tallas de e-commerce
     isDialogOpen.value = true; // Abrir el diálogo
     errorMessage.value = null; // Limpiar cualquier mensaje de error previo
@@ -177,8 +192,8 @@ async function saveChanges() {
     >
         <DialogContent class="max-h-[90vh] flex flex-col max-w-2xl">
             <DialogHeader class="flex-shrink-0">
-                <DialogTitle>Editar Lote Programado</DialogTitle>
-                <DialogDescription> Aquí puedes editar los detalles del programador seleccionado. </DialogDescription>
+                <DialogTitle>{{ dialogTitle }}</DialogTitle>
+                <DialogDescription>{{ dialogDescription }}</DialogDescription>
             </DialogHeader>
             <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-4">
@@ -195,6 +210,7 @@ async function saveChanges() {
                         :options="productSheets.map((sheet) => ({ id: sheet.id, name: sheet.reference }))"
                         label="Referencia"
                         required
+                        :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
@@ -209,6 +225,7 @@ async function saveChanges() {
                         }))"
                         label="Temporada"
                         required
+                        :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
@@ -220,6 +237,7 @@ async function saveChanges() {
                         :options="[ { id: 'A', name: 'A' }, { id: 'B', name: 'B' }, { id: 'C', name: 'C' }, { id: 'D', name: 'D' } ]"
                         label="Prioridad"
                         required
+                        :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
@@ -231,6 +249,7 @@ async function saveChanges() {
                         :options="destinations.map((destination) => ({ id: destination.id, name: destination.name }))"
                         label="Destino"
                         required
+                        :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
@@ -242,16 +261,23 @@ async function saveChanges() {
                         label="Unidades"
                         placeholder="Unds. a programar"
                         :class="{ 'border-red-500': !programmer.units }"
+                        :disabled="isReadOnly"
                     />
                 </div>
                 <div>
                     <label class="block text-sm font-medium">E-commerce</label>
                     <EcommerceSizesDialog
                         :productSheet="{
-                            sizes: JSON.stringify({ sizes: programmer.ecommerce_units || {}, reference: getReferenceName(programmer.product_sheet_id) }),
+                            sizes: productSheets.find(ps => ps.id === programmer.product_sheet_id)?.sizes || '{}',
                             reference: getReferenceName(programmer.product_sheet_id)
                         }"
-                        @sizesUpdated="(sizes) => programmer.ecommerce_units = sizes"
+                        :existingValues="programmer.ecommerce_units"
+                        :readonly="isReadOnly"
+                        @sizesUpdated="(data) => {
+                            if (!isReadOnly) {
+                                programmer.ecommerce_units = data.sizes;
+                            }
+                        }"
                     />
                 </div>
             </div>
@@ -263,10 +289,10 @@ async function saveChanges() {
                         class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="isDialogOpen = false"
                     >
-                        Cancelar
+                        {{ isReadOnly ? 'Cerrar' : 'Cancelar' }}
                     </button>
                 </div>
-                <div class="w-full md:w-auto">
+                <div v-if="!isReadOnly" class="w-full md:w-auto">
                     <Button
                         type="button"
                         :class="[

@@ -188,7 +188,7 @@ function openEditDialog(programmer: Programmer) {
 }
 
 function viewProgrammer(programmer: Programmer) {
-    setAlert(`Visualizando el programador: ${programmer.product_sheet?.reference || 'Sin referencia'}`, 'info');
+    editProgrammerDialogRef.value?.openDialog(programmer, 'view');
 }
 
 function handlePageChange(page: number) {
@@ -450,6 +450,5 @@ onMounted(async () => {
         </AlertDialogContent>
     </AlertDialog>
 </template>
-
 
 

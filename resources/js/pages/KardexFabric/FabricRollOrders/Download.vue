@@ -306,9 +306,9 @@ function handleDownloadSubmit(payload: { roll: FabricRollView | null; data: Reco
 function cleanSizeLabel(size: string | number): string {
   // Convertir a string y eliminar comillas, corchetes y espacios extra
   return String(size)
-    .replace(/^"|"$/g, '') // Eliminar comillas dobles al inicio y final
-    .replace(/^\[|\]$/g, '') // Eliminar corchetes al inicio y final
-    .replace(/^\'|\'$/g, '') // Eliminar comillas simples al inicio y final
+    .replace(/"/g, '') // Eliminar todas las comillas dobles
+    .replace(/'/g, '') // Eliminar todas las comillas simples
+    .replace(/\[|\]/g, '') // Eliminar todos los corchetes
     .trim();
 }
 </script>
@@ -504,7 +504,7 @@ function cleanSizeLabel(size: string | number): string {
               <TableRow>
                 <TableHead class="text-left">Colores</TableHead>
                 <TableHead v-for="label in sizeLabels" :key="`head-${label}`" class="text-center">
-                  {{ label }}
+                  {{ cleanSizeLabel(label) }}
                 </TableHead>
                 <TableHead class="text-center">Total</TableHead>
               </TableRow>

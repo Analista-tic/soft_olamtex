@@ -569,6 +569,7 @@ function handleLotsCountInput(event: Event): void {
                             <td v-if="lot.isEcommerce" class="px-4 py-4 border text-center">
                                 <EcommerceSizesDialog
                                     :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet?.reference || '' }"
+                                    :existingValues="lot.ecommerce_units"
                                     @sizesUpdated="(data) => {
                                         // Asegurar que los valores sean números y no null
                                         if (data?.sizes && Object.keys(data.sizes).length > 0) {

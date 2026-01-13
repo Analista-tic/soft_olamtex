@@ -5,12 +5,19 @@ import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { computed, ref } from 'vue';
 
 // Props recibidos desde el componente padre
-const props = defineProps<{
+const props = withDefaults(defineProps<{
     productSheet: { sizes: string | Record<string, boolean> | null; reference: string };
-}>();
+    existingValues?: Record<string, number> | null;
+    readonly?: boolean;
+}>(), {
+    existingValues: null,
+    readonly: false,
+});
 
 // Eventos emitidos hacia el componente padre
 const emit = defineEmits(['sizesUpdated']);
+
+const isReadOnly = computed(() => props.readonly === true);
 
 // Estado reactivo
 const isDialogOpen = ref(false);
@@ -27,7 +34,14 @@ const parsedSizes = computed(() => {
         
         const sizes = sizesData.sizes || sizesData;
 
-        // Diferenciar entre creación (valores booleanos) y edición (valores numéricos)
+        // Si es un array (formato normalizado: ["28", "30", "32"])
+        if (Array.isArray(sizes)) {
+            return Object.fromEntries(
+                sizes.map(size => [String(size), 0])
+            );
+        }
+
+        // Si es un objeto (formato antiguo o con valores)
         return Object.fromEntries(
             Object.entries(sizes)
                 .filter(([, value]) => typeof value === 'boolean' ? value : true) // Filtrar solo claves con `true` en creación
@@ -48,9 +62,13 @@ const filteredSizes = computed(() => {
 function initializeSizes() {
     ecommerceSizes.value = Object.entries(parsedSizes.value).reduce(
         (acc, [size, value]) => {
-            // Asegurar que siempre sea un número, nunca null o undefined
-            const existingValue = ecommerceSizes.value[size];
-            acc[size] = typeof existingValue === 'number' ? existingValue : (typeof value === 'number' ? value : 0);
+            // Si hay valores existentes del lote, usarlos
+            if (props.existingValues && typeof props.existingValues[size] === 'number') {
+                acc[size] = props.existingValues[size];
+            } else {
+                // Si no, usar el valor de parsedSizes o 0
+                acc[size] = typeof value === 'number' ? value : 0;
+            }
             return acc;
         },
         {} as Record<string, number>,
@@ -86,7 +104,13 @@ function saveSizes() {
         @update:open="handleDialogOpen"
     >
         <DialogTrigger as-child>
-            <Button variant="default" size="sm" class="rounded-full">E-commerce</Button>
+            <Button
+                :variant="isReadOnly ? 'outline' : 'default'"
+                size="sm"
+                class="rounded-full"
+            >
+                {{ isReadOnly ? 'Ver e-commerce' : 'E-commerce' }}
+            </Button>
         </DialogTrigger>
 
         <DialogContent class="sm:max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">
@@ -103,6 +127,7 @@ function saveSizes() {
                         label="" 
                         v-model="editableReference" 
                         placeholder="Ingrese la referencia" 
+                        :readonly="isReadOnly"
                     />
                 </div>
 
@@ -124,6 +149,7 @@ function saveSizes() {
                                 min="0"
                                 step="1"
                                 class="text-center"
+                                :readonly="isReadOnly"
                                 @blur="ecommerceSizes[size] = ecommerceSizes[size] ?? 0"
                             />
                         </div>
@@ -146,9 +172,10 @@ function saveSizes() {
                     class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="isDialogOpen = false"
                 >
-                    Cancelar
+                    {{ isReadOnly ? 'Cerrar' : 'Cancelar' }}
                 </button>
                 <Button 
+                    v-if="!isReadOnly"
                     type="button"
                     class="flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold shadow-sm"
                     @click="saveSizes"
