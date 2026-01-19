@@ -5,10 +5,13 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { OptionParams, ProductSheet, Programmer } from '@/types';
+import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
 import axios from 'axios';
-import { defineEmits, defineExpose, ref, computed } from 'vue';
+import { ref, computed } from 'vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 /**
  * Definición de las propiedades recibidas desde el componente padre.
@@ -32,9 +35,25 @@ const emits = defineEmits<{
  * Variables reactivas para el estado del componente.
  */
 const isDialogOpen = ref(false); // Estado del diálogo (abierto/cerrado)
-const programmer = ref<Programmer>({} as Programmer); // Datos del programador que se está editando
+const dialogMode = ref<'edit' | 'view'>('edit');
+const programmer = ref<Programmer>({
+    id: 0,
+    product_sheet_id: null,
+    ecommerce_units: null, // Cambiado a null para cumplir con el tipo
+    // Agrega otras propiedades necesarias con valores predeterminados
+} as Programmer); // Asegúrate de que Programmer tenga todas las propiedades necesarias
 const isLoading = ref(false); // Estado de carga (true mientras se guarda)
 const errorMessage = ref<string | null>(null); // Mensaje de error para mostrar al usuario
+
+const isReadOnly = computed(() => dialogMode.value === 'view');
+const dialogTitle = computed(() =>
+    isReadOnly.value ? 'Ver Lote Programado' : 'Editar Lote Programado'
+);
+const dialogDescription = computed(() =>
+    isReadOnly.value
+        ? 'Aqui puedes ver los detalles del programador seleccionado.'
+        : 'Aqui puedes editar los detalles del programador seleccionado.'
+);
 
 /**
  * Propiedad computada para manejar el valor predeterminado de `programmer.units`
@@ -55,15 +74,38 @@ function getReferenceName(productSheetId: number | null): string {
 }
 
 /**
+ * Inicializa las tallas de e-commerce al abrir el diálogo.
+ */
+function initializeEcommerceSizes() {
+    try {
+        const ecommerceData = programmer.value.ecommerce_units;
+        
+        // Si es string JSON, parsearlo
+        if (typeof ecommerceData === 'string') {
+            programmer.value.ecommerce_units = JSON.parse(ecommerceData || '{}');
+        } else if (ecommerceData && typeof ecommerceData === 'object') {
+            // Si ya es un objeto, usarlo directamente
+            programmer.value.ecommerce_units = ecommerceData;
+        } else {
+            // Si es null o undefined, inicializar como objeto vacío
+            programmer.value.ecommerce_units = {};
+        }
+    } catch (error) {
+        console.error('Error al parsear ecommerce_units:', error);
+        programmer.value.ecommerce_units = {};
+    }
+}
+
+/**
  * Función para abrir el diálogo y cargar los datos del programador seleccionado.
  */
-function openDialog(selectedProgrammer: Programmer) {
-    programmer.value = {
-        ...selectedProgrammer,
-        ecommerce_units: selectedProgrammer.ecommerce_units || '{}', // Asegurarse de que sea un string válido
-    };
+function openDialog(selectedProgrammer: Programmer, mode: 'edit' | 'view' = 'edit') {
+    dialogMode.value = mode;
+    programmer.value = { ...selectedProgrammer };
+    initializeEcommerceSizes(); // Inicializar las tallas de e-commerce
     isDialogOpen.value = true; // Abrir el diálogo
     errorMessage.value = null; // Limpiar cualquier mensaje de error previo
+    console.log('Programador cargado para edición:', programmer.value); // Depuración
 }
 
 /**
@@ -77,26 +119,21 @@ defineExpose({
  * Validar los campos requeridos antes de guardar los cambios.
  */
 function validateFields(): boolean {
-    if (!programmer.value?.product_sheet_id) {
-        errorMessage.value = 'La referencia es obligatoria.';
-        return false;
+    const requiredFields = [
+        { field: programmer.value?.product_sheet_id, message: 'La referencia es obligatoria.' },
+        { field: programmer.value?.season, message: 'La temporada es obligatoria.' },
+        { field: programmer.value?.priority, message: 'La prioridad es obligatoria.' },
+        { field: programmer.value?.destination_id, message: 'El destino es obligatorio.' },
+        { field: programmer.value?.units && programmer.value.units > 0, message: 'Las unidades deben ser un número mayor a 0.' },
+    ];
+
+    for (const { field, message } of requiredFields) {
+        if (!field) {
+            errorMessage.value = message;
+            return false;
+        }
     }
-    if (!programmer.value?.season) {
-        errorMessage.value = 'La temporada es obligatoria.';
-        return false;
-    }
-    if (!programmer.value?.priority) {
-        errorMessage.value = 'La prioridad es obligatoria.';
-        return false;
-    }
-    if (!programmer.value?.destination_id) {
-        errorMessage.value = 'El destino es obligatorio.';
-        return false;
-    }
-    if (!programmer.value?.units || programmer.value.units <= 0) {
-        errorMessage.value = 'Las unidades deben ser un número mayor a 0.';
-        return false;
-    }
+
     errorMessage.value = null; // Limpiar mensaje de error si todo es válido
     return true;
 }
@@ -122,12 +159,12 @@ async function saveChanges() {
                 : JSON.stringify(programmer.value.ecommerce_units || {}),
         };
 
-        console.log('Payload enviado:', payload); // Depuración: Verificar el contenido del payload
+        console.log('Payload enviado:', payload); // Depuración
 
         // Realizar la solicitud PUT al servidor
-        const response = await axios.put(`/diseno/programador/${programmer.value.id}`, payload);
+        const response = await axios.put(`/comercial/programador/${programmer.value.id}`, payload);
 
-        console.log('Respuesta del servidor:', response.data); // Depuración: Verificar la respuesta del servidor
+        console.log('Respuesta del servidor:', response.data); // Depuración
 
         emits('programmerUpdated'); // Emitir evento al componente padre
         isDialogOpen.value = false; // Cerrar el diálogo
@@ -156,11 +193,13 @@ async function saveChanges() {
         aria-labelledby="dialog-title" 
         aria-describedby="dialog-description"
     >
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Editar Lote Programado</DialogTitle>
-                <DialogDescription> Aquí puedes editar los detalles del programador seleccionado. </DialogDescription>
+        <DialogContent class="max-h-[90vh] flex flex-col max-w-2xl">
+            <TooltipProvider>
+            <DialogHeader class="flex-shrink-0">
+                <DialogTitle>{{ dialogTitle }}</DialogTitle>
+                <DialogDescription>{{ dialogDescription }}</DialogDescription>
             </DialogHeader>
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-4">
                 <!-- Mostrar mensaje de error -->
                 <div v-if="errorMessage" class="text-sm text-red-500">
@@ -168,18 +207,37 @@ async function saveChanges() {
                 </div>
 
                 <!-- Campos del formulario -->
-                <div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Referencia<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Sábana de producto asignada a este lote de producción."
+                            aria-label="Ayuda sobre referencia"
+                        />
+                    </div>
                     <SelectField
                         id="reference"
                         v-model="programmer.product_sheet_id"
                         :options="productSheets.map((sheet) => ({ id: sheet.id, name: sheet.reference }))"
-                        label="Referencia"
+                        label=""
                         required
+                        :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-                <div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Temporada<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Temporada o mes en el que se programará la producción de este lote."
+                            aria-label="Ayuda sobre temporada"
+                        />
+                    </div>
                     <SelectField
                         id="season"
                         v-model="programmer.season"
@@ -187,63 +245,124 @@ async function saveChanges() {
                             id: new Date(0, i).toLocaleString('es', { month: 'long' }).toUpperCase(),
                             name: new Date(0, i).toLocaleString('es', { month: 'long' }).toUpperCase(),
                         }))"
-                        label="Temporada"
+                        label=""
                         required
+                        :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-                <div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Prioridad<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Nivel de urgencia del lote: A (máxima), B (alta), C (media), D (baja)."
+                            aria-label="Ayuda sobre prioridad"
+                        />
+                    </div>
                     <SelectField
                         id="priority"
                         v-model="programmer.priority"
                         :options="[ { id: 'A', name: 'A' }, { id: 'B', name: 'B' }, { id: 'C', name: 'C' }, { id: 'D', name: 'D' } ]"
-                        label="Prioridad"
+                        label=""
                         required
+                        :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-                <div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Destino<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Canal o mercado destino donde se distribuirá el producto (tiendas, distribuidores, etc.)."
+                            aria-label="Ayuda sobre destino"
+                        />
+                    </div>
                     <SelectField
                         id="destination"
                         v-model="programmer.destination_id"
                         :options="destinations.map((destination) => ({ id: destination.id, name: destination.name }))"
-                        label="Destino"
+                        label=""
                         required
+                        :disabled="isReadOnly"
                         class="mt-1 w-full"
                         aria-required="true"
                     />
                 </div>
-                <div>
-                    <InputField 
-                        type="number" 
-                        v-model="programmerUnits" 
-                        label="Unidades" 
-                        placeholder="Unds. a programar" 
-                        :class="{ 'border-red-500': !programmer.units }" 
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Unidades<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Cantidad total de unidades a programar para producción en este lote."
+                            aria-label="Ayuda sobre unidades"
+                        />
+                    </div>
+                    <InputField
+                        type="number"
+                        v-model="programmerUnits"
+                        label=""
+                        placeholder="Unds. a programar"
+                        :class="{ 'border-red-500': !programmer.units }"
+                        :disabled="isReadOnly"
                     />
                 </div>
-                <div>
-                    <label class="block text-sm font-medium">E-commerce</label>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            E-commerce
+                        </Label>
+                        <HelpTooltip
+                            text="Distribución de unidades específica para ventas en línea. Puedes definir cantidades por talla."
+                            aria-label="Ayuda sobre e-commerce"
+                        />
+                    </div>
                     <EcommerceSizesDialog
                         :productSheet="{
-                            sizes: typeof programmer.ecommerce_units === 'string' 
-                                ? programmer.ecommerce_units 
-                                : JSON.stringify(programmer.ecommerce_units || {}),
+                            sizes: productSheets.find(ps => ps.id === programmer.product_sheet_id)?.sizes || '{}',
                             reference: getReferenceName(programmer.product_sheet_id)
                         }"
-                        @sizesUpdated="(updatedData) => {
-                            programmer.ecommerce_units = JSON.stringify(updatedData.sizes || {});
+                        :existingValues="programmer.ecommerce_units"
+                        :readonly="isReadOnly"
+                        @sizesUpdated="(data) => {
+                            if (!isReadOnly) {
+                                programmer.ecommerce_units = data.sizes;
+                            }
                         }"
                     />
                 </div>
             </div>
-            <DialogFooter>
-                <Button variant="outline" @click="isDialogOpen = false">Cancelar</Button>
-                <Button :disabled="isLoading" @click="saveChanges">
-                    {{ isLoading ? 'Guardando...' : 'Guardar' }}
-                </Button>
+            </div>
+            </TooltipProvider>
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+                <div class="w-full md:w-auto">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="isDialogOpen = false"
+                    >
+                        {{ isReadOnly ? 'Cerrar' : 'Cancelar' }}
+                    </button>
+                </div>
+                <div v-if="!isReadOnly" class="w-full md:w-auto">
+                    <Button
+                        type="button"
+                        :class="[
+                            'mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm',
+                            isLoading ? 'opacity-60 cursor-not-allowed' : '',
+                        ]"
+                        :disabled="isLoading"
+                        @click="saveChanges"
+                    >
+                        {{ isLoading ? 'Guardando...' : 'Guardar' }}
+                    </Button>
+                </div>
             </DialogFooter>
         </DialogContent>
     </Dialog>

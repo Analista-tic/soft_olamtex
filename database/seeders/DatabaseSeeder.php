@@ -16,9 +16,15 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         $this->call([
-            SectionsGroupsBrandsWorldsBasesSeeder::class,
+            CompanySettingSeeder::class,
+            CategorySeeder::class,
+            // SectionsGroupsBrandsWorldsBasesSeeder::class, // OBSOLETO - Usa tablas antiguas que ya no existen
+            ParametersSeeder::class, // Ahora usa la tabla 'parameters' para todos los catálogos
             RolesAndPermissionsSeeder::class,
-            FabricFabricBaseFabricProvidersFavricColorsSeeder::class
+            AdditionalFieldsSeeder::class,
+            // FabricFabricBaseFabricProvidersFavricColorsSeeder::class,
+            ExampleDataSeeder::class, // Datos de ejemplo
         ]);
     }
 }
+

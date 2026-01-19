@@ -50,19 +50,5 @@ class Programmer extends Model
         return $this->belongsTo(ProductSheet::class);
     }
 
-    /**
-     * Relación con el modelo `Destination`.
-     */
-    public function destination()
-    {
-        return $this->belongsTo(Destination::class);
-    }
-
-    /**
-     * Relación con el modelo `FabricOrder`.
-     */
-    public function fabricOrders()
-    {
-        return $this->hasMany(FabricOrder::class);
-    }
+    // Relación destination eliminada - ahora se obtiene desde parameters
 }

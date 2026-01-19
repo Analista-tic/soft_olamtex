@@ -3,11 +3,6 @@
 namespace App\Models\ProductSheet;
 
 use App\Models\Inventory\FabricOrderItem;
-use App\Models\ProductSheet\Base;
-use App\Models\ProductSheet\Brand;
-use App\Models\ProductSheet\Group;
-use App\Models\ProductSheet\Section;
-use App\Models\ProductSheet\World;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,7 +15,7 @@ class ProductSheet extends Model
         'group_id',
         'brand_id',
         'world_id',
-        'base_id',
+        'fabric_base_id',
         'reference',
         'billing_price',
         'selling_price',
@@ -29,6 +24,7 @@ class ProductSheet extends Model
         'description',
         'processes',
         'status',
+        'yarn_base_id', // Nuevo campo
     ];
 
     protected $casts = [
@@ -37,33 +33,6 @@ class ProductSheet extends Model
         'woven_product' => 'boolean',
     ];
 
-    public function section()
-    {
-        return $this->belongsTo(Section::class);
-    }
-
-    public function group()
-    {
-        return $this->belongsTo(Group::class);
-    }
-
-    public function brand()
-    {
-        return $this->belongsTo(Brand::class);
-    }
-
-    public function world()
-    {
-        return $this->belongsTo(World::class);
-    }
-
-    public function base()
-    {
-        return $this->belongsTo(Base::class);
-    }
-
-    public function fabricOrderItems()
-    {
-        return $this->hasMany(FabricOrderItem::class);
-    }
+    // Relaciones eliminadas: section, group, brand, world, yarnBase, fabricBase
+    // Ahora estos datos se obtienen desde la tabla parameters usando ParameterService
 }

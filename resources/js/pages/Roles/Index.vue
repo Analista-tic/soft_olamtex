@@ -2,7 +2,7 @@
 // import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { BreadcrumbItem, Role } from '@/types';
+import type { BreadcrumbItem } from '@/domain/shared';
+import type { Role } from '@/domain/auth/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
@@ -26,8 +27,8 @@ import { useAuthStore } from '@/stores/auth';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Configuración',
-        href: '/configuracion',
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
     },
     {
         title: 'Roles',
@@ -114,24 +115,30 @@ onMounted(fetchRoles);
 </script>
 
 <template>
-    <Head title="Gestión de Usuarios" />
+    <Head title="Gestión de Roles" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de Roles</h1>
-                <Button v-if="canCreate" @click="openFormDialog()" variant="default" size="sm">
+                <h1 class="text-lg font-bold">Gestiön de Roles</h1>
+                <Button
+                    v-if="canCreate"
+                    @click="openFormDialog()"
+                    variant="default"
+                    size="sm"
+                    class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                >
                     <PlusCircle class="h-4 w-4" /> Crear Nuevo Rol
                 </Button>
             </div>
             <div class="relative flex items-center gap-4">
                 <div class="relative w-full max-w-sm">
-                    <Input id="search_user" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-8 w-full pl-10" @input="fetchRoles" />
+                    <Input id="search_user" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-10 w-full pl-10" @input="fetchRoles" />
                     <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                         <Search :size="20" class="text-muted-foreground" />
                     </span>
                 </div>
             </div>
-            <div class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -182,18 +189,15 @@ onMounted(fetchRoles);
         </div>
     </AppLayout>
 
-    <Dialog v-model:open="isDeleteDialogOpen">
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Confirmar eliminación</DialogTitle>
-                <DialogDescription>¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer.</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-                <Button variant="outline" @click="closeDialog">Cancelar</Button>
-                <Button variant="destructive" @click="deleteUser">Eliminar</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+        v-model:open="isDeleteDialogOpen"
+        title="Confirmar eliminación"
+        description="¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="deleteUser"
+    />
 
     <RoleDialog
         :isOpen="isEditDialogOpen"
@@ -203,3 +207,4 @@ onMounted(fetchRoles);
         @submit="handleRoleSubmit"
     />
 </template>
+

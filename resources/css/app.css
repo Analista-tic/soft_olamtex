@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mejoras de scroll personalizadas */
+@import './scroll-improvements.css';
+
 body,
 html {
     --font-sans:

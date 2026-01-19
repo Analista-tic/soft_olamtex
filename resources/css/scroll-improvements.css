@@ -1,0 +1,235 @@
+/**
+ * Mejoras de Scroll para Listados Operacionales
+ * Fecha: 8 de enero de 2026
+ * 
+ * Estilos globales para mejorar la experiencia de scroll
+ * en toda la aplicación, especialmente en diálogos y tablas.
+ */
+
+/* ===== Scrollbar Personalizada ===== */
+
+/* Para navegadores Webkit (Chrome, Safari, Edge) */
+.scroll-smooth::-webkit-scrollbar,
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.scroll-smooth::-webkit-scrollbar-track,
+.overflow-y-auto::-webkit-scrollbar-track,
+.overflow-auto::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 4px;
+}
+
+.scroll-smooth::-webkit-scrollbar-thumb,
+.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-auto::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.4);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.scroll-smooth::-webkit-scrollbar-thumb:hover,
+.overflow-y-auto::-webkit-scrollbar-thumb:hover,
+.overflow-auto::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.6);
+}
+
+/* ===== Smooth Scroll Behavior ===== */
+
+.scroll-smooth {
+    scroll-behavior: smooth;
+}
+
+/* ===== Sticky Headers para Tablas ===== */
+
+thead.sticky {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: hsl(var(--background));
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/* ===== Animaciones para Drag & Drop ===== */
+
+tr[draggable="true"] {
+    transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
+}
+
+tr[draggable="true"]:active {
+    cursor: grabbing !important;
+}
+
+/* Indicador visual durante el drag */
+tr.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+    background: hsl(var(--primary) / 0.1);
+}
+
+/* Zona de drop */
+tr.drag-over {
+    border-top: 2px solid hsl(var(--primary));
+    background: hsl(var(--primary) / 0.05);
+}
+
+/* ===== Mejoras de Performance ===== */
+
+/* Hardware acceleration para animaciones suaves */
+.scroll-smooth,
+tr[draggable="true"],
+.transition-all {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+/* ===== Responsive Scroll ===== */
+
+@media (max-width: 768px) {
+    .scroll-smooth::-webkit-scrollbar,
+    .overflow-y-auto::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+}
+
+/* ===== Scroll Shadows (indicadores visuales) ===== */
+
+.scroll-shadow-container {
+    position: relative;
+}
+
+.scroll-shadow-container::before,
+.scroll-shadow-container::after {
+    content: '';
+    position: sticky;
+    left: 0;
+    right: 0;
+    height: 20px;
+    pointer-events: none;
+    z-index: 5;
+    transition: opacity 0.3s ease;
+}
+
+.scroll-shadow-container::before {
+    top: 0;
+    background: linear-gradient(
+        to bottom,
+        hsl(var(--background)) 0%,
+        transparent 100%
+    );
+}
+
+.scroll-shadow-container::after {
+    bottom: 0;
+    background: linear-gradient(
+        to top,
+        hsl(var(--background)) 0%,
+        transparent 100%
+    );
+}
+
+/* ===== Focus Visible para Accesibilidad ===== */
+
+tr[draggable="true"]:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* ===== Touch-friendly para móviles ===== */
+
+@media (hover: none) and (pointer: coarse) {
+    /* Aumentar área táctil en móviles */
+    tr[draggable="true"] td {
+        padding-top: 12px;
+        padding-bottom: 12px;
+    }
+    
+    /* Scrollbar más visible en móviles */
+    .scroll-smooth::-webkit-scrollbar,
+    .overflow-y-auto::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+}
+
+/* ===== Estados de Loading ===== */
+
+.scroll-container.loading {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.scroll-container.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border: 3px solid hsl(var(--primary) / 0.3);
+    border-top-color: hsl(var(--primary));
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+/* ===== Snap Scroll (opcional para listas) ===== */
+
+.scroll-snap-container {
+    scroll-snap-type: y proximity;
+}
+
+.scroll-snap-item {
+    scroll-snap-align: start;
+}
+
+/* ===== Mejoras para Diálogos ===== */
+
+[role="dialog"] .overflow-y-auto {
+    /* Prevenir scroll en el body cuando el diálogo está abierto */
+    overscroll-behavior: contain;
+}
+
+/* ===== Utilidades de Scroll ===== */
+
+.scroll-hidden {
+    scrollbar-width: none;
+}
+
+.scroll-hidden::-webkit-scrollbar {
+    display: none;
+}
+
+.scroll-visible {
+    scrollbar-width: thin;
+}
+
+/* ===== Dark Mode Adjustments ===== */
+
+@media (prefers-color-scheme: dark) {
+    .scroll-smooth::-webkit-scrollbar-track,
+    .overflow-y-auto::-webkit-scrollbar-track {
+        background: hsl(var(--muted) / 0.2);
+    }
+    
+    .scroll-smooth::-webkit-scrollbar-thumb,
+    .overflow-y-auto::-webkit-scrollbar-thumb {
+        background: hsl(var(--muted-foreground) / 0.3);
+    }
+    
+    .scroll-smooth::-webkit-scrollbar-thumb:hover,
+    .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--muted-foreground) / 0.5);
+    }
+}

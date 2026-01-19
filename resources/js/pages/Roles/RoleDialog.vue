@@ -3,7 +3,10 @@ import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { defineEmits, defineProps, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const emit = defineEmits(['submit', 'close']);
 
@@ -157,22 +160,39 @@ function handleCheckboxChange(event: Event, module: string): void {
 
 <template>
     <Dialog v-model:open="localIsOpen">
-        <DialogContent class="max-h-[80vh] overflow-y-auto w-[90vw] max-w-4xl">
-            <DialogHeader>
+        <DialogContent class="max-h-[90vh] flex flex-col w-[90vw] max-w-4xl">
+            <TooltipProvider>
+            <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ role?.id ? 'Editar Rol' : 'Crear Rol' }}</DialogTitle>
                 <DialogDescription>
                     {{ role?.id ? 'Edita la información del rol.' : 'Completa la información para crear un nuevo rol.' }}
                 </DialogDescription>
             </DialogHeader>
 
+            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <form @submit.prevent="submit">
-                <div class="mb-4">
-                    <InputField label="Nombre del Rol" v-model="form.name" placeholder="Nombre del rol" required />
+                <div class="mb-4 flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
+                            Nombre del Rol<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Nombre descriptivo para el rol que agrupa permisos específicos (ej: Administrador, Vendedor, etc.)."
+                            aria-label="Ayuda sobre nombre del rol"
+                        />
+                    </div>
+                    <InputField label="" v-model="form.name" placeholder="Nombre del rol" required />
                 </div>
                 
                 <div class="mb-4">
                     <div class="flex items-center justify-between">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Permisos</label>
+                        <div class="flex items-center gap-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Permisos</label>
+                            <HelpTooltip
+                                text="Selecciona los permisos que tendrá este rol. Los usuarios con este rol podrán realizar solo las acciones permitidas."
+                                aria-label="Ayuda sobre permisos"
+                            />
+                        </div>
                         <div class="flex items-center">
                             <input type="checkbox" id="global-select-all" v-model="globalSelectAll" class="mr-1" />
                             <label for="global-select-all" class="text-xs text-gray-700">Seleccionar todos los módulos</label>
@@ -201,11 +221,28 @@ function handleCheckboxChange(event: Event, module: string): void {
                     </div>
                 </div>
 
-                <DialogFooter>
-                    <Button type="button" variant="outline" @click="closeDialog">Cancelar</Button>
-                    <Button type="submit">{{ role?.id ? 'Guardar Cambios' : 'Crear Rol' }}</Button>
+                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+                    <div class="w-full md:w-auto">
+                        <button
+                            type="button"
+                            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                            @click="closeDialog"
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                    <div class="w-full md:w-auto">
+                        <Button
+                            type="submit"
+                            class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                        >
+                            {{ role?.id ? 'Guardar Cambios' : 'Crear Rol' }}
+                        </Button>
+                    </div>
                 </DialogFooter>
             </form>
+            </div>
+            </TooltipProvider>
         </DialogContent>
     </Dialog>
 </template>

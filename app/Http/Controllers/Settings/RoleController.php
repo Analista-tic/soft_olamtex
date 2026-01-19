@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Services\Settings\RoleService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
@@ -10,13 +11,14 @@ use Spatie\Permission\Models\Permission;
 
 class RoleController extends Controller
 {
+    public function __construct(protected RoleService $service) {}
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $roles = Role::with('permissions')->get();
-        $permissions = Permission::all();
+        $roles = $this->service->listAll();
+        $permissions = $this->service->allPermissions();
         return Inertia::render('Roles/Index', [
             'roles' => $roles,
             'permissions' => $permissions
@@ -42,12 +44,7 @@ class RoleController extends Controller
             'permissions.*' => 'exists:permissions,name',
         ]);
 
-        $role = Role::create(['name' => $validated['name']]);
-
-        if (!empty($validated['permissions'])) {
-            $role->syncPermissions($validated['permissions']);
-        }
-
+        $role = $this->service->create($validated);
         return response()->json($role, 201);
     }
 
@@ -72,7 +69,7 @@ class RoleController extends Controller
      */
     public function update(Request $request, $roleId)
     {
-        $role = Role::findOrFail($roleId);
+        $role = $this->service->findOrFail($roleId);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
@@ -80,11 +77,7 @@ class RoleController extends Controller
             'permissions.*' => 'exists:permissions,name',
         ]);
 
-        $role->update(['name' => $validated['name']]);
-
-        if (isset($validated['permissions'])) {
-            $role->syncPermissions($validated['permissions']);
-        }
+        $role = $this->service->update($role, $validated);
 
         return response()->json($role);
     }
@@ -94,8 +87,8 @@ class RoleController extends Controller
      */
     public function destroy($roleId)
     {
-        $role = Role::findOrFail($roleId);
-        $role->delete();
+        $role = $this->service->findOrFail($roleId);
+        $this->service->delete($role);
 
         return response()->json(null, 204);
     }
@@ -105,13 +98,9 @@ class RoleController extends Controller
      */
     public function getData(Request $request)
     {
-        $query = Role::with('permissions');
-
-        if ($request->has('query')) {
-            $query->where('name', 'like', '%' . $request->query('query') . '%');
-        }
-
         $perPage = $request->input('perPage', 10);
-        return response()->json($query->paginate($perPage));
+        $data = $this->service->paginate($request->all(), $perPage);
+
+        return response()->json($data);
     }
 }

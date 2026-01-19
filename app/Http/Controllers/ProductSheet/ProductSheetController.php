@@ -4,11 +4,7 @@ namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductSheet\ProductSheet;
-use App\Models\ProductSheet\Section;
-use App\Models\ProductSheet\Group;
-use App\Models\ProductSheet\Brand;
-use App\Models\ProductSheet\World;
-use App\Models\ProductSheet\Base;
+use App\Services\ParameterService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -19,18 +15,20 @@ class ProductSheetController extends Controller
      */
     public function index()
     {
-        $sections = Section::all(); // Todas las secciones.
-        $groups = Group::all(); // Todos los grupos.
-        $brands = Brand::all(); // Todas las marcas.
-        $worlds = World::all(); // Todos los mundos.
-        $bases = Base::all(); // Todas las bases.
+        $sections = ParameterService::getList('sections');
+        $groups = ParameterService::getList('groups');
+        $brands = ParameterService::getList('brands');
+        $worlds = ParameterService::getList('worlds');
+        $fabricBases = ParameterService::getList('fabric_bases');
+        $yarnBases = ParameterService::getList('yarn_bases');
 
         return Inertia::render('ProductSheets/Index', [
             'sections' => $sections,
             'groups' => $groups,
             'brands' => $brands,
             'worlds' => $worlds,
-            'bases' => $bases,
+            'fabricBases' => $fabricBases,
+            'yarnBases' => $yarnBases,
         ]);
     }
 
@@ -40,22 +38,26 @@ class ProductSheetController extends Controller
     public function store(Request $request)
     {
         $validatedData = $request->validate([
-            'reference' => 'required|string|max:255', // Campo obligatorio.
-            'section_id' => 'required|integer|exists:sections,id', // Relación válida.
-            'group_id' => 'required|integer|exists:groups,id', // ID del grupo.
-            'brand_id' => 'required|integer|exists:brands,id', // ID de la marca.
-            'world_id' => 'required|integer|exists:worlds,id', // ID del mundo.
-            'base_id' => 'required|integer|exists:bases,id', // ID de la base.
-            'billing_price' => 'required|numeric', // Precio de facturación.
-            'selling_price' => 'required|numeric', // Precio de venta.
-            'sizes' => 'required|json', // Tamaños en formato JSON.
-            'woven_product' => 'required|boolean', // Indica si es un producto tejido.
-            'description' => 'nullable|string', // Descripción opcional.
-            'processes' => 'required|json', // Procesos en formato JSON.
-            'status' => 'required|string|in:incomplete,complete', // Estado del producto.
+            'reference' => 'required|string|max:255',
+            'section_id' => 'required|integer', // ID referencia parameters
+            'group_id' => 'required|integer', // ID referencia parameters
+            'brand_id' => 'required|integer', // ID referencia parameters
+            'world_id' => 'required|integer', // ID referencia parameters
+            'fabric_base_id' => 'required|integer', // ID referencia parameters
+            'billing_price' => 'required|numeric',
+            'selling_price' => 'required|numeric',
+            'sizes' => 'required|json',
+            'woven_product' => 'required|boolean',
+            'description' => 'nullable|string',
+            'processes' => 'required|json',
+            'status' => 'required|string|in:incomplete,complete',
+            'yarn_base_id' => 'nullable|integer', // ID referencia parameters
         ]);
 
-        $productSheet = ProductSheet::create($validatedData); // Inserta en la base de datos.
+        // Normalizar sizes antes de guardar
+        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes']);
+
+        $productSheet = ProductSheet::create($validatedData); // Asegurarse de que se incluya fabric_base_id
 
         return response()->json([
             'success' => true,
@@ -71,11 +73,11 @@ class ProductSheetController extends Controller
     {
         $validatedData = $request->validate([
             'reference' => 'required|string|max:255',
-            'section_id' => 'required|integer|exists:sections,id',
-            'group_id' => 'required|integer|exists:groups,id',
-            'brand_id' => 'required|integer|exists:brands,id',
-            'world_id' => 'required|integer|exists:worlds,id',
-            'base_id' => 'required|integer|exists:bases,id',
+            'section_id' => 'required|integer', // ID referencia parameters
+            'group_id' => 'required|integer', // ID referencia parameters
+            'brand_id' => 'required|integer', // ID referencia parameters
+            'world_id' => 'required|integer', // ID referencia parameters
+            'fabric_base_id' => 'required|integer', // ID referencia parameters
             'billing_price' => 'required|numeric',
             'selling_price' => 'required|numeric',
             'sizes' => 'required|json',
@@ -83,12 +85,63 @@ class ProductSheetController extends Controller
             'description' => 'nullable|string',
             'processes' => 'required|json',
             'status' => 'required|string|in:incomplete,complete',
+            'yarn_base_id' => 'nullable|integer', // ID referencia parameters
         ]);
+
+        // Normalizar sizes antes de actualizar
+        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes']);
 
         $productSheet = ProductSheet::findOrFail($id); // Busca el registro.
         $productSheet->update($validatedData); // Actualiza en la base de datos.
 
         return response()->json(['success' => 'Product sheet actualizado exitosamente.']);
+    }
+
+    /**
+     * Obtiene un registro específico con datos enriquecidos.
+     */
+    public function show(string $id)
+    {
+        try {
+            $productSheet = ProductSheet::findOrFail($id);
+
+            // Cargar los catálogos desde parameters
+            $sections = ParameterService::getList('sections')->keyBy('id');
+            $groups = ParameterService::getList('groups')->keyBy('id');
+            $brands = ParameterService::getList('brands')->keyBy('id');
+            $worlds = ParameterService::getList('worlds')->keyBy('id');
+            $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
+            $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
+
+            // Enriquecer el producto con los nombres
+            $productSheet->section = $sections->get($productSheet->section_id, ['id' => $productSheet->section_id, 'name' => 'N/A']);
+            $productSheet->group = $groups->get($productSheet->group_id, ['id' => $productSheet->group_id, 'name' => 'N/A']);
+            $productSheet->brand = $brands->get($productSheet->brand_id, ['id' => $productSheet->brand_id, 'name' => 'N/A']);
+            $productSheet->world = $worlds->get($productSheet->world_id, ['id' => $productSheet->world_id, 'name' => 'N/A']);
+            $productSheet->fabric_base = $fabricBases->get($productSheet->fabric_base_id, ['id' => $productSheet->fabric_base_id, 'name' => 'N/A']);
+            $productSheet->yarn_base = $productSheet->yarn_base_id ? $yarnBases->get($productSheet->yarn_base_id, ['id' => $productSheet->yarn_base_id, 'name' => 'N/A']) : null;
+
+            // Convertir arrays a JSON strings para el frontend
+            $data = $productSheet->toArray();
+            $data['sizes'] = is_array($productSheet->sizes) ? json_encode($productSheet->sizes) : $productSheet->sizes;
+            $data['processes'] = is_array($productSheet->processes) ? json_encode($productSheet->processes) : $productSheet->processes;
+            $data['section'] = $productSheet->section;
+            $data['group'] = $productSheet->group;
+            $data['brand'] = $productSheet->brand;
+            $data['world'] = $productSheet->world;
+            $data['fabric_base'] = $productSheet->fabric_base;
+            $data['yarn_base'] = $productSheet->yarn_base;
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener el producto: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -107,20 +160,75 @@ class ProductSheetController extends Controller
      */
     public function getData(Request $request)
     {
-        $query = ProductSheet::with(['section', 'group', 'brand', 'world', 'base']); // Relaciones.
+        $query = ProductSheet::query();
 
         if ($request->has('search') && $request->search != '') {
-            $query->where('reference', 'like', '%' . $request->search . '%'); // Filtro por referencia.
+            $query->where('reference', 'like', '%' . $request->search . '%');
         }
 
         if ($request->has('status') && $request->status != '') {
-            $query->where('status', $request->status); // Filtro por estado.
+            $query->where('status', $request->status);
         }
 
-        $products_sheets = $query->orderBy('id', 'desc')->paginate(10); // Orden y paginación.
+        $products_sheets = $query->orderBy('id', 'desc')->paginate(10);
+
+        // Cargar los catálogos desde parameters
+        $sections = ParameterService::getList('sections')->keyBy('id');
+        $groups = ParameterService::getList('groups')->keyBy('id');
+        $brands = ParameterService::getList('brands')->keyBy('id');
+        $worlds = ParameterService::getList('worlds')->keyBy('id');
+        $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
+        $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
+
+        // Enriquecer los productos con los nombres
+        $products_sheets->getCollection()->transform(function ($product) use ($sections, $groups, $brands, $worlds, $fabricBases, $yarnBases) {
+            $product->section = $sections->get($product->section_id, ['id' => $product->section_id, 'name' => 'N/A']);
+            $product->group = $groups->get($product->group_id, ['id' => $product->group_id, 'name' => 'N/A']);
+            $product->brand = $brands->get($product->brand_id, ['id' => $product->brand_id, 'name' => 'N/A']);
+            $product->world = $worlds->get($product->world_id, ['id' => $product->world_id, 'name' => 'N/A']);
+            $product->fabric_base = $fabricBases->get($product->fabric_base_id, ['id' => $product->fabric_base_id, 'name' => 'N/A']);
+            $product->yarn_base = $product->yarn_base_id ? $yarnBases->get($product->yarn_base_id, ['id' => $product->yarn_base_id, 'name' => 'N/A']) : null;
+            return $product;
+        });
 
         return response()->json([
             'products_sheets' => $products_sheets,
         ]);
+    }
+
+    /**
+     * Normaliza el campo sizes para guardar solo las tallas seleccionadas (true).
+     * Convierte {"28": true, "30": false} -> ["28"]
+     * 
+     * @param string $sizesJson JSON string con las tallas
+     * @return string JSON normalizado
+     */
+    private function normalizeSizes($sizesJson)
+    {
+        try {
+            $sizes = json_decode($sizesJson, true);
+            
+            if (!is_array($sizes)) {
+                return $sizesJson;
+            }
+            
+            // Si es un array asociativo con valores booleanos, filtrar solo los true
+            if (array_keys($sizes) !== range(0, count($sizes) - 1)) {
+                // Es array asociativo - extraer solo claves donde el valor sea true
+                $filteredSizes = array_values(array_filter(
+                    array_keys($sizes),
+                    fn($key) => $sizes[$key] === true
+                ));
+                
+                // Retornar como array JSON simple
+                return json_encode($filteredSizes);
+            }
+            
+            // Si ya es un array indexado, retornar como está
+            return $sizesJson;
+        } catch (\Exception $e) {
+            // Si hay algún error, retornar el valor original
+            return $sizesJson;
+        }
     }
 }

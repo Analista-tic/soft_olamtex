@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import UserInfo from '@/components/UserInfo.vue';
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import type { User } from '@/types';
+import type { User } from '@/domain/auth';
 import { Link } from '@inertiajs/vue3';
-import { LogOut, Settings } from 'lucide-vue-next';
+import { LogOut, Settings, FileSearch } from 'lucide-vue-next';
 
 interface Props {
     user: User;
@@ -21,9 +21,15 @@ defineProps<Props>();
     <DropdownMenuSeparator />
     <DropdownMenuGroup>
         <DropdownMenuItem :as-child="true">
-            <Link class="block w-full" :href="route('profile.edit')" as="button">
+            <Link class="block w-full" :href="route('panel-administrativo.empresa')" as="button">
                 <Settings class="mr-2 h-4 w-4" />
-                Settings
+                Configuración
+            </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem :as-child="true">
+            <Link class="block w-full" :href="route('auditoria.index')" as="button">
+                <FileSearch class="mr-2 h-4 w-4" />
+                Auditoría
             </Link>
         </DropdownMenuItem>
     </DropdownMenuGroup>

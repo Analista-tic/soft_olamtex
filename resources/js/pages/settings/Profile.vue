@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
-import { type BreadcrumbItem, type SharedData, type User } from '@/types';
+import type { BreadcrumbItem, SharedData } from '@/domain/shared';
+import type { User } from '@/domain/auth/types';
 
 interface Props {
     mustVerifyEmail: boolean;
@@ -88,7 +89,13 @@ const submit = () => {
                     </div>
 
                     <div class="flex items-center gap-4">
-                        <Button :disabled="form.processing">Save</Button>
+                        <Button
+                            variant="default"
+                            :disabled="form.processing"
+                            class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10 flex items-center justify-center gap-2"
+                        >
+                            Guardar
+                        </Button>
 
                         <Transition
                             enter-active-class="transition ease-in-out"

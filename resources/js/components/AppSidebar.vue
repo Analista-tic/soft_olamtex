@@ -1,15 +1,15 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavMainGroup from '@/components/NavMainGroup.vue';
 import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/stores/auth';
-import { type NavGroupItem, type NavItem } from '@/types';
+import type { NavGroupItem, NavItem } from '@/domain/shared';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, ChartNoAxesCombined, Cog, Database, Folder, LayoutGrid, PencilRuler } from 'lucide-vue-next';
-import AppLogo from './AppLogo.vue';
+import { BookOpen, ChartNoAxesCombined, Grip , BanknoteArrowDown, Database, Folder, FolderKanban, Folders, LayoutGrid, Shell, UsersRound } from 'lucide-vue-next';
 import { computed, onMounted } from 'vue';
+import AppLogo from './AppLogo.vue';
 
 const auth = useAuthStore();
 
@@ -24,11 +24,6 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: '/dashboard',
         icon: LayoutGrid,
-    },
-    {
-        title: 'Configuración',
-        href: '/configuracion',
-        icon: Cog,
     },
 ];
 
@@ -49,50 +44,165 @@ const footerNavItems: NavItem[] = [
 // Definición de los grupos de navegación principales
 const navMainGroup: NavGroupItem[] = [
     {
+        title: 'Gastos',
+        href: '/gastos/ordenes-compra',
+        icon: BanknoteArrowDown,
+        isActive: false,
+        items: [
+            {
+                title: 'Solicitud de Compras',
+                href: '/gastos/solicitudes-compra',
+                permission: 'ver telas',
+            },
+            {
+                title: 'Orden de Compras',
+                href: '/gastos/ordenes-compra',
+                permission: 'ver telas',
+            },
+            {
+                title: 'Factura de Compra',
+                href: '/gastos/facturas-compra',
+                permission: 'ver telas',
+            },
+            {
+                title: 'Factura de Compra Tela',
+                href: '/gastos/facturas-compra-tela',
+                permission: 'ver telas',
+            },
+        ],
+    },
+    {
+        title: 'Contactos',
+        href: '/contactos',
+        icon: UsersRound,
+        isActive: false,
+    },
+    {
         title: 'Inventario',
         href: '#',
         icon: Database,
         isActive: false,
         items: [
             {
-                title: 'Telas',
-                href: '/inventario/telas',
-                permission: 'ver telas', // Permiso necesario para este subitem
+                title: 'Gestion de items',
+                href: '/item',
+                permission: 'ver inventario telas',
+            },
+            {
+                title: 'Inventario de items',
+                href: '/inventario-item',
+                permission: 'ver inventario telas',
+            },
+            {
+                title: 'Ajuste de Inventario',
+                href: '/inventario/ajuste-inventario',
+                permission: 'ver inventario telas',
+            },
+            {
+                title: 'Gestion de Bodegas',
+                href: '/bodegas',
+                permission: 'ver bodegas',
+            },
+            {
+                title: 'Campos adicionales',
+                href: '/campos-adicionales',
+                permission: 'ver inventario telas',
+            },
+            {
+                title: 'Gestion de Categorias',
+                href: '/categorias/subgrupos',
+                permission: 'ver categorias',
             },
         ],
     },
     {
-        title: 'Comercial',
-        href: '/comercial/sabana-productos',
-        icon: ChartNoAxesCombined,
+        title: 'Kardex de Telas',
+        href: '#',
+        icon: Shell,
         isActive: false,
         items: [
             {
-                title: 'Sabana de Productos',
-                href: '/comercial/sabana-productos',
+                title: 'Inventario Telas por Rollo',
+                href: route('kardex-telas.inventario-rollos'),
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+            {
+                title: 'Descargue de tela por orden',
+                href: route('kardex-telas.descargue-orden'),
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+            {
+                title: 'Salida de Telas por Orden',
+                href: '#',
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+            {
+                title: 'Inventario Retazos',
+                href: '#',
                 permission: 'ver sabana productos', // Permiso necesario para este subitem
             },
         ],
     },
     {
-        title: 'Diseño',
-        href: '/diseno/programador',
-        icon: PencilRuler,
+        title: 'Ficha Técnica',
+        href: '#',
+        icon: Folders,
         isActive: false,
         items: [
             {
+                title: 'Sábana de Productos',
+                href: '/diseno/sabana-productos',
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+            {
                 title: 'Programador',
-                href: '/diseno/programador',
+                href: '/comercial/programador',
                 permission: 'ver programador', // Permiso necesario para este subitem
             },
         ],
+    },
+    {
+        title: 'Control de Producción',
+        href: '#',
+        icon: ChartNoAxesCombined,
+        isActive: false,
+        items: [
+            {
+                title: 'Órdenes de Producción',
+                href: '',
+                permission: 'ver sabana productos', // Permiso necesario para este subitem
+            },
+            {
+                title: 'Control de Lotes',
+                href: '',
+                permission: 'ver programador', // Permiso necesario para este subitem
+            },
+            {
+                title: 'Cuentas de Cobro UP',
+                href: '',
+                permission: 'ver programador', // Permiso necesario para este subitem
+            },
+        ],
+    },
+    {
+        title: 'Listados Operacionales',
+        href: route('diseno.listados-operacionales.index'),
+        icon: FolderKanban,
+        isActive: false,
+        permission: 'ver listados operacionales',
+    },
+    {
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
+        icon: Grip ,
+        isActive: false,
     },
 ];
 
 // Filtrar los elementos de navegación principales según roles o permisos
 const filteredMainNavItems = computed(() =>
     mainNavItems.filter((item) => {
-        if (item.title === 'Configuración') {
+        if (item.title === 'Panel administrativo') {
             return auth.hasRole('admin'); // Solo visible para administradores
         }
         return true; // Visible para todos los demás
@@ -100,24 +210,27 @@ const filteredMainNavItems = computed(() =>
 );
 
 // Filtrar los grupos de navegación principales según permisos de los subítems
+const isDev = Boolean((import.meta && (import.meta as any).DEV) || process.env.NODE_ENV === 'development');
 const filteredNavMainGroup = computed(() =>
     navMainGroup
         .map((group) => {
-            // Filtrar los subítems según los permisos del usuario
-            const visibleItems = group.items?.filter((item) => {
-                // Verificar si el permiso está definido antes de llamar a auth.can
-                return item.permission ? auth.can(item.permission) : false;
-            }) || [];
+            // Si no tiene subítems definidos, devolver el grupo tal cual
+            if (!group.items || group.items.length === 0) {
+                return group;
+            }
 
-            // Si no hay subítems visibles, no mostrar el grupo principal
-            if (visibleItems.length === 0) return null;
+            // En desarrollo, mostrar todos los subítems para facilitar pruebas locales
+            if (isDev) return group;
 
-            return {
-                ...group,
-                items: visibleItems, // Asignar solo los subítems visibles
-            };
+            // En producción, filtrar los subítems según los permisos del usuario
+            const visibleItems = (group.items || []).filter((item) => (item.permission ? auth.can(item.permission) : true));
+
+            // Si hay subítems visibles, devolverlos; si no, devolver el grupo sin 'items'
+            // Dejar `items: undefined` ayuda a que el componente de UI lo trate como botón simple
+            return visibleItems.length ? { ...group, items: visibleItems } : { ...group, items: undefined };
         })
-        .filter(Boolean) as NavGroupItem[], // Asegurar el tipado correcto
+        // Mantener sólo grupos válidos (grupos sin items o con items visibles)
+        .filter((group) => group && (group.items === undefined || (Array.isArray(group.items) && group.items.length > 0))) as NavGroupItem[],
 );
 </script>
 

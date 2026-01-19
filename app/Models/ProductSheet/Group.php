@@ -14,9 +14,4 @@ class Group extends Model
     {
         return $this->hasMany(ProductSheet::class);
     }
-
-    public function fabricColors()
-    {
-        return $this->hasMany(FabricColor::class);
-    }
 }

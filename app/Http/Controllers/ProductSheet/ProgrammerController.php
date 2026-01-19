@@ -3,40 +3,57 @@
 namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProductSheet\Base;
-use App\Models\ProductSheet\Brand;
-use App\Models\ProductSheet\Destination;
-use App\Models\ProductSheet\Group;
 use App\Models\ProductSheet\ProductSheet;
 use App\Models\ProductSheet\Programmer;
-use App\Models\ProductSheet\Section;
-use App\Models\ProductSheet\World;
+use App\Services\ParameterService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ProgrammerController extends Controller
 {
+    private const PRIORITIES = ['A', 'B', 'C', 'D'];
+    private const STATUSES = ['complete', 'incomplete'];
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $sections = Section::all();
-        $groups = Group::all();
-        $brands = Brand::all();
-        $worlds = World::all();
-        $bases = Base::all();
-        
-        $productSheets = ProductSheet::with('section', 'group', 'brand', 'world', 'base')->where('status', 'complete')->get(); // Obtener todos los ProductSheet
-        $destination = Destination::all(); // Obtener todos los destinos
+        $sections = ParameterService::getList('sections')->keyBy('id');
+        $groups = ParameterService::getList('groups')->keyBy('id');
+        $brands = ParameterService::getList('brands')->keyBy('id');
+        $worlds = ParameterService::getList('worlds')->keyBy('id');
+        $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
+        $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
+
+        $productSheets = ProductSheet::all(); // Traer todos los product sheets
+
+        // Enriquecer productSheets con los nombres desde parameters
+        $productSheets->transform(function ($product) use ($sections, $groups, $brands, $worlds, $fabricBases, $yarnBases) {
+            $product->section = $sections->get($product->section_id, ['id' => $product->section_id, 'name' => 'N/A']);
+            $product->group = $groups->get($product->group_id, ['id' => $product->group_id, 'name' => 'N/A']);
+            $product->brand = $brands->get($product->brand_id, ['id' => $product->brand_id, 'name' => 'N/A']);
+            $product->world = $worlds->get($product->world_id, ['id' => $product->world_id, 'name' => 'N/A']);
+            $product->fabric_base = $fabricBases->get($product->fabric_base_id, ['id' => $product->fabric_base_id, 'name' => 'N/A']);
+            $product->yarn_base = $product->yarn_base_id ? $yarnBases->get($product->yarn_base_id, ['id' => $product->yarn_base_id, 'name' => 'N/A']) : null;
+            return $product;
+        });
+
+        $destination = ParameterService::getList('destinations');
+
+        // Asegurarse de que los datos sean arreglos antes de pasarlos a la vista
         return Inertia::render('Programmers/Index', [
-            'productSheets' => $productSheets,
-            'destinations' => $destination,
-            'sections' => $sections,
-            'groups' => $groups,
-            'brands' => $brands,
-            'worlds' => $worlds,
-            'bases' => $bases,
+            'productSheets' => $productSheets ?? [],
+            'destinations' => $destination ?? [],
+            'sections' => $sections->values() ?? [],
+            'groups' => $groups->values() ?? [],
+            'brands' => $brands->values() ?? [],
+            'worlds' => $worlds->values() ?? [],
+            'fabricBases' => $fabricBases->values() ?? [],
+            'yarnBases' => $yarnBases->values() ?? [],
         ]);
     }
 
@@ -53,32 +70,31 @@ class ProgrammerController extends Controller
      */
     public function store(Request $request)
     {
-        \Log::info('Datos recibidos:', $request->all()); // Registrar los datos recibidos
-        \Log::info('Datos recibidos para ecommerce_units:', $request->input('lots.*.ecommerce_units'));
-        \Log::info('Datos recibidos para destination_id:', $request->input('lots.*.destination_id'));
-
         $validatedData = $request->validate([
-            'lots' => 'required|array', // Validar que se envíe un array de lotes
+            'lots' => 'required|array|min:1',
             'lots.*.product_sheet_id' => 'required|exists:product_sheets,id',
             'lots.*.season' => 'required|string|max:255',
-            'lots.*.destination_id' => 'required|integer|exists:destinations,id', // Validar que sea un ID válido
-            'lots.*.priority' => 'required|string|max:1',
-            'lots.*.units' => 'required|integer|min:0',
-            'lots.*.ecommerce_units' => 'nullable|array', // Validar que sea un array o null
-            'lots.*.status' => 'required|string|max:255',
+            'lots.*.destination_id' => 'required|integer|min:1',
+            'lots.*.priority' => ['required', 'string', Rule::in(self::PRIORITIES)],
+            'lots.*.units' => 'required|integer|min:1',
+            'lots.*.ecommerce_units' => 'nullable',
+            'lots.*.status' => ['required', 'string', Rule::in(self::STATUSES)],
         ]);
 
-        // Insertar múltiples lotes en la tabla programmers
-        $programmers = collect($validatedData['lots'])->map(function ($lot) {
-            return Programmer::create([
-                'product_sheet_id' => $lot['product_sheet_id'],
-                'season' => $lot['season'],
-                'destination_id' => $lot['destination_id'], // Guardar el ID de la destinación
-                'priority' => $lot['priority'],
-                'units' => $lot['units'],
-                'ecommerce_units' => isset($lot['ecommerce_units']) ? json_encode($lot['ecommerce_units']) : null, // Convertir a JSON
-                'status' => $lot['status'],
-            ]);
+        $programmers = DB::transaction(function () use ($validatedData) {
+            return collect($validatedData['lots'])->map(function (array $lot) {
+                $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
+
+                return Programmer::create([
+                    'product_sheet_id' => $lot['product_sheet_id'],
+                    'season' => $lot['season'],
+                    'destination_id' => $lot['destination_id'],
+                    'priority' => $lot['priority'],
+                    'units' => $lot['units'],
+                    'ecommerce_units' => $ecommerceUnits,
+                    'status' => $lot['status'],
+                ]);
+            });
         });
 
         return response()->json([
@@ -87,9 +103,6 @@ class ProgrammerController extends Controller
         ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Programmer $programmer)
     {
         return response()->json(['data' => $programmer], 200);
@@ -108,38 +121,29 @@ class ProgrammerController extends Controller
      */
     public function update(Request $request, Programmer $programador)
     {
-        \Log::info('Datos recibidos para actualizar:', $request->all());
-
-        // Validar los datos recibidos
         $validatedData = $request->validate([
             'product_sheet_id' => 'sometimes|exists:product_sheets,id',
             'season' => 'sometimes|string|max:255',
-            'destination_id' => 'sometimes|integer|exists:destinations,id',
-            'priority' => 'sometimes|string|max:1',
-            'units' => 'sometimes|integer|min:0',
-            'ecommerce_units' => 'sometimes|json', // Validar que sea un JSON válido
-            'status' => 'sometimes|string|max:255',
+            'destination_id' => 'sometimes|integer|min:1',
+            'priority' => ['sometimes', 'string', Rule::in(self::PRIORITIES)],
+            'units' => 'sometimes|integer|min:1',
+            'ecommerce_units' => 'sometimes|nullable',
+            'status' => ['sometimes', 'string', Rule::in(self::STATUSES)],
         ]);
 
-        \Log::info('Datos validados:', $validatedData);
+        if (array_key_exists('ecommerce_units', $validatedData)) {
+            $validatedData['ecommerce_units'] = $this->normalizeEcommerceUnits($validatedData['ecommerce_units']);
+        }
 
-        // Actualizar los datos del programador
         $programador->update($validatedData);
-
-        // Refrescar el modelo para obtener los datos actualizados
         $programador->refresh();
-
-        \Log::info('Programador actualizado:', $programador->toArray());
 
         return response()->json([
             'message' => 'Programmer updated successfully.',
-            'data' => $programador, // Devolver los datos actualizados
+            'data' => $programador,
         ]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Programmer $programador)
     {
         $programador->delete();
@@ -156,7 +160,7 @@ class ProgrammerController extends Controller
         $perPage = $request->input('per_page', 10);
         $page = $request->input('page', 1);
 
-        $query = Programmer::with('productSheet', 'destination');
+        $query = Programmer::with('productSheet');
 
         // Aplicar filtros dinámicamente
         if (!empty($filters['season']) && $filters['season'] !== 'all') {
@@ -183,6 +187,26 @@ class ProgrammerController extends Controller
 
         $programmers = $query->paginate($perPage, ['*'], 'page', $page);
 
+        // Enriquecer con destinations desde parameters
+        $destinations = ParameterService::getList('destinations')->keyBy('id');
+        $sections = ParameterService::getList('sections')->keyBy('id');
+        $groups = ParameterService::getList('groups')->keyBy('id');
+        
+        $programmers->getCollection()->transform(function ($programmer) use ($destinations, $sections, $groups) {
+            $programmer->destination = $destinations->get($programmer->destination_id, ['id' => $programmer->destination_id, 'name' => 'N/A']);
+            if ($programmer->productSheet) {
+                $sectionId = $programmer->productSheet->section_id ?? null;
+                $groupId = $programmer->productSheet->group_id ?? null;
+                $programmer->productSheet->section = $sectionId
+                    ? $sections->get($sectionId, ['id' => $sectionId, 'name' => 'N/A'])
+                    : null;
+                $programmer->productSheet->group = $groupId
+                    ? $groups->get($groupId, ['id' => $groupId, 'name' => 'N/A'])
+                    : null;
+            }
+            return $programmer;
+        });
+
         return response()->json([
             'data' => $programmers->items(),
             'total' => $programmers->total(),
@@ -191,4 +215,37 @@ class ProgrammerController extends Controller
             'per_page' => $programmers->perPage(),
         ]);
     }
+
+    protected function normalizeEcommerceUnits($value): ?array
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw ValidationException::withMessages([
+                    'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+                ]);
+            }
+
+            if ($decoded !== null && !is_array($decoded)) {
+                throw ValidationException::withMessages([
+                    'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+                ]);
+            }
+
+            return $decoded;
+        }
+
+        throw ValidationException::withMessages([
+            'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+        ]);
+    }
 }
+

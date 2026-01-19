@@ -3,8 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Hash;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -29,6 +28,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear roles',
             'editar roles',
             'eliminar roles',
+            'ver auditoria',
+            'ver listados operacionales',
+            'crear listados operacionales',
+            'editar listados operacionales',
+            'eliminar listados operacionales',
+            'generar listado desde muestra',
             'ver telas',
             'crear telas',
             'editar telas',
@@ -67,6 +72,7 @@ class RolesAndPermissionsSeeder extends Seeder
         $general->givePermissionTo([
             'ver programador',
             'ver sabana productos',
+            'ver listados operacionales',
         ]);
 
         // Crear usuarios de ejemplo
@@ -74,7 +80,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'email' => 'admin@gmail.com'
         ], [
             'name' => 'Admin',
-            'password' => Hash::make('12345678'), // Encriptar la contraseña
+            'password' => Hash::make('12345'), // Encriptar la contraseña
         ]);
         $adminUser->assignRole($admin);
 

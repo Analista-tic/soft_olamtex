@@ -3,7 +3,7 @@ import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import OrderItemManager from './OrderItemManager.vue';
-import type { FabricOrder, FabricOrderItem } from '@/types';
+import type { FabricOrder, FabricOrderItem } from '@/domain/fabric';
 import { ref, computed, watch, onMounted } from 'vue';
 import type { PropType } from 'vue';
 import axios from 'axios';
@@ -93,13 +93,14 @@ watch(
 
 <template>
     <Dialog v-if="internalOpen" v-model:open="internalOpen">
-        <DialogContent class="max-h-[80vh] w-[90vw] max-w-5xl overflow-y-auto">
-            <DialogHeader>
+        <DialogContent class="max-h-[90vh] flex flex-col w-[90vw] max-w-5xl">
+            <DialogHeader class="flex-shrink-0">
                 <DialogTitle>Detalles del Pedido</DialogTitle>
                 <DialogDescription>
                     Visualiza los detalles del pedido seleccionado.
                 </DialogDescription>
             </DialogHeader>
+            <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-6">
                 <!-- Información del Pedido -->
                 <div class="grid grid-cols-3 gap-4">
@@ -129,8 +130,9 @@ watch(
                     :items="items" 
                 />
             </div>
+            </div>
 
-            <DialogFooter class="mt-6">
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-6">
                 <Button variant="outline" @click="closeDialog">Cerrar</Button>
             </DialogFooter>
         </DialogContent>

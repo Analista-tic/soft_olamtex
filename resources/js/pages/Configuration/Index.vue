@@ -1,25 +1,45 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { BreadcrumbItem } from '@/types';
+import type { BreadcrumbItem } from '@/domain/shared';
 import { Head, Link } from '@inertiajs/vue3';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Configuración',
-        href: '/configuracion',
+        title: 'Panel administrativo',
+        href: '/panel-administrativo',
     },
 ];
 
 const modules = [
     {
-        title: 'Empresa', // Título mejorado
+        title: 'Empresa',
         description: 'Administra usuarios, roles y permisos de acceso.',
         options: [
-            { name: 'Datos Basicos', href: '' },
+            { name: 'Configuración', href: '/panel-administrativo/empresa' },
+            { name: 'Contactos', href: '/contactos' },
         ],
     },
     {
-        title: 'Accesos y Permisos', // Título mejorado
+        title: 'Inventario',    
+        description: 'Parametrizar y Configurar Campos de Inventario.',
+        options: [
+            { name: 'Items', href: '/item' },
+            { name: 'Inventario de Items', href: '/inventario-item' },
+            { name: 'Categorias', href: 'categorias/subgrupos' },
+            { name: 'Bodegas', href: '/bodegas' },
+            { name: 'Campos adicionales', href: '/campos-adicionales' },
+        ],
+    },
+    {
+        title: 'Impuestos',
+        description: 'Parametrizar y Configurar Impuestos.',
+        options: [
+            { name: 'Retenciones', href: '/retenciones' },
+            { name: 'Impuestos', href: '/impuestos' },
+        ],
+    },
+    {
+        title: 'Accesos y Permisos',
         description: 'Administra usuarios, roles y permisos de acceso.',
         options: [
             { name: 'Usuarios', href: '/usuarios' },
@@ -27,8 +47,8 @@ const modules = [
         ],
     },
     {
-        title: 'Comercial', // Título mejorado
-        description: 'Administra parametros y configuraciones',
+        title: 'Comercial',
+        description: 'Administra parámetros y configuraciones.',
         options: [
             { name: 'Secciones', href: '' },
             { name: 'Grupos', href: '' },
@@ -39,8 +59,8 @@ const modules = [
         ],
     },
     {
-        title: 'Diseño', // Título mejorado
-        description: 'Administra parametros y configuraciones',
+        title: 'Diseño',
+        description: 'Administra parámetros y configuraciones.',
         options: [
             { name: 'Temporadas', href: '' },
             { name: 'Destinos', href: '' },
@@ -55,32 +75,32 @@ const modules = [
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-xl font-bold">Configuraciones</h1>
+                <h1 class="text-xl font-bold">Panel administrativo</h1>
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div
                     v-for="module in modules"
                     :key="module.title"
-                    class="group relative flex flex-col rounded-lg border border-gray-200 bg-white p-4 shadow-md hover:shadow-lg transition-shadow"
+                    class="group relative flex flex-col rounded-lg border border-border bg-card p-4 shadow-md transition-shadow hover:shadow-lg"
                 >
-                    <!-- Título del módulo -->
                     <div
-                        class="text-md font-semibold text-gray-800 group-hover:text-blue-600"
+                        class="text-md font-semibold text-card-foreground group-hover:text-blue-500"
                     >
                         {{ module.title }}
                     </div>
-                    <!-- Descripción del módulo -->
-                    <p class="text-xs text-gray-600">
+                    <p class="text-xs text-muted-foreground mt-1">
                         {{ module.description }}
                     </p>
-                    <!-- Opciones adicionales -->
-                    <ul class="mt-3 text-sm text-gray-600">
+                    <ul class="mt-3 text-sm text-muted-foreground space-y-1">
                         <li
                             v-for="option in module.options"
                             :key="option.name"
-                            class="hover:text-blue-600"
+                            class="hover:text-blue-500 transition-colors"
                         >
-                            <Link :href="option.href" class="block z-10 relative">
+                            <Link
+                                :href="option.href"
+                                class="block z-10 relative text-current"
+                            >
                                 {{ option.name }}
                             </Link>
                         </li>

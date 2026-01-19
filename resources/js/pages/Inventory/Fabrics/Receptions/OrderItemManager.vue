@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import type { FabricOrderItem, FabricRoll } from '@/types';
+import type { FabricOrderItem, FabricRollReceptionForm } from '@/domain/fabric';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -25,7 +25,7 @@ watch(
 const receptionDialogOpen = ref(false);
 const receptionItem = ref<FabricOrderItem | null>(null);
 
-const fabricRoll = ref<FabricRoll>({
+const fabricRoll = ref<FabricRollReceptionForm>({
     location: '',
     fabric_color_id: null,
     fabric_order_item_id: 0,
@@ -105,10 +105,11 @@ function registerModel() {
 
         <!-- Diálogo para Recepcionar Ítem -->
         <Dialog v-model:open="receptionDialogOpen">
-            <DialogContent class="max-w-4xl">
-                <DialogHeader>
+            <DialogContent class="max-w-4xl max-h-[90vh] flex flex-col">
+                <DialogHeader class="flex-shrink-0">
                     <DialogTitle>Recepcionar Tela</DialogTitle>
                 </DialogHeader>
+                <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <div v-if="receptionItem">
                     <!-- Tabla Informativa -->
                     <Table class="mb-6">
@@ -151,15 +152,31 @@ function registerModel() {
                             <InputField v-model="fabricRoll.width" label="Ancho" type="number" step="0.01" placeholder="Ancho" />
                             <InputField v-model="fabricRoll.quantity" label="Cantidad" type="number" step="0.01" placeholder="Cantidad" />
                         </div>
-                        <DialogFooter class="mt-4">
-                            <Button variant="outline" @click="closeReceptionDialog">Cancelar</Button>
-                            <Button type="submit">Registrar</Button>
+                        <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+                            <div class="w-full md:w-auto">
+                                <button
+                                    type="button"
+                                    class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                                    @click="closeReceptionDialog"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                            <div class="w-full md:w-auto">
+                                <Button
+                                    type="submit"
+                                    class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                                >
+                                    Registrar
+                                </Button>
+                            </div>
                         </DialogFooter>
                     </form>
                 </div>
                 <div v-else>
                     <p class="text-red-500">No se ha seleccionado ningún ítem para recepcionar.</p>
                 </div>
+            </div>
             </DialogContent>
         </Dialog>
     </div>
