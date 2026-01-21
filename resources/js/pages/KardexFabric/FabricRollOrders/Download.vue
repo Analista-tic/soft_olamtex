@@ -57,8 +57,9 @@ watch(
   { immediate: true },
 );
 
-function selectRoll(roll: FabricRollView) {
+function openDownloadDialog(roll: FabricRollView) {
   selectedRoll.value = roll;
+  isDialogOpen.value = true;
 }
 
 const toNumber = (value: string | number | null | undefined): number => {
@@ -334,9 +335,9 @@ function cleanSizeLabel(size: string | number): string {
                   variant="outline"
                   size="sm"
                   class="w-full md:w-auto rounded-full px-4 py-2 text-xs font-semibold shadow-sm h-9"
-                  @click="selectRoll(roll)"
+                  @click="openDownloadDialog(roll)"
                 >
-                  Seleccionar
+                  Descargar
                 </Button>
               </TableCell>
             </TableRow>
