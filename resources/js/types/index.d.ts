@@ -189,6 +189,21 @@ export interface Warehouse {
     observation: string;
 }
 
+export interface FabricRoll {
+    id?: number;
+    roll_number: string;
+    purchase_document_item_id: number;
+    location: string;
+    quantity: number;
+    roll_width: number;
+    description?: string;
+    partial_output: number;
+    actual_output: number;
+    entry_date: string | Date;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export type AdditionalFieldType = 'text' | 'number' | 'decimal' | 'textarea' | 'date' | 'boolean' | 'select';
 
 export interface AdditionalField {
@@ -489,3 +504,4 @@ export interface FabricRollView {
     creator: string | null;
     status: 'available' | 'depleted';
 }
+>>>>>>> b5cea36b969d0e2c7dbf226dc03b33858ff8d55e

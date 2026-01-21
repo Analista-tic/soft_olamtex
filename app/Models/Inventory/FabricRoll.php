@@ -13,9 +13,9 @@ class FabricRoll extends Model
     protected $fillable = [
         'roll_number',
         'purchase_document_item_id',
+        'location',
         'quantity',
         'roll_width',
-        'location',
         'description',
         'partial_output',
         'actual_output',
