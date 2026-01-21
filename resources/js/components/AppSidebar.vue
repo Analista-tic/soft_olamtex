@@ -99,6 +99,10 @@ const navMainGroup: NavGroupItem[] = [
                 permission: 'ver inventario telas',
             },
             {
+                title: 'Solicitudes internas',
+                href: '/inventario/solicitudes-internas',
+            },
+            {
                 title: 'Gestion de Bodegas',
                 href: '/bodegas',
                 permission: 'ver bodegas',

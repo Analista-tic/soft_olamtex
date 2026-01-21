@@ -15,6 +15,21 @@ class ParametersSeeder extends Seeder
     {
         $this->command->info('Iniciando inserción de parámetros...');
 
+        // Áreas (catálogo)
+        $areas = [
+            ['id' => 1, 'name' => 'Administración'],
+            ['id' => 2, 'name' => 'Ventas'],
+            ['id' => 3, 'name' => 'Producción'],
+            ['id' => 4, 'name' => 'Compras'],
+            ['id' => 5, 'name' => 'Logística'],
+            ['id' => 6, 'name' => 'Contabilidad'],
+        ];
+        Parameter::updateOrCreate(
+            ['nombre' => 'areas'],
+            ['valor' => $areas]
+        );
+        $this->command->info('✓ Áreas insertadas en parámetros');
+
         // Parámetros de costos
         $costParameters = [
             ['nombre' => 'costo operaciones', 'valor' => 406],
@@ -22,9 +37,9 @@ class ParametersSeeder extends Seeder
         ];
 
         foreach ($costParameters as $parameter) {
-            DB::table('parameters')->updateOrInsert(
+            Parameter::updateOrCreate(
                 ['nombre' => $parameter['nombre']],
-                ['valor' => json_encode($parameter['valor'])]
+                ['valor' => $parameter['valor']]
             );
         }
 

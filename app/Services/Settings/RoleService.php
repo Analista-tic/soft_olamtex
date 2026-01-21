@@ -22,7 +22,10 @@ class RoleService
     public function create(array $data): Role
     {
         return DB::transaction(function () use ($data) {
-            $role = Role::create(['name' => $data['name']]);
+            $role = Role::create([
+                'name' => $data['name'],
+                'area' => $data['area'] ?? null,
+            ]);
             if (!empty($data['permissions'])) {
                 $role->syncPermissions($data['permissions']);
             }
@@ -33,7 +36,10 @@ class RoleService
     public function update(Role $role, array $data): Role
     {
         return DB::transaction(function () use ($role, $data) {
-            $role->update(['name' => $data['name']]);
+            $role->update([
+                'name' => $data['name'],
+                'area' => $data['area'] ?? $role->area,
+            ]);
             if (array_key_exists('permissions', $data)) {
                 $role->syncPermissions($data['permissions'] ?? []);
             }

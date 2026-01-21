@@ -35,6 +35,8 @@ const props = withDefaults(defineProps<{
     showPlaceholderOption?: boolean;
     searchThreshold?: number;
     buttonClass?: string;
+    allowCustom?: boolean;
+    customOptionLabel?: string;
 }>(), {
     required: false,
     multiple: false,
@@ -45,6 +47,8 @@ const props = withDefaults(defineProps<{
     showPlaceholderOption: true,
     searchThreshold: 5,
     buttonClass: '',
+    allowCustom: false,
+    customOptionLabel: '',
 });
 
 const emit = defineEmits<{
@@ -110,6 +114,34 @@ const filteredOptions = computed(() => {
     );
 });
 
+const normalizedSearchTerm = computed(() => searchTerm.value.trim());
+const hasExactMatch = computed(() => {
+    if (!normalizedSearchTerm.value) return false;
+    const term = normalizedSearchTerm.value.toLowerCase();
+    return props.options.some((option) => option.name.toLowerCase() === term);
+});
+
+const customOption = computed<Option | null>(() => {
+    if (!props.allowCustom || props.multiple) return null;
+    if (!normalizedSearchTerm.value || hasExactMatch.value) return null;
+    const label = props.customOptionLabel
+        ? props.customOptionLabel.replace('{value}', normalizedSearchTerm.value)
+        : `Usar "${normalizedSearchTerm.value}"`;
+    return { id: normalizedSearchTerm.value, name: label };
+});
+
+const customSelection = computed<Option | null>(() => {
+    if (!props.allowCustom || props.multiple) return null;
+    const modelValue = localModelValue.value;
+    if (modelValue === null || isLocalModelArray(modelValue)) {
+        return null;
+    }
+    const match = props.options.find((option) => option.id == modelValue);
+    if (match) return null;
+    const label = String(modelValue);
+    return label ? { id: modelValue, name: label } : null;
+});
+
 const groupedOptions = computed(() => {
     const groups: Array<{ label: string; options: Option[] }> = [];
     const map = new Map<string, number>();
@@ -140,7 +172,7 @@ const comboboxValue = computed<Option | Option[] | null>(() => {
     if (modelValue === null || isLocalModelArray(modelValue)) {
         return null;
     }
-    return props.options.find((option) => option.id == modelValue) ?? null;
+    return props.options.find((option) => option.id == modelValue) ?? customSelection.value ?? null;
 });
 
 const selectedOptions = computed(() => {
@@ -267,6 +299,32 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                             <slot name="header" />
                         </div>
                         <ComboboxOption
+                            v-if="customOption"
+                            :value="customOption"
+                        >
+                            <template #default="{ active }">
+                                <div
+                                    :class="[
+                                        'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
+                                        active ? 'bg-primary text-primary-foreground' : ''
+                                    ]"
+                                >
+                                    <span>
+                                        {{ customOption?.name }}
+                                    </span>
+                                    <span
+                                        v-if="customOption && isOptionSelected(customOption)"
+                                        :class="[
+                                            'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
+                                            active ? 'text-white' : 'text-blue-600'
+                                        ]"
+                                    >
+                                        <Check class="h-4 w-4" />
+                                    </span>
+                                </div>
+                            </template>
+                        </ComboboxOption>
+                        <ComboboxOption
                             v-if="!multiple && showPlaceholderOption"
                             :value="null"
                             disabled
@@ -314,7 +372,7 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
                             </template>
                         </template>
                         <div
-                            v-if="filteredOptions.length === 0"
+                            v-if="filteredOptions.length === 0 && !customOption"
                             class="px-3 py-2 text-sm text-muted-foreground/70"
                         >
                             No se encontraron opciones.

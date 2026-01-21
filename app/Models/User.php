@@ -23,6 +23,7 @@ class User extends Authenticatable implements \App\Contracts\HasAuditLabel
     protected $fillable = [
         'name',
         'email',
+        'area',
         'password',
     ];
 

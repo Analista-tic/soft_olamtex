@@ -34,6 +34,7 @@ use App\Http\Controllers\Settings\RetentionController;
 use App\Http\Controllers\Common\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
+use App\Http\Controllers\Inventory\InventoryRequestController;
 
 // Página principal
 Route::get('/', fn() => redirect('login'))->name('home');
@@ -388,6 +389,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('inventario/ajuste-inventario/crear', function () {
         return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
     })->name('inventario.ajuste-inventario.create');
+
+    // === SOLICITUDES INTERNAS ===
+    Route::prefix('inventario/solicitudes-internas')->name('inventory-requests.')->group(function () {
+        Route::get('/', [InventoryRequestController::class, 'index'])->name('index');
+        Route::get('/data', [InventoryRequestController::class, 'getData'])->name('data');
+        Route::get('/next-number', [InventoryRequestController::class, 'nextNumber'])->name('next-number');
+        Route::get('/{inventoryRequest}', [InventoryRequestController::class, 'show'])->name('show');
+        Route::post('/', [InventoryRequestController::class, 'store'])->name('store');
+        Route::put('/{inventoryRequest}', [InventoryRequestController::class, 'update'])->name('update');
+        Route::post('/{inventoryRequest}/deliver', [InventoryRequestController::class, 'deliver'])->name('deliver');
+        Route::post('/{inventoryRequest}/reject', [InventoryRequestController::class, 'reject'])->name('reject');
+    });
 
     // === INVENTARIO DE ITEMS ===
     Route::prefix('inventario-item')->name('inventario-item.')->group(function () {

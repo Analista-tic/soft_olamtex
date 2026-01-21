@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
+import SelectField from '@/components/SelectField.vue';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { ref, watch } from 'vue';
+import { watch } from 'vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -25,13 +27,22 @@ const permissionsByModule: Record<string, string[]> = {
 
 const form = ref<{
     id: number | null;
+    area: string;
     name: string;
     permissions: string[];
 }>({
     id: null,
+    area: '',
     name: '',
     permissions: [],
 });
+
+import { ref } from 'vue';
+const areas = ref([]);
+async function fetchAreas() {
+    const { data } = await axios.get('/api/parameters/areas');
+    areas.value = data;
+}
 
 const localIsOpen = ref(props.isOpen);
 const globalSelectAll = ref(false);
@@ -40,6 +51,7 @@ watch(
     () => props.isOpen,
     (newValue) => {
         localIsOpen.value = newValue;
+        if (newValue) fetchAreas();
     },
     { immediate: true }
 );
@@ -57,6 +69,7 @@ watch(
         if (newRole) {
             form.value = {
                 id: newRole.id,
+                area: newRole.area || '',
                 name: newRole.name,
                 permissions: [...(newRole.permissions || []).map((p: { name: string }) => p.name)],
             };
@@ -76,7 +89,7 @@ watch(
                 }
             }, 0);
         } else {
-            form.value = { id: null, name: '', permissions: [] };
+            form.value = { id: null, area: '', name: '', permissions: [] };
         }
     },
     { immediate: true },
@@ -174,6 +187,24 @@ function handleCheckboxChange(event: Event, module: string): void {
                 <div class="mb-4 flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <Label class="text-sm font-medium">
+                            Área<span class="text-red-500">*</span>
+                        </Label>
+                        <HelpTooltip
+                            text="Selecciona el área a la que pertenece este rol."
+                            aria-label="Ayuda sobre área"
+                        />
+                    </div>
+                    <SelectField
+                        label=""
+                        v-model="form.area"
+                        :options="areas.map(a => ({ id: a.name, label: a.name }))"
+                        placeholder="Selecciona un área"
+                        required
+                    />
+                </div>
+                <div class="mb-4 flex flex-col gap-1">
+                    <div class="flex items-center gap-2">
+                        <Label class="text-sm font-medium">
                             Nombre del Rol<span class="text-red-500">*</span>
                         </Label>
                         <HelpTooltip
@@ -183,7 +214,7 @@ function handleCheckboxChange(event: Event, module: string): void {
                     </div>
                     <InputField label="" v-model="form.name" placeholder="Nombre del rol" required />
                 </div>
-                
+    
                 <div class="mb-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">

@@ -72,6 +72,7 @@ const prepareLocalForm = (source: Partial<Item>): ItemForm => {
     return {
         ...source,
         reference: source.reference || '',
+        bar_code: source.bar_code ?? '',
         tax: typeof source.tax === 'object' && source.tax !== null ? source.tax : null,
         tax_id: resolvedTaxId,
         item_type: normalizeItemType(source.item_type),

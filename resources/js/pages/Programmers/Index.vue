@@ -314,8 +314,8 @@ onMounted(async () => {
                         placeholder="Filtrar Estado"
                         :options="[
                             { id: 'all', name: 'Todos' },
-                            { id: 'Completo', name: 'Completo' },
-                            { id: 'Incompleto', name: 'Incompleto' }
+                            { id: 'complete', name: 'Completo' },
+                            { id: 'incomplete', name: 'Incompleto' }
                         ]"
                         :button-class="statusButtonClasses"
                     />

@@ -40,6 +40,7 @@ class RoleController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name',
+            'area' => 'required|string|max:255',
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name',
         ]);
@@ -73,6 +74,7 @@ class RoleController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
+            'area' => 'required|string|max:255',
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name',
         ]);

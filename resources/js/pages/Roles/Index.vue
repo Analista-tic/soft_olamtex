@@ -119,7 +119,7 @@ onMounted(fetchRoles);
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestiön de Roles</h1>
+                <h1 class="text-lg font-bold">Gestión de Roles</h1>
                 <Button
                     v-if="canCreate"
                     @click="openFormDialog()"

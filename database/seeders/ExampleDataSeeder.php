@@ -388,20 +388,11 @@ class ExampleDataSeeder extends Seeder
 
         // Fichas de producto (ProductSheets)
         // Obtener IDs desde la tabla parameters (ya no insertamos en tablas de catálogos)
-        $sectionsParam = DB::table('parameters')->where('nombre', 'sections')->first();
-        $sectionId = $sectionsParam ? json_decode($sectionsParam->valor, true)[0]['id'] : 1;
-
-        $groupsParam = DB::table('parameters')->where('nombre', 'groups')->first();
-        $groupId = $groupsParam ? json_decode($groupsParam->valor, true)[0]['id'] : 1;
-
-        $brandsParam = DB::table('parameters')->where('nombre', 'brands')->first();
-        $brandId = $brandsParam ? json_decode($brandsParam->valor, true)[0]['id'] : 1;
-
-        $worldsParam = DB::table('parameters')->where('nombre', 'worlds')->first();
-        $worldId = $worldsParam ? json_decode($worldsParam->valor, true)[0]['id'] : 1;
-
-        $fabricBasesParam = DB::table('parameters')->where('nombre', 'fabric_bases')->first();
-        $fabricBaseId = $fabricBasesParam ? json_decode($fabricBasesParam->valor, true)[0]['id'] : 1;
+        $sectionId = $this->getParameterFirstId('sections');
+        $groupId = $this->getParameterFirstId('groups');
+        $brandId = $this->getParameterFirstId('brands');
+        $worldId = $this->getParameterFirstId('worlds');
+        $fabricBaseId = $this->getParameterFirstId('fabric_bases');
 
         // Product Sheets - Usar updateOrInsert para evitar duplicados
         DB::table('product_sheets')->updateOrInsert(
@@ -451,8 +442,7 @@ class ExampleDataSeeder extends Seeder
         $productSheetId = DB::table('product_sheets')->where('reference', 'MUESTRA-001')->value('id');
 
         // Obtener el ID del destino desde parameters
-        $destinationsParam = DB::table('parameters')->where('nombre', 'destinations')->first();
-        $destinationId = $destinationsParam ? json_decode($destinationsParam->valor, true)[0]['id'] : 1;
+        $destinationId = $this->getParameterFirstId('destinations');
 
         DB::table('programmers')->insert([
             [
@@ -623,6 +613,26 @@ class ExampleDataSeeder extends Seeder
                     'updated_at' => now(),
                 ]);
             }
+
         }
+    }
+
+    private function getParameterFirstId(string $name, int $fallback = 1): int
+    {
+        $value = DB::table('parameters')->where('nombre', $name)->value('valor');
+        if ($value === null) {
+            return $fallback;
+        }
+
+        $decoded = json_decode($value, true);
+        if (is_string($decoded)) {
+            $decoded = json_decode($decoded, true);
+        }
+
+        if (!is_array($decoded) || !isset($decoded[0]['id'])) {
+            return $fallback;
+        }
+
+        return (int) $decoded[0]['id'];
     }
 }
