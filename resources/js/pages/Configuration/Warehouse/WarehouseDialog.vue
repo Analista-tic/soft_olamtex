@@ -2,6 +2,9 @@
 import { computed, ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import type { Warehouse } from '@/domain/inventory';
 
 const props = defineProps<{
@@ -55,15 +58,39 @@ function handleSubmit() {
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear Bodega' : 'Editar Bodega' }}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription class="pb-2">
                     {{ dialogType === 'create' ? 'Completa los campos para crear una nueva bodega.' : 'Actualiza los datos de la bodega seleccionada.' }}
                 </DialogDescription>
             </DialogHeader>
             <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
-            <div class="space-y-4">
-                <InputField label="Nombre" v-model="nameValue" placeholder="Nombre" required />
-                <InputField label="Observacion" v-model="observationValue" placeholder="Observacion" />
-            </div>
+                <TooltipProvider>
+                    <div class="space-y-4">
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <Label class="text-sm font-medium">
+                                    Nombre<span class="text-red-500">*</span>
+                                </Label>
+                                <HelpTooltip
+                                    text="Nombre identificador de la bodega (ej: Bodega Principal, Almacén Norte)."
+                                    aria-label="Ayuda sobre nombre de bodega"
+                                />
+                            </div>
+                            <InputField v-model="nameValue" label="" placeholder="Nombre de la bodega" />
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <Label class="text-sm font-medium">
+                                    Observación
+                                </Label>
+                                <HelpTooltip
+                                    text="Notas adicionales sobre la ubicación, características o uso de esta bodega."
+                                    aria-label="Ayuda sobre observación"
+                                />
+                            </div>
+                            <InputField v-model="observationValue" label="" placeholder="Observaciones opcionales" />
+                        </div>
+                    </div>
+                </TooltipProvider>
             </div>
             <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2">
                 <button

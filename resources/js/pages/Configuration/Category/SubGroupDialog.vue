@@ -159,7 +159,7 @@ async function confirmDeleteGroup() {
 
 <template>
   <Dialog v-model:open="internalIsOpen">
-         <DialogContent class="max-h-[90vh] flex flex-col w-full p-6 sm:max-w-4xl">
+         <DialogContent class="max-h-[150vh] flex flex-col w-full p-6 sm:max-w-4xl">
                <TooltipProvider>
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogType === 'create' ? 'Crear Subgrupo' : 'Editar Subgrupo' }}</DialogTitle>
