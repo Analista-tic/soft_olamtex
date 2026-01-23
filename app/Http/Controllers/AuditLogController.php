@@ -41,7 +41,7 @@ class AuditLogController extends Controller
 
     protected function extractFilters(Request $request): array
     {
-        return $request->only(['user', 'module', 'action', 'start_date', 'end_date']);
+        return $request->only(['user', 'module', 'action', 'start_date', 'end_date', 'area_id']);
     }
 
     /**

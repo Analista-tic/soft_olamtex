@@ -62,6 +62,7 @@ class AuditLogService
         $actionFilter = $this->normalizeFilter($filters, 'action');
         $startDate = $this->normalizeFilter($filters, 'start_date');
         $endDate = $this->normalizeFilter($filters, 'end_date');
+        $areaId = $this->normalizeFilter($filters, 'area_id');
 
         $logs = AuditLog::query()
             ->when($userFilter, fn($query) => $query->where('user_name', 'like', '%' . $userFilter . '%'))
@@ -69,12 +70,28 @@ class AuditLogService
             ->when($actionFilter, fn($query) => $query->where('action', $actionFilter))
             ->when($startDate, fn($query) => $query->whereDate('created_at', '>=', Carbon::parse($startDate)))
             ->when($endDate, fn($query) => $query->whereDate('created_at', '<=', Carbon::parse($endDate)))
+            ->when($areaId, fn($query) => $query->whereHas('user', fn($query) => $query->where('area_id', $areaId)))
             ->latest()
             ->paginate($perPage);
 
         $logs->getCollection()->transform(function (AuditLog $log) {
             $log->module_label = $this->translateModuleName($log->module);
             $log->resource_label = $this->resolveResourceLabel($log);
+            // Obtener área desde parámetros
+            $log->user_area = null;
+            if ($log->user_id) {
+                $user = \App\Models\User::find($log->user_id);
+                if ($user && $user->area_id) {
+                    // Buscar área en parámetros
+                    $param = \App\Models\Parameter::where('nombre', 'areas')->first();
+                    if ($param && is_array($param->valor)) {
+                        $area = collect($param->valor)->firstWhere('id', $user->area_id);
+                        if ($area) {
+                            $log->user_area = $area['name'] ?? $area['nombre'] ?? null;
+                        }
+                    }
+                }
+            }
             return $log;
         });
 

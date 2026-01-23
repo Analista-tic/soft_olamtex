@@ -28,12 +28,28 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue';
 import axios from 'axios';
 import { Head } from '@inertiajs/vue3';
-import { computed, reactive, ref, watch } from 'vue';
-import { useCompanyInfo } from '@/composables/useCompanyInfo';
-import type { AuditLog, BreadcrumbItem, PaginatedData, SharedData } from '@/domain/shared';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import type { BreadcrumbItem, PaginatedData, SharedData } from '@/domain/shared';
 import { Eye } from 'lucide-vue-next';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
+interface AuditLog {
+    id: number;
+    user_id: number | null;
+    user_name: string | null;
+    action: string;
+    auditable_type: string | null;
+    auditable_id: string | number | null;
+    module: string | null;
+    module_label?: string;
+    resource_label?: string;
+    company_id?: number | null;
+    old_values?: Record<string, unknown> | null;
+    new_values?: Record<string, unknown> | null;
+    created_at: string | null;
+    user_area?: string | null;
+    [key: string]: any;
+}
 interface AuditPageProps extends SharedData {
     logs: PaginatedData<AuditLog>;
     filters: {
@@ -52,7 +68,6 @@ interface DiffEntry {
 }
 
 const props = defineProps<AuditPageProps>();
-const { company } = useCompanyInfo();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Panel administrativo', href: route('panel-administrativo') },
@@ -65,6 +80,64 @@ const filters = reactive({
     module: props.filters.module ?? '',
     action: props.filters.action ?? null,
     date: initialDate,
+    area: '',
+});
+// Opciones de área
+type AreaOption = { id: number | string; name: string };
+type NumericAreaOption = { id: number; name: string };
+const areaOptions = ref<AreaOption[]>([]);
+const areaSelectOptions = computed(() => [
+    { id: '', name: 'Todas las áreas' },
+    ...areaOptions.value,
+]);
+const selectedAreaId = ref(filters.area ?? '');
+const isAreaFilterActive = computed(() => selectedAreaId.value !== '' && selectedAreaId.value !== null);
+const areaFilterButtonClasses = useFilterButtonClasses(isAreaFilterActive);
+
+function normalizeAreas(payload: unknown): AreaOption[] {
+    if (typeof payload === 'string') {
+        try {
+            return normalizeAreas(JSON.parse(payload));
+        } catch {
+            return [];
+        }
+    }
+    if (!Array.isArray(payload)) {
+        if (payload && typeof payload === 'object') {
+            const record = payload as Record<string, unknown>;
+            if ('data' in record) return normalizeAreas(record.data);
+            if ('valor' in record) return normalizeAreas(record.valor);
+        }
+        return [];
+    }
+    return payload
+        .map((area) => {
+            if (area && typeof area === 'object') {
+                const record = area as Record<string, unknown>;
+                const name = String(record.name ?? record.nombre ?? record.label ?? '').trim();
+                if (!name) return null;
+                const rawId = record.id;
+                const parsedId = typeof rawId === 'number' ? rawId : Number(rawId);
+                if (!Number.isFinite(parsedId)) return null;
+                return { id: parsedId, name };
+            }
+            return null;
+        })
+        .filter((area): area is NumericAreaOption => Boolean(area));
+}
+
+async function fetchAreas() {
+    try {
+        const { data } = await axios.get('/api/parameters/areas');
+        areaOptions.value = normalizeAreas(data);
+    } catch (error) {
+        console.error('Error al cargar áreas:', error);
+        areaOptions.value = [];
+    }
+}
+
+onMounted(() => {
+    fetchAreas();
 });
 
 const actionOptions = [
@@ -143,6 +216,9 @@ async function fetchLogs(page = 1) {
         params.start_date = selectedDate;
         params.end_date = selectedDate;
     }
+    if (filters.area && filters.area !== '') {
+        params.area_id = filters.area;
+    }
 
     try {
         const response = await axios.get(route('auditoria.data'), { params });
@@ -197,6 +273,15 @@ watch(
     },
 );
 
+watch(selectedAreaId, (value) => {
+    const normalized = value ?? '';
+    const previous = filters.area;
+    filters.area = normalized;
+    if (normalized !== previous) {
+        fetchLogs(1);
+    }
+});
+
 watch(logs, () => {
     diffCache.clear();
 });
@@ -205,6 +290,7 @@ function handlePageChange(page: number) {
     if (!page || page === currentPage.value) {
         return;
     }
+    currentPage.value = page;
     fetchLogs(page);
 }
 
@@ -517,6 +603,18 @@ watch(detailDialogOpen, (value) => {
                         />
                     </FilterField>
                     <FilterField
+                        label="Área"
+                        :active="isAreaFilterActive"
+                        class="min-w-[200px]"
+                    >
+                        <SelectField
+                            v-model="selectedAreaId"
+                            :options="areaSelectOptions"
+                            placeholder="Todas las áreas"
+                            :button-class="areaFilterButtonClasses"
+                        />
+                    </FilterField>
+                    <FilterField
                         label="Módulo"
                         :active="Boolean(selectModule?.trim())"
                         class="min-w-[220px]"
@@ -566,7 +664,8 @@ watch(detailDialogOpen, (value) => {
                     <TableHeader>
                         <TableRow>
                             <TableHead class="px-4 py-2 text-left">Fecha</TableHead>
-                            <TableHead class="px-4 py-2 text-left w-[250px]">Usuario</TableHead>
+                            <TableHead class="px-4 py-2 text-left w-[150px]">Área</TableHead>
+                            <TableHead class="px-4 py-2 text-left w-[220px]">Usuario</TableHead>
                             <TableHead class="px-4 py-2 text-left">Acción</TableHead>
                             <TableHead class="px-4 py-2 text-left">Módulo</TableHead>
                             <TableHead class="px-4 py-2 text-left">Recurso</TableHead>
@@ -586,14 +685,19 @@ watch(detailDialogOpen, (value) => {
                                 {{ formatTimestamp(log.created_at) }}
                             </TableCell>
 
+                            <!-- ÁREA -->
+                            <TableCell class="px-4 py-3 text-left">
+                                <span v-if="log.user_area" class="font-semibold text-xs">
+                                    {{ log.user_area }}
+                                </span>
+                                <span v-else class="text-xs text-muted-foreground">-</span>
+                            </TableCell>
+
                             <!-- USUARIO -->
                             <TableCell class="px-4 py-3 text-left">
                                 <div class="font-semibold">
                                     {{ log.user_name ?? 'Sistema' }}
                                 </div>
-                                <p class="mt-0.5 text-xs text-muted-foreground/70">
-                                    Empresa: {{ company?.name ?? 'Sin compañía asignada' }}
-                                </p>
                             </TableCell>
 
                             <!-- ACCIÓN -->
@@ -652,8 +756,8 @@ watch(detailDialogOpen, (value) => {
                         :total="totalItems"
                         :sibling-count="1"
                         show-edges
-                        v-model:current-page="currentPage"
-                        @page-changed="handlePageChange"
+                        :page="currentPage"
+                        @update:page="handlePageChange"
                     >
                         <PaginationList
                             v-slot="{ items }"
@@ -678,7 +782,6 @@ watch(detailDialogOpen, (value) => {
                                                 ? 'default'
                                                 : 'outline'
                                         "
-                                        @click="handlePageChange(item.value)"
                                     >
                                         {{ item.value }}
                                     </Button>

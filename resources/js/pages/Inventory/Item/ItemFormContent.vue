@@ -270,6 +270,25 @@ const accountingCostOptions = [
     { id: 'costo_venta', name: 'Costo de venta' },
 ];
 
+function applyFormData(source: Partial<Item>) {
+    localForm.value = prepareLocalForm(source);
+    unitMeasure.value = getInitialUnitMeasure(source);
+    fillExtraFields(source.extra_fields);
+    imageFile.value = null;
+    imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
+    updateNameField();
+    syncGroupFromSubgroup();
+}
+
+async function loadItemDetails(itemId: number) {
+    try {
+        const { data } = await axios.get(`/item/${itemId}`);
+        applyFormData(data);
+    } catch (error) {
+        console.error('Error al cargar el item:', error);
+    }
+}
+
 function openImageZoom() {
     if (!imagePreview.value) return;
     isImageZoomOpen.value = true;
@@ -603,12 +622,7 @@ function updateWarehouseName(idx: number) {
 watch(
     () => props.form,
     (newVal) => {
-        localForm.value = prepareLocalForm(newVal);
-        unitMeasure.value = getInitialUnitMeasure(newVal);
-        fillExtraFields(newVal.extra_fields);
-        imageFile.value = null;
-        updateNameField();
-        syncGroupFromSubgroup();
+        applyFormData(newVal);
     },
     { deep: true },
 );
@@ -860,8 +874,11 @@ function openCatalog(to: 'warehouse') {
 // Estado de apertura del diálogo
 watch(
     () => props.isOpen,
-    (value) => {
+    async (value) => {
         if (value) {
+            if (props.dialogType !== 'create' && props.form.id) {
+                await loadItemDetails(Number(props.form.id));
+            }
             void refreshWarehouseStocksForCurrentItem();
         } else {
             warehouseStocks.value = [];
