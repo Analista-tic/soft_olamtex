@@ -6,8 +6,9 @@ import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.
 import TextareaField from '@/components/TextareaField.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
-import { computed, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import InventoryRequestItemsTable from './InventoryRequestItemsTable.vue';
+import { Image } from 'lucide-vue-next';
 
 type RequestItem = {
     item_id: number | null;
@@ -23,6 +24,8 @@ type InventoryRequestForm = {
     observation?: string | null;
     items: RequestItem[];
     status?: string | null;
+    image?: File | null;
+    image_url?: string | null;
 };
 
 const props = defineProps<{
@@ -44,8 +47,20 @@ const errorMessage = ref('');
 const itemsTableRef = ref<{ addItem: () => void } | null>(null);
 const nextDocumentNumber = ref('');
 const isLoadingNumber = ref(false);
+const imagePreview = ref<string | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const isReadonly = computed(() => props.dialogType === 'view');
+
+const safeDocumentNumber = computed({
+    get: () => localForm.value.document_number ?? '',
+    set: (val: string) => { localForm.value.document_number = val; },
+});
+
+const safeObservation = computed({
+    get: () => localForm.value.observation ?? '',
+    set: (val: string) => { localForm.value.observation = val; },
+});
 
 function createDefaultForm(): InventoryRequestForm {
     return {
@@ -54,6 +69,8 @@ function createDefaultForm(): InventoryRequestForm {
         delivery_date: '',
         observation: '',
         items: [createEmptyItem()],
+        image: null,
+        image_url: null,
     };
 }
 
@@ -69,7 +86,15 @@ function getTodayDate() {
     return new Date().toISOString().split('T')[0];
 }
 
+function revokePreview() {
+    if (imagePreview.value && imagePreview.value.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview.value);
+    }
+}
+
 function resetForm() {
+    revokePreview();
+    imagePreview.value = null;
     localForm.value = createDefaultForm();
     successMessage.value = '';
     errorMessage.value = '';
@@ -78,7 +103,12 @@ function resetForm() {
 async function fetchRequest(id: number) {
     try {
         const { data } = await axios.get(`/inventario/solicitudes-internas/${id}`);
-        const payload = data.data;
+        const payload = data?.data ?? {};
+        const rawImagePath = typeof payload.image === 'string' ? payload.image.trim() : '';
+        const normalizedImagePath = rawImagePath
+            ? `/storage/${rawImagePath.replace(/^\/?storage\//, '')}`
+            : null;
+        const resolvedImageUrl = normalizedImagePath || payload.image_url || null;
         localForm.value = {
             id: payload.id,
             document_number: payload.document_number ?? '',
@@ -87,14 +117,20 @@ async function fetchRequest(id: number) {
             observation: payload.observation ?? '',
             status: payload.status ?? null,
             items: Array.isArray(payload.items) && payload.items.length
-            ? payload.items.map((item: any) => ({
-                item_id: item.item_id ?? null,
-                name: item.item?.name || item.item_name || '',
-                quantity: item.requested_quantity ?? 0,
-            }))
-            : [createEmptyItem()],
+                ? payload.items.map((item: any) => ({
+                    item_id: item.item_id ?? null,
+                    name: item.item?.name || item.item_name || '',
+                    quantity: item.requested_quantity ?? 0,
+                }))
+                : [createEmptyItem()],
+            image: null,
+            image_url: resolvedImageUrl,
         };
-    } catch (e) {
+
+        if (localForm.value.image_url) {
+            imagePreview.value = localForm.value.image_url;
+        }
+    } catch {
         errorMessage.value = 'No se pudo cargar la solicitud seleccionada.';
     }
 }
@@ -144,11 +180,32 @@ async function fetchNextNumber() {
         const { data } = await axios.get('/inventario/solicitudes-internas/next-number');
         nextDocumentNumber.value = data?.document_number ?? '';
         localForm.value.document_number = nextDocumentNumber.value;
-    } catch (e) {
+    } catch {
         nextDocumentNumber.value = '';
     } finally {
         isLoadingNumber.value = false;
     }
+}
+
+function onImageChange(e: Event) {
+    if (isReadonly.value) return;
+    const target = e.target as HTMLInputElement;
+    const file = target.files && target.files[0];
+
+    revokePreview();
+
+    if (file) {
+        localForm.value.image = file;
+        imagePreview.value = URL.createObjectURL(file);
+    } else {
+        localForm.value.image = null;
+        imagePreview.value = localForm.value.image_url ?? null;
+    }
+}
+
+function triggerFileInput() {
+    if (isReadonly.value) return;
+    fileInputRef.value?.click();
 }
 
 async function handleSubmit() {
@@ -160,18 +217,45 @@ async function handleSubmit() {
     if (!validateForm()) return;
 
     isLoading.value = true;
-    const payload: any = {
-        date: localForm.value.date,
-        delivery_date: localForm.value.delivery_date || null,
-        observation: localForm.value.observation || null,
-        items: (localForm.value.items || [])
-            .map((item) => ({
-                item_id: item.item_id,
-                item_name: item.item_id ? null : item.name,
-                quantity: Number(item.quantity) || 0,
-            }))
-            .filter((item) => (item.item_id || (item.item_name && String(item.item_name).trim())) && Number(item.quantity) > 0),
-    };
+    let payload: any;
+    const headers: Record<string, string> = {};
+
+    if (localForm.value.image) {
+        payload = new FormData();
+        payload.append('date', localForm.value.date);
+        payload.append('delivery_date', localForm.value.delivery_date || '');
+        payload.append('observation', localForm.value.observation || '');
+        payload.append('items', JSON.stringify(
+            (localForm.value.items || [])
+                .map((item) => ({
+                    item_id: item.item_id,
+                    item_name: item.item_id ? null : item.name,
+                    quantity: Number(item.quantity) || 0,
+                }))
+                .filter((item) => (item.item_id || (item.item_name && String(item.item_name).trim())) && Number(item.quantity) > 0),
+        ));
+        payload.append('image', localForm.value.image);
+        if (props.dialogType !== 'create') {
+            payload.append('id', String(localForm.value.id));
+        }
+        headers['Content-Type'] = 'multipart/form-data';
+    } else {
+        payload = {
+            date: localForm.value.date,
+            delivery_date: localForm.value.delivery_date || null,
+            observation: localForm.value.observation || null,
+            items: (localForm.value.items || [])
+                .map((item) => ({
+                    item_id: item.item_id,
+                    item_name: item.item_id ? null : item.name,
+                    quantity: Number(item.quantity) || 0,
+                }))
+                .filter((item) => (item.item_id || (item.item_name && String(item.item_name).trim())) && Number(item.quantity) > 0),
+        };
+        if (props.dialogType !== 'create') {
+            payload.id = localForm.value.id;
+        }
+    }
 
     if (props.dialogType === 'create') {
         delete payload.id;
@@ -183,7 +267,7 @@ async function handleSubmit() {
         : `/inventario/solicitudes-internas/${localForm.value.id}`;
 
     try {
-        await axios({ method, url, data: payload });
+        await axios({ method, url, data: payload, headers });
         const msg = props.dialogType === 'create'
             ? 'Solicitud creada correctamente.'
             : 'Solicitud actualizada correctamente.';
@@ -213,6 +297,19 @@ watch(
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) emit('close');
 });
+
+watch(
+    () => localForm.value.image_url,
+    (url) => {
+        if (!localForm.value.image) {
+            imagePreview.value = url ?? null;
+        }
+    },
+);
+
+onUnmounted(() => {
+    revokePreview();
+});
 </script>
 
 <template>
@@ -238,63 +335,103 @@ watch(dialogOpen, (isOpen) => {
             />
             <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form @submit.prevent="handleSubmit()" class="space-y-6">
-                    <div class="mt-8 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <InputField
-                                label="# Solicitud"
-                                v-model="localForm.document_number"
-                                placeholder="SINT-001"
-                                :readonly="true"
-                                :disabled="true"
-                            />
-                            <span v-if="props.dialogType === 'create' && isLoadingNumber" class="text-xs text-muted-foreground">
-                                Generando consecutivo...
-                            </span>
-                            <InputDate
-                                v-model="localForm.date"
-                                label="Fecha de solicitud"
+                    <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+                        <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <InputField
+                                    label="# Solicitud"
+                                    v-model="safeDocumentNumber"
+                                    placeholder="SINT-001"
+                                    :readonly="true"
+                                    :disabled="true"
+                                />
+                                <span v-if="props.dialogType === 'create' && isLoadingNumber" class="text-xs text-muted-foreground">
+                                    Generando consecutivo...
+                                </span>
+                                <InputDate
+                                    v-model="localForm.date"
+                                    label="Fecha de solicitud"
+                                    :required="true"
+                                    :disabled="isReadonly"
+                                />
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <InputDate
+                                    v-if="localForm.status === 'entregado'"
+                                    v-model="localForm.delivery_date"
+                                    label="Fecha de entrega"
+                                    :disabled="isReadonly"
+                                />
+                                <div
+                                    class="flex items-center text-xs text-muted-foreground"
+                                    :class="localForm.status === 'entregado' ? '' : 'col-span-2'"
+                                >
+                                    {{ localForm.status ? `Estado: ${localForm.status}` : '' }}
+                                </div>
+                            </div>
+
+                            <InventoryDetailTableLayout
+                                :showCreateLineButton="!isReadonly"
+                                :createLineButtonDisabled="isReadonly"
+                                buttonLabel="Agregar item"
+                                title="Items solicitados"
+                                @create-line="handleAddLine"
+                            >
+                                <InventoryRequestItemsTable
+                                    ref="itemsTableRef"
+                                    :items="localForm.items || []"
+                                    :readonly="isReadonly"
+                                    @update:items="(items) => (localForm.items = items)"
+                                />
+                            </InventoryDetailTableLayout>
+
+                            <TextareaField
+                                v-model="safeObservation"
+                                label="Observacion / Motivo"
+                                placeholder="Describe el motivo de la solicitud"
                                 :required="true"
-                                :disabled="isReadonly"
+                                :readonly="isReadonly"
                             />
                         </div>
 
-                        <div class="grid grid-cols-2 gap-4">
-                            <InputDate
-                                v-if="localForm.status === 'entregado'"
-                                v-model="localForm.delivery_date"
-                                label="Fecha de entrega"
+                        <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border lg:sticky lg:top-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Imagen</label>
+                            <input
+                                ref="fileInputRef"
+                                type="file"
+                                accept="image/*"
+                                class="hidden"
                                 :disabled="isReadonly"
+                                @change="onImageChange"
                             />
                             <div
-                                class="flex items-center text-xs text-muted-foreground"
-                                :class="localForm.status === 'entregado' ? '' : 'col-span-2'"
+                                :class="[
+                                    'group relative flex h-56 w-full flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-gray-50 text-center transition-all duration-200',
+                                    isReadonly
+                                        ? 'cursor-default opacity-90'
+                                        : 'cursor-pointer hover:border-blue-400 hover:shadow-md',
+                                ]"
+                                @click="triggerFileInput"
                             >
-                                {{ localForm.status ? `Estado: ${localForm.status}` : '' }}
+                                <template v-if="imagePreview">
+                                    <img
+                                        :src="imagePreview"
+                                        alt="Previsualización"
+                                        class="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+                                    />
+                                    <div class="absolute bottom-0 left-0 right-0 bg-black/50 py-1 text-xs text-white">
+                                        {{ isReadonly ? 'Imagen de la solicitud' : 'Cambiar imagen' }}
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <Image class="mb-2 h-12 w-12 text-gray-400" />
+                                    <span class="text-sm text-gray-500">
+                                        {{ isReadonly ? 'Sin imagen' : 'Haz clic para subir imagen' }}
+                                    </span>
+                                </template>
                             </div>
                         </div>
-
-                        <InventoryDetailTableLayout
-                            :showCreateLineButton="!isReadonly"
-                            :createLineButtonDisabled="isReadonly"
-                            buttonLabel="Agregar item"
-                            title="Items solicitados"
-                            @create-line="handleAddLine"
-                        >
-                            <InventoryRequestItemsTable
-                                ref="itemsTableRef"
-                                :items="localForm.items || []"
-                                :readonly="isReadonly"
-                                @update:items="(items) => (localForm.items = items)"
-                            />
-                        </InventoryDetailTableLayout>
-
-                        <TextareaField
-                            v-model="localForm.observation"
-                            label="Observacion / Motivo"
-                            placeholder="Describe el motivo de la solicitud"
-                            :required="true"
-                            :readonly="isReadonly"
-                        />
                     </div>
 
                     <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2 px-4 pb-4">

@@ -32,7 +32,6 @@ type InventoryRequestRow = {
     document_number: string | null;
     date: string;
     delivery_date?: string | null;
-    delivered_at?: string | null;
     status: 'solicitado' | 'rechazado' | 'entregado';
     observation?: string | null;
     created_by_user_id?: number | null;
@@ -111,7 +110,7 @@ async function fetchRequests(page = 1, search = '') {
         isLogistics.value = Boolean(data.is_logistics);
         currentUserId.value = data.current_user_id ?? null;
         errorMessage.value = '';
-    } catch (e) {
+    } catch {
         errorMessage.value = 'No se pudieron cargar las solicitudes.';
     }
 }
@@ -251,7 +250,7 @@ onMounted(() => {
                         <TableRow v-for="request in requests" :key="request.id">
                             <TableCell>{{ request.document_number || `#${request.id}` }}</TableCell>
                             <TableCell>{{ formatDate(request.date) }}</TableCell>
-                            <TableCell>{{ formatDate(request.delivered_at || request.delivery_date) }}</TableCell>
+                            <TableCell>{{ formatDate(request.delivery_date) }}</TableCell>
                             <TableCell>
                                 <Badge :variant="statusVariants[request.status]">
                                     {{ statusLabels[request.status] || request.status }}

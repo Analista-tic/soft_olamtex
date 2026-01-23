@@ -61,6 +61,7 @@ export interface Item extends Timestamps {
     code: string; // Agregado: propiedad code faltante
     reference: string;
     img?: string;
+    img_url?: string;
     stock_min: number;
     stock_max: number;
     bar_code?: string;

@@ -15,7 +15,8 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
-            $table->string('area')->nullable(); // Nueva columna para el área
+                $table->unsignedBigInteger('area_id')->nullable(); // Relación con tabla parameters (áreas)
+                $table->foreign('area_id')->references('id')->on('parameters')->nullOnDelete();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->rememberToken();

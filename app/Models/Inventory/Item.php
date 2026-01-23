@@ -32,6 +32,8 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         'status' => 'boolean',
     ];
 
+    protected $appends = ['img_url'];
+
     /**
      * Mutador para guardar extra_fields como SON.
      */
@@ -96,5 +98,17 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         return $this->belongsToMany(Warehouse::class, 'warehouse_items', 'item_id', 'warehouse_id')
             ->withPivot(['quantity', 'stock_min', 'stock_max'])
             ->withTimestamps();
+    }
+
+    public function getImgUrlAttribute(): ?string
+    {
+        if (!$this->img) {
+            return null;
+        }
+
+        $path = ltrim($this->img, '/');
+        $path = preg_replace('/^storage\\//', '', $path);
+
+        return "/storage/{$path}";
     }
 }

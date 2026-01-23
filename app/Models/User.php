@@ -23,9 +23,14 @@ class User extends Authenticatable implements \App\Contracts\HasAuditLabel
     protected $fillable = [
         'name',
         'email',
-        'area',
+        'area_id',
         'password',
     ];
+
+    public function area()
+    {
+        return $this->belongsTo(Area::class);
+    }
 
     /**
      * The attributes that should be hidden for serialization.

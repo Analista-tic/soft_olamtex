@@ -19,9 +19,9 @@ class InventoryRequest extends Model
         'document_number',
         'date',
         'delivery_date',
-        'delivered_at',
         'status',
         'observation',
+        'image',
         'created_by_user_id',
         'approved_by_user_id',
         'rejected_by_user_id',
@@ -32,9 +32,10 @@ class InventoryRequest extends Model
     protected $casts = [
         'date' => 'date',
         'delivery_date' => 'date',
-        'delivered_at' => 'datetime',
         'rejected_at' => 'datetime',
     ];
+
+    protected $appends = ['image_url'];
 
     public function items()
     {
@@ -54,5 +55,17 @@ class InventoryRequest extends Model
     public function rejectedBy()
     {
         return $this->belongsTo(User::class, 'rejected_by_user_id');
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        if (!$this->image) {
+            return null;
+        }
+
+        $path = ltrim($this->image, '/');
+        $path = preg_replace('/^storage\\//', '', $path);
+
+        return "/storage/{$path}";
     }
 }

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use App\Models\Parameter;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -75,12 +76,19 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver listados operacionales',
         ]);
 
-        // Crear usuarios de ejemplo
+        // Buscar áreas en parameters
+        // Obtener catálogo de áreas desde el parámetro 'areas'
+        $areasParam = Parameter::where('nombre', 'areas')->first();
+        $areas = $areasParam ? $areasParam->valor : [];
+        $areaIds = collect($areas)->mapWithKeys(fn($a) => [$a['name'] => $a['id']])->all();
+
+        // Crear usuarios de ejemplo con área asignada
         $adminUser = User::firstOrCreate([
             'email' => 'admin@gmail.com'
         ], [
             'name' => 'Admin',
-            'password' => Hash::make('12345'), // Encriptar la contraseña
+            'password' => Hash::make('12345'),
+            'area_id' => $areaIds['Contabilidad'] ?? null,
         ]);
         $adminUser->assignRole($admin);
 
@@ -88,7 +96,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'email' => 'general@gmail.com'
         ], [
             'name' => 'General',
-            'password' => Hash::make('12345678'), // Encriptar la contraseña
+            'password' => Hash::make('12345678'),
+            'area_id' => $areaIds['Producción'] ?? null,
         ]);
         $generalUser->assignRole($general);
     }

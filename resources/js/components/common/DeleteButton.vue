@@ -6,8 +6,13 @@ const props = defineProps<{
     customClass?: string // Clase adicional para personalizar estilos
 }>()
 
+const emit = defineEmits<{
+    (event: 'click'): void
+}>()
+
 function handleClick() {
     props.onClick?.()
+    emit('click')
 }
 </script>
 

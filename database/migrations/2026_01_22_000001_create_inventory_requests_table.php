@@ -13,9 +13,9 @@ return new class extends Migration
             $table->string('document_number', 50)->nullable()->index();
             $table->date('date');
             $table->date('delivery_date')->nullable();
-            $table->timestamp('delivered_at')->nullable();
             $table->enum('status', ['solicitado', 'rechazado', 'entregado'])->default('solicitado')->index();
             $table->text('observation')->nullable();
+            $table->string('image')->nullable();
 
             $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('approved_by_user_id')->nullable()->constrained('users')->nullOnDelete();

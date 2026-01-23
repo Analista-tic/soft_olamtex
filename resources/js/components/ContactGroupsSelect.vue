@@ -92,6 +92,7 @@ const selectedOptions = computed(() =>
 );
 
 function handleChange(next: Option['id'][] | Option['id']) {
+    if (props.disabled) return;
     if (Array.isArray(next)) {
         localValue.value = [...next];
     } else if (next === undefined || next === null) {
@@ -102,6 +103,7 @@ function handleChange(next: Option['id'][] | Option['id']) {
 }
 
 function removeOption(optionId: Option['id']) {
+    if (props.disabled) return;
     localValue.value = localValue.value.filter((id) => id !== optionId);
 }
 

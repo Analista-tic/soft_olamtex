@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue'; // Importar el nuevo componente SelectField
-import { ref, watch } from 'vue';
+import ContactGroupsSelect from '@/components/ContactGroupsSelect.vue';
+import axios from 'axios';
+import { computed, onMounted, ref, watch } from 'vue';
 import FormHeader from '@/components/FormHeader.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import Label from '@/components/ui/label/Label.vue';
@@ -12,12 +14,16 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 const props = defineProps<{
     isOpen: boolean;
-    dialogType: 'create' | 'edit';
+    dialogType: 'create' | 'edit' | 'view';
     userData: Partial<User>;
     roles: Role[]; // Recibir roles desde el backend
 }>();
 
-const emit = defineEmits(['close', 'submit']);
+const emit = defineEmits<{
+    (event: 'close'): void;
+    (event: 'submit', payload: Partial<User>): void;
+    (event: 'update:isOpen', value: boolean): void;
+}>();
 
 const internalIsOpen = ref(props.isOpen);
 
@@ -31,16 +37,67 @@ watch(
 watch(
     () => internalIsOpen.value,
     (newValue) => {
-        if (!newValue) {
-            emit('close');
-        }
+        emit('update:isOpen', newValue);
+        if (!newValue) emit('close');
     }
 );
 
 const form = ref<Partial<User>>({ ...props.userData });
 const confirmPassword = ref('');
 const errorMessage = ref('');
-const selectedRoles = ref<string[]>(form.value.roles?.map(role => role.name) || []); // Manejar múltiples roles como nombres
+const isView = computed(() => props.dialogType === 'view');
+
+type AreaOption = { id: number; name: string };
+const areas = ref<AreaOption[]>([]);
+const getRoleKey = (role: Partial<Role>) => {
+    if (role.id !== undefined && role.id !== null) return role.id;
+    const areaId = (role as { area_id?: number | string | null }).area_id;
+    if (areaId !== undefined && areaId !== null && role.name) {
+        return `${areaId}-${role.name}`;
+    }
+    return role.name ?? '';
+};
+
+function normalizeAreas(payload: unknown): AreaOption[] {
+    if (typeof payload === 'string') {
+        try {
+            return normalizeAreas(JSON.parse(payload));
+        } catch {
+            return [];
+        }
+    }
+
+    if (!Array.isArray(payload)) {
+        if (payload && typeof payload === 'object') {
+            const record = payload as Record<string, unknown>;
+            if ('data' in record) return normalizeAreas(record.data);
+            if ('valor' in record) return normalizeAreas(record.valor);
+        }
+        return [];
+    }
+
+    return payload
+        .map((area) => {
+            if (area && typeof area === 'object') {
+                const record = area as Record<string, unknown>;
+                const name = String(record.name ?? record.nombre ?? record.label ?? '').trim();
+                if (!name) return null;
+                const rawId = record.id;
+                const parsedId = typeof rawId === 'number' ? rawId : Number(rawId);
+                if (!Number.isInteger(parsedId)) return null;
+                return { id: parsedId, name };
+            }
+            return null;
+        })
+        .filter((area): area is AreaOption => Boolean(area));
+}
+
+const roleOptions = computed(() =>
+    props.roles.map((role) => {
+        return { id: getRoleKey(role), name: role.name };
+    })
+);
+const selectedRoles = ref<Array<number | string>>(form.value.roles?.map(role => getRoleKey(role)).filter(Boolean) || []);
 
 // Propiedades para mostrar/ocultar contraseñas
 const showPassword = ref(false);
@@ -51,24 +108,62 @@ watch(
     (newData) => {
         form.value = { ...newData };
         confirmPassword.value = '';
-        selectedRoles.value = newData.roles?.map(role => role.name) || []; // Sincronizar roles seleccionados
+        errorMessage.value = '';
+        selectedRoles.value = newData.roles?.map(role => getRoleKey(role)).filter(Boolean) || [];
     },
     { deep: true }
 );
+
+async function fetchAreas() {
+    try {
+        const { data } = await axios.get('/api/parameters/areas');
+        areas.value = normalizeAreas(data);
+    } catch (error) {
+        console.error('Error al cargar áreas:', error);
+        areas.value = [];
+    }
+}
+
+onMounted(fetchAreas);
 
 function closeDialog() {
     internalIsOpen.value = false;
 }
 
 function submitForm() {
+    if (props.dialogType === 'view') {
+        closeDialog();
+        return;
+    }
+    const passwordValue = String(form.value.password ?? '');
+    if (props.dialogType === 'create' && passwordValue.length < 8) {
+        errorMessage.value = 'La contraseña debe tener al menos 8 caracteres.';
+        return;
+    }
+    if (props.dialogType === 'edit' && passwordValue && passwordValue.length < 8) {
+        errorMessage.value = 'La contraseña debe tener al menos 8 caracteres.';
+        return;
+    }
+    if (!selectedRoles.value.length) {
+        errorMessage.value = 'Selecciona al menos un rol.';
+        return;
+    }
     if (form.value.password && form.value.password !== confirmPassword.value) {
         errorMessage.value = 'Las contraseñas no coinciden.';
         return;
     }
 
-    form.value.roles = selectedRoles.value.map(name => ({ id: 0, name, permissions: [] })); // Convertir nombres a objetos con estructura esperada
+    const roleNames = selectedRoles.value
+        .map((selectedId) => props.roles.find((role) => getRoleKey(role) == selectedId)?.name)
+        .filter((name): name is string => Boolean(name));
 
-    emit('submit', { ...form.value, roles: selectedRoles.value.map(name => ({ id: 0, name, permissions: [] })) }); // Emitir los datos correctamente
+    if (!roleNames.length) {
+        errorMessage.value = 'Selecciona al menos un rol valido.';
+        return;
+    }
+
+    // Envía solo los nombres de los roles seleccionados
+    emit('submit', { ...form.value, roles: roleNames });
     errorMessage.value = '';
 }
 </script>
@@ -78,9 +173,13 @@ function submitForm() {
         <DialogContent class="max-h-[90vh] flex flex-col bg-card text-card-foreground w-full max-w-4xl">
             <TooltipProvider>
             <FormHeader
-                class="flex-shrink-0"
-                :title="dialogType === 'create' ? 'Crear Usuario' : 'Editar Usuario'"
-                :description="dialogType === 'create' ? 'Completa los campos para crear un nuevo usuario.' : 'Completa los campos para editar el usuario.'"
+                class="flex-shrink-0 pb-2"
+                :title="dialogType === 'create' ? 'Crear Usuario' : dialogType === 'edit' ? 'Editar Usuario' : 'Ver Usuario'"
+                :description="dialogType === 'create'
+                    ? 'Completa los campos para crear un nuevo usuario.'
+                    : dialogType === 'edit'
+                        ? 'Completa los campos para editar el usuario.'
+                        : 'Consulta la información del usuario.'"
             />
             <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <div class="space-y-4">
@@ -94,7 +193,7 @@ function submitForm() {
                             aria-label="Ayuda sobre nombre"
                         />
                     </div>
-                    <InputField v-model="form.name" label="" placeholder="Nombre del usuario" required />
+                    <InputField v-model="form.name" label="" placeholder="Nombre del usuario" required :readonly="isView" />
                 </div>
                 <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2">
@@ -106,7 +205,7 @@ function submitForm() {
                             aria-label="Ayuda sobre email"
                         />
                     </div>
-                    <InputField v-model="form.email" label="" placeholder="Correo electrónico" required />
+                    <InputField v-model="form.email" label="" placeholder="Correo electrónico" required :readonly="isView" />
                 </div>
                 <!-- Campo para contraseña en modo "crear" -->
                 <div v-if="dialogType === 'create'" class="flex flex-col gap-1">
@@ -125,6 +224,7 @@ function submitForm() {
                         label=""
                         placeholder="Contraseña"
                         required
+                        :readonly="isView"
                     />
                 </div>
                 <!-- Campo para contraseña en modo "editar" -->
@@ -143,6 +243,7 @@ function submitForm() {
                         :type="showPassword ? 'text' : 'password'"
                         label=""
                         placeholder="Dejar en blanco para no cambiar"
+                        :readonly="isView"
                     />
                 </div>
                 <!-- Campo para confirmar contraseña -->
@@ -162,27 +263,38 @@ function submitForm() {
                         label=""
                         placeholder="Repite la contraseña"
                         required
+                        :readonly="isView"
                     />
                 </div>
-                <!-- Select para roles usando SelectField -->
+                <!-- Select para área organizacional -->
                 <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <Label class="text-sm font-medium">
-                            Roles<span class="text-red-500">*</span>
+                            Área<span class="text-red-500">*</span>
                         </Label>
                         <HelpTooltip
-                            text="Asigna uno o más roles al usuario para definir sus permisos en el sistema."
-                            aria-label="Ayuda sobre roles"
+                            text="Área organizacional a la que pertenece el usuario. Solo organiza, no autoriza acciones."
+                            aria-label="Ayuda sobre área"
                         />
                     </div>
                     <SelectField
                         label=""
-                        :options="props.roles.map(role => ({ id: role.name, name: role.name }))"
-                        v-model="selectedRoles"
-                        multiple
+                        :options="areas.map(area => ({ id: area.id, name: area.name }))"
+                        v-model="form.area_id"
                         required
+                        :disabled="isView"
                     />
                 </div>
+                <!-- Select para roles usando estilo de categorias -->
+                <ContactGroupsSelect
+                    v-model="selectedRoles"
+                    label="Roles"
+                    :options="roleOptions"
+                    placeholder="Selecciona roles"
+                    required
+                    :searchable="true"
+                    :disabled="isView"
+                />
                 <!-- Mensaje de error -->
                 <p v-if="errorMessage" class="text-red-500 text-sm">{{ errorMessage }}</p>
             </div>
@@ -195,10 +307,10 @@ function submitForm() {
                         class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="closeDialog"
                     >
-                        Cancelar
+                        {{ isView ? 'Cerrar' : 'Cancelar' }}
                     </button>
                 </div>
-                <div class="w-full md:w-auto">
+                <div v-if="!isView" class="w-full md:w-auto">
                     <Button
                         type="button"
                         class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
@@ -211,3 +323,14 @@ function submitForm() {
         </DialogContent>
     </Dialog>
 </template>
+
+\n
+
+
+
+
+
+
+
+
+

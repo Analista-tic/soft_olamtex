@@ -978,22 +978,23 @@ watch(imageFile, (file) => {
         };
         reader.readAsDataURL(file);
     } else {
-        if (typeof localForm.value.img === 'string' && localForm.value.img.trim() !== '') {
-            imagePreview.value = `/storage/${localForm.value.img.replace(/^\/?storage\//, '')}`;
-        } else {
-            imagePreview.value = undefined;
-        }
+        const resolved = resolveImageUrl(localForm.value.img, localForm.value.img_url);
+        imagePreview.value = resolved;
     }
 });
 watch(
     () => localForm.value.img,
     (img) => {
         if (!imageFile.value) {
-            if (typeof img === 'string' && img.trim() !== '') {
-                imagePreview.value = `/storage/${img.replace(/^\/?storage\//, '')}`;
-            } else {
-                imagePreview.value = undefined;
-            }
+            imagePreview.value = resolveImageUrl(img, localForm.value.img_url);
+        }
+    },
+);
+watch(
+    () => localForm.value.img_url,
+    (imgUrl) => {
+        if (!imageFile.value) {
+            imagePreview.value = resolveImageUrl(localForm.value.img, imgUrl);
         }
     },
 );
@@ -1009,6 +1010,15 @@ watch(
 
 function triggerFileInput() {
     fileInputRef.value?.click();
+}
+
+function resolveImageUrl(rawImg?: string | null, rawUrl?: string | null): string | undefined {
+    const url = typeof rawUrl === 'string' ? rawUrl.trim() : '';
+    if (url) return url;
+    const img = typeof rawImg === 'string' ? rawImg.trim() : '';
+    if (!img) return undefined;
+    if (/^https?:\/\//i.test(img)) return img;
+    return `/storage/${img.replace(/^\/?storage\//, '')}`;
 }
 function handleFileChange(e: Event) {
     const input = e.target as HTMLInputElement;

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Services\Settings\RoleService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
 
 class RoleController extends Controller
@@ -40,7 +39,32 @@ class RoleController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name',
-            'area' => 'required|string|max:255',
+            'area_id' => [
+                'nullable',
+                'integer',
+                'required_without:area_name',
+                function ($attribute, $value, $fail) {
+                    if ($value === null) {
+                        return;
+                    }
+                    $areas = \App\Models\Parameter::where('nombre', 'areas')->first();
+                    $ids = collect($areas ? $areas->valor : [])->pluck('id')->toArray();
+                    if (!in_array($value, $ids)) {
+                        $fail('El área seleccionada no es válida.');
+                    }
+                }
+            ],
+            'area_name' => [
+                'nullable',
+                'string',
+                'max:255',
+                'required_without:area_id',
+                function ($attribute, $value, $fail) {
+                    if ($value !== null && trim((string) $value) === '') {
+                        $fail('El nombre del área es obligatorio.');
+                    }
+                }
+            ],
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name',
         ]);
@@ -74,7 +98,32 @@ class RoleController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
-            'area' => 'required|string|max:255',
+            'area_id' => [
+                'nullable',
+                'integer',
+                'required_without:area_name',
+                function ($attribute, $value, $fail) {
+                    if ($value === null) {
+                        return;
+                    }
+                    $areas = \App\Models\Parameter::where('nombre', 'areas')->first();
+                    $ids = collect($areas ? $areas->valor : [])->pluck('id')->toArray();
+                    if (!in_array($value, $ids)) {
+                        $fail('El área seleccionada no es válida.');
+                    }
+                }
+            ],
+            'area_name' => [
+                'nullable',
+                'string',
+                'max:255',
+                'required_without:area_id',
+                function ($attribute, $value, $fail) {
+                    if ($value !== null && trim((string) $value) === '') {
+                        $fail('El nombre del área es obligatorio.');
+                    }
+                }
+            ],
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name',
         ]);

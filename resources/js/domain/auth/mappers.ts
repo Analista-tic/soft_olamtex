@@ -25,5 +25,7 @@ export function mapUserDto(dto: UserDto): User {
         email_verified_at: dto.email_verified_at,
         created_at: dto.created_at,
         updated_at: dto.updated_at,
+        area_id: dto.area_id ?? null,
+        area: dto.area ?? null,
     };
 }

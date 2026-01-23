@@ -6,6 +6,7 @@ export interface RoleDto {
     id: number | null;
     name: string;
     permissions: PermissionDto[];
+    area_id?: number | null;
 }
 
 export interface UserDto {
@@ -17,4 +18,6 @@ export interface UserDto {
     email_verified_at?: string | null;
     created_at?: string;
     updated_at?: string;
+    area_id?: number | null;
+    area?: { id: number; nombre: string } | null;
 }

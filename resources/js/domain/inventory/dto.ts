@@ -43,6 +43,7 @@ export interface ItemDto {
     code: string;
     reference: string;
     img?: string;
+    img_url?: string;
     stock_min: number;
     stock_max: number;
     bar_code?: string;

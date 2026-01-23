@@ -6,7 +6,6 @@ use App\Models\Inventory\InventoryRequest;
 use App\Models\Inventory\InventoryRequestItem;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -56,6 +55,11 @@ class InventoryRequestService
         return DB::transaction(function () use ($data, $user) {
             $documentNumber = $this->generateDocumentNumber();
 
+            $imagePath = null;
+            if (isset($data['image']) && $data['image'] instanceof \Illuminate\Http\UploadedFile) {
+                $imagePath = $data['image']->store('inventory_requests', 'public');
+            }
+
             $request = InventoryRequest::create([
                 'document_number' => $documentNumber,
                 'date' => $data['date'],
@@ -63,6 +67,7 @@ class InventoryRequestService
                 'observation' => $data['observation'] ?? null,
                 'status' => InventoryRequest::STATUS_REQUESTED,
                 'created_by_user_id' => $user->id,
+                'image' => $imagePath,
             ]);
 
             $this->syncItems($request, $data['items'] ?? []);
@@ -76,11 +81,15 @@ class InventoryRequestService
         $this->assertPending($request);
 
         return DB::transaction(function () use ($request, $data, $items) {
-            $request->update([
+            $updateData = [
                 'date' => $data['date'] ?? $request->date,
                 'delivery_date' => $data['delivery_date'] ?? $request->delivery_date,
                 'observation' => $data['observation'] ?? $request->observation,
-            ]);
+            ];
+            if (isset($data['image']) && $data['image'] instanceof \Illuminate\Http\UploadedFile) {
+                $updateData['image'] = $data['image']->store('inventory_requests', 'public');
+            }
+            $request->update($updateData);
 
             if ($items !== null) {
                 $this->syncItems($request, $items);
@@ -158,7 +167,6 @@ class InventoryRequestService
 
             $request->update([
                 'delivery_date' => $request->delivery_date ?: $deliveryDate,
-                'delivered_at' => Carbon::parse($deliveryDate),
                 'status' => InventoryRequest::STATUS_DELIVERED,
                 'approved_by_user_id' => $user->id,
             ]);

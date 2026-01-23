@@ -37,7 +37,6 @@ class InventoryRequestController extends Controller
                 'document_number' => $req->document_number,
                 'date' => $req->date,
                 'delivery_date' => $req->delivery_date,
-                'delivered_at' => $req->delivered_at,
                 'status' => $req->status,
                 'observation' => $req->observation,
                 'created_by_user_id' => $req->created_by_user_id,
@@ -72,8 +71,11 @@ class InventoryRequestController extends Controller
     public function store(Request $request)
     {
         $payload = $this->validateRequestPayload($request);
+        // Adjuntar imagen si existe
+        if ($request->hasFile('image')) {
+            $payload['image'] = $request->file('image');
+        }
         $created = $this->service->create($payload, $this->requireUser());
-
         return response()->json(['data' => $created], 201);
     }
 
@@ -81,9 +83,12 @@ class InventoryRequestController extends Controller
     {
         $this->ensureCanEdit($inventoryRequest);
         $payload = $this->validateRequestPayload($request, $inventoryRequest);
+        // Adjuntar imagen si existe
+        if ($request->hasFile('image')) {
+            $payload['image'] = $request->file('image');
+        }
         $items = $request->has('items') ? $payload['items'] ?? [] : null;
         $updated = $this->service->update($inventoryRequest, $payload, $items);
-
         return response()->json(['data' => $updated]);
     }
 
@@ -107,6 +112,14 @@ class InventoryRequestController extends Controller
 
     private function validateRequestPayload(Request $request, ?InventoryRequest $inventoryRequest = null): array
     {
+        // Cuando viene multipart/form-data, "items" puede llegar como JSON string.
+        if (is_string($request->input('items'))) {
+            $decoded = json_decode($request->input('items'), true);
+            $request->merge([
+                'items' => is_array($decoded) ? $decoded : [],
+            ]);
+        }
+
         $uniqueRule = Rule::unique('inventory_requests', 'document_number');
         if ($inventoryRequest) {
             $uniqueRule->ignore($inventoryRequest->id);
@@ -123,6 +136,7 @@ class InventoryRequestController extends Controller
             'items.*.item_id' => 'nullable|integer|exists:items,id',
             'items.*.item_name' => 'required_without:items.*.item_id|string',
             'items.*.quantity' => 'required|numeric|min:0.0001',
+            'image' => 'nullable|image|max:5120', // hasta 5MB
         ];
 
         return $request->validate($rules);
