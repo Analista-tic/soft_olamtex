@@ -147,6 +147,26 @@ class InventoryRequestService
                     ]);
                 }
 
+                $stockRow = DB::table('warehouse_items')
+                    ->where('item_id', $itemLine->item_id)
+                    ->where('warehouse_id', $warehouseId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$stockRow) {
+                    throw ValidationException::withMessages([
+                        'items' => ["El item {$itemLine->item_id} no tiene bodega asociada."],
+                    ]);
+                }
+
+                $availableStock = (float) $stockRow->quantity;
+
+                if ($availableStock < $deliveredQty) {
+                    throw ValidationException::withMessages([
+                        'items' => ["Stock insuficiente para el item {$itemLine->item_id}. Disponible: {$availableStock}."],
+                    ]);
+                }
+
                 $itemLine->update([
                     'delivered_quantity' => $deliveredQty,
                     'warehouse_id' => $warehouseId,

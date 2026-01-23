@@ -48,6 +48,7 @@ interface AuditLog {
     new_values?: Record<string, unknown> | null;
     created_at: string | null;
     user_area?: string | null;
+    user_role?: string | null;
     [key: string]: any;
 }
 interface AuditPageProps extends SharedData {
@@ -665,6 +666,7 @@ watch(detailDialogOpen, (value) => {
                         <TableRow>
                             <TableHead class="px-4 py-2 text-left">Fecha</TableHead>
                             <TableHead class="px-4 py-2 text-left w-[150px]">Área</TableHead>
+                            <TableHead class="px-4 py-2 text-left w-[180px]">Rol</TableHead>
                             <TableHead class="px-4 py-2 text-left w-[220px]">Usuario</TableHead>
                             <TableHead class="px-4 py-2 text-left">Acción</TableHead>
                             <TableHead class="px-4 py-2 text-left">Módulo</TableHead>
@@ -689,6 +691,14 @@ watch(detailDialogOpen, (value) => {
                             <TableCell class="px-4 py-3 text-left">
                                 <span v-if="log.user_area" class="font-semibold text-xs">
                                     {{ log.user_area }}
+                                </span>
+                                <span v-else class="text-xs text-muted-foreground">-</span>
+                            </TableCell>
+
+                            <!-- ROL -->
+                            <TableCell class="px-4 py-3 text-left">
+                                <span v-if="log.user_role" class="font-semibold text-xs">
+                                    {{ log.user_role }}
                                 </span>
                                 <span v-else class="text-xs text-muted-foreground">-</span>
                             </TableCell>

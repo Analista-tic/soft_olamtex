@@ -65,6 +65,7 @@ class AuditLogService
         $areaId = $this->normalizeFilter($filters, 'area_id');
 
         $logs = AuditLog::query()
+            ->with('user.roles')
             ->when($userFilter, fn($query) => $query->where('user_name', 'like', '%' . $userFilter . '%'))
             ->when($moduleFilter, fn($query) => $query->where('module', $moduleFilter))
             ->when($actionFilter, fn($query) => $query->where('action', $actionFilter))
@@ -76,12 +77,15 @@ class AuditLogService
 
         $logs->getCollection()->transform(function (AuditLog $log) {
             $log->module_label = $this->translateModuleName($log->module);
-            $log->resource_label = $this->resolveResourceLabel($log);
-            // Obtener área desde parámetros
+            $log->resource_label = $this->resolveResourceLabel($log);            // Obtener área y rol desde parámetros/usuario
             $log->user_area = null;
-            if ($log->user_id) {
+            $log->user_role = null;
+            $user = $log->user_id ? $log->user : null;
+            if (!$user && $log->user_id) {
                 $user = \App\Models\User::find($log->user_id);
-                if ($user && $user->area_id) {
+            }
+            if ($user) {
+                if ($user->area_id) {
                     // Buscar área en parámetros
                     $param = \App\Models\Parameter::where('nombre', 'areas')->first();
                     if ($param && is_array($param->valor)) {
@@ -90,6 +94,10 @@ class AuditLogService
                             $log->user_area = $area['name'] ?? $area['nombre'] ?? null;
                         }
                     }
+                }
+                $roles = $user->getRoleNames();
+                if ($roles->isNotEmpty()) {
+                    $log->user_role = $roles->implode(', ');
                 }
             }
             return $log;
@@ -294,3 +302,4 @@ class AuditLogService
     }
 
 }
+

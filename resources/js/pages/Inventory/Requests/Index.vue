@@ -11,7 +11,7 @@ import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Pencil, Search, Truck, XCircle, PlusCircle } from 'lucide-vue-next';
+import { Ban, Check, Eye, Pencil, Search, PlusCircle } from 'lucide-vue-next';
 import {
     Pagination,
     PaginationEllipsis,
@@ -259,7 +259,14 @@ onMounted(() => {
                             <TableCell>{{ request.requester?.name || '-' }}</TableCell>
                             <TableCell>{{ request.observation || '-' }}</TableCell>
                             <TableCell class="flex justify-center gap-2">
-                                <Button variant="ghost" size="icon" class="h-8 w-8" @click="openViewRequest(request)">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8"
+                                    title="Ver solicitud"
+                                    aria-label="Ver solicitud"
+                                    @click="openViewRequest(request)"
+                                >
                                     <Eye class="h-4 w-4" />
                                 </Button>
                                 <Button
@@ -267,6 +274,8 @@ onMounted(() => {
                                     variant="ghost"
                                     size="icon"
                                     class="h-8 w-8"
+                                    title="Editar solicitud"
+                                    aria-label="Editar solicitud"
                                     @click="openEditRequest(request)"
                                 >
                                     <Pencil class="h-4 w-4" />
@@ -276,18 +285,22 @@ onMounted(() => {
                                     variant="ghost"
                                     size="icon"
                                     class="h-8 w-8"
+                                    title="Marcar como entregada"
+                                    aria-label="Marcar como entregada"
                                     @click="openDelivery(request)"
                                 >
-                                    <Truck class="h-4 w-4" />
+                                    <Check class="h-4 w-4 text-emerald-600" />
                                 </Button>
                                 <Button
                                     v-if="canManage(request)"
                                     variant="ghost"
                                     size="icon"
                                     class="h-8 w-8 text-destructive"
+                                    title="Rechazar solicitud"
+                                    aria-label="Rechazar solicitud"
                                     @click="openReject(request)"
                                 >
-                                    <XCircle class="h-4 w-4" />
+                                    <Ban class="h-4 w-4" />
                                 </Button>
                             </TableCell>
                         </TableRow>

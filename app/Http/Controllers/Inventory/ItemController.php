@@ -53,7 +53,7 @@ class ItemController extends Controller
         $itemName = $this->service->computeName($subGroupId, $extraFields);
         $this->service->assertUniqueReferenceAndName($reference, $itemName);
 
-        $this->handleImageUploadIfPresent($request, $data, 'articles');
+        $this->handleImageUploadIfPresent($request, $data, 'items');
         $warehouses = $this->resolveWarehouses($request) ?? [];
 
         return $this->service->create($data, $warehouses);

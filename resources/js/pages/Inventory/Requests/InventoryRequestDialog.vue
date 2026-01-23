@@ -52,6 +52,13 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const isReadonly = computed(() => props.dialogType === 'view');
 
+const statusLabels: Record<string, string> = {
+    solicitado: 'Solicitado',
+    rechazado: 'Rechazado',
+    entregado: 'Entregado',
+};
+
+
 const safeDocumentNumber = computed({
     get: () => localForm.value.document_number ?? '',
     set: (val: string) => { localForm.value.document_number = val; },
@@ -157,6 +164,32 @@ function handleAddLine() {
     itemsTableRef.value?.addItem();
 }
 
+function buildRequestItems() {
+    return (localForm.value.items || [])
+        .map((item) => {
+            const quantity = Number(item.quantity) || 0;
+            const hasId = item.item_id !== null && item.item_id !== undefined;
+            const name = String(item.name ?? '').trim();
+
+            if (hasId) {
+                return {
+                    item_id: Number(item.item_id),
+                    quantity,
+                };
+            }
+
+            if (name) {
+                return {
+                    item_name: name,
+                    quantity,
+                };
+            }
+
+            return null;
+        })
+        .filter((item) => item && Number(item.quantity) > 0);
+}
+
 function validateForm(): boolean {
     if (!localForm.value.observation || !String(localForm.value.observation).trim()) {
         errorMessage.value = 'La observacion es obligatoria.';
@@ -226,13 +259,7 @@ async function handleSubmit() {
         payload.append('delivery_date', localForm.value.delivery_date || '');
         payload.append('observation', localForm.value.observation || '');
         payload.append('items', JSON.stringify(
-            (localForm.value.items || [])
-                .map((item) => ({
-                    item_id: item.item_id,
-                    item_name: item.item_id ? null : item.name,
-                    quantity: Number(item.quantity) || 0,
-                }))
-                .filter((item) => (item.item_id || (item.item_name && String(item.item_name).trim())) && Number(item.quantity) > 0),
+            buildRequestItems(),
         ));
         payload.append('image', localForm.value.image);
         if (props.dialogType !== 'create') {
@@ -244,13 +271,7 @@ async function handleSubmit() {
             date: localForm.value.date,
             delivery_date: localForm.value.delivery_date || null,
             observation: localForm.value.observation || null,
-            items: (localForm.value.items || [])
-                .map((item) => ({
-                    item_id: item.item_id,
-                    item_name: item.item_id ? null : item.name,
-                    quantity: Number(item.quantity) || 0,
-                }))
-                .filter((item) => (item.item_id || (item.item_name && String(item.item_name).trim())) && Number(item.quantity) > 0),
+            items: buildRequestItems(),
         };
         if (props.dialogType !== 'create') {
             payload.id = localForm.value.id;
@@ -363,12 +384,13 @@ onUnmounted(() => {
                                     label="Fecha de entrega"
                                     :disabled="isReadonly"
                                 />
-                                <div
-                                    class="flex items-center text-xs text-muted-foreground"
+                                <InputField
+                                    :modelValue="localForm.status ? (statusLabels[localForm.status] || localForm.status) : ''"
+                                    label="Estado"
+                                    :readonly="true"
+                                    :disabled="true"
                                     :class="localForm.status === 'entregado' ? '' : 'col-span-2'"
-                                >
-                                    {{ localForm.status ? `Estado: ${localForm.status}` : '' }}
-                                </div>
+                                />
                             </div>
 
                             <InventoryDetailTableLayout
