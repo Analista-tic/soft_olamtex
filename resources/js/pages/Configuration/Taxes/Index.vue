@@ -19,7 +19,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useAlertStack } from '@/composables/useAlert';
 
 const breadcrumbs = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
+    { title: 'Configuración', href: '/panel-administrativo' },
     { title: 'Impuestos', href: '/impuestos' },
 ];
 

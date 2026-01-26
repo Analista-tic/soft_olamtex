@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue';
 import axios from 'axios';
 import InputField from '@/components/InputField.vue';
@@ -107,9 +107,9 @@ async function handleRetentionSubmit(formData: any) {
         });
         await fetchRetentions();
         retentionDialogOpen.value = false;
-        successMessage.value = 'RetenciÃ³n guardada correctamente.';
+        successMessage.value = 'Retención guardada correctamente.';
     } catch (e) {
-        console.error('Error al crear retenciÃ³n', e);
+        console.error('Error al crear retención', e);
     } finally {
         retentionDialogLoading.value = false;
     }
@@ -139,7 +139,7 @@ async function handleRetentionSubmit(formData: any) {
                     @click="addWithholding"
                 >
                     <CirclePlus class="h-4 w-4" />
-                    AÃ±adir RetenciÃ³n
+                    Añadir Retención
                 </button>
             </div>
         </div>
@@ -160,7 +160,7 @@ async function handleRetentionSubmit(formData: any) {
                                 v-model="withholding.name"
                                 :options="retentionOptions"
                                 label=""
-                                placeholder="RetenciÃ³n"
+                                placeholder="Retención"
                                 size="xs"
                                 class="text-xs flex-1"
                                 :key="`${retentionSelectKey}-${idx}`"
@@ -179,7 +179,7 @@ async function handleRetentionSubmit(formData: any) {
                                         @click.stop="openRetentionDialogFromDropdown"
                                     >
                                         <Plus class="mr-2 h-4 w-4" />
-                                        Nueva retenciÃ³n
+                                        Nueva retención
                                     </button>
                                 </template>
                             </SelectField>

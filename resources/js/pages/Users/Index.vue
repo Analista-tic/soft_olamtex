@@ -34,7 +34,7 @@ import ViewButton from '@/components/common/ViewButton.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Panel administrativo',
+        title: 'Configuración',
         href: '/panel-administrativo',
     },
     {

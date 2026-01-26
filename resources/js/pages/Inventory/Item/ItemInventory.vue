@@ -39,7 +39,7 @@ type InventoryViewItem = {
 };
 
 const breadcrumbs = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
+    { title: 'Configuración', href: '/panel-administrativo' },
     { title: 'Inventario Ãtems', href: '/inventario-item' },
 ];
 

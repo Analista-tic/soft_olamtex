@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import UserInfo from '@/components/UserInfo.vue';
-import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import type { User } from '@/domain/auth';
 import { Link } from '@inertiajs/vue3';
-import { LogOut, Settings, FileSearch } from 'lucide-vue-next';
+import { LogOut, Pencil } from 'lucide-vue-next';
 
 interface Props {
     user: User;
@@ -16,23 +16,15 @@ defineProps<Props>();
     <DropdownMenuLabel class="p-0 font-normal">
         <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
             <UserInfo :user="user" :show-email="true" />
+            <Link
+                class="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                :href="route('configuracion')"
+                aria-label="Ir a configuración"
+            >
+                <Pencil class="h-4 w-4" />
+            </Link>
         </div>
     </DropdownMenuLabel>
-    <DropdownMenuSeparator />
-    <DropdownMenuGroup>
-        <DropdownMenuItem :as-child="true">
-            <Link class="block w-full" :href="route('panel-administrativo.empresa')" as="button">
-                <Settings class="mr-2 h-4 w-4" />
-                Configuración
-            </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem :as-child="true">
-            <Link class="block w-full" :href="route('auditoria.index')" as="button">
-                <FileSearch class="mr-2 h-4 w-4" />
-                Auditoría
-            </Link>
-        </DropdownMenuItem>
-    </DropdownMenuGroup>
     <DropdownMenuSeparator />
     <DropdownMenuItem :as-child="true">
         <Link class="block w-full" method="post" :href="route('logout')" as="button">

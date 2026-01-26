@@ -38,7 +38,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
+    { title: 'ConfiguraciÛn', href: '/panel-administrativo' },
     { title: '√çtems', href: '/inventario/item' },
 ];
 

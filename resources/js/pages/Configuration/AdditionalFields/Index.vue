@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -30,7 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PlusCircle, Search } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
+    { title: 'Configuración', href: '/panel-administrativo' },
     { title: 'Campos adicionales', href: '/campos-adicionales' },
 ];
 
@@ -320,7 +320,7 @@ onMounted(() => {
                 <div class="flex flex-col gap-1 max-w-3xl">
                     <h1 class="text-lg font-bold">Campos adicionales</h1>
                     <p class="text-sm text-muted-foreground">
-                        Este mÃ³dulo permite definir, ordenar y mantener los campos adicionales que enriquecen la informaciÃ³n de Ã­tems y productos, asegurando que cada Ã¡rea del negocio capture los atributos obligatorios y opcionales que requiere su operaciÃ³n.
+                        Este módulo permite definir, ordenar y mantener los campos adicionales que enriquecen la información de ítems y productos, asegurando que cada área del negocio capture los atributos obligatorios y opcionales que requiere su operación.
                     </p>
                 </div>
                 <div class="flex items-center justify-end pt-2 lg:pt-0">

@@ -170,6 +170,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('programador.destroy');
     });
 
+    // ===CONFIGURACIÓN ===
+    Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
+        ->middleware('permission:ver usuarios')
+        ->name('configuracion');
     // ===PANEL ADMINISTRATIVO ===
     Route::get('panel-administrativo', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')

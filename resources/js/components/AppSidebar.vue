@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavMainGroup from '@/components/NavMainGroup.vue';
@@ -16,7 +16,7 @@ import {
 import { useAuthStore } from '@/stores/auth';
 import type { NavGroupItem, NavItem } from '@/domain/shared';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-vue-next';
+import { BarChart3, LayoutGrid, Settings, ShieldCheck } from 'lucide-vue-next';
 import { computed, onMounted } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -53,20 +53,27 @@ const mainNavItems: NavItem[] = [
 // Definición de los elementos de navegación del pie de página
 const footerNavItems: NavItem[] = [
     {
-        title: 'Github Repo',
-        href: 'https://github.com/laravel/vue-starter-kit',
-        icon: Folder,
+        title: 'Reportes',
+        href: underConstructionHref('Reportes'),
+        icon: BarChart3,
     },
     {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits',
-        icon: BookOpen,
+        title: 'Auditoría',
+        href: '/auditoria',
+        icon: ShieldCheck,
+        permission: 'ver auditoria',
+    },
+    {
+        title: 'Configuración',
+        href: '/panel-administrativo',
+        icon: Settings,
+        permission: 'ver usuarios',
     },
 ];
 
 const coreSections: { label: string; items: NavGroupItem[] }[] = [
     {
-        label: 'Ingresos / Comercial',
+        label: 'Ingresos',
         items: [
             {
                 title: 'Ventas',
@@ -92,7 +99,7 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
         ],
     },
     {
-        label: 'Gastos / Compras / Abastecimiento',
+        label: 'Gastos',
         items: [
             {
                 title: 'Compras',
@@ -168,7 +175,7 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
         ],
     },
     {
-        label: 'Producción / Servicios',
+        label: 'Producción',
         items: [
             {
                 title: 'Sábana de Productos',
@@ -208,18 +215,6 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
             { title: 'Bodegas', href: '/bodegas', permission: 'ver bodegas' },
             { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },
         ],
-    },
-    {
-        label: 'Reportes',
-        items: [{ title: 'Reportes', href: underConstructionHref('Reportes') }],
-    },
-    {
-        label: 'Auditoría',
-        items: [{ title: 'Auditoría', href: '/auditoria', permission: 'ver auditoria' }],
-    },
-    {
-        label: 'Configuración',
-        items: [{ title: 'Configuración', href: '/panel-administrativo', permission: 'ver usuarios' }],
     },
 ];
 
@@ -279,6 +274,10 @@ const filteredCoreSections = computed(() =>
         .filter((section) => section.items.length > 0),
 );
 
+const filteredFooterNavItems = computed(() =>
+    footerNavItems.filter((item) => (item.permission ? auth.can(item.permission) : true)),
+);
+
 const filteredTextilSections = computed(() =>
     textilSections
         .map((section) => ({ ...section, items: filterNavGroups(section.items) }))
@@ -317,7 +316,7 @@ const filteredTextilSections = computed(() =>
         </SidebarContent>
 
         <SidebarFooter>
-            <NavFooter :items="footerNavItems" />
+            <NavFooter :items="filteredFooterNavItems" />
             <NavUser />
         </SidebarFooter>
     </Sidebar>

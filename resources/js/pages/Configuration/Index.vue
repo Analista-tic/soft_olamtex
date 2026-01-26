@@ -5,7 +5,7 @@ import { Head, Link } from '@inertiajs/vue3';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Panel administrativo',
+        title: 'Configuración',
         href: '/panel-administrativo',
     },
 ];
@@ -71,11 +71,11 @@ const modules = [
 </script>
 
 <template>
-    <Head title="Sabana de Productos" />
+    <Head title="Configuración" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-xl font-bold">Panel administrativo</h1>
+                <h1 class="text-xl font-bold">Configuración</h1>
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div

@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
@@ -161,8 +161,8 @@ function resetForm() {
     errorType.value = 'error';
     originalFormSnapshot.value = stableStringify(localForm.value);
 
-    // Preferir valores explÃ­citos del backend (`provider_name`, `provider_phone`) cuando existan;
-    // si no, usar los datos del contacto seleccionado (cuando estÃ© cargada la lista).
+    // Preferir valores explícitos del backend (`provider_name`, `provider_phone`) cuando existan;
+    // si no, usar los datos del contacto seleccionado (cuando esté cargada la lista).
     providerInput.value = backendProviderName ?? selectedContactData.value?.full_name ?? '';
     contactPhoneInput.value = backendProviderPhone ?? selectedContactData.value?.phone ?? '';
 }
@@ -184,7 +184,7 @@ async function fetchContacts() {
         contacts.value = [];
         console.error('Error fetching contacts:', e);
     }
-    // DespuÃ©s de cargar contactos, preferir el contacto relacionado si existe, sino mantener valores del backend
+    // Después de cargar contactos, preferir el contacto relacionado si existe, sino mantener valores del backend
     if (localForm.value.contact_id) {
         const match = contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id));
         if (match) {
@@ -336,7 +336,7 @@ async function handleSubmit() {
 
 function validateForm() {
     if (!localForm.value.description || !String(localForm.value.description).trim()) {
-        setErrorMessage('La descripciÃ³n es obligatoria.', 'warning');
+        setErrorMessage('La descripción es obligatoria.', 'warning');
         return false;
     }
 
@@ -344,7 +344,7 @@ function validateForm() {
     // But require at least one item with quantity > 0 so the request isn't empty.
     const itemsCheck = (localForm.value.items || []).filter((it) => Number(it.quantity) > 0);
     if (!itemsCheck.length) {
-        setErrorMessage('La solicitud debe contener al menos un Ã­tem con cantidad mayor a cero.', 'warning');
+        setErrorMessage('La solicitud debe contener al menos un ítem con cantidad mayor a cero.', 'warning');
         return false;
     }
 
@@ -381,14 +381,14 @@ watch(dialogOpen, (isOpen) => {
                 <div class="flex flex-col gap-1">
                     <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
                     <DialogDescription class="pb-2">
-                        Completa los campos y aÃ±ade los artÃ­culos requeridos.
+                        Completa los campos y añade los artículos requeridos.
                     </DialogDescription>
                 </div>
             </DialogHeader>
             <AlertStack
                 :success-message="successMessage"
                     :error-message="errorMessage"
-                    success-title="Ã‰xito"
+                    success-title="Éxito"
                     error-title="Error"
                     :error-type="errorType"
                     @close-success="clearSuccess"
@@ -423,7 +423,7 @@ watch(dialogOpen, (isOpen) => {
                             <div>
                                 <div class="text-sm font-semibold">Datos empresa</div>
                                 <p class="text-xs">
-                                    RazÃ³n Social:
+                                    Razón Social:
                                     <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
                                 </p>
                                 <p class="text-xs">
@@ -444,7 +444,7 @@ watch(dialogOpen, (isOpen) => {
                                         Proveedor
                                     </Label>
                                     <HelpTooltip
-                                        text="Escribe o selecciona el proveedor al que se le solicitarÃ¡n los productos."
+                                        text="Escribe o selecciona el proveedor al que se le solicitarán los productos."
                                         aria-label="Ayuda sobre proveedor"
                                     />
                                 </div>
@@ -460,17 +460,17 @@ watch(dialogOpen, (isOpen) => {
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">
-                                        NÃºmero de contacto
+                                        Número de contacto
                                     </Label>
                                     <HelpTooltip
-                                        text="NÃºmero telefÃ³nico del proveedor para coordinar la solicitud."
-                                        aria-label="Ayuda sobre nÃºmero de contacto"
+                                        text="Número telefónico del proveedor para coordinar la solicitud."
+                                        aria-label="Ayuda sobre número de contacto"
                                     />
                                 </div>
                                 <InputField
                                     v-model="contactPhoneInput"
                                     label=""
-                                    placeholder="Escribe un nÃºmero"
+                                    placeholder="Escribe un número"
                                     :readonly="props.readonly"
                                     :disabled="props.readonly"
                                 />
@@ -529,11 +529,11 @@ watch(dialogOpen, (isOpen) => {
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
                                 <Label class="text-sm font-medium">
-                                    DescripciÃ³n<span class="text-red-500">*</span>
+                                    Descripción<span class="text-red-500">*</span>
                                 </Label>
                                 <HelpTooltip
-                                    text="Describe brevemente la solicitud de compra y su propÃ³sito."
-                                    aria-label="Ayuda sobre descripciÃ³n"
+                                    text="Describe brevemente la solicitud de compra y su propósito."
+                                    aria-label="Ayuda sobre descripción"
                                 />
                             </div>
                             <TextareaField

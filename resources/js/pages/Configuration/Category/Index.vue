@@ -32,7 +32,7 @@ import type { Option } from '@/domain/shared';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Panel administrativo',
+        title: 'Configuración',
         href: '/panel-administrativo',
     },
     {

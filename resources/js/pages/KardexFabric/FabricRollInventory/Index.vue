@@ -53,6 +53,7 @@ const errorMessage = ref('');
 const isLoadingRolls = ref(false);
 const isAdjustDialogOpen = ref(false);
 const rollToAdjust = ref<FabricRollView | null>(null);
+const showDownloadedOnly = ref(false);
 
 const isBaseFilterActive = computed(() => baseFilter.value !== 'all');
 const isProviderFilterActive = computed(() => providerFilter.value !== 'all');
@@ -87,7 +88,17 @@ const filteredRolls = computed(() => {
             baseValue === 'all' || normalizedValue(roll.fabric).includes(baseValue);
         const matchesProvider =
             providerValue === 'all' || normalizedValue(roll.provider).includes(providerValue);
-        return matchesSearch && matchesBase && matchesProvider;
+        if (!matchesSearch || !matchesBase || !matchesProvider) {
+            return false;
+        }
+
+        if (!showDownloadedOnly.value) {
+            return true;
+        }
+
+        const partialOutputValue = Number(String(roll.partial_output ?? '').replace(/[^\d.-]/g, '')) || 0;
+        const exitQuantityValue = Number(String(roll.exit_quantity ?? '').replace(/[^\d.-]/g, '')) || 0;
+        return partialOutputValue > 0 || exitQuantityValue > 0;
     });
 });
 
@@ -129,6 +140,10 @@ function openAdjustDialog(roll?: FabricRollView | null) {
     }
     rollToAdjust.value = target;
     isAdjustDialogOpen.value = true;
+}
+
+function toggleDownloadedFilter() {
+    showDownloadedOnly.value = !showDownloadedOnly.value;
 }
 
 function handleDownloadRequest(payload: { roll: FabricRollView | null; data: Record<string, string> }) {
@@ -227,9 +242,9 @@ onMounted(fetchFabricRolls);
                         variant="secondary"
                         class="w-full md:w-auto rounded-full px-5 py-2 text-sm font-semibold h-10 shadow-sm flex items-center justify-center"
                         type="button"
-                        @click="openAdjustDialog()"
+                        @click="toggleDownloadedFilter"
                     >
-                        Ajuste salida por rollo
+                        {{ showDownloadedOnly ? 'Ver todos los rollos' : 'Ver descargue por rollo' }}
                     </Button>
                 </div>
             </div>

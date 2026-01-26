@@ -33,7 +33,7 @@ const page = usePage<SharedData>();
 const user = page.props.auth.user;
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
+    { title: 'Configuraci髇', href: '/panel-administrativo' },
     { title: 'Configuraci贸n', href: '/panel-administrativo/empresa' },
 ];
 
@@ -507,7 +507,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head title="Panel Administrativo 路 Configuraci贸n" />
+    <Head title="Configuraci髇 路 Configuraci贸n" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <transition name="fade">
             <div

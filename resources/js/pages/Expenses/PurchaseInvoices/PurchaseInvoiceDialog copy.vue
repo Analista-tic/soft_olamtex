@@ -1,4 +1,4 @@
-Ôªø<script setup lang="ts">
+<script setup lang="ts">
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -12,7 +12,7 @@ import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
-// Props y eventos del di√°logo
+// Props y eventos del di·logo
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
@@ -39,12 +39,12 @@ const { company, logoUrl } = useCompanyInfo();
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
 
-// C√°lculos de totales
+// C·lculos de totales
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
 
-// C√°lculo de retenciones y total a pagar
+// C·lculo de retenciones y total a pagar
 const retencionesTotal = computed(() =>
     (localForm.value.withholdings || []).reduce(
         (acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100),
@@ -58,7 +58,7 @@ const selectedContactData = computed(() => contacts.value.find((c) => Number(c.i
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 
-// ID de la factura (nuevo o edici√≥n)
+// ID de la factura (nuevo o ediciÛn)
 const id = computed(() => {
     if (props.dialogType === 'edit') return props.form?.id?.toString() || '';
     if (isLoadingInvoiceId.value) return 'Cargando...';
@@ -66,7 +66,7 @@ const id = computed(() => {
     return nextInvoiceId.value.toString();
 });
 
-// Crea un formulario vac√≠o por defecto
+// Crea un formulario vacÌo por defecto
 function createDefaultForm(): Partial<PurchaseInvoice> {
     return {
         contact_id: null,
@@ -99,7 +99,7 @@ function createEmptyItem() {
 // Convierte una fecha en formato ISO o yyyy-MM-dd a yyyy-MM-dd para el input tipo date
 function toDateInputValue(dateStr: string | undefined | null): string {
     if (!dateStr) return '';
-    // Si ya est‚îú√≠ en formato yyyy-MM-dd, retornar igual
+    // Si ya est+Ì en formato yyyy-MM-dd, retornar igual
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
     // Si es formato ISO, convertir
     const d = new Date(dateStr);
@@ -109,7 +109,7 @@ function toDateInputValue(dateStr: string | undefined | null): string {
     return `${d.getFullYear()}-${month}-${day}`;
 }
 
-// Restaura el formulario local seg√∫n el modo (nuevo o edici√≥n)
+// Restaura el formulario local seg˙n el modo (nuevo o ediciÛn)
 function resetForm() {
     if (props.form && Object.keys(props.form).length > 0) {
         const formCopy = JSON.parse(JSON.stringify(props.form));
@@ -127,7 +127,7 @@ function resetForm() {
     }
 }
 
-// Sincroniza el formulario local cuando cambian los props de edici√≥n
+// Sincroniza el formulario local cuando cambian los props de ediciÛn
 watch(
     () => props.form,
     () => {
@@ -172,7 +172,7 @@ async function fetchNextInvoiceId() {
     }
 }
 
-// Obtiene las √≥rdenes de compra pendientes
+// Obtiene las Ûrdenes de compra pendientes
 async function fetchPendingPurchaseOrders() {
     purchaseOrders.value = [];
     selectedPurchaseOrderId.value = null;
@@ -222,7 +222,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.purchase_order_id = Number(orderId);
 }
 
-// Env√≠a el formulario (guardar o guardar y enviar por correo)
+// EnvÌa el formulario (guardar o guardar y enviar por correo)
 async function handleSubmit(sendMail = false) {
     if (isReadOnly.value) return;
     if (!validateForm()) return;
@@ -259,7 +259,7 @@ async function handleSubmit(sendMail = false) {
     }
 }
 
-// Validaci√≥n b√°sica del formulario
+// ValidaciÛn b·sica del formulario
 function validateForm(): boolean {
     if (!localForm.value.contact_id) {
         alert('Por favor seleccione un proveedor');
@@ -270,13 +270,13 @@ function validateForm(): boolean {
         return false;
     }
     if (!localForm.value.items?.length) {
-        alert('La factura debe contener al menos un ‚îú¬°tem');
+        alert('La factura debe contener al menos un +°tem');
         return false;
     }
     return true;
 }
 
-// Convierte contact_id a n√∫mero si es necesario
+// Convierte contact_id a n˙mero si es necesario
 watch(
     () => localForm.value.contact_id,
     (val) => {
@@ -295,7 +295,7 @@ watch(selectedPurchaseOrderId, (orderId) => {
     }
 });
 
-// Inicializaci√≥n al montar el componente
+// InicializaciÛn al montar el componente
 onMounted(async () => {
     if (props.isOpen) {
         await fetchContacts();
@@ -308,7 +308,7 @@ onMounted(async () => {
     }
 });
 
-// Sincroniza el estado cuando se abre/cierra el di√°logo
+// Sincroniza el estado cuando se abre/cierra el di·logo
 watch(
     () => props.isOpen,
     async (isOpen) => {
@@ -332,7 +332,7 @@ watch(
     },
 );
 
-// Emite evento de cierre cuando se cierra el di√°logo
+// Emite evento de cierre cuando se cierra el di·logo
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) emit('close');
 });
@@ -344,7 +344,7 @@ watch(dialogOpen, (isOpen) => {
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
                 <DialogDescription>
-                    Completa los campos y a√±ade los √≠tems de la factura.
+                    Completa los campos y aÒade los Ìtems de la factura.
                 </DialogDescription>
             </DialogHeader>
             <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
@@ -374,7 +374,7 @@ watch(dialogOpen, (isOpen) => {
                         <div>
                             <div class="text-sm font-semibold">Datos empresa</div>
                             <p class="text-xs">
-                                Raz√≥n Social:
+                                RazÛn Social:
                                 <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
                             </p>
                             <p class="text-xs">
@@ -398,14 +398,14 @@ watch(dialogOpen, (isOpen) => {
                         />
                         <InputField
                             :key="`idnumber-${localForm.contact_id ?? ''}`"
-                            label="N√∫mero de identificaci√≥n"
+                            label="N˙mero de identificaciÛn"
                             :modelValue="contactIdNumber"
                             readonly
                             :disabled="true"
                         />
                         <InputField
                             :key="`phone-${localForm.contact_id ?? ''}`"
-                            label="N√∫mero de contacto"
+                            label="N˙mero de contacto"
                             :modelValue="contactPhone"
                             readonly
                             :disabled="true"
@@ -506,8 +506,8 @@ watch(dialogOpen, (isOpen) => {
                     <div>
                         <TextareaField
                             v-model="localForm.description"
-                            label="Observaci√≥n"
-                            placeholder="Agrega aqu√≠ observaciones adicionales para la factura de compra"
+                            label="ObservaciÛn"
+                            placeholder="Agrega aquÌ observaciones adicionales para la factura de compra"
                         />
                     </div>
                 </div>
