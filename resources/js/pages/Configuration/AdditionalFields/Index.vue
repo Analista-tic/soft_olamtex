@@ -320,7 +320,7 @@ onMounted(() => {
                 <div class="flex flex-col gap-1 max-w-3xl">
                     <h1 class="text-lg font-bold">Campos adicionales</h1>
                     <p class="text-sm text-muted-foreground">
-                        Este m�dulo permite definir, ordenar y mantener los campos adicionales que enriquecen la informaci�n de �tems y productos, asegurando que cada �rea del negocio capture los atributos obligatorios y opcionales que requiere su operaci�n.
+                        Este módulo permite definir, ordenar y mantener los campos adicionales que enriquecen la información de ítems y productos, asegurando que cada área del negocio capture los atributos obligatorios y opcionales que requiere su operación.
                     </p>
                 </div>
                 <div class="flex items-center justify-end pt-2 lg:pt-0">

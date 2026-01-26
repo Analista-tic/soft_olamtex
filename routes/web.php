@@ -61,6 +61,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Perfil
     Route::get('profile', fn() => Inertia::render('Profile'))->name('profile');
 
+    // Módulos en desarrollo
+    Route::get('en-desarrollo/{modulo?}', function (?string $modulo = null) {
+        $title = request('titulo');
+        if (!$title && $modulo) {
+            $title = ucwords(str_replace('-', ' ', $modulo));
+        }
+
+        return Inertia::render('UnderConstruction', [
+            'title' => $title,
+        ]);
+    })->name('under-construction');
+
     // === COMERCIAL ===
     Route::prefix('diseno')->name('diseno.')->group(function () {
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])

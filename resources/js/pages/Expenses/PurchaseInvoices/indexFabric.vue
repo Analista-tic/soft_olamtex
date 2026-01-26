@@ -124,7 +124,7 @@ const getInvoiceItemsPreview = (invoice: PurchaseInvoice) => {
 
     if (!names.length) return '-';
     if (names.length <= 2) return names.join(', ');
-    return `${names.slice(0, 2).join(', ')} +${names.length - 2} m·s`;
+    return `${names.slice(0, 2).join(', ')} +${names.length - 2} m√°s`;
 };
 
 function buildReceptionUrl(invoiceId?: number | string) {
@@ -167,9 +167,9 @@ function closeDialog() {
 }
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
-    // Evitar peticiÛn al servidor si la factura ya est· aprobada
+    // Evitar petici√≥n al servidor si la factura ya est√° aprobada
     if (invoice.status === 'approved') {
-        showError('No se puede eliminar una factura que est· aprobada.');
+        showError('No se puede eliminar una factura que est√° aprobada.');
         return;
     }
     invoiceToDelete.value = invoice;
@@ -184,14 +184,14 @@ async function deleteInvoice(): Promise<void> {
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
         console.log('Error al eliminar factura:', e);
-        // Intentar mostrar mensaje del servidor si est· disponible
+        // Intentar mostrar mensaje del servidor si est√° disponible
         const serverMessage = (e as any)?.response?.data?.message;
         const status = (e as any)?.response?.status;
         if (serverMessage) {
             showError(serverMessage);
         } else if (status === 500) {
-            // Mensaje m·s amigable para 500 cuando la API falla
-            showError('No se pudo eliminar la factura. Si la factura est· aprobada no puede eliminarse o ocurriÛ un error en el servidor.');
+            // Mensaje m√°s amigable para 500 cuando la API falla
+            showError('No se pudo eliminar la factura. Si la factura est√° aprobada no puede eliminarse o ocurri√≥ un error en el servidor.');
         } else {
             showError('Error al eliminar la factura.');
         }
@@ -231,7 +231,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     }
 }
 
-// Watcher ˙nico para filtros y b˙squeda
+// Watcher √∫nico para filtros y b√∫squeda
 watch(
     [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
     ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
@@ -243,7 +243,7 @@ watch(
             newTo !== oldTo ||
             newSearch !== oldSearch
         ) {
-            // Solo cambia la p·gina, el watcher de currentPage har· el fetch
+            // Solo cambia la p√°gina, el watcher de currentPage har√° el fetch
             if (currentPage.value !== 1) {
                 currentPage.value = 1;
             } else {
@@ -253,7 +253,7 @@ watch(
     }
 );
 
-// Watcher para paginaciÛn
+// Watcher para paginaci√≥n
 watch(currentPage, (newPage, oldPage) => {
     if (newPage !== oldPage) {
         fetchInvoices(newPage, searchQuery.value);
@@ -288,12 +288,12 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
 }
 
 function goToReception(invoice: PurchaseInvoice) {
-    // Navegar a la p·gina de recepciÛn con el ID de la factura
+    // Navegar a la p√°gina de recepci√≥n con el ID de la factura
     router.visit(buildReceptionUrl(invoice.id));
 }
 
 function viewInvoiceDetails(invoice: PurchaseInvoice) {
-    // Abrir el dialog de ediciÛn en modo solo lectura
+    // Abrir el dialog de edici√≥n en modo solo lectura
     openDialog('edit', invoice, true);
 }
 
@@ -328,7 +328,7 @@ function handleDialogError(message?: string) {
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Facturas de Compras Tela</h1>
                     <p class="text-sm text-muted-foreground">
-                        Registra facturas de tela para llevar la trazabilidad de la recepciÛn y la aprobaciÛn.
+                        Registra facturas de tela para llevar la trazabilidad de la recepci√≥n y la aprobaci√≥n.
                     </p>
                 </div>
                 <div class="flex gap-2">
@@ -400,12 +400,12 @@ function handleDialogError(message?: string) {
                     <TableHeader>
                         <TableRow>
                             <TableHead>#Factura</TableHead>
-                            <TableHead>Fecha de creaciÛn</TableHead>
+                            <TableHead>Fecha de creaci√≥n</TableHead>
                             <TableHead>Fecha de entrega</TableHead>
                             <TableHead>Proveedor</TableHead>
                             <TableHead>Item</TableHead>
                             <TableHead>Total</TableHead>
-                            <TableHead>DescripciÛn</TableHead>
+                            <TableHead>Descripci√≥n</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
@@ -453,12 +453,12 @@ function handleDialogError(message?: string) {
                                         <Eye class="h-4 w-4" />
                                     </button>
                                     <EditButton :onClick="() => openDialog('edit', invoice)" />
-                                    <!-- Mostrar siempre el botÛn; si est· aprobado se muestra deshabilitado visualmente
+                                    <!-- Mostrar siempre el bot√≥n; si est√° aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
                                     <DeleteButton
                                         :onClick="() => {
                                             if (invoice.status === 'approved') {
-                                                showError('No se puede eliminar una factura que est· aprobada.');
+                                                showError('No se puede eliminar una factura que est√° aprobada.');
                                             } else {
                                                 confirmDeleteInvoice(invoice);
                                             }
@@ -477,7 +477,7 @@ function handleDialogError(message?: string) {
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
                                             <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception(invoice)">
-                                                <Package class="h-4 w-4" /> Ir a recepciÛn
+                                                <Package class="h-4 w-4" /> Ir a recepci√≥n
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 class="cursor-pointer gap-2"
@@ -514,8 +514,8 @@ function handleDialogError(message?: string) {
         />
         <ConfirmDialog
         v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminaciÛn"
-        description="øDeseas eliminar esta solicitud de compra? Esta acciÛn no se puede deshacer."
+        title="Confirmar eliminaci√≥n"
+        description="¬øDeseas eliminar esta solicitud de compra? Esta acci√≥n no se puede deshacer."
         confirm-text="Eliminar"
         cancel-text="Cancelar"
         :destructive="true"

@@ -75,7 +75,12 @@ const modules = [
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
-                <h1 class="text-xl font-bold">Configuración</h1>
+                <div class="space-y-1">
+                    <h1 class="text-xl font-bold">Configuración</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Centraliza los parámetros clave de la empresa y define cómo funciona el sistema.
+                    </p>
+                </div>
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div
