@@ -33,16 +33,18 @@ const page = usePage<SharedData>();
 const user = page.props.auth.user;
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuraci髇', href: '/panel-administrativo' },
-    { title: 'Configuraci贸n', href: '/panel-administrativo/empresa' },
+    {
+        title: 'Datos B谩sicos',
+        href: '/configuracion/empresa',
+    },
 ];
 
 type SectionKey = 'empresa' | 'perfil' | 'personalizacion';
 
 const sectionRoutes: Record<SectionKey, string> = {
-    empresa: route('panel-administrativo.empresa'),
-    perfil: route('panel-administrativo.perfil'),
-    personalizacion: route('panel-administrativo.apariencia'),
+    empresa: route('configuracion.empresa'),
+    perfil: route('configuracion.perfil'),
+    personalizacion: route('configuracion.apariencia'),
 };
 
 type NavSection = {
@@ -62,13 +64,13 @@ const navSections: NavSection[] = [
         key: 'perfil',
         label: 'Perfil',
         description: 'Informaci贸n de tu cuenta',
-        href: '/panel-administrativo/perfil',
+        href: '/configuracion/perfil',
     },
     {
         key: 'personalizacion',
         label: 'Personalizaci贸n',
         description: 'Tema y apariencia de la plataforma',
-        href: '/panel-administrativo/personalizacion',
+        href: '/configuracion/personalizacion',
     },
 
 ];
@@ -389,7 +391,7 @@ async function syncCompanyInfo(options: SyncOptions = {}): Promise<void> {
         }
 
         payload.append('_method', 'PATCH');
-        const response = await axios.post('/panel-administrativo/empresa', payload, {
+        const response = await axios.post('/configuracion/empresa', payload, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
 
@@ -507,7 +509,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head title="Configuraci髇 路 Configuraci贸n" />
+    <Head title="Datos B谩sicos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <transition name="fade">
             <div
@@ -526,7 +528,7 @@ onBeforeUnmount(() => {
         </transition>
         <div class="flex flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="space-y-1">
-                <h1 class="text-2xl font-semibold text-card-foreground">Configuraci贸n</h1>
+                <h1 class="text-2xl font-semibold text-card-foreground">Datos B谩sicos</h1>
                 <p class="max-w-2xl text-sm text-muted-foreground/70">
                     Centraliza la informaci贸n corporativa que utiliza el sistema para identificar la empresa, comunicar con contactos y contextualizar los reportes operativos.
                 </p>

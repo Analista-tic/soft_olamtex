@@ -6,7 +6,7 @@ import { Head, Link } from '@inertiajs/vue3';
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Configuración',
-        href: '/panel-administrativo',
+        href: '/configuracion',
     },
 ];
 
@@ -15,7 +15,7 @@ const modules = [
         title: 'Empresa',
         description: 'Administra usuarios, roles y permisos de acceso.',
         options: [
-            { name: 'Configuración', href: '/panel-administrativo/empresa' },
+            { name: 'Configuración', href: '/configuracion/empresa' },
             { name: 'Contactos', href: '/contactos' },
         ],
     },

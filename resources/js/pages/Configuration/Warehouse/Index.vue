@@ -29,7 +29,7 @@ import WarehouseDialog from './WarehouseDialog.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuración', href: '/panel-administrativo' },
+    { title: 'ConfiguraciÃ³n', href: '/configuracion' },
     { title: 'Bodegas', href: '/bodegas' },
 ];
 

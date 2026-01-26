@@ -6,7 +6,7 @@ import type { Item } from '@/domain/inventory';
 import { ref } from 'vue';
 
 const breadcrumbs = [
-  { title: 'Configuración', href: '/panel-administrativo' },
+  { title: 'ConfiguraciÃ³n', href: '/configuracion' },
   { title: 'Inventario de item', href: route('listado') },
   { title: 'Formulario avanzado', href: '' },
 ];

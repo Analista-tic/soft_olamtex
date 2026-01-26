@@ -22,7 +22,7 @@ import SelectField from '@/components/SelectField.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
-    { title: 'Configuración', href: '/panel-administrativo' },
+    { title: 'ConfiguraciÃ³n', href: '/configuracion' },
     { title: 'Retenciones', href: '/configuracion/retenciones' },
 ];
 

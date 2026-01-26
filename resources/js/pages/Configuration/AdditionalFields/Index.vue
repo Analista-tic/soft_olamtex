@@ -30,7 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PlusCircle, Search } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuración', href: '/panel-administrativo' },
+    { title: 'ConfiguraciÃ³n', href: '/configuracion' },
     { title: 'Campos adicionales', href: '/campos-adicionales' },
 ];
 
@@ -320,7 +320,7 @@ onMounted(() => {
                 <div class="flex flex-col gap-1 max-w-3xl">
                     <h1 class="text-lg font-bold">Campos adicionales</h1>
                     <p class="text-sm text-muted-foreground">
-                        Este módulo permite definir, ordenar y mantener los campos adicionales que enriquecen la información de ítems y productos, asegurando que cada área del negocio capture los atributos obligatorios y opcionales que requiere su operación.
+                        Este mï¿½dulo permite definir, ordenar y mantener los campos adicionales que enriquecen la informaciï¿½n de ï¿½tems y productos, asegurando que cada ï¿½rea del negocio capture los atributos obligatorios y opcionales que requiere su operaciï¿½n.
                     </p>
                 </div>
                 <div class="flex items-center justify-end pt-2 lg:pt-0">

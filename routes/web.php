@@ -174,24 +174,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')
         ->name('configuracion');
-    // ===PANEL ADMINISTRATIVO ===
-    Route::get('panel-administrativo', fn() => Inertia::render('Configuration/Index'))
+    Route::get('configuracion/empresa', [CompanySettingsController::class, 'edit'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo');
-    Route::get('panel-administrativo/empresa', [CompanySettingsController::class, 'edit'])
+        ->name('configuracion.empresa');
+    Route::get('configuracion/perfil', [CompanySettingsController::class, 'edit'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.empresa');
-    Route::get('panel-administrativo/perfil', [CompanySettingsController::class, 'edit'])
-        ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.perfil')
+        ->name('configuracion.perfil')
         ->defaults('section', 'perfil');
-    Route::get('panel-administrativo/apariencia', [CompanySettingsController::class, 'edit'])
+    Route::get('configuracion/apariencia', [CompanySettingsController::class, 'edit'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.apariencia')
+        ->name('configuracion.apariencia')
         ->defaults('section', 'personalizacion');
-    Route::patch('panel-administrativo/empresa', [CompanySettingsController::class, 'update'])
+    Route::patch('configuracion/empresa', [CompanySettingsController::class, 'update'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.empresa.update');
+        ->name('configuracion.empresa.update');
 
     // === USUARIOS ===
     Route::get('users', [UserController::class, 'getData'])

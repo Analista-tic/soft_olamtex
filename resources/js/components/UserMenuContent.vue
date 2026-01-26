@@ -18,8 +18,8 @@ defineProps<Props>();
             <UserInfo :user="user" :show-email="true" />
             <Link
                 class="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                :href="route('configuracion')"
-                aria-label="Ir a configuración"
+                :href="route('configuracion.empresa')"
+                aria-label="Ir a configuración de empresa"
             >
                 <Pencil class="h-4 w-4" />
             </Link>

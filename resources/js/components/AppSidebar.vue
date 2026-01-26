@@ -65,7 +65,7 @@ const footerNavItems: NavItem[] = [
     },
     {
         title: 'Configuración',
-        href: '/panel-administrativo',
+        href: '/configuracion',
         icon: Settings,
         permission: 'ver usuarios',
     },
