@@ -315,8 +315,11 @@ const filteredTextilSections = computed(() =>
             </template>
         </SidebarContent>
 
-        <SidebarFooter>
-            <NavFooter :items="filteredFooterNavItems" />
+        <SidebarFooter class="border-t border-sidebar-border/80 pt-2">
+            <NavFooter
+                :items="filteredFooterNavItems"
+                class="rounded-xl border border-sidebar-border/60 bg-sidebar-accent/30 p-2"
+            />
             <NavUser />
         </SidebarFooter>
     </Sidebar>
