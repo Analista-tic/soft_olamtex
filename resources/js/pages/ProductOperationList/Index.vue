@@ -31,8 +31,8 @@ import { useAlertStack } from '@/composables/useAlert';
 const page = usePage<ProductOperationListPageProps>();
 
 const breadcrumbs = [
-    { title: 'Diseño', href: '/diseno' },
-    { title: 'Listados operacionales', href: '/diseno/listados-operacionales' },
+    { title: 'Sabana de Productos', href: '/sabana-producto' },
+    { title: 'Listados operacionales', href: '/sabana-producto/listados-operacionales' },
 ];
 
 const sections = computed(() => page.props.sections || []);

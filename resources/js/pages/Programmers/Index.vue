@@ -63,12 +63,8 @@ async function loadPermissions() {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Diseño',
-        href: '/comercial/programador',
-    },
-    {
         title: 'Programador',
-        href: '/comercial/programador',
+        href: '/programador',
     },
 ];
 

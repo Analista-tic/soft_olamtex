@@ -26,11 +26,6 @@ interface PageProps extends InertiaPageProps {
 
 const props = usePage<PageProps>().props;
 
-const breadcrumbs = [
-    { title: 'Kardex Telas', href: '/kardex-telas' },
-    { title: 'Recepción', href: '/kardex-telas/recepcion' },
-];
-
 const invoices = ref<PurchaseInvoice[]>([]);
 const searchQuery = ref('');
 const currentPage = ref(1);
@@ -46,6 +41,52 @@ const returnToUrl = computed(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('return_to') || '';
 });
+
+const invoiceTypeParam = computed(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    return (params.get('invoice_type') || '').toLowerCase();
+});
+
+const isFabricOrigin = computed(() => {
+    if (invoiceTypeParam.value === 'fabric' || invoiceTypeParam.value === 'tela') {
+        return true;
+    }
+
+    const returnTo = returnToUrl.value.toLowerCase();
+    if (returnTo.includes('facturas-compra-tela')) {
+        return true;
+    }
+
+    if (typeof document !== 'undefined') {
+        const referrer = document.referrer.toLowerCase();
+        if (referrer.includes('facturas-compra-tela')) {
+            return true;
+        }
+    }
+
+    return false;
+});
+
+const invoicesBasePath = computed(() =>
+    isFabricOrigin.value ? '/gastos/facturas-compra-tela' : '/gastos/facturas-compra',
+);
+const invoicesListRoute = computed(() => invoicesBasePath.value);
+const invoicesDataRoute = computed(() => `${invoicesBasePath.value}/data`);
+const receptionBaseRoute = '/kardex-telas/recepcion';
+
+const receptionHref = computed(() => {
+    if (typeof window === 'undefined') return receptionBaseRoute;
+    return `${receptionBaseRoute}${window.location.search || ''}`;
+});
+
+const breadcrumbs = computed(() => [
+    {
+        title: isFabricOrigin.value ? 'Facturas de Compra Tela' : 'Facturas de Compra',
+        href: invoicesListRoute.value,
+    },
+    { title: 'RecepciÃ³n', href: receptionHref.value },
+]);
 
 const invoiceDateTimeFormatter = new Intl.DateTimeFormat('es-CO', {
     dateStyle: 'short',
@@ -72,7 +113,7 @@ const showAlert = ref(false);
 // Ref al contenedor principal para poder hacer scroll cuando muestre alertas
 const pageContentRef = ref<HTMLElement | null>(null);
 
-// Diálogo para rechazar recepción
+// DiÃ¡logo para rechazar recepciÃ³n
 const isRejectDialogOpen = ref(false);
 const invoiceToReject = ref<PurchaseInvoice | null>(null);
 
@@ -104,17 +145,17 @@ const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 
-// Computed para determinar si hay un ID específico en la URL
+// Computed para determinar si hay un ID especÃ­fico en la URL
 const specificInvoiceId = computed(() => {
     return props.invoiceId ? Number(props.invoiceId) : null;
 });
 
-// Computed para mostrar/ocultar la tabla según el modo
+// Computed para mostrar/ocultar la tabla segÃºn el modo
 const showInvoicesList = computed(() => {
     return !specificInvoiceId.value && !selectedInvoice.value;
 });
 
-// Computed para mostrar la vista de factura específica
+// Computed para mostrar la vista de factura especÃ­fica
 const showInvoiceDetail = computed(() => {
     return selectedInvoice.value !== null;
 });
@@ -150,7 +191,7 @@ async function fetchSpecificInvoice(invoiceId: number) {
     isLoadingSpecificInvoice.value = true;
     try {
         console.log('Cargando factura ID:', invoiceId);
-        const response = await axios.get(`/gastos/facturas-compra/${invoiceId}`);
+        const response = await axios.get(`${invoicesBasePath.value}/${invoiceId}`);
         console.log('Respuesta de la factura:', response.data);
         
         if (response.data && response.data.data) {
@@ -161,12 +202,12 @@ async function fetchSpecificInvoice(invoiceId: number) {
             setAlert('Error: La respuesta del servidor no tiene el formato esperado', 'error');
         }
     } catch (e: any) {
-        console.error('Error al cargar factura específica:', e);
+        console.error('Error al cargar factura especÃ­fica:', e);
         if (e?.response) {
             console.error('Respuesta del error:', e.response.data);
             setAlert(`Error al cargar la factura: ${e.response.data?.message || 'Error desconocido'}`, 'error');
         } else {
-            setAlert('Error al cargar la factura. Verifique que el ID sea válido.', 'error');
+            setAlert('Error al cargar la factura. Verifique que el ID sea vÃ¡lido.', 'error');
         }
     } finally {
         isLoadingSpecificInvoice.value = false;
@@ -183,24 +224,29 @@ function goBackToList() {
         router.visit(returnToUrl.value);
         return;
     }
-    // Si vino por URL específica, navegar de vuelta
+    // Si vino por URL especÃ­fica, navegar de vuelta
     if (specificInvoiceId.value) {
-        router.visit('/kardex-telas/recepcion');
+        router.visit(receptionHref.value);
         return;
     }
-    // Priorizar redirección a Facturas si la página de origen fue Facturas
+    // Priorizar redirecciÃ³n a Facturas si la pÃ¡gina de origen fue Facturas
     const referrer = typeof document !== 'undefined' ? document.referrer : '';
     if (referrer) {
         try {
             const refUrl = new URL(referrer);
             const refPath = refUrl.pathname || '';
-            // Ajusta las rutas según la aplicación: buscar patrones relacionados con facturas
-            if (refPath.includes('/gastos/facturas') || refPath.includes('/facturas') || refPath.includes('/gastos/facturas-compra')) {
-                router.visit('/gastos/facturas');
+            // Buscar patrones relacionados con facturas y redirigir segÃºn el origen
+            if (
+                refPath.includes('/gastos/facturas') ||
+                refPath.includes('/facturas') ||
+                refPath.includes('/gastos/facturas-compra') ||
+                refPath.includes('/gastos/facturas-compra-tela')
+            ) {
+                router.visit(invoicesListRoute.value);
                 return;
             }
         } catch {
-            // si falla el parseo, continuar con la lógica por defecto
+            // si falla el parseo, continuar con la lÃ³gica por defecto
         }
     }
 
@@ -218,15 +264,15 @@ async function approveReception(invoice: PurchaseInvoice) {
         if (showInvoicesList.value) {
             await fetchInvoices(currentPage.value, searchQuery.value);
         } else {
-            // Si estamos viendo una factura específica, recargar esa factura
+            // Si estamos viendo una factura especÃ­fica, recargar esa factura
             if (invoice.id && typeof invoice.id === 'number') {
                 await fetchSpecificInvoice(invoice.id);
             }
         }
-        setAlert('Recepción aprobada correctamente', 'success');
+        setAlert('RecepciÃ³n aprobada correctamente', 'success');
     } catch (e: any) {
-        console.log('Error al aprobar recepción:', e);
-        setAlert('Error al aprobar la recepción', 'error');
+        console.log('Error al aprobar recepciÃ³n:', e);
+        setAlert('Error al aprobar la recepciÃ³n', 'error');
     }
 }
 
@@ -250,10 +296,10 @@ async function confirmRejectReception() {
                 await fetchSpecificInvoice(invoice.id);
             }
         }
-        setAlert('Recepción rechazada', 'success');
+        setAlert('RecepciÃ³n rechazada', 'success');
     } catch (e: any) {
-        console.log('Error al rechazar recepción:', e);
-        setAlert('Error al rechazar la recepción', 'error');
+        console.log('Error al rechazar recepciÃ³n:', e);
+        setAlert('Error al rechazar la recepciÃ³n', 'error');
     } finally {
         isRejectDialogOpen.value = false;
         invoiceToReject.value = null;
@@ -276,7 +322,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
-        const response = await axios.get('/gastos/facturas-compra/data', { params });
+        const response = await axios.get(invoicesDataRoute.value, { params });
         invoices.value = Array.isArray(response.data.data)
             ? response.data.data
             : Array.isArray(response.data)
@@ -331,7 +377,7 @@ function getStatusText(status: string) {
 watch(
     [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
     ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
-        if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
+        if (!showInvoicesList.value) return; // No ejecutar watchers en modo especÃ­fico
         
         if (
             newStatus !== oldStatus ||
@@ -351,7 +397,7 @@ watch(
 );
 
 watch(currentPage, (newPage, oldPage) => {
-    if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
+    if (!showInvoicesList.value) return; // No ejecutar watchers en modo especÃ­fico
     
     if (newPage !== oldPage) {
         fetchInvoices(newPage, searchQuery.value);
@@ -363,7 +409,7 @@ onMounted(async () => {
     await fetchSubgroups();
     
     if (specificInvoiceId.value) {
-        // Modo específico: cargar solo la factura solicitada
+        // Modo especÃ­fico: cargar solo la factura solicitada
         await fetchSpecificInvoice(specificInvoiceId.value);
     } else {
         // Modo lista: cargar todas las facturas
@@ -393,7 +439,7 @@ function closeFabricRollDialog() {
 function onFabricRollSuccess() {
     setAlert('Rollo registrado correctamente', 'success');
     closeFabricRollDialog();
-    // Recargar la factura específica para mostrar los rollos actualizados
+    // Recargar la factura especÃ­fica para mostrar los rollos actualizados
     if (selectedInvoice.value && selectedInvoice.value.id && typeof selectedInvoice.value.id === 'number') {
         fetchSpecificInvoice(selectedInvoice.value.id);
     }
@@ -401,7 +447,7 @@ function onFabricRollSuccess() {
 </script>
 
 <template>
-    <Head :title="specificInvoiceId ? `Recepción - Factura #${specificInvoiceId}` : 'Recepción'" />
+    <Head :title="specificInvoiceId ? `RecepciÃ³n - Factura #${specificInvoiceId}` : 'RecepciÃ³n'" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-col gap-4 rounded-xl p-3">
             <transition name="fade">
@@ -411,7 +457,7 @@ function onFabricRollSuccess() {
                 >
                     <AlertBox
                         :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Ã‰xito' : alertType === 'info' ? 'InformaciÃ³n' : 'Error'"
                         :message="alertMessage"
                         class="pointer-events-auto"
                         @close="clearAlert"
@@ -421,7 +467,7 @@ function onFabricRollSuccess() {
             <!-- Header principal -->
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-4">
-                    <!-- Botón de volver solo cuando se está viendo una factura -->
+                    <!-- BotÃ³n de volver solo cuando se estÃ¡ viendo una factura -->
                     <Button 
                         v-if="showInvoiceDetail" 
                         variant="ghost" 
@@ -433,17 +479,18 @@ function onFabricRollSuccess() {
                         Volver a la lista
                     </Button>
                     <h1 class="text-base font-bold">
-                        {{ showInvoiceDetail ? `Recepción - Factura #${selectedInvoice?.id}` : 'Recepción' }}
+                        {{ showInvoiceDetail ? `RecepciÃ³n - Factura #${selectedInvoice?.id}` : 'RecepciÃ³n' }}
                     </h1>
                 </div>
-                <div class="text-xs text-gray-600">
-                    {{ showInvoiceDetail ? 'Revisión y aprobación de factura' : 'Gestión de recepciones de facturas' }}
-                </div>
             </div>
+            <p class="text-sm text-muted-foreground">
+                Revisa las facturas recibidas, registra la recepciÃ³n y aprueba o rechaza segÃºn corresponda.
+                Usa los filtros para encontrar rÃ¡pidamente las pendientes.
+            </p>
 
             <!-- Vista de lista de facturas -->
             <template v-if="showInvoicesList">
-                <!-- Mostrar loading si se está cargando factura específica -->
+                <!-- Mostrar loading si se estÃ¡ cargando factura especÃ­fica -->
                 <div v-if="specificInvoiceId && isLoadingSpecificInvoice" class="text-center py-8">
                     <p class="text-gray-600">Cargando factura...</p>
                 </div>
@@ -544,14 +591,14 @@ function onFabricRollSuccess() {
                                         <button
                                             class="flex items-center text-gray-500 transition-colors duration-200 hover:text-green-600"
                                             @click="approveReception(invoice)"
-                                            title="Aprobar recepción"
+                                            title="Aprobar recepciÃ³n"
                                         >
                                             <Check class="h-4 w-4" />
                                         </button>
                                         <button
                                             class="flex items-center text-gray-500 transition-colors duration-200 hover:text-red-600"
                                             @click="showRejectDialog(invoice)"
-                                            title="Rechazar recepción"
+                                            title="Rechazar recepciÃ³n"
                                         >
                                             <X class="h-4 w-4" />
                                         </button>
@@ -566,14 +613,14 @@ function onFabricRollSuccess() {
             <!-- Vista detallada de factura (sin dialog) -->
             <template v-if="showInvoiceDetail && selectedInvoice">
                 <div class="space-y-6">
-                    <!-- Botones de acción en la parte superior -->
+                    <!-- Botones de acciÃ³n en la parte superior -->
                     <div class="flex justify-end gap-3 p-4 bg-gray-50 rounded-lg">
                         <template v-if="selectedInvoice.status === 'pending' || !selectedInvoice.status">
                             <Button variant="destructive" @click="showRejectDialog(selectedInvoice)">
-                                Rechazar Recepción
+                                Rechazar RecepciÃ³n
                             </Button>
                             <Button variant="default" @click="approveReception(selectedInvoice)">
-                                Aprobar Recepción
+                                Aprobar RecepciÃ³n
                             </Button>
                         </template>
                         <div v-else class="text-sm text-gray-600">
@@ -583,7 +630,7 @@ function onFabricRollSuccess() {
                         </div>
                     </div>
 
-                    <!-- Información general -->
+                    <!-- InformaciÃ³n general -->
                     <div class="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded-lg">
                         <div>
                             <p class="text-sm font-medium text-gray-700">Fecha de factura</p>
@@ -611,7 +658,7 @@ function onFabricRollSuccess() {
                     <div class="grid grid-cols-3 items-start gap-4 p-3 bg-white border rounded-lg">
                         <div>
                             <div class="text-sm font-semibold">Factura #{{ selectedInvoice.id }}</div>
-                            <p class="text-sm text-gray-600">{{ selectedInvoice.supplier_invoice_number || 'Sin número de proveedor' }}</p>
+                            <p class="text-sm text-gray-600">{{ selectedInvoice.supplier_invoice_number || 'Sin nÃºmero de proveedor' }}</p>
                         </div>
                         <div class="relative flex h-full items-center justify-center rounded p-2">
                             <img
@@ -623,7 +670,7 @@ function onFabricRollSuccess() {
                         <div>
                             <div class="text-sm font-semibold">Datos empresa</div>
                             <p class="text-sm">
-                                Razón Social:
+                                RazÃ³n Social:
                                 <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
                             </p>
                             <p class="text-sm">
@@ -637,23 +684,23 @@ function onFabricRollSuccess() {
                         </div>
                     </div>
 
-                    <!-- Información del proveedor -->
+                    <!-- InformaciÃ³n del proveedor -->
                     <div class="grid grid-cols-3 gap-4 p-3 bg-gray-50 rounded-lg">
                         <div>
                             <p class="text-sm font-medium text-gray-700">Proveedor</p>
                             <p class="text-sm">{{ selectedInvoice.contact?.full_name || 'N/A' }}</p>
                         </div>
                         <div>
-                            <p class="text-sm font-medium text-gray-700">Número de identificación</p>
+                            <p class="text-sm font-medium text-gray-700">NÃºmero de identificaciÃ³n</p>
                             <p class="text-sm">{{ selectedInvoice.contact?.id_number || 'N/A' }}</p>
                         </div>
                         <div>
-                            <p class="text-sm font-medium text-gray-700">Número de contacto</p>
+                            <p class="text-sm font-medium text-gray-700">NÃºmero de contacto</p>
                             <p class="text-sm">{{ selectedInvoice.contact?.phone || 'N/A' }}</p>
                         </div>
                     </div>
 
-                    <!-- Descripción -->
+                    <!-- DescripciÃ³n -->
                     <div v-if="selectedInvoice.description" class="p-3 bg-gray-50 rounded-lg">
                         <p class="text-sm font-medium text-gray-700 mb-1">Observaciones</p>
                         <p class="text-sm">{{ selectedInvoice.description }}</p>
@@ -667,9 +714,9 @@ function onFabricRollSuccess() {
                                 <TableHeader>
                                     <TableRow class="text-sm">
                                         <TableHead class="text-sm py-2">Item</TableHead>
-                                        <TableHead class="text-sm py-2">Código</TableHead>
-                                        <TableHead class="text-sm py-2">Descripción</TableHead>
-                                        <TableHead class="text-sm py-2">Código Proveedor</TableHead>
+                                        <TableHead class="text-sm py-2">CÃ³digo</TableHead>
+                                        <TableHead class="text-sm py-2">DescripciÃ³n</TableHead>
+                                        <TableHead class="text-sm py-2">CÃ³digo Proveedor</TableHead>
                                         <TableHead class="text-sm py-2">Color Proveedor</TableHead>
                                         <TableHead class="text-sm py-2">Ancho</TableHead>
                                         <TableHead class="text-sm py-2">Longitud</TableHead>
@@ -744,7 +791,7 @@ function onFabricRollSuccess() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow class="text-sm">
-                                            <TableHead class="py-2 px-3 text-sm">Retención</TableHead>
+                                            <TableHead class="py-2 px-3 text-sm">RetenciÃ³n</TableHead>
                                             <TableHead class="py-2 px-3 text-sm">Base</TableHead>
                                             <TableHead class="py-2 px-3 text-sm">%</TableHead>
                                             <TableHead class="py-2 px-3 text-sm">Valor</TableHead>
@@ -780,7 +827,7 @@ function onFabricRollSuccess() {
                             </div>
                         </div>
                         <div v-else>
-                            <!-- Espacio vacío cuando no hay retenciones -->
+                            <!-- Espacio vacÃ­o cuando no hay retenciones -->
                         </div>
 
                         <!-- Totales detallados a la derecha -->
@@ -820,7 +867,7 @@ function onFabricRollSuccess() {
                                         })
                                     }}</span>
                                 </div>
-                                <!-- Mostrar cada retención individual -->
+                                <!-- Mostrar cada retenciÃ³n individual -->
                                 <template v-for="(w, idx) in selectedInvoice.withholdings || []" :key="idx">
                                     <div class="flex justify-between items-center text-sm">
                                         <span class="text-gray-600">- {{ w.name }}</span>
@@ -865,27 +912,27 @@ function onFabricRollSuccess() {
                         </div>
                     </div>
 
-                    <!-- Botones de acción en la parte inferior -->
+                    <!-- Botones de acciÃ³n en la parte inferior -->
                     <div class="flex justify-end gap-3 p-4 bg-gray-50 rounded-lg">
                         <template v-if="selectedInvoice.status === 'pending' || !selectedInvoice.status">
                             <Button variant="destructive" @click="showRejectDialog(selectedInvoice)">
-                                Rechazar Recepción
+                                Rechazar RecepciÃ³n
                             </Button>
                             <Button variant="default" @click="approveReception(selectedInvoice)">
-                                Aprobar Recepción
+                                Aprobar RecepciÃ³n
                             </Button>
                         </template>
                     </div>
                 </div>
             </template>
 
-            <!-- Diálogo de confirmación para rechazar recepción -->
+            <!-- DiÃ¡logo de confirmaciÃ³n para rechazar recepciÃ³n -->
             <Dialog v-model:open="isRejectDialogOpen">
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>¿Está seguro de rechazar esta recepción?</DialogTitle>
+                        <DialogTitle>Â¿EstÃ¡ seguro de rechazar esta recepciÃ³n?</DialogTitle>
                         <DialogDescription>
-                            Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.
+                            Esta acciÃ³n marcarÃ¡ la recepciÃ³n como rechazada y no se podrÃ¡ deshacer fÃ¡cilmente.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
@@ -911,7 +958,7 @@ function onFabricRollSuccess() {
                 </DialogContent>
             </Dialog>
 
-            <!-- Diálogo para registrar rollos de tela -->
+            <!-- DiÃ¡logo para registrar rollos de tela -->
             <FabricRollDialog 
                 :isOpen="isFabricRollDialogOpen" 
                 :item="selectedItem" 
@@ -922,3 +969,7 @@ function onFabricRollSuccess() {
         </div>
     </AppLayout>
 </template>
+
+
+
+

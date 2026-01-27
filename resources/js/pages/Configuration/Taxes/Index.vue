@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import {
@@ -17,6 +17,10 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useAlertStack } from '@/composables/useAlert';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
     { title: 'Impuestos', href: '/impuestos' },
@@ -35,6 +39,11 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
+const DEFAULT_FILTER_VALUE = 'all';
+const statusFilter = ref(DEFAULT_FILTER_VALUE);
+const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_FILTER_VALUE);
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 function openDialog(type: 'create' | 'edit', tax: any | null = null) {
     dialogType.value = type;
@@ -84,9 +93,11 @@ async function handleDialogSubmit(taxData: any) {
 }
 
 async function fetchTaxes(page = 1, search = '') {
-    const { data } = await axios.get('/impuestos/data', {
-        params: { page, per_page: itemsPerPage, search }
-    });
+    const params: Record<string, any> = { page, per_page: itemsPerPage, search };
+    if (statusFilter.value !== DEFAULT_FILTER_VALUE) {
+        params.status = statusFilter.value;
+    }
+    const { data } = await axios.get('/impuestos/data', { params });
     taxes.value = data.data;
     totalItems.value = data.total ?? data.data.length;
     currentPage.value = data.current_page ?? 1;
@@ -97,7 +108,7 @@ function handlePageChange(newPage: number) {
     fetchTaxes(newPage, searchQuery.value);
 }
 
-watch(searchQuery, (q) => fetchTaxes(1, q));
+watch([searchQuery, statusFilter], ([q]) => fetchTaxes(1, q));
 onMounted(() => fetchTaxes());
 </script>
 
@@ -113,25 +124,46 @@ onMounted(() => fetchTaxes());
             @close-error="clearError"
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de impuestos</h1>
+            <div class="flex flex-col gap-3">
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Gestión de impuestos</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Configura los impuestos que se aplican a productos y servicios. Define el nombre y
+                        el porcentaje; luego podrás seleccionarlos en las facturas y órdenes para calcular
+                        los totales.
+                    </p>
+                </div>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 self-end rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="openDialog('create')"
                 >
                     <PlusCircle class="w-4 h-4" />
                     Nuevo Impuesto
                 </button>
             </div>
-            <div class="relative flex items-center gap-4">
-                <div class="relative w-full max-w-sm">
-                    <Input id="search_tax" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
-                    <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                        <Search :size="20" class="text-muted-foreground" />
-                    </span>
-                </div>
-            </div>
+            <FilterBar align="start" gap="gap-4">
+                <FilterField label="Buscar impuesto" :active="isSearchActive" class="flex-1 min-w-[240px] p-0">
+                    <div class="relative w-full">
+                        <Input id="search_tax" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                            <Search :size="20" class="text-muted-foreground" />
+                        </span>
+                    </div>
+                </FilterField>
+                <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[170px]">
+                    <SelectField
+                        v-model="statusFilter"
+                        label=""
+                        :options="[
+                            { id: 'all', name: 'Todos los estados' },
+                            { id: 'active', name: 'Activo' },
+                            { id: 'inactive', name: 'Inactivo' },
+                        ]"
+                        :button-class="statusButtonClasses"
+                    />
+                </FilterField>
+            </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
@@ -202,9 +234,6 @@ onMounted(() => fetchTaxes());
         />
     </AppLayout>
 </template>
-
-
-
 
 
 

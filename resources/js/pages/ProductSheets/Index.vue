@@ -43,12 +43,8 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Diseño',
-        href: '/diseno/sabana-productos',
-    },
-    {
         title: 'Sabana de Productos',
-        href: '/diseno/sabana-productos',
+        href: '/sabana-productos',
     },
 ];
 
@@ -312,11 +308,11 @@ onMounted(async () => {
                     <TableBody>
                         <TableRow v-for="product in products_sheet" :key="product.id" class="text-center">
                             <TableCell class="font-medium">{{ product.reference }}</TableCell>
-                            <TableCell>{{ product.section.name }}</TableCell>
-                            <TableCell>{{ product.group.name }}</TableCell>
-                            <TableCell>{{ product.brand.name }}</TableCell>
-                            <TableCell>{{ product.world.name }}</TableCell>
-                            <TableCell>{{ product.fabric_base.name }}</TableCell>
+                            <TableCell>{{ product.section?.name ?? '' }}</TableCell>
+                            <TableCell>{{ product.group?.name ?? '' }}</TableCell>
+                            <TableCell>{{ product.brand?.name ?? '' }}</TableCell>
+                            <TableCell>{{ product.world?.name ?? '' }}</TableCell>
+                            <TableCell>{{ product.fabric_base?.name ?? '' }}</TableCell>
                             <TableCell>{{
                                 new Intl.NumberFormat('es-CO', {
                                     style: 'currency',

@@ -134,10 +134,10 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
             {
                 title: 'Impuestos',
                 href: '/impuestos',
-                items: [
-                    { title: 'Impuestos IVA', href: '/impuestos' },
-                    { title: 'Retenciones (ICA)', href: '/retenciones' },
-                ],
+            },
+            { 
+                title: 'Retenciones', 
+                href: '/retenciones' 
             },
             {
                 title: 'Tesorería',
