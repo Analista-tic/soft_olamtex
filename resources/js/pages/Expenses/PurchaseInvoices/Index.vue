@@ -27,7 +27,6 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
-    { title: 'Gastos', href: '/gastos/facturas-compra' },
     { title: 'Facturas de Compra', href: '/gastos/facturas-compra' },
 ];
 

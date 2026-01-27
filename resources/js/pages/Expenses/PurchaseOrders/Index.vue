@@ -23,7 +23,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
-    { title: 'Gastos', href: '/gastos/ordenes-compra' },
     { title: 'Órdenes de Compra', href: '/gastos/ordenes-compra' },
 ];
 

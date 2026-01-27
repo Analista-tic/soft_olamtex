@@ -40,7 +40,7 @@ type InventoryViewItem = {
 
 const breadcrumbs = [
     { title: 'Configuración', href: '/configuracion' },
-    { title: 'Inventario Ítems', href: '/inventario-item' },
+    { title: 'Inventario de Ítems', href: '/inventario-item' },
 ];
 
 const statusOptions: Option[] = [
@@ -151,12 +151,12 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Inventario Ítems" />
+    <Head title="Inventario de Ítems" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Inventario Ítems</h1>
+                    <h1 class="text-lg font-bold">Inventario de Ítems</h1>
                     <p class="text-sm text-muted-foreground">
                         Visualiza el stock por bodega, consulta referencias y controla el estado de los ítems.
                     </p>

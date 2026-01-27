@@ -46,7 +46,6 @@ type InventoryAdjustment = {
 };
 
 const breadcrumbs = [
-  { title: 'Inventario', href: '/inventario' },
   { title: 'Ajuste de Inventario', href: '/inventario/ajuste-inventario' },
 ];
 

@@ -30,7 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PlusCircle, Search } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuración', href: '/configuracion' },
+    { title: 'Catálogo de ítem', href: '/inventario/item' },
     { title: 'Campos adicionales', href: '/campos-adicionales' },
 ];
 

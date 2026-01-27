@@ -154,7 +154,7 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
         label: 'Inventarios',
         items: [
             {
-                title: 'Control físico y financiero',
+                title: 'Inventario de Ítems',
                 href: '/inventario-item',
                 permission: 'ver inventario telas',
             },
@@ -198,7 +198,7 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
             {
                 title: 'Ficha Técnica',
                 href: underConstructionHref('Ficha Técnica'),
-                items: [{ title: 'Listas de Materiales (BOM)', href: underConstructionHref('Listas de Materiales') }],
+                items: [{ title: 'Listas de Materiales', href: underConstructionHref('Listas de Materiales') }],
             },
             {
                 title: 'Consumos por OP',
@@ -211,8 +211,10 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
         items: [
             { title: 'Contactos', href: '/contactos' },
             { title: 'Catálogo de ítems', href: '/item', permission: 'ver inventario telas' },
+            { title: 'Categorías', href: '/categorias/subgrupos' },
             { title: 'Unidades de Medida', href: underConstructionHref('Unidades de Medida') },
             { title: 'Bodegas', href: '/bodegas', permission: 'ver bodegas' },
+            { title: 'Campos adicionales', href: '/campos-adicionales' },
             { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },
         ],
     },

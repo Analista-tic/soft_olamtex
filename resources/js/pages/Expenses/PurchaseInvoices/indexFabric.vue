@@ -27,7 +27,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const breadcrumbs = [
-    { title: 'Gastos', href: '/gastos/facturas-compra-tela' },
     { title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' },
 ];
 

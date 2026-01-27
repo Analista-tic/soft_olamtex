@@ -41,7 +41,6 @@ type InventoryRequestRow = {
 };
 
 const breadcrumbs = [
-    { title: 'Inventario', href: '/inventario' },
     { title: 'Solicitudes internas', href: '/inventario/solicitudes-internas' },
 ];
 

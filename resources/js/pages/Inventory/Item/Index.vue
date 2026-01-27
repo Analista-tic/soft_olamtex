@@ -38,8 +38,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
-    { title: 'Configuración', href: '/configuracion' },
-    { title: 'Ítems', href: '/inventario/item' },
+    { title: 'Catálogo de ítem', href: '/inventario/item' },
 ];
 
 const items = ref<Item[]>([]);
@@ -228,7 +227,7 @@ async function downloadTemplate() {
 </script>
 
 <template>
-    <Head title="Gestión de ítems" />
+    <Head title="Catálogo de ítem" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
@@ -241,7 +240,7 @@ async function downloadTemplate() {
             />
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Gestión de ítems</h1>
+                    <h1 class="text-lg font-bold">Catálogo de ítem</h1>
                     <p class="text-sm text-muted-foreground">
                         Gestiona los ítems del inventario: categorías, stock y estado.
                     </p>

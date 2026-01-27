@@ -20,7 +20,6 @@ import type { FabricRollView } from '@/domain/fabric';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
-    { title: 'Kardex de Telas', href: '/kardex-telas' },
     { title: 'Inventario Telas por Rollo', href: '/kardex-telas/inventario-rollos' },
 ];
 

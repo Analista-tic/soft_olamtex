@@ -30,7 +30,6 @@ import FilterField from '@/components/FilterField.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Configuración', href: '/configuracion' },
     { title: 'Contactos', href: '/contactos' },
 ];
 
