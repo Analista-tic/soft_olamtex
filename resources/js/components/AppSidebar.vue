@@ -159,13 +159,18 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
                 permission: 'ver inventario telas',
             },
             {
+                title: 'Bodegas',
+                href: '/bodegas',
+                permission: 'ver bodegas',
+            },
+            {
                 title: 'Kardex',
                 href: '/inventario/item',
                 permission: 'ver inventario telas',
                 items: [
                     { title: 'Movimientos de inventario', href: '/inventario/item', permission: 'ver inventario telas' },
                     { title: 'Ajustes', href: '/inventario/ajuste-inventario', permission: 'ver inventario telas' },
-                    { title: 'Traslados', href: underConstructionHref('Traslados de bodegas') },
+                    { title: 'Traslados', href: '/transferencias-bodegas' },
                 ],
             },
             {
@@ -179,10 +184,10 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
         items: [
             {
                 title: 'Sábana de Productos',
-                href: '/diseno/sabana-productos',
+                href: '/produccion/sabana-productos',
                 permission: 'ver sabana productos',
                 items: [
-                    { title: 'Listado Operacional', href: route('diseno.listados-operacionales.index'), permission: 'ver listados operacionales' },
+                    { title: 'Listado Operacional', href: route('produccion.listados-operacionales.index'), permission: 'ver listados operacionales' },
                     { title: 'Base de datos de operaciones', href: underConstructionHref('Base de datos de operaciones') },
                 ],
             },
@@ -240,7 +245,14 @@ const textilSections: { label: string; items: NavGroupItem[] }[] = [
 const filteredMainNavItems = computed(() => mainNavItems);
 
 // Filtrar los grupos de navegación principales según permisos de los subítems
-const isDev = Boolean((import.meta && (import.meta as any).DEV) || process.env.NODE_ENV === 'development');
+const forceDevMenu =
+    typeof window !== 'undefined' && window.localStorage?.getItem('forceDevMenu') === '1';
+const isDev = Boolean(
+    forceDevMenu ||
+    (import.meta as any)?.env?.DEV ||
+    (import.meta as any)?.DEV ||
+    process.env.NODE_ENV === 'development',
+);
 const filterNavGroups = (groups: NavGroupItem[]) =>
     groups
         .map((group) => {

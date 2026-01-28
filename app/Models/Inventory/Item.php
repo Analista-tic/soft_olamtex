@@ -106,7 +106,7 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
             return null;
         }
 
-        $path = ltrim($this->img, '/');
+        $path = ltrim((string) $this->img, '/');
         $path = preg_replace('/^storage\\//', '', $path);
 
         return "/storage/{$path}";

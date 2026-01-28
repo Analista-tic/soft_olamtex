@@ -31,8 +31,8 @@ import { useAlertStack } from '@/composables/useAlert';
 const page = usePage<ProductOperationListPageProps>();
 
 const breadcrumbs = [
-    { title: 'Sabana de Productos', href: '/sabana-producto' },
-    { title: 'Listados operacionales', href: '/sabana-producto/listados-operacionales' },
+    { title: 'Sabana de Productos', href: '/produccion/sabana-productos' },
+    { title: 'Listados operacionales', href: '/produccion/listados-operacionales' },
 ];
 
 const sections = computed(() => page.props.sections || []);
@@ -170,7 +170,7 @@ async function fetchOperationSummaries() {
     const summaries = await Promise.all(
         productSheets.value.map(async (sheet) => {
             try {
-                const { data } = await axios.get('/diseno/listados-operacionales/data', {
+                const { data } = await axios.get('/produccion/listados-operacionales/data', {
                     params: { product_sheet_id: sheet.id },
                 });
                 const rows = Array.isArray(data?.data) ? data.data : [];
@@ -234,7 +234,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
     }
 
     try {
-        const requests = validPayloads.map((payload) => axios.post('/diseno/listados-operacionales', {
+        const requests = validPayloads.map((payload) => axios.post('/produccion/listados-operacionales', {
             product_sheet_id: payload.product_sheet_id,
             operation_id: payload.operation_id,
             machine_id: payload.machine_id,
@@ -289,12 +289,12 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
 }
 
 async function deleteOperationsBySheetId(productSheetId: number) {
-    const { data } = await axios.get('/diseno/listados-operacionales/data', {
+    const { data } = await axios.get('/produccion/listados-operacionales/data', {
         params: { product_sheet_id: productSheetId },
     });
     const rows = Array.isArray(data?.data) ? data.data : [];
     const deleteRequests = rows.map((row: { id: number }) =>
-        axios.delete(`/diseno/listados-operacionales/${row.id}`),
+        axios.delete(`/produccion/listados-operacionales/${row.id}`),
     );
 
     if (deleteRequests.length > 0) {
@@ -327,7 +327,7 @@ function openCreateDialog() {
 async function openEditDialog(summary: OperationSummary) {
     clearAlerts();
     try {
-        const { data } = await axios.get('/diseno/listados-operacionales/data', {
+        const { data } = await axios.get('/produccion/listados-operacionales/data', {
             params: { product_sheet_id: summary.product_sheet_id },
         });
         const rows = Array.isArray(data?.data) ? data.data : [];

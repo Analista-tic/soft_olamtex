@@ -137,7 +137,7 @@ async function deleteProductSheet() {
     if (!productSheetToDelete.value) return;
 
     try {
-        await axios.delete(`/diseno/sabana-productos/${productSheetToDelete.value.id}`);
+        await axios.delete(`/produccion/sabana-productos/${productSheetToDelete.value.id}`);
         const index = products_sheet.value.findIndex((product) => product.id === productSheetToDelete.value!.id);
         if (index !== -1) {
             products_sheet.value.splice(index, 1);
@@ -153,7 +153,7 @@ async function deleteProductSheet() {
 // Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
 async function fetchProductSheets(page = 1, search = '', status: string | null = null) {
     try {
-        const response = await axios.get('/diseno/product-sheets', {
+        const response = await axios.get('/produccion/product-sheets', {
             params: {
                 page,
                 per_page: itemsPerPage,
@@ -181,7 +181,7 @@ watch([searchQuery, statusFilter], ([newQuery, newStatus]) => {
 async function openEditDialog(product: ProductSheet) {
     try {
         // Hacer petición al backend para obtener los datos completos
-        const response = await axios.get(`/diseno/sabana-productos/${product.id}`);
+        const response = await axios.get(`/produccion/sabana-productos/${product.id}`);
         if (response && response.data && response.data.success) {
             editProductSheetData.value = response.data.data;
             isViewMode.value = false;
@@ -198,7 +198,7 @@ async function openEditDialog(product: ProductSheet) {
 async function viewProductSheet(product: ProductSheet) {
     try {
         // Hacer petición al backend para obtener los datos completos
-        const response = await axios.get(`/diseno/sabana-productos/${product.id}`);
+        const response = await axios.get(`/produccion/sabana-productos/${product.id}`);
         if (response && response.data && response.data.success) {
             editProductSheetData.value = response.data.data;
             isViewMode.value = true;

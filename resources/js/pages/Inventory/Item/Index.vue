@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import EditButton from '@/components/common/EditButton.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
@@ -19,7 +17,7 @@ import FilterField from '@/components/FilterField.vue';
 import type { Item } from '@/domain/inventory/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Ban, CheckCircle, Download, FileSpreadsheet, PlusCircle, Search, Upload } from 'lucide-vue-next';
+import { Ban, CheckCircle, Download, FileSpreadsheet, PlusCircle, Pencil, Search, Trash, Upload } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch, reactive } from 'vue';
 import {
     Pagination,
@@ -76,6 +74,9 @@ const errorMessage = ref<string>('');
 function openDialog(type: 'create' | 'edit', item: Item | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
+    // if (item) {
+    //     console.log('ITEM PARA EDITAR:', item); // Depuración de campo img
+    // }
     form.value = item
         ? { ...item }
         : {
@@ -342,20 +343,39 @@ async function downloadTemplate() {
                                 <StatusBadge :text="item.status ? 'Habilitado' : 'Deshabilitado'" :type="item.status ? 'green' : 'red'" />
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton @click="openDialog('edit', item)" />
-                                <DeleteButton @click="confirmDeleteItem(item)" />
-                                <button
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8"
+                                    title="Editar"
+                                    @click="openDialog('edit', item)"
+                                >
+                                    <Pencil class="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8"
+                                    title="Eliminar"
+                                    @click="confirmDeleteItem(item)"
+                                >
+                                    <Trash class="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
                                     :class="[
-                                        'inline-flex items-center justify-center text-gray-500',
-                                        item.status ? 'hover:text-red-600' : 'hover:text-green-500',
+                                        'h-8 w-8',
+                                        item.status
+                                            ? 'text-red-600 hover:text-red-700'
+                                            : 'text-emerald-600 hover:text-emerald-700',
                                     ]"
                                     title="Habilitar/Deshabilitar"
                                     @click="openStatusDialog(item)"
-                                    type="button"
                                 >
                                     <Ban v-if="item.status" class="h-4 w-4" />
                                     <CheckCircle v-else class="h-4 w-4" />
-                                </button>
+                                </Button>
                             </TableCell>
                         </TableRow>
                     </TableBody>
@@ -452,7 +472,6 @@ async function downloadTemplate() {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
-
 
 
 

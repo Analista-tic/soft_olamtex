@@ -1,0 +1,373 @@
+﻿<script setup lang="ts">
+// --- Imports de librerías y componentes ---
+import { computed, onMounted, ref, watch } from 'vue';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { PlusCircle, Search, Eye, Pencil, Trash } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import Input from '@/components/ui/input/Input.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
+import {
+	Pagination,
+	PaginationEllipsis,
+	PaginationFirst,
+	PaginationLast,
+	PaginationList,
+	PaginationListItem,
+	PaginationNext,
+	PaginationPrev,
+} from '@/components/ui/pagination';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import AppLayout from '@/layouts/AppLayout.vue';
+import type { Warehouse } from '@/domain/inventory';
+import WarehouseTransferDialog from './WarehouseTransferDialog.vue';
+import { useAlertStack } from '@/composables/useAlert';
+
+// --- Tipos locales ---
+type Transfer = { id: number; date: string; origin: string; destination: string };
+
+type TransferResponse = {
+	id: number;
+	date: string;
+	document_number?: string | null;
+	observation?: string | null;
+	origin_warehouse?: { name?: string | null } | null;
+	destination_warehouse?: { name?: string | null } | null;
+	originWarehouse?: { name?: string | null } | null;
+	destinationWarehouse?: { name?: string | null } | null;
+};
+
+type TransferPayload = {
+	originId: number | null;
+	destinationId: number | null;
+	date: string;
+	observation: string;
+	items: Array<{
+		itemId: number | null;
+		currentQty: number;
+		transferQty: number;
+	}>;
+};
+
+// --- Estado reactivo principal ---
+const isTransferDialogOpen = ref(false);
+const warehouses = ref<Warehouse[]>([]);
+const isLoadingWarehouses = ref(false);
+const warehouseLoadError = ref<string | null>(null);
+const isSavingTransfer = ref(false);
+const dialogErrorMessage = ref('');
+
+const {
+	successMessage,
+	errorMessage: stackErrorMessage,
+	errorType,
+	showSuccess,
+	showError,
+	clearSuccess,
+	clearError,
+} = useAlertStack();
+
+const transfersRaw = ref<TransferResponse[]>([]);
+
+// --- Estado para paginación y búsqueda ---
+const currentPage = ref(1);
+const ITEMS_PER_PAGE = 10;
+const searchQuery = ref('');
+
+const normalizedQuery = computed(() => searchQuery.value.trim().toLowerCase());
+const isSearchActive = computed(() => normalizedQuery.value.length > 0);
+
+const transferRows = computed<Transfer[]>(() =>
+	transfersRaw.value.map((transfer) => ({
+		id: transfer.id,
+		date: formatDate(transfer.date),
+		origin: transfer.origin_warehouse?.name ?? transfer.originWarehouse?.name ?? '',
+		destination: transfer.destination_warehouse?.name ?? transfer.destinationWarehouse?.name ?? '',
+	})),
+);
+
+const filteredTransfers = computed(() => {
+	if (!normalizedQuery.value) {
+		return transferRows.value;
+	}
+
+	return transferRows.value.filter((transfer) => {
+		const haystack = `${transfer.id} ${transfer.date} ${transfer.origin} ${transfer.destination}`.toLowerCase();
+		return haystack.includes(normalizedQuery.value);
+	});
+});
+
+const totalItems = computed(() => filteredTransfers.value.length);
+const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / ITEMS_PER_PAGE)));
+
+const paginatedTransfers = computed(() => {
+	const start = (currentPage.value - 1) * ITEMS_PER_PAGE;
+	return filteredTransfers.value.slice(start, start + ITEMS_PER_PAGE);
+});
+
+const hasEnoughWarehouses = computed(() => warehouses.value.length >= 2);
+const canCreateTransfer = computed(() => !isLoadingWarehouses.value && hasEnoughWarehouses.value);
+const showNotEnoughMessage = computed(() => !isLoadingWarehouses.value && !hasEnoughWarehouses.value);
+
+// --- Breadcrumbs ---
+const breadcrumbs = [
+	{ title: 'Transferencias entre bodegas', href: '/transferencias-bodegas' },
+];
+
+// --- Métodos de UI ---
+function openTransferDialog() {
+	if (canCreateTransfer.value) {
+		dialogErrorMessage.value = '';
+		clearError();
+		isTransferDialogOpen.value = true;
+	}
+}
+
+function closeTransferDialog() {
+	isTransferDialogOpen.value = false;
+}
+
+function buildTransferItems(data: TransferPayload) {
+	return (data.items || [])
+		.map((item) => ({
+			item_id: Number(item.itemId),
+			quantity: Number(item.transferQty),
+		}))
+		.filter((item) => Number(item.item_id) > 0 && Number(item.quantity) > 0);
+}
+
+function formatDate(value: string) {
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) {
+		return value;
+	}
+
+	return new Intl.DateTimeFormat('es-CO', {
+		day: '2-digit',
+		month: '2-digit',
+		year: 'numeric',
+	}).format(parsed);
+}
+
+function resolveErrorMessage(error: any): string {
+	const serverMessage = error?.response?.data?.message;
+	if (serverMessage) return serverMessage;
+
+	const errors = error?.response?.data?.errors;
+	if (errors && typeof errors === 'object') {
+		const first = Object.values(errors).flat()?.[0];
+		if (first) return String(first);
+	}
+
+	return 'No se pudo guardar la transferencia.';
+}
+
+async function handleTransferSave(data: TransferPayload) {
+	clearSuccess();
+	clearError();
+	dialogErrorMessage.value = '';
+
+	const items = buildTransferItems(data);
+	if (!items.length) {
+		dialogErrorMessage.value = 'Debes agregar al menos un ítem con cantidad a transferir.';
+		return;
+	}
+
+	isSavingTransfer.value = true;
+
+	try {
+		const response = await axios.post('/transferencias-bodegas', {
+			origin_warehouse_id: data.originId,
+			destination_warehouse_id: data.destinationId,
+			date: data.date,
+			observation: data.observation || null,
+			items,
+		});
+
+		const created = response?.data?.data as TransferResponse | undefined;
+		if (created) {
+			transfersRaw.value = [created, ...transfersRaw.value];
+		}
+
+		showSuccess(response?.data?.message || 'Transferencia guardada correctamente.');
+		isTransferDialogOpen.value = false;
+	} catch (error: any) {
+		const message = resolveErrorMessage(error);
+		dialogErrorMessage.value = message;
+		showError(message);
+	} finally {
+		isSavingTransfer.value = false;
+	}
+}
+
+// --- Watchers y efectos ---
+watch(normalizedQuery, () => {
+	currentPage.value = 1;
+});
+
+watch(totalPages, (pages) => {
+	if (currentPage.value > pages) {
+		currentPage.value = pages;
+	}
+});
+
+watch(isTransferDialogOpen, (isOpen) => {
+	if (!isOpen) {
+		dialogErrorMessage.value = '';
+		clearError();
+	}
+});
+
+onMounted(async () => {
+	isLoadingWarehouses.value = true;
+	warehouseLoadError.value = null;
+
+	try {
+		const response = await axios.get('/bodegas/data', { params: { per_page: 100 } });
+		const data = response?.data?.data;
+		warehouses.value = (Array.isArray(data) ? data : []).filter(
+			(warehouse): warehouse is Warehouse & { id: number } => typeof warehouse.id === 'number',
+		);
+	} catch {
+		warehouseLoadError.value = 'No se pudieron cargar las bodegas. Intenta nuevamente.';
+		warehouses.value = [];
+	} finally {
+		isLoadingWarehouses.value = false;
+	}
+
+	try {
+		const response = await axios.get('/transferencias-bodegas/data', { params: { per_page: 200 } });
+		const data = response?.data?.data;
+		transfersRaw.value = Array.isArray(data) ? data : [];
+	} catch {
+		showError('No se pudieron cargar las transferencias.');
+		transfersRaw.value = [];
+	}
+});
+</script>
+
+<template>
+	<Head title="Transferencias entre bodegas" />
+	<AppLayout :breadcrumbs="breadcrumbs">
+		<AlertStack
+			:success-message="successMessage"
+			:error-message="stackErrorMessage"
+			:error-type="errorType"
+			@close-success="clearSuccess"
+			@close-error="clearError"
+		/>
+		<div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+			<div class="flex items-start justify-between gap-4">
+				<div class="flex flex-col gap-1">
+					<h1 class="text-lg font-bold">Transferencias entre bodegas</h1>
+					<p class="text-sm text-muted-foreground">
+						Registra traslados entre bodegas, almacenes o depósitos. Selecciona origen y destino,
+						define la fecha y agrega los ítems con su cantidad.
+					</p>
+				</div>
+				<button
+					type="button"
+					class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+					:disabled="!canCreateTransfer"
+					@click="openTransferDialog"
+				>
+					<PlusCircle class="w-4 h-4" />
+					Nueva transferencia entre bodegas
+				</button>
+			</div>
+
+			<WarehouseTransferDialog
+				:open="isTransferDialogOpen"
+				:warehouses="warehouses"
+				:saving="isSavingTransfer"
+				:error-message="dialogErrorMessage"
+				@update:open="val => (isTransferDialogOpen = val)"
+				@save="handleTransferSave"
+				@cancel="closeTransferDialog"
+				@clear-error="() => { dialogErrorMessage = ''; clearError(); }"
+			/>
+
+			<div v-if="warehouseLoadError" class="text-sm text-red-600 font-semibold">
+				{{ warehouseLoadError }}
+			</div>
+			<div v-else-if="showNotEnoughMessage" class="text-sm text-red-600 font-semibold">
+				Debes tener al menos dos bodegas, almacenes o depósitos creados para poder realizar transferencias.
+			</div>
+
+			<div class="relative flex items-center gap-4">
+				<FilterBar>
+					<FilterField label="Buscar transferencia" :active="isSearchActive" class="flex-1 p-0">
+						<div class="relative w-full max-w-sm">
+							<Input
+								id="search_transfer"
+								v-model="searchQuery"
+								placeholder="Buscar por código, fecha, origen o destino"
+								class="h-10 w-full pl-10"
+							/>
+							<span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+								<Search :size="20" class="text-muted-foreground" />
+							</span>
+						</div>
+					</FilterField>
+				</FilterBar>
+			</div>
+			<div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+				<Table class="text-center">
+					<TableHeader>
+						<TableRow>
+							<TableHead>Código</TableHead>
+							<TableHead>Fecha</TableHead>
+							<TableHead>Bodega origen</TableHead>
+							<TableHead>Bodega destino</TableHead>
+							<TableHead>Acciones</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						<TableRow v-for="transfer in paginatedTransfers" :key="transfer.id">
+							<TableCell class="font-medium">{{ transfer.id }}</TableCell>
+							<TableCell class="font-medium">{{ transfer.date }}</TableCell>
+							<TableCell>{{ transfer.origin }}</TableCell>
+							<TableCell>{{ transfer.destination }}</TableCell>
+							<TableCell class="flex justify-center gap-1">
+								<Button variant="ghost" size="icon" class="h-8 w-8" title="Ver">
+									<Eye class="h-4 w-4" />
+								</Button>
+								<Button variant="ghost" size="icon" class="h-8 w-8" title="Editar">
+									<Pencil class="h-4 w-4" />
+								</Button>
+								<Button variant="ghost" size="icon" class="h-8 w-8" title="Eliminar">
+									<Trash class="h-4 w-4" />
+								</Button>
+							</TableCell>
+						</TableRow>
+					</TableBody>
+				</Table>
+				<Pagination
+					class="mt-5 flex justify-center"
+					:items-per-page="ITEMS_PER_PAGE"
+					:total="totalItems"
+					:sibling-count="1"
+					show-edges
+					v-model:current-page="currentPage"
+				>
+					<PaginationList v-slot="{ items }" class="flex items-center gap-1">
+						<PaginationFirst />
+						<PaginationPrev />
+						<template v-for="(item, index) in items">
+							<PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
+								<Button class="h-6 w-6 p-0" :variant="item.value === currentPage ? 'default' : 'outline'">
+									{{ item.value }}
+								</Button>
+							</PaginationListItem>
+							<PaginationEllipsis v-else :key="item.type" :index="index" />
+						</template>
+						<PaginationNext />
+						<PaginationLast />
+					</PaginationList>
+				</Pagination>
+			</div>
+		</div>
+	</AppLayout>
+</template>

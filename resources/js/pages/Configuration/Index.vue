@@ -69,8 +69,8 @@ const modules = [
         title: 'Producción',
         description: 'Planear y ejecutar la fabricación/servicio.',
         options: [
-            { name: 'Sábana de productos', href: route('diseno.sabana-productos.index') },
-            { name: 'Listado operacional', href: route('diseno.listados-operacionales.index') },
+            { name: 'Sábana de productos', href: route('produccion.sabana-productos.index') },
+            { name: 'Listado operacional', href: route('produccion.listados-operacionales.index') },
             { name: 'Base de datos de operaciones', href: underConstructionHref('Base de datos de operaciones') },
             { name: 'Programación de producción', href: '/comercial/programador' },
             { name: 'Control de lotes', href: underConstructionHref('Control de lotes') },

@@ -68,6 +68,7 @@ export function mapItemDto(dto: ItemDto): Item {
         code: dto.code,
         reference: dto.reference,
         img: dto.img,
+        img_url: dto.img_url ?? undefined,
         stock_min: dto.stock_min,
         stock_max: dto.stock_max,
         bar_code: dto.bar_code ?? undefined,

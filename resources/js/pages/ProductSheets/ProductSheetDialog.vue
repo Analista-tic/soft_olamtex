@@ -206,8 +206,8 @@ function saveProductSheet() {
     payload.sizes = form.value.sizes || JSON.stringify({}); // Asegurar que las tallas estén serializadas como cadena JSON
 
     const request = props.mode === 'edit'
-        ? axios.put(`/diseno/sabana-productos/${props.productSheet?.id}`, payload)
-        : axios.post('/diseno/sabana-productos', payload);
+        ? axios.put(`/produccion/sabana-productos/${props.productSheet?.id}`, payload)
+        : axios.post('/produccion/sabana-productos', payload);
 
     request
         .then((response) => {

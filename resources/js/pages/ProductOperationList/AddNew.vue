@@ -161,17 +161,17 @@ async function submitForm() {
         let response;
         
         if (props.entity === 'section') {
-            response = await axios.post('/diseno/secciones', {
+            response = await axios.post('/produccion/secciones', {
                 name: form.value.name,
                 type: selectedSectionType.value,
             });
         } else if (props.entity === 'operation') {
-            response = await axios.post('/diseno/operaciones', {
+            response = await axios.post('/produccion/operaciones', {
                 action: form.value.action,
                 garment_part: form.value.garment_part,
             });
         } else if (props.entity === 'machine') {
-            response = await axios.post('/diseno/maquinas', {
+            response = await axios.post('/produccion/maquinas', {
                 code: form.value.code,
                 name: form.value.machine_name,
             });

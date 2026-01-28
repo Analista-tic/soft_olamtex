@@ -35,6 +35,7 @@ use App\Http\Controllers\Common\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
 use App\Http\Controllers\Inventory\InventoryRequestController;
+use App\Http\Controllers\Inventory\WarehouseTransferController;
 
 // Página principal
 Route::get('/', fn() => redirect('login'))->name('home');
@@ -74,7 +75,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('under-construction');
 
     // === COMERCIAL ===
-    Route::prefix('diseno')->name('diseno.')->group(function () {
+    Route::prefix('produccion')->name('produccion.')->group(function () {
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])
             ->middleware('permission:ver sabana productos')
             ->name('product-sheets.getData');
@@ -270,6 +271,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/{id}/warehouses', [ItemController::class, 'getWarehouses'])->name('warehouses');
         Route::put('/{warehouse}', [WarehouseController::class, 'update'])->name('update');
         Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->name('destroy');
+    });
+
+    // === TRANSFERENCIAS DE BODEGA ===
+    Route::prefix('transferencias-bodegas')->name('warehouse-transfers.')->group(function () {
+        Route::get('/', [WarehouseTransferController::class, 'index'])->name('index');
+        Route::get('/data', [WarehouseTransferController::class, 'getData'])->name('data');
+        Route::post('/', [WarehouseTransferController::class, 'store'])->name('store');
     });
 
     // === ITEMS ===

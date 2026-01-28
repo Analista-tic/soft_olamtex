@@ -59,6 +59,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear inventario telas',
             'editar inventario telas',
             'eliminar inventario telas',
+            'ver ingresos',
+            'ver gastos',
+            'ver financiero',
         ];
 
         foreach ($permissions as $perm) {
@@ -76,6 +79,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver listados operacionales',
         ]);
 
+        $contabilidad = Role::firstOrCreate(['name' => 'contabilidad']);
+        $contabilidad->givePermissionTo([
+            'ver ingresos',
+            'ver gastos',
+            'ver financiero',
+        ]);
+
         // Buscar áreas en parameters
         // Obtener catálogo de áreas desde el parámetro 'areas'
         $areasParam = Parameter::where('nombre', 'areas')->first();
@@ -88,7 +98,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ], [
             'name' => 'Admin',
             'password' => Hash::make('12345'),
-            'area_id' => $areaIds['Contabilidad'] ?? null,
+            'area_id' => $areaIds['TICs'] ?? null,
         ]);
         $adminUser->assignRole($admin);
 
@@ -100,5 +110,14 @@ class RolesAndPermissionsSeeder extends Seeder
             'area_id' => $areaIds['Producción'] ?? null,
         ]);
         $generalUser->assignRole($general);
+
+        $contabilidadUser = User::firstOrCreate([
+            'email' => 'contabilidad@gmail.com'
+        ], [
+            'name' => 'Name Contabilidad',
+            'password' => Hash::make('123456789'),
+            'area_id' => $areaIds['Contabilidad'] ?? null,
+        ]);
+        $contabilidadUser->assignRole($contabilidad);
     }
 }

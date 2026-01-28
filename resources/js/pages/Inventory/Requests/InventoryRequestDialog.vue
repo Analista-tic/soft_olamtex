@@ -377,7 +377,7 @@ onUnmounted(() => {
                                 />
                             </div>
 
-                            <div class="grid grid-cols-2 gap-4">
+                            <div v-if="props.dialogType !== 'create'" class="grid grid-cols-2 gap-4">
                                 <InputDate
                                     v-if="localForm.status === 'entregado'"
                                     v-model="localForm.delivery_date"

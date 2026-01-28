@@ -275,6 +275,10 @@ function applyFormData(source: Partial<Item>) {
     unitMeasure.value = getInitialUnitMeasure(source);
     fillExtraFields(source.extra_fields);
     imageFile.value = null;
+    // Limpiar el input file visualmente
+    if (fileInputRef.value) {
+        fileInputRef.value.value = '';
+    }
     imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
     updateNameField();
     syncGroupFromSubgroup();
@@ -624,7 +628,7 @@ watch(
     (newVal) => {
         applyFormData(newVal);
     },
-    { deep: true },
+    { deep: true, immediate: true },
 );
 watch(
     () => props.form.id,
@@ -1031,10 +1035,15 @@ function triggerFileInput() {
 
 function resolveImageUrl(rawImg?: string | null, rawUrl?: string | null): string | undefined {
     const url = typeof rawUrl === 'string' ? rawUrl.trim() : '';
-    if (url) return url;
+    if (url) {
+        if (/^https?:\/\//i.test(url)) return url;
+        if (url.startsWith('/')) return url;
+        return `/storage/${url.replace(/^\/?storage\//, '')}`;
+    }
     const img = typeof rawImg === 'string' ? rawImg.trim() : '';
     if (!img) return undefined;
     if (/^https?:\/\//i.test(img)) return img;
+    if (img.startsWith('/')) return img;
     return `/storage/${img.replace(/^\/?storage\//, '')}`;
 }
 function handleFileChange(e: Event) {

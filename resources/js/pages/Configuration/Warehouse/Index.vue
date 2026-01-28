@@ -4,7 +4,7 @@ import type { BreadcrumbItem } from '@/domain/shared';
 import type { Warehouse } from '@/domain/inventory';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Search } from 'lucide-vue-next';
+import { PlusCircle, Pencil, Search, Trash } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -22,8 +22,6 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import EditButton from '@/components/common/EditButton.vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import WarehouseDialog from './WarehouseDialog.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -234,8 +232,24 @@ onMounted(() => {
                             <TableCell class="font-medium">{{ warehouse.name }}</TableCell>
                             <TableCell>{{ warehouse.observation }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', warehouse)" />
-                                <DeleteButton :onClick="() => confirmDeleteWarehouse(warehouse)" />
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8"
+                                    title="Editar"
+                                    @click="openDialog('edit', warehouse)"
+                                >
+                                    <Pencil class="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8"
+                                    title="Eliminar"
+                                    @click="confirmDeleteWarehouse(warehouse)"
+                                >
+                                    <Trash class="h-4 w-4" />
+                                </Button>
                             </TableCell>
                         </TableRow>
                     </TableBody>
@@ -288,4 +302,3 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
-
