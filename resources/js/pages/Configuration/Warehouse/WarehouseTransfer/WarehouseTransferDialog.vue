@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import InputDate from '@/components/InputDate.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -427,7 +427,13 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 												ariaLabel="Ayuda sobre fecha"
 											/>
 										</div>
-										<InputDate v-model="dateValue" label="" :required="true" />
+										<DatePickerField
+											v-model="dateValue"
+											label=""
+											helpText="Selecciona la fecha del traslado o mantén la actual."
+											:required="true"
+											class="w-full"
+										/>
 									</div>
 								</div>
 								<div class="space-y-1">

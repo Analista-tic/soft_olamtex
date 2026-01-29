@@ -8,6 +8,7 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import {
 	Pagination,
 	PaginationEllipsis,
@@ -333,10 +334,11 @@ onMounted(async () => {
 					</div>
 				</FilterField>
 				<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[180px]">
-					<Input
-						type="date"
+					<DatePickerField
 						v-model="dateFilter"
-						class="h-10 rounded-md border border-gray-200 bg-white text-sm text-foreground focus:border-primary focus:ring-0"
+						label=""
+						placeholder="Seleccione una fecha"
+						class="w-full"
 					/>
 				</FilterField>
 			</FilterBar>

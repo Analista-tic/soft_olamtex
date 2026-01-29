@@ -5,14 +5,11 @@ import { es } from "date-fns/locale"
 import { Calendar as CalendarIcon } from "lucide-vue-next"
 
 import { Calendar } from "@/components/ui/calendar"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import Label from "@/components/ui/label/Label.vue"
 
 import {
   type DateValue,
   parseDate,
-  today,
   getLocalTimeZone,
 } from "@internationalized/date"
 
@@ -111,8 +108,8 @@ const displayLabel = computed(() => {
         <div
           v-if="open"
           id="datepicker-popover"
-          class="absolute z-50 mt-2 left-0 bg-white border rounded shadow-lg p-2"
-          style="min-width: 260px;"
+          class="absolute z-50 mt-2 right-0 left-auto bg-white border rounded shadow-lg p-2 overflow-auto max-h-[calc(100vh-6rem)]"
+          style="min-width: 260px; max-width: min(320px, calc(100vw - 2rem));"
         >
           <Calendar
             :model-value="internalValue"
