@@ -2,6 +2,7 @@
 import { ref, watch, computed, onBeforeUnmount } from 'vue';
 import { Combobox, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOption } from '@headlessui/vue';
 import { Label } from '@/components/ui/label';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import type { Option } from '@/domain/shared';
 import { ChevronDown, Check, X } from 'lucide-vue-next';
 
@@ -37,6 +38,7 @@ const props = withDefaults(defineProps<{
     buttonClass?: string;
     allowCustom?: boolean;
     customOptionLabel?: string;
+    tooltipText?: string;
 }>(), {
     required: false,
     multiple: false,
@@ -49,6 +51,7 @@ const props = withDefaults(defineProps<{
     buttonClass: '',
     allowCustom: false,
     customOptionLabel: '',
+    tooltipText: '',
 });
 
 const emit = defineEmits<{
@@ -250,8 +253,9 @@ const hasLabel = computed(() => Boolean(props.label?.trim()));
 <template>
     <div class="grid w-full items-center gap-1.5">
         <template v-if="hasLabel">
-            <Label>
-                {{ label }}
+            <Label class="flex items-center gap-1.5">
+                <span>{{ label }}</span>
+                <HelpTooltip v-if="tooltipText" :text="tooltipText" />
                 <span v-if="required" class="text-red-500">*</span>
             </Label>
         </template>

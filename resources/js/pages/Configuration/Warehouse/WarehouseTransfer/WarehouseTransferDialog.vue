@@ -10,6 +10,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { Trash } from 'lucide-vue-next';
 import type { Option } from '@/domain/shared';
 import type { Item } from '@/domain/inventory';
 import axios from 'axios';
@@ -65,6 +66,9 @@ const createEmptyForm = (): TransferForm => ({
 const transferForm = ref<TransferForm>(createEmptyForm());
 const catalogItems = ref<Item[]>([]);
 const isLoadingItems = ref(false);
+const itemRowRefs = ref<Array<HTMLElement | null>>([]);
+
+// Tipar explícitamente los parámetros row como TransferItem donde sea necesario
 
 watch(
 	() => transferForm.value.originId,
@@ -72,6 +76,7 @@ watch(
 		if (originId && originId === transferForm.value.destinationId) {
 			transferForm.value.destinationId = null;
 		}
+		updateRowsCurrentQty();
 	},
 );
 
@@ -83,9 +88,40 @@ const warehouseOptions = computed<Option[]>(() =>
 	props.warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
 );
 
+const itemWarehouseStocks = ref<Record<number, Array<{ warehouse_id: number; quantity: number }>>>({});
+
 const destinationOptions = computed<Option[]>(() =>
 	destinationWarehouses.value.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
 );
+
+const availableOriginWarehouseIds = computed<Set<number>>(() => {
+	const ids = new Set<number>();
+	transferForm.value.items.forEach((item) => {
+		if (!item.itemId) return;
+		(itemWarehouseStocks.value[item.itemId] ?? []).forEach((row) => {
+			if (Number(row.quantity) > 0) {
+				ids.add(Number(row.warehouse_id));
+			}
+		});
+	});
+	return ids;
+});
+
+const filteredOriginOptions = computed<Option[]>(() => {
+	if (!availableOriginWarehouseIds.value.size) {
+		return warehouseOptions.value;
+	}
+	return warehouseOptions.value.filter((option) => availableOriginWarehouseIds.value.has(Number(option.id)));
+});
+
+watch(filteredOriginOptions, (options) => {
+	if (
+		transferForm.value.originId &&
+		!options.some((option) => Number(option.id) === Number(transferForm.value.originId))
+	) {
+		transferForm.value.originId = null;
+	}
+});
 
 const dateValue = computed({
 	get: () => transferForm.value.date,
@@ -176,6 +212,45 @@ const itemOptions = computed<Option[]>(() =>
 	})),
 );
 
+async function ensureItemWarehouseStock(itemId: number | null) {
+	if (!itemId) return;
+	if (itemWarehouseStocks.value[itemId]) return;
+
+	try {
+		const response = await axios.get('/warehouse-items', { params: { item_id: itemId } });
+		const payload = Array.isArray(response?.data?.data) ? response.data.data : [];
+		itemWarehouseStocks.value = {
+			...itemWarehouseStocks.value,
+			[itemId]: payload.map((row: { warehouse_id: number | string; quantity: number | string }) => ({
+				warehouse_id: Number(row.warehouse_id),
+				quantity: Number(row.quantity),
+			})),
+		};
+		updateRowsCurrentQty(itemId);
+	} catch (error) {
+		console.error('No se pudieron cargar los stocks del ítem', error);
+		itemWarehouseStocks.value[itemId] = [];
+	}
+}
+
+function updateRowCurrentQty(row: TransferItem) {
+	if (!row.itemId || !transferForm.value.originId) {
+		row.currentQty = 0;
+		return;
+	}
+	const stock = itemWarehouseStocks.value[row.itemId] ?? [];
+	const found = stock.find((entry) => Number(entry.warehouse_id) === Number(transferForm.value.originId));
+	row.currentQty = found ? Number(found.quantity) : 0;
+}
+
+function updateRowsCurrentQty(itemId: number | null = null) {
+	transferForm.value.items.forEach((row: TransferItem) => {
+		if (itemId === null || row.itemId === itemId) {
+			updateRowCurrentQty(row);
+		}
+	});
+}
+
 async function fetchItems() {
 	if (isLoadingItems.value) return;
 	isLoadingItems.value = true;
@@ -188,6 +263,20 @@ async function fetchItems() {
 	} finally {
 		isLoadingItems.value = false;
 	}
+}
+
+import type { ComponentPublicInstance } from 'vue';
+function setItemRowRef(idx: number) {
+	return (el: Element | ComponentPublicInstance | null) => {
+		// Solo guarda la referencia si es un elemento HTML
+		itemRowRefs.value[idx] = el instanceof HTMLElement ? el : null;
+	};
+}
+
+function scrollItemRowIntoView(idx: number) {
+	const row = itemRowRefs.value[idx];
+	if (!row) return;
+	row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function addTransferItem() {
@@ -216,11 +305,18 @@ function saveDialog() {
 	});
 }
 
-function getItemSelectionValue(item: TransferItem) {
-	return item.itemId ?? null;
+function getItemSelectionValue(item: TransferItem): number | null {
+	// Garantiza que nunca retorna un array
+	return typeof item.itemId === 'number' ? item.itemId : null;
 }
 
 function handleItemSelection(item: TransferItem, value: Option['id'] | null | undefined) {
+	// Si value es un array, lo ignoramos (no soportamos selección múltiple)
+	if (Array.isArray(value)) {
+		item.itemId = null;
+		item.currentQty = 0;
+		return;
+	}
 	if (value === null || value === undefined || value === '') {
 		item.itemId = null;
 		item.currentQty = 0;
@@ -236,6 +332,8 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 
 	item.itemId = parsedId;
 	item.currentQty = item.currentQty || 0;
+	void ensureItemWarehouseStock(parsedId);
+	updateRowCurrentQty(item);
 }
 
 </script>
@@ -244,7 +342,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 	<Dialog :open="open" @update:open="val => (val ? emit('update:open', val) : closeDialog())">
 		<DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
 			<DialogHeader class="flex-shrink-0">
-				<DialogTitle>Nueva transferencia entre bodegas, almacenes o depósitos</DialogTitle>
+				<DialogTitle>Nueva transferencia entre bodegas</DialogTitle>
 				<DialogDescription class="pb-2">
 					Completa los datos para registrar el traslado de productos entre bodegas.
 				</DialogDescription>
@@ -274,74 +372,80 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 					/>
 				</div>
 				<TooltipProvider>
-					<div class="space-y-4 pt-10">
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-							<div class="space-y-1">
-								<div class="flex items-center gap-1 text-sm font-semibold text-foreground">
-									<span>
-										Bodega origen
-										<span class="text-red-500">*</span>
-									</span>
-									<HelpTooltip
-										text="Elige la bodega, almacén o depósito desde donde saldrán los productos."
-										ariaLabel="Ayuda sobre bodega origen"
+					<div class="space-y-4 pt-4">
+						<div class="rounded-2xl border border-border/60 bg-white px-6 py-6 shadow-sm shadow-muted/50">
+							<div class="grid gap-6 lg:grid-cols-[1.15fr,1fr] items-start">
+								<div class="space-y-4">
+									<div class="space-y-1">
+										<div class="flex items-center gap-1 text-sm font-semibold text-foreground">
+											<span>
+												Bodega origen
+												<span class="text-red-500">*</span>
+											</span>
+											<HelpTooltip
+												text="Elige la bodega, almacén o depósito desde donde saldrán los productos."
+												ariaLabel="Ayuda sobre bodega origen"
+											/>
+										</div>
+										<SelectField
+											v-model="transferForm.originId"
+											label=""
+											:options="filteredOriginOptions"
+											:required="true"
+											placeholder="Seleccionar"
+											:disabled="!filteredOriginOptions.length"
+										/>
+									</div>
+									<div class="space-y-1">
+										<div class="flex items-center gap-1 text-sm font-semibold text-foreground">
+											<span>
+												Bodega destino
+												<span class="text-red-500">*</span>
+											</span>
+											<HelpTooltip
+												text="Elige la bodega, almacén o depósito donde ingresarán los productos."
+												ariaLabel="Ayuda sobre bodega destino"
+											/>
+										</div>
+										<SelectField
+											v-model="transferForm.destinationId"
+											label=""
+											:options="destinationOptions"
+											:required="true"
+											:disabled="!transferForm.originId"
+											placeholder="Seleccionar"
+										/>
+									</div>
+									<div class="space-y-1">
+										<div class="flex items-center gap-1 text-sm font-semibold text-foreground">
+											<span>
+												Fecha
+												<span class="text-red-500">*</span>
+											</span>
+											<HelpTooltip
+												text="Selecciona la fecha del traslado o deja la actual."
+												ariaLabel="Ayuda sobre fecha"
+											/>
+										</div>
+										<InputDate v-model="dateValue" label="" :required="true" />
+									</div>
+								</div>
+								<div class="space-y-1">
+									<div class="flex items-center gap-1 text-sm font-semibold text-foreground">
+										<span>Observaciones</span>
+										<HelpTooltip
+											text="Agrega información adicional sobre el traslado."
+											ariaLabel="Ayuda sobre observaciones"
+										/>
+									</div>
+									<TextareaField
+										v-model="transferForm.observation"
+										label=""
+										placeholder="Observaciones adicionales"
+										:rows="7"
+										class="min-h-[140px]"
 									/>
 								</div>
-								<SelectField
-									v-model="transferForm.originId"
-									label=""
-									:options="warehouseOptions"
-									:required="true"
-									placeholder="Seleccionar"
-								/>
-							</div>
-							<div class="space-y-1">
-								<div class="flex items-center gap-1 text-sm font-semibold text-foreground">
-									<span>
-										Bodega destino
-										<span class="text-red-500">*</span>
-									</span>
-									<HelpTooltip
-										text="Elige la bodega, almacén o depósito donde ingresarán los productos."
-										ariaLabel="Ayuda sobre bodega destino"
-									/>
-								</div>
-								<SelectField
-									v-model="transferForm.destinationId"
-									label=""
-									:options="destinationOptions"
-									:required="true"
-									:disabled="!transferForm.originId"
-									placeholder="Seleccionar"
-								/>
-							</div>
-							<div class="space-y-1">
-								<div class="flex items-center gap-1 text-sm font-semibold text-foreground">
-									<span>
-										Fecha
-										<span class="text-red-500">*</span>
-									</span>
-									<HelpTooltip
-										text="Selecciona la fecha del traslado o deja la actual."
-										ariaLabel="Ayuda sobre fecha"
-									/>
-								</div>
-								<InputDate v-model="dateValue" label="" :required="true" />
-							</div>
-							<div class="space-y-1">
-								<div class="flex items-center gap-1 text-sm font-semibold text-foreground">
-									<span>Observaciones</span>
-									<HelpTooltip
-										text="Agrega información adicional sobre el traslado."
-										ariaLabel="Ayuda sobre observaciones"
-									/>
-								</div>
-								<TextareaField
-									v-model="transferForm.observation"
-									label=""
-									placeholder="Observaciones adicionales"
-									:rows="3"
-								/>
 							</div>
 						</div>
 						<InventoryDetailTableLayout
@@ -359,7 +463,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 								</tr>
 							</thead>
 							<tbody>
-								<tr v-for="(row, idx) in transferForm.items" :key="idx">
+								<tr v-for="(row, idx) in transferForm.items" :key="idx" :ref="setItemRowRef(idx)">
 									<td class="p-2">
 										<SelectField
 											:modelValue="getItemSelectionValue(row)"
@@ -367,10 +471,11 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 											label=""
 											placeholder="Selecciona un ítem"
 											:searchable="true"
-											:disabled="isLoadingItems"
-											class="w-full"
-											@update:modelValue="value => handleItemSelection(row, value)"
-										/>
+ 											:disabled="isLoadingItems"
+ 											class="w-full"
+  											@update:modelValue="value => handleItemSelection(row, Array.isArray(value) ? value[0] ?? null : value)"
+  											@focus="() => scrollItemRowIntoView(idx)"
+ 										/>
 									</td>
 									<td class="p-2">
 										<InputField
@@ -389,12 +494,12 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 									</td>
 									<td class="p-2">
 										<Button
+											v-if="transferForm.items.length > 1"
 											variant="ghost"
 											size="icon"
 											@click="removeTransferItem(idx)"
-											:disabled="transferForm.items.length === 1"
 										>
-											×
+											<Trash class="h-4 w-4" />
 										</Button>
 									</td>
 								</tr>

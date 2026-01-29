@@ -39,14 +39,13 @@ type InventoryViewItem = {
 };
 
 const breadcrumbs = [
-    { title: 'Configuración', href: '/configuracion' },
     { title: 'Inventario de Ítems', href: '/inventario-item' },
 ];
 
 const statusOptions: Option[] = [
     { id: 'all', name: 'Todos' },
-    { id: 'active', name: 'Activos' },
-    { id: 'inactive', name: 'Inactivos' },
+    { id: 'active', name: 'Habilitados' },
+    { id: 'inactive', name: 'Deshabilitados' },
 ];
 
 const items = ref<InventoryViewItem[]>([]);
@@ -123,12 +122,15 @@ async function fetchItems(page = 1) {
 async function fetchWarehouses() {
     try {
         const response = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
-        warehouses.value = (response.data.data ?? [])
+    warehouses.value = [
+        { id: '', name: 'Todos' },
+        ...(response.data.data ?? [])
             .filter((warehouse: Warehouse) => warehouse.id != null)
             .map((warehouse: Warehouse) => ({
                 id: warehouse.id!,
                 name: warehouse.name,
-            }));
+            })),
+    ];
     } catch (error) {
         console.error('Error al cargar bodegas', error);
     }
@@ -162,7 +164,7 @@ onMounted(() => {
                     </p>
                 </div>
             </div>
-            <!-- FILTROS: UNA SOLA FILA -->
+            <!-- FILTROS -->
             <FilterBar align="start" gap="gap-4">
                 <FilterField
                     label="Buscar referencia"

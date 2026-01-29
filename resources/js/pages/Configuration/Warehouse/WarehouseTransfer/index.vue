@@ -1,5 +1,4 @@
 ﻿<script setup lang="ts">
-// --- Imports de librerías y componentes ---
 import { computed, onMounted, ref, watch } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -22,11 +21,12 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { Warehouse } from '@/domain/inventory';
+import type { WarehouseOption } from '@/domain/warehouse-types';
 import WarehouseTransferDialog from './WarehouseTransferDialog.vue';
 import { useAlertStack } from '@/composables/useAlert';
 
 // --- Tipos locales ---
-type Transfer = { id: number; date: string; origin: string; destination: string };
+type Transfer = { id: number; date: string; rawDate: string; origin: string; destination: string };
 
 type TransferResponse = {
 	id: number;
@@ -54,6 +54,12 @@ type TransferPayload = {
 // --- Estado reactivo principal ---
 const isTransferDialogOpen = ref(false);
 const warehouses = ref<Warehouse[]>([]);
+// Garantiza el tipo WarehouseOption[] para el diálogo
+const warehouseOptions = computed<WarehouseOption[]>(() =>
+	warehouses.value
+		.filter((w): w is Warehouse & { id: number } => typeof w.id === 'number')
+		.map(w => ({ id: w.id, name: w.name }))
+);
 const isLoadingWarehouses = ref(false);
 const warehouseLoadError = ref<string | null>(null);
 const isSavingTransfer = ref(false);
@@ -79,23 +85,34 @@ const searchQuery = ref('');
 const normalizedQuery = computed(() => searchQuery.value.trim().toLowerCase());
 const isSearchActive = computed(() => normalizedQuery.value.length > 0);
 
+const dateFilter = ref('');
+
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+
 const transferRows = computed<Transfer[]>(() =>
 	transfersRaw.value.map((transfer) => ({
 		id: transfer.id,
 		date: formatDate(transfer.date),
+		rawDate: transfer.date,
 		origin: transfer.origin_warehouse?.name ?? transfer.originWarehouse?.name ?? '',
 		destination: transfer.destination_warehouse?.name ?? transfer.destinationWarehouse?.name ?? '',
 	})),
 );
 
+function matchesDateFilter(transfer: Transfer) {
+	if (!dateFilter.value) return true;
+	const parsed = new Date(transfer.rawDate).toISOString().slice(0, 10);
+	return parsed === dateFilter.value;
+}
+
 const filteredTransfers = computed(() => {
 	if (!normalizedQuery.value) {
-		return transferRows.value;
+		return transferRows.value.filter((t) => matchesDateFilter(t));
 	}
 
 	return transferRows.value.filter((transfer) => {
 		const haystack = `${transfer.id} ${transfer.date} ${transfer.origin} ${transfer.destination}`.toLowerCase();
-		return haystack.includes(normalizedQuery.value);
+		return haystack.includes(normalizedQuery.value) && matchesDateFilter(transfer);
 	});
 });
 
@@ -207,6 +224,10 @@ watch(normalizedQuery, () => {
 	currentPage.value = 1;
 });
 
+watch([dateFilter], () => {
+	currentPage.value = 1;
+});
+
 watch(totalPages, (pages) => {
 	if (currentPage.value > pages) {
 		currentPage.value = pages;
@@ -280,7 +301,7 @@ onMounted(async () => {
 
 			<WarehouseTransferDialog
 				:open="isTransferDialogOpen"
-				:warehouses="warehouses"
+				:warehouses="warehouseOptions"
 				:saving="isSavingTransfer"
 				:error-message="dialogErrorMessage"
 				@update:open="val => (isTransferDialogOpen = val)"
@@ -296,23 +317,30 @@ onMounted(async () => {
 				Debes tener al menos dos bodegas, almacenes o depósitos creados para poder realizar transferencias.
 			</div>
 
-			<div class="relative flex items-center gap-4">
-				<FilterBar>
-					<FilterField label="Buscar transferencia" :active="isSearchActive" class="flex-1 p-0">
-						<div class="relative w-full max-w-sm">
-							<Input
-								id="search_transfer"
-								v-model="searchQuery"
-								placeholder="Buscar por código, fecha, origen o destino"
-								class="h-10 w-full pl-10"
-							/>
-							<span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-								<Search :size="20" class="text-muted-foreground" />
-							</span>
-						</div>
-					</FilterField>
-				</FilterBar>
-			</div>
+			<!-- FILTROS -->
+			<FilterBar align="start" gap="gap-4">
+				<FilterField label="Buscar transferencia" :active="isSearchActive" class="flex-1 min-w-[220px]">
+					<div class="relative">
+						<Input
+							id="search_transfer"
+							v-model="searchQuery"
+							placeholder="Buscar por código, fecha, origen o destino"
+							class="h-10 w-full pl-12"
+						/>
+						<span class="absolute inset-y-0 start-3 flex items-center justify-center pointer-events-none">
+							<Search :size="18" class="text-muted-foreground" />
+						</span>
+					</div>
+				</FilterField>
+				<FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[180px]">
+					<Input
+						type="date"
+						v-model="dateFilter"
+						class="h-10 rounded-md border border-gray-200 bg-white text-sm text-foreground focus:border-primary focus:ring-0"
+					/>
+				</FilterField>
+			</FilterBar>
+
 			<div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
 				<Table class="text-center">
 					<TableHeader>

@@ -38,6 +38,10 @@ function handleClick() {
 function handleBlur() {
     isOpen.value = false;
 }
+
+function handleFocus() {
+    isOpen.value = false;
+}
 </script>
 
 <template>
@@ -56,6 +60,7 @@ function handleBlur() {
                 @mouseleave="handleMouseLeave"
                 @click="handleClick"
                 @blur="handleBlur"
+                @focus="handleFocus"
                 @keydown.escape="isOpen = false"
             >
                 <HelpCircle class="h-4 w-4" />

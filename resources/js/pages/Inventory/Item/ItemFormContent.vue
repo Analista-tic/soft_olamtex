@@ -12,6 +12,7 @@ import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
 import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Tax, Warehouse, AdditionalField, AdditionalFieldType } from '@/domain/inventory';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
@@ -942,6 +943,8 @@ function redirectToAdvancedForm() {
 const NEGATIVE_STOCK_WARNING =
     'Este ítem tiene cantidades negativas en una o más bodegas. ' +
     'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
+const NEGATIVE_MOVEMENT_INVENTORY_WARNING =
+    'Asocia el ítem con al menos una bodega antes de habilitar movimientos negativos.';
 
 function showNegativeMovementWarning() {
   alertType.value = 'warning';
@@ -949,6 +952,8 @@ function showNegativeMovementWarning() {
 
   scrollDialogToTop();
 }
+
+const hasInventoryDetails = computed(() => warehouseStocks.value.length > 0);
 
 const hasNegativeStock = computed(() =>
   warehouseStocks.value.some((w) => Number(w.quantity) < 0)
@@ -959,9 +964,25 @@ const negativeMovementBool = computed(() =>
   localForm.value.negative_movement === true
 );
 
+const negativeMovementToggleDisabled = computed(
+  () => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value),
+);
+
+function showNegativeMovementInventoryWarning() {
+  alertType.value = 'warning';
+  alertMessage.value = NEGATIVE_MOVEMENT_INVENTORY_WARNING;
+  scrollDialogToTop();
+}
+
 function handleNegativeMovementChange(val: boolean) {
+  if (val && !hasInventoryDetails.value) {
+    showNegativeMovementInventoryWarning();
+    return;
+  }
+
   if (hasNegativeStock.value && !val) {
     showNegativeMovementWarning();
+    return;
   }
 
   localForm.value.negative_movement = val ? 1 : 0;
@@ -1086,35 +1107,39 @@ watch(
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
-                            <div>
-                                <template v-if="isViewMode">
-                                    <Label>Tipo de ítem</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{ itemTypeLabelMap[currentItemType] }}
-                                    </div>
-                                </template>
-                                <template v-else>
-                                    <Label>Tipo de ítem</Label>
-                                    <div class="mt-2 grid grid-cols-2 gap-2">
-                                        <button
-                                            v-for="option in itemTypeOptions"
-                                            :key="option.value"
-                                            type="button"
-                                            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
-                                            :class="[
-                                                option.value === currentItemType
-                                                    ? 'border-blue-500 bg-blue-500 text-white shadow'
-                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
-                                            ]"
-                                            :aria-pressed="option.value === currentItemType"
-                                            :disabled="isViewMode"
-                                            @click="handleItemTypeSelect(option.value)"
-                                        >
-                                            {{ option.label }}
-                                        </button>
-                                    </div>
-                                </template>
+                        <div>
+                            <div class="mb-2 flex items-center gap-1">
+                                <span class="text-sm font-semibold text-card-foreground">
+                                    Tipo de ítem
+                                </span>
+                                <HelpTooltip text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes." />
                             </div>
+                            <template v-if="isViewMode">
+                                <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                    {{ itemTypeLabelMap[currentItemType] }}
+                                </div>
+                            </template>
+                            <template v-else>
+                                <div class="mt-2 grid grid-cols-2 gap-2">
+                                    <button
+                                        v-for="option in itemTypeOptions"
+                                        :key="option.value"
+                                        type="button"
+                                        class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
+                                        :class="[
+                                            option.value === currentItemType
+                                                ? 'border-blue-500 bg-blue-500 text-white shadow'
+                                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
+                                        ]"
+                                        :aria-pressed="option.value === currentItemType"
+                                        :disabled="isViewMode"
+                                        @click="handleItemTypeSelect(option.value)"
+                                    >
+                                        {{ option.label }}
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
                             <div>
                                 <Label>Nombre</Label>
                                 <Input
@@ -1230,8 +1255,11 @@ watch(
                             v-if="currentItemType !== 'service'"
                             class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
                         >
-                                <div class="mb-2 flex items-center justify-between">
-                                    <span class="text-sm font-semibold">Detalle de Inventario</span>
+                        <div class="mb-2 flex items-center justify-between">
+                            <p class="text-sm font-semibold flex items-center gap-1">
+                                <span>Detalle de Inventario</span>
+                                <HelpTooltip text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock." />
+                            </p>
                                     <button
                                         v-if="!isViewMode"
                                         type="button"
@@ -1430,9 +1458,13 @@ watch(
                         </div>
                         <div class="flex items-center md:col-span-1">
                             <SwitchField
-                            :model-value="negativeMovementBool"
-                            @update:modelValue="handleNegativeMovementChange"
-                            label="Movimiento Negativo"
+                                :model-value="negativeMovementBool"
+                                @update:modelValue="handleNegativeMovementChange"
+                                label="Movimiento Negativo"
+                                :tooltip-text="hasInventoryDetails
+                                    ? 'Permite que las bodegas registren cantidades negativas cuando lo necesites.'
+                                    : 'Asocia al menos una bodega antes de habilitar movimientos negativos.'"
+                                :disabled="negativeMovementToggleDisabled"
                             />
                         </div>
                     </div>
@@ -1443,6 +1475,12 @@ watch(
                     </div>
 
                     <!-- Campos adicionales -->
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                            <span>Campos adicionales</span>
+                            <HelpTooltip text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo." />
+                        </p>
+                    </div>
                     <div class="space-y-2">
                         <ExtraFieldsForm
                             :extra-field-names="extraFieldNames"
@@ -1451,18 +1489,19 @@ watch(
                             @create-additional-field="openAdditionalFieldDialog"
                             :field-options="additionalFieldOptions"
                             :additional-fields-meta="additionalFieldsMeta"
+                            :show-label="false"
                         />
                     </div>
                     <section
                         v-if="props.showAdvancedSections"
                         class="rounded-2xl border border-border bg-card p-4 shadow-sm"
                     >
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-semibold text-card-foreground">Contabilidad</p>
+                        <div class="flex items-center justify-between pb-2">
+                            <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                                <span>Contabilidad</span>
+                                <HelpTooltip text="Indica las cuentas contables que deben usarse al vender o mover este ítem dentro del inventario." />
+                            </p>
                         </div>
-                        <p class="mb-4 text-sm text-muted-foreground">
-                            Configura las cuentas contables en las que se registrarán los movimientos.
-                        </p>
                         <div class="grid gap-4 md:grid-cols-2">
                             <SelectField
                                 v-model="localForm.income_account"
@@ -1494,14 +1533,12 @@ watch(
                         v-if="props.showAdvancedSections"
                         class="rounded-2xl border border-border bg-card p-4 shadow-sm"
                     >
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-semibold text-card-foreground">
-                                Datos adicionales para factura de exportación
+                        <div class="flex items-center justify-between pb-2">
+                            <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                                <span>Datos adicionales para factura de exportación</span>
+                                <HelpTooltip text="Completa estos campos solo si este ítem se usa en operaciones de exportación para facilitar la factura." />
                             </p>
                         </div>
-                        <p class="mb-4 text-sm text-muted-foreground">
-                            Completa estos datos si el producto se usará en facturas de exportación.
-                        </p>
                         <div class="grid gap-4 md:grid-cols-3">
                             <InputField
                                 v-model="localForm.export_tariff_code"

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import Label from '@/components/ui/label/Label.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -59,7 +61,7 @@ const resolveMovementReason = (value?: string): 'entrada' | 'salida' =>
   value === 'salida' ? 'salida' : defaultMovementReason;
 
 const documentNumber = ref<string>('Automatico');
-const date = ref<string>('');
+const date = ref<string | null>(null);
 const observation = ref<string>('');
 const productionOrder = ref<string>('');
 const taxes = ref<Tax[]>([]);
@@ -185,7 +187,7 @@ watch(
 
 function resetForm() {
   documentNumber.value = 'Automatico';
-  date.value = '';
+  date.value = null;
   observation.value = '';
   productionOrder.value = '';
   selectedWarehouseId.value = warehouses.value[0]?.id ?? null;
@@ -217,7 +219,7 @@ async function loadDocumentNumber() {
 
 function fillFromAdjustment(data: any) {
   documentNumber.value = data.document_number || 'Automatico';
-  date.value = data.date ? String(data.date).slice(0, 10) : '';
+  date.value = data.date ? String(data.date).slice(0, 10) : null;
   observation.value = data.observation || '';
   productionOrder.value = data.production_order || '';
   const firstLineWarehouse = Array.isArray(data.lines) && data.lines.length ? data.lines[0].warehouse_id ?? null : null;
@@ -531,6 +533,7 @@ async function handleSubmit() {
                 <SelectField
                   v-model="selectedWarehouseId"
                   label="Bodega"
+                  tooltipText="Selecciona la bodega que refleja dónde se realiza el ajuste para mantener la trazabilidad del stock."
                   :options="warehouseSelectOptions"
                   placeholder="Selecciona bodega"
                   :searchable="false"
@@ -539,18 +542,21 @@ async function handleSubmit() {
               </div>
 
               <div>
-                <Label>
-                  Fecha <span class="text-destructive">*</span>
-                </Label>
-                <Input
+                <DatePickerField
                   v-model="date"
-                  type="date"
-                  class="w-full"
+                  label="Fecha"
+                  helpText="Registra la fecha real del ajuste para que los reportes del inventario y las conciliaciones coincidan."
                   required
+                  class="w-full"
                 />
               </div>
               <div>
-                <Label>Observación</Label>
+                <Label class="flex items-center gap-1.5">
+                  <span>Observación</span>
+                  <HelpTooltip
+                    text="Describe el motivo del ajuste (ej. pérdida, conteo físico, rotura) para facilitar auditorías."
+                  />
+                </Label>
                 <Input
                   v-model="observation"
                   class="mt-1"
@@ -715,3 +721,4 @@ async function handleSubmit() {
     </DialogContent>
   </Dialog>
 </template>
+

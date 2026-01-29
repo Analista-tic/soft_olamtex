@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
-import InputDate from '@/components/InputDate.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import SelectField from '@/components/SelectField.vue';
@@ -185,7 +185,12 @@ onMounted(() => {
             <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
                     <div class="grid grid-cols-2 gap-4">
-                        <InputDate v-model="deliveryDate" label="Fecha de entrega" :required="true" />
+                        <DatePickerField
+                            v-model="deliveryDate"
+                            label="Fecha de entrega"
+                            helpText="Registra la fecha efectiva de entrega para mantener el inventario sincronizado con la operación."
+                            :required="true"
+                        />
                         <div class="flex items-center justify-end">
                             <a
                                 href="/bodegas"

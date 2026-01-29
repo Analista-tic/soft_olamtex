@@ -34,6 +34,7 @@ use App\Http\Controllers\Settings\RetentionController;
 use App\Http\Controllers\Common\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
+use App\Http\Controllers\Inventory\WarehouseItemStockController;
 use App\Http\Controllers\Inventory\InventoryRequestController;
 use App\Http\Controllers\Inventory\WarehouseTransferController;
 
@@ -427,6 +428,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/', [ItemInventoryController::class, 'index'])->name('index');        // opcional
         Route::get('/data', [ItemInventoryController::class, 'getData'])->name('data');
     });
+    Route::get('/warehouse-items', [WarehouseItemStockController::class, 'index']);
 
     // === CAMPOS ADICIONALES ===
     Route::prefix('campos-adicionales')->name('inventory.additional-fields.')->group(function () {

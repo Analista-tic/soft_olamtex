@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { Label } from '@/components/ui/label';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 
 interface Props {
     label: string;
@@ -11,6 +12,7 @@ interface Props {
     readonly?: boolean;
     disabled?: boolean;
     rows?: number;
+    tooltipText?: string;
 }
 
 const props = defineProps<Props>();
@@ -27,7 +29,11 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
 
 <template>
     <div class="grid w-full items-center gap-1.5">
-        <Label>{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
+        <Label class="flex items-center gap-1.5">
+            <span>{{ label }}</span>
+            <HelpTooltip v-if="props.tooltipText" :text="props.tooltipText" />
+            <span v-if="required" class="text-red-500">*</span>
+        </Label>
         <textarea
             :id="label"
             v-model="localModelValue"

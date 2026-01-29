@@ -3,14 +3,26 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import ItemFormContent from './ItemFormContent.vue';
 import type { Item } from '@/domain/inventory';
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const breadcrumbs = [
   { title: 'Catálogo de ítem', href: route('listado') },
   { title: 'Formulario avanzado', href: '' },
 ];
 
-const form = ref<Partial<Item>>({});
+const props = defineProps<{
+  initialForm?: Partial<Item>;
+}>();
+
+const form = ref<Partial<Item>>(props.initialForm ?? {});
+watch(
+  () => props.initialForm,
+  (value) => {
+    form.value = value ?? {};
+  },
+);
+
+const dialogType = computed(() => (form.value.id ? 'edit' : 'create'));
 
 function handleClose() {
   window.location.href = route('listado');
@@ -42,7 +54,7 @@ function handleError(message: string) {
         <div class="w-full">
           <ItemFormContent
             :is-open="true"
-            dialog-type="create"
+            :dialog-type="dialogType"
             :form="form"
             :show-advanced-link="false"
             :show-advanced-sections="true"

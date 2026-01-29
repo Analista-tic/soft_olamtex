@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\Item;
-// ProductSheet imports removed: extra fields are managed dynamically elsewhere
 use App\Services\Inventory\ItemService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -45,18 +44,9 @@ class ItemController extends Controller
             return $this->unexpectedErrorResponse();
         }
 
-        $extraFields = $this->service->normalizeExtraFields($request->input('extra_fields') ?? []);
-        $data['extra_fields'] = $extraFields;
-        $reference = trim($data['reference']);
-        $data['reference'] = $reference;
-        $subGroupId = (int) $data['category_sub_group_id'];
-        $itemName = $this->service->computeName($subGroupId, $extraFields);
-        $this->service->assertUniqueReferenceAndName($reference, $itemName);
+        $payload = $this->prepareItemPayload($request, $data);
 
-        $this->handleImageUploadIfPresent($request, $data, 'items');
-        $warehouses = $this->resolveWarehouses($request) ?? [];
-
-        return $this->service->create($data, $warehouses);
+        return $this->service->create($payload['data'], $payload['warehouses']);
     }
 
     public function update(Request $request, $id)
@@ -71,22 +61,9 @@ class ItemController extends Controller
             return $this->unexpectedErrorResponse();
         }
 
-        $extraFields = $this->service->normalizeExtraFields(
-            $request->input('extra_fields') ?? $item->extra_fields
-        );
-        $subGroupId = $request->has('category_sub_group_id')
-            ? (int) $request->input('category_sub_group_id')
-            : $item->category_sub_group_id;
-        $data['extra_fields'] = $extraFields;
-        $reference = trim($data['reference']);
-        $data['reference'] = $reference;
-        $itemName = $this->service->computeName($subGroupId, $extraFields);
-        $this->service->assertUniqueReferenceAndName($reference, $itemName, $item->id);
+        $payload = $this->prepareItemPayload($request, $data, $item);
 
-        $this->handleImageUploadIfPresent($request, $data, 'items');
-        $warehouses = $this->resolveWarehouses($request);
-
-        $updated = $this->service->update($item, $data, $warehouses);
+        $updated = $this->service->update($item, $payload['data'], $payload['warehouses']);
 
         return $updated;
     }
@@ -618,20 +595,56 @@ class ItemController extends Controller
         ]);
     }
 
-    public function advancedForm()
+    public function advancedForm(Request $request)
     {
-        return Inertia::render('Inventory/Item/AdvancedForm');
+        $payload = [];
+        $itemId = $request->query('item_id');
+        if ($itemId) {
+            $item = $this->service->findWithRelations(
+                (int) $itemId,
+                ['categorySubGroup', 'tax'],
+            );
+            $payload['initialForm'] = $item->toArray();
+        }
+
+        return Inertia::render('Inventory/Item/AdvancedForm', $payload);
     }
 
     public function adjustmentView()
     {
-        return Inertia::render('Inventory/Item/InventoryAdjustment');
+        return Inertia::render('Inventory/InventoryAdjustment/InventoryAdjustment');
     }
 
     private function resolveWarehouses(Request $request): array
     {
         // Delegar la resolución de payloads de bodegas al servicio
         return $this->service->resolveWarehousePayload($request->input('warehouses'));
+    }
+    
+    private function prepareItemPayload(Request $request, array $data, Item $item = null): array
+    {
+        $extraFields = $this->service->normalizeExtraFields(
+            $request->input('extra_fields') ?? ($item?->extra_fields ?? [])
+        );
+        $data['extra_fields'] = $extraFields;
+
+        $subGroupId = $request->has('category_sub_group_id')
+            ? (int) $request->input('category_sub_group_id')
+            : ($item?->category_sub_group_id ?? null);
+
+        $reference = trim($data['reference'] ?? '');
+        $data['reference'] = $reference;
+
+        $itemName = $this->service->computeName((int) ($subGroupId ?? 0), $extraFields);
+        $this->service->assertUniqueReferenceAndName($reference, $itemName, $item?->id);
+
+        $this->handleImageUploadIfPresent($request, $data, 'items');
+        $warehouses = $this->resolveWarehouses($request);
+
+        return [
+            'data' => $data,
+            'warehouses' => $warehouses,
+        ];
     }
     
     private function itemValidationRules(bool $isUpdate = false, $item = null): array

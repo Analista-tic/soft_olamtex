@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
-import InputDate from '@/components/InputDate.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import TextareaField from '@/components/TextareaField.vue';
@@ -369,19 +369,21 @@ onUnmounted(() => {
                                 <span v-if="props.dialogType === 'create' && isLoadingNumber" class="text-xs text-muted-foreground">
                                     Generando consecutivo...
                                 </span>
-                                <InputDate
+                                <DatePickerField
                                     v-model="localForm.date"
                                     label="Fecha de solicitud"
+                                    helpText="Captura la fecha en la que se genera la solicitud; este dato ayuda a priorizar entregas y a rastrear plazos."
                                     :required="true"
                                     :disabled="isReadonly"
                                 />
                             </div>
 
                             <div v-if="props.dialogType !== 'create'" class="grid grid-cols-2 gap-4">
-                                <InputDate
+                                <DatePickerField
                                     v-if="localForm.status === 'entregado'"
                                     v-model="localForm.delivery_date"
                                     label="Fecha de entrega"
+                                    helpText="Registra la fecha real de entrega para dejar constancia del cumplimiento con el solicitante y con inventario."
                                     :disabled="isReadonly"
                                 />
                                 <InputField
@@ -412,6 +414,7 @@ onUnmounted(() => {
                                 v-model="safeObservation"
                                 label="Observacion / Motivo"
                                 placeholder="Describe el motivo de la solicitud"
+                                tooltipText="Resume qué necesitas y por qué; así quien aprueba entiende el contexto y puede dar prioridad."
                                 :required="true"
                                 :readonly="isReadonly"
                             />
