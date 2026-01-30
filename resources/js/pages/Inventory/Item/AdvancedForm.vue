@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import ItemFormContent from './ItemFormContent.vue';
 import type { Item } from '@/domain/inventory';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 
 const breadcrumbs = [
   { title: 'Catálogo de ítem', href: route('listado') },
@@ -14,7 +14,23 @@ const props = defineProps<{
   initialForm?: Partial<Item>;
 }>();
 
+
 const form = ref<Partial<Item>>(props.initialForm ?? {});
+
+onMounted(() => {
+  if (!props.initialForm) {
+    const draft = localStorage.getItem('itemFormDraft');
+    if (draft) {
+      try {
+        form.value = JSON.parse(draft);
+      } catch (e) {
+        form.value = {};
+      }
+      localStorage.removeItem('itemFormDraft');
+    }
+  }
+});
+
 watch(
   () => props.initialForm,
   (value) => {

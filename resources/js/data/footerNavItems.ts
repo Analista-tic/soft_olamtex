@@ -1,0 +1,36 @@
+import type { NavItem } from '@/domain/shared';
+import { BarChart3, ShieldCheck, Settings } from 'lucide-vue-next';
+
+const toSlug = (value: string) =>
+    value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '');
+
+const underConstructionHref = (title: string) =>
+    route('under-construction', {
+        modulo: toSlug(title),
+        titulo: title,
+    });
+
+export const footerNavItems: NavItem[] = [
+    {
+        title: 'Reportes',
+        href: underConstructionHref('Reportes'),
+        icon: BarChart3,
+    },
+    {
+        title: 'Auditoría',
+        href: '/auditoria',
+        icon: ShieldCheck,
+        permission: 'ver auditoria',
+    },
+    {
+        title: 'Configuración',
+        href: '/configuracion',
+        icon: Settings,
+        permission: 'ver usuarios',
+    },
+];

@@ -2,15 +2,56 @@
 import UserInfo from '@/components/UserInfo.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
-import type { SharedData } from '@/domain/shared';
+import type { NavItem, SharedData } from '@/domain/shared';
 import type { User } from '@/domain/auth/types';
+import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
-import { ChevronsUpDown } from 'lucide-vue-next';
+import { BarChart3, ChevronsUpDown, Settings, ShieldCheck } from 'lucide-vue-next';
 import UserMenuContent from './UserMenuContent.vue';
+import { useAuthStore } from '@/stores/auth';
 
 const page = usePage<SharedData>();
 const user = page.props.auth.user as User;
 const { isMobile, state } = useSidebar();
+const auth = useAuthStore();
+
+const toSlug = (value: string) =>
+    value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '');
+
+const underConstructionHref = (title: string) =>
+    route('under-construction', {
+        modulo: toSlug(title),
+        titulo: title,
+    });
+
+const footerNavItems: NavItem[] = [
+    {
+        title: 'Reportes',
+        href: underConstructionHref('Reportes'),
+        icon: BarChart3,
+    },
+    {
+        title: 'Auditoría',
+        href: '/auditoria',
+        icon: ShieldCheck,
+        permission: 'ver auditoria',
+    },
+    {
+        title: 'Configuración',
+        href: '/configuracion',
+        icon: Settings,
+        permission: 'ver usuarios',
+    },
+];
+
+const filteredUserNavItems = computed<NavItem[]>(() =>
+    footerNavItems.filter((item) => (item.permission ? auth.can(item.permission) : true)),
+);
 </script>
 
 <template>
@@ -29,7 +70,7 @@ const { isMobile, state } = useSidebar();
                     align="end" 
                     :side-offset="4"
                 >
-                    <UserMenuContent :user="user" />
+                    <UserMenuContent :user="user" :items="filteredUserNavItems" />
                 </DropdownMenuContent>
             </DropdownMenu>
         </SidebarMenuItem>

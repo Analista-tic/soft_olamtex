@@ -1,7 +1,5 @@
-<script setup lang="ts">
-import NavFooter from '@/components/NavFooter.vue';
+﻿<script setup lang="ts">
 import NavMain from '@/components/NavMain.vue';
-import NavMainGroup from '@/components/NavMainGroup.vue';
 import NavUser from '@/components/NavUser.vue';
 import {
     Sidebar,
@@ -12,17 +10,20 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useAuthStore } from '@/stores/auth';
-import type { NavGroupItem, NavItem } from '@/domain/shared';
+import type { LucideIcon } from 'lucide-vue-next';
+import type { NavItem } from '@/domain/shared';
 import { Link } from '@inertiajs/vue3';
-import { BarChart3, LayoutGrid, Settings, ShieldCheck } from 'lucide-vue-next';
-import { computed, onMounted } from 'vue';
+import { ChartColumn, Factory, LayoutGrid, Package, Shirt, SquareArrowDown, SquareArrowUp, SquarePen } from 'lucide-vue-next';
+import { computed, onMounted, ref } from 'vue';
 import AppLogo from './AppLogo.vue';
+import { usePage } from '@inertiajs/vue3';
 
 const auth = useAuthStore();
 
-// Cargar datos del usuario al montar el componente
 onMounted(async () => {
     await auth.fetchUser();
 });
@@ -31,7 +32,6 @@ const toSlug = (value: string) =>
     value
         .toLowerCase()
         .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)+/g, '');
 
@@ -41,43 +41,24 @@ const underConstructionHref = (title: string) =>
         titulo: title,
     });
 
-// Definición de los elementos de navegación principales
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: '/dashboard',
-        icon: LayoutGrid,
-    },
-];
+type ModuleSectionGroup = {
+    label: string;
+    items: NavItem[];
+};
 
-// Definición de los elementos de navegación del pie de página
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Reportes',
-        href: underConstructionHref('Reportes'),
-        icon: BarChart3,
-    },
-    {
-        title: 'Auditoría',
-        href: '/auditoria',
-        icon: ShieldCheck,
-        permission: 'ver auditoria',
-    },
-    {
-        title: 'Configuración',
-        href: '/configuracion',
-        icon: Settings,
-        permission: 'ver usuarios',
-    },
-];
+type ModuleSection = {
+    title: string;
+    icon: LucideIcon;
+    groups: ModuleSectionGroup[];
+};
 
-const coreSections: { label: string; items: NavGroupItem[] }[] = [
+const moduleSections: ModuleSection[] = [
     {
-        label: 'Ingresos',
-        items: [
+        title: 'Ingresos',
+        icon: SquareArrowDown,
+        groups: [
             {
-                title: 'Ventas',
-                href: underConstructionHref('Ventas'),
+                label: 'Ventas',
                 items: [
                     { title: 'Cotizaciones', href: underConstructionHref('Cotizaciones') },
                     { title: 'Pedidos', href: underConstructionHref('Pedidos') },
@@ -87,8 +68,7 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
                 ],
             },
             {
-                title: 'Cartera clientes',
-                href: underConstructionHref('Cartera clientes'),
+                label: 'Cartera clientes',
                 items: [
                     { title: 'Cuentas por cobrar', href: underConstructionHref('Cuentas por cobrar') },
                     { title: 'Estado de cuentas', href: underConstructionHref('Estado de cuentas') },
@@ -99,204 +79,142 @@ const coreSections: { label: string; items: NavGroupItem[] }[] = [
         ],
     },
     {
-        label: 'Gastos',
-        items: [
+        title: 'Gastos',
+        icon: SquareArrowUp,
+        groups: [
             {
-                title: 'Compras',
-                href: '/gastos/ordenes-compra',
+                label: 'Gastos',
                 items: [
-                    { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra', permission: 'ver telas' },
-                    { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver telas' },
-                    { title: 'Recepciones', href: underConstructionHref('Recepciones') },
-                    { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver telas' },
-                    { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver telas' },
-                    { title: 'Notas Crédito / Débito', href: underConstructionHref('Notas Crédito / Débito') },
-                ],
-            },
-            {
-                title: 'Cartera proveedores',
-                href: underConstructionHref('Cartera proveedores'),
-                items: [
-                    { title: 'Cuentas por pagar', href: underConstructionHref('Cuentas por pagar') },
-                    { title: 'Programación de pagos', href: underConstructionHref('Programación de pagos') },
-                    { title: 'Estados de cuenta', href: underConstructionHref('Estados de cuenta') },
+                    { title: 'Tesorería', href: underConstructionHref('Tesorería') },
+                    { title: 'Cartera proveedores', href: underConstructionHref('Cartera proveedores') },
                 ],
             },
         ],
     },
     {
-        label: 'Financiero',
-        items: [
+        title: 'Financiero',
+        icon: ChartColumn,
+        groups: [
             {
-                title: 'Contabilidad',
-                href: underConstructionHref('Contabilidad'),
-            },
-            {
-                title: 'Impuestos',
-                href: '/impuestos',
-            },
-            { 
-                title: 'Retenciones', 
-                href: '/retenciones' 
-            },
-            {
-                title: 'Tesorería',
-                href: underConstructionHref('Tesorería'),
+                label: 'Financiero',
                 items: [
-                    { title: 'Bancos', href: underConstructionHref('Bancos') },
-                    { title: 'Caja', href: underConstructionHref('Caja') },
-                    { title: 'Pagos a proveedores', href: underConstructionHref('Pagos a proveedores') },
+                    { title: 'Contabilidad', href: underConstructionHref('Contabilidad') },
+                    { title: 'Impuestos', href: '/impuestos' },
                 ],
             },
         ],
     },
     {
-        label: 'Inventarios',
-        items: [
+        title: 'Datos Maestros',
+        icon: SquarePen,
+        groups: [
             {
-                title: 'Inventario de Ítems',
-                href: '/inventario-item',
-                permission: 'ver inventario telas',
-            },
-            {
-                title: 'Bodegas',
-                href: '/bodegas',
-                permission: 'ver bodegas',
-            },
-            {
-                title: 'Kardex',
-                href: '/inventario/item',
-                permission: 'ver inventario telas',
+                label: 'Datos Maestros',
                 items: [
-                    { title: 'Movimientos de inventario', href: '/inventario/item', permission: 'ver inventario telas' },
-                    { title: 'Ajustes', href: '/inventario/ajuste-inventario', permission: 'ver inventario telas' },
-                    { title: 'Traslados', href: '/transferencias-bodegas' },
+                    { title: 'Catálogo de ítems', href: '/item' },
+                    { title: 'Contactos', href: '/contactos' },
                 ],
-            },
-            {
-                title: 'Solicitudes internas por área',
-                href: '/inventario/solicitudes-internas',
             },
         ],
     },
     {
-        label: 'Producción',
-        items: [
+        title: 'Inventarios',
+        icon: Package,
+        groups: [
             {
-                title: 'Sábana de Productos',
-                href: '/produccion/sabana-productos',
-                permission: 'ver sabana productos',
+                label: 'Inventarios',
                 items: [
-                    { title: 'Listado Operacional', href: route('produccion.listados-operacionales.index'), permission: 'ver listados operacionales' },
-                    { title: 'Base de datos de operaciones', href: underConstructionHref('Base de datos de operaciones') },
+                    { title: 'Inventario de ítems', href: '/inventario-item' },
+                    { title: 'Bodegas', href: '/bodegas' },
                 ],
-            },
-            {
-                title: 'Programación de producción',
-                href: '/comercial/programador',
-                permission: 'ver programador',
-            },
-            {
-                title: 'Control de lotes',
-                href: underConstructionHref('Control de lotes'),
-            },
-            {
-                title: 'Ficha Técnica',
-                href: underConstructionHref('Ficha Técnica'),
-                items: [{ title: 'Listas de Materiales', href: underConstructionHref('Listas de Materiales') }],
-            },
-            {
-                title: 'Consumos por OP',
-                href: underConstructionHref('Consumos por OP'),
             },
         ],
     },
     {
-        label: 'Datos Maestros',
-        items: [
-            { title: 'Contactos', href: '/contactos' },
-            { title: 'Catálogo de ítems', href: '/item', permission: 'ver inventario telas' },
-            { title: 'Categorías', href: '/categorias/subgrupos' },
-            { title: 'Unidades de Medida', href: underConstructionHref('Unidades de Medida') },
-            { title: 'Bodegas', href: '/bodegas', permission: 'ver bodegas' },
-            { title: 'Campos adicionales', href: '/campos-adicionales' },
-            { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },
+        title: 'Producción',
+        icon: Factory,
+        groups: [
+            {
+                label: 'Producción',
+                items: [
+                    { title: 'Sábana de Productos', href: '/produccion/sabana-productos' },
+                    { title: 'Programación', href: '/comercial/programador' },
+                ],
+            },
+        ],
+    },
+    {
+        title: 'TEXTIL PACK',
+        icon: Shirt,
+        groups: [
+            {
+                label: 'TEXTIL PACK',
+                items: [
+                    { title: 'Inventario textil', href: route('kardex-telas.index') },
+                    { title: 'Descargue de telas', href: route('kardex-telas.descargue-orden') },
+                ],
+            },
         ],
     },
 ];
 
-const textilSections: { label: string; items: NavGroupItem[] }[] = [
+const mainNavItems: NavItem[] = [
     {
-        label: 'TEXTIL PACK',
-        items: [
-            {
-                title: 'Inventario Textil',
-                href: route('kardex-telas.index'),
-                items: [
-                    { title: 'Inventario tela por rollos', href: route('kardex-telas.inventario-rollos'), permission: 'ver sabana productos' },
-                    { title: 'Descargue de telas por orden', href: route('kardex-telas.descargue-orden'), permission: 'ver sabana productos' },
-                    { title: 'Salida de telas por orden', href: underConstructionHref('Salida de telas por orden'), permission: 'ver sabana productos' },
-                ],
-            },
-        ],
+        title: 'Dashboard',
+        href: '/dashboard',
+        icon: LayoutGrid,
     },
 ];
 
 const filteredMainNavItems = computed(() => mainNavItems);
 
-// Filtrar los grupos de navegación principales según permisos de los subítems
-const forceDevMenu =
-    typeof window !== 'undefined' && window.localStorage?.getItem('forceDevMenu') === '1';
-const isDev = Boolean(
-    forceDevMenu ||
-    (import.meta as any)?.env?.DEV ||
-    (import.meta as any)?.DEV ||
-    process.env.NODE_ENV === 'development',
-);
-const filterNavGroups = (groups: NavGroupItem[]) =>
-    groups
-        .map((group) => {
-            if (!group) {
-                return null;
-            }
+const { state } = useSidebar();
+const isSidebarCollapsed = computed(() => state.value === 'collapsed');
 
-            if (group.permission && !auth.can(group.permission)) {
-                return null;
-            }
-
-            // Si no tiene subítems definidos, devolver el grupo tal cual
-            if (!group.items || group.items.length === 0) {
-                return group;
-            }
-
-            // En desarrollo, mostrar todos los subítems para facilitar pruebas locales
-            if (isDev) return group;
-
-            // En producción, filtrar los subítems según los permisos del usuario
-            const visibleItems = (group.items || []).filter((item) => (item.permission ? auth.can(item.permission) : true));
-
-            // Si hay subítems visibles, devolverlos; si no, devolver el grupo sin 'items'
-            // Dejar `items: undefined` ayuda a que el componente de UI lo trate como botón simple
-            return visibleItems.length ? { ...group, items: visibleItems } : { ...group, items: undefined };
-        })
-        // Mantener sólo grupos válidos (grupos sin items o con items visibles)
-        .filter((group) => group && (group.items === undefined || (Array.isArray(group.items) && group.items.length > 0))) as NavGroupItem[];
-
-const filteredCoreSections = computed(() =>
-    coreSections
-        .map((section) => ({ ...section, items: filterNavGroups(section.items) }))
-        .filter((section) => section.items.length > 0),
+const sectionStates = ref<Record<string, boolean>>(
+    moduleSections.reduce((acc, section) => {
+        acc[section.title] = true;
+        return acc;
+    }, {} as Record<string, boolean>),
 );
 
-const filteredFooterNavItems = computed(() =>
-    footerNavItems.filter((item) => (item.permission ? auth.can(item.permission) : true)),
-);
+const page = usePage();
+const currentPath = computed(() => {
+    try {
+        return new URL(page.url ?? window.location.href, window.location.origin).pathname;
+    } catch {
+        return window.location.pathname;
+    }
+});
 
-const filteredTextilSections = computed(() =>
-    textilSections
-        .map((section) => ({ ...section, items: filterNavGroups(section.items) }))
-        .filter((section) => section.items.length > 0),
-);
+const normalizeHref = (href: string): string => {
+    if (!href || href === '#') {
+        return '';
+    }
+
+    try {
+        const url = new URL(href, window.location.origin);
+        return url.pathname;
+    } catch {
+        return href.startsWith('/') ? href : `/${href}`;
+    }
+};
+
+const isRouteActive = (href: string) => {
+    const normalized = normalizeHref(href);
+    if (!normalized) {
+        return false;
+    }
+
+    return currentPath.value === normalized || currentPath.value.startsWith(`${normalized}/`);
+};
+
+const toggleSection = (title: string, open?: boolean) => {
+    sectionStates.value = {
+        ...sectionStates.value,
+        [title]: open ?? !sectionStates.value[title],
+    };
+};
 </script>
 
 <template>
@@ -315,27 +233,63 @@ const filteredTextilSections = computed(() =>
 
         <SidebarContent>
             <NavMain :items="filteredMainNavItems" />
-            <template v-for="section in filteredCoreSections" :key="section.label">
-                <SidebarGroupLabel class="mt-2 px-2 text-xs uppercase tracking-wide text-sidebar-foreground/60">
-                    {{ section.label }}
-                </SidebarGroupLabel>
-                <NavMainGroup :items="section.items" />
-            </template>
-            <template v-for="section in filteredTextilSections" :key="section.label">
-                <SidebarGroupLabel class="mt-4 px-2 text-xs uppercase tracking-wide text-sidebar-foreground/60">
-                    {{ section.label }}
-                </SidebarGroupLabel>
-                <NavMainGroup :items="section.items" />
+            <template v-for="section in moduleSections" :key="section.title">
+                <Collapsible
+                    :open="sectionStates[section.title] ?? true"
+                    class="group/collapsible"
+                    @update:open="(open) => toggleSection(section.title, open)"
+                >
+                    <SidebarGroupLabel class="mt-2 px-2">
+                        <CollapsibleTrigger as-child>
+                            <button class="flex w-full items-center gap-2 rounded-md p-1 text-xs uppercase tracking-wide text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground">
+                                <component :is="section.icon" class="size-4 text-sidebar-foreground/60" />
+                                <span v-if="!isSidebarCollapsed">{{ section.title }}</span>
+                            </button>
+                        </CollapsibleTrigger>
+                    </SidebarGroupLabel>
+                    <CollapsibleContent>
+                        <div v-for="group in section.groups" :key="group.label" class="px-2 pb-2">
+                            <div class="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+                                {{ group.label }}
+                            </div>
+                            <SidebarMenu class="px-0">
+                                <SidebarMenuItem
+                                    v-for="item in group.items"
+                                    :key="item.title"
+                                >
+                                    <SidebarMenuButton
+                                        as-child
+                                        :tooltip="item.title"
+                                        :class="{ active: isRouteActive(item.href) }"
+                                    >
+                                        <Link :href="item.href">
+                                            <span>{{ item.title }}</span>
+                                        </Link>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                            </SidebarMenu>
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
             </template>
         </SidebarContent>
 
         <SidebarFooter class="border-t border-sidebar-border/80 pt-2">
-            <NavFooter
-                :items="filteredFooterNavItems"
-                class="rounded-xl border border-sidebar-border/60 bg-sidebar-accent/30 p-2"
-            />
-            <NavUser />
+            <div class="rounded-xl border border-sidebar-border/60 bg-sidebar-accent/30 p-2">
+                <NavUser />
+            </div>
         </SidebarFooter>
     </Sidebar>
-    <slot />
+<slot />
 </template>
+
+<style scoped>
+.active {
+    font-weight: 600;
+    color: #3490dc;
+}
+
+.group\/collapsible {
+    width: 100%;
+}
+</style>
