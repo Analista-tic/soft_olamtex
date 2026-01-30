@@ -207,20 +207,6 @@ const filteredMainNavItems = computed(() => mainNavItems);
 const { state, setOpen } = useSidebar();
 const isSidebarCollapsed = computed(() => state.value === 'collapsed');
 
-const sectionStates = ref<Record<string, boolean>>(
-    moduleSections.reduce((acc, section) => {
-        acc[section.title] = false;
-        return acc;
-    }, {} as Record<string, boolean>),
-);
-
-const resetSectionStates = () => {
-    sectionStates.value = moduleSections.reduce((acc, section) => {
-        acc[section.title] = false;
-        return acc;
-    }, {} as Record<string, boolean>);
-};
-
 const page = usePage();
 const currentPath = computed(() => {
     try {
@@ -252,6 +238,26 @@ const isRouteActive = (href: string) => {
     return currentPath.value === normalized || currentPath.value.startsWith(`${normalized}/`);
 };
 
+const getActiveSectionTitle = () => {
+    return moduleSections.find((section) =>
+        section.groups.some((group) =>
+            group.items.some((item) => isRouteActive(item.href)),
+        ),
+    )?.title;
+};
+
+const buildSectionStates = (openTitle?: string) =>
+    moduleSections.reduce((acc, section) => {
+        acc[section.title] = Boolean(openTitle && section.title === openTitle);
+        return acc;
+    }, {} as Record<string, boolean>);
+
+const sectionStates = ref<Record<string, boolean>>(buildSectionStates(getActiveSectionTitle()));
+
+const resetSectionStates = () => {
+    sectionStates.value = buildSectionStates();
+};
+
 const toggleSection = (title: string, open?: boolean) => {
     const nextState: Record<string, boolean> = {};
 
@@ -273,13 +279,33 @@ const ensureSidebarExpanded = () => {
     }
 };
 
+const openSectionForActiveRoute = () => {
+    const activeTitle = getActiveSectionTitle();
+    if (!activeTitle) {
+        return;
+    }
+
+    toggleSection(activeTitle, true);
+};
+
 watch(
     () => state.value,
     (value) => {
         if (value === 'collapsed') {
             resetSectionStates();
+            return;
         }
+
+        openSectionForActiveRoute();
     },
+);
+
+watch(
+    currentPath,
+    () => {
+        openSectionForActiveRoute();
+    },
+    { immediate: true },
 );
 </script>
 
