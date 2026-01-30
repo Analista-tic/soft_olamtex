@@ -5,7 +5,6 @@ import {
     Sidebar,
     SidebarContent,
     SidebarFooter,
-    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
@@ -210,7 +209,7 @@ const isSidebarCollapsed = computed(() => state.value === 'collapsed');
 
 const sectionStates = ref<Record<string, boolean>>(
     moduleSections.reduce((acc, section) => {
-        acc[section.title] = true;
+        acc[section.title] = false;
         return acc;
     }, {} as Record<string, boolean>),
 );
@@ -269,21 +268,21 @@ const toggleSection = (title: string, open?: boolean) => {
         </SidebarHeader>
 
         <SidebarContent>
-            <NavMain :items="filteredMainNavItems" />
+            <NavMain :items="filteredMainNavItems" class="mt-2 px-2 flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground" />
             <template v-for="section in moduleSections" :key="section.title">
                 <Collapsible
                     :open="sectionStates[section.title] ?? true"
                     class="group/collapsible"
                     @update:open="(open) => toggleSection(section.title, open)"
                 >
-                    <SidebarGroupLabel class="mt-2 px-2">
+                    <div class="module-label mt-2 px-2">
                         <CollapsibleTrigger as-child>
                             <button class="flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground">
                                 <component :is="section.icon" class="size-4 text-sidebar-foreground/60" />
                                 <span v-if="!isSidebarCollapsed">{{ section.title }}</span>
                             </button>
                         </CollapsibleTrigger>
-                    </SidebarGroupLabel>
+                    </div>
                     <CollapsibleContent>
                         <div
                             v-for="(group, groupIndex) in section.groups"
