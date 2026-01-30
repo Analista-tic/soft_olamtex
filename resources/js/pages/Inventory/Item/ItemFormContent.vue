@@ -13,6 +13,7 @@ import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
 import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
+import { ITEM_FORM_DRAFT_KEY } from './constants';
 import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Tax, Warehouse, AdditionalField, AdditionalFieldType } from '@/domain/inventory';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
@@ -124,7 +125,14 @@ const additionalFieldOrder = computed(() => {
 const nameField = ref('');
 const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
-const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
+type WarehouseStockEntry = {
+    warehouse_id: number;
+    name: string;
+    quantity: number;
+    stock_min: number;
+    stock_max: number;
+};
+const warehouseStocks = ref<WarehouseStockEntry[]>([]);
 const taxes = ref<Tax[]>([]);
 const defaultTaxEntry = computed(() => taxes.value.find(isDefaultTax));
 const nonDefaultTaxes = computed(() =>
@@ -279,6 +287,12 @@ function applyFormData(source: Partial<Item>) {
     localForm.value = prepareLocalForm(source);
     unitMeasure.value = getInitialUnitMeasure(source);
     fillExtraFields(source.extra_fields);
+    const sourceWithStocks = source as Partial<Item> & {
+        warehouse_stocks?: WarehouseStockEntry[];
+    };
+    if (Array.isArray(sourceWithStocks.warehouse_stocks)) {
+        warehouseStocks.value = sourceWithStocks.warehouse_stocks;
+    }
     imageFile.value = null;
     // Limpiar el input file visualmente
     if (fileInputRef.value) {
@@ -940,10 +954,52 @@ function handleClose() {
     emit('close');
 }
 
+type AdvancedFormDraft = Partial<Item> & {
+    extra_fields?: ExtraFields;
+    unit_measure?: string;
+    warehouse_stocks?: WarehouseStockEntry[];
+};
+
+function buildAdvancedFormDraft(): AdvancedFormDraft {
+    const draft: AdvancedFormDraft = {
+        ...localForm.value,
+        extra_fields: extraFields.value ? { ...extraFields.value } : {},
+        unit_measure: unitMeasure.value,
+    };
+
+    if (warehouseStocks.value.length > 0) {
+        draft.warehouse_stocks = warehouseStocks.value.map((stock) => ({ ...stock }));
+    }
+
+    return draft;
+}
+
+function persistAdvancedFormDraft() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        localStorage.setItem(ITEM_FORM_DRAFT_KEY, JSON.stringify(buildAdvancedFormDraft()));
+    } catch (error) {
+        console.warn(
+            'No se pudo guardar el borrador del formulario avanzado en el almacenamiento local.',
+            error,
+        );
+    }
+}
+
 function redirectToAdvancedForm() {
+    if (!props.form.id) {
+        persistAdvancedFormDraft();
+    }
+
     handleClose();
 
-    const advancedUrl = route('inventario.item.formulario-avanzado');
+    const advancedUrl = props.form.id
+        ? route('inventario.item.formulario-avanzado', { item_id: props.form.id })
+        : route('inventario.item.formulario-avanzado');
+
     window.location.href = advancedUrl;
 }
 

@@ -4,6 +4,7 @@ import { Head } from '@inertiajs/vue3';
 import ItemFormContent from './ItemFormContent.vue';
 import type { Item } from '@/domain/inventory';
 import { computed, ref, watch, onMounted } from 'vue';
+import { ITEM_FORM_DRAFT_KEY } from './constants';
 
 const breadcrumbs = [
   { title: 'Catálogo de ítem', href: route('listado') },
@@ -19,14 +20,14 @@ const form = ref<Partial<Item>>(props.initialForm ?? {});
 
 onMounted(() => {
   if (!props.initialForm) {
-    const draft = localStorage.getItem('itemFormDraft');
+    const draft = localStorage.getItem(ITEM_FORM_DRAFT_KEY);
     if (draft) {
       try {
         form.value = JSON.parse(draft);
       } catch {
         form.value = {};
       }
-      localStorage.removeItem('itemFormDraft');
+      localStorage.removeItem(ITEM_FORM_DRAFT_KEY);
     }
   }
 });
