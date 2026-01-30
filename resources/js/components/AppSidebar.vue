@@ -17,7 +17,7 @@ import type { LucideIcon } from 'lucide-vue-next';
 import type { NavItem } from '@/domain/shared';
 import { Link } from '@inertiajs/vue3';
 import { ChartColumn, Factory, LayoutGrid, Package, Shirt, SquareArrowDown, SquareArrowUp, SquarePen } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AppLogo from './AppLogo.vue';
 import { usePage } from '@inertiajs/vue3';
 
@@ -204,7 +204,7 @@ const mainNavItems: NavItem[] = [
 
 const filteredMainNavItems = computed(() => mainNavItems);
 
-const { state } = useSidebar();
+const { state, setOpen } = useSidebar();
 const isSidebarCollapsed = computed(() => state.value === 'collapsed');
 
 const sectionStates = ref<Record<string, boolean>>(
@@ -213,6 +213,13 @@ const sectionStates = ref<Record<string, boolean>>(
         return acc;
     }, {} as Record<string, boolean>),
 );
+
+const resetSectionStates = () => {
+    sectionStates.value = moduleSections.reduce((acc, section) => {
+        acc[section.title] = false;
+        return acc;
+    }, {} as Record<string, boolean>);
+};
 
 const page = usePage();
 const currentPath = computed(() => {
@@ -259,6 +266,21 @@ const toggleSection = (title: string, open?: boolean) => {
 
     sectionStates.value = nextState;
 };
+
+const ensureSidebarExpanded = () => {
+    if (state.value === 'collapsed') {
+        setOpen(true);
+    }
+};
+
+watch(
+    () => state.value,
+    (value) => {
+        if (value === 'collapsed') {
+            resetSectionStates();
+        }
+    },
+);
 </script>
 
 <template>
@@ -284,8 +306,8 @@ const toggleSection = (title: string, open?: boolean) => {
                     @update:open="(open) => toggleSection(section.title, open)"
                 >
                     <div class="module-label mt-2 px-2">
-                        <CollapsibleTrigger as-child>
-                            <button class="flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground">
+                            <CollapsibleTrigger as-child>
+                            <button @click="ensureSidebarExpanded" class="flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground">
                                 <component :is="section.icon" class="size-4 text-sidebar-foreground/60" />
                                 <span v-if="!isSidebarCollapsed">{{ section.title }}</span>
                             </button>

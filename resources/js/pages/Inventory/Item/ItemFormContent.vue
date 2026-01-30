@@ -236,6 +236,10 @@ const getInitialUnitMeasure = (form: Partial<Item>): string =>
     form.unit_measure ??
     (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
 const unitMeasure = ref(getInitialUnitMeasure(props.form));
+const isLoadingItemDetails = ref(false);
+const showLoadingOverlay = computed(
+    () => props.dialogType !== 'create' && props.isOpen && isLoadingItemDetails.value,
+);
 const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isViewMode = computed(() => props.dialogType === 'view');
@@ -286,11 +290,14 @@ function applyFormData(source: Partial<Item>) {
 }
 
 async function loadItemDetails(itemId: number) {
+    isLoadingItemDetails.value = true;
     try {
         const { data } = await axios.get(`/item/${itemId}`);
         applyFormData(data);
     } catch (error) {
         console.error('Error al cargar el item:', error);
+    } finally {
+        isLoadingItemDetails.value = false;
     }
 }
 
@@ -1083,19 +1090,40 @@ watch(
 </script>
 
 <template>
-    <div class="flex min-h-0 flex-1 flex-col -mx-6 -my-10">
-            <transition name="fade">
-                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2 px-6">
-                    <AlertBox
-                        :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
-                        :message="alertMessage"
-                        class="pointer-events-auto"
-                        @close="alertMessage = ''"
-                    />
+    <div class="relative flex min-h-0 flex-1 flex-col -mx-6 -my-10">
+        <transition name="fade">
+            <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2 px-6">
+                <AlertBox
+                    :type="alertType"
+                    :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
+                    :message="alertMessage"
+                    class="pointer-events-auto"
+                    @close="alertMessage = ''"
+                />
+            </div>
+        </transition>
+        <transition name="fade">
+            <div
+                v-if="showLoadingOverlay"
+                class="fixed inset-0 z-[1300] flex flex-col items-center justify-center gap-3 bg-black/50 px-4 py-6 text-center backdrop-blur"
+                aria-live="polite"
+            >
+                <div class="flex flex-col items-center gap-3 rounded-2xl bg-base-100 p-6 shadow-2xl shadow-black/40">
+                    <span
+                        class="h-12 w-12 animate-spin rounded-full border-4 border-primary/70 border-t-transparent"
+                        role="status"
+                    ></span>
+                    <p class="text-sm font-semibold text-muted-foreground">
+                        Cargando la información del ítem...
+                    </p>
                 </div>
-            </transition>
-            <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
+            </div>
+        </transition>
+        <form
+            v-show="!showLoadingOverlay"
+            class="flex min-h-0 flex-1 flex-col"
+            @submit.prevent="handleSubmit"
+        >
             <FormHeader
                 class="flex-shrink-0 px-6 pt-10"
                 headerClass="mb-4"
@@ -1103,7 +1131,11 @@ watch(
                 :description="dialogType === 'create' ? 'Complete los campos para crear un nuevo ítem.' : dialogType === 'edit' ? 'Edite los campos del ítem seleccionado.' : 'Visualice la información del ítem.'"
             />
 
-            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto px-6 scroll-smooth" style="scrollbar-width: thin;">
+            <div
+                ref="dialogInnerRef"
+                class="flex-1 overflow-y-auto px-6 scroll-smooth"
+                style="scrollbar-width: thin;"
+            >
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
