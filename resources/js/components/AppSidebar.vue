@@ -246,10 +246,18 @@ const isRouteActive = (href: string) => {
 };
 
 const toggleSection = (title: string, open?: boolean) => {
-    sectionStates.value = {
-        ...sectionStates.value,
-        [title]: open ?? !sectionStates.value[title],
-    };
+    const nextState: Record<string, boolean> = {};
+
+    moduleSections.forEach((section) => {
+        if (section.title === title) {
+            nextState[section.title] = open ?? !sectionStates.value[section.title];
+            return;
+        }
+
+        nextState[section.title] = false;
+    });
+
+    sectionStates.value = nextState;
 };
 </script>
 

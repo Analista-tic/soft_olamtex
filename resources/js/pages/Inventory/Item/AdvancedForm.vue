@@ -23,7 +23,7 @@ onMounted(() => {
     if (draft) {
       try {
         form.value = JSON.parse(draft);
-      } catch (e) {
+      } catch {
         form.value = {};
       }
       localStorage.removeItem('itemFormDraft');
