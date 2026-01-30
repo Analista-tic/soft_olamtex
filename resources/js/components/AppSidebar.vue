@@ -42,7 +42,7 @@ const underConstructionHref = (title: string) =>
     });
 
 type ModuleSectionGroup = {
-    label: string;
+    label?: string;
     items: NavItem[];
 };
 
@@ -83,10 +83,22 @@ const moduleSections: ModuleSection[] = [
         icon: SquareArrowUp,
         groups: [
             {
-                label: 'Gastos',
+                label: 'Compras',
                 items: [
-                    { title: 'Tesorería', href: underConstructionHref('Tesorería') },
-                    { title: 'Cartera proveedores', href: underConstructionHref('Cartera proveedores') },
+                    { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra', permission: 'ver telas' },
+                    { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver telas' },
+                    { title: 'Recepciones', href: underConstructionHref('Recepciones') },
+                    { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver telas' },
+                    { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver telas' },
+                    { title: 'Notas Crédito / Débito', href: underConstructionHref('Notas Crédito / Débito') },
+                ],
+            },
+            {
+                label: 'Cartera proveedores',
+                items: [
+                    { title: 'Cuentas por pagar', href: underConstructionHref('Cuentas por pagar') },
+                    { title: 'Programación de pagos', href: underConstructionHref('Programación de pagos') },
+                    { title: 'Estados de cuenta', href: underConstructionHref('Estados de cuenta') },
                 ],
             },
         ],
@@ -96,10 +108,19 @@ const moduleSections: ModuleSection[] = [
         icon: ChartColumn,
         groups: [
             {
-                label: 'Financiero',
+                label: '',
                 items: [
                     { title: 'Contabilidad', href: underConstructionHref('Contabilidad') },
                     { title: 'Impuestos', href: '/impuestos' },
+                    { title: 'Retenciones', href: '/retenciones' },
+                ],
+            },
+            {
+                label: 'Tesorería',
+                items: [
+                    { title: 'Bancos', href: underConstructionHref('Bancos') },
+                    { title: 'Caja', href: underConstructionHref('Caja') },
+                    { title: 'Pagos a proveedores', href: underConstructionHref('Pagos a proveedores') },
                 ],
             },
         ],
@@ -109,10 +130,14 @@ const moduleSections: ModuleSection[] = [
         icon: SquarePen,
         groups: [
             {
-                label: 'Datos Maestros',
+                label: '',
                 items: [
-                    { title: 'Catálogo de ítems', href: '/item' },
                     { title: 'Contactos', href: '/contactos' },
+                    { title: 'Categorías', href: '/categorias/subgrupos' },
+                    { title: 'Catálogo de ítems', href: '/item', permission: 'ver inventario telas' },
+                    { title: 'Campos adicionales', href: '/campos-adicionales' },
+                    { title: 'Unidades de Medida', href: underConstructionHref('Unidades de Medida') },
+                    { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },
                 ],
             },
         ],
@@ -122,12 +147,20 @@ const moduleSections: ModuleSection[] = [
         icon: Package,
         groups: [
             {
-                label: 'Inventarios',
+                label: '',
                 items: [
-                    { title: 'Inventario de ítems', href: '/inventario-item' },
+                    { title: 'Solicitud de insumos', href: '/inventario/solicitudes-internas' },
                     { title: 'Bodegas', href: '/bodegas' },
+                    { title: 'Inventario de ítems', href: '/inventario-item' },
                 ],
             },
+            {
+                label: 'Kárdex',
+                items: [
+                    { title: 'Movimientos de inventario', href: '/inventario/item', permission: 'ver inventario telas' },
+                    { title: 'Ajustes', href: '/inventario/ajuste-inventario', permission: 'ver inventario telas' },
+                ],
+            }
         ],
     },
     {
@@ -135,10 +168,13 @@ const moduleSections: ModuleSection[] = [
         icon: Factory,
         groups: [
             {
-                label: 'Producción',
+                label: '',
                 items: [
                     { title: 'Sábana de Productos', href: '/produccion/sabana-productos' },
-                    { title: 'Programación', href: '/comercial/programador' },
+                    { title: 'Programación de producción', href: '/comercial/programador' },
+                    { title: 'Órdenes de producción', href: '/produccion/ordenes-produccion' },
+                    { title: 'Control de lotes', href: underConstructionHref('Control de lotes'), },
+                    { title: 'Ficha Técnica', href: underConstructionHref('Ficha Técnica'), },
                 ],
             },
         ],
@@ -148,10 +184,11 @@ const moduleSections: ModuleSection[] = [
         icon: Shirt,
         groups: [
             {
-                label: 'TEXTIL PACK',
+                label: 'Inventario Textil',
                 items: [
-                    { title: 'Inventario textil', href: route('kardex-telas.index') },
-                    { title: 'Descargue de telas', href: route('kardex-telas.descargue-orden') },
+                    { title: 'Inventario tela por rollos', href: route('kardex-telas.inventario-rollos'), permission: 'ver sabana productos' },
+                    { title: 'Descargue de telas por orden', href: route('kardex-telas.descargue-orden'), permission: 'ver sabana productos' },
+                    { title: 'Salida de telas por orden', href: underConstructionHref('Salida de telas por orden'), permission: 'ver sabana productos' },
                 ],
             },
         ],
@@ -241,15 +278,22 @@ const toggleSection = (title: string, open?: boolean) => {
                 >
                     <SidebarGroupLabel class="mt-2 px-2">
                         <CollapsibleTrigger as-child>
-                            <button class="flex w-full items-center gap-2 rounded-md p-1 text-xs uppercase tracking-wide text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground">
+                            <button class="flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground">
                                 <component :is="section.icon" class="size-4 text-sidebar-foreground/60" />
                                 <span v-if="!isSidebarCollapsed">{{ section.title }}</span>
                             </button>
                         </CollapsibleTrigger>
                     </SidebarGroupLabel>
                     <CollapsibleContent>
-                        <div v-for="group in section.groups" :key="group.label" class="px-2 pb-2">
-                            <div class="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+                        <div
+                            v-for="(group, groupIndex) in section.groups"
+                            :key="group.label ?? `${section.title}-${groupIndex}`"
+                            class="px-2 pb-2"
+                        >
+                            <div
+                                v-if="group.label"
+                                class="px-1 p-1 text-[10px] font-semibold tracking-wide text-sidebar-foreground/50"
+                            >
                                 {{ group.label }}
                             </div>
                             <SidebarMenu class="px-0">
