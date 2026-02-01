@@ -17,6 +17,7 @@ const props = defineProps<{
 
 
 const form = ref<Partial<Item>>(props.initialForm ?? {});
+const isLoading = ref(true);
 
 onMounted(() => {
   if (!props.initialForm) {
@@ -56,6 +57,10 @@ function handleRefresh() {
 function handleError(message: string) {
   console.error('Advanced form error:', message);
 }
+
+function handleLoadingState(value: boolean) {
+  isLoading.value = value;
+}
 </script>
 
 <template>
@@ -68,7 +73,7 @@ function handleError(message: string) {
         <p class="mb-4 text-sm text-muted-foreground">
           Aquí puedes completar todos los campos del ítem sin usar el modal.
         </p>
-        <div class="w-full">
+        <div class="w-full relative">
           <ItemFormContent
             :is-open="true"
             :dialog-type="dialogType"
@@ -79,7 +84,21 @@ function handleError(message: string) {
             @saved="handleSaved"
             @refresh="handleRefresh"
             @error="handleError"
+            @loading-state="handleLoadingState"
           />
+          <transition name="fade">
+            <div
+              v-if="isLoading"
+              class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 rounded-2xl bg-white/80 px-6 py-8 backdrop-blur dark:bg-slate-900/80"
+              role="status"
+              aria-live="polite"
+            >
+              <span class="inline-flex h-10 w-10 animate-spin rounded-full border-4 border-t-transparent border-primary"></span>
+              <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Cargando formulario avanzado...
+              </p>
+            </div>
+          </transition>
         </div>
       </div>
     </section>

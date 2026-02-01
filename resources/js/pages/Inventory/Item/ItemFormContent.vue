@@ -40,7 +40,24 @@ const props = withDefaults(
         showAdvancedSections: false,
     },
 );
-const emit = defineEmits(['close', 'refresh', 'saved', 'error']);
+const emit = defineEmits(['close', 'refresh', 'saved', 'error', 'loading-state']);
+const loadingCounter = ref(0);
+const isLoadingState = ref(false);
+
+function updateLoadingState(delta: number) {
+    loadingCounter.value = Math.max(0, loadingCounter.value + delta);
+    const nextState = loadingCounter.value > 0;
+    if (isLoadingState.value !== nextState) {
+        isLoadingState.value = nextState;
+        emit('loading-state', nextState);
+    }
+}
+
+function trackLoading<T>(work: () => Promise<T>): Promise<T> {
+    updateLoadingState(1);
+    const promise = Promise.resolve().then(() => work());
+    return promise.finally(() => updateLoadingState(-1));
+}
 
 // Estado reactivo principal
 type ItemType = 'product' | 'service';
@@ -244,10 +261,6 @@ const getInitialUnitMeasure = (form: Partial<Item>): string =>
     form.unit_measure ??
     (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
 const unitMeasure = ref(getInitialUnitMeasure(props.form));
-const isLoadingItemDetails = ref(false);
-const showLoadingOverlay = computed(
-    () => props.dialogType !== 'create' && props.isOpen && isLoadingItemDetails.value,
-);
 const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const isViewMode = computed(() => props.dialogType === 'view');
@@ -287,12 +300,6 @@ function applyFormData(source: Partial<Item>) {
     localForm.value = prepareLocalForm(source);
     unitMeasure.value = getInitialUnitMeasure(source);
     fillExtraFields(source.extra_fields);
-    const sourceWithStocks = source as Partial<Item> & {
-        warehouse_stocks?: WarehouseStockEntry[];
-    };
-    if (Array.isArray(sourceWithStocks.warehouse_stocks)) {
-        warehouseStocks.value = sourceWithStocks.warehouse_stocks;
-    }
     imageFile.value = null;
     // Limpiar el input file visualmente
     if (fileInputRef.value) {
@@ -304,14 +311,11 @@ function applyFormData(source: Partial<Item>) {
 }
 
 async function loadItemDetails(itemId: number) {
-    isLoadingItemDetails.value = true;
     try {
         const { data } = await axios.get(`/item/${itemId}`);
         applyFormData(data);
     } catch (error) {
         console.error('Error al cargar el item:', error);
-    } finally {
-        isLoadingItemDetails.value = false;
     }
 }
 
@@ -561,18 +565,20 @@ function syncGroupFromSubgroup() {
 }
 
 // Carga inicial de datos al montar el componente
-onMounted(async () => {
-    await Promise.all([
-        fetchWarehouses(),
-        fetchCategorySubGroups(),
-        fetchCategoryGroups(),
-        fetchTaxes(),
-        fetchAdditionalFields(),
-    ]);
-    fillExtraFields(props.form.extra_fields);
-    if (props.form.id) {
-        await fetchWarehouseStocks(props.form.id);
-    }
+onMounted(() => {
+    void trackLoading(async () => {
+        await Promise.all([
+            fetchWarehouses(),
+            fetchCategorySubGroups(),
+            fetchCategoryGroups(),
+            fetchTaxes(),
+            fetchAdditionalFields(),
+        ]);
+        fillExtraFields(props.form.extra_fields);
+        if (props.form.id) {
+            await fetchWarehouseStocks(props.form.id);
+        }
+    });
 });
 
 // Carga de stocks por bodega para el ítem
@@ -903,9 +909,13 @@ watch(
     async (value) => {
         if (value) {
             if (props.dialogType !== 'create' && props.form.id) {
-                await loadItemDetails(Number(props.form.id));
+                await trackLoading(() => loadItemDetails(Number(props.form.id)));
             }
-            void refreshWarehouseStocksForCurrentItem();
+            if (props.form.id) {
+                await trackLoading(() => refreshWarehouseStocksForCurrentItem(Number(props.form.id)));
+            } else {
+                warehouseStocks.value = [];
+            }
         } else {
             warehouseStocks.value = [];
         }
@@ -914,13 +924,13 @@ watch(
 
 watch(
     () => props.form.id,
-    (itemId) => {
+    async (itemId) => {
         if (!props.isOpen) {
             return;
         }
 
         if (itemId) {
-            void refreshWarehouseStocksForCurrentItem(Number(itemId));
+            await trackLoading(() => refreshWarehouseStocksForCurrentItem(Number(itemId)));
         } else {
             warehouseStocks.value = [];
         }
@@ -992,14 +1002,13 @@ function persistAdvancedFormDraft() {
 function redirectToAdvancedForm() {
     if (!props.form.id) {
         persistAdvancedFormDraft();
+        handleClose();
+        window.location.href = route('inventario.item.formulario-avanzado');
+        return;
     }
 
     handleClose();
-
-    const advancedUrl = props.form.id
-        ? route('inventario.item.formulario-avanzado', { item_id: props.form.id })
-        : route('inventario.item.formulario-avanzado');
-
+    const advancedUrl = route('inventario.item.formulario-avanzado', { item_id: props.form.id });
     window.location.href = advancedUrl;
 }
 
@@ -1146,40 +1155,19 @@ watch(
 </script>
 
 <template>
-    <div class="relative flex min-h-0 flex-1 flex-col -mx-6 -my-10">
-        <transition name="fade">
-            <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2 px-6">
-                <AlertBox
-                    :type="alertType"
-                    :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
-                    :message="alertMessage"
-                    class="pointer-events-auto"
-                    @close="alertMessage = ''"
-                />
-            </div>
-        </transition>
-        <transition name="fade">
-            <div
-                v-if="showLoadingOverlay"
-                class="fixed inset-0 z-[1300] flex flex-col items-center justify-center gap-3 bg-black/50 px-4 py-6 text-center backdrop-blur"
-                aria-live="polite"
-            >
-                <div class="flex flex-col items-center gap-3 rounded-2xl bg-base-100 p-6 shadow-2xl shadow-black/40">
-                    <span
-                        class="h-12 w-12 animate-spin rounded-full border-4 border-primary/70 border-t-transparent"
-                        role="status"
-                    ></span>
-                    <p class="text-sm font-semibold text-muted-foreground">
-                        Cargando la información del ítem...
-                    </p>
+    <div class="flex min-h-0 flex-1 flex-col -mx-6 -my-10">
+            <transition name="fade">
+                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2 px-6">
+                    <AlertBox
+                        :type="alertType"
+                        :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
+                        :message="alertMessage"
+                        class="pointer-events-auto"
+                        @close="alertMessage = ''"
+                    />
                 </div>
-            </div>
-        </transition>
-        <form
-            v-show="!showLoadingOverlay"
-            class="flex min-h-0 flex-1 flex-col"
-            @submit.prevent="handleSubmit"
-        >
+            </transition>
+            <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
             <FormHeader
                 class="flex-shrink-0 px-6 pt-10"
                 headerClass="mb-4"
@@ -1187,11 +1175,7 @@ watch(
                 :description="dialogType === 'create' ? 'Complete los campos para crear un nuevo ítem.' : dialogType === 'edit' ? 'Edite los campos del ítem seleccionado.' : 'Visualice la información del ítem.'"
             />
 
-            <div
-                ref="dialogInnerRef"
-                class="flex-1 overflow-y-auto px-6 scroll-smooth"
-                style="scrollbar-width: thin;"
-            >
+            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto px-6 scroll-smooth" style="scrollbar-width: thin;">
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">

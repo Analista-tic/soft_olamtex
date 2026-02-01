@@ -15,10 +15,9 @@ const props = withDefaults(
         showAdvancedLink: true,
     },
 );
-const emit = defineEmits(['close', 'refresh', 'saved', 'error']);
+const emit = defineEmits(['close', 'refresh', 'saved', 'error', 'loading-state']);
 
 const dialogOpen = ref(props.isOpen);
-
 watch(
     () => props.isOpen,
     (value) => {
@@ -49,6 +48,10 @@ function handleFormSaved(useCase: 'create' | 'edit') {
 function handleFormError(message: string) {
     emit('error', message);
 }
+
+function handleFormLoadingState(value: boolean) {
+    emit('loading-state', value);
+}
 </script>
 
 <template>
@@ -63,6 +66,7 @@ function handleFormError(message: string) {
                 @refresh="handleFormRefresh"
                 @saved="handleFormSaved"
                 @error="handleFormError"
+                @loading-state="handleFormLoadingState"
             />
         </DialogContent>
     </Dialog>

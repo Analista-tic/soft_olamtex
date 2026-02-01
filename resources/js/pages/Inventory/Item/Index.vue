@@ -43,6 +43,7 @@ const items = ref<Item[]>([]);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<Partial<Item>>({});
+const isDialogLoading = ref(false);
 const itemToDelete = ref<Item | null>(null);
 const isDeleteDialogOpen = ref(false);
 const searchQuery = ref('');
@@ -95,6 +96,7 @@ function openDialog(type: 'create' | 'edit', item: Item | null = null) {
 
 function closeDialog() {
     isDialogOpen.value = false;
+    isDialogLoading.value = false;
 }
 
 function confirmDeleteItem(item: Item) {
@@ -133,6 +135,10 @@ function handleDialogRefresh() {
   }
 
   errorMessage.value = '';
+}
+
+function handleDialogLoadingState(value: boolean) {
+    isDialogLoading.value = value;
 }
 
 function openStatusDialog(item: Item) {
@@ -177,6 +183,12 @@ watch(searchQuery, (newQuery) => {
 watch(statusFilter, (newStatus) => {
     currentPage.value = 1;
     fetchItems(1, searchQuery.value, newStatus);
+});
+
+watch(isDialogOpen, (value) => {
+    if (!value) {
+        isDialogLoading.value = false;
+    }
 });
 
 onMounted(() => {
@@ -419,7 +431,14 @@ async function downloadTemplate() {
                 </Pagination>
             </div>
         </div>
-        <ItemDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="handleDialogRefresh" />
+        <ItemDialog
+            :isOpen="isDialogOpen"
+            :dialogType="dialogType"
+            :form="form"
+            @close="closeDialog"
+            @refresh="handleDialogRefresh"
+            @loading-state="handleDialogLoadingState"
+        />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
             title="Confirmar eliminación"
@@ -470,12 +489,19 @@ async function downloadTemplate() {
             </DialogContent>
         </Dialog>
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
+        <transition name="fade">
+            <div
+                v-if="isDialogOpen && isDialogLoading"
+                class="fixed inset-0 z-[1200] flex flex-col items-center justify-center gap-3 rounded-3xl bg-white/70 p-6 shadow-2xl backdrop-blur-lg dark:bg-slate-900/70"
+                role="status"
+                aria-live="assertive"
+            >
+                <span class="inline-flex h-12 w-12 animate-spin rounded-full border-4 border-t-transparent border-primary"></span>
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Cargando diálogo...</p>
+            </div>
+        </transition>
     </AppLayout>
 </template>
-
-
-
-
 
 
 
