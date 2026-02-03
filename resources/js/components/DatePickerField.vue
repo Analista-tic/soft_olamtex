@@ -35,11 +35,14 @@ const emit = defineEmits<{
 
 
 // Manejo interno del valor seleccionado
-const internalValue = ref<DateValue | undefined>(
-  props.modelValue ? parseDate(props.modelValue) : undefined
+
+// Valor interno para el calendario (DateValue o null)
+const internalValue = ref<DateValue | null>(
+  props.modelValue ? parseDate(props.modelValue) : null
 )
 
-const calendarPlaceholder = ref<DateValue | undefined>(
+// Placeholder para el calendario (DateValue o null)
+const calendarPlaceholder = ref<DateValue | null>(
   internalValue.value ?? parseDate(new Date().toISOString().split("T")[0])
 )
 
@@ -62,17 +65,21 @@ onBeforeUnmount(() => {
 })
 
 // Sincronizar cuando cambia el prop desde fuera
+
+// Sincronizar cuando cambia el prop desde fuera
 watch(
   () => props.modelValue,
   (newVal) => {
     if (newVal) {
       internalValue.value = parseDate(newVal)
     } else {
-      internalValue.value = undefined
+      internalValue.value = null
     }
   }
 )
 
+
+// Sincronizar placeholder cuando cambia el valor interno
 watch(
   () => internalValue.value,
   (value) => {
@@ -82,22 +89,26 @@ watch(
   }
 )
 
+
+// Actualizar placeholder al abrir el calendario
 watch(open, (isOpen) => {
   if (isOpen) {
     if (internalValue.value) {
       calendarPlaceholder.value = internalValue.value
-    } else if (!calendarPlaceholder.value) {
+    } else {
       calendarPlaceholder.value = parseDate(new Date().toISOString().split("T")[0])
     }
   }
 })
 
-function handlePlaceholderUpdate(value: DateValue) {
+
+function handlePlaceholderUpdate(value: DateValue | null) {
   calendarPlaceholder.value = value
 }
 
+
 // Emitir solo cuando el usuario selecciona una fecha
-function onSelectDate(val: DateValue) {
+function onSelectDate(val: DateValue | null) {
   internalValue.value = val
   emit("update:modelValue", val ? val.toString() : null)
   setTimeout(() => {
@@ -105,12 +116,17 @@ function onSelectDate(val: DateValue) {
   }, 100)
 }
 
+
 const displayLabel = computed(() => {
   if (!props.modelValue) {
     return props.placeholderText
   }
-  const jsDate = parseDate(props.modelValue).toDate(getLocalTimeZone())
-  return format(jsDate, props.displayFormat, { locale: es })
+  try {
+    const jsDate = parseDate(props.modelValue).toDate(getLocalTimeZone())
+    return format(jsDate, props.displayFormat, { locale: es })
+  } catch {
+    return props.modelValue
+  }
 })
 </script>
 
