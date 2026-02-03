@@ -278,7 +278,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('transferencias-bodegas')->name('warehouse-transfers.')->group(function () {
         Route::get('/', [WarehouseTransferController::class, 'index'])->name('index');
         Route::get('/data', [WarehouseTransferController::class, 'getData'])->name('data');
+        Route::get('/{transfer}', [WarehouseTransferController::class, 'show'])->name('show');
         Route::post('/', [WarehouseTransferController::class, 'store'])->name('store');
+        Route::put('/{transfer}', [WarehouseTransferController::class, 'update'])->name('update');
+        Route::delete('/{transfer}', [WarehouseTransferController::class, 'destroy'])->name('destroy');
     });
 
     // === ITEMS ===

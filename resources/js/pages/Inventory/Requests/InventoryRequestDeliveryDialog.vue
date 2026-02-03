@@ -19,6 +19,11 @@ type DeliveryItem = {
     warehouse_id: number | null;
 };
 
+type WarehouseStockEntry = {
+    warehouse_id: number;
+    quantity: number;
+};
+
 const props = defineProps<{
     isOpen: boolean;
     requestId: number | null;
@@ -32,6 +37,7 @@ const emit = defineEmits<{
 const dialogOpen = ref(props.isOpen);
 const deliveryDate = ref(new Date().toISOString().split('T')[0]);
 const items = ref<DeliveryItem[]>([]);
+const itemWarehouseStocks = ref<Record<number, WarehouseStockEntry[]>>({});
 const warehouses = ref<WarehouseOption[]>([]);
 const isLoading = ref(false);
 const successMessage = ref('');
@@ -53,7 +59,7 @@ async function fetchRequest(id: number) {
                 warehouse_id: line.warehouse_id ?? null,
             }))
             : [];
-    } catch (e) {
+    } catch {
         errorMessage.value = 'No se pudo cargar la solicitud.';
     }
 }
@@ -65,6 +71,64 @@ async function fetchWarehouses() {
         name: warehouse.name,
     }));
 }
+
+async function ensureItemWarehouseStock(itemId: number | null) {
+    if (!itemId) return;
+    if (itemWarehouseStocks.value[itemId]) return;
+    try {
+        const response = await axios.get('/warehouse-items', { params: { item_id: itemId } });
+        const payload = Array.isArray(response?.data?.data) ? response.data.data : [];
+        itemWarehouseStocks.value = {
+            ...itemWarehouseStocks.value,
+            [itemId]: payload.map((row: any) => ({
+                warehouse_id: Number(row.warehouse_id),
+                quantity: Number(row.quantity),
+            })),
+        };
+    } catch (error) {
+        console.error('No se pudo obtener el stock del ítem', error);
+        itemWarehouseStocks.value = {
+            ...itemWarehouseStocks.value,
+            [itemId]: [],
+        };
+    }
+}
+
+function getWarehouseStock(itemId: number | null, warehouseId: number | null) {
+    if (!itemId || !warehouseId) return null;
+    const stock = itemWarehouseStocks.value[itemId] ?? [];
+    const found = stock.find((row) => row.warehouse_id === warehouseId);
+    return found ? found.quantity : null;
+}
+
+function getWarehouseOptionsForItem(item: DeliveryItem) {
+    const itemId = item.item_id;
+    return warehouses.value.map((warehouse) => {
+        const stock = getWarehouseStock(itemId, warehouse.id);
+        const stockLabel =
+            stock === null
+                ? ' (stock no disponible)'
+                : stock === undefined
+                ? ''
+                : ` (stock: ${stock})`;
+        return {
+            id: warehouse.id,
+            name: `${warehouse.name}${stockLabel}`,
+        };
+    });
+}
+
+watch(
+    items,
+    (lines) => {
+        lines.forEach((line) => {
+            if (line.item_id) {
+                void ensureItemWarehouseStock(line.item_id);
+            }
+        });
+    },
+    { immediate: true, deep: true },
+);
 
 function formatDateValue(value: string) {
     const parsed = new Date(value);
@@ -165,7 +229,7 @@ onMounted(() => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[140vh] max-h-[85vh] flex flex-col p-0">
+        <DialogContent class="max-w-[140vh] h-[90vh] flex flex-col p-0">
             <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                 <div class="flex flex-col gap-1">
                     <DialogTitle>Entrega de Solicitud</DialogTitle>
@@ -183,7 +247,7 @@ onMounted(() => {
                 @close-error="errorMessage = ''"
             />
             <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
-                <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+                <div class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <DatePickerField
                             v-model="deliveryDate"
@@ -214,31 +278,40 @@ onMounted(() => {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow v-for="item in items" :key="item.id">
-                                    <TableCell class="p-1 text-left min-w-[200px]">
-                                        <span :class="item.item_id ? '' : 'text-destructive'">
-                                            {{ item.name || (item.item_id ? `Item ${item.item_id}` : 'Sin item asignado') }}
-                                        </span>
+                                <TableRow v-for="item in items" :key="item.id" class="divide-x divide-transparent">
+                                    <TableCell class="p-1 text-left min-w-[200px] align-middle">
+                                        <div class="h-full flex items-center">
+                                            <span :class="item.item_id ? '' : 'text-destructive'">
+                                                {{ item.name || (item.item_id ? `Item ${item.item_id}` : 'Sin item asignado') }}
+                                            </span>
+                                        </div>
                                     </TableCell>
-                                    <TableCell class="p-1 text-left" style="width: 120px;">
-                                        {{ item.requested_quantity }}
+                                    <TableCell class="p-1 text-left align-middle" style="width: 120px;">
+                                        <div class="h-full flex items-center justify-center">
+                                            {{ item.requested_quantity }}
+                                        </div>
                                     </TableCell>
-                                    <TableCell class="p-1 text-left" style="width: 140px;">
-                                        <InputField
-                                            v-model="item.delivered_quantity"
-                                            type="number"
-                                            label=""
-                                            class="h-10 w-full"
-                                        />
+                                    <TableCell class="p-1 text-left align-middle" style="width: 140px;">
+                                        <div class="h-full flex items-center">
+                                            <InputField
+                                                v-model="item.delivered_quantity"
+                                                type="number"
+                                                label=""
+                                                class="h-10 w-full"
+                                            />
+                                        </div>
                                     </TableCell>
-                                    <TableCell class="p-1 text-left min-w-[200px]">
-                                        <SelectField
-                                            v-model="item.warehouse_id"
-                                            label=""
-                                            :options="warehouses.map((w) => ({ id: w.id, name: w.name }))"
-                                            placeholder="Selecciona bodega"
-                                            :searchable="true"
-                                        />
+                                    <TableCell class="p-1 text-left min-w-[200px] overflow-visible align-middle">
+                                        <div class="h-full flex flex-col justify-center gap-1">
+                                            <SelectField
+                                                v-model="item.warehouse_id"
+                                                label=""
+                                                :options="getWarehouseOptionsForItem(item)"
+                                                placeholder="Selecciona bodega"
+                                                :searchable="true"
+                                                class="w-full"
+                                            />
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                                 <TableRow v-if="items.length === 0">

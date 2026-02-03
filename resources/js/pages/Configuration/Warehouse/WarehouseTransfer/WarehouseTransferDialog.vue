@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,8 @@ function getTodayDate() {
 
 type WarehouseOption = { id: number; name: string };
 
+type TransferDialogMode = 'create' | 'edit' | 'view';
+
 type TransferItem = {
 	itemId: number | null;
 	currentQty: number;
@@ -35,11 +37,22 @@ type TransferForm = {
 	items: TransferItem[];
 };
 
+type ExistingTransfer = {
+	id: number;
+	originId: number | null;
+	destinationId: number | null;
+	date: string;
+	observation?: string | null;
+	items: Array<{ itemId: number | null; quantity: number }>;
+};
+
 const props = defineProps<{
 	open: boolean;
 	warehouses: WarehouseOption[];
 	saving?: boolean;
 	errorMessage?: string;
+	mode?: TransferDialogMode;
+	transfer?: ExistingTransfer | null;
 }>();
 
 const emit = defineEmits<{
@@ -48,6 +61,10 @@ const emit = defineEmits<{
 	(e: 'cancel'): void;
 	(e: 'clear-error'): void;
 }>();
+
+const dialogMode = computed<TransferDialogMode>(() => props.mode ?? 'create');
+const isEditMode = computed(() => dialogMode.value === 'edit');
+const isViewMode = computed(() => dialogMode.value === 'view');
 
 const createEmptyItem = (): TransferItem => ({
 	itemId: null,
@@ -67,18 +84,7 @@ const transferForm = ref<TransferForm>(createEmptyForm());
 const catalogItems = ref<Item[]>([]);
 const isLoadingItems = ref(false);
 const itemRowRefs = ref<Array<HTMLElement | null>>([]);
-
-// Tipar explícitamente los parámetros row como TransferItem donde sea necesario
-
-watch(
-	() => transferForm.value.originId,
-	(originId) => {
-		if (originId && originId === transferForm.value.destinationId) {
-			transferForm.value.destinationId = null;
-		}
-		updateRowsCurrentQty();
-	},
-);
+const itemWarehouseStocks = ref<Record<number, Array<{ warehouse_id: number; quantity: number }>>>({});
 
 const destinationWarehouses = computed(() =>
 	props.warehouses.filter((warehouse) => warehouse.id !== transferForm.value.originId),
@@ -87,8 +93,6 @@ const destinationWarehouses = computed(() =>
 const warehouseOptions = computed<Option[]>(() =>
 	props.warehouses.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
 );
-
-const itemWarehouseStocks = ref<Record<number, Array<{ warehouse_id: number; quantity: number }>>>({});
 
 const destinationOptions = computed<Option[]>(() =>
 	destinationWarehouses.value.map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
@@ -161,6 +165,28 @@ const isSaveDisabled = computed(
 
 const isSaving = computed(() => props.saving ?? false);
 
+const dialogTitle = computed(() => {
+	if (isViewMode.value) {
+		return 'Ver transferencia entre bodegas';
+	}
+	if (isEditMode.value) {
+		return 'Editar transferencia entre bodegas';
+	}
+	return 'Nueva transferencia entre bodegas';
+});
+
+const dialogDescription = computed(() => {
+	if (isViewMode.value) {
+		return 'Consulta los datos del traslado registrado.';
+	}
+	if (isEditMode.value) {
+		return 'Actualiza los datos del traslado y las cantidades correspondientes.';
+	}
+	return 'Completa los datos para registrar el traslado de productos entre bodegas.';
+});
+
+const cancelButtonLabel = computed(() => (isViewMode.value ? 'Cerrar' : 'Cancelar'));
+
 const validationAlertVisible = ref(false);
 const validationAlert = computed(() => {
 	if (hasSameWarehouses.value) {
@@ -188,6 +214,16 @@ const validationAlert = computed(() => {
 });
 
 watch(
+	() => transferForm.value.originId,
+	(originId) => {
+		if (originId && originId === transferForm.value.destinationId) {
+			transferForm.value.destinationId = null;
+		}
+		updateRowsCurrentQty();
+	},
+);
+
+watch(
 	validationAlert,
 	(value) => {
 		validationAlertVisible.value = Boolean(value);
@@ -195,16 +231,56 @@ watch(
 	{ immediate: true },
 );
 
+function initializeForm() {
+	itemRowRefs.value = [];
+	const activeTransfer = props.transfer;
+	const hasItems = Array.isArray(activeTransfer?.items) && activeTransfer.items.length > 0;
+	const items = hasItems
+		? activeTransfer!.items.map((item) => ({
+				itemId: item.itemId ?? null,
+				currentQty: 0,
+				transferQty: Number(item.quantity) || 0,
+		  }))
+		: [createEmptyItem()];
+
+	transferForm.value = {
+		originId: activeTransfer?.originId ?? null,
+		destinationId: activeTransfer?.destinationId ?? null,
+		date: activeTransfer?.date ?? getTodayDate(),
+		observation: activeTransfer?.observation ?? '',
+		items,
+	};
+
+	if (hasItems) {
+		activeTransfer!.items.forEach((item) => {
+			if (item.itemId) {
+				void ensureItemWarehouseStock(item.itemId);
+			}
+		});
+	}
+
+	validationAlertVisible.value = Boolean(validationAlert.value);
+}
+
 watch(
 	() => props.open,
 	(isOpen) => {
 		if (isOpen) {
-			transferForm.value = createEmptyForm();
+			initializeForm();
 			void fetchItems();
-			validationAlertVisible.value = Boolean(validationAlert.value);
 		}
 	},
 );
+
+watch(
+	() => props.transfer,
+	() => {
+		if (props.open && (isEditMode.value || isViewMode.value)) {
+			initializeForm();
+		}
+	},
+);
+
 const itemOptions = computed<Option[]>(() =>
 	catalogItems.value.map((item) => ({
 		id: item.id,
@@ -283,6 +359,11 @@ function addTransferItem() {
 	transferForm.value.items.push(createEmptyItem());
 }
 
+function handleAddLine() {
+	if (isViewMode.value) return;
+	addTransferItem();
+}
+
 function removeTransferItem(index: number) {
 	if (transferForm.value.items.length > 1) {
 		transferForm.value.items.splice(index, 1);
@@ -290,6 +371,7 @@ function removeTransferItem(index: number) {
 }
 
 function closeDialog() {
+	validationAlertVisible.value = false;
 	emit('update:open', false);
 	emit('cancel');
 }
@@ -335,16 +417,15 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 	void ensureItemWarehouseStock(parsedId);
 	updateRowCurrentQty(item);
 }
-
 </script>
 
 <template>
 	<Dialog :open="open" @update:open="val => (val ? emit('update:open', val) : closeDialog())">
 		<DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
 			<DialogHeader class="flex-shrink-0">
-				<DialogTitle>Nueva transferencia entre bodegas</DialogTitle>
+				<DialogTitle>{{ dialogTitle }}</DialogTitle>
 				<DialogDescription class="pb-2">
-					Completa los datos para registrar el traslado de productos entre bodegas.
+					{{ dialogDescription }}
 				</DialogDescription>
 			</DialogHeader>
 			<div class="flex-1 overflow-y-auto pr-2 relative">
@@ -393,7 +474,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 											:options="filteredOriginOptions"
 											:required="true"
 											placeholder="Seleccionar"
-											:disabled="!filteredOriginOptions.length"
+											:disabled="isViewMode || !filteredOriginOptions.length"
 										/>
 									</div>
 									<div class="space-y-1">
@@ -412,7 +493,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 											label=""
 											:options="destinationOptions"
 											:required="true"
-											:disabled="!transferForm.originId"
+											:disabled="isViewMode || !transferForm.originId"
 											placeholder="Seleccionar"
 										/>
 									</div>
@@ -433,6 +514,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 											helpText="Selecciona la fecha del traslado o mantén la actual."
 											:required="true"
 											class="w-full"
+											:disabled="isViewMode"
 										/>
 									</div>
 								</div>
@@ -450,6 +532,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 										placeholder="Observaciones adicionales"
 										:rows="7"
 										class="min-h-[140px]"
+										:disabled="isViewMode"
 									/>
 								</div>
 							</div>
@@ -457,7 +540,9 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 						<InventoryDetailTableLayout
 							title="Ítems de venta"
 							button-label="Agregar ítem"
-							@create-line="addTransferItem"
+							:show-create-line-button="!isViewMode"
+							:create-line-button-disabled="isViewMode"
+							@create-line="handleAddLine"
 						>
 						<table class="min-w-full text-sm">
 							<thead>
@@ -477,11 +562,11 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 											label=""
 											placeholder="Selecciona un ítem"
 											:searchable="true"
- 											:disabled="isLoadingItems"
- 											class="w-full"
-  											@update:modelValue="value => handleItemSelection(row, Array.isArray(value) ? value[0] ?? null : value)"
-  											@focus="() => scrollItemRowIntoView(idx)"
- 										/>
+											:disabled="isViewMode || isLoadingItems"
+											class="w-full"
+											@update:modelValue="value => handleItemSelection(row, Array.isArray(value) ? value[0] ?? null : value)"
+											@focus="() => scrollItemRowIntoView(idx)"
+										/>
 									</td>
 									<td class="p-2">
 										<InputField
@@ -496,11 +581,12 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 											v-model="row.transferQty"
 											label=""
 											type="number"
+											:disabled="isViewMode"
 										/>
 									</td>
 									<td class="p-2">
 										<Button
-											v-if="transferForm.items.length > 1"
+											v-if="transferForm.items.length > 1 && !isViewMode"
 											variant="ghost"
 											size="icon"
 											@click="removeTransferItem(idx)"
@@ -523,9 +609,10 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 						class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
 						@click="closeDialog"
 					>
-						Cancelar
+						{{ cancelButtonLabel }}
 					</button>
 					<button
+						v-if="!isViewMode"
 						type="button"
 						:disabled="isSaveDisabled || isSaving"
 						class="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"

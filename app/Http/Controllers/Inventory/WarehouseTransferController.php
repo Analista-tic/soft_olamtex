@@ -23,7 +23,7 @@ class WarehouseTransferController extends Controller
         $perPage = (int) $request->input('per_page', 50);
         $search = trim((string) $request->input('search', ''));
 
-        $query = WarehouseTransfer::with(['originWarehouse', 'destinationWarehouse']);
+        $query = WarehouseTransfer::with(['originWarehouse', 'destinationWarehouse', 'items.item']);
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -37,6 +37,13 @@ class WarehouseTransferController extends Controller
             ->paginate(max($perPage, 1));
 
         return response()->json($transfers);
+    }
+
+    public function show(WarehouseTransfer $transfer)
+    {
+        $transfer->load(['originWarehouse', 'destinationWarehouse', 'items.item']);
+
+        return response()->json($transfer);
     }
 
     public function store(Request $request)
@@ -61,6 +68,47 @@ class WarehouseTransferController extends Controller
         } catch (\Throwable $exception) {
             return response()->json([
                 'message' => 'Ocurrio un error al guardar la transferencia.',
+                'error' => $exception->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function update(Request $request, WarehouseTransfer $transfer)
+    {
+        $this->decodeItemsJson($request);
+
+        try {
+            $data = $this->validateTransfer($request);
+        } catch (ValidationException $exception) {
+            return $this->validationErrorResponse($exception);
+        }
+
+        try {
+            $updated = $this->service->update($transfer, $data, $request->user());
+
+            return response()->json([
+                'message' => 'Transferencia actualizada correctamente.',
+                'data' => $updated,
+            ]);
+        } catch (ValidationException $exception) {
+            return $this->validationErrorResponse($exception);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => 'Ocurrio un error al actualizar la transferencia.',
+                'error' => $exception->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function destroy(Request $request, WarehouseTransfer $transfer)
+    {
+        try {
+            $this->service->deleteTransfer($transfer, $request->user());
+
+            return response()->json(['message' => 'Transferencia eliminada correctamente.']);
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'message' => 'No se pudo eliminar la transferencia.',
                 'error' => $exception->getMessage(),
             ], 500);
         }

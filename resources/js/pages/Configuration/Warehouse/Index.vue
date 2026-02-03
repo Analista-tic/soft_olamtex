@@ -25,6 +25,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import WarehouseDialog from './WarehouseDialog.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { Inertia } from '@inertiajs/inertia';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Bodegas', href: '/bodegas' },
@@ -94,6 +95,10 @@ async function deleteWarehouse() {
     } finally {
         isDeleteDialogOpen.value = false;
     }
+}
+
+function navigateToWarehouseTransfers() {
+    Inertia.visit('/transferencias-bodegas');
 }
 
 async function handleDialogSubmit(warehouseData: Warehouse) {
@@ -195,14 +200,23 @@ onMounted(() => {
                         Administra las bodegas de la empresa, su información y observaciones para ubicaciones físicas.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                    @click="openDialog('create')"
-                >
-                    <PlusCircle class="w-4 h-4" />
-                    Crear Nueva Bodega
-                </button>
+                <div class="flex gap-2">
+                    <Button
+                        variant="outline"
+                        class="rounded-full px-4 py-2 text-sm font-semibold"
+                        @click="navigateToWarehouseTransfers"
+                    >
+                        Transferencia de bodegas
+                    </Button>
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="openDialog('create')"
+                    >
+                        <PlusCircle class="w-4 h-4" />
+                        Crear Nueva Bodega
+                    </button>
+                </div>
             </div>
             <div class="relative flex items-center gap-4">
                 <FilterBar>

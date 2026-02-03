@@ -8,6 +8,7 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import {
 	Pagination,
@@ -27,18 +28,30 @@ import WarehouseTransferDialog from './WarehouseTransferDialog.vue';
 import { useAlertStack } from '@/composables/useAlert';
 
 // --- Tipos locales ---
-type Transfer = { id: number; date: string; rawDate: string; origin: string; destination: string };
+type TransferItemResponse = {
+	id: number;
+	quantity: number;
+	item?: { id?: number; name?: string | null; reference?: string | null } | null;
+};
+
+type WarehouseRelation = {
+	id?: number;
+	name?: string | null;
+};
 
 type TransferResponse = {
 	id: number;
 	date: string;
 	document_number?: string | null;
 	observation?: string | null;
-	origin_warehouse?: { name?: string | null } | null;
-	destination_warehouse?: { name?: string | null } | null;
-	originWarehouse?: { name?: string | null } | null;
-	destinationWarehouse?: { name?: string | null } | null;
+	origin_warehouse?: WarehouseRelation | null;
+	destination_warehouse?: WarehouseRelation | null;
+	originWarehouse?: WarehouseRelation | null;
+	destinationWarehouse?: WarehouseRelation | null;
+	items?: TransferItemResponse[];
 };
+
+type Transfer = { id: number; date: string; rawDate: string; origin: string; destination: string };
 
 type TransferPayload = {
 	originId: number | null;
@@ -50,6 +63,15 @@ type TransferPayload = {
 		currentQty: number;
 		transferQty: number;
 	}>;
+};
+
+type DialogTransferPayload = {
+	id: number;
+	originId: number | null;
+	destinationId: number | null;
+	date: string;
+	observation: string;
+	items: Array<{ itemId: number | null; quantity: number }>;
 };
 
 // --- Estado reactivo principal ---
@@ -66,6 +88,17 @@ const warehouseLoadError = ref<string | null>(null);
 const isSavingTransfer = ref(false);
 const dialogErrorMessage = ref('');
 
+const dialogMode = ref<'create' | 'edit' | 'view'>('create');
+const selectedTransfer = ref<TransferResponse | null>(null);
+const transferToDelete = ref<TransferResponse | null>(null);
+const isDeleteDialogOpen = ref(false);
+const isDeletingTransfer = ref(false);
+const deleteDialogDescription = computed(() =>
+	transferToDelete.value
+		? `Se eliminará la transferencia ${transferToDelete.value.id}. Esta acción no se puede deshacer.`
+		: 'Se eliminará la transferencia seleccionada. Esta acción no se puede deshacer.',
+);
+
 const {
 	successMessage,
 	errorMessage: stackErrorMessage,
@@ -77,6 +110,24 @@ const {
 } = useAlertStack();
 
 const transfersRaw = ref<TransferResponse[]>([]);
+
+const transferDialogPayload = computed<DialogTransferPayload | null>(() => {
+	if (!selectedTransfer.value) return null;
+	const transfer = selectedTransfer.value;
+	const originId = transfer.originWarehouse?.id ?? transfer.origin_warehouse?.id ?? null;
+	const destinationId = transfer.destinationWarehouse?.id ?? transfer.destination_warehouse?.id ?? null;
+	return {
+		id: transfer.id,
+		originId,
+		destinationId,
+		date: transfer.date?.split('T')[0] ?? '',
+		observation: transfer.observation ?? '',
+		items: (transfer.items ?? []).map((item) => ({
+			itemId: item.item?.id ?? null,
+			quantity: Number(item.quantity) || 0,
+		})),
+	};
+});
 
 // --- Estado para paginación y búsqueda ---
 const currentPage = ref(1);
@@ -131,20 +182,60 @@ const showNotEnoughMessage = computed(() => !isLoadingWarehouses.value && !hasEn
 
 // --- Breadcrumbs ---
 const breadcrumbs = [
-	{ title: 'Transferencias entre bodegas', href: '/transferencias-bodegas' },
+	{ title: 'Transferencias de bodegas', href: '/transferencias-bodegas' },
 ];
 
 // --- Métodos de UI ---
-function openTransferDialog() {
-	if (canCreateTransfer.value) {
-		dialogErrorMessage.value = '';
-		clearError();
-		isTransferDialogOpen.value = true;
+function findTransferResponse(source: Transfer | TransferResponse | null): TransferResponse | null {
+	if (!source) return null;
+	if ('items' in source) {
+		return source;
 	}
+	return transfersRaw.value.find((item) => item.id === source.id) ?? null;
+}
+
+function openTransferDialog(
+	mode: 'create' | 'edit' | 'view' = 'create',
+	transfer: Transfer | TransferResponse | null = null,
+) {
+	if (mode === 'create' && !canCreateTransfer.value) {
+		return;
+	}
+	dialogMode.value = mode;
+	selectedTransfer.value = findTransferResponse(transfer);
+	dialogErrorMessage.value = '';
+	clearError();
+	isTransferDialogOpen.value = true;
 }
 
 function closeTransferDialog() {
 	isTransferDialogOpen.value = false;
+}
+
+function promptDeleteTransfer(transfer: TransferResponse) {
+	transferToDelete.value = transfer;
+	isDeleteDialogOpen.value = true;
+}
+
+async function confirmDeleteTransfer() {
+	if (!transferToDelete.value) return;
+
+	clearSuccess();
+	clearError();
+	isDeletingTransfer.value = true;
+
+	try {
+		const response = await axios.delete(`/transferencias-bodegas/${transferToDelete.value.id}`);
+		await loadTransfers();
+		showSuccess(response?.data?.message || 'Transferencia eliminada correctamente.');
+	} catch (error: any) {
+		const message = resolveErrorMessage(error);
+		showError(message);
+	} finally {
+		isDeletingTransfer.value = false;
+		isDeleteDialogOpen.value = false;
+		transferToDelete.value = null;
+	}
 }
 
 function buildTransferItems(data: TransferPayload) {
@@ -182,6 +273,17 @@ function resolveErrorMessage(error: any): string {
 	return 'No se pudo guardar la transferencia.';
 }
 
+async function loadTransfers() {
+	try {
+		const response = await axios.get('/transferencias-bodegas/data', { params: { per_page: 200 } });
+		const data = response?.data?.data;
+		transfersRaw.value = Array.isArray(data) ? data : [];
+	} catch (error) {
+		showError('No se pudieron cargar las transferencias.');
+		transfersRaw.value = [];
+	}
+}
+
 async function handleTransferSave(data: TransferPayload) {
 	clearSuccess();
 	clearError();
@@ -195,21 +297,31 @@ async function handleTransferSave(data: TransferPayload) {
 
 	isSavingTransfer.value = true;
 
-	try {
-		const response = await axios.post('/transferencias-bodegas', {
-			origin_warehouse_id: data.originId,
-			destination_warehouse_id: data.destinationId,
-			date: data.date,
-			observation: data.observation || null,
-			items,
-		});
+	const payload = {
+		origin_warehouse_id: data.originId,
+		destination_warehouse_id: data.destinationId,
+		date: data.date,
+		observation: data.observation || null,
+		items,
+	};
 
-		const created = response?.data?.data as TransferResponse | undefined;
-		if (created) {
-			transfersRaw.value = [created, ...transfersRaw.value];
+	try {
+		let response;
+		if (dialogMode.value === 'edit') {
+			if (!selectedTransfer.value) {
+				throw new Error('No se encontró la transferencia seleccionada.');
+			}
+			response = await axios.put(`/transferencias-bodegas/${selectedTransfer.value.id}`, payload);
+		} else {
+			response = await axios.post('/transferencias-bodegas', payload);
 		}
 
-		showSuccess(response?.data?.message || 'Transferencia guardada correctamente.');
+		await loadTransfers();
+
+		const message =
+			response?.data?.message ||
+			(dialogMode.value === 'edit' ? 'Transferencia actualizada correctamente.' : 'Transferencia guardada correctamente.');
+		showSuccess(message);
 		isTransferDialogOpen.value = false;
 	} catch (error: any) {
 		const message = resolveErrorMessage(error);
@@ -238,9 +350,12 @@ watch(totalPages, (pages) => {
 watch(isTransferDialogOpen, (isOpen) => {
 	if (!isOpen) {
 		dialogErrorMessage.value = '';
+		selectedTransfer.value = null;
+		dialogMode.value = 'create';
 		clearError();
 	}
 });
+
 
 onMounted(async () => {
 	isLoadingWarehouses.value = true;
@@ -259,19 +374,12 @@ onMounted(async () => {
 		isLoadingWarehouses.value = false;
 	}
 
-	try {
-		const response = await axios.get('/transferencias-bodegas/data', { params: { per_page: 200 } });
-		const data = response?.data?.data;
-		transfersRaw.value = Array.isArray(data) ? data : [];
-	} catch {
-		showError('No se pudieron cargar las transferencias.');
-		transfersRaw.value = [];
-	}
+	await loadTransfers();
 });
 </script>
 
 <template>
-	<Head title="Transferencias entre bodegas" />
+	<Head title="Transferencias de bodegas" />
 	<AppLayout :breadcrumbs="breadcrumbs">
 		<AlertStack
 			:success-message="successMessage"
@@ -283,21 +391,21 @@ onMounted(async () => {
 		<div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
 			<div class="flex items-start justify-between gap-4">
 				<div class="flex flex-col gap-1">
-					<h1 class="text-lg font-bold">Transferencias entre bodegas</h1>
+					<h1 class="text-lg font-bold">Transferencias de bodegas</h1>
 					<p class="text-sm text-muted-foreground">
 						Registra traslados entre bodegas, almacenes o depósitos. Selecciona origen y destino,
 						define la fecha y agrega los ítems con su cantidad.
 					</p>
 				</div>
-				<button
-					type="button"
-					class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-					:disabled="!canCreateTransfer"
-					@click="openTransferDialog"
-				>
-					<PlusCircle class="w-4 h-4" />
-					Nueva transferencia entre bodegas
-				</button>
+					<button
+						type="button"
+						class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+						:disabled="!canCreateTransfer"
+						@click="openTransferDialog('create')"
+					>
+						<PlusCircle class="w-4 h-4" />
+						Nueva transferencia entre bodegas
+					</button>
 			</div>
 
 			<WarehouseTransferDialog
@@ -305,6 +413,8 @@ onMounted(async () => {
 				:warehouses="warehouseOptions"
 				:saving="isSavingTransfer"
 				:error-message="dialogErrorMessage"
+				:mode="dialogMode"
+				:transfer="transferDialogPayload"
 				@update:open="val => (isTransferDialogOpen = val)"
 				@save="handleTransferSave"
 				@cancel="closeTransferDialog"
@@ -361,13 +471,31 @@ onMounted(async () => {
 							<TableCell>{{ transfer.origin }}</TableCell>
 							<TableCell>{{ transfer.destination }}</TableCell>
 							<TableCell class="flex justify-center gap-1">
-								<Button variant="ghost" size="icon" class="h-8 w-8" title="Ver">
+								<Button
+									variant="ghost"
+									size="icon"
+									class="h-8 w-8"
+									title="Ver"
+									@click="openTransferDialog('view', transfer)"
+								>
 									<Eye class="h-4 w-4" />
 								</Button>
-								<Button variant="ghost" size="icon" class="h-8 w-8" title="Editar">
+								<Button
+									variant="ghost"
+									size="icon"
+									class="h-8 w-8"
+									title="Editar"
+									@click="openTransferDialog('edit', transfer)"
+								>
 									<Pencil class="h-4 w-4" />
 								</Button>
-								<Button variant="ghost" size="icon" class="h-8 w-8" title="Eliminar">
+								<Button
+									variant="ghost"
+									size="icon"
+									class="h-8 w-8"
+									title="Eliminar"
+									@click="promptDeleteTransfer(transfer)"
+								>
 									<Trash class="h-4 w-4" />
 								</Button>
 							</TableCell>
@@ -399,5 +527,15 @@ onMounted(async () => {
 				</Pagination>
 			</div>
 		</div>
+
+		<ConfirmDialog
+			v-model:open="isDeleteDialogOpen"
+			title="Confirmar eliminación"
+			:description="deleteDialogDescription"
+			:confirm-text="isDeletingTransfer ? 'Eliminando...' : 'Eliminar'"
+			cancel-text="Cancelar"
+			:destructive="true"
+			@confirm="confirmDeleteTransfer"
+		/>
 	</AppLayout>
 </template>

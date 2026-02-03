@@ -39,6 +39,17 @@ const internalValue = ref<DateValue | undefined>(
   props.modelValue ? parseDate(props.modelValue) : undefined
 )
 
+const calendarPlaceholder = ref<DateValue | undefined>(
+  internalValue.value ?? parseDate(new Date().toISOString().split("T")[0])
+)
+
+function goToMonth(month: number, year: number) {
+  const safeMonth = Math.max(0, Math.min(11, month))
+  const isoMonth = String(safeMonth + 1).padStart(2, "0")
+  const isoYear = String(year).padStart(4, "0")
+  calendarPlaceholder.value = parseDate(`${isoYear}-${isoMonth}-01`)
+}
+
 // Control manual del popover
 const open = ref(false)
 
@@ -69,6 +80,29 @@ watch(
   }
 )
 
+watch(
+  () => internalValue.value,
+  (value) => {
+    if (value) {
+      calendarPlaceholder.value = value
+    }
+  }
+)
+
+watch(open, (isOpen) => {
+  if (isOpen) {
+    if (internalValue.value) {
+      calendarPlaceholder.value = internalValue.value
+    } else if (!calendarPlaceholder.value) {
+      calendarPlaceholder.value = parseDate(new Date().toISOString().split("T")[0])
+    }
+  }
+})
+
+function handlePlaceholderUpdate(value: DateValue) {
+  calendarPlaceholder.value = value
+}
+
 // Emitir solo cuando el usuario selecciona una fecha
 function onSelectDate(val: DateValue) {
   internalValue.value = val
@@ -77,6 +111,37 @@ function onSelectDate(val: DateValue) {
     open.value = false
   }, 100)
 }
+
+const monthLabels = Array.from({ length: 12 }, (_, index) =>
+  format(new Date(2000, index, 1), "LLLL", { locale: es })
+)
+
+const placeholderDate = computed(() => {
+  if (calendarPlaceholder.value) {
+    return new Date(calendarPlaceholder.value.toString())
+  }
+  return new Date()
+})
+
+const selectedMonth = computed({
+  get: () => placeholderDate.value.getMonth(),
+  set: (month: number) => {
+    goToMonth(month, placeholderDate.value.getFullYear())
+  },
+})
+
+const selectedYear = computed({
+  get: () => placeholderDate.value.getFullYear(),
+  set: (year: number) => {
+    goToMonth(placeholderDate.value.getMonth(), year)
+  },
+})
+
+const yearOptions = computed(() => {
+  const currentYear = placeholderDate.value.getFullYear()
+  const startYear = currentYear - 10
+  return Array.from({ length: 21 }, (_, offset) => startYear + offset)
+})
 
 const displayLabel = computed(() => {
   if (!props.modelValue) return props.placeholderText
@@ -111,9 +176,35 @@ const displayLabel = computed(() => {
           class="absolute z-50 mt-2 right-0 left-auto bg-white border rounded shadow-lg p-2 overflow-auto max-h-[calc(100vh-6rem)]"
           style="min-width: 260px; max-width: min(320px, calc(100vw - 2rem));"
         >
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-2 text-sm text-muted-foreground">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-gray-500">Mes</span>
+              <select
+                v-model.number="selectedMonth"
+                class="rounded border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option v-for="(label, index) in monthLabels" :key="label" :value="index">
+                  {{ label }}
+                </option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-gray-500">Año</span>
+              <select
+                v-model.number="selectedYear"
+                class="rounded border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option v-for="year in yearOptions" :key="year" :value="year">
+                  {{ year }}
+                </option>
+              </select>
+            </div>
+          </div>
           <Calendar
             :model-value="internalValue"
             @update:model-value="onSelectDate"
+            :placeholder="calendarPlaceholder"
+            @update:placeholder="handlePlaceholderUpdate"
           />
         </div>
       </transition>

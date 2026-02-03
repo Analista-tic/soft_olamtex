@@ -16,7 +16,7 @@ import { useAuthStore } from '@/stores/auth';
 import type { LucideIcon } from 'lucide-vue-next';
 import type { NavItem } from '@/domain/shared';
 import { Link } from '@inertiajs/vue3';
-import { ChartColumn, Factory, LayoutGrid, Package, Shirt, SquareArrowDown, SquareArrowUp, SquarePen } from 'lucide-vue-next';
+import { ChartColumn, ChevronDown, Factory, LayoutGrid, Package, Shirt, SquareArrowDown, SquareArrowUp, SquarePen } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import AppLogo from './AppLogo.vue';
 import { usePage } from '@inertiajs/vue3';
@@ -117,8 +117,7 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Tesorería',
                 items: [
-                    { title: 'Bancos', href: underConstructionHref('Bancos') },
-                    { title: 'Caja', href: underConstructionHref('Caja') },
+                    { title: 'Bancos y cajas', href: underConstructionHref('Bancos y cajas  ') },
                     { title: 'Pagos a proveedores', href: underConstructionHref('Pagos a proveedores') },
                 ],
             },
@@ -336,6 +335,11 @@ watch(
                             <button @click="ensureSidebarExpanded" class="flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground">
                                 <component :is="section.icon" class="size-4 text-sidebar-foreground/60" />
                                 <span v-if="!isSidebarCollapsed">{{ section.title }}</span>
+                                <ChevronDown
+                                    v-if="!isSidebarCollapsed"
+                                    class="ml-auto rotate-0 transition-transform duration-200"
+                                    :class="{ 'rotate-180': sectionStates[section.title] }"
+                                />
                             </button>
                         </CollapsibleTrigger>
                     </div>
@@ -343,18 +347,19 @@ watch(
                         <div
                             v-for="(group, groupIndex) in section.groups"
                             :key="group.label ?? `${section.title}-${groupIndex}`"
-                            class="px-2 pb-2"
+                            class="px-2 pb-2 module-group"
                         >
                             <div
                                 v-if="group.label"
-                                class="px-1 p-1 text-[10px] font-semibold tracking-wide text-sidebar-foreground/50"
+                                class="module-group-label"
                             >
                                 {{ group.label }}
                             </div>
-                            <SidebarMenu class="px-0">
+                            <SidebarMenu class="px-0 module-submodules">
                                 <SidebarMenuItem
                                     v-for="item in group.items"
                                     :key="item.title"
+                                    class="module-submodule-item"
                                 >
                                     <SidebarMenuButton
                                         as-child
@@ -390,5 +395,38 @@ watch(
 
 .group\/collapsible {
     width: 100%;
+}
+
+.module-label button {
+    position: relative;
+}
+
+.module-group {
+    border-left: 1px solid rgba(74, 85, 104, 0.25);
+    margin-left: 6px;
+    padding-left: 8px;
+}
+
+.module-group-label {
+    padding-left: 4px;
+    padding-bottom: 0.25rem;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(148, 163, 184, 1);
+}
+
+.module-submodules {
+    border-radius: 0.35rem;
+    padding: 0.35rem;
+}
+
+.module-submodule-item {
+    padding-left: 0.75rem;
+    margin-bottom: 0.1rem;
+}
+
+.module-submodule-item:last-child {
+    margin-bottom: 0;
 }
 </style>
