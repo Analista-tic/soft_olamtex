@@ -154,6 +154,8 @@ const displayLabel = computed(() => {
           id="datepicker-popover"
           class="absolute z-50 mt-2 right-0 left-auto bg-white border rounded shadow-lg p-2 overflow-auto max-h-[calc(100vh-6rem)]"
           style="min-width: 260px; max-width: min(320px, calc(100vw - 2rem));"
+          @pointerdown.stop
+          @click.stop
         >
           <Calendar
             :model-value="internalValue"

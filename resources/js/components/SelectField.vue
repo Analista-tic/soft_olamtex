@@ -377,12 +377,14 @@ watch(
                             <ChevronDown class="h-4 w-4" />
                         </ComboboxButton>
                         <Teleport to="body">
-                            <div
-                                v-if="open"
-                                ref="floatingRef"
-                                :style="floatingStyles"
-                                class="z-50"
-                            >
+                        <div
+                            v-if="open"
+                            ref="floatingRef"
+                            :style="floatingStyles"
+                            class="z-50"
+                            @pointerdown.stop
+                            @click.stop
+                        >
                                 <ComboboxOptions
                                     class="max-h-52 overflow-y-auto rounded-md border border-border bg-card shadow-2xl focus:outline-none"
                                 >

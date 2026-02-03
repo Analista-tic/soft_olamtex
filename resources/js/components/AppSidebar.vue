@@ -70,9 +70,6 @@ const moduleSections: ModuleSection[] = [
                 label: 'Cartera clientes',
                 items: [
                     { title: 'Cuentas por cobrar', href: underConstructionHref('Cuentas por cobrar') },
-                    { title: 'Estado de cuentas', href: underConstructionHref('Estado de cuentas') },
-                    { title: 'Antigüedad de saldos', href: underConstructionHref('Antigüedad de saldos') },
-                    { title: 'Gestión de cobro', href: underConstructionHref('Gestión de cobro') },
                 ],
             },
         ],
@@ -96,8 +93,7 @@ const moduleSections: ModuleSection[] = [
                 label: 'Cartera proveedores',
                 items: [
                     { title: 'Cuentas por pagar', href: underConstructionHref('Cuentas por pagar') },
-                    { title: 'Programación de pagos', href: underConstructionHref('Programación de pagos') },
-                    { title: 'Estados de cuenta', href: underConstructionHref('Estados de cuenta') },
+                    { title: 'Pagos', href: underConstructionHref('Pagos') },
                 ],
             },
         ],
@@ -115,10 +111,10 @@ const moduleSections: ModuleSection[] = [
                 ],
             },
             {
-                label: 'Tesorería',
+                label: 'Contabilidad',
                 items: [
-                    { title: 'Bancos y cajas', href: underConstructionHref('Bancos y cajas  ') },
-                    { title: 'Pagos a proveedores', href: underConstructionHref('Pagos a proveedores') },
+                    { title: 'Cuentas Contables', href: underConstructionHref('Cuentas Contables') },
+                    { title: 'Bancos y cajas', href: underConstructionHref('Bancos y cajas') },
                 ],
             },
         ],
@@ -135,7 +131,7 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Catálogo de ítems', href: '/item', permission: 'ver inventario telas' },
                     { title: 'Campos adicionales', href: '/campos-adicionales' },
                     { title: 'Unidades de Medida', href: underConstructionHref('Unidades de Medida') },
-                    { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },
+                    // { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },
                 ],
             },
         ],
