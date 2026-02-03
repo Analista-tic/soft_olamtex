@@ -144,7 +144,7 @@ const displayLabel = computed(() => {
             @update:model-value="onSelectDate"
             :placeholder="calendarPlaceholder"
             @update:placeholder="handlePlaceholderUpdate"
-            caption-layout="buttons"
+            caption-layout="dropdown"
           />
         </div>
       </transition>
