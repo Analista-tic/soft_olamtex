@@ -229,7 +229,7 @@ onMounted(() => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[140vh] h-[90vh] flex flex-col p-0">
+        <DialogContent class="max-w-[140vh] max-h-[90vh] flex flex-col p-0">
             <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                 <div class="flex flex-col gap-1">
                     <DialogTitle>Entrega de Solicitud</DialogTitle>

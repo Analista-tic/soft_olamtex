@@ -15,7 +15,6 @@ const forwardedProps = useForwardProps(delegatedProps)
 
 <template>
   <CalendarCellTrigger
-    type="button"
     :class="cn(
       buttonVariants({ variant: 'ghost' }),
       'h-9 w-9 p-0 font-normal',
