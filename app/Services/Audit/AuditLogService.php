@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class AuditLogService
 {
@@ -18,6 +19,10 @@ class AuditLogService
      */
     public function log(Model $model, string $action, array $context = []): void
     {
+        if (!Schema::hasTable('audit_logs')) {
+            return;
+        }
+
         // Evitar recursión
         if ($model instanceof AuditLog) {
             return;
@@ -302,4 +307,3 @@ class AuditLogService
     }
 
 }
-

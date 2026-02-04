@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
-use App\Models\Parameter;
+use App\Models\Setting;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -86,10 +86,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver financiero',
         ]);
 
-        // Buscar áreas en parameters
+        // Buscar áreas en settings (kind=parameter)
         // Obtener catálogo de áreas desde el parámetro 'areas'
-        $areasParam = Parameter::where('nombre', 'areas')->first();
-        $areas = $areasParam ? $areasParam->valor : [];
+        $areasSetting = Setting::where('kind', 'parameter')->where('key', 'areas')->first();
+        $areas = $areasSetting ? ($areasSetting->value ?? []) : [];
         $areaIds = collect($areas)->mapWithKeys(fn($a) => [$a['name'] => $a['id']])->all();
 
         // Crear usuarios de ejemplo con área asignada

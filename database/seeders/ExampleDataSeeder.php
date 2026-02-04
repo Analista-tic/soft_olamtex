@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Models\Setting;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\WarehouseTransferService;
 use Illuminate\Database\Seeder;
@@ -461,7 +462,7 @@ class ExampleDataSeeder extends Seeder
         }
 
         // Fichas de producto (ProductSheets)
-        // Obtener IDs desde la tabla parameters (ya no insertamos en tablas de catálogos)
+        // Obtener IDs desde settings (kind=parameter)
         $sectionId = $this->getParameterFirstId('sections');
         $groupId = $this->getParameterFirstId('groups');
         $brandId = $this->getParameterFirstId('brands');
@@ -515,7 +516,7 @@ class ExampleDataSeeder extends Seeder
         // Obtener el ID de la ficha de producto recién creada
         $productSheetId = DB::table('product_sheets')->where('reference', 'MUESTRA-001')->value('id');
 
-        // Obtener el ID del destino desde parameters
+        // Obtener el ID del destino desde settings (kind=parameter)
         $destinationId = $this->getParameterFirstId('destinations');
 
         DB::table('programmers')->insert([
@@ -693,20 +694,22 @@ class ExampleDataSeeder extends Seeder
 
     private function getParameterFirstId(string $name, int $fallback = 1): int
     {
-        $value = DB::table('parameters')->where('nombre', $name)->value('valor');
-        if ($value === null) {
+        $setting = Setting::where('kind', 'parameter')->where('key', $name)->first();
+        if (! $setting) {
             return $fallback;
         }
 
-        $decoded = json_decode($value, true);
-        if (is_string($decoded)) {
-            $decoded = json_decode($decoded, true);
-        }
-
-        if (!is_array($decoded) || !isset($decoded[0]['id'])) {
+        $items = $setting->value ?? [];
+        if (! is_array($items) || empty($items)) {
             return $fallback;
         }
 
-        return (int) $decoded[0]['id'];
+        foreach ($items as $entry) {
+            if (is_array($entry) && isset($entry['id'])) {
+                return (int) $entry['id'];
+            }
+        }
+
+        return $fallback;
     }
 }
