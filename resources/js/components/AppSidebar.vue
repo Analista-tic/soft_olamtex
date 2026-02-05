@@ -130,7 +130,7 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Categorías', href: '/categorias/subgrupos' },
                     { title: 'Catálogo de ítems', href: '/item', permission: 'ver inventario telas' },
                     { title: 'Campos adicionales', href: '/campos-adicionales' },
-                    { title: 'Unidades de Medida', href: underConstructionHref('Unidades de Medida') },
+                    { title: 'Parametros', href: '/parametros' },
                     // { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },
                 ],
             },

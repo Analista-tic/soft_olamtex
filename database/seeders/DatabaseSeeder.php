@@ -10,8 +10,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             CompanySettingSeeder::class,
-            SettingsCatalogsSeeder::class,
-            SettingsFieldDefinitionsSeeder::class,
+            SettingsFieldParametersSeeder::class,
             CategorySeeder::class,
             RolesAndPermissionsSeeder::class,
             ExampleDataSeeder::class,

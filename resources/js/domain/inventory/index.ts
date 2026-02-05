@@ -6,6 +6,7 @@ export type {
     CategorySubGroup,
     AdditionalField,
     AdditionalFieldType,
+    AdditionalFieldPayload,
     ExtraFields,
 } from './types';
 

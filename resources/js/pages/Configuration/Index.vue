@@ -83,12 +83,13 @@ const modules = [
         title: 'Datos Maestros',
         description: 'Información reutilizable en todo el sistema.',
         options: [
-            { name: 'Contactos / Terceros', href: '/contactos' },
+            { name: 'Contactos', href: '/contactos' },
             { name: 'Catálogo de ítems', href: '/item' },
             { name: 'Categorías', href: '/categorias/subgrupos' },
-            { name: 'Unidades de medida', href: underConstructionHref('Unidades de Medida') },
             { name: 'Bodegas', href: '/bodegas' },
             { name: 'Campos adicionales', href: '/campos-adicionales' },
+            { name: 'Parametros', href: '/parametros' },
+
         ],
     },
     {

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->enum('kind', ['parameter', 'field'])->index();
 
             // Identidad
-            $table->string('key');          // identificador técnico (slug/código)
+            $table->string('key')->nullable();          // identificador técnico (slug/código)
             $table->string('label');        // nombre visible para el usuario
             $table->text('description')->nullable();
 
@@ -34,7 +34,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Unicidad por tipo (evita choques innecesarios)
-            $table->unique(['kind', 'key']);
+            $table->unique(['kind', 'key'], 'settings_kind_key_unique');
         });
     }
 

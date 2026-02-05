@@ -23,41 +23,60 @@ class ItemsSeeder extends Seeder
             ]);
         }
 
-        // Items con diferentes subgrupos
+        // Items de ejemplo usando parámetros y campos definidos
         $items = [
-            // ITEMS DE TELA
             [
-                'name' => 'Tela drill azul',
-                'reference' => 'TEL-DRILL-AZUL',
-                'bar_code' => 'TEL-DRILL-AZUL',
-                'description' => 'Tela drill color azul, ancho 1.5m',
+                'name' => 'Tela algodón azul',
+                'reference' => 'TEL-ALG-AZUL',
+                'bar_code' => 'TEL-ALG-AZUL',
+                'description' => 'Tela de algodón color azul, ancho 1.5m',
                 'unit_measure' => 'm',
                 'subgroup_name' => 'Tela',
+                'extra_fields' => json_encode([
+                    'base_tela' => 'ALGODÓN',
+                    'color' => 'AZUL',
+                    'costo_operaciones' => 406,
+                    'costo_hilo' => 140,
+                ]),
             ],
             [
-                'name' => 'Tela sarga gris',
-                'reference' => 'TEL-SARGA-GRS',
-                'bar_code' => 'TEL-SARGA-GRS',
-                'description' => 'Tela sarga color gris, ancho 1.6m',
+                'name' => 'Tela lino blanco',
+                'reference' => 'TEL-LINO-BLN',
+                'bar_code' => 'TEL-LINO-BLN',
+                'description' => 'Tela de lino color blanco, ancho 1.6m',
                 'unit_measure' => 'm',
                 'subgroup_name' => 'Tela',
+                'extra_fields' => json_encode([
+                    'base_tela' => 'LINO',
+                    'color' => 'BLANCO',
+                    'costo_operaciones' => 406,
+                    'costo_hilo' => 140,
+                ]),
             ],
-            // ITEMS NO-TELA (otros insumos)
             [
-                'name' => 'Hilo poliéster blanco',
-                'reference' => 'HIL-POLI-BLN',
-                'bar_code' => 'HIL-POLI-BLN',
-                'description' => 'Hilo poliéster 2000m color blanco',
+                'name' => 'Hilo poliéster negro',
+                'reference' => 'HIL-POLI-NGR',
+                'bar_code' => 'HIL-POLI-NGR',
+                'description' => 'Hilo poliéster 2000m color negro',
                 'unit_measure' => 'und',
                 'subgroup_name' => 'Hilaza',
+                'extra_fields' => json_encode([
+                    'base_hilaza' => 'POLIÉSTER',
+                    'color' => 'NEGRO',
+                    'costo_operaciones' => 406,
+                    'costo_hilo' => 140,
+                ]),
             ],
             [
-                'name' => 'Botón plástico 24mm',
-                'reference' => 'BOT-PLAS-24',
-                'bar_code' => 'BOT-PLAS-24',
-                'description' => 'Botón plástico transparente 24mm',
+                'name' => 'Botón plástico rojo',
+                'reference' => 'BOT-PLAS-ROJ',
+                'bar_code' => 'BOT-PLAS-ROJ',
+                'description' => 'Botón plástico rojo 24mm',
                 'unit_measure' => 'und',
                 'subgroup_name' => 'Botón',
+                'extra_fields' => json_encode([
+                    'color' => 'ROJO',
+                ]),
             ],
             [
                 'name' => 'Etiqueta tejida blanca',
@@ -66,14 +85,16 @@ class ItemsSeeder extends Seeder
                 'description' => 'Etiqueta tejida blanca con logo',
                 'unit_measure' => 'und',
                 'subgroup_name' => 'Etiqueta',
+                'extra_fields' => null,
             ],
             [
-                'name' => 'Cierre plata 15cm',
-                'reference' => 'CIE-PLT-15',
-                'bar_code' => 'CIE-PLT-15',
-                'description' => 'Cierre metálico plata 15cm',
+                'name' => 'Cierre metálico plata',
+                'reference' => 'CIE-MET-PLT',
+                'bar_code' => 'CIE-MET-PLT',
+                'description' => 'Cierre metálico color plata 15cm',
                 'unit_measure' => 'und',
                 'subgroup_name' => 'Cierre',
+                'extra_fields' => null,
             ],
         ];
 
@@ -98,7 +119,7 @@ class ItemsSeeder extends Seeder
                     'bar_code' => $it['bar_code'],
                     'negative_movement' => false,
                     'description' => $it['description'],
-                    'extra_fields' => null,
+                    'extra_fields' => $it['extra_fields'] ?? null,
                     'unit_measure' => $it['unit_measure'],
                     'weighted_average_price' => 0,
                     'status' => true,

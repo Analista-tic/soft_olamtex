@@ -9,8 +9,8 @@ import TextareaField from '@/components/TextareaField.vue';
 import SwitchField from '@/components/SwitchField.vue';
 import { Label } from '@/components/ui/label';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { AdditionalField, AdditionalFieldType } from '@/domain/inventory';
-import { Trash, Plus } from 'lucide-vue-next';
+import type { AdditionalField, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/inventory';
+import { Plus } from 'lucide-vue-next';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 
 type AdditionalFieldForm = Omit<AdditionalField, 'default_value'> & {
@@ -35,7 +35,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     (e: 'update:open', value: boolean): void;
-    (e: 'submit', value: AdditionalField): void;
+    (e: 'submit', value: AdditionalFieldPayload): void;
     (e: 'cancel'): void;
 }>();
 
@@ -56,6 +56,9 @@ const localForm = ref<AdditionalFieldForm>({
     default_value: String((props.form as Partial<AdditionalField>)?.default_value ?? ''),
 });
 const localOptions = ref<string[]>([]);
+const hasOptionValues = computed(() => {
+    return localOptions.value.some((value) => String(value ?? '').trim() !== '');
+});
 
 const hasDuplicateOptions = computed(() => {
     const normalized = localOptions.value
@@ -85,12 +88,12 @@ const defaultValueInputType = computed((): 'text' | 'number' | 'date' => {
 watch(
     () => props.form,
     (value) => {
-        localForm.value = {
-            ...defaultForm,
-            ...(value ?? {}),
-            options: value?.options ?? [],
-            default_value: value?.default_value ?? '',
-        };
+    localForm.value = {
+        ...defaultForm,
+        ...(value ?? {}),
+        options: value?.options ?? [],
+        default_value: value?.default_value ?? '',
+    };
         const optionsFromProps = Array.isArray(value?.options) ? (value?.options ?? []) : [];
         localOptions.value = optionsFromProps.length ? optionsFromProps : [];
     },
@@ -145,6 +148,40 @@ function handleClose() {
     emit('cancel');
 }
 
+function slugify(value: string): string {
+    return value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+function buildPayload(preparedOptions: string[]): AdditionalFieldPayload {
+    const label = String(localForm.value.name ?? '').trim();
+    const existingKey = (props.form as Partial<AdditionalField> & { key?: string })?.key ?? '';
+    const fallbackKey = existingKey || label;
+    const generatedKey = slugify(fallbackKey || '');
+
+    const payload: AdditionalFieldPayload = {
+        id: props.form?.id,
+        label,
+        field_type: localForm.value.field_type,
+        options: preparedOptions.length ? preparedOptions : undefined,
+        default_value: localForm.value.default_value ?? undefined,
+        is_required: localForm.value.is_required,
+        status: localForm.value.status,
+        position: localForm.value.position ?? props.form?.position,
+    };
+
+    if (generatedKey) {
+        payload.key = generatedKey;
+    }
+
+    return payload;
+}
+
 function handleSubmit() {
     const preparedOptions = isSelectField.value
         ? localOptions.value
@@ -152,183 +189,195 @@ function handleSubmit() {
             .filter((value) => value)
         : [];
 
-    emit('submit', {
-        ...localForm.value,
-        options: preparedOptions.length ? preparedOptions : undefined,
-    });
+    emit('submit', buildPayload(preparedOptions));
 }
 </script>
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <FormDialogContent class="flex flex-col space-y-6 max-h-[85vh] max-w-[550px]">
-        <TooltipProvider>
-            <FormHeader
-                :title="dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional'"
-                :description="dialogType === 'create' ? 'Configura un campo adicional para capturar atributos específicos del ítem en el flujo de registro de productos.' : 'Actualiza las propiedades del campo adicional seleccionado para adaptarlo a los requerimientos del negocio.'"
-            ></FormHeader>
-            <div class="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1 pt-4">
-                <div class="space-y-6">
-                    <div class="grid grid-cols-1 gap-5 md:grid-cols-2 md:items-start">
-                        <div class="grid gap-1">
-                            <Label class="text-sm font-medium">
-                                Nombre
-                                <span class="text-red-500">*</span>
-                            </Label>
-                            <InputField
-                                v-model="localForm.name"
-                                label=""
-                                placeholder="Nombre del campo"
-                                required
-                            />
-                        </div>
-                        <div class="grid gap-1">
-                            <div class="flex items-center gap-2">
+        <FormDialogContent class="flex flex-col max-h-[85vh] max-w-[550px] px-2 py-2">
+            <TooltipProvider>
+                <FormHeader
+                    :title="dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional'"
+                    :description="dialogType === 'create' ? 'Configura un campo adicional para capturar atributos específicos del ítem en el flujo de registro de productos.' : 'Actualiza las propiedades del campo adicional seleccionado para adaptarlo a los requerimientos del negocio.'"
+                />
+                <div class="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1 pt-4">
+                    <div class="space-y-6">
+                        <!-- Row: Name | Type -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div class="flex flex-col gap-1">
                                 <Label class="text-sm font-medium">
-                                    Tipo de campo
+                                    Nombre
                                     <span class="text-red-500">*</span>
                                 </Label>
-                                <HelpTooltip
-                                    text="Selecciona el tipo de dato que debe capturar este campo."
-                                    aria-label="Ayuda sobre el tipo de campo"
+                                <InputField
+                                    v-model="localForm.name"
+                                    label=""
+                                    placeholder="Nombre del campo"
+                                    required
                                 />
                             </div>
-                            <SelectField
-                                v-model="localForm.field_type"
-                                :options="fieldTypeOptions"
-                                option-label="name"
-                                option-value="id"
-                                required
-                                class="md:!px-1"
-                            />
-                        </div>
-                    </div>
-                    <div class="space-y-2">
-                        <div class="flex items-center gap-2">
-                            <p class="text-sm font-medium text-slate-600">Valor por defecto</p>
-                            <HelpTooltip
-                                text="Indica un valor que pueda usarse automáticamente si es el mismo para la mayoría de ítems."
-                                aria-label="Ayuda sobre el valor por defecto"
-                            />
-                        </div>
-                        <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-3">
-                            <div v-if="isSelectField" class="space-y-3">
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        Tipo de campo
+                                        <span class="text-red-500">*</span>
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Selecciona el tipo de dato que debe capturar este campo."
+                                        aria-label="Ayuda sobre el tipo de campo"
+                                    />
+                                </div>
                                 <SelectField
-                                    v-model="localForm.default_value"
-                                    label=""
-                                    :options="defaultValueOptions"
-                                    :disabled="defaultValueOptions.length === 0"
+                                    v-model="localForm.field_type"
+                                    :options="fieldTypeOptions"
                                     option-label="name"
                                     option-value="id"
-                                    placeholder="Selecciona un valor"
+                                    required
+                                    class="md:!px-1"
                                 />
-                                <p v-if="defaultValueOptions.length === 0" class="text-xs text-slate-500">
-                                    Agrega opciones para habilitar un valor por defecto
-                                </p>
                             </div>
-                            <InputField
-                                v-else
-                                v-model="localForm.default_value"
-                                :type="defaultValueInputType"
-                                label=""
-                                placeholder="Valor por defecto"
-                            />
                         </div>
-                    </div>
-                    <div v-if="isSelectField" class="space-y-3 rounded-2xl border border-border bg-slate-50/80 p-4 shadow-inner">
-                        <div class="flex items-center justify-between text-sm font-medium text-slate-600">
-                            <span>Opciones</span>
-                            <button
-                                type="button"
-                                class="flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-primary hover:bg-primary/10"
-                                @click="addOptionAfter()"
-                            >
-                                <Plus class="h-3.5 w-3.5" />
-                                Nueva opcion
-                            </button>
-                        </div>
-                        <div class="space-y-3">
-                            <div
-                                v-for="(option, index) in localOptions"
-                                :key="index"
-                                class="relative"
-                            >
+
+                        <!-- Row: Default value -->
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-2">
+                                <p class="text-sm font-medium ">Valor por defecto</p>
+                                <HelpTooltip
+                                    text="Indica un valor que pueda usarse automáticamente si es el mismo para la mayoría de ítems."
+                                    aria-label="Ayuda sobre el valor por defecto"
+                                />
+                            </div>
+                            <div>
+                                <div v-if="isSelectField" class="space-y-3">
+                                    <SelectField
+                                        v-model="localForm.default_value"
+                                        label=""
+                                        :options="defaultValueOptions"
+                                        :disabled="defaultValueOptions.length === 0"
+                                        option-label="name"
+                                        option-value="id"
+                                        placeholder="Selecciona un valor"
+                                    />
+                                    <p v-if="defaultValueOptions.length === 0" class="text-xs text-slate-500">
+                                        Agrega opciones para habilitar un valor por defecto
+                                    </p>
+                                </div>
                                 <InputField
-                                    v-model="localOptions[index]"
-                                    placeholder="Opcion"
+                                    v-else
+                                    v-model="localForm.default_value"
+                                    :type="defaultValueInputType"
                                     label=""
-                                    class="w-full pr-12"
-                                    :readonly="false"
-                                    @keydown.enter.prevent="addOptionAfter(index)"
+                                    placeholder="Valor por defecto"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Row: Opciones (solo para select) -->
+                        <div v-if="isSelectField" class="space-y-2">
+                            <p class="text-sm font-medium">
+                                Valores
+                                <span class="text-destructive">*</span>
+                            </p>
+                            <div class="flex gap-2">
+                                <InputField
+                                    v-model="localOptions[localOptions.length - 1]"
+                                    label=""
+                                    placeholder="Agregar valor"
+                                    @keydown.enter.prevent="addOptionAfter()"
                                 />
                                 <button
-                                    v-if="index > 0 || (index === 0 && localOptions.length > 1)"
                                     type="button"
-                                    class="absolute right-3 top-3 flex items-center p-1 text-slate-500 hover:text-slate-700"
-                                    @click="removeOption(index)"
-                                    aria-label="Eliminar opcion"
+                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-slate-500 transition hover:border-primary hover:bg-primary hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                    @click="addOptionAfter(localOptions.length - 1)"
+                                    aria-label="Agregar valor"
                                 >
-                                    <Trash class="h-4 w-4" />
+                                    <Plus class="h-4 w-4" />
                                 </button>
                             </div>
+                            <div v-if="hasOptionValues" class="flex flex-wrap gap-2">
+                                <span
+                                    v-for="(option, index) in localOptions"
+                                    :key="`option-chip-${index}`"
+                                    class="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1 text-xs font-semibold text-slate-600"
+                                >
+                                    {{ option }}
+                                    <button
+                                        v-if="localOptions.length > 1"
+                                        type="button"
+                                        class="text-slate-400 hover:text-slate-600"
+                                        @click="removeOption(index)"
+                                        aria-label="Eliminar valor"
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            </div>
+                            <p v-else class="text-xs text-slate-500">Sin valores registrados.</p>
+                            <p v-if="hasDuplicateOptions" class="text-xs text-red-600">
+                                Cada opción debe ser única.
+                            </p>
                         </div>
-                        <p v-if="hasDuplicateOptions" class="text-xs text-red-600">
-                            Cada opcion debe ser unica.
-                        </p>
+
+                        <!-- Separator -->
+                        <div class="h-px bg-slate-100 my-2" />
+
+                        <!-- Row: Description -->
+                        <TextareaField
+                            label="Descripcion"
+                            placeholder="Opcional"
+                            :rows="3"
+                            v-model="localForm.description"
+                        />
+
+                        <!-- Row: Switches -->
+                        <div class="grid grid-cols-2 gap-5 pt-2">
+                            <div class="flex flex-col gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-medium ">Obligatorio</span>
+                                    <HelpTooltip
+                                        text="Forzar la captura de este dato antes de guardar el ítem."
+                                        aria-label="Ayuda sobre obligatorio"
+                                    />
+                                </div>
+                                <div class="switch-inline">
+                                    <SwitchField v-model="localForm.is_required" />
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-medium ">Activo</span>
+                                    <HelpTooltip
+                                        text="Habilita o pausa el campo sin eliminar su configuración."
+                                        aria-label="Ayuda sobre activo"
+                                    />
+                                </div>
+                                <div class="switch-inline">
+                                    <SwitchField v-model="localForm.status" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <TextareaField
-                        label="Descripcion"
-                        placeholder="Opcional"
-                        :rows="3"
-                        v-model="localForm.description"
-                    />
                 </div>
-            </div>
-            <div class="grid grid-cols-2 gap-5 pt-4">
-                <div class="flex flex-col gap-2">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-medium text-slate-600">Obligatorio</span>
-                            <HelpTooltip
-                                text="Forzar la captura de este dato antes de guardar el ítem."
-                                aria-label="Ayuda sobre obligatorio"
-                            />
-                        </div>
-                        <div class="switch-inline">
-                            <SwitchField v-model="localForm.is_required" />
-                        </div>
-                </div>
-                <div class="flex flex-col gap-2">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-medium text-slate-600">Activo</span>
-                            <HelpTooltip
-                                text="Habilita o pausa el campo sin eliminar su configuración."
-                                aria-label="Ayuda sobre activo"
-                            />
-                        </div>
-                        <div class="switch-inline">
-                            <SwitchField v-model="localForm.status" />
-                        </div>
-                </div>
-            </div>
-            <DialogFooter class="justify-end gap-2">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                    @click="handleClose"
-                >
-                    Cancelar
-                </button>
-                <button
-                    type="button"
-                    :disabled="loading || hasDuplicateOptions"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                    @click="handleSubmit"
-                >
-                    {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                </button>
-            </DialogFooter>
-        </TooltipProvider>
-    </FormDialogContent>
+                <DialogFooter class="justify-end gap-2 mt-6">
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="handleClose"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="loading || hasDuplicateOptions"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        @click="handleSubmit"
+                    >
+                        {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
+                    </button>
+                </DialogFooter>
+            </TooltipProvider>
+        </FormDialogContent>
 </Dialog>
 </template>
 

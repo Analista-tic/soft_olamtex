@@ -10,7 +10,6 @@ use App\Http\Controllers\ProductSheet\FabricBaseController;
 use App\Http\Controllers\ProductSheet\GroupController;
 use App\Http\Controllers\ProductSheet\MachineController;
 use App\Http\Controllers\ProductSheet\OperationController;
-use App\Http\Controllers\ProductSheet\ParameterController;
 use App\Http\Controllers\ProductSheet\SectionController;
 use App\Http\Controllers\ProductSheet\WorldController;
 use App\Http\Controllers\ProductSheet\YarnBaseController;
@@ -37,6 +36,7 @@ use App\Http\Controllers\Inventory\ItemInventoryController;
 use App\Http\Controllers\Inventory\WarehouseItemStockController;
 use App\Http\Controllers\Inventory\InventoryRequestController;
 use App\Http\Controllers\Inventory\WarehouseTransferController;
+use App\Http\Controllers\MasterData\ParameterController;
 
 // Página principal
 Route::get('/', fn() => redirect('login'))->name('home');
@@ -443,6 +443,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/{additionalField}', [AdditionalFieldController::class, 'show'])->name('show');
         Route::put('/{additionalField}', [AdditionalFieldController::class, 'update'])->name('update');
         Route::delete('/{additionalField}', [AdditionalFieldController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('parametros')->name('parametros.')->group(function () {
+        Route::get('/', [ParameterController::class, 'index'])->name('index');
+        Route::get('/data', [ParameterController::class, 'data'])->name('data');
+        Route::post('/', [ParameterController::class, 'store'])->name('store');
+        Route::get('/{id}', [ParameterController::class, 'show'])->name('show');
+        Route::put('/{id}', [ParameterController::class, 'update'])->name('update');
+        Route::delete('/{id}', [ParameterController::class, 'destroy'])->name('destroy');
     });
 
     // === AJUSTES DE INVENTARIO ===

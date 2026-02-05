@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Setting extends Model
 {
+    public const KEY_PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/i';
+
     public const KIND_PARAMETER = 'parameter';
     public const KIND_FIELD = 'field';
 
@@ -59,5 +62,46 @@ class Setting extends Model
     public function scopeFields(Builder $query): Builder
     {
         return $query->where('kind', self::KIND_FIELD);
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $setting) {
+            if ($setting->kind !== self::KIND_FIELD) {
+                return;
+            }
+
+            if (trim((string) ($setting->key ?? '')) !== '') {
+                return;
+            }
+
+            $setting->key = $setting->generateFieldKey();
+        });
+    }
+
+    private function generateFieldKey(): string
+    {
+        $base = Str::slug($this->label ?? '');
+        $base = $base ?: 'field';
+
+        $candidate = $base;
+        $suffix = 1;
+
+        while ($this->fieldKeyExists($candidate)) {
+            $suffix++;
+            $candidate = "{$base}-{$suffix}";
+        }
+
+        return $candidate;
+    }
+
+    private function fieldKeyExists(string $key): bool
+    {
+        $query = self::fields()->where('key', $key);
+        if ($this->exists) {
+            $query->where('id', '<>', $this->getKey());
+        }
+
+        return $query->exists();
     }
 }
