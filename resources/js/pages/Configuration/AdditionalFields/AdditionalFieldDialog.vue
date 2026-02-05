@@ -56,13 +56,19 @@ const localForm = ref<AdditionalFieldForm>({
     default_value: String((props.form as Partial<AdditionalField>)?.default_value ?? ''),
 });
 const localOptions = ref<string[]>([]);
+const newOptionInput = ref('');
+
+function normalizeOptionEntry(value: unknown): string {
+    return String(value ?? '').trim().toUpperCase();
+}
+
 const hasOptionValues = computed(() => {
     return localOptions.value.some((value) => String(value ?? '').trim() !== '');
 });
 
 const hasDuplicateOptions = computed(() => {
     const normalized = localOptions.value
-        .map((value) => String(value ?? '').trim().toUpperCase())
+        .map((value) => normalizeOptionEntry(value))
         .filter(Boolean);
     return new Set(normalized).size !== normalized.length;
 });
@@ -88,14 +94,17 @@ const defaultValueInputType = computed((): 'text' | 'number' | 'date' => {
 watch(
     () => props.form,
     (value) => {
-    localForm.value = {
-        ...defaultForm,
-        ...(value ?? {}),
-        options: value?.options ?? [],
-        default_value: value?.default_value ?? '',
-    };
+        localForm.value = {
+            ...defaultForm,
+            ...(value ?? {}),
+            options: value?.options ?? [],
+            default_value: value?.default_value ?? '',
+        };
         const optionsFromProps = Array.isArray(value?.options) ? (value?.options ?? []) : [];
-        localOptions.value = optionsFromProps.length ? optionsFromProps : [];
+        localOptions.value = optionsFromProps
+            .map((option) => normalizeOptionEntry(option))
+            .filter((option) => option !== '');
+        newOptionInput.value = '';
     },
     { immediate: true },
 );
@@ -103,11 +112,7 @@ watch(
 watch(
     () => localForm.value.field_type,
     (value) => {
-        if (value === 'select') {
-            if (localOptions.value.length === 0) {
-                localOptions.value = [''];
-            }
-        } else {
+        if (value !== 'select') {
             localOptions.value = [];
         }
     },
@@ -117,27 +122,34 @@ watch(
 watch(
     localOptions,
     (options) => {
-        const transformed = options.map((value) => String(value ?? '').toUpperCase());
-        const hasDiff = transformed.some((value, index) => value !== options[index]);
+        const normalizedOptions = options
+            .map((value) => normalizeOptionEntry(value))
+            .filter((value) => value !== '');
+        const hasDiff = normalizedOptions.length !== options.length
+            || normalizedOptions.some((value, index) => value !== options[index]);
         if (hasDiff) {
-            localOptions.value = transformed;
+            localOptions.value = normalizedOptions;
         }
     },
     { deep: true },
 );
 
-function addOptionAfter(index?: number) {
-    const options = [...localOptions.value];
-    const insertionIndex = index !== undefined ? index + 1 : options.length;
-    options.splice(insertionIndex, 0, '');
-    localOptions.value = options;
+function addOptionFromInput() {
+    const candidate = normalizeOptionEntry(newOptionInput.value);
+    if (!candidate) {
+        return;
+    }
+
+    if (localOptions.value.includes(candidate)) {
+        newOptionInput.value = '';
+        return;
+    }
+
+    localOptions.value = [...localOptions.value, candidate];
+    newOptionInput.value = '';
 }
 
 function removeOption(index: number) {
-    if (localOptions.value.length <= 1) {
-        localOptions.value = [''];
-        return;
-    }
     const options = [...localOptions.value];
     options.splice(index, 1);
     localOptions.value = options;
@@ -281,15 +293,15 @@ function handleSubmit() {
                             </p>
                             <div class="flex gap-2">
                                 <InputField
-                                    v-model="localOptions[localOptions.length - 1]"
+                                    v-model="newOptionInput"
                                     label=""
                                     placeholder="Agregar valor"
-                                    @keydown.enter.prevent="addOptionAfter()"
+                                    @keydown.enter.prevent="addOptionFromInput"
                                 />
                                 <button
                                     type="button"
                                     class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-slate-500 transition hover:border-primary hover:bg-primary hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                    @click="addOptionAfter(localOptions.length - 1)"
+                                    @click="addOptionFromInput"
                                     aria-label="Agregar valor"
                                 >
                                     <Plus class="h-4 w-4" />

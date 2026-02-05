@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { Role, User } from '@/domain/auth'; // Importar los tipos centralizados
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue'; // Importar el nuevo componente SelectField
-import ContactGroupsSelect from '@/components/ContactGroupsSelect.vue';
+import GroupSelect from '@/components/GroupSelect.vue';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import FormHeader from '@/components/FormHeader.vue';
@@ -170,7 +171,7 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent class="max-h-[90vh] flex flex-col bg-card text-card-foreground w-full max-w-4xl">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
             <TooltipProvider>
             <FormHeader
                 class="flex-shrink-0 pb-2"
@@ -285,8 +286,8 @@ function submitForm() {
                         :disabled="isView"
                     />
                 </div>
-                <!-- Select para roles usando estilo de categorias -->
-                <ContactGroupsSelect
+                <!-- Select para roles -->
+                <GroupSelect
                     v-model="selectedRoles"
                     label="Roles"
                     :options="roleOptions"
@@ -320,14 +321,11 @@ function submitForm() {
                     </Button>
                 </div>
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>
 
 \n
-
-
-
 
 
 

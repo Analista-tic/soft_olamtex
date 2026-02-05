@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import ContactGroupsSelect from '@/components/ContactGroupsSelect.vue';
+import GroupSelect from '@/components/GroupSelect.vue';
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import type { Contact } from '@/domain/purchases';
@@ -176,7 +176,7 @@ const validateField = (field: string) => {
             :searchable="false"
             @input="validateField('contact_type')"
         />
-        <ContactGroupsSelect
+        <GroupSelect
             v-model="internalForm.groups"
             label="Categoría proveedor/cliente"
             :options="groups.map((group) => ({ id: group.id, name: group.name }))"

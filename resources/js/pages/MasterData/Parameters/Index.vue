@@ -128,14 +128,25 @@ function closeDialog() {
 }
 
 function buildPayload(form: ParameterDialogModel) {
-    const rawValue = String(form.value ?? '');
     return {
         key: (form as any).key ?? '',
         label: form.label,
         description: form.description,
-        value: parseValueInput(rawValue),
+        value: normalizeDialogValue(form.value),
         status: form.status,
     };
+}
+
+function normalizeDialogValue(value: unknown) {
+    if (Array.isArray(value)) {
+        return value;
+    }
+
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    return parseValueInput(String(value));
 }
 
 function parseValueInput(rawValue: string) {

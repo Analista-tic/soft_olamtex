@@ -5,7 +5,8 @@ import SelectField from '@/components/SelectField.vue';
 import SizeSelector from '@/components/SizeSelector.vue';
 import SwitchField from '@/components/SwitchField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import type { ProductSheet } from '@/domain/product-sheet';
 import { computed, ref, watch } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
@@ -295,7 +296,7 @@ function handleClose() {
 
 <template>
     <Dialog v-model:open="localDialogOpen" @close="handleClose">
-        <DialogContent class="max-h-[90vh] flex flex-col sm:max-w-4xl">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[150vh] px-2 py-2">
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>
                     {{ props.mode === 'view' ? 'Visualizar' : props.mode === 'edit' ? 'Editar' : 'Crear' }} Sabana de Productos
@@ -396,6 +397,6 @@ function handleClose() {
                     </Button>
                 </div>
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

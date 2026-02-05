@@ -95,11 +95,21 @@ function handleChange(next: Option['id'][] | Option['id']) {
     if (props.disabled) return;
     if (Array.isArray(next)) {
         localValue.value = [...next];
-    } else if (next === undefined || next === null) {
-        localValue.value = [];
-    } else {
-        localValue.value = [next];
+        return;
     }
+    if (next === undefined || next === null) {
+        localValue.value = [];
+        return;
+    }
+    const id = next;
+    const clone = [...localValue.value];
+    const index = clone.findIndex((current) => current === id);
+    if (index >= 0) {
+        clone.splice(index, 1);
+    } else {
+        clone.push(id);
+    }
+    localValue.value = clone;
 }
 
 function removeOption(optionId: Option['id']) {
@@ -115,7 +125,8 @@ const buttonClasses = computed(() => [
         : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500',
 ]);
 
-const pillClasses = 'inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 shadow-sm';
+const pillClasses =
+    'inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 shadow-sm';
 </script>
 
 <template>
@@ -140,7 +151,11 @@ const pillClasses = 'inline-flex items-center gap-1 rounded-full border border-b
                             </template>
                             <template v-else>
                                 <div class="flex flex-wrap gap-1">
-                            <span v-for="option in selectedOptions" :key="String(option.id)" :class="pillClasses">
+                                    <span
+                                        v-for="option in selectedOptions"
+                                        :key="String(option.id)"
+                                        :class="pillClasses"
+                                    >
                                         <span class="truncate max-w-[8rem]">{{ option.name }}</span>
                                         <button
                                             type="button"
@@ -181,7 +196,7 @@ const pillClasses = 'inline-flex items-center gap-1 rounded-full border border-b
                                 <div
                                     :class="[
                                         'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
-                                        active ? 'text-white bg-blue-600' : 'text-gray-900'
+                                        active ? 'text-white bg-blue-600' : 'text-gray-900',
                                     ]"
                                 >
                                     <span :class="selected ? 'font-semibold' : 'font-normal'">

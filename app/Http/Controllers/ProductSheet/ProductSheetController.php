@@ -4,7 +4,7 @@ namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductSheet\ProductSheet;
-use App\Services\ParameterService;
+use App\Services\MasterData\ParameterService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -15,12 +15,13 @@ class ProductSheetController extends Controller
      */
     public function index()
     {
-        $sections = ParameterService::getList('sections');
-        $groups = ParameterService::getList('groups');
-        $brands = ParameterService::getList('brands');
-        $worlds = ParameterService::getList('worlds');
-        $fabricBases = ParameterService::getList('fabric_bases');
-        $yarnBases = ParameterService::getList('yarn_bases');
+        $parameterService = new ParameterService();
+        $sections = $parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'sections')->first()?->value ?? [];
+        $groups = $parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'groups')->first()?->value ?? [];
+        $brands = $parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'brands')->first()?->value ?? [];
+        $worlds = $parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'worlds')->first()?->value ?? [];
+        $fabricBases = $parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'fabric_bases')->first()?->value ?? [];
+        $yarnBases = $parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'yarn_bases')->first()?->value ?? [];
 
         return Inertia::render('ProductSheets/Index', [
             'sections' => $sections,
@@ -106,12 +107,13 @@ class ProductSheetController extends Controller
             $productSheet = ProductSheet::findOrFail($id);
 
             // Cargar los catálogos desde parameters
-            $sections = ParameterService::getList('sections')->keyBy('id');
-            $groups = ParameterService::getList('groups')->keyBy('id');
-            $brands = ParameterService::getList('brands')->keyBy('id');
-            $worlds = ParameterService::getList('worlds')->keyBy('id');
-            $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
-            $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
+            $parameterService = new ParameterService();
+            $sections = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'sections')->first()?->value ?? [])->keyBy('id');
+            $groups = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'groups')->first()?->value ?? [])->keyBy('id');
+            $brands = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'brands')->first()?->value ?? [])->keyBy('id');
+            $worlds = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'worlds')->first()?->value ?? [])->keyBy('id');
+            $fabricBases = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'fabric_bases')->first()?->value ?? [])->keyBy('id');
+            $yarnBases = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'yarn_bases')->first()?->value ?? [])->keyBy('id');
 
             // Enriquecer el producto con los nombres
             $productSheet->section = $sections->get($productSheet->section_id, ['id' => $productSheet->section_id, 'name' => 'N/A']);
@@ -173,12 +175,13 @@ class ProductSheetController extends Controller
         $products_sheets = $query->orderBy('id', 'desc')->paginate(10);
 
         // Cargar los catálogos desde parameters
-        $sections = ParameterService::getList('sections')->keyBy('id');
-        $groups = ParameterService::getList('groups')->keyBy('id');
-        $brands = ParameterService::getList('brands')->keyBy('id');
-        $worlds = ParameterService::getList('worlds')->keyBy('id');
-        $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
-        $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
+        $parameterService = new ParameterService();
+        $sections = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'sections')->first()?->value ?? [])->keyBy('id');
+        $groups = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'groups')->first()?->value ?? [])->keyBy('id');
+        $brands = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'brands')->first()?->value ?? [])->keyBy('id');
+        $worlds = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'worlds')->first()?->value ?? [])->keyBy('id');
+        $fabricBases = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'fabric_bases')->first()?->value ?? [])->keyBy('id');
+        $yarnBases = collect($parameterService->list(['search' => '', 'status' => 'active'])->where('key', 'yarn_bases')->first()?->value ?? [])->keyBy('id');
 
         // Enriquecer los productos con los nombres
         $products_sheets->getCollection()->transform(function ($product) use ($sections, $groups, $brands, $worlds, $fabricBases, $yarnBases) {
