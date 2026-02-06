@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\Setting;
 use App\Services\Settings\SettingService;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\File;
 
 class SettingsFieldParametersSeeder extends Seeder
 {
@@ -17,8 +16,13 @@ class SettingsFieldParametersSeeder extends Seeder
     public function run(): void
     {
         foreach ($this->definitions() as $item) {
+            if ($item['kind'] === 'parameter') {
+                $this->seedParameter($item['key'], $item['data']);
+                continue;
+            }
+
             Setting::updateOrCreate(
-                ['kind' => $item['kind'], 'key' => $this->settingService->canonicalKey($item['key'])],
+                ['kind' => $item['kind'], 'key' => $item['key']],
                 $item['data']
             );
         }
@@ -35,17 +39,6 @@ class SettingsFieldParametersSeeder extends Seeder
                                 'label' => 'Telas',
                                 'value' => $this->mapNames([
                                     'BERMUDA', 'ANTARES', 'SUPERGAROTO', 'TWIZT EIB', 'ACUARIUS', 'ALICANTE PERCHA', 'ALLEGRA', 'AMAZON', 'AMOMIO FETI', 'ANTARTIDA', 'ARMANY', 'ASCALONI REPEL', 'ATENAS', 'AURORA', 'BANANA', 'BEGALINA ', 'BENGALINA', 'BENGALINA BLANCA', 'BENGALINA BUDAPEST', 'BENGALINA BYBLOS', 'BENGALINA CHEV', 'BENGALINA CHEVIOTTO', 'BENGALINA DELUXE', 'BENGALINA EU', 'BENGALINA FRANCE', 'BENGALINA HEAVY', 'BENGALINA HITEX', 'BENGALINA IMP', 'BENGALINA MANCHESTER', 'BENGALINA P.U.', 'BENGALINA PESADA', 'BENGALINA SUBL', 'BENGALINA SUBLI', 'BENGALINA SUPERFLEX', 'BENGALINA TEFFANY', 'BENGALINA TIFFANY', 'BENGALINA YOSHA', 'BENGALINA|', 'BENGALINA--MURANO', 'BENGALINEFRANCE', 'BENGALINFRANCE', 'BEVERLY STEESCH', 'BLAKE', 'BOOGIE', 'BOOMY CAMU', 'BOSSANOVA', 'BOSSE', 'BOSTONFLEX', 'BOSTONIA', 'BOWIE SHELL', 'BUDAPEST', 'BURDA', 'BURDA AFRODITA', 'BURDA ALICANTE', 'BURDA GRANADA', 'BURDA LAURA ', 'BURDA PALERMO', 'BURDA SOUL', 'BURDA SUOL', 'BURSA SOUL', 'BYBLOS', 'CAIROPLUS', 'CARDIGAN RIB', 'CARDIGANRIB', 'CAREBALI', 'CASHMERE', 'CENTA FROZEN', 'CENTAURO', 'CHALIS', 'CHAMBRAY', 'CHENOA', 'CIELO', 'CILIOSUS', 'COQUETA', 'CORDUROY', 'DENIM GINGER ', 'DOLCE', 'DRIL GAMUZADO', 'DRILL 3-755', 'DRILL ALG', 'DRILL ALGADON', 'DRILL ALGODON', 'DRILL AUSTIN', 'DRILL BERLIN', 'DRILL HALCON', 'DRILL INGLES', 'DRILL ROYAL', 'DRILL TWILL', 'DRILLBERLIN', 'DUMAS', 'ENTRETELA', 'ENTRETELA 8035 ', 'ENTRETELA ADHESIVA', 'ENTRETELA GANEMAS', 'EXITO', 'FANTÁSTICA', 'FIORENZO', 'FLATY', 'FLOW', 'FRANELA', 'GRECIA', 'GUANTANAMERA', 'HALCON', 'HARPER', 'HAWKINS', 'HEAVY', 'INDIGO', 'INDIGO MASALA', 'INTERLON ADHESIVO', 'INTERLON PESADO', 'JABÓN', 'JAZMIN', 'JERSEY LICRA', 'JOLLY ', 'KAROL GI', 'KEIRA PLUS', 'KEIRAPLUS', 'KENDALL', 'KOALITA', 'KODIE', 'KOZZA', 'LAS VEGAS NEW PERCHADO', 'LAS VEGAS PERCHADO', 'LATIAN', 'LATIN FLAGE', 'LATIN NEPPY F', 'LATIN NEPPY G', 'LATINA', 'LATTU RAWR', 'LENOVOFLEX', 'LENOVOFLEX ELIT', 'LEONOR', 'LIMON', 'LINO', 'LINO BAHAMAS', 'LINO CAPRI', 'LINO ESPECIAL', 'LINO EU', 'LINO IXTAPA', 'LINO MOJITO', 'LINO REGGAE', 'LONDON MILLENIUM', 'LOTTO', 'LOTTO IMP', 'MALE', 'MALLA ORION', 'MANAGUA', 'MANGLAR', 'MARBELLA', 'METROPOL', 'MICRO COMFORT', 'MICROCOMFORT', 'MICROFIBRA', 'MIEL ', 'MIELERO', 'MILLENIAL', 'MINIMAL', 'MINIWAFER', 'MOLLY', 'MONTEVIDEO', 'MOREL', 'MOSCHINO', 'NAOMI', 'NAUTICA', 'NOORD', 'NOVAK REPEL', 'OLIMPIA', 'PACIFIC PLUS', 'PALACETE', 'PALACETE PERCHA', 'PALADIO', 'PALADIO PERCHA', 'PALADIO PERCHADA', 'PANCAKE', 'PANDERO', 'PARACHUTE', 'PEKIN', 'PERCHADO', 'PIEL DURAZNO', 'PISTACHO', 'POLIBENGALINA', 'PONDEROSA', 'POPELINA LIMÓN', 'PRAGA', 'PRETTY', 'PUNTO BRUSH', 'RAGU', 'RIB 1', 'RIB 2', 'RIB ALICANTE NEWS', 'RIB ALLEGRA', 'RIB ARCOIRIS', 'RIB BRUSH', 'RIB CHENOA', 'RIB DELTA', 'RIB EXITO', 'RIB GUCCI', 'RIB JEREMY ', 'RIB LAS VEGAS NEWS', 'RIB LAUROS', 'RIB LUREX', 'RIB MARBELLA', 'RIB ROSALIA', 'RIB STOP', 'RIB TORONJA', 'RIB TWIZT', 'RIB UNICOLOR', 'RIB VERSACE ', 'RIB1', 'RIB2', 'RIBSIX', 'RODNEY PERCHA', 'ROSELLO PERCHA', 'ROYAL', 'SALOMÉ', 'SALSA ENMALLADA', 'SCALONI REPEL ', 'SERRANO', 'SKIM', 'SMILISH', 'SPECIAL RIB', 'SUAVESTAR', 'SUEÑOS', 'SUPER CHALÍS', 'SUPERGAROTO SILK', 'TABACO', 'TALINA', 'TARMA HABANA', 'TEFANNY', 'TEFFANY', 'TERRY', 'TIFFANY', 'TITANICA', 'TOBAGO', 'TOPACIO', 'TORONJA PERCHADA', 'TORONJA PERCHADO', 'TWILL CALIFORNIA ', 'TWIZT', 'TWIZT RIB', 'UNICOLOR', 'URBAAN SMILE', 'VALENTINA', 'VALERY', 'VEGAS NEW', 'VEGAS NEWS', 'VISCOSA', 'VULGO',
-                                ]),
-                                'status' => true,
-                            ],
-                        ],
-                        [
-                            'kind' => 'parameter',
-                            'key' => 'base_fabrics',
-                            'data' => [
-                                'label' => 'Bases de tela',
-                                'value' => $this->mapNames([
-                                    'ANTIFLUIDO', 'BARICHARA', 'BENGALINA', 'BURDA', 'BYBLOS', 'CACHEMIRE', 'CHALÍS', 'CHAMBRAY', 'CORDUROY', 'CREPÉ', 'DACRON', 'DENIM', 'DRIL', 'ENTRETELA', 'ESCUBA', 'FALSO LINO', 'FLEECE', 'FRANELA', 'GAMUZA', 'INDIGO', 'JERSEY', 'LINO', 'LYCRA', 'MALLA', 'MARBELLA', 'NYLON', 'PERCHA', 'PIEL DURAZNO', 'POLILYCRA', 'PLASTICO MINIMAL', 'POLIBENGALINA', 'POPELINA', 'PUNTIROMA', 'RIB', 'SOLAR RECYCLED', 'TEJIDO', 'TWILL', 'VISCOSA',
                                 ]),
                                 'status' => true,
                             ],
@@ -274,6 +267,29 @@ class SettingsFieldParametersSeeder extends Seeder
                     'status' => true,
                 ],
             ],
+            [
+                'kind' => 'parameter',
+                'key' => 'months',
+                'data' => [
+                    'label' => 'Meses',
+                    'value' => $this->mapNames([
+                        'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+                        'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'priorities',
+                'data' => [
+                    'label' => 'Prioridades',
+                    'value' => $this->mapNames([
+                        'A', 'B', 'C', 'D',
+                    ]),
+                    'status' => true,
+                ],
+            ],
         ];
 
         // Definiciones de campos
@@ -314,6 +330,63 @@ class SettingsFieldParametersSeeder extends Seeder
         ];
 
         return array_merge($parameters, $fields);
+    }
+
+    private function seedParameter(string $key, array $data): void
+    {
+        $canonicalKey = $this->settingService->canonicalKey($key);
+        $payload = array_merge($data, ['status' => $data['status'] ?? true]);
+        $existing = $this->existingAliasFor($canonicalKey);
+
+        if ($existing) {
+            $payload['value'] = $existing->value ?? $payload['value'] ?? [];
+            $payload['label'] = $existing->label ?? $payload['label'] ?? null;
+            if ($existing->description !== null) {
+                $payload['description'] = $existing->description;
+            }
+        }
+
+        Setting::updateOrCreate(
+            ['kind' => 'parameter', 'key' => $canonicalKey],
+            $payload
+        );
+
+        $this->pruneAliasKeys($canonicalKey);
+    }
+
+    private function existingAliasFor(string $canonical): ?Setting
+    {
+        $keys = $this->aliasMap()[$canonical] ?? [$canonical];
+        return Setting::parameters()->whereIn('key', $keys)->first();
+    }
+
+    private function pruneAliasKeys(string $canonical): void
+    {
+        $keys = $this->aliasMap()[$canonical] ?? [];
+        if (empty($keys)) {
+            return;
+        }
+
+        Setting::parameters()
+            ->whereIn('key', $keys)
+            ->where('key', '<>', $canonical)
+            ->delete();
+    }
+
+    private function aliasMap(): array
+    {
+        return [
+            'sections' => ['sections', 'secciones', 'seccion', 'section'],
+            'groups' => ['groups', 'grupos', 'grupo', 'group'],
+            'brands' => ['brands', 'marcas', 'marca', 'brand'],
+            'worlds' => ['worlds', 'mundos', 'mundo', 'world'],
+            'fabric_bases' => ['fabric_bases', 'base', 'bases', 'bases_de_tela', 'base_fabrics'],
+            'yarn_bases' => ['yarn_bases', 'bases_hilaza', 'bases_hilo'],
+            'sizes' => ['sizes', 'tallas', 'talla'],
+            'destinations' => ['destinations', 'destinos', 'destino'],
+            'months' => ['months', 'meses', 'mes'],
+            'priorities' => ['priorities', 'prioridades', 'prioridad'],
+        ];
     }
 
     private function mapNames(array $names, int $start = 1): array

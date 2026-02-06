@@ -8,15 +8,17 @@ use Illuminate\Support\Collection;
 class SettingService
 {
     private const CATALOG_KEY_ALIASES = [
-        'sections' => ['sections', 'secciones', 'seccion', 'secciones', 'section'],
+        'sections' => ['sections', 'secciones', 'seccion', 'section'],
         'groups' => ['groups', 'grupos', 'grupo', 'group'],
         'brands' => ['brands', 'marcas', 'marca', 'brand'],
         'worlds' => ['worlds', 'mundos', 'mundo', 'world'],
-        'fabric_bases' => ['fabric_bases', 'bases_de_tela', 'bases', 'base'],
+        'fabric_bases' => ['fabric_bases', 'bases_de_tela', 'bases', 'base', 'base_fabrics'],
         'yarn_bases' => ['yarn_bases', 'bases_hilaza', 'bases_hilo'],
         'sizes' => ['sizes', 'tallas', 'talla'],
         'lines' => ['lines', 'lineas', 'linea'],
         'destinations' => ['destinations', 'destinos', 'destino'],
+        'months' => ['months', 'meses', 'mes'],
+        'priorities' => ['priorities', 'prioridades', 'prioridad'],
     ];
 
     /**

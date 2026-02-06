@@ -5,7 +5,8 @@ import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
+import type { ProductSheet, Programmer } from '@/domain/product-sheet';
+import type { Option } from '@/domain/shared/types';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -20,19 +21,21 @@ const emit = defineEmits(['programmerCreated']);
 
 const props = defineProps<{
     productSheets: ProductSheet[];
-    destinations: OptionParams[];
-    sections: OptionParams[];
-    groups: OptionParams[];
-    brands: OptionParams[];
-    worlds: OptionParams[];
-    fabricBases: OptionParams[];
-    yarnBases: OptionParams[];
+    destinations: Option[];
+    sections: Option[];
+    groups: Option[];
+    brands: Option[];
+    worlds: Option[];
+    fabricBases: Option[];
+    yarnBases: Option[];
+    months: Option[];
+    priorities: Option[];
 }>();
 
 // Constants
 type AlertType = 'success' | 'error' | 'info' | 'warning';
 
-const MONTHS = [
+const MONTHS: Option[] = [
     { id: 'ENERO', name: 'ENERO' },
     { id: 'FEBRERO', name: 'FEBRERO' },
     { id: 'MARZO', name: 'MARZO' },
@@ -45,14 +48,14 @@ const MONTHS = [
     { id: 'OCTUBRE', name: 'OCTUBRE' },
     { id: 'NOVIEMBRE', name: 'NOVIEMBRE' },
     { id: 'DICIEMBRE', name: 'DICIEMBRE' },
-] as const;
+];
 
-const PRIORITIES = [
+const PRIORITIES: Option[] = [
     { id: 'A', name: 'A' },
     { id: 'B', name: 'B' },
     { id: 'C', name: 'C' },
     { id: 'D', name: 'D' },
-] as const;
+];
 
 const ALERT_TITLES: Record<AlertType, string> = {
     warning: 'Advertencia',
@@ -60,6 +63,14 @@ const ALERT_TITLES: Record<AlertType, string> = {
     info: 'Información',
     error: 'Error',
 };
+
+const monthOptions = computed<Option[]>(() => {
+    return Array.isArray(props.months) && props.months.length > 0 ? props.months : MONTHS;
+});
+
+const priorityOptions = computed<Option[]>(() => {
+    return Array.isArray(props.priorities) && props.priorities.length > 0 ? props.priorities : PRIORITIES;
+});
 
 // State
 const isDialogOpen = ref(false);
@@ -71,6 +82,7 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 // Alert state
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
+const hasAttemptedSave = ref(false);
 
 // Alert functions
 function setAlert(message: string, type: AlertType = 'info'): void {
@@ -120,16 +132,14 @@ const lotsCountModel = computed<string | number>({
 });
 
 const productSheetOptions = computed(() =>
-    productSheets.value.map(sheet => ({ id: sheet.id, name: sheet.reference }))
+    productSheetList.value.map(sheet => ({ id: sheet.id, name: sheet.reference }))
 );
 
 const selectedProductSheet = computed(() => {
-    return productSheets.value.find(sheet => sheet.id === form.value.productSheetId) || null;
+    return productSheetList.value.find(sheet => sheet.id === form.value.productSheetId) || null;
 });
 
-const destinationOptions = computed(() =>
-    props.destinations.map(destination => ({ id: destination.id, name: destination.name }))
-);
+const destinationOptions = computed<Option[]>(() => props.destinations);
 
 function generateLots(): void {
     // Validar cantidad de lotes
@@ -186,6 +196,7 @@ function validateForm(): void {
 }
 
 function createProgrammer(): void {
+    hasAttemptedSave.value = true;
     // Validar que existan lotes
     if (lotsForm.value.length === 0) {
         setAlert('Debes generar al menos un lote antes de guardar.', 'warning');
@@ -254,6 +265,7 @@ function resetForm(): void {
     productSheetDialogOpen.value = false;
     dialogInnerRef.value = null;
     clearAlert();
+    hasAttemptedSave.value = false;
 }
 
 function closeDialog(): void {
@@ -263,7 +275,7 @@ function closeDialog(): void {
 
 const allProductSheets = ref<ProductSheet[]>([...props.productSheets]);
 
-const productSheets = computed(() => allProductSheets.value);
+const productSheetList = computed(() => allProductSheets.value);
 
 watch(
     () => form.value.productSheetId,
@@ -314,6 +326,29 @@ function validateLotField(lotIndex: number): void {
     } else if (existingErrorIndex >= 0) {
         formErrors.value.splice(existingErrorIndex, 1);
     }
+}
+
+function resolveEcommerceValues(value?: string | Record<string, number> | null): Record<string, number> | null {
+    if (!value) {
+        return null;
+    }
+
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            if (parsed && typeof parsed === 'object') {
+                return parsed as Record<string, number>;
+            }
+        } catch {
+            return null;
+        }
+    }
+
+    if (typeof value === 'object') {
+        return value as Record<string, number>;
+    }
+
+    return null;
 }
 
 function addProductSheet(response: { success: boolean; message: string; data: ProductSheet } | undefined): void {
@@ -486,7 +521,7 @@ function handleLotsCountInput(event: Event): void {
                     </div>
                 </div>
                 
-                <div v-if="formErrors.length > 0" class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded mb-4 mt-4">
+                <div v-if="hasAttemptedSave && formErrors.length > 0" class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded mb-4 mt-4">
                     <div class="flex items-start">
                         <div class="flex-shrink-0">
                             <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
@@ -530,10 +565,10 @@ function handleLotsCountInput(event: Event): void {
                             <td class="px-4 py-4 border whitespace-nowrap">MF300{{ index + 1 }}</td>
                             <td class="px-4 py-4 border">{{ lot.product_sheet_id }}</td>
                             <td class="px-4 py-4 border" style="min-width: 180px;">
-                                <SelectField
-                                    v-model="lot.season"
-                                    :options="MONTHS"
-                                    label=""
+                            <SelectField
+                                v-model="lot.season"
+                                :options="monthOptions"
+                                label=""
                                     :aria-label="`Temporada para lote ${index + 1}`"
                                     :class="{ 'border-red-500': !lot.season }"
                                     @update:modelValue="validateLotField(index)"
@@ -550,10 +585,10 @@ function handleLotsCountInput(event: Event): void {
                                 />
                             </td>
                             <td class="px-4 py-4 border" style="min-width: 150px;">
-                                <SelectField
-                                    v-model="lot.priority"
-                                    :options="PRIORITIES"
-                                    label=""
+                            <SelectField
+                                v-model="lot.priority"
+                                :options="priorityOptions"
+                                label=""
                                     :aria-label="`Prioridad para lote ${index + 1}`"
                                     :class="{ 'border-red-500': !lot.priority }"
                                     @update:modelValue="validateLotField(index)"
@@ -574,29 +609,29 @@ function handleLotsCountInput(event: Event): void {
                                 />
                             </td>
                             <td class="px-4 py-4 border" style="min-width: 180px;">
-                                <InputField
-                                    :model-value="lot.units"
-                                    @update:model-value="(value) => {
-                                        // Convertir a número y validar
-                                        const numValue = value === '' || value === null || value === undefined 
-                                            ? null 
-                                            : Number(value);
-                                        lot.units = numValue && !isNaN(numValue) ? Math.max(1, Math.floor(numValue)) : null;
-                                        validateLotField(index);
-                                    }"
-                                    label=""
-                                    placeholder="Unds. a programar"
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    :aria-label="`Unidades para lote ${index + 1}`"
-                                    :class="{ 'border-red-500': !lot.units || lot.units <= 0 }"
-                                />
+                    <InputField
+                        :model-value="lot.units ?? undefined"
+                        @update:model-value="(value) => {
+                            const rawValue = typeof value === 'string' ? value.trim() : value;
+                            const numValue = rawValue === '' || rawValue === null || rawValue === undefined
+                                ? null
+                                : Number(rawValue);
+                            lot.units = numValue && !Number.isNaN(numValue) ? Math.max(1, Math.floor(numValue)) : null;
+                            validateLotField(index);
+                        }"
+                        label=""
+                        placeholder="Unds. a programar"
+                        type="number"
+                        min="1"
+                        step="1"
+                        :aria-label="`Unidades para lote ${index + 1}`"
+                        :class="{ 'border-red-500': !lot.units || lot.units <= 0 }"
+                    />
                             </td>
                             <td v-if="lot.isEcommerce" class="px-4 py-4 border text-center">
-                                <EcommerceSizesDialog
-                                    :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet?.reference || '' }"
-                                    :existingValues="lot.ecommerce_units"
+                                    <EcommerceSizesDialog
+                                        :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet?.reference || '' }"
+                                        :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
                                     @sizesUpdated="(data) => {
                                         // Asegurar que los valores sean números y no null
                                         if (data?.sizes && Object.keys(data.sizes).length > 0) {

@@ -66,7 +66,7 @@ const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isGroupFilterActive = computed(() => selectedGroup.value != null);
+const isGroupFilterActive = computed(() => selectedGroup.value !== '' && selectedGroup.value != null);
 const groupFilterButtonClasses = useFilterButtonClasses(isGroupFilterActive);
 const groupOptions = computed<Option[]>(() => [
     { id: '', name: 'Todos los grupos' },

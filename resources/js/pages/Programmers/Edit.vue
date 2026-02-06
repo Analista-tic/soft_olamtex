@@ -139,6 +139,29 @@ function validateFields(): boolean {
     return true;
 }
 
+function resolveEcommerceValues(value?: string | Record<string, number> | null): Record<string, number> | null {
+    if (!value) {
+        return null;
+    }
+
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            if (parsed && typeof parsed === 'object') {
+                return parsed as Record<string, number>;
+            }
+        } catch {
+            return null;
+        }
+    }
+
+    if (typeof value === 'object') {
+        return value;
+    }
+
+    return null;
+}
+
 /**
  * Función para guardar los cambios realizados en el programador.
  */
@@ -324,19 +347,19 @@ async function saveChanges() {
                             aria-label="Ayuda sobre e-commerce"
                         />
                     </div>
-                    <EcommerceSizesDialog
-                        :productSheet="{
-                            sizes: productSheets.find(ps => ps.id === programmer.product_sheet_id)?.sizes || '{}',
-                            reference: getReferenceName(programmer.product_sheet_id)
-                        }"
-                        :existingValues="programmer.ecommerce_units"
-                        :readonly="isReadOnly"
-                        @sizesUpdated="(data) => {
-                            if (!isReadOnly) {
-                                programmer.ecommerce_units = data.sizes;
-                            }
-                        }"
-                    />
+    <EcommerceSizesDialog
+        :productSheet="{
+            sizes: productSheets.find(ps => ps.id === programmer.product_sheet_id)?.sizes || '{}',
+            reference: getReferenceName(programmer.product_sheet_id)
+        }"
+        :existingValues="resolveEcommerceValues(programmer.ecommerce_units)"
+        :readonly="isReadOnly"
+        @sizesUpdated="(data) => {
+            if (!isReadOnly) {
+                programmer.ecommerce_units = data.sizes;
+            }
+        }"
+    />
                 </div>
             </div>
             </div>

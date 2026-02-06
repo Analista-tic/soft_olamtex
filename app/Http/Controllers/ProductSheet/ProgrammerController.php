@@ -24,6 +24,8 @@ class ProgrammerController extends Controller
         'fabric_bases',
         'yarn_bases',
         'destinations',
+        'months',
+        'priorities',
     ];
 
     public function __construct(private SettingService $settingService)
@@ -67,6 +69,8 @@ class ProgrammerController extends Controller
             'worlds' => $worlds->values()->all(),
             'fabricBases' => $fabricBases->values()->all(),
             'yarnBases' => $yarnBases->values()->all(),
+            'months' => $catalogs['months']->values()->all(),
+            'priorities' => $catalogs['priorities']->values()->all(),
         ]);
     }
 
