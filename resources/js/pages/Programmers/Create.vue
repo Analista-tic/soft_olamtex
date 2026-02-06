@@ -75,9 +75,17 @@ const priorityOptions = computed<Option[]>(() => {
 // State
 const isDialogOpen = ref(false);
 const productSheetDialogOpen = ref(false);
-const lotsForm = ref<Array<Partial<Programmer>>>([]);
+type ProgrammerLotForm = Partial<Programmer> & { unitsInput?: string };
+const lotsForm = ref<Array<ProgrammerLotForm>>([]);
 const formErrors = ref<{ lotIndex: number; fields: string[] }[]>([]);
 const dialogInnerRef = ref<HTMLElement | null>(null);
+const saveDisabled = computed(() => formErrors.value.length > 0);
+const missingFieldsSummary = computed(() => {
+    if (formErrors.value.length === 0) return '';
+    return formErrors.value
+        .map((error) => `Lote ${error.lotIndex + 1}: ${error.fields.join(', ')}`)
+        .join(' • ');
+});
 
 // Alert state
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
@@ -170,6 +178,7 @@ function generateLots(): void {
         isEcommerce: false,
         ecommerce_units: null,
         units: null,
+        unitsInput: '',
     }));
 }
 
@@ -266,6 +275,16 @@ function resetForm(): void {
     dialogInnerRef.value = null;
     clearAlert();
     hasAttemptedSave.value = false;
+}
+
+function parseUnitsInput(value: string | number | null | undefined): number | null {
+    if (value === null || value === undefined) return null;
+    const raw = typeof value === 'string' ? value.trim() : String(value);
+    if (raw === '') return null;
+    const numeric = Number(raw.replace(/[^0-9.]/g, ''));
+    if (!Number.isFinite(numeric)) return null;
+    const positive = Math.max(1, Math.floor(numeric));
+    return Number.isFinite(positive) ? positive : null;
 }
 
 function closeDialog(): void {
@@ -555,8 +574,8 @@ function handleLotsCountInput(event: Event): void {
                             <th class="px-4 py-3 border font-semibold">Temporada</th>
                             <th class="px-4 py-3 border font-semibold">Destino</th>
                             <th class="px-4 py-3 border font-semibold">Prioridad</th>
-                            <th class="px-4 py-3 border font-semibold">E-commerce?</th>
-                            <th class="px-4 py-3 border font-semibold">Cant. Almacenes</th>
+                            <th class="px-4 py-3 border font-semibold">E-commerce (opcional)</th>
+                            <th class="px-4 py-3 border font-semibold">Unidades</th>
                             <th v-if="lotsForm.some(lot => lot.isEcommerce)" class="px-4 py-3 border font-semibold">Cant. E-commerce</th>
                         </tr>
                     </thead>
@@ -585,14 +604,14 @@ function handleLotsCountInput(event: Event): void {
                                 />
                             </td>
                             <td class="px-4 py-4 border" style="min-width: 150px;">
-                            <SelectField
-                                v-model="lot.priority"
-                                :options="priorityOptions"
-                                label=""
-                                    :aria-label="`Prioridad para lote ${index + 1}`"
-                                    :class="{ 'border-red-500': !lot.priority }"
-                                    @update:modelValue="validateLotField(index)"
-                                />
+                    <SelectField
+                        v-model="lot.priority"
+                        :options="priorityOptions"
+                        label=""
+                        :aria-label="`Prioridad para lote ${index + 1}`"
+                        :class="{ 'border-red-500': !lot.priority }"
+                        @update:modelValue="validateLotField(index)"
+                    />
                             </td>
                             <td class="px-4 py-4 border text-center">
                                 <input 
@@ -610,17 +629,16 @@ function handleLotsCountInput(event: Event): void {
                             </td>
                             <td class="px-4 py-4 border" style="min-width: 180px;">
                     <InputField
-                        :model-value="lot.units ?? undefined"
-                        @update:model-value="(value) => {
-                            const rawValue = typeof value === 'string' ? value.trim() : value;
-                            const numValue = rawValue === '' || rawValue === null || rawValue === undefined
-                                ? null
-                                : Number(rawValue);
-                            lot.units = numValue && !Number.isNaN(numValue) ? Math.max(1, Math.floor(numValue)) : null;
+                        :model-value="lot.unitsInput ?? ''"
+                        inputmode="numeric"
+                        @update:modelValue="(value) => {
+                            const normalizedRaw = typeof value === 'string' ? value : String(value);
+                            lot.unitsInput = normalizedRaw;
+                            lot.units = parseUnitsInput(normalizedRaw);
                             validateLotField(index);
                         }"
                         label=""
-                        placeholder="Unds. a programar"
+                        placeholder="Unidades a programar"
                         type="number"
                         min="1"
                         step="1"
@@ -657,22 +675,27 @@ function handleLotsCountInput(event: Event): void {
             </TooltipProvider>
 
             <!-- Botones flotantes en la esquina inferior derecha -->
-            <div class="absolute bottom-0 right-0 left-0 bg-white border-t shadow-lg px-6 py-4 flex items-center justify-end gap-3 rounded-b-[24px]">
-                <button
-                    type="button"
-                    class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                    @click="closeDialog"
-                >
-                    Cancelar
-                </button>
-                <Button
-                    type="button"
-                    class="flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold shadow-sm"
-                    :disabled="formErrors.length > 0"
-                    @click="createProgrammer"
-                >
-                    Guardar
-                </Button>
+            <div class="absolute bottom-0 right-0 left-0 bg-white border-t shadow-lg px-6 py-4 flex flex-col gap-2 items-end rounded-b-[24px]">
+                <div class="flex items-center justify-end gap-3 w-full max-w-lg">
+                    <button
+                        type="button"
+                        class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="closeDialog"
+                    >
+                        Cancelar
+                    </button>
+                    <Button
+                        type="button"
+                        class="flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold shadow-sm"
+                        :disabled="saveDisabled"
+                        @click="createProgrammer"
+                    >
+                        Guardar
+                    </Button>
+                </div>
+                <p v-if="saveDisabled" class="text-xs text-rose-600 text-right">
+                    Campos incompletos: {{ missingFieldsSummary }}
+                </p>
             </div>
         </FormDialogContent>
     </Dialog>
