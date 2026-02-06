@@ -2,7 +2,8 @@
 import InputField from '@/components/InputField.vue';
 // ...existing code...
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { ref, watch } from 'vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -170,7 +171,7 @@ function handleCheckboxChange(event: Event, module: string): void {
 
 <template>
     <Dialog v-model:open="localIsOpen">
-        <DialogContent class="max-h-[90vh] flex flex-col w-[90vw] max-w-4xl">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[150vh] px-2 py-2">
             <TooltipProvider>
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ role?.id ? 'Editar Rol' : 'Crear Rol' }}</DialogTitle>
@@ -254,7 +255,7 @@ function handleCheckboxChange(event: Event, module: string): void {
             </form>
             </div>
             </TooltipProvider>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>
 

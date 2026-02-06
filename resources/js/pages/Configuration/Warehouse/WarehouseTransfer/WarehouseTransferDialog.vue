@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Button } from '@/components/ui/button';
 import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
@@ -421,7 +422,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 
 <template>
 	<Dialog :open="open" @update:open="val => (val ? emit('update:open', val) : closeDialog())">
-		<DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+		<FormDialogContent class="flex flex-col max-h-[98vh] max-w-[150vh] px-2 py-2">
 			<DialogHeader class="flex-shrink-0">
 				<DialogTitle>{{ dialogTitle }}</DialogTitle>
 				<DialogDescription class="pb-2">
@@ -454,7 +455,7 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 				</div>
 				<TooltipProvider>
 					<div class="space-y-4 pt-4">
-						<div class="rounded-2xl border border-border/60 bg-white px-6 py-6 shadow-sm shadow-muted/50">
+						<div>
 							<div class="grid gap-6 lg:grid-cols-[1.15fr,1fr] items-start">
 								<div class="space-y-4">
 									<div class="space-y-1">
@@ -622,6 +623,6 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 					</button>
 				</div>
 			</DialogFooter>
-		</DialogContent>
+		</FormDialogContent>
 	</Dialog>
 </template>

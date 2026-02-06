@@ -3,7 +3,8 @@ import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
@@ -365,7 +366,7 @@ function handleLotsCountInput(event: Event): void {
                 Nuevo Programador
             </Button>
         </DialogTrigger>
-        <DialogContent class="sm:max-w-[90vw] h-[90vh] flex flex-col p-0 gap-0">
+        <FormDialogContent class="flex flex-col max-h-[200vh] max-w-[200vh] px-2 py-2">
             <DialogHeader class="flex-shrink-0 px-6 pt-6 pb-4">
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
@@ -638,6 +639,6 @@ function handleLotsCountInput(event: Event): void {
                     Guardar
                 </Button>
             </div>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

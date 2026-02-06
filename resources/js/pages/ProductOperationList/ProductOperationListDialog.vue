@@ -2,7 +2,8 @@
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Plus, GripVertical, Pencil, Check, X } from 'lucide-vue-next';
 import { ref, computed, watch, PropType } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
@@ -339,7 +340,7 @@ function resetForm() {
 
 <template>
     <Dialog v-model:open="localOpen">
-        <DialogContent class="max-w-6xl max-h-[90vh] flex flex-col">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[160vh] px-2 py-2">
             <DialogHeader class="space-y-1 flex-shrink-0">
                 <DialogTitle class="text-lg font-semibold text-foreground">
                     {{ isEditMode ? 'Editar listado operacional' : 'Listado operacional' }}
@@ -639,6 +640,6 @@ function resetForm() {
                     Guardar listado ({{ operationList.length }})
                 </Button>
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

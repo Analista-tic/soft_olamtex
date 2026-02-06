@@ -154,17 +154,17 @@ function submitForm() {
         return;
     }
 
-    const roleNames = selectedRoles.value
-        .map((selectedId) => props.roles.find((role) => getRoleKey(role) == selectedId)?.name)
-        .filter((name): name is string => Boolean(name));
+    const selectedRoleObjects = selectedRoles.value
+        .map((selectedId) => props.roles.find((role) => getRoleKey(role) == selectedId))
+        .filter((role): role is Role => Boolean(role));
 
-    if (!roleNames.length) {
-        errorMessage.value = 'Selecciona al menos un rol valido.';
+    if (!selectedRoleObjects.length) {
+        errorMessage.value = 'Selecciona al menos un rol válido.';
         return;
     }
 
-    // Envía solo los nombres de los roles seleccionados
-    emit('submit', { ...form.value, roles: roleNames });
+    // Envía los objetos Role completos
+    emit('submit', { ...form.value, roles: selectedRoleObjects });
     errorMessage.value = '';
 }
 </script>

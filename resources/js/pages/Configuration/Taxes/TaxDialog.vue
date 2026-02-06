@@ -55,7 +55,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-        <FormDialogContent>
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
             <DialogHeader>
                 <DialogTitle>
                     {{ props.dialogType === 'create' ? 'Crear Impuesto' : 'Editar Impuesto' }}
@@ -64,7 +64,7 @@ function handleSubmit() {
                     Completa los campos para {{ props.dialogType === 'create' ? 'crear' : 'editar' }} un impuesto.
                 </DialogDescription>
             </DialogHeader>
-            <div class="space-y-4">
+            <div class="space-y-4 pt-2">
                 <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre del impuesto" required />
                 <InputField label="Porcentaje" v-model="localForm.percentage" type="number" min="0" max="100" required />
                 <SelectField

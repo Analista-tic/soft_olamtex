@@ -50,6 +50,8 @@ const modules = [
         title: 'Financiero',
         description: 'Núcleo contable y fiscal.',
         options: [
+            { name: 'Impuestos', href: '/impuestos' },
+            { name: 'Retenciones', href: '/retenciones' },
             { name: 'Bancos', href: underConstructionHref('Bancos') },
             { name: 'Numeraciones de documentos', href: underConstructionHref('Numeraciones de documentos') },
         ],
@@ -58,11 +60,12 @@ const modules = [
         title: 'Inventarios',
         description: 'Control físico y financiero del stock.',
         options: [
+            { name: 'Solicitudes internas por área', href: '/inventario/solicitudes-internas' },
+            { name: 'Bodegas', href: '/bodegas' },
+            { name: 'Inventario de Ítems', href: '/inventario-item' },
             { name: 'Movimientos de inventario', href: '/inventario/item' },
             { name: 'Ajustes', href: '/inventario/ajuste-inventario' },
-            { name: 'Inventario de Ítems', href: '/inventario-item' },
-            { name: 'Traslados / Transferencias de bodegas', href: underConstructionHref('Traslados de bodegas') },
-            { name: 'Solicitudes internas por área', href: '/inventario/solicitudes-internas' },
+            
         ],
     },
     {

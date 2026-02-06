@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import Label from '@/components/ui/label/Label.vue';
@@ -53,7 +54,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <DialogContent class="w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>
                     {{ dialogType === 'create' ? 'Crear Bodega' : 'Editar Bodega' }}
@@ -109,6 +110,6 @@ function handleSubmit() {
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                 </button>
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

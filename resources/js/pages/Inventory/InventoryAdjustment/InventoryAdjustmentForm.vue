@@ -494,7 +494,7 @@ async function handleSubmit() {
 
         <div class="overflow-y-auto flex-1 px-4 scroll-smooth" style="scrollbar-width: thin;">
         <form class="space-y-4" novalidate @submit.prevent="handleSubmit">
-          <div class="rounded-xl border border-sidebar-border/70 bg-white p-4 dark:border-sidebar-border">
+          <div >
             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
                 <Label># Documento</Label>
