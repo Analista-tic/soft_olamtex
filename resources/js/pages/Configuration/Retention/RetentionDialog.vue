@@ -4,21 +4,22 @@ import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogDescription } fr
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import type { Retention } from '@/domain/shared';
 
 const props = defineProps<{
     open: boolean;
     dialogType: 'create' | 'edit';
-    form: any;
+    form: Retention;
     loading: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:open', value: boolean): void;
-    (e: 'submit', value: any): void;
+    (e: 'submit', value: Retention): void;
     (e: 'cancel'): void;
 }>();
 
-const localForm = ref<any>({ ...props.form });
+const localForm = ref<Retention>({ ...props.form });
 
 watch(
     () => props.form,

@@ -1,9 +1,8 @@
+@import './scroll-improvements.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Mejoras de scroll personalizadas */
-@import './scroll-improvements.css';
 
 body,
 html {

@@ -4,8 +4,7 @@ namespace App\Http\Controllers\Common;
 
 use App\Http\Controllers\Controller;
 use App\Models\Common\Contact;
-use App\Models\Expenses\PurchaseInvoice;
-use App\Models\Expenses\PurchaseOrder;
+use App\Models\Expenses\PurchaseDocument;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -189,9 +188,8 @@ class ContactController extends Controller
 
     private function hasActiveAssociations(Contact $contact): bool
     {
-        $hasOrders = PurchaseOrder::where('contact_id', $contact->id)->whereNull('deleted_at')->exists();
-        $hasInvoices = PurchaseInvoice::where('contact_id', $contact->id)->whereNull('deleted_at')->exists();
-
-        return $hasOrders || $hasInvoices;
+        return PurchaseDocument::where('contact_id', $contact->id)
+            ->whereNull('deleted_at')
+            ->exists();
     }
 }

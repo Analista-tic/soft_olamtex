@@ -52,13 +52,19 @@ export interface PurchaseOrder {
     items: PurchaseOrderItem[];
     created_at?: string;
     updated_at?: string;
-    status?: string;
+    status?: 'pending' | 'approved' | 'sent' | 'invoiced' | 'rejected';
+    approved_by_user_id?: number | null;
+    approved_at?: string | null;
+    rejected_by_user_id?: number | null;
+    rejected_at?: string | null;
+    rejection_reason?: string | null;
 }
 
 export interface PurchaseInvoiceWithholding {
     name: string;
     percentage: number;
-    base_amount: number;
+    /** Base de la retención; si es null/omitido se asume el subtotal de la factura. */
+    base_amount?: number | null;
 }
 
 export interface PurchaseInvoiceItem {
@@ -91,7 +97,7 @@ export interface PurchaseInvoice {
     parent?: { document_number?: string | null };
     supplier_invoice_number?: string;
     description?: string;
-    status?: string;
+    status?: 'pending_receipt' | 'received' | 'approved' | 'rejected';
     items: PurchaseInvoiceItem[];
     created_at?: string;
     updated_at?: string;
@@ -99,6 +105,9 @@ export interface PurchaseInvoice {
     withholdings?: PurchaseInvoiceWithholding[];
     reason?: string | null;
     evidence_path?: string | null;
+    rejected_by_user_id?: number | null;
+    rejected_at?: string | null;
+    rejection_reason?: string | null;
 }
 
 export interface PurchaseRequestItem {
@@ -117,22 +126,41 @@ export interface PurchaseRequest {
     id?: number;
     request_number?: string;
     date?: string;
-    provider?: Contact;
+    provider_name?: string | null;
     requester?: { name?: string };
     estimated_amount?: number | null;
     description?: string;
-    status?: string;
+    status?: 'draft' | 'pending' | 'approved' | 'processed' | 'rejected' | 'cancelled';
     items?: PurchaseRequestItem[];
+    document_path?: string | null;
+    destination?: string | null;
+    // Campos de aprobación
+    approved_by_user_id?: number | null;
+    approved_by?: { name?: string };
+    approved_at?: string | null;
+    // Campos de rechazo
+    rejected_by_user_id?: number | null;
+    rejected_by?: { name?: string };
+    rejected_at?: string | null;
+    rejection_reason?: string | null;
+    // Métodos de validación (vienen del backend)
+    canEdit?: () => boolean;
+    canApprove?: () => boolean;
+    canReject?: () => boolean;
+    canSendToApproval?: () => boolean;
+    canCancel?: () => boolean;
 }
 
 export interface PurchaseRequestForm {
     id?: number;
     request_number: string;
-    contact_id: number | string | null;
+    provider_name: string | null;
     requester_user_id: number | null;
     date: string;
     estimated_amount: number | null;
     description: string;
     items: PurchaseRequestItem[];
     status?: string | null;
+    document_path?: string | null;
+    destination?: string | null;
 }

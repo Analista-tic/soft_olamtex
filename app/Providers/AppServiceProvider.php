@@ -11,8 +11,6 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
-use App\Models\Expenses\PurchaseOrder;
-use App\Models\Expenses\PurchaseInvoice;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Inventory\Item;
 use App\Models\Settings\CompanySetting;
@@ -21,6 +19,7 @@ use App\Models\User;
 use App\Observers\AuditObserver;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Observers\PurchaseDocumentInventoryObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -43,8 +42,6 @@ class AppServiceProvider extends ServiceProvider
 
         //se debe agregar un observer para cada modelo que se quiera auditar
         PurchaseRequest::observe(AuditObserver::class);
-        PurchaseOrder::observe(AuditObserver::class);
-        PurchaseInvoice::observe(AuditObserver::class);
         Item::observe(AuditObserver::class);
         User::observe(AuditObserver::class);
         CategoryGroup::observe(AuditObserver::class);
@@ -55,6 +52,7 @@ class AppServiceProvider extends ServiceProvider
         CompanySetting::observe(AuditObserver::class);
         Retention::observe(AuditObserver::class);
         PurchaseDocument::observe(AuditObserver::class);
+        PurchaseDocument::observe(PurchaseDocumentInventoryObserver::class);
         PurchaseDocumentItem::observe(AuditObserver::class);
     }
 

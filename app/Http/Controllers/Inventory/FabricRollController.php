@@ -13,6 +13,7 @@ use App\Services\Inventory\FabricRollService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -118,12 +119,12 @@ class FabricRollController extends Controller
 
     public function reception()
     {
-        return Inertia::render('KardexFabric/Reception');
+        return Inertia::render('Expenses/Reception/Reception');
     }
 
     public function receptionShow($invoiceId)
     {
-        return Inertia::render('KardexFabric/Reception', [
+        return Inertia::render('Expenses/Reception/Reception', [
             'invoiceId' => $invoiceId
         ]);
     }
@@ -208,15 +209,22 @@ class FabricRollController extends Controller
             return $error;
         }
 
-        $fabricRoll = $this->service->update($fabricRoll, $data);
-
-        return response()->json($fabricRoll);
+        try {
+            $fabricRoll = $this->service->update($fabricRoll, $data);
+            return response()->json($fabricRoll);
+        } catch (ValidationException $e) {
+            throw $e;
+        }
     }
 
     public function destroy(FabricRoll $fabricRoll)
     {
-        $this->service->delete($fabricRoll);
-        return response()->noContent();
+        try {
+            $this->service->delete($fabricRoll);
+            return response()->noContent();
+        } catch (ValidationException $e) {
+            throw $e;
+        }
     }
 
     public function updateOutput(UpdateFabricRollOutputRequest $request, FabricRoll $fabricRoll)

@@ -28,7 +28,7 @@ class PurchaseDocumentService
     {
         return PurchaseDocument::with([
             'items.item',
-            'supplier:id,full_name,email',
+            'supplier:id,full_name,id_number,phone,email',
             'creator:id,name',
             'executor:id,name',
             'rejectedBy:id,name',
@@ -161,6 +161,22 @@ class PurchaseDocumentService
         DB::transaction(function () use ($document) {
             $document->items()->delete();
             $document->delete();
+
+            // Si es una orden de compra, restaurar la solicitud si no tiene más órdenes activas
+            if ($document->isOrder() && $document->purchase_request_id) {
+                $purchaseRequest = \App\Models\Expenses\PurchaseRequest::find($document->purchase_request_id);
+                if ($purchaseRequest) {
+                    $activeOrders = $purchaseRequest->orders()->where('document_type', PurchaseDocument::TYPE_ORDER)->whereNull('deleted_at')->count();
+                    if ($activeOrders === 0) {
+                        $purchaseRequest->update([
+                            'status' => \App\Enums\PurchaseRequestStatus::APPROVED->value,
+                            'processed_at' => null,
+                            'processed_by_user_id' => null,
+                        ]);
+                    }
+                }
+            }
+
             if ($document->isInvoice() && $document->parent_document_id) {
                 $parentOrder = PurchaseDocument::find($document->parent_document_id);
                 if ($parentOrder && $parentOrder->isOrder()) {
@@ -175,7 +191,7 @@ class PurchaseDocumentService
 
     public function loadWithRelations(PurchaseDocument $document): PurchaseDocument
     {
-        return $document->load([
+        $document->load([
             'items.item',
             'supplier',
             'creator',
@@ -184,6 +200,11 @@ class PurchaseDocumentService
             'parent',
             'children',
         ]);
+        // Exponer también como "contact" para compatibilidad con el frontend (Reception, etc.)
+        if ($document->relationLoaded('supplier') && ! $document->relationLoaded('contact')) {
+            $document->setRelation('contact', $document->getRelation('supplier'));
+        }
+        return $document;
     }
 
     public function attachValidationDifference(

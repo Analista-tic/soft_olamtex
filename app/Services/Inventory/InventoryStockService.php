@@ -35,6 +35,10 @@ class InventoryStockService
         ]);
     }
 
+    /**
+     * @deprecated No manipular stock directamente. Usar InventoryMovementService::createMovement
+     *             para todos los movimientos (ajustes, compras, traslados, etc.).
+     */
     public function applyStockMovement(Item $item, int $warehouseId, int $quantity, string $type): void
     {
         $quantity = abs($quantity);

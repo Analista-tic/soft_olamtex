@@ -32,6 +32,7 @@ use App\Http\Controllers\Inventory\AdditionalFieldController;
 use App\Http\Controllers\Settings\RetentionController;
 use App\Http\Controllers\Common\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
+use App\Http\Controllers\Inventory\InventoryMovementController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
 use App\Http\Controllers\Inventory\WarehouseItemStockController;
 use App\Http\Controllers\Inventory\InventoryRequestController;
@@ -319,9 +320,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/', [PurchaseRequestController::class, 'index'])->name('index');
             Route::get('/data', [PurchaseRequestController::class, 'getData'])->name('getData');
             Route::post('/', [PurchaseRequestController::class, 'store'])->name('store');
-            Route::get('/{purchaseDocument}', [PurchaseRequestController::class, 'show'])->name('show');
-            Route::put('/{purchaseDocument}', [PurchaseRequestController::class, 'update'])->name('update');
-            Route::delete('/{purchaseDocument}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
+            Route::get('/{purchaseRequest}', [PurchaseRequestController::class, 'show'])->name('show');
+            Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update');
+            Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
+            
+            // Acciones de transición de estados
+            Route::post('/{purchaseRequest}/send-to-approval', [PurchaseRequestController::class, 'sendToApproval'])->name('send-to-approval');
+            Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])->name('approve');
+            Route::post('/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
+            Route::post('/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('cancel');
         });
         
         // === ORDENES DE COMPRA ===
@@ -334,6 +341,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('/{purchaseDocument}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
             Route::post('/{purchaseDocument}/enviar-correo-pdf', [PurchaseOrderController::class, 'sendOrderPdf']);
             Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice']);
+            Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve']);
         });
 
         // === FACTURAS DE COMPRA ===
@@ -345,6 +353,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update');
             Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
             Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify');
+            // Recepción de facturas NO tela
+            Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive');
+            Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject');
         });
 
         // === FACTURAS DE COMPRA TELAS ===
@@ -463,6 +474,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/', [InventoryAdjustmentController::class, 'store'])->name('store');       // guardar nuevo
         Route::put('/{id}', [InventoryAdjustmentController::class, 'update'])->name('update');  // actualizar
         Route::delete('/{id}', [InventoryAdjustmentController::class, 'destroy'])->name('destroy');
+    });
+
+    // === MOVIMIENTOS DE INVENTARIO ===
+    Route::prefix('movimientos-inventario')->name('movimientos-inventario.')->group(function () {
+        Route::get('/', [InventoryMovementController::class, 'index'])->name('index');
+        Route::get('/data', [InventoryMovementController::class, 'getData'])->name('data');
+        Route::get('/item/{itemId}', [InventoryMovementController::class, 'getItemMovements'])->name('item-movements');
+        Route::get('/weighted-price', [InventoryMovementController::class, 'getCurrentWeightedPrice'])->name('weighted-price');
+        Route::post('/transfer', [InventoryMovementController::class, 'storeTransfer'])->name('transfer');
+        Route::post('/', [InventoryMovementController::class, 'store'])->name('store');
+        Route::get('/{id}', [InventoryMovementController::class, 'show'])->name('show');
+        Route::delete('/{id}', [InventoryMovementController::class, 'destroy'])->name('destroy');
     });
 
 });

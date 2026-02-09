@@ -12,6 +12,42 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 {
     use ValidatesPurchaseInvoiceRequest;
 
+    /**
+     * Marcar factura como recibida (NO tela)
+     */
+    public function receive(Request $request, PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        // Solo facturas NO tela
+        // Si ya está recibida, no hacer nada
+        if ($purchaseDocument->status === 'received') {
+            return response()->json(['data' => $purchaseDocument]);
+        }
+        $purchaseDocument->status = 'received';
+        $purchaseDocument->save();
+        // Aquí podrías disparar eventos, auditoría, etc.
+        return response()->json(['data' => $purchaseDocument]);
+    }
+
+    /**
+     * Rechazar factura (NO tela) y guardar motivo/novedad
+     */
+    public function reject(Request $request, PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+        $validated = $request->validate([
+            'rejection_reason' => 'required|string',
+            'rejection_notes' => 'nullable|string',
+        ]);
+        $purchaseDocument->status = 'rejected';
+        $purchaseDocument->rejection_reason = $validated['rejection_reason'];
+        $purchaseDocument->rejection_notes = $validated['rejection_notes'] ?? null;
+        $purchaseDocument->rejected_by_user_id = auth()->id();
+        $purchaseDocument->rejected_at = now();
+        $purchaseDocument->save();
+        // Aquí podrías disparar eventos, auditoría, etc.
+        return response()->json(['data' => $purchaseDocument]);
+    }
     public function __construct(PurchaseDocumentInvoiceService $service)
     {
         parent::__construct($service);
@@ -19,7 +55,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 
     public function index()
     {
-        return Inertia::render('Expenses/PurchaseInvoices/Index');
+        return $this->indexView('Expenses/PurchaseInvoices/Index');
     }
 
     public function getData(Request $request)
@@ -51,25 +87,22 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 
     public function show(PurchaseDocument $purchaseDocument)
     {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
-        return response()->json(['data' => $this->service->loadWithRelations($purchaseDocument)]);
+        return $this->showGeneric($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
     }
 
     public function update(Request $request, PurchaseDocument $purchaseDocument)
     {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
-        $payload = $this->validateInvoiceRequest($request, true);
-        $items = $request->has('items') ? $payload['items'] ?? [] : null;
-
-        $updated = $this->service->updateDocument($purchaseDocument, $payload, $items);
-        return response()->json(['data' => $updated]);
+        return $this->updateGeneric(
+            $request,
+            $purchaseDocument,
+            PurchaseDocument::TYPE_INVOICE,
+            fn($req, $upd) => $this->validateInvoiceRequest($req, $upd)
+        );
     }
 
     public function destroy(PurchaseDocument $purchaseDocument)
     {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
-        $this->service->deleteDocument($purchaseDocument);
-        return response()->json(['message' => 'Factura eliminada']);
+        return $this->destroyGeneric($purchaseDocument, PurchaseDocument::TYPE_INVOICE, 'Factura eliminada');
     }
 
     public function justify(Request $request, PurchaseDocument $purchaseDocument)

@@ -172,7 +172,6 @@ class ExampleDataSeeder extends Seeder
 
         // Crear items de TELA específicos
         $lanaBeige = DB::table('items')->where('bar_code', 'TELA-LANA-001')->first();
-        $lanaBeige = DB::table('items')->where('bar_code', 'TELA-LANA-001')->first();
         $lanaId = $lanaBeige ? $lanaBeige->id : DB::table('items')->insertGetId([
             'category_sub_group_id' => $telaSubGroupId,
             'tax_id' => $tax19Id,
@@ -263,12 +262,21 @@ class ExampleDataSeeder extends Seeder
             'document_type' => 'purchase_request',
             'contact_id' => $providerId,
             'date' => now()->subDays(5)->toDateString(),
-            'delivery_date' => now()->addDays(10)->toDateString(),
+            'destination' => 'Producción',
             'description' => 'Solicitud de compra generada por el seeder de ejemplo',
-            'created_by_user_id' => $userId,
             'status' => 'approved',
-            'requested_at' => now()->subDays(5),
+            'approved_by_user_id' => $userId,
             'approved_at' => now()->subDays(4),
+            'items' => json_encode([
+                [
+                    'item_id' => $itemId,
+                    'name' => 'Artículo de prueba',
+                    'price' => 1200.00,
+                    'quantity' => 10,
+                    'description' => 'Línea de solicitud de ejemplo',
+                    'total' => 12000.00,
+                ],
+            ]),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -276,14 +284,16 @@ class ExampleDataSeeder extends Seeder
         $orderDocumentId = DB::table('purchase_documents')->insertGetId([
             'document_number' => 'ORD-001',
             'document_type' => 'purchase_order',
-            'parent_document_id' => $requestDocumentId,
+            'parent_document_id' => null, // Se puede vincular a purchase_request mediante lógica de negocio
             'contact_id' => $providerId,
             'date' => now()->subDays(3)->toDateString(),
             'delivery_date' => now()->addDays(7)->toDateString(),
             'description' => 'Orden de compra vinculada a la solicitud de ejemplo',
             'created_by_user_id' => $userId,
             'executed_by_user_id' => $userId,
-            'status' => 'in_process',
+            'status' => 'approved', // Estados válidos: pending, approved, sent, invoiced, rejected
+            'approved_by_user_id' => $userId,
+            'approved_at' => now()->subDays(2),
             'supplier_order_number' => 'ORD-2025-001',
             'ordered_at' => now()->subDays(3),
             'created_at' => now(),
@@ -339,8 +349,7 @@ class ExampleDataSeeder extends Seeder
             'description' => 'Factura de compra vinculada a la orden de ejemplo',
             'created_by_user_id' => $userId,
             'executed_by_user_id' => $userId,
-            'status' => 'pending',
-            'approval_status' => 'pending',
+            'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
             'supplier_invoice_number' => 'FAC-2025-001',
             'withholdings' => json_encode([
                 ['name' => 'Retefuente', 'percentage' => 2.5, 'base_amount' => 12000.00],
@@ -582,7 +591,7 @@ class ExampleDataSeeder extends Seeder
                 'delivery_date' => now()->subDays(15)->toDateString(),
                 'description' => '[KARDEX-TELA] Factura de tela LANA Beige para producción de enero',
                 'created_by_user_id' => $userId,
-                'status' => 'pending',
+                'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
                 'supplier_invoice_number' => 'FT-2026-001',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -644,7 +653,7 @@ class ExampleDataSeeder extends Seeder
                 'delivery_date' => now()->subDays(10)->toDateString(),
                 'description' => '[KARDEX-TELA] Factura de tela ALGODÓN para línea premium',
                 'created_by_user_id' => $userId,
-                'status' => 'pending',
+                'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
                 'supplier_invoice_number' => 'FT-2026-002',
                 'created_at' => now(),
                 'updated_at' => now(),

@@ -37,7 +37,7 @@ class PurchaseDocumentRequestService extends PurchaseDocumentService
     ): PurchaseDocument {
         return DB::transaction(function () use ($request, $orderData, $orderItems) {
             $request->update([
-                'status'      => $orderData['request_status'] ?? 'approved',
+                'status'      => $orderData['request_status'] ?? 'processed',
                 'approved_at' => $orderData['approved_at'] ?? now(),
             ]);
 

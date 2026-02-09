@@ -225,6 +225,10 @@ class AuditLogService
             if (is_null($v)) {
                 return 'null';
             }
+            // Si es un Enum respaldado (BackedEnum), devolver su valor
+            if ($v instanceof \BackedEnum) {
+                return $v->value;
+            }
             return (string) $v;
         };
 

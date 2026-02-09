@@ -11,10 +11,15 @@ import AlertBox from '@/components/AlertBox.vue';
 
 defineOptions({ name: 'WithholdingTable' });
 
-const props = defineProps<{
-    modelValue: PurchaseInvoiceWithholding[];
-    isReadOnly?: boolean;
-}>();
+const props = withDefaults(
+    defineProps<{
+        modelValue: PurchaseInvoiceWithholding[];
+        isReadOnly?: boolean;
+        /** Subtotal de la factura; cuando base_amount es null se usa como base (asumida). */
+        invoiceSubtotal?: number;
+    }>(),
+    { invoiceSubtotal: 0 },
+);
 const emit = defineEmits(['update:modelValue']);
 
 const localWithholdings = ref<PurchaseInvoiceWithholding[]>(
@@ -64,9 +69,22 @@ watch(
     { immediate: true },
 );
 
+/** Base efectiva: si base_amount es null/omitido se usa el subtotal de la factura (asumida). */
+function getEffectiveBase(w: PurchaseInvoiceWithholding): number {
+    const b = w.base_amount;
+    if (b != null && Number.isFinite(Number(b))) return Number(b);
+    return Number(props.invoiceSubtotal) || 0;
+}
+
+function getWithholdingValue(w: PurchaseInvoiceWithholding): number {
+    return (getEffectiveBase(w) * (Number(w.percentage) || 0)) / 100;
+}
+
 function addWithholding() {
     if (isReadOnly.value) return;
-    emit('update:modelValue', [...localWithholdings.value, { name: '', percentage: 0, base_amount: 0 }]);
+    // La base por defecto es el subtotal de la factura; el usuario puede editarla
+    const defaultBase = Number(props.invoiceSubtotal) || 0;
+    emit('update:modelValue', [...localWithholdings.value, { name: '', percentage: 0, base_amount: defaultBase }]);
 }
 
 function removeWithholding(idx: number) {
@@ -191,6 +209,7 @@ async function handleRetentionSubmit(formData: any) {
                                 label=""
                                 size="xs"
                                 class="text-xs"
+                                :placeholder="withholding.base_amount == null || withholding.base_amount === '' ? 'Subtotal' : undefined"
                                 :readonly="isReadOnly"
                                 :disabled="isReadOnly"
                                 @update:modelValue="() => emit('update:modelValue', localWithholdings)"
@@ -198,7 +217,7 @@ async function handleRetentionSubmit(formData: any) {
                         </td>
                         <td class="px-1">
                             <InputField
-                                :modelValue="((Number(withholding.base_amount) || 0) * (Number(withholding.percentage) || 0) / 100)"
+                                :modelValue="getWithholdingValue(withholding)"
                                 type="currency"
                                 label=""
                                 size="xs"

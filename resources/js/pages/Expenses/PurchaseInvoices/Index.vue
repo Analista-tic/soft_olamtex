@@ -176,8 +176,8 @@ function closeDialog() {
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
     // Evitar petición al servidor si la factura ya está aprobada
-    if (invoice.status === 'approved') {
-        showError('No se puede eliminar una factura que está aprobada.');
+    if (invoice.status === 'received') {
+        showError('No se puede eliminar una factura que ya fue recibida.');
         return;
     }
     invoiceToDelete.value = invoice;
@@ -309,13 +309,13 @@ async function viewInvoiceDetails(invoice: PurchaseInvoice) {
     }
 }
 
-function handleDialogRefresh(message?: string) {
+async function handleDialogRefresh(message?: string) {
     if (message) {
         clearError();
         showSuccess(message);
     }
-    fetchInvoices(currentPage.value, searchQuery.value);
     isDialogOpen.value = false;
+    await fetchInvoices(currentPage.value, searchQuery.value);
 }
 
 function handleDialogError(message?: string) {
@@ -350,7 +350,7 @@ function handleDialogError(message?: string) {
                         @click="router.visit(buildReceptionUrl())"
                     >
                         <Package class="h-4 w-4" />
-                        Ver Todas las Recepciones
+                        Ver Recepciones
                     </button>
                     <button
                         type="button"
@@ -438,16 +438,16 @@ function handleDialogError(message?: string) {
                                     v-if="invoice.status"
                                     :class="[
                                         'px-2 py-1 rounded-full text-xs font-medium',
-                                        invoice.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                        invoice.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                        invoice.status === 'pending_receipt' ? 'bg-yellow-100 text-yellow-800' :
+                                        invoice.status === 'received' ? 'bg-green-100 text-green-800' :
                                         invoice.status === 'rejected' ? 'bg-red-100 text-red-800' :
                                         'bg-gray-100 text-gray-800'
                                     ]"
                                 >
                                     {{ 
-                                        invoice.status === 'pending' ? 'Pendiente' :
-                                        invoice.status === 'approved' ? 'Aprobado' :
-                                        invoice.status === 'rejected' ? 'Rechazado' :
+                                        invoice.status === 'pending_receipt' ? 'Pendiente' :
+                                        invoice.status === 'received' ? 'Recibida' :
+                                        invoice.status === 'rejected' ? 'Rechazada' :
                                         'Sin estado'
                                     }}
                                 </span>
@@ -469,13 +469,13 @@ function handleDialogError(message?: string) {
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
                                     <DeleteButton
                                         :onClick="() => {
-                                            if (invoice.status === 'approved') {
-                                                showError('No se puede eliminar una factura que está aprobada.');
+                                            if (invoice.status === 'received') {
+                                                showError('No se puede eliminar una factura que ya fue recibida.');
                                             } else {
                                                 confirmDeleteInvoice(invoice);
                                             }
                                         }"
-                                        :customClass="invoice.status === 'approved' ? 'opacity-60 cursor-not-allowed' : ''"
+                                        :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
                                     />
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>

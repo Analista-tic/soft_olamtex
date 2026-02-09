@@ -20,23 +20,12 @@ class PurchaseOrderController extends PurchaseDocumentController
 
     public function index()
     {
-        return Inertia::render('Expenses/PurchaseOrders/Index');
+        return $this->indexView('Expenses/PurchaseOrders/Index');
     }
 
     public function getData(Request $request)
     {
-        $filters = $request->only(['search', 'status', 'provider_id', 'date_from', 'date_to']);
-        $documents = $this->service->paginateDocuments(
-            PurchaseDocument::TYPE_ORDER,
-            $filters,
-            $request->input('per_page', 10)
-        );
-
-        return response()->json([
-            'data' => $documents->items(),
-            'total' => $documents->total(),
-            'current_page' => $documents->currentPage(),
-        ]);
+        return $this->getDataGeneric($request, PurchaseDocument::TYPE_ORDER, 10);
     }
 
     public function store(Request $request)
@@ -53,28 +42,22 @@ class PurchaseOrderController extends PurchaseDocumentController
 
     public function show(PurchaseDocument $purchaseDocument)
     {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
-        return response()->json(['data' => $this->service->loadWithRelations($purchaseDocument)]);
+        return $this->showGeneric($purchaseDocument, PurchaseDocument::TYPE_ORDER);
     }
 
     public function update(Request $request, PurchaseDocument $purchaseDocument)
     {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
-        $payload = $this->validateOrderPayload($request, true);
-        $items = $request->has('items') ? $payload['items'] ?? [] : null;
-
-        $updated = $this->service->updateDocument($purchaseDocument, $payload, $items);
-        return response()->json([
-            'message' => 'Purchase order updated.',
-            'data' => $updated,
-        ]);
+        return $this->updateGeneric(
+            $request,
+            $purchaseDocument,
+            PurchaseDocument::TYPE_ORDER,
+            fn($req, $upd) => $this->validateOrderPayload($req, $upd)
+        );
     }
 
     public function destroy(PurchaseDocument $purchaseDocument)
     {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
-        $this->service->deleteDocument($purchaseDocument);
-        return response()->json(['message' => 'Purchase order deleted.']);
+        return $this->destroyGeneric($purchaseDocument, PurchaseDocument::TYPE_ORDER, 'Purchase order deleted.');
     }
 
     public function sendOrderPdf(PurchaseDocument $purchaseDocument)
@@ -124,6 +107,30 @@ class PurchaseOrderController extends PurchaseDocumentController
                 'error_code' => 'ORDER_ALREADY_INVOICED',
             ], 422);
         }
+    }
+
+    public function approve(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+
+        // Validar que la orden pueda ser aprobada
+        if (!$purchaseDocument->canApprove()) {
+            return response()->json([
+                'message' => 'Esta orden no puede ser aprobada desde su estado actual.',
+            ], 422);
+        }
+
+        $updated = $this->service->updateDocument($purchaseDocument, [
+            'status' => \App\Enums\PurchaseOrderStatus::APPROVED->value,
+            'approval_status' => 'approved',
+            'approved_by_user_id' => \Illuminate\Support\Facades\Auth::id(),
+            'approved_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Orden de compra aprobada correctamente.',
+            'data' => $updated->toArray(),
+        ]);
     }
 
 }

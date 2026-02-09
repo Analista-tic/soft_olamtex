@@ -15,6 +15,7 @@ export type {
     OptionParams,
     Branch,
     BranchesListProps,
+    Retention,
 } from './types';
 
 export type { CompanyInfoDto, AuditLogDto, PaginationLinkDto } from './dto';

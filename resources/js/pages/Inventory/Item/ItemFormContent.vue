@@ -1157,12 +1157,12 @@ watch(
 <template>
     <div class="flex min-h-0 flex-1 flex-col -mx-6 -my-10">
             <transition name="fade">
-                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 w-full max-w-xl -translate-x-1/2 px-6">
+                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-6">
                     <AlertBox
                         :type="alertType"
                         :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
                         :message="alertMessage"
-                        class="pointer-events-auto"
+                        class="pointer-events-auto w-full max-w-xl"
                         @close="alertMessage = ''"
                     />
                 </div>

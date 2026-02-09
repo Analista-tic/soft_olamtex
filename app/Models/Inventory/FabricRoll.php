@@ -10,6 +10,10 @@ class FabricRoll extends Model
 {
     use HasFactory;
 
+    public const APPROVAL_APPROVED = 'approved';
+    public const APPROVAL_PENDING = 'pending_approval';
+    public const APPROVAL_NOT_APPROVED = 'not_approved';
+
     protected $fillable = [
         'roll_number',
         'purchase_document_item_id',
@@ -20,6 +24,7 @@ class FabricRoll extends Model
         'partial_output',
         'actual_output',
         'entry_date',
+        'approval_status',
     ];
 
     protected $casts = [

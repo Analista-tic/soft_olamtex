@@ -372,7 +372,7 @@ defineExpose({ addItem });
                                 :error="isPriceDifferent(item)"
                             />
                             <div v-if="getSuggestedPrice(item) !== null" class="text-xs text-gray-500 mt-1">
-                                Valor real: {{
+                                Valor en la orden: {{
                                     Number(getSuggestedPrice(item)).toLocaleString('es-CO', {
                                         style: 'currency',
                                         currency: 'COP',
@@ -448,10 +448,11 @@ defineExpose({ addItem });
                                 v-model="item.order_width"
                                 type="text"
                                 label=""
-                                placeholder="Ancho pedido"
+                                :placeholder="isTela(item) ? 'Ancho pedido (cm) *' : 'Ancho pedido'"
                                 class="h-10 w-full"
                                 :readonly="isReadOnly || !isTela(item)"
                                 :disabled="isReadOnly || !isTela(item)"
+                                :required="isTela(item)"
                             />
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 90px;">
