@@ -27,8 +27,7 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
-    { title: 'Gastos', href: '/gastos/facturas-compra' },
-    { title: 'Facturas de Compra', href: '/gastos/facturas-compra' },
+    { title: 'Facturas de Compra', href: '/facturas-compra' },
 ];
 
 const invoices = ref<PurchaseInvoice[]>([]);
@@ -80,10 +79,16 @@ const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
 const facturasRoute = '/gastos/facturas-compra';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
+const receptionInvoiceTypeParam = 'invoice_type';
+const receptionInvoiceTypeValue = 'general';
 
 function buildReceptionUrl(invoiceId?: number | string) {
     const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
-    return `${basePath}?${receptionReturnParam}=${encodeURIComponent(facturasRoute)}`;
+    const query = new URLSearchParams({
+        [receptionReturnParam]: facturasRoute,
+        [receptionInvoiceTypeParam]: receptionInvoiceTypeValue,
+    });
+    return `${basePath}?${query.toString()}`;
 }
 
 const formatDate = (value?: string | null) => {

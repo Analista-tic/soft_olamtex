@@ -11,6 +11,7 @@ export interface Role {
     id: number | null;
     name: string;
     permissions: Array<{ name: string }>;
+    area_id?: number | null;
 }
 
 export interface User {
@@ -504,4 +505,3 @@ export interface FabricRollView {
     creator: string | null;
     status: 'available' | 'depleted';
 }
->>>>>>> b5cea36b969d0e2c7dbf226dc03b33858ff8d55e

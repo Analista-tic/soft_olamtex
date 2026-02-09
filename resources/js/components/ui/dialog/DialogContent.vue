@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { cn } from '@/lib/utils';
 import {
     DialogClose,
@@ -15,6 +15,7 @@ const props = defineProps<
     DialogContentProps & {
         class?: HTMLAttributes['class'];
         closeClass?: HTMLAttributes['class'];
+        scrollable?: boolean;
     }
 >();
 const emits = defineEmits<DialogContentEmits>();
@@ -26,6 +27,7 @@ const delegatedProps = computed(() => {
 });
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
+const isScrollable = computed(() => props.scrollable ?? true);
 </script>
 
 <template>
@@ -42,8 +44,13 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
                 )
             "
         >
-            <div class="flex h-full max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[24px]">
-                <div class="dialog-scroll-area flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-10 scroll-smooth">
+            <div class="flex h-full max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[10px]">
+                <div
+                    :class="cn(
+                        'dialog-scroll-area flex min-h-0 flex-1 flex-col scroll-smooth',
+                        isScrollable ? 'overflow-y-auto px-3 py-4' : 'px-3 py-2',
+                    )"
+                >
                     <slot />
                 </div>
             </div>

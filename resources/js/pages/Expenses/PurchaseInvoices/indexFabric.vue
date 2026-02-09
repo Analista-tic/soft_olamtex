@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
@@ -27,7 +27,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const breadcrumbs = [
-    { title: 'Gastos', href: '/gastos/facturas-compra-tela' },
     { title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' },
 ];
 
@@ -66,6 +65,8 @@ const subgroups = ref<{ id: number; name: string }[]>([]);
 const facturasFabricRoute = '/gastos/facturas-compra-tela';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
+const receptionInvoiceTypeParam = 'invoice_type';
+const receptionInvoiceTypeValue = 'fabric';
 
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
@@ -129,7 +130,11 @@ const getInvoiceItemsPreview = (invoice: PurchaseInvoice) => {
 
 function buildReceptionUrl(invoiceId?: number | string) {
     const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
-    return `${basePath}?${receptionReturnParam}=${encodeURIComponent(facturasFabricRoute)}`;
+    const query = new URLSearchParams({
+        [receptionReturnParam]: facturasFabricRoute,
+        [receptionInvoiceTypeParam]: receptionInvoiceTypeValue,
+    });
+    return `${basePath}?${query.toString()}`;
 }
 
 async function fetchProviders() {

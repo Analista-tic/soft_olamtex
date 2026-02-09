@@ -10,6 +10,7 @@ export interface Role {
     id: number | null;
     name: string;
     permissions: Array<{ name: string }>;
+    area_id?: number | null;
 }
 
 export interface User {
@@ -22,6 +23,8 @@ export interface User {
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
+    area_id?: number | null;
+    area?: { id: number; nombre: string } | null;
 }
 export interface BreadcrumbItem {
     title: string;

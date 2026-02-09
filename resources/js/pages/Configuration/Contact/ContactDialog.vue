@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { AdditionalContact, Contact } from '@/domain/purchases';
 import type { Branch } from '@/domain/shared';
 import { computed, ref, watch } from 'vue';
@@ -7,6 +7,7 @@ import AdditionalContactsList from './AdditionalContactsList.vue';
 import ContactForm from './ContactForm.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'; // Importar tabs de shadcn
 import BranchesList from './BranchesList.vue'; // Componente para manejar sucursales
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -285,7 +286,7 @@ const updateBranches = (branches: any[]) => {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent class="max-w-3xl max-h-[90vh] flex flex-col">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[150vh] px-2 py-2">
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription class="pb-4">
@@ -367,7 +368,7 @@ const updateBranches = (branches: any[]) => {
                     {{ dialogType === 'create' ? 'Crear' : 'Actualizar' }}
                 </button>
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>
 

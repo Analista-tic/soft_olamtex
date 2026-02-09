@@ -33,6 +33,7 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'roles' => 'required|array',
             'roles.*' => 'exists:roles,name',
+            'area_id' => 'nullable|integer|exists:parameters,id',
         ]);
 
         $validated['roles'] = is_array($validated['roles']) ? $validated['roles'] : [];
@@ -53,6 +54,7 @@ class UserController extends Controller
             'password' => 'nullable|string|min:8',
             'roles' => 'required|array',
             'roles.*' => 'exists:roles,name',
+            'area_id' => 'nullable|integer|exists:parameters,id',
         ]);
 
         $user = $this->service->update($user, $validated);

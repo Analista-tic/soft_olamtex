@@ -32,8 +32,8 @@ import type { Option } from '@/domain/shared';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Panel administrativo',
-        href: '/panel-administrativo',
+        title: 'Catálogo de ítem',
+        href: '/inventario/item',
     },
     {
         title: 'Subgrupos',
@@ -66,7 +66,7 @@ const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isGroupFilterActive = computed(() => selectedGroup.value != null);
+const isGroupFilterActive = computed(() => selectedGroup.value !== '' && selectedGroup.value != null);
 const groupFilterButtonClasses = useFilterButtonClasses(isGroupFilterActive);
 const groupOptions = computed<Option[]>(() => [
     { id: '', name: 'Todos los grupos' },

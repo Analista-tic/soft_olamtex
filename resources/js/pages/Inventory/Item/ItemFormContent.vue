@@ -12,6 +12,8 @@ import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
 import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import { ITEM_FORM_DRAFT_KEY } from './constants';
 import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Tax, Warehouse, AdditionalField, AdditionalFieldType } from '@/domain/inventory';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
@@ -38,7 +40,24 @@ const props = withDefaults(
         showAdvancedSections: false,
     },
 );
-const emit = defineEmits(['close', 'refresh', 'saved', 'error']);
+const emit = defineEmits(['close', 'refresh', 'saved', 'error', 'loading-state']);
+const loadingCounter = ref(0);
+const isLoadingState = ref(false);
+
+function updateLoadingState(delta: number) {
+    loadingCounter.value = Math.max(0, loadingCounter.value + delta);
+    const nextState = loadingCounter.value > 0;
+    if (isLoadingState.value !== nextState) {
+        isLoadingState.value = nextState;
+        emit('loading-state', nextState);
+    }
+}
+
+function trackLoading<T>(work: () => Promise<T>): Promise<T> {
+    updateLoadingState(1);
+    const promise = Promise.resolve().then(() => work());
+    return promise.finally(() => updateLoadingState(-1));
+}
 
 // Estado reactivo principal
 type ItemType = 'product' | 'service';
@@ -72,6 +91,7 @@ const prepareLocalForm = (source: Partial<Item>): ItemForm => {
     return {
         ...source,
         reference: source.reference || '',
+        bar_code: source.bar_code ?? '',
         tax: typeof source.tax === 'object' && source.tax !== null ? source.tax : null,
         tax_id: resolvedTaxId,
         item_type: normalizeItemType(source.item_type),
@@ -122,7 +142,14 @@ const additionalFieldOrder = computed(() => {
 const nameField = ref('');
 const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
-const warehouseStocks = ref<{ warehouse_id: number; name: string; quantity: number; stock_min: number; stock_max: number }[]>([]);
+type WarehouseStockEntry = {
+    warehouse_id: number;
+    name: string;
+    quantity: number;
+    stock_min: number;
+    stock_max: number;
+};
+const warehouseStocks = ref<WarehouseStockEntry[]>([]);
 const taxes = ref<Tax[]>([]);
 const defaultTaxEntry = computed(() => taxes.value.find(isDefaultTax));
 const nonDefaultTaxes = computed(() =>
@@ -268,6 +295,29 @@ const accountingCostOptions = [
     { id: 'costos_inventario', name: 'Costos del inventario' },
     { id: 'costo_venta', name: 'Costo de venta' },
 ];
+
+function applyFormData(source: Partial<Item>) {
+    localForm.value = prepareLocalForm(source);
+    unitMeasure.value = getInitialUnitMeasure(source);
+    fillExtraFields(source.extra_fields);
+    imageFile.value = null;
+    // Limpiar el input file visualmente
+    if (fileInputRef.value) {
+        fileInputRef.value.value = '';
+    }
+    imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
+    updateNameField();
+    syncGroupFromSubgroup();
+}
+
+async function loadItemDetails(itemId: number) {
+    try {
+        const { data } = await axios.get(`/item/${itemId}`);
+        applyFormData(data);
+    } catch (error) {
+        console.error('Error al cargar el item:', error);
+    }
+}
 
 function openImageZoom() {
     if (!imagePreview.value) return;
@@ -515,18 +565,20 @@ function syncGroupFromSubgroup() {
 }
 
 // Carga inicial de datos al montar el componente
-onMounted(async () => {
-    await Promise.all([
-        fetchWarehouses(),
-        fetchCategorySubGroups(),
-        fetchCategoryGroups(),
-        fetchTaxes(),
-        fetchAdditionalFields(),
-    ]);
-    fillExtraFields(props.form.extra_fields);
-    if (props.form.id) {
-        await fetchWarehouseStocks(props.form.id);
-    }
+onMounted(() => {
+    void trackLoading(async () => {
+        await Promise.all([
+            fetchWarehouses(),
+            fetchCategorySubGroups(),
+            fetchCategoryGroups(),
+            fetchTaxes(),
+            fetchAdditionalFields(),
+        ]);
+        fillExtraFields(props.form.extra_fields);
+        if (props.form.id) {
+            await fetchWarehouseStocks(props.form.id);
+        }
+    });
 });
 
 // Carga de stocks por bodega para el ítem
@@ -602,14 +654,9 @@ function updateWarehouseName(idx: number) {
 watch(
     () => props.form,
     (newVal) => {
-        localForm.value = prepareLocalForm(newVal);
-        unitMeasure.value = getInitialUnitMeasure(newVal);
-        fillExtraFields(newVal.extra_fields);
-        imageFile.value = null;
-        updateNameField();
-        syncGroupFromSubgroup();
+        applyFormData(newVal);
     },
-    { deep: true },
+    { deep: true, immediate: true },
 );
 watch(
     () => props.form.id,
@@ -859,9 +906,16 @@ function openCatalog(to: 'warehouse') {
 // Estado de apertura del diálogo
 watch(
     () => props.isOpen,
-    (value) => {
+    async (value) => {
         if (value) {
-            void refreshWarehouseStocksForCurrentItem();
+            if (props.dialogType !== 'create' && props.form.id) {
+                await trackLoading(() => loadItemDetails(Number(props.form.id)));
+            }
+            if (props.form.id) {
+                await trackLoading(() => refreshWarehouseStocksForCurrentItem(Number(props.form.id)));
+            } else {
+                warehouseStocks.value = [];
+            }
         } else {
             warehouseStocks.value = [];
         }
@@ -870,13 +924,13 @@ watch(
 
 watch(
     () => props.form.id,
-    (itemId) => {
+    async (itemId) => {
         if (!props.isOpen) {
             return;
         }
 
         if (itemId) {
-            void refreshWarehouseStocksForCurrentItem(Number(itemId));
+            await trackLoading(() => refreshWarehouseStocksForCurrentItem(Number(itemId)));
         } else {
             warehouseStocks.value = [];
         }
@@ -910,16 +964,59 @@ function handleClose() {
     emit('close');
 }
 
-function redirectToAdvancedForm() {
-    handleClose();
+type AdvancedFormDraft = Partial<Item> & {
+    extra_fields?: ExtraFields;
+    unit_measure?: string;
+    warehouse_stocks?: WarehouseStockEntry[];
+};
 
-    const advancedUrl = route('inventario.item.formulario-avanzado');
+function buildAdvancedFormDraft(): AdvancedFormDraft {
+    const draft: AdvancedFormDraft = {
+        ...localForm.value,
+        extra_fields: extraFields.value ? { ...extraFields.value } : {},
+        unit_measure: unitMeasure.value,
+    };
+
+    if (warehouseStocks.value.length > 0) {
+        draft.warehouse_stocks = warehouseStocks.value.map((stock) => ({ ...stock }));
+    }
+
+    return draft;
+}
+
+function persistAdvancedFormDraft() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        localStorage.setItem(ITEM_FORM_DRAFT_KEY, JSON.stringify(buildAdvancedFormDraft()));
+    } catch (error) {
+        console.warn(
+            'No se pudo guardar el borrador del formulario avanzado en el almacenamiento local.',
+            error,
+        );
+    }
+}
+
+function redirectToAdvancedForm() {
+    if (!props.form.id) {
+        persistAdvancedFormDraft();
+        handleClose();
+        window.location.href = route('inventario.item.formulario-avanzado');
+        return;
+    }
+
+    handleClose();
+    const advancedUrl = route('inventario.item.formulario-avanzado', { item_id: props.form.id });
     window.location.href = advancedUrl;
 }
 
 const NEGATIVE_STOCK_WARNING =
     'Este ítem tiene cantidades negativas en una o más bodegas. ' +
     'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
+const NEGATIVE_MOVEMENT_INVENTORY_WARNING =
+    'Asocia el ítem con al menos una bodega antes de habilitar movimientos negativos.';
 
 function showNegativeMovementWarning() {
   alertType.value = 'warning';
@@ -927,6 +1024,8 @@ function showNegativeMovementWarning() {
 
   scrollDialogToTop();
 }
+
+const hasInventoryDetails = computed(() => warehouseStocks.value.length > 0);
 
 const hasNegativeStock = computed(() =>
   warehouseStocks.value.some((w) => Number(w.quantity) < 0)
@@ -937,9 +1036,25 @@ const negativeMovementBool = computed(() =>
   localForm.value.negative_movement === true
 );
 
+const negativeMovementToggleDisabled = computed(
+  () => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value),
+);
+
+function showNegativeMovementInventoryWarning() {
+  alertType.value = 'warning';
+  alertMessage.value = NEGATIVE_MOVEMENT_INVENTORY_WARNING;
+  scrollDialogToTop();
+}
+
 function handleNegativeMovementChange(val: boolean) {
+  if (val && !hasInventoryDetails.value) {
+    showNegativeMovementInventoryWarning();
+    return;
+  }
+
   if (hasNegativeStock.value && !val) {
     showNegativeMovementWarning();
+    return;
   }
 
   localForm.value.negative_movement = val ? 1 : 0;
@@ -977,22 +1092,23 @@ watch(imageFile, (file) => {
         };
         reader.readAsDataURL(file);
     } else {
-        if (typeof localForm.value.img === 'string' && localForm.value.img.trim() !== '') {
-            imagePreview.value = `/storage/${localForm.value.img.replace(/^\/?storage\//, '')}`;
-        } else {
-            imagePreview.value = undefined;
-        }
+        const resolved = resolveImageUrl(localForm.value.img, localForm.value.img_url);
+        imagePreview.value = resolved;
     }
 });
 watch(
     () => localForm.value.img,
     (img) => {
         if (!imageFile.value) {
-            if (typeof img === 'string' && img.trim() !== '') {
-                imagePreview.value = `/storage/${img.replace(/^\/?storage\//, '')}`;
-            } else {
-                imagePreview.value = undefined;
-            }
+            imagePreview.value = resolveImageUrl(img, localForm.value.img_url);
+        }
+    },
+);
+watch(
+    () => localForm.value.img_url,
+    (imgUrl) => {
+        if (!imageFile.value) {
+            imagePreview.value = resolveImageUrl(localForm.value.img, imgUrl);
         }
     },
 );
@@ -1008,6 +1124,20 @@ watch(
 
 function triggerFileInput() {
     fileInputRef.value?.click();
+}
+
+function resolveImageUrl(rawImg?: string | null, rawUrl?: string | null): string | undefined {
+    const url = typeof rawUrl === 'string' ? rawUrl.trim() : '';
+    if (url) {
+        if (/^https?:\/\//i.test(url)) return url;
+        if (url.startsWith('/')) return url;
+        return `/storage/${url.replace(/^\/?storage\//, '')}`;
+    }
+    const img = typeof rawImg === 'string' ? rawImg.trim() : '';
+    if (!img) return undefined;
+    if (/^https?:\/\//i.test(img)) return img;
+    if (img.startsWith('/')) return img;
+    return `/storage/${img.replace(/^\/?storage\//, '')}`;
 }
 function handleFileChange(e: Event) {
     const input = e.target as HTMLInputElement;
@@ -1049,35 +1179,39 @@ watch(
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
-                            <div>
-                                <template v-if="isViewMode">
-                                    <Label>Tipo de ítem</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{ itemTypeLabelMap[currentItemType] }}
-                                    </div>
-                                </template>
-                                <template v-else>
-                                    <Label>Tipo de ítem</Label>
-                                    <div class="mt-2 grid grid-cols-2 gap-2">
-                                        <button
-                                            v-for="option in itemTypeOptions"
-                                            :key="option.value"
-                                            type="button"
-                                            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
-                                            :class="[
-                                                option.value === currentItemType
-                                                    ? 'border-blue-500 bg-blue-500 text-white shadow'
-                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
-                                            ]"
-                                            :aria-pressed="option.value === currentItemType"
-                                            :disabled="isViewMode"
-                                            @click="handleItemTypeSelect(option.value)"
-                                        >
-                                            {{ option.label }}
-                                        </button>
-                                    </div>
-                                </template>
+                        <div>
+                            <div class="mb-2 flex items-center gap-1">
+                                <span class="text-sm font-semibold text-card-foreground">
+                                    Tipo de ítem
+                                </span>
+                                <HelpTooltip text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes." />
                             </div>
+                            <template v-if="isViewMode">
+                                <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                    {{ itemTypeLabelMap[currentItemType] }}
+                                </div>
+                            </template>
+                            <template v-else>
+                                <div class="mt-2 grid grid-cols-2 gap-2">
+                                    <button
+                                        v-for="option in itemTypeOptions"
+                                        :key="option.value"
+                                        type="button"
+                                        class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
+                                        :class="[
+                                            option.value === currentItemType
+                                                ? 'border-blue-500 bg-blue-500 text-white shadow'
+                                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
+                                        ]"
+                                        :aria-pressed="option.value === currentItemType"
+                                        :disabled="isViewMode"
+                                        @click="handleItemTypeSelect(option.value)"
+                                    >
+                                        {{ option.label }}
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
                             <div>
                                 <Label>Nombre</Label>
                                 <Input
@@ -1193,8 +1327,11 @@ watch(
                             v-if="currentItemType !== 'service'"
                             class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
                         >
-                                <div class="mb-2 flex items-center justify-between">
-                                    <span class="text-sm font-semibold">Detalle de Inventario</span>
+                        <div class="mb-2 flex items-center justify-between">
+                            <p class="text-sm font-semibold flex items-center gap-1">
+                                <span>Detalle de Inventario</span>
+                                <HelpTooltip text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock." />
+                            </p>
                                     <button
                                         v-if="!isViewMode"
                                         type="button"
@@ -1393,9 +1530,13 @@ watch(
                         </div>
                         <div class="flex items-center md:col-span-1">
                             <SwitchField
-                            :model-value="negativeMovementBool"
-                            @update:modelValue="handleNegativeMovementChange"
-                            label="Movimiento Negativo"
+                                :model-value="negativeMovementBool"
+                                @update:modelValue="handleNegativeMovementChange"
+                                label="Movimiento Negativo"
+                                :tooltip-text="hasInventoryDetails
+                                    ? 'Permite que las bodegas registren cantidades negativas cuando lo necesites.'
+                                    : 'Asocia al menos una bodega antes de habilitar movimientos negativos.'"
+                                :disabled="negativeMovementToggleDisabled"
                             />
                         </div>
                     </div>
@@ -1406,6 +1547,12 @@ watch(
                     </div>
 
                     <!-- Campos adicionales -->
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                            <span>Campos adicionales</span>
+                            <HelpTooltip text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo." />
+                        </p>
+                    </div>
                     <div class="space-y-2">
                         <ExtraFieldsForm
                             :extra-field-names="extraFieldNames"
@@ -1414,18 +1561,19 @@ watch(
                             @create-additional-field="openAdditionalFieldDialog"
                             :field-options="additionalFieldOptions"
                             :additional-fields-meta="additionalFieldsMeta"
+                            :show-label="false"
                         />
                     </div>
                     <section
                         v-if="props.showAdvancedSections"
                         class="rounded-2xl border border-border bg-card p-4 shadow-sm"
                     >
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-semibold text-card-foreground">Contabilidad</p>
+                        <div class="flex items-center justify-between pb-2">
+                            <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                                <span>Contabilidad</span>
+                                <HelpTooltip text="Indica las cuentas contables que deben usarse al vender o mover este ítem dentro del inventario." />
+                            </p>
                         </div>
-                        <p class="mb-4 text-sm text-muted-foreground">
-                            Configura las cuentas contables en las que se registrarán los movimientos.
-                        </p>
                         <div class="grid gap-4 md:grid-cols-2">
                             <SelectField
                                 v-model="localForm.income_account"
@@ -1457,14 +1605,12 @@ watch(
                         v-if="props.showAdvancedSections"
                         class="rounded-2xl border border-border bg-card p-4 shadow-sm"
                     >
-                        <div class="flex items-center justify-between">
-                            <p class="text-sm font-semibold text-card-foreground">
-                                Datos adicionales para factura de exportación
+                        <div class="flex items-center justify-between pb-2">
+                            <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                                <span>Datos adicionales para factura de exportación</span>
+                                <HelpTooltip text="Completa estos campos solo si este ítem se usa en operaciones de exportación para facilitar la factura." />
                             </p>
                         </div>
-                        <p class="mb-4 text-sm text-muted-foreground">
-                            Completa estos datos si el producto se usará en facturas de exportación.
-                        </p>
                         <div class="grid gap-4 md:grid-cols-3">
                             <InputField
                                 v-model="localForm.export_tariff_code"

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -26,11 +26,6 @@ interface PageProps extends InertiaPageProps {
 
 const props = usePage<PageProps>().props;
 
-const breadcrumbs = [
-    { title: 'Kardex Telas', href: '/kardex-telas' },
-    { title: 'Recepción', href: '/kardex-telas/recepcion' },
-];
-
 const invoices = ref<PurchaseInvoice[]>([]);
 const searchQuery = ref('');
 const currentPage = ref(1);
@@ -46,6 +41,52 @@ const returnToUrl = computed(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('return_to') || '';
 });
+
+const invoiceTypeParam = computed(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    return (params.get('invoice_type') || '').toLowerCase();
+});
+
+const isFabricOrigin = computed(() => {
+    if (invoiceTypeParam.value === 'fabric' || invoiceTypeParam.value === 'tela') {
+        return true;
+    }
+
+    const returnTo = returnToUrl.value.toLowerCase();
+    if (returnTo.includes('facturas-compra-tela')) {
+        return true;
+    }
+
+    if (typeof document !== 'undefined') {
+        const referrer = document.referrer.toLowerCase();
+        if (referrer.includes('facturas-compra-tela')) {
+            return true;
+        }
+    }
+
+    return false;
+});
+
+const invoicesBasePath = computed(() =>
+    isFabricOrigin.value ? '/gastos/facturas-compra-tela' : '/gastos/facturas-compra',
+);
+const invoicesListRoute = computed(() => invoicesBasePath.value);
+const invoicesDataRoute = computed(() => `${invoicesBasePath.value}/data`);
+const receptionBaseRoute = '/kardex-telas/recepcion';
+
+const receptionHref = computed(() => {
+    if (typeof window === 'undefined') return receptionBaseRoute;
+    return `${receptionBaseRoute}${window.location.search || ''}`;
+});
+
+const breadcrumbs = computed(() => [
+    {
+        title: isFabricOrigin.value ? 'Facturas de Compra Tela' : 'Facturas de Compra',
+        href: invoicesListRoute.value,
+    },
+    { title: 'Recepción', href: receptionHref.value },
+]);
 
 const invoiceDateTimeFormatter = new Intl.DateTimeFormat('es-CO', {
     dateStyle: 'short',
@@ -150,7 +191,7 @@ async function fetchSpecificInvoice(invoiceId: number) {
     isLoadingSpecificInvoice.value = true;
     try {
         console.log('Cargando factura ID:', invoiceId);
-        const response = await axios.get(`/gastos/facturas-compra/${invoiceId}`);
+        const response = await axios.get(`${invoicesBasePath.value}/${invoiceId}`);
         console.log('Respuesta de la factura:', response.data);
         
         if (response.data && response.data.data) {
@@ -185,7 +226,7 @@ function goBackToList() {
     }
     // Si vino por URL específica, navegar de vuelta
     if (specificInvoiceId.value) {
-        router.visit('/kardex-telas/recepcion');
+        router.visit(receptionHref.value);
         return;
     }
     // Priorizar redirección a Facturas si la página de origen fue Facturas
@@ -194,9 +235,14 @@ function goBackToList() {
         try {
             const refUrl = new URL(referrer);
             const refPath = refUrl.pathname || '';
-            // Ajusta las rutas según la aplicación: buscar patrones relacionados con facturas
-            if (refPath.includes('/gastos/facturas') || refPath.includes('/facturas') || refPath.includes('/gastos/facturas-compra')) {
-                router.visit('/gastos/facturas');
+            // Buscar patrones relacionados con facturas y redirigir según el origen
+            if (
+                refPath.includes('/gastos/facturas') ||
+                refPath.includes('/facturas') ||
+                refPath.includes('/gastos/facturas-compra') ||
+                refPath.includes('/gastos/facturas-compra-tela')
+            ) {
+                router.visit(invoicesListRoute.value);
                 return;
             }
         } catch {
@@ -276,7 +322,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
-        const response = await axios.get('/gastos/facturas-compra/data', { params });
+        const response = await axios.get(invoicesDataRoute.value, { params });
         invoices.value = Array.isArray(response.data.data)
             ? response.data.data
             : Array.isArray(response.data)
@@ -436,10 +482,11 @@ function onFabricRollSuccess() {
                         {{ showInvoiceDetail ? `Recepción - Factura #${selectedInvoice?.id}` : 'Recepción' }}
                     </h1>
                 </div>
-                <div class="text-xs text-gray-600">
-                    {{ showInvoiceDetail ? 'Revisión y aprobación de factura' : 'Gestión de recepciones de facturas' }}
-                </div>
             </div>
+            <p class="text-sm text-muted-foreground">
+                Revisa las facturas recibidas, registra la recepción y aprueba o rechaza según corresponda.
+                Usa los filtros para encontrar rápidamente las pendientes.
+            </p>
 
             <!-- Vista de lista de facturas -->
             <template v-if="showInvoicesList">
@@ -922,3 +969,7 @@ function onFabricRollSuccess() {
         </div>
     </AppLayout>
 </template>
+
+
+
+

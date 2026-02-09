@@ -10,7 +10,7 @@ import {
     SidebarMenuSubButton,
     SidebarMenuSubItem,
 } from '@/components/ui/sidebar';
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { ChevronRight } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -41,26 +41,38 @@ const normalizeHref = (href: string): string => {
         return '';
     }
 
-    if (href.startsWith('http://') || href.startsWith('https://')) {
-        try {
-            return new URL(href).pathname;
-        } catch {
-            return href;
-        }
+    try {
+        const url = new URL(href, window.location.origin);
+        return url.pathname;
+    } catch {
+        return href.startsWith('/') ? href : `/${href}`;
     }
-
-    return href.startsWith('/') ? href : `/${href}`;
 };
 
+const toSlug = (value: string) =>
+    value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '');
+
+const clickableGroupSlugs = new Set(['sabana-de-productos', 'ficha-tecnica']);
+
+const shouldNavigateOnGroupClick = (title: string) => clickableGroupSlugs.has(toSlug(title));
+
 // Verifica si una ruta coincide con la actual
-function isRouteActive(href: string): boolean {
+function isRouteActive(href: string, _title?: string): boolean {
     const normalized = normalizeHref(href);
     if (!normalized) {
         return false;
     }
 
-    return currentPath.value === normalized;
+    return currentPath.value === normalized || currentPath.value.startsWith(`${normalized}/`);
 }
+
+const isGroupActive = (item: { title: string; href: string; items?: { title: string; href: string }[] }) =>
+    isRouteActive(item.href, item.title) || Boolean(item.items?.some((sub) => isRouteActive(sub.href)));
 
 const openGroups = ref<Record<string, boolean>>({});
 
@@ -68,7 +80,7 @@ const updateOpenGroups = () => {
     const nextState: Record<string, boolean> = { ...openGroups.value };
 
     items.value.forEach((item) => {
-        const hasActiveItem = isRouteActive(item.href) || Boolean(item.items?.some((sub) => isRouteActive(sub.href)));
+        const hasActiveItem = isGroupActive(item);
         if (hasActiveItem) {
             nextState[item.title] = true;
         }
@@ -86,6 +98,25 @@ const handleOpenChange = (title: string, open: boolean) => {
         [title]: open,
     };
 };
+
+const handleItemNavigate = (href: string) => {
+    const normalized = normalizeHref(href);
+    if (!normalized) {
+        return;
+    }
+
+    router.visit(normalized);
+};
+
+const handleGroupButtonClick = (item: { title: string; href: string }) => {
+    if (!shouldNavigateOnGroupClick(item.title)) {
+        const isOpen = openGroups.value[item.title] ?? false;
+        handleOpenChange(item.title, !isOpen);
+        return;
+    }
+
+    handleItemNavigate(item.href);
+};
 </script>
 
 <template>
@@ -101,21 +132,33 @@ const handleOpenChange = (title: string, open: boolean) => {
                     class="group/collapsible"
                 >
                     <SidebarMenuItem>
-                        <CollapsibleTrigger as-child>
-                            <SidebarMenuButton :tooltip="item.title" :class="{ active: isRouteActive(item.href) }">
-                                <component v-if="item.icon" :is="item.icon" />
-                                <span>{{ item.title }}</span>
-                                <ChevronRight class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                            </SidebarMenuButton>
-                        </CollapsibleTrigger>
+                        <SidebarMenuButton
+                            :tooltip="item.title"
+                            :class="{ active: isGroupActive(item) }"
+                            @click="handleGroupButtonClick(item)"
+                        >
+                            <component v-if="item.icon" :is="item.icon" />
+                            <span>{{ item.title }}</span>
+                            <CollapsibleTrigger as-child>
+                                <button
+                                    type="button"
+                                    class="ml-auto inline-flex items-center"
+                                    aria-label="Desplegar submenú"
+                                    @click.stop
+                                >
+                                    <ChevronRight
+                                        class="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+                                    />
+                                </button>
+                            </CollapsibleTrigger>
+                        </SidebarMenuButton>
                         <CollapsibleContent>
                             <SidebarMenuSub>
                                 <SidebarMenuSubItem
                                     v-for="subItem in item.items"
                                     :key="subItem.title"
-                                    :class="{ active: isRouteActive(subItem.href) }"
                                 >
-                                    <SidebarMenuSubButton as-child size="md">
+                                    <SidebarMenuSubButton as-child size="md" :class="{ active: isRouteActive(subItem.href) }">
                                         <Link :href="subItem.href">
                                             <span>{{ subItem.title }}</span>
                                         </Link>

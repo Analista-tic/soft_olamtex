@@ -7,6 +7,7 @@ use App\Models\Inventory\Item;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class InventoryMovementService
 {
@@ -213,6 +214,10 @@ class InventoryMovementService
      */
     protected function updateItemWeightedPrice(int $itemId, float $weightedPrice): void
     {
+        if (!Schema::hasColumn('items', 'weighted_average_price')) {
+            return;
+        }
+
         DB::table('items')
             ->where('id', $itemId)
             ->update([

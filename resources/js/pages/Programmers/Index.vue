@@ -25,8 +25,8 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
-import type { BreadcrumbItem } from '@/domain/shared/types';
+import type { ProductSheet, Programmer } from '@/domain/product-sheet';
+import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -63,24 +63,22 @@ async function loadPermissions() {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Diseño',
-        href: '/comercial/programador',
-    },
-    {
         title: 'Programador',
-        href: '/comercial/programador',
+        href: '/programador',
     },
 ];
 
 const props = defineProps<{
-    sections: OptionParams[];
-    groups: OptionParams[];
-    brands: OptionParams[];
-    worlds: OptionParams[];
-    fabricBases: OptionParams[]; // Cambiar bases a fabricBases
+    sections: Option[];
+    groups: Option[];
+    brands: Option[];
+    worlds: Option[];
+    fabricBases: Option[];
     productSheets: ProductSheet[];
-    destinations: OptionParams[];
-    yarnBases: OptionParams[]; // Nueva propiedad para yarn bases
+    destinations: Option[];
+    yarnBases: Option[];
+    months: Option[];
+    priorities: Option[];
 }>();
 
 const programmers = ref<Programmer[]>([]);
@@ -125,6 +123,18 @@ const seasonIsActive = computed(() => Boolean(filters.value.season) && filters.v
 const priorityIsActive = computed(() => Boolean(filters.value.priority) && filters.value.priority !== DEFAULT_SELECT_VALUE);
 const statusIsActive = computed(() => Boolean(filters.value.status) && filters.value.status !== DEFAULT_SELECT_VALUE);
 const destinationIsActive = computed(() => Boolean(filters.value.destination_id) && filters.value.destination_id !== DEFAULT_SELECT_VALUE);
+const seasonOptions = computed<Option[]>(() => [
+    { id: 'all', name: 'Todos' },
+    ...props.months,
+]);
+const priorityOptions = computed<Option[]>(() => [
+    { id: 'all', name: 'Todos' },
+    ...props.priorities,
+]);
+const destinationFilterOptions = computed<Option[]>(() => [
+    { id: 'all', name: 'Todos' },
+    ...props.destinations,
+]);
 
 const seasonButtonClasses = useFilterButtonClasses(seasonIsActive);
 const priorityButtonClasses = useFilterButtonClasses(priorityIsActive);
@@ -236,7 +246,9 @@ onMounted(async () => {
                         :fabricBases="props.fabricBases"
                         :yarnBases="props.yarnBases"
                         :productSheets="props.productSheets" 
-                        :destinations="props.destinations" 
+                        :destinations="props.destinations"
+                        :months="props.months"
+                        :priorities="props.priorities"
                         @programmerCreated="fetchProgrammers" 
                     />
                     <EditProgrammerDialog
@@ -268,21 +280,7 @@ onMounted(async () => {
                     <SelectField
                         v-model="filters.season"
                         placeholder="Filtrar Temporada"
-                        :options="[
-                            { id: 'all', name: 'Todos' },
-                            { id: 'ENERO', name: 'ENERO' },
-                            { id: 'FEBRERO', name: 'FEBRERO' },
-                            { id: 'MARZO', name: 'MARZO' },
-                            { id: 'ABRIL', name: 'ABRIL' },
-                            { id: 'MAYO', name: 'MAYO' },
-                            { id: 'JUNIO', name: 'JUNIO' },
-                            { id: 'JULIO', name: 'JULIO' },
-                            { id: 'AGOSTO', name: 'AGOSTO' },
-                            { id: 'SEPTIEMBRE', name: 'SEPTIEMBRE' },
-                            { id: 'OCTUBRE', name: 'OCTUBRE' },
-                            { id: 'NOVIEMBRE', name: 'NOVIEMBRE' },
-                            { id: 'DICIEMBRE', name: 'DICIEMBRE' }
-                        ]"
+                        :options="seasonOptions"
                         :button-class="seasonButtonClasses"
                     />
                 </FilterField>
@@ -294,13 +292,7 @@ onMounted(async () => {
                     <SelectField
                         v-model="filters.priority"
                         placeholder="Filtrar Prioridad"
-                        :options="[
-                            { id: 'all', name: 'Todos' },
-                            { id: 'A', name: 'A' },
-                            { id: 'B', name: 'B' },
-                            { id: 'C', name: 'C' },
-                            { id: 'D', name: 'D' }
-                        ]"
+                        :options="priorityOptions"
                         :button-class="priorityButtonClasses"
                     />
                 </FilterField>
@@ -314,8 +306,8 @@ onMounted(async () => {
                         placeholder="Filtrar Estado"
                         :options="[
                             { id: 'all', name: 'Todos' },
-                            { id: 'Completo', name: 'Completo' },
-                            { id: 'Incompleto', name: 'Incompleto' }
+                            { id: 'complete', name: 'Completo' },
+                            { id: 'incomplete', name: 'Incompleto' }
                         ]"
                         :button-class="statusButtonClasses"
                     />
@@ -328,10 +320,7 @@ onMounted(async () => {
                     <SelectField
                         v-model="filters.destination_id"
                         placeholder="Filtrar Destino"
-                        :options="[
-                            { id: 'all', name: 'Todos' },
-                            ...props.destinations.map(d => ({ id: d.id, name: d.name }))
-                        ]"
+                        :options="destinationFilterOptions"
                         :button-class="destinationButtonClasses"
                     />
                 </FilterField>
@@ -452,5 +441,3 @@ onMounted(async () => {
         </AlertDialogContent>
     </AlertDialog>
 </template>
-
-

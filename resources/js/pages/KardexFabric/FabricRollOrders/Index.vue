@@ -13,7 +13,6 @@ import { computed, onMounted, ref } from 'vue';
 import type { Programmer } from '@/domain/product-sheet';
 
 const breadcrumbs = [
-  { title: 'Kardex de Telas', href: '/kardex-telas' },
   { title: 'Descargue de tela por orden', href: '/kardex-telas/descargue-orden' },
 ];
 

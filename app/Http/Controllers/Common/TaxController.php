@@ -21,6 +21,20 @@ class TaxController extends Controller
             if ($request->has('search') && $request->search) {
                 $query->where('name', 'like', '%' . $request->search . '%');
             }
+            if ($request->has('status') && $request->status !== '' && $request->status !== 'all') {
+                $status = $request->status;
+                if ($status === 'active') {
+                    $status = true;
+                } elseif ($status === 'inactive') {
+                    $status = false;
+                } else {
+                    $status = filter_var($status, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                }
+
+                if ($status !== null) {
+                    $query->where('status', $status);
+                }
+            }
             $taxes = $query->orderBy('name')->paginate($request->per_page ?? 20);
             return response()->json([
                 'data' => $taxes->items(),

@@ -80,6 +80,10 @@ class UserService
             $query->where('name', 'like', '%' . $filters['search'] . '%');
         }
 
+        if (!empty($filters['area_id'])) {
+            $query->where('area_id', $filters['area_id']);
+        }
+
         if (!empty($filters['sortBy'])) {
             $query->orderBy($filters['sortBy'], $filters['sortDirection'] ?? 'asc');
         }

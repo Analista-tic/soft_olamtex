@@ -4,31 +4,41 @@ namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductSheet\ProductSheet;
-use App\Services\ParameterService;
+use App\Rules\ValidCatalogOption;
+use App\Services\Settings\SettingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 
 class ProductSheetController extends Controller
 {
+    private const CATALOG_LABELS = [
+        'sections' => 'Sección',
+        'groups' => 'Grupo',
+        'brands' => 'Marca',
+        'worlds' => 'Mundo',
+        'fabric_bases' => 'Base',
+        'yarn_bases' => 'Base de hilaza',
+    ];
+
+    public function __construct(private SettingService $settingService)
+    {
+    }
     /**
      * Carga datos relacionados y los envía a la vista.
      */
     public function index()
     {
-        $sections = ParameterService::getList('sections');
-        $groups = ParameterService::getList('groups');
-        $brands = ParameterService::getList('brands');
-        $worlds = ParameterService::getList('worlds');
-        $fabricBases = ParameterService::getList('fabric_bases');
-        $yarnBases = ParameterService::getList('yarn_bases');
+        $catalogs = $this->gatherCatalogs();
 
         return Inertia::render('ProductSheets/Index', [
-            'sections' => $sections,
-            'groups' => $groups,
-            'brands' => $brands,
-            'worlds' => $worlds,
-            'fabricBases' => $fabricBases,
-            'yarnBases' => $yarnBases,
+            'sections' => $catalogs['sections']->values()->all(),
+            'groups' => $catalogs['groups']->values()->all(),
+            'brands' => $catalogs['brands']->values()->all(),
+            'worlds' => $catalogs['worlds']->values()->all(),
+            'fabricBases' => $catalogs['fabric_bases']->values()->all(),
+            'yarnBases' => $catalogs['yarn_bases']->values()->all(),
+            'sizes' => $catalogs['sizes']->values()->all(),
         ]);
     }
 
@@ -39,11 +49,11 @@ class ProductSheetController extends Controller
     {
         $validatedData = $request->validate([
             'reference' => 'required|string|max:255',
-            'section_id' => 'required|integer', // ID referencia parameters
-            'group_id' => 'required|integer', // ID referencia parameters
-            'brand_id' => 'required|integer', // ID referencia parameters
-            'world_id' => 'required|integer', // ID referencia parameters
-            'fabric_base_id' => 'required|integer', // ID referencia parameters
+            'section_id' => ['required', 'integer', $this->catalogRule('sections')],
+            'group_id' => ['required', 'integer', $this->catalogRule('groups')],
+            'brand_id' => ['required', 'integer', $this->catalogRule('brands')],
+            'world_id' => ['required', 'integer', $this->catalogRule('worlds')],
+            'fabric_base_id' => ['required', 'integer', $this->catalogRule('fabric_bases')],
             'billing_price' => 'required|numeric',
             'selling_price' => 'required|numeric',
             'sizes' => 'required|json',
@@ -51,7 +61,7 @@ class ProductSheetController extends Controller
             'description' => 'nullable|string',
             'processes' => 'required|json',
             'status' => 'required|string|in:incomplete,complete',
-            'yarn_base_id' => 'nullable|integer', // ID referencia parameters
+            'yarn_base_id' => ['nullable', 'integer', $this->catalogRule('yarn_bases')],
         ]);
 
         // Normalizar sizes antes de guardar
@@ -73,11 +83,11 @@ class ProductSheetController extends Controller
     {
         $validatedData = $request->validate([
             'reference' => 'required|string|max:255',
-            'section_id' => 'required|integer', // ID referencia parameters
-            'group_id' => 'required|integer', // ID referencia parameters
-            'brand_id' => 'required|integer', // ID referencia parameters
-            'world_id' => 'required|integer', // ID referencia parameters
-            'fabric_base_id' => 'required|integer', // ID referencia parameters
+            'section_id' => ['required', 'integer', $this->catalogRule('sections')],
+            'group_id' => ['required', 'integer', $this->catalogRule('groups')],
+            'brand_id' => ['required', 'integer', $this->catalogRule('brands')],
+            'world_id' => ['required', 'integer', $this->catalogRule('worlds')],
+            'fabric_base_id' => ['required', 'integer', $this->catalogRule('fabric_bases')],
             'billing_price' => 'required|numeric',
             'selling_price' => 'required|numeric',
             'sizes' => 'required|json',
@@ -85,7 +95,7 @@ class ProductSheetController extends Controller
             'description' => 'nullable|string',
             'processes' => 'required|json',
             'status' => 'required|string|in:incomplete,complete',
-            'yarn_base_id' => 'nullable|integer', // ID referencia parameters
+            'yarn_base_id' => ['nullable', 'integer', $this->catalogRule('yarn_bases')],
         ]);
 
         // Normalizar sizes antes de actualizar
@@ -105,13 +115,13 @@ class ProductSheetController extends Controller
         try {
             $productSheet = ProductSheet::findOrFail($id);
 
-            // Cargar los catálogos desde parameters
-            $sections = ParameterService::getList('sections')->keyBy('id');
-            $groups = ParameterService::getList('groups')->keyBy('id');
-            $brands = ParameterService::getList('brands')->keyBy('id');
-            $worlds = ParameterService::getList('worlds')->keyBy('id');
-            $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
-            $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
+            $catalogs = $this->gatherCatalogs();
+            $sections = $catalogs['sections']->keyBy('id');
+            $groups = $catalogs['groups']->keyBy('id');
+            $brands = $catalogs['brands']->keyBy('id');
+            $worlds = $catalogs['worlds']->keyBy('id');
+            $fabricBases = $catalogs['fabric_bases']->keyBy('id');
+            $yarnBases = $catalogs['yarn_bases']->keyBy('id');
 
             // Enriquecer el producto con los nombres
             $productSheet->section = $sections->get($productSheet->section_id, ['id' => $productSheet->section_id, 'name' => 'N/A']);
@@ -170,15 +180,23 @@ class ProductSheetController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->filled('section_id')) {
+            $query->where('section_id', $request->section_id);
+        }
+
+        if ($request->filled('world_id')) {
+            $query->where('world_id', $request->world_id);
+        }
+
         $products_sheets = $query->orderBy('id', 'desc')->paginate(10);
 
-        // Cargar los catálogos desde parameters
-        $sections = ParameterService::getList('sections')->keyBy('id');
-        $groups = ParameterService::getList('groups')->keyBy('id');
-        $brands = ParameterService::getList('brands')->keyBy('id');
-        $worlds = ParameterService::getList('worlds')->keyBy('id');
-        $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
-        $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
+        $catalogs = $this->gatherCatalogs();
+        $sections = $catalogs['sections']->keyBy('id');
+        $groups = $catalogs['groups']->keyBy('id');
+        $brands = $catalogs['brands']->keyBy('id');
+        $worlds = $catalogs['worlds']->keyBy('id');
+        $fabricBases = $catalogs['fabric_bases']->keyBy('id');
+        $yarnBases = $catalogs['yarn_bases']->keyBy('id');
 
         // Enriquecer los productos con los nombres
         $products_sheets->getCollection()->transform(function ($product) use ($sections, $groups, $brands, $worlds, $fabricBases, $yarnBases) {
@@ -194,6 +212,22 @@ class ProductSheetController extends Controller
         return response()->json([
             'products_sheets' => $products_sheets,
         ]);
+    }
+
+    private function gatherCatalogs(): array
+    {
+        $keys = ['sections', 'groups', 'brands', 'worlds', 'fabric_bases', 'yarn_bases', 'sizes'];
+        $catalogs = [];
+        foreach ($keys as $key) {
+            $catalogs[$key] = $this->settingService->getCatalogOptions($key);
+        }
+        return $catalogs;
+    }
+
+    private function catalogRule(string $key): ValidCatalogOption
+    {
+        $label = self::CATALOG_LABELS[$key] ?? ucfirst(str_replace('_', ' ', $key));
+        return new ValidCatalogOption($this->settingService, $key, $label);
     }
 
     /**

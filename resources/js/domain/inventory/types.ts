@@ -37,6 +37,18 @@ export interface AdditionalField extends MaybeId {
     position?: number;
 }
 
+export interface AdditionalFieldPayload {
+    id?: number;
+    label?: string;
+    field_type: AdditionalFieldType;
+    options?: string[];
+    default_value?: string | null;
+    is_required: boolean;
+    status: boolean;
+    position?: number;
+    key?: string;
+}
+
 export type CategoryGroup = Named;
 
 export interface CategorySubGroup extends Named {
@@ -61,6 +73,7 @@ export interface Item extends Timestamps {
     code: string; // Agregado: propiedad code faltante
     reference: string;
     img?: string;
+    img_url?: string;
     stock_min: number;
     stock_max: number;
     bar_code?: string;

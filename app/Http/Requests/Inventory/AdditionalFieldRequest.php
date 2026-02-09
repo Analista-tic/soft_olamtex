@@ -2,8 +2,7 @@
 
 namespace App\Http\Requests\Inventory;
 
-use App\Models\Inventory\AdditionalField;
-use Illuminate\Validation\Rule;
+use App\Http\Requests\Settings\SettingKindRules;
 
 class AdditionalFieldRequest extends InventoryFormRequest
 {
@@ -14,14 +13,15 @@ class AdditionalFieldRequest extends InventoryFormRequest
 
     public function rules(): array
     {
-        return [
-            'name' => ['required', 'string', 'max:255'],
-            'field_type' => ['required', Rule::in(AdditionalField::FIELD_TYPES)],
-            'options' => ['nullable'],
-            'default_value' => ['nullable', 'string'],
-            'description' => ['nullable', 'string'],
-            'is_required' => ['sometimes', 'boolean'],
-            'status' => ['sometimes', 'boolean'],
-        ];
+        return array_merge(
+            SettingKindRules::field(),
+            [
+                'name' => ['required', 'string', 'max:255'],
+                'default_value' => ['nullable', 'string'],
+                'description' => ['nullable', 'string'],
+                'is_required' => ['sometimes', 'boolean'],
+                'status' => ['sometimes', 'boolean'],
+            ],
+        );
     }
 }

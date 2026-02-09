@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
+// ...existing code...
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { ref, watch } from 'vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -33,6 +35,10 @@ const form = ref<{
     permissions: [],
 });
 
+// ...existing code...
+
+// ...existing code...
+
 const localIsOpen = ref(props.isOpen);
 const globalSelectAll = ref(false);
 
@@ -60,8 +66,7 @@ watch(
                 name: newRole.name,
                 permissions: [...(newRole.permissions || []).map((p: { name: string }) => p.name)],
             };
-
-            // Actualizar el estado de los checkboxes al abrir el diálogo
+            // ...existing code...
             setTimeout(() => {
                 for (const module in permissionsByModule) {
                     const modulePermissions = permissionsByModule[module];
@@ -81,6 +86,8 @@ watch(
     },
     { immediate: true },
 );
+
+// ...eliminado watch de área...
 
 watch(
     () => form.value.permissions,
@@ -123,7 +130,11 @@ watch(
 );
 
 function submit() {
-    const roleData = { ...form.value };
+    const roleData: Record<string, unknown> = {
+        id: form.value.id,
+        name: form.value.name,
+        permissions: form.value.permissions,
+    };
     emit('submit', roleData);
 }
 
@@ -160,7 +171,7 @@ function handleCheckboxChange(event: Event, module: string): void {
 
 <template>
     <Dialog v-model:open="localIsOpen">
-        <DialogContent class="max-h-[90vh] flex flex-col w-[90vw] max-w-4xl">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[150vh] px-2 py-2">
             <TooltipProvider>
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ role?.id ? 'Editar Rol' : 'Crear Rol' }}</DialogTitle>
@@ -171,6 +182,7 @@ function handleCheckboxChange(event: Event, module: string): void {
 
             <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
             <form @submit.prevent="submit">
+                <!-- Eliminado campo de área -->
                 <div class="mb-4 flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <Label class="text-sm font-medium">
@@ -183,7 +195,7 @@ function handleCheckboxChange(event: Event, module: string): void {
                     </div>
                     <InputField label="" v-model="form.name" placeholder="Nombre del rol" required />
                 </div>
-                
+    
                 <div class="mb-4">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
@@ -243,7 +255,7 @@ function handleCheckboxChange(event: Event, module: string): void {
             </form>
             </div>
             </TooltipProvider>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>
 

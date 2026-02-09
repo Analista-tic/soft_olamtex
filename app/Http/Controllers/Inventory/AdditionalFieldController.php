@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\AdditionalFieldRequest;
-use App\Models\Inventory\AdditionalField;
+use App\Models\Setting;
 use App\Services\Inventory\AdditionalFieldService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -16,7 +16,7 @@ class AdditionalFieldController extends Controller
     public function index()
     {
         return Inertia::render('Configuration/AdditionalFields/Index', [
-            'fieldTypes' => AdditionalField::FIELD_TYPES,
+            'fieldTypes' => Setting::FIELD_TYPES,
         ]);
     }
 

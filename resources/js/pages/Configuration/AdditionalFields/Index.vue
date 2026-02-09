@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -15,7 +15,7 @@ import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { BreadcrumbItem } from '@/domain/shared';
-import type { AdditionalField } from '@/domain/inventory';
+import type { AdditionalField, AdditionalFieldPayload } from '@/domain/inventory';
 import {
     Pagination,
     PaginationEllipsis,
@@ -30,7 +30,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { PlusCircle, Search } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
+    { title: 'Catálogo de ítem', href: '/inventario/item' },
     { title: 'Campos adicionales', href: '/campos-adicionales' },
 ];
 
@@ -121,14 +121,24 @@ function closeDialog() {
     isDialogOpen.value = false;
 }
 
-async function handleDialogSubmit(fieldData: AdditionalField) {
+async function handleDialogSubmit(fieldData: AdditionalFieldPayload) {
     isSubmitting.value = true;
     try {
+        const payload = {
+            ...fieldData,
+            name: fieldData.label,
+        };
+        delete payload.label;
+
+        if (dialogType.value === 'create') {
+            delete payload.id;
+        }
+
         const url = dialogType.value === 'create'
             ? '/campos-adicionales'
             : `/campos-adicionales/${fieldData.id}`;
         const method = dialogType.value === 'create' ? 'POST' : 'PUT';
-        await axios({ method, url, data: fieldData });
+        await axios({ method, url, data: payload });
         successMessage.value = dialogType.value === 'create'
             ? 'Campo adicional creado correctamente.'
             : 'Campo adicional actualizado correctamente.';
@@ -376,7 +386,6 @@ onMounted(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Id</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Requerido</TableHead>
@@ -402,7 +411,6 @@ onMounted(() => {
                                 'bg-slate-50': field.id && field.id === dragOverFieldId,
                             }"
                         >
-                            <TableCell class="font-medium">{{ field.id }}</TableCell>
                             <TableCell class="font-medium">{{ field.name }}</TableCell>
                             <TableCell>
                                 {{ fieldTypeLabels[field.field_type] ?? field.field_type }}

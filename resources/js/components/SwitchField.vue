@@ -1,7 +1,8 @@
 <template>
   <div class="grid w-full items-center gap-1.5">
-    <Label>
-      {{ label }}
+    <Label class="flex items-center gap-2">
+      <span>{{ label }}</span>
+      <HelpTooltip v-if="tooltipText" :text="tooltipText" />
       <span v-if="required" class="text-red-500">*</span>
     </Label>
 
@@ -16,6 +17,7 @@
 </template>
 
 <script setup lang="ts">
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Label } from '@/components/ui/label';
 import { computed } from 'vue';
 
@@ -25,6 +27,7 @@ const props = defineProps<{
   id?: string;
   required?: boolean;
   disabled?: boolean;
+  tooltipText?: string;
 }>();
 
 const emit = defineEmits<{

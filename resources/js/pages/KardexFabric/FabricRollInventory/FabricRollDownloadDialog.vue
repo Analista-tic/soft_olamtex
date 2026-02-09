@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Button } from '@/components/ui/button';
 import FormHeader from '@/components/FormHeader.vue';
 import Input from '@/components/ui/input/Input.vue';
@@ -76,8 +77,8 @@ function submitDownload() {
 </script>
 
 <template>
-    <Dialog :open="props.modelValue" @openChange="handleOpenChange">
-        <DialogContent class="max-w-3xl max-h-[90vh] flex flex-col rounded-3xl border border-muted-foreground/40 bg-white p-6 shadow-lg">
+    <Dialog :open="props.modelValue" modal @openChange="handleOpenChange">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
             <FormHeader
                 title="Descarga por rollo"
                 description="Registra los datos de la salida antes de procesarla."
@@ -140,6 +141,6 @@ function submitDownload() {
                     </Button>
                 </div>
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

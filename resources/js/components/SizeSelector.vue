@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Label } from '@/components/ui/label';
 import { ref, watch } from 'vue';
 import DialogDescription from './ui/dialog/DialogDescription.vue';
@@ -73,7 +74,7 @@ function resetLocalModelValue() {
         </div>
         <Button class="w-full text-start" variant="outline" size="md" @click="isDialogOpen = true">Seleccionar Tallas <SquareArrowOutUpRight/></Button>
         <Dialog v-model:open="isDialogOpen" @close="resetLocalModelValue">
-            <DialogContent class="max-h-[90vh] flex flex-col text-sm sm:max-w-2xl">
+            <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[100vh] px-2 py-2">
                 <DialogHeader class="flex-shrink-0">
                     <DialogTitle>{{ props.disabled ? 'Ver Tallas' : 'Seleccionar Tallas' }}</DialogTitle>
                     <DialogDescription>
@@ -115,10 +116,18 @@ function resetLocalModelValue() {
                     </div>
                 </div>
                 </div>
-                <DialogFooter class="flex justify-end">
-                    <Button variant="default" size="sm" @click="isDialogOpen = false">Cerrar</Button>
+                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
+                    <div class="w-full md:w-auto">
+                        <button
+                            type="button"
+                            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                            @click="isDialogOpen = false"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
                 </DialogFooter>
-            </DialogContent>
+            </FormDialogContent>
         </Dialog>
     </div>
 </template>

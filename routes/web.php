@@ -10,7 +10,6 @@ use App\Http\Controllers\ProductSheet\FabricBaseController;
 use App\Http\Controllers\ProductSheet\GroupController;
 use App\Http\Controllers\ProductSheet\MachineController;
 use App\Http\Controllers\ProductSheet\OperationController;
-use App\Http\Controllers\ProductSheet\ParameterController;
 use App\Http\Controllers\ProductSheet\SectionController;
 use App\Http\Controllers\ProductSheet\WorldController;
 use App\Http\Controllers\ProductSheet\YarnBaseController;
@@ -34,6 +33,10 @@ use App\Http\Controllers\Settings\RetentionController;
 use App\Http\Controllers\Common\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
+use App\Http\Controllers\Inventory\WarehouseItemStockController;
+use App\Http\Controllers\Inventory\InventoryRequestController;
+use App\Http\Controllers\Inventory\WarehouseTransferController;
+use App\Http\Controllers\MasterData\ParameterController;
 
 // Página principal
 Route::get('/', fn() => redirect('login'))->name('home');
@@ -60,8 +63,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Perfil
     Route::get('profile', fn() => Inertia::render('Profile'))->name('profile');
 
+    // Módulos en desarrollo
+    Route::get('en-desarrollo/{modulo?}', function (?string $modulo = null) {
+        $title = request('titulo');
+        if (!$title && $modulo) {
+            $title = ucwords(str_replace('-', ' ', $modulo));
+        }
+
+        return Inertia::render('UnderConstruction', [
+            'title' => $title,
+        ]);
+    })->name('under-construction');
+
     // === COMERCIAL ===
-    Route::prefix('diseno')->name('diseno.')->group(function () {
+    Route::prefix('produccion')->name('produccion.')->group(function () {
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])
             ->middleware('permission:ver sabana productos')
             ->name('product-sheets.getData');
@@ -157,24 +172,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('programador.destroy');
     });
 
-    // ===PANEL ADMINISTRATIVO ===
-    Route::get('panel-administrativo', fn() => Inertia::render('Configuration/Index'))
+    // ===CONFIGURACIÓN ===
+    Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo');
-    Route::get('panel-administrativo/empresa', [CompanySettingsController::class, 'edit'])
+        ->name('configuracion');
+    Route::get('configuracion/empresa', [CompanySettingsController::class, 'edit'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.empresa');
-    Route::get('panel-administrativo/perfil', [CompanySettingsController::class, 'edit'])
+        ->name('configuracion.empresa');
+    Route::get('configuracion/perfil', [CompanySettingsController::class, 'edit'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.perfil')
+        ->name('configuracion.perfil')
         ->defaults('section', 'perfil');
-    Route::get('panel-administrativo/apariencia', [CompanySettingsController::class, 'edit'])
+    Route::get('configuracion/apariencia', [CompanySettingsController::class, 'edit'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.apariencia')
+        ->name('configuracion.apariencia')
         ->defaults('section', 'personalizacion');
-    Route::patch('panel-administrativo/empresa', [CompanySettingsController::class, 'update'])
+    Route::patch('configuracion/empresa', [CompanySettingsController::class, 'update'])
         ->middleware('permission:ver usuarios')
-        ->name('panel-administrativo.empresa.update');
+        ->name('configuracion.empresa.update');
 
     // === USUARIOS ===
     Route::get('users', [UserController::class, 'getData'])
@@ -257,6 +272,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/{id}/warehouses', [ItemController::class, 'getWarehouses'])->name('warehouses');
         Route::put('/{warehouse}', [WarehouseController::class, 'update'])->name('update');
         Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->name('destroy');
+    });
+
+    // === TRANSFERENCIAS DE BODEGA ===
+    Route::prefix('transferencias-bodegas')->name('warehouse-transfers.')->group(function () {
+        Route::get('/', [WarehouseTransferController::class, 'index'])->name('index');
+        Route::get('/data', [WarehouseTransferController::class, 'getData'])->name('data');
+        Route::get('/{transfer}', [WarehouseTransferController::class, 'show'])->name('show');
+        Route::post('/', [WarehouseTransferController::class, 'store'])->name('store');
+        Route::put('/{transfer}', [WarehouseTransferController::class, 'update'])->name('update');
+        Route::delete('/{transfer}', [WarehouseTransferController::class, 'destroy'])->name('destroy');
     });
 
     // === ITEMS ===
@@ -389,11 +414,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
     })->name('inventario.ajuste-inventario.create');
 
+    // === SOLICITUDES INTERNAS ===
+    Route::prefix('inventario/solicitudes-internas')->name('inventory-requests.')->group(function () {
+        Route::get('/', [InventoryRequestController::class, 'index'])->name('index');
+        Route::get('/data', [InventoryRequestController::class, 'getData'])->name('data');
+        Route::get('/next-number', [InventoryRequestController::class, 'nextNumber'])->name('next-number');
+        Route::get('/{inventoryRequest}', [InventoryRequestController::class, 'show'])->name('show');
+        Route::post('/', [InventoryRequestController::class, 'store'])->name('store');
+        Route::put('/{inventoryRequest}', [InventoryRequestController::class, 'update'])->name('update');
+        Route::post('/{inventoryRequest}/deliver', [InventoryRequestController::class, 'deliver'])->name('deliver');
+        Route::post('/{inventoryRequest}/reject', [InventoryRequestController::class, 'reject'])->name('reject');
+    });
+
     // === INVENTARIO DE ITEMS ===
     Route::prefix('inventario-item')->name('inventario-item.')->group(function () {
         Route::get('/', [ItemInventoryController::class, 'index'])->name('index');        // opcional
         Route::get('/data', [ItemInventoryController::class, 'getData'])->name('data');
     });
+    Route::get('/warehouse-items', [WarehouseItemStockController::class, 'index']);
 
     // === CAMPOS ADICIONALES ===
     Route::prefix('campos-adicionales')->name('inventory.additional-fields.')->group(function () {
@@ -405,6 +443,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/{additionalField}', [AdditionalFieldController::class, 'show'])->name('show');
         Route::put('/{additionalField}', [AdditionalFieldController::class, 'update'])->name('update');
         Route::delete('/{additionalField}', [AdditionalFieldController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::prefix('parametros')->name('parametros.')->group(function () {
+        Route::get('/', [ParameterController::class, 'index'])->name('index');
+        Route::get('/data', [ParameterController::class, 'data'])->name('data');
+        Route::post('/', [ParameterController::class, 'store'])->name('store');
+        Route::get('/{id}', [ParameterController::class, 'show'])->name('show');
+        Route::put('/{id}', [ParameterController::class, 'update'])->name('update');
+        Route::delete('/{id}', [ParameterController::class, 'destroy'])->name('destroy');
     });
 
     // === AJUSTES DE INVENTARIO ===

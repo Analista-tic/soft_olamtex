@@ -5,7 +5,7 @@ namespace App\Http\Controllers\ProductSheet;
 use App\Http\Controllers\Controller;
 use App\Models\ProductSheet\ProductSheet;
 use App\Models\ProductSheet\Programmer;
-use App\Services\ParameterService;
+use App\Services\Settings\SettingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -16,22 +16,39 @@ class ProgrammerController extends Controller
 {
     private const PRIORITIES = ['A', 'B', 'C', 'D'];
     private const STATUSES = ['complete', 'incomplete'];
+    private const CATALOG_KEYS = [
+        'sections',
+        'groups',
+        'brands',
+        'worlds',
+        'fabric_bases',
+        'yarn_bases',
+        'destinations',
+        'months',
+        'priorities',
+    ];
+
+    public function __construct(private SettingService $settingService)
+    {
+    }
 
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $sections = ParameterService::getList('sections')->keyBy('id');
-        $groups = ParameterService::getList('groups')->keyBy('id');
-        $brands = ParameterService::getList('brands')->keyBy('id');
-        $worlds = ParameterService::getList('worlds')->keyBy('id');
-        $fabricBases = ParameterService::getList('fabric_bases')->keyBy('id');
-        $yarnBases = ParameterService::getList('yarn_bases')->keyBy('id');
+        $catalogs = $this->loadCatalogs(self::CATALOG_KEYS);
+        $sections = $catalogs['sections']->keyBy('id');
+        $groups = $catalogs['groups']->keyBy('id');
+        $brands = $catalogs['brands']->keyBy('id');
+        $worlds = $catalogs['worlds']->keyBy('id');
+        $fabricBases = $catalogs['fabric_bases']->keyBy('id');
+        $yarnBases = $catalogs['yarn_bases']->keyBy('id');
+        $destinations = $catalogs['destinations'];
 
         $productSheets = ProductSheet::all(); // Traer todos los product sheets
 
-        // Enriquecer productSheets con los nombres desde parameters
+        // Enriquecer productSheets con los nombres desde settings
         $productSheets->transform(function ($product) use ($sections, $groups, $brands, $worlds, $fabricBases, $yarnBases) {
             $product->section = $sections->get($product->section_id, ['id' => $product->section_id, 'name' => 'N/A']);
             $product->group = $groups->get($product->group_id, ['id' => $product->group_id, 'name' => 'N/A']);
@@ -42,18 +59,18 @@ class ProgrammerController extends Controller
             return $product;
         });
 
-        $destination = ParameterService::getList('destinations');
-
         // Asegurarse de que los datos sean arreglos antes de pasarlos a la vista
         return Inertia::render('Programmers/Index', [
             'productSheets' => $productSheets ?? [],
-            'destinations' => $destination ?? [],
-            'sections' => $sections->values() ?? [],
-            'groups' => $groups->values() ?? [],
-            'brands' => $brands->values() ?? [],
-            'worlds' => $worlds->values() ?? [],
-            'fabricBases' => $fabricBases->values() ?? [],
-            'yarnBases' => $yarnBases->values() ?? [],
+            'destinations' => $destinations->values()->all(),
+            'sections' => $sections->values()->all(),
+            'groups' => $groups->values()->all(),
+            'brands' => $brands->values()->all(),
+            'worlds' => $worlds->values()->all(),
+            'fabricBases' => $fabricBases->values()->all(),
+            'yarnBases' => $yarnBases->values()->all(),
+            'months' => $catalogs['months']->values()->all(),
+            'priorities' => $catalogs['priorities']->values()->all(),
         ]);
     }
 
@@ -187,10 +204,10 @@ class ProgrammerController extends Controller
 
         $programmers = $query->paginate($perPage, ['*'], 'page', $page);
 
-        // Enriquecer con destinations desde parameters
-        $destinations = ParameterService::getList('destinations')->keyBy('id');
-        $sections = ParameterService::getList('sections')->keyBy('id');
-        $groups = ParameterService::getList('groups')->keyBy('id');
+        $catalogs = $this->loadCatalogs(['destinations', 'sections', 'groups']);
+        $destinations = $catalogs['destinations']->keyBy('id');
+        $sections = $catalogs['sections']->keyBy('id');
+        $groups = $catalogs['groups']->keyBy('id');
         
         $programmers->getCollection()->transform(function ($programmer) use ($destinations, $sections, $groups) {
             $programmer->destination = $destinations->get($programmer->destination_id, ['id' => $programmer->destination_id, 'name' => 'N/A']);
@@ -214,6 +231,17 @@ class ProgrammerController extends Controller
             'last_page' => $programmers->lastPage(),
             'per_page' => $programmers->perPage(),
         ]);
+    }
+
+    private function loadCatalogs(array $keys): array
+    {
+        $catalogs = [];
+
+        foreach ($keys as $key) {
+            $catalogs[$key] = $this->settingService->getCatalogOptions($key);
+        }
+
+        return $catalogs;
     }
 
     protected function normalizeEcommerceUnits($value): ?array
@@ -248,4 +276,3 @@ class ProgrammerController extends Controller
         ]);
     }
 }
-

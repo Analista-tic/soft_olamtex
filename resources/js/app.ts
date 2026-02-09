@@ -1,5 +1,6 @@
 import '../css/app.css';
 
+import axios from 'axios';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
@@ -11,6 +12,21 @@ import { initializeTheme } from './composables/useAppearance';
 // ImportMeta declarations are provided in resources/js/env.d.ts
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
+axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+axios.defaults.withCredentials = true;
+axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
+axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
+
+axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error?.response?.status === 401) {
+            window.location.href = '/login';
+        }
+        return Promise.reject(error);
+    },
+);
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

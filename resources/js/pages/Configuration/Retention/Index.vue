@@ -22,7 +22,6 @@ import SelectField from '@/components/SelectField.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Retenciones', href: '/configuracion/retenciones' },
 ];
 
@@ -143,11 +142,18 @@ onMounted(() => fetchRetentions());
             @close-error="errorMessage = ''"
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Gestión de retenciones</h1>
+            <div class="flex flex-col gap-3">
+                <div class="flex flex-col gap-1">
+                    <h1 class="text-lg font-bold">Gestión de retenciones</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Administra las retenciones que se aplican en las facturas de compra. Define el nombre,
+                        el porcentaje y el tipo; luego podrás seleccionarlas en las facturas para calcular el
+                        total a pagar.
+                    </p>
+                </div>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 self-end rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="openDialog('create')"
                 >
                     <PlusCircle class="w-4 h-4" />

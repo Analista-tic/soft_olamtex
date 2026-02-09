@@ -4,7 +4,7 @@ import type { BreadcrumbItem } from '@/domain/shared';
 import type { Warehouse } from '@/domain/inventory';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Search } from 'lucide-vue-next';
+import { PlusCircle, Pencil, Search, Trash } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -22,14 +22,12 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import EditButton from '@/components/common/EditButton.vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import WarehouseDialog from './WarehouseDialog.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { Inertia } from '@inertiajs/inertia';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
     { title: 'Bodegas', href: '/bodegas' },
 ];
 
@@ -97,6 +95,10 @@ async function deleteWarehouse() {
     } finally {
         isDeleteDialogOpen.value = false;
     }
+}
+
+function navigateToWarehouseTransfers() {
+    Inertia.visit('/transferencias-bodegas');
 }
 
 async function handleDialogSubmit(warehouseData: Warehouse) {
@@ -198,14 +200,23 @@ onMounted(() => {
                         Administra las bodegas de la empresa, su información y observaciones para ubicaciones físicas.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                    @click="openDialog('create')"
-                >
-                    <PlusCircle class="w-4 h-4" />
-                    Crear Nueva Bodega
-                </button>
+                <div class="flex gap-2">
+                    <Button
+                        variant="outline"
+                        class="rounded-full px-4 py-2 text-sm font-semibold"
+                        @click="navigateToWarehouseTransfers"
+                    >
+                        Transferencia de bodegas
+                    </Button>
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="openDialog('create')"
+                    >
+                        <PlusCircle class="w-4 h-4" />
+                        Crear Nueva Bodega
+                    </button>
+                </div>
             </div>
             <div class="relative flex items-center gap-4">
                 <FilterBar>
@@ -235,8 +246,24 @@ onMounted(() => {
                             <TableCell class="font-medium">{{ warehouse.name }}</TableCell>
                             <TableCell>{{ warehouse.observation }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', warehouse)" />
-                                <DeleteButton :onClick="() => confirmDeleteWarehouse(warehouse)" />
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8"
+                                    title="Editar"
+                                    @click="openDialog('edit', warehouse)"
+                                >
+                                    <Pencil class="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8"
+                                    title="Eliminar"
+                                    @click="confirmDeleteWarehouse(warehouse)"
+                                >
+                                    <Trash class="h-4 w-4" />
+                                </Button>
                             </TableCell>
                         </TableRow>
                     </TableBody>
@@ -289,4 +316,3 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
-

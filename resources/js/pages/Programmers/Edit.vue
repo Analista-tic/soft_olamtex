@@ -4,7 +4,8 @@
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import type { OptionParams, ProductSheet, Programmer } from '@/domain/product-sheet';
 import axios from 'axios';
 import { ref, computed } from 'vue';
@@ -138,6 +139,29 @@ function validateFields(): boolean {
     return true;
 }
 
+function resolveEcommerceValues(value?: string | Record<string, number> | null): Record<string, number> | null {
+    if (!value) {
+        return null;
+    }
+
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            if (parsed && typeof parsed === 'object') {
+                return parsed as Record<string, number>;
+            }
+        } catch {
+            return null;
+        }
+    }
+
+    if (typeof value === 'object') {
+        return value;
+    }
+
+    return null;
+}
+
 /**
  * Función para guardar los cambios realizados en el programador.
  */
@@ -193,7 +217,7 @@ async function saveChanges() {
         aria-labelledby="dialog-title" 
         aria-describedby="dialog-description"
     >
-        <DialogContent class="max-h-[90vh] flex flex-col max-w-2xl">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[75vh] px-2 py-2">
             <TooltipProvider>
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
@@ -323,19 +347,19 @@ async function saveChanges() {
                             aria-label="Ayuda sobre e-commerce"
                         />
                     </div>
-                    <EcommerceSizesDialog
-                        :productSheet="{
-                            sizes: productSheets.find(ps => ps.id === programmer.product_sheet_id)?.sizes || '{}',
-                            reference: getReferenceName(programmer.product_sheet_id)
-                        }"
-                        :existingValues="programmer.ecommerce_units"
-                        :readonly="isReadOnly"
-                        @sizesUpdated="(data) => {
-                            if (!isReadOnly) {
-                                programmer.ecommerce_units = data.sizes;
-                            }
-                        }"
-                    />
+    <EcommerceSizesDialog
+        :productSheet="{
+            sizes: productSheets.find(ps => ps.id === programmer.product_sheet_id)?.sizes || '{}',
+            reference: getReferenceName(programmer.product_sheet_id)
+        }"
+        :existingValues="resolveEcommerceValues(programmer.ecommerce_units)"
+        :readonly="isReadOnly"
+        @sizesUpdated="(data) => {
+            if (!isReadOnly) {
+                programmer.ecommerce_units = data.sizes;
+            }
+        }"
+    />
                 </div>
             </div>
             </div>
@@ -364,6 +388,6 @@ async function saveChanges() {
                     </Button>
                 </div>
             </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

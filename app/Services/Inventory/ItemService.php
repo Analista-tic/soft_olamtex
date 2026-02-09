@@ -10,7 +10,7 @@ use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\Inventory\Item;
-use App\Models\Inventory\AdditionalField;
+use App\Models\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
@@ -418,9 +418,11 @@ class ItemService
         if ($this->additionalFieldNameMap !== []) {
             return;
         }
-        AdditionalField::where('status', true)->get()->each(function (AdditionalField $field) {
-            $key = $this->normalizeHeader($field->name);
-            $this->additionalFieldNameMap[$key] = $field->name;
+        Setting::fields()->where('status', true)->get(['label'])->each(function (Setting $field) {
+            $key = $this->normalizeHeader($field->label);
+            if ($key !== '') {
+                $this->additionalFieldNameMap[$key] = $field->label;
+            }
         });
     }
 

@@ -2,20 +2,24 @@
 
 namespace App\Services\Inventory;
 
-use App\Models\Inventory\AdditionalField;
+use App\Models\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class AdditionalFieldService
 {
     public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator
     {
-        $query = AdditionalField::query();
+        $query = $this->fieldQuery();
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
-            $query->where('name', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%");
+            $query->where(function (Builder $builder) use ($search) {
+                $builder->where('label', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
         }
 
         if (!empty($filters['field_type'])) {
@@ -30,25 +34,25 @@ class AdditionalFieldService
         return $query->orderBy('position', 'asc')->paginate($perPage);
     }
 
-    public function find(int $id): AdditionalField
+    public function find(int $id): Setting
     {
-        return AdditionalField::findOrFail($id);
+        return $this->fieldQuery()->findOrFail($id);
     }
 
-    public function create(array $data): AdditionalField
+    public function create(array $data): Setting
     {
         $payload = $this->preparePayload($data, true);
-        return AdditionalField::create($payload);
+        return Setting::create($payload);
     }
 
-    public function update(AdditionalField $field, array $data): AdditionalField
+    public function update(Setting $field, array $data): Setting
     {
         $payload = $this->preparePayload($data, false, $field);
         $field->update($payload);
         return $field;
     }
 
-    public function delete(AdditionalField $field): void
+    public function delete(Setting $field): void
     {
         $field->delete();
     }
@@ -56,7 +60,7 @@ class AdditionalFieldService
     public function reorder(array $order): void
     {
         foreach ($order as $index => $fieldId) {
-            AdditionalField::where('id', $fieldId)->update([
+            $this->fieldQuery()->where('id', $fieldId)->update([
                 'position' => $index + 1,
             ]);
         }
@@ -64,44 +68,71 @@ class AdditionalFieldService
 
     public function options(): Collection
     {
-        return AdditionalField::where('status', true)
+        $fields = $this->fieldQuery()
+            ->where('status', true)
             ->orderBy('position', 'asc')
-            ->get(['id', 'name', 'field_type', 'options', 'default_value', 'description', 'is_required', 'position']);
+            ->get([
+                'id',
+                'label',
+                'field_type',
+                'options',
+                'default_value',
+                'description',
+                'is_required',
+                'position',
+            ]);
+
+        return $fields->map(function (Setting $field) {
+            return [
+                'id' => $field->id,
+                'name' => $field->label,
+                'label' => $field->label,
+                'field_type' => $field->field_type,
+                'options' => $field->options,
+                'default_value' => $field->default_value,
+                'description' => $field->description,
+                'is_required' => $field->is_required,
+                'position' => $field->position,
+            ];
+        });
     }
 
     public function orderedNames(): array
     {
-        return AdditionalField::where('status', true)
+        return $this->fieldQuery()
+            ->where('status', true)
             ->orderBy('position', 'asc')
-            ->pluck('name')
-            ->map(fn($name) => is_string($name) ? trim($name) : '')
-            ->filter(fn($name) => $name !== '')
+            ->pluck('label')
+            ->map(fn($label) => is_string($label) ? trim($label) : '')
+            ->filter(fn($label) => $label !== '')
             ->unique()
             ->values()
             ->toArray();
     }
 
-    protected function preparePayload(array $data, bool $isNew, ?AdditionalField $field = null): array
+    protected function fieldQuery(): Builder
+    {
+        return Setting::fields();
+    }
+
+    protected function preparePayload(array $data, bool $isNew, ?Setting $field = null): array
     {
         $payload = [
-            'name' => $data['name'],
+            'kind' => Setting::KIND_FIELD,
+            'key' => $this->determineKey($data, $field),
+            'label' => $data['name'],
             'field_type' => $data['field_type'],
             'options' => $this->normalizeOptions($data['options'] ?? null),
             'default_value' => $data['default_value'] ?? null,
             'description' => $data['description'] ?? null,
+            'is_required' => array_key_exists('is_required', $data)
+                ? (bool) $data['is_required']
+                : ($isNew ? false : $field?->is_required ?? false),
+            'status' => array_key_exists('status', $data)
+                ? (bool) $data['status']
+                : ($isNew ? true : $field?->status ?? true),
+            'value' => null,
         ];
-
-        if (array_key_exists('is_required', $data)) {
-            $payload['is_required'] = (bool) $data['is_required'];
-        } elseif ($isNew) {
-            $payload['is_required'] = false;
-        }
-
-        if (array_key_exists('status', $data)) {
-            $payload['status'] = (bool) $data['status'];
-        } elseif ($isNew) {
-            $payload['status'] = true;
-        }
 
         if ($isNew) {
             $payload['position'] = $this->nextPosition();
@@ -110,6 +141,23 @@ class AdditionalFieldService
         }
 
         return $payload;
+    }
+
+    protected function determineKey(array $data, ?Setting $field): string
+    {
+        if (!empty($data['key'])) {
+            return Str::slug($data['key']);
+        }
+
+        if (!empty($data['name'])) {
+            return Str::slug($data['name']);
+        }
+
+        if ($field) {
+            return $field->key;
+        }
+
+        return 'field-' . Str::random(6);
     }
 
     protected function normalizeOptions(mixed $options): ?array
@@ -139,6 +187,6 @@ class AdditionalFieldService
 
     protected function nextPosition(): int
     {
-        return (AdditionalField::max('position') ?? 0) + 1;
+        return (Setting::fields()->max('position') ?? 0) + 1;
     }
 }

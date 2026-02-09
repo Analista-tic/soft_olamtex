@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import EditButton from '@/components/common/EditButton.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
@@ -19,7 +17,7 @@ import FilterField from '@/components/FilterField.vue';
 import type { Item } from '@/domain/inventory/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Ban, CheckCircle, Download, FileSpreadsheet, PlusCircle, Search, Upload } from 'lucide-vue-next';
+import { Ban, CheckCircle, Download, FileSpreadsheet, PlusCircle, Pencil, Search, Trash, Upload } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch, reactive } from 'vue';
 import {
     Pagination,
@@ -38,14 +36,14 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
-    { title: 'Ítems', href: '/inventario/item' },
+    { title: 'Catálogo de ítem', href: '/inventario/item' },
 ];
 
 const items = ref<Item[]>([]);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<Partial<Item>>({});
+const isDialogLoading = ref(false);
 const itemToDelete = ref<Item | null>(null);
 const isDeleteDialogOpen = ref(false);
 const searchQuery = ref('');
@@ -77,6 +75,9 @@ const errorMessage = ref<string>('');
 function openDialog(type: 'create' | 'edit', item: Item | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
+    // if (item) {
+    //     console.log('ITEM PARA EDITAR:', item); // Depuración de campo img
+    // }
     form.value = item
         ? { ...item }
         : {
@@ -95,6 +96,7 @@ function openDialog(type: 'create' | 'edit', item: Item | null = null) {
 
 function closeDialog() {
     isDialogOpen.value = false;
+    isDialogLoading.value = false;
 }
 
 function confirmDeleteItem(item: Item) {
@@ -133,6 +135,10 @@ function handleDialogRefresh() {
   }
 
   errorMessage.value = '';
+}
+
+function handleDialogLoadingState(value: boolean) {
+    isDialogLoading.value = value;
 }
 
 function openStatusDialog(item: Item) {
@@ -177,6 +183,12 @@ watch(searchQuery, (newQuery) => {
 watch(statusFilter, (newStatus) => {
     currentPage.value = 1;
     fetchItems(1, searchQuery.value, newStatus);
+});
+
+watch(isDialogOpen, (value) => {
+    if (!value) {
+        isDialogLoading.value = false;
+    }
 });
 
 onMounted(() => {
@@ -228,7 +240,7 @@ async function downloadTemplate() {
 </script>
 
 <template>
-    <Head title="Gestión de ítems" />
+    <Head title="Catálogo de ítem" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
@@ -241,7 +253,7 @@ async function downloadTemplate() {
             />
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Gestión de ítems</h1>
+                    <h1 class="text-lg font-bold">Catálogo de ítem</h1>
                     <p class="text-sm text-muted-foreground">
                         Gestiona los ítems del inventario: categorías, stock y estado.
                     </p>
@@ -343,20 +355,39 @@ async function downloadTemplate() {
                                 <StatusBadge :text="item.status ? 'Habilitado' : 'Deshabilitado'" :type="item.status ? 'green' : 'red'" />
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton @click="openDialog('edit', item)" />
-                                <DeleteButton @click="confirmDeleteItem(item)" />
-                                <button
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8"
+                                    title="Editar"
+                                    @click="openDialog('edit', item)"
+                                >
+                                    <Pencil class="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    class="h-8 w-8"
+                                    title="Eliminar"
+                                    @click="confirmDeleteItem(item)"
+                                >
+                                    <Trash class="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
                                     :class="[
-                                        'inline-flex items-center justify-center text-gray-500',
-                                        item.status ? 'hover:text-red-600' : 'hover:text-green-500',
+                                        'h-8 w-8',
+                                        item.status
+                                            ? 'text-red-600 hover:text-red-700'
+                                            : 'text-emerald-600 hover:text-emerald-700',
                                     ]"
                                     title="Habilitar/Deshabilitar"
                                     @click="openStatusDialog(item)"
-                                    type="button"
                                 >
                                     <Ban v-if="item.status" class="h-4 w-4" />
                                     <CheckCircle v-else class="h-4 w-4" />
-                                </button>
+                                </Button>
                             </TableCell>
                         </TableRow>
                     </TableBody>
@@ -400,7 +431,14 @@ async function downloadTemplate() {
                 </Pagination>
             </div>
         </div>
-        <ItemDialog :isOpen="isDialogOpen" :dialogType="dialogType" :form="form" @close="closeDialog" @refresh="handleDialogRefresh" />
+        <ItemDialog
+            :isOpen="isDialogOpen"
+            :dialogType="dialogType"
+            :form="form"
+            @close="closeDialog"
+            @refresh="handleDialogRefresh"
+            @loading-state="handleDialogLoadingState"
+        />
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
             title="Confirmar eliminación"
@@ -451,13 +489,19 @@ async function downloadTemplate() {
             </DialogContent>
         </Dialog>
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
+        <transition name="fade">
+            <div
+                v-if="isDialogOpen && isDialogLoading"
+                class="fixed inset-0 z-[1200] flex flex-col items-center justify-center gap-3 rounded-3xl bg-white/70 p-6 shadow-2xl backdrop-blur-lg dark:bg-slate-900/70"
+                role="status"
+                aria-live="assertive"
+            >
+                <span class="inline-flex h-12 w-12 animate-spin rounded-full border-4 border-t-transparent border-primary"></span>
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Cargando diálogo...</p>
+            </div>
+        </transition>
     </AppLayout>
 </template>
-
-
-
-
-
 
 
 

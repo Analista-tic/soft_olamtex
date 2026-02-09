@@ -15,26 +15,34 @@ interface Props {
   disabled?: boolean;
   error?: string | boolean;
   decimals?: number;
+  list?: string;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits(['update:modelValue']);
 
-const isControlled = computed(() => props.modelValue !== undefined);
 
-// Valor local solo en modo controlado
+const isControlled = computed(() => props.modelValue !== undefined);
 const localModelValue = ref<string | number | undefined>(props.modelValue);
 
+// Sincroniza el valor local solo si el componente es controlado
 watch(
   () => props.modelValue,
   (val) => {
-    if (isControlled.value) localModelValue.value = val;
+    if (isControlled.value) {
+      localModelValue.value = val;
+    }
   }
 );
 
-watch(localModelValue, (newValue) => {
-  if (isControlled.value) emit('update:modelValue', newValue);
-});
+function updateValue(newValue: string | number) {
+  if (isControlled.value) {
+    emit('update:modelValue', newValue);
+  } else {
+    localModelValue.value = newValue;
+    emit('update:modelValue', newValue);
+  }
+}
 
 const isPasswordVisible = ref(false);
 
@@ -158,9 +166,10 @@ function parseCurrencyInput(value: string, decimals: number) {
   return Number.isNaN(numericValue) ? 0 : numericValue;
 }
 
+
 const formattedValue = computed({
   get() {
-    const value = isControlled.value ? localModelValue.value : props.value;
+    const value = isControlled.value ? props.modelValue : localModelValue.value;
 
     if (props.type === 'currency') {
       const prefix = '$ ';
@@ -193,7 +202,6 @@ const formattedValue = computed({
     return value ?? '';
   },
   set(val: string) {
-    if (!isControlled.value) return;
     const safeValue = val != null ? String(val) : '';
 
     if (props.type === 'currency') {
@@ -201,21 +209,21 @@ const formattedValue = computed({
       const normalizedValue = filteredValue.replace(/\./g, '');
       editingValue.value = normalizedValue;
       const numericValue = parseCurrencyInput(normalizedValue, currencyDecimals.value);
-      localModelValue.value = roundToDecimals(numericValue, currencyDecimals.value);
+      updateValue(roundToDecimals(numericValue, currencyDecimals.value));
     } else if (props.type === 'number') {
       const cleanValue = safeValue.replace(/[^0-9.]/g, '');
       const parts = cleanValue.split('.');
       if (parts.length > 2) {
-        localModelValue.value = parts[0] + '.' + parts.slice(1).join('');
+        updateValue(parts[0] + '.' + parts.slice(1).join(''));
       } else {
-        localModelValue.value = cleanValue;
+        updateValue(cleanValue);
       }
     } else if (props.type === 'email') {
-      localModelValue.value = safeValue.trim();
+      updateValue(safeValue.trim());
     } else if (props.type === 'text' || !props.type) {
-      localModelValue.value = safeValue;
+      updateValue(safeValue);
     } else {
-      localModelValue.value = safeValue.replace(/[^a-zA-Z0-9\s-]/g, '');
+      updateValue(safeValue.replace(/[^a-zA-Z0-9\s-]/g, ''));
     }
   },
 });
@@ -276,6 +284,7 @@ function togglePasswordVisibility() {
             : 'text'
         "
         :placeholder="computedPlaceholder"
+        :list="list"
         :readonly="readonly"
         :disabled="disabled"
         :step="props.type === 'number' || props.type === 'currency' ? '0.01' : undefined"
@@ -311,6 +320,7 @@ function togglePasswordVisibility() {
             : 'text'
         "
         :placeholder="computedPlaceholder"
+        :list="list"
         :readonly="readonly ?? true"
         :disabled="disabled"
         :step="props.type === 'number' || props.type === 'currency' ? '0.01' : undefined"

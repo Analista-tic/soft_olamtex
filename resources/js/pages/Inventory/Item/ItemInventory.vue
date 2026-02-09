@@ -39,14 +39,13 @@ type InventoryViewItem = {
 };
 
 const breadcrumbs = [
-    { title: 'Panel administrativo', href: '/panel-administrativo' },
-    { title: 'Inventario Ítems', href: '/inventario-item' },
+    { title: 'Inventario de Ítems', href: '/inventario-item' },
 ];
 
 const statusOptions: Option[] = [
     { id: 'all', name: 'Todos' },
-    { id: 'active', name: 'Activos' },
-    { id: 'inactive', name: 'Inactivos' },
+    { id: 'active', name: 'Habilitados' },
+    { id: 'inactive', name: 'Deshabilitados' },
 ];
 
 const items = ref<InventoryViewItem[]>([]);
@@ -123,12 +122,15 @@ async function fetchItems(page = 1) {
 async function fetchWarehouses() {
     try {
         const response = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
-        warehouses.value = (response.data.data ?? [])
+    warehouses.value = [
+        { id: '', name: 'Todos' },
+        ...(response.data.data ?? [])
             .filter((warehouse: Warehouse) => warehouse.id != null)
             .map((warehouse: Warehouse) => ({
                 id: warehouse.id!,
                 name: warehouse.name,
-            }));
+            })),
+    ];
     } catch (error) {
         console.error('Error al cargar bodegas', error);
     }
@@ -151,18 +153,18 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Inventario Ítems" />
+    <Head title="Inventario de Ítems" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Inventario Ítems</h1>
+                    <h1 class="text-lg font-bold">Inventario de Ítems</h1>
                     <p class="text-sm text-muted-foreground">
                         Visualiza el stock por bodega, consulta referencias y controla el estado de los ítems.
                     </p>
                 </div>
             </div>
-            <!-- FILTROS: UNA SOLA FILA -->
+            <!-- FILTROS -->
             <FilterBar align="start" gap="gap-4">
                 <FilterField
                     label="Buscar referencia"

@@ -8,6 +8,7 @@ export interface Role {
     id: number | null;
     name: string;
     permissions: Permission[];
+    area_id?: number | null;
 }
 
 export type User = SharedUser;

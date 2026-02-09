@@ -2,9 +2,14 @@
 
 namespace Database\Seeders;
 
+use App\Models\User;
+use App\Models\Setting;
+use App\Services\Inventory\InventoryMovementService;
+use App\Services\Inventory\WarehouseTransferService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ExampleDataSeeder extends Seeder
@@ -16,6 +21,23 @@ class ExampleDataSeeder extends Seeder
         $warehouseId = $warehouse ? $warehouse->id : DB::table('warehouses')->insertGetId([
             'name' => 'Principal',
             'observation' => 'Almacén principal',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Insertar bodegas adicionales si no existen
+        $warehouseSecondary = DB::table('warehouses')->where('name', 'Ferias')->first();
+        $warehouseSecondaryId = $warehouseSecondary ? $warehouseSecondary->id : DB::table('warehouses')->insertGetId([
+            'name' => 'Ferias',
+            'observation' => 'Bodega secundaria',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $warehouseTertiary = DB::table('warehouses')->where('name', 'Local Comercial 1')->first();
+        $warehouseTertiaryId = $warehouseTertiary ? $warehouseTertiary->id : DB::table('warehouses')->insertGetId([
+            'name' => 'Local Comercial 1',
+            'observation' => 'Punto de venta principal',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -181,6 +203,59 @@ class ExampleDataSeeder extends Seeder
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        // Stock inicial para telas en la bodega principal
+        DB::table('warehouse_items')->updateOrInsert(
+            ['warehouse_id' => $warehouseId, 'item_id' => $lanaId],
+            [
+                'quantity' => 250,
+                'stock_min' => 10,
+                'stock_max' => 500,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+        DB::table('warehouse_items')->updateOrInsert(
+            ['warehouse_id' => $warehouseId, 'item_id' => $algodonId],
+            [
+                'quantity' => 180,
+                'stock_min' => 10,
+                'stock_max' => 400,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        // Transferencias de bodega de ejemplo
+        if (Schema::hasTable('warehouse_transfers') && Schema::hasTable('warehouse_transfer_items')) {
+            $hasTransfers = DB::table('warehouse_transfers')->exists();
+            $seedUser = User::find($userId);
+
+            if (!$hasTransfers && $seedUser) {
+                $transferService = new WarehouseTransferService(new InventoryMovementService());
+
+                $transferService->create([
+                    'date' => now()->subDays(7)->toDateString(),
+                    'origin_warehouse_id' => $warehouseId,
+                    'destination_warehouse_id' => $warehouseSecondaryId,
+                    'observation' => 'Traslado inicial de prueba',
+                    'items' => [
+                        ['item_id' => $itemId, 'quantity' => 5],
+                        ['item_id' => $lanaId, 'quantity' => 12],
+                    ],
+                ], $seedUser);
+
+                $transferService->create([
+                    'date' => now()->subDays(3)->toDateString(),
+                    'origin_warehouse_id' => $warehouseId,
+                    'destination_warehouse_id' => $warehouseTertiaryId,
+                    'observation' => 'Reposición punto de venta',
+                    'items' => [
+                        ['item_id' => $algodonId, 'quantity' => 8],
+                    ],
+                ], $seedUser);
+            }
+        }
 
         // Generar documento ejemplo (solicitud + orden) usando la tabla unificada
         $requestDocumentId = DB::table('purchase_documents')->insertGetId([
@@ -387,21 +462,12 @@ class ExampleDataSeeder extends Seeder
         }
 
         // Fichas de producto (ProductSheets)
-        // Obtener IDs desde la tabla parameters (ya no insertamos en tablas de catálogos)
-        $sectionsParam = DB::table('parameters')->where('nombre', 'sections')->first();
-        $sectionId = $sectionsParam ? json_decode($sectionsParam->valor, true)[0]['id'] : 1;
-
-        $groupsParam = DB::table('parameters')->where('nombre', 'groups')->first();
-        $groupId = $groupsParam ? json_decode($groupsParam->valor, true)[0]['id'] : 1;
-
-        $brandsParam = DB::table('parameters')->where('nombre', 'brands')->first();
-        $brandId = $brandsParam ? json_decode($brandsParam->valor, true)[0]['id'] : 1;
-
-        $worldsParam = DB::table('parameters')->where('nombre', 'worlds')->first();
-        $worldId = $worldsParam ? json_decode($worldsParam->valor, true)[0]['id'] : 1;
-
-        $fabricBasesParam = DB::table('parameters')->where('nombre', 'fabric_bases')->first();
-        $fabricBaseId = $fabricBasesParam ? json_decode($fabricBasesParam->valor, true)[0]['id'] : 1;
+        // Obtener IDs desde settings (kind=parameter)
+        $sectionId = $this->getParameterFirstId('sections');
+        $groupId = $this->getParameterFirstId('groups');
+        $brandId = $this->getParameterFirstId('brands');
+        $worldId = $this->getParameterFirstId('worlds');
+        $fabricBaseId = $this->getParameterFirstId('fabric_bases');
 
         // Product Sheets - Usar updateOrInsert para evitar duplicados
         DB::table('product_sheets')->updateOrInsert(
@@ -450,9 +516,8 @@ class ExampleDataSeeder extends Seeder
         // Obtener el ID de la ficha de producto recién creada
         $productSheetId = DB::table('product_sheets')->where('reference', 'MUESTRA-001')->value('id');
 
-        // Obtener el ID del destino desde parameters
-        $destinationsParam = DB::table('parameters')->where('nombre', 'destinations')->first();
-        $destinationId = $destinationsParam ? json_decode($destinationsParam->valor, true)[0]['id'] : 1;
+        // Obtener el ID del destino desde settings (kind=parameter)
+        $destinationId = $this->getParameterFirstId('destinations');
 
         DB::table('programmers')->insert([
             [
@@ -623,6 +688,28 @@ class ExampleDataSeeder extends Seeder
                     'updated_at' => now(),
                 ]);
             }
+
         }
+    }
+
+    private function getParameterFirstId(string $name, int $fallback = 1): int
+    {
+        $setting = Setting::where('kind', 'parameter')->where('key', $name)->first();
+        if (! $setting) {
+            return $fallback;
+        }
+
+        $items = $setting->value ?? [];
+        if (! is_array($items) || empty($items)) {
+            return $fallback;
+        }
+
+        foreach ($items as $entry) {
+            if (is_array($entry) && isset($entry['id'])) {
+                return (int) $entry['id'];
+            }
+        }
+
+        return $fallback;
     }
 }

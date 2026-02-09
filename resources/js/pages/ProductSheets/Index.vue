@@ -36,19 +36,14 @@ import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
 import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Diseño',
-        href: '/diseno/sabana-productos',
-    },
-    {
         title: 'Sabana de Productos',
-        href: '/diseno/sabana-productos',
+        href: '/sabana-productos',
     },
 ];
 
@@ -79,11 +74,9 @@ const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
 const statusFilter = ref<string | null>(null); // Cambiar a string | null para mayor claridad
-const statusFilterActive = computed(() => statusFilter.value !== null);
-const statusTriggerClasses = useFilterButtonClasses(statusFilterActive, {
-    baseClasses:
-        'h-8 w-full rounded-md border px-3 text-sm flex items-center justify-between transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
-});
+const sectionFilter = ref<number | null>(null);
+const worldFilter = ref<number | null>(null);
+
 
 const statusOptions: StatusOption[] = [
     { id: 0, label: 'Todos', value: null },
@@ -141,7 +134,7 @@ async function deleteProductSheet() {
     if (!productSheetToDelete.value) return;
 
     try {
-        await axios.delete(`/diseno/sabana-productos/${productSheetToDelete.value.id}`);
+        await axios.delete(`/produccion/sabana-productos/${productSheetToDelete.value.id}`);
         const index = products_sheet.value.findIndex((product) => product.id === productSheetToDelete.value!.id);
         if (index !== -1) {
             products_sheet.value.splice(index, 1);
@@ -155,14 +148,22 @@ async function deleteProductSheet() {
 }
 
 // Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
-async function fetchProductSheets(page = 1, search = '', status: string | null = null) {
+async function fetchProductSheets(
+    page = 1,
+    search = '',
+    status: string | null = null,
+    section: number | null = null,
+    world: number | null = null,
+) {
     try {
-        const response = await axios.get('/diseno/product-sheets', {
+        const response = await axios.get('/produccion/product-sheets', {
             params: {
                 page,
                 per_page: itemsPerPage,
                 search,
                 status: status || undefined, // Convertir null a undefined para la API
+                section_id: section || undefined,
+                world_id: world || undefined,
             },
         });
         console.log(response);
@@ -178,14 +179,14 @@ async function fetchProductSheets(page = 1, search = '', status: string | null =
 }
 
 // Llamar a fetchProductSheets cuando searchQuery o statusFilter cambien
-watch([searchQuery, statusFilter], ([newQuery, newStatus]) => {
-    fetchProductSheets(1, newQuery, newStatus);
+watch([searchQuery, statusFilter, sectionFilter, worldFilter], ([newQuery, newStatus, newSection, newWorld]) => {
+    fetchProductSheets(1, newQuery, newStatus, newSection, newWorld);
 });
 
 async function openEditDialog(product: ProductSheet) {
     try {
         // Hacer petición al backend para obtener los datos completos
-        const response = await axios.get(`/diseno/sabana-productos/${product.id}`);
+        const response = await axios.get(`/produccion/sabana-productos/${product.id}`);
         if (response && response.data && response.data.success) {
             editProductSheetData.value = response.data.data;
             isViewMode.value = false;
@@ -202,7 +203,7 @@ async function openEditDialog(product: ProductSheet) {
 async function viewProductSheet(product: ProductSheet) {
     try {
         // Hacer petición al backend para obtener los datos completos
-        const response = await axios.get(`/diseno/sabana-productos/${product.id}`);
+        const response = await axios.get(`/produccion/sabana-productos/${product.id}`);
         if (response && response.data && response.data.success) {
             editProductSheetData.value = response.data.data;
             isViewMode.value = true;
@@ -258,28 +259,24 @@ onMounted(async () => {
                     <PlusCircle class="h-4 w-4" /> Nuevo Producto
                 </Button>
             </div>
-            <FilterBar align="start" gap="gap-4">
+            <FilterBar align="start">
                 <FilterField
                     label="Referencia"
                     :active="searchQuery.trim().length > 0"
                     class="flex-1 min-w-[220px] p-0"
                 >
-                    <div class="relative w-full max-w-sm">
+                    <div class="relative w-full">
                         <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
-                <FilterField
-                    label="Estado"
-                    :active="statusFilter !== null"
-                    class="min-w-[200px]"
-                >
-                    <div class="flex w-full max-w-xs items-center">
+                <div class="flex flex-wrap items-center gap-2">
+                    <FilterField label="Estado" :active="statusFilter !== null" class="flex-1 min-w-[220px] max-w-[220px]">
                         <Select v-model="statusFilter">
-                        <SelectTrigger :class="statusTriggerClasses">
-                                <SelectValue placeholder="Filtrar por estado" />
+                            <SelectTrigger class="h-10 w-full rounded-md border px-3 text-sm flex items-center justify-between">
+                                <SelectValue placeholder="Todos" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectGroup>
@@ -289,8 +286,38 @@ onMounted(async () => {
                                 </SelectGroup>
                             </SelectContent>
                         </Select>
-                    </div>
-                </FilterField>
+                    </FilterField>
+                <FilterField label="Sección" :active="sectionFilter !== null" class="flex-1 min-w-[220px] max-w-[220px]">
+                    <Select v-model="sectionFilter">
+                        <SelectTrigger class="h-10 w-full rounded-md border px-3 text-sm flex items-center justify-between">
+                            <SelectValue placeholder="Filtrar por sección" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem :value="null">Todos</SelectItem>
+                                <SelectItem v-for="section in props.sections" :key="section.id" :value="section.id">
+                                    {{ section.name }}
+                                </SelectItem>
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                    </FilterField>
+                <FilterField label="Mundo" :active="worldFilter !== null" class="flex-1 min-w-[220px] max-w-[220px]">
+                    <Select v-model="worldFilter">
+                        <SelectTrigger class="h-10 w-full rounded-md border px-3 text-sm flex items-center justify-between">
+                            <SelectValue placeholder="Filtrar por mundo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                <SelectItem :value="null">Todos</SelectItem>
+                                <SelectItem v-for="world in props.worlds" :key="world.id" :value="world.id">
+                                    {{ world.name }}
+                                </SelectItem>
+                            </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </FilterField>
+                </div>
             </FilterBar>
 
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
@@ -312,11 +339,11 @@ onMounted(async () => {
                     <TableBody>
                         <TableRow v-for="product in products_sheet" :key="product.id" class="text-center">
                             <TableCell class="font-medium">{{ product.reference }}</TableCell>
-                            <TableCell>{{ product.section.name }}</TableCell>
-                            <TableCell>{{ product.group.name }}</TableCell>
-                            <TableCell>{{ product.brand.name }}</TableCell>
-                            <TableCell>{{ product.world.name }}</TableCell>
-                            <TableCell>{{ product.fabric_base.name }}</TableCell>
+                            <TableCell>{{ product.section?.name ?? '' }}</TableCell>
+                            <TableCell>{{ product.group?.name ?? '' }}</TableCell>
+                            <TableCell>{{ product.brand?.name ?? '' }}</TableCell>
+                            <TableCell>{{ product.world?.name ?? '' }}</TableCell>
+                            <TableCell>{{ product.fabric_base?.name ?? '' }}</TableCell>
                             <TableCell>{{
                                 new Intl.NumberFormat('es-CO', {
                                     style: 'currency',

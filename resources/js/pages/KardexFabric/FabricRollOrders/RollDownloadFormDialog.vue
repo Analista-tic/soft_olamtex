@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import Input from '@/components/ui/input/Input.vue';
 import type { FabricRollView } from '@/domain/fabric';
 import { computed, reactive, watch } from 'vue';
@@ -164,7 +165,7 @@ function submitForm() {
 
 <template>
   <Dialog :open="props.modelValue" @openChange="handleOpenChange">
-    <DialogContent class="max-h-[96dvh] flex flex-col w-full p-6 sm:max-w-4xl">
+    <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[130vh] px-2 py-2">
       <DialogHeader class="flex-shrink-0">
         <DialogTitle>Registro de descarga</DialogTitle>
         <DialogDescription>
@@ -349,6 +350,6 @@ function submitForm() {
           </Button>
         </div>
       </DialogFooter>
-    </DialogContent>
+    </FormDialogContent>
   </Dialog>
 </template>

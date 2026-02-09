@@ -27,8 +27,7 @@ import type { PurchaseRequest } from '@/domain/purchases';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
 const breadcrumbs = [
-    { title: 'Gastos', href: '/gastos' },
-    { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra' },
+    { title: 'Solicitud de compra', href: '/solicitudes-compra' },
 ];
 
 const requests = ref<PurchaseRequest[]>([]);

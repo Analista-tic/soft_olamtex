@@ -101,7 +101,7 @@ async function fetchOperations() {
     isLoading.value = true;
 
     try {
-        const { data } = await axios.get('/diseno/listados-operacionales/data', {
+        const { data } = await axios.get('/produccion/listados-operacionales/data', {
             params: { product_sheet_id: props.productSheetId },
         });
         operations.value = Array.isArray(data?.data) ? data.data : [];
@@ -115,7 +115,7 @@ async function fetchOperations() {
 
 async function fetchParameters() {
     try {
-        const { data } = await axios.get('/diseno/parametros/data');
+        const { data } = await axios.get('/produccion/parametros/data');
         parameters.value = data?.data ?? {};
     } catch (error) {
         console.error('Error al cargar parametros:', error);
