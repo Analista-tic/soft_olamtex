@@ -72,6 +72,38 @@ const priorityOptions = computed<Option[]>(() => {
     return Array.isArray(props.priorities) && props.priorities.length > 0 ? props.priorities : PRIORITIES;
 });
 
+/**
+ * Normaliza un valor de option a su name string.
+ * Busca primero por id, luego verifica si ya es el name.
+ */
+function normalizeOptionToName(
+    value: string | number | null | undefined,
+    options: Option[]
+): string | null {
+    if (value === null || value === undefined || value === '') return null;
+    
+    // Buscar por id
+    const byId = options.find((opt) => opt.id === value || String(opt.id) === String(value));
+    if (byId) return String(byId.name).toUpperCase();
+    
+    // Si el value ya es un name válido
+    const byName = options.find((opt) => 
+        String(opt.name).toUpperCase() === String(value).toUpperCase()
+    );
+    if (byName) return String(byName.name).toUpperCase();
+    
+    // Fallback: devolver el valor como string en mayúscula si no se encuentra
+    return String(value).toUpperCase();
+}
+
+function normalizeSeason(value: string | number | null | undefined): string | null {
+    return normalizeOptionToName(value, monthOptions.value);
+}
+
+function normalizePriority(value: string | number | null | undefined): string | null {
+    return normalizeOptionToName(value, priorityOptions.value);
+}
+
 // State
 const isDialogOpen = ref(false);
 const productSheetDialogOpen = ref(false);
@@ -90,7 +122,6 @@ const missingFieldsSummary = computed(() => {
 // Alert state
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
-const hasAttemptedSave = ref(false);
 
 // Alert functions
 function setAlert(message: string, type: AlertType = 'info'): void {
@@ -163,6 +194,33 @@ const selectedProductSheet = computed(() => {
     return productSheetList.value.find((sheet) => getProductSheetValue(sheet) === Number(form.value.productSheetId)) || null;
 });
 
+// Mapa de productSheets por ID para búsqueda rápida
+const productSheetsById = computed(() => {
+    const map = new Map<number, ProductSheet>();
+    for (const sheet of productSheetList.value) {
+        map.set(getProductSheetValue(sheet), sheet);
+    }
+    return map;
+});
+
+// Helper para obtener la referencia humana (sample_reference o product_reference) dado un ID
+function getDisplayReference(productSheetId: number | null | undefined): string {
+    if (!productSheetId) return 'Sin referencia';
+    const sheet = productSheetsById.value.get(Number(productSheetId));
+    if (!sheet) return 'Sin referencia';
+    
+    // Si es muestra, usar sample_reference; si es producto, usar product_reference
+    // Fallback al label o display_reference existente
+    if (sheet.type === 'muestra' && sheet.sample_reference) {
+        return sheet.sample_reference;
+    }
+    if (sheet.type === 'producto' && sheet.product_reference) {
+        return sheet.product_reference;
+    }
+    // Fallback a cualquier referencia disponible
+    return sheet.sample_reference || sheet.product_reference || sheet.display_reference || sheet.reference || getProductSheetLabel(sheet) || 'Sin referencia';
+}
+
 const destinationOptions = computed<Option[]>(() => props.destinations);
 
 function generateLots(): void {
@@ -221,7 +279,6 @@ function validateForm(): void {
 }
 
 function createProgrammer(): void {
-    hasAttemptedSave.value = true;
     // Validar que existan lotes
     if (lotsForm.value.length === 0) {
         setAlert('Debes generar al menos un lote antes de guardar.', 'warning');
@@ -251,9 +308,9 @@ function createProgrammer(): void {
         
         return {
             product_sheet_id: lot.product_sheet_id,
-            season: lot.season,
+            season: normalizeSeason(lot.season),
             destination_id: lot.destination_id || null,
-            priority: lot.priority,
+            priority: normalizePriority(lot.priority),
             units: unitsValue,
             ecommerce_units: ecommerceUnitsValue,
             status: lot.status,
@@ -290,7 +347,6 @@ function resetForm(): void {
     productSheetDialogOpen.value = false;
     dialogInnerRef.value = null;
     clearAlert();
-    hasAttemptedSave.value = false;
 }
 
 function parseUnitsInput(value: string | number | null | undefined): number | null {
@@ -386,7 +442,14 @@ function resolveEcommerceValues(value?: string | Record<string, number> | null):
     return null;
 }
 
-function addProductSheet(response: { success: boolean; message: string; data: ProductSheet } | undefined): void {
+/** Payload recibido del ProductSheetDialog al guardar */
+interface ProductSheetSavedPayload {
+    success?: boolean;
+    message?: string;
+    data?: ProductSheet;
+}
+
+function addProductSheet(response: ProductSheetSavedPayload): void {
     if (!response?.success || !response?.data?.id) {
         console.error('El ProductSheet creado no es válido:', response);
         setAlert('Hubo un problema al crear la ficha de producto. Intenta nuevamente.', 'error');
@@ -555,30 +618,6 @@ function handleLotsCountInput(event: Event): void {
                         </table>
                     </div>
                 </div>
-                
-                <div v-if="hasAttemptedSave && formErrors.length > 0" class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded mb-4 mt-4">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0">
-                            <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                            </svg>
-                        </div>
-                        <div class="ml-3">
-                            <h3 class="text-sm font-medium text-amber-800">Campos incompletos</h3>
-                            <div class="mt-2 text-sm text-amber-700">
-                                <p>{{ errorSummary?.message }}</p>
-                                <details class="mt-2">
-                                    <summary class="cursor-pointer font-medium hover:text-amber-900">Ver detalles</summary>
-                                    <ul class="mt-2 space-y-1 list-disc list-inside">
-                                        <li v-for="(error, index) in formErrors" :key="index">
-                                            Lote {{ error.lotIndex + 1 }}: {{ error.fields.join(', ') }}
-                                        </li>
-                                    </ul>
-                                </details>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <div v-if="lotsForm.length > 0" class="mt-4">
                     <h3 class="text-base font-bold mb-2">Lotes Generados:</h3>
@@ -598,7 +637,7 @@ function handleLotsCountInput(event: Event): void {
                     <tbody>
                         <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
                             <td class="px-4 py-4 border whitespace-nowrap">MF300{{ index + 1 }}</td>
-                            <td class="px-4 py-4 border">{{ lot.product_sheet_id }}</td>
+                            <td class="px-4 py-4 border">{{ getDisplayReference(lot.product_sheet_id) }}</td>
                             <td class="px-4 py-4 border" style="min-width: 180px;">
                             <SelectField
                                 v-model="lot.season"
@@ -709,9 +748,6 @@ function handleLotsCountInput(event: Event): void {
                         Guardar
                     </Button>
                 </div>
-                <p v-if="saveDisabled" class="text-xs text-rose-600 text-right">
-                    Campos incompletos: {{ missingFieldsSummary }}
-                </p>
             </div>
         </FormDialogContent>
     </Dialog>

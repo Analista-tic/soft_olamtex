@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Setting;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\WarehouseTransferService;
+use App\Services\ProductSheet\ProgrammerService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -487,9 +488,16 @@ class ExampleDataSeeder extends Seeder
         $worldId = $this->getParameterFirstId('worlds');
         $fabricBaseId = $this->getParameterFirstId('fabric_bases');
 
-        // Product Sheets - Usar updateOrInsert para evitar duplicados
+        // ========== PRODUCT SHEETS Y PROGRAMMERS ==========
+        // Se crean escenarios consistentes con la lógica del ERP:
+        // - Muestras (type=muestra) generan Programmers AUTO con OP MU-xxxx o MUT-xxxx
+        // - Productos (type=producto) pueden tener Programmers MANUALES con OP MF-xxxx o MFT-xxxx
+        
+        $programmerService = app(ProgrammerService::class);
+
+        // Escenario A: ProductSheet tipo 'muestra', woven_product=false → OP MU-xxxx (auto)
         DB::table('product_sheets')->updateOrInsert(
-            ['sample_reference' => 'MUESTRA-001'],
+            ['sample_reference' => 'MUESTRA001'],
             [
                 'section_id' => $sectionId,
                 'group_id' => $groupId,
@@ -497,23 +505,23 @@ class ExampleDataSeeder extends Seeder
                 'world_id' => $worldId,
                 'fabric_base_id' => $fabricBaseId,
                 'yarn_base_id' => null,
-                'description' => 'Pantalón jean básico - Muestra',
+                'description' => 'Pantalón jean básico - Muestra NO tejida',
                 'flat_sketch_path' => 'product-sheets/flat-sketches/mock-muestra-001.jpg',
                 'billing_price' => null,
                 'selling_price' => null,
                 'sizes' => json_encode(['28' => true, '30' => true, '32' => true, '34' => true, '36' => true]),
-                'woven_product' => 0,
+                'woven_product' => false,
                 'processes' => json_encode([]),
                 'status' => 'incomplete',
                 'type' => 'muestra',
-                'sample_reference' => 'MUESTRA-001',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]
         );
 
+        // Escenario B: ProductSheet tipo 'producto', woven_product=true → OP MFT-xxxx (manual)
         DB::table('product_sheets')->updateOrInsert(
-            ['product_reference' => 'PROD-001'],
+            ['product_reference' => 'PRODUCTO02'],
             [
                 'section_id' => $sectionId,
                 'group_id' => $groupId,
@@ -521,52 +529,71 @@ class ExampleDataSeeder extends Seeder
                 'world_id' => $worldId,
                 'fabric_base_id' => $fabricBaseId,
                 'yarn_base_id' => null,
-                'description' => 'Pantalón jean clásico - Producción',
+                'description' => 'Pantalón jean clásico - Producto TEJIDO',
                 'flat_sketch_path' => 'product-sheets/flat-sketches/mock-producto-001.jpg',
-                'billing_price' => null,
-                'selling_price' => null,
+                'billing_price' => 45000.00,
+                'selling_price' => 89000.00,
                 'sizes' => json_encode(['S' => true, 'M' => true, 'L' => true, 'XL' => true]),
-                'woven_product' => 0,
+                'woven_product' => true,
                 'processes' => json_encode([]),
-                'status' => 'incomplete',
+                'status' => 'complete',
                 'type' => 'producto',
-                'product_reference' => 'PROD-001',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]
         );
 
-        // Programador (Programmer)
-        // Obtener el ID de la ficha de producto recién creada
-        $productSheetId = DB::table('product_sheets')->where('sample_reference', 'MUESTRA-001')->value('id');
+        // Obtener IDs de las fichas creadas
+        $muestraSheetId = DB::table('product_sheets')->where('sample_reference', 'MUESTRA001')->value('id');
+        $productoSheetId = DB::table('product_sheets')->where('product_reference', 'PRODUCTO02')->value('id');
 
         // Obtener el ID del destino desde settings (kind=parameter)
         $destinationId = $this->getParameterFirstId('destinations');
 
-        DB::table('programmers')->insert([
+        // Obtener mes actual para temporada (ej: FEBRERO)
+        $seasonLabel = strtoupper(now()->locale('es')->monthName);
+
+        // Programmer AUTO para muestra (MU-xxxx) - simula creación desde Sábana de Productos
+        // type=muestra, woven_product=false → MU
+        $opCodeMuestra = $programmerService->nextOpCode('muestra', false); // MU-0001
+        
+        DB::table('programmers')->updateOrInsert(
+            ['product_sheet_id' => $muestraSheetId, 'source' => 'auto'],
             [
-                'product_sheet_id' => $productSheetId,
-                'season' => 'ENERO',
+                'op_code' => $opCodeMuestra,
+                'season' => $seasonLabel,
                 'destination_id' => $destinationId,
-                'priority' => 'A',
-                'units' => 500,
+                'priority' => null, // Auto-generados NO usan prioridad
+                'units' => null, // Pendiente de completar
+                'estimated_delivery_date' => null, // Pendiente de completar
                 'ecommerce_units' => null,
-                'status' => 'incomplete',
+                'status' => 'incomplete', // Incompleto: falta units y fecha
+                'source' => 'auto',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
+            ]
+        );
+
+        // Programmer MANUAL para producto (MFT-xxxx) - creado desde formulario Programador
+        // type=producto, woven_product=true → MFT
+        $opCodeProducto = $programmerService->nextOpCode('producto', true); // MFT-0001
+        
+        DB::table('programmers')->updateOrInsert(
+            ['product_sheet_id' => $productoSheetId, 'source' => 'manual'],
             [
-                'product_sheet_id' => $productSheetId,
-                'season' => 'FEBRERO',
+                'op_code' => $opCodeProducto,
+                'season' => $seasonLabel,
                 'destination_id' => $destinationId,
-                'priority' => 'B',
-                'units' => 300,
-                'ecommerce_units' => json_encode(['28' => 50, '30' => 80, '32' => 100, '34' => 80, '36' => 50]),
-                'status' => 'complete',
+                'priority' => 'A', // Manuales SÍ usan prioridad
+                'units' => 500, // Unidades programadas
+                'estimated_delivery_date' => null, // Manuales NO usan fecha entrega
+                'ecommerce_units' => json_encode(['S' => 100, 'M' => 150, 'L' => 150, 'XL' => 100]),
+                'status' => 'complete', // Manuales: completo si units > 0
+                'source' => 'manual',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
-        ]);
+            ]
+        );
 
         // ========== KARDEX DE TELAS - FACTURAS Y ROLLOS ==========
         

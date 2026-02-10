@@ -270,6 +270,9 @@ class ProgrammerController extends Controller
             });
         }
 
+        // Ordenar por fecha de creación (más nuevos primero)
+        $query->latest();
+
         $programmers = $query->paginate($perPage, ['*'], 'page', $page);
 
         $catalogs = $this->loadCatalogs(['destinations', 'sections', 'groups']);

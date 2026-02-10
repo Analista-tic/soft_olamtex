@@ -21,7 +21,8 @@ import type {
 } from '@/domain/product-sheet';
 import { computed, ref, watch } from 'vue';
 import { Eye, Image as ImageIcon, List, Trash } from 'lucide-vue-next';
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
+import { useAlertStack } from '@/composables/useAlert';
 import axios from 'axios';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -35,39 +36,58 @@ interface Props {
     worlds: OptionParams[];
     fabricBases: OptionParams[]; // Cambiar bases a fabricBases
     yarnBases: OptionParams[]; // Asegúrate de que el tipo sea un arreglo
-    operationalLists: OptionParams[];
+    operationalLists?: OptionParams[]; // Opcional para uso desde otros contextos
     readonly?: boolean; // Prop para modo de solo lectura
 }
 
 const props = defineProps<Props & { open: boolean }>(); // Agregar la propiedad `open`
+
+/** Respuesta estructurada del backend al guardar/actualizar ProductSheet */
+interface ProductSheetSavedPayload {
+    success?: boolean;
+    message?: string;
+    data?: ProductSheet;
+}
+
 const emit = defineEmits<{
-    (e: 'productSheetSaved', payload: unknown): void;
+    (e: 'productSheetSaved', payload: ProductSheetSavedPayload): void;
     (e: 'update:open', value: boolean): void;
+    (e: 'close'): void;
 }>();
 
 const localDialogOpen = ref(false); // Estado local para el diálogo
 
-// Alert state
-const alertMessage = ref('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
-const showAlert = ref(false);
+// Alert state - usando el mismo patrón que Programador
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const dialogInnerRef = ref<HTMLElement | null>(null);
 const isLoading = ref(false);
 
-function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
-    alertMessage.value = message;
-    alertType.value = type;
-    showAlert.value = true;
-    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
+// Títulos de alertas consistentes con el resto de la app
+type AlertType = 'success' | 'error' | 'info' | 'warning';
+const ALERT_TITLES: Record<AlertType, string> = {
+    warning: 'Advertencia',
+    success: 'Éxito',
+    info: 'Información',
+    error: 'Error',
+};
+const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
+
+function setAlert(message: string, type: AlertType = 'info'): void {
+    if (type === 'success') {
+        showSuccess(message);
+    } else {
+        showError(message, type);
+    }
+    
+    if (dialogInnerRef.value?.scrollTo) {
         dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 }
 
-function clearAlert() {
-    alertMessage.value = '';
-    showAlert.value = false;
+function clearAlert(): void {
+    clearAlerts();
 }
 
 const isCreateMode = computed(() => props.mode === 'create');
@@ -822,6 +842,7 @@ function resetForm() {
     hasAppliedDefaultSampleProcess.value = false;
     autoAddedSampleProcess.value = false;
     form.value = createInitialFormState();
+    clearAlert();
 }
 
 function handleClose() {
@@ -838,28 +859,26 @@ function handleClose() {
 <template>
     <Dialog v-model:open="localDialogOpen" @close="handleClose">
         <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[190vh] px-2 py-2">
-            <DialogHeader class="flex-shrink-0">
+            <DialogHeader class="flex-shrink-0 px-6 pt-6 pb-4">
                 <DialogTitle>
                     {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos
                 </DialogTitle>
-                <DialogDescription class="pb-3">
+                <DialogDescription>
                     {{ isViewMode ? 'Visualiza los detalles del producto.' : `Completa los campos para ${isEditMode ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.` }}
                 </DialogDescription>
             </DialogHeader>
-            <TooltipProvider>
-                <div ref="dialogInnerRef" class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
-                    <transition name="fade">
-                        <div v-if="showAlert && alertMessage" class="mb-4">
-                            <AlertBox
-                                :type="alertType"
-                                :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
-                                :message="alertMessage"
-                                class="pointer-events-auto"
-                                @close="clearAlert"
-                            />
-                        </div>
-                    </transition>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                :error-type="errorType"
+                :success-title="ALERT_TITLES.success"
+                :error-title="errorTitle"
+                @close-success="clearSuccess"
+                @close-error="clearError"
+            />
 
+            <TooltipProvider>
+                <div ref="dialogInnerRef" class="overflow-y-auto flex-1 px-6 pb-24 scroll-smooth" style="scrollbar-width: thin;">
                     <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
                             <div class="grid gap-2">
