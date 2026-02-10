@@ -19,6 +19,7 @@ return new class extends Migration
             $table->decimal('partial_output', 10, 2)->default(0); // Salida parcial
             $table->decimal('actual_output', 10, 2)->default(0); // Salida real
             $table->date('entry_date'); // Fecha de ingreso
+            $table->string('approval_status', 50)->default('pending_approval');
             $table->timestamps();
             $table->softDeletes();
         });

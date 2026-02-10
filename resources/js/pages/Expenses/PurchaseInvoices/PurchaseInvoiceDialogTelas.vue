@@ -46,11 +46,15 @@ const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
 const total = computed(() => Number(subtotal.value) + Number(iva.value));
+/** Base efectiva de una retención: si base_amount es null/omitido se asume el subtotal. */
+function getWithholdingBase(w: { base_amount?: number | null; percentage?: number }): number {
+    return w.base_amount != null && Number.isFinite(Number(w.base_amount)) ? Number(w.base_amount) : Number(subtotal.value);
+}
+function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number }): number {
+    return (getWithholdingBase(w) * (Number(w.percentage) || 0)) / 100;
+}
 const retencionesTotal = computed(() =>
-    (localForm.value.withholdings || []).reduce(
-        (acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100),
-        0,
-    ),
+    (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0),
 );
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
 
@@ -156,6 +160,13 @@ function resetForm() {
   successMessage.value = '';
   errorMessage.value = '';
   errorType.value = 'error';
+  const pid = props.form?.parent_document_id ?? props.form?.purchase_order_id;
+  if (props.dialogType === 'edit' && localForm.value && pid != null) {
+    localForm.value.purchase_order_id = Number(pid);
+    localForm.value.parent_document_id = Number(pid);
+  } else if (props.dialogType === 'create') {
+    selectedPurchaseOrderId.value = pid != null ? Number(pid) : null;
+  }
   originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
@@ -215,10 +226,24 @@ async function fetchPendingPurchaseOrders() {
     purchaseOrders.value = [];
     selectedPurchaseOrderId.value = null;
     try {
+        // Obtener todas las órdenes aprobadas de tela
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { status: 'pending', per_page: 1000, fabric_only: true },
+            params: { status: 'approved', per_page: 1000, fabric_only: true },
         });
-        purchaseOrders.value = Array.isArray(data.data) ? data.data : [];
+        let orders = Array.isArray(data.data) ? data.data : [];
+
+        // Obtener todas las facturas existentes para tela
+        const invoicesRes = await axios.get('/gastos/facturas-compra-tela/data', {
+            params: { per_page: 1000 },
+        });
+        const invoices = Array.isArray(invoicesRes.data.data) ? invoicesRes.data.data : [];
+        const orderIdsWithInvoice = new Set(
+            invoices.map((inv: { parent_document_id?: number }) => inv.parent_document_id).filter(Boolean)
+        );
+
+        // Filtrar órdenes que NO tengan factura asociada
+        orders = orders.filter((order: any) => !orderIdsWithInvoice.has(order.id));
+        purchaseOrders.value = orders;
     } catch {
         purchaseOrders.value = [];
     }
@@ -308,13 +333,29 @@ async function handleSubmit(sendMail = false) {
     isLoading.value = true;
     isSendingMail.value = sendMail;
     const formToSend = { ...localForm.value };
-    if (!formToSend.purchase_order_id) {
-        delete formToSend.purchase_order_id;
+    const selectedContact = contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id));
+    formToSend.provider_name = selectedContact?.full_name ?? '';
+    const orderId = selectedPurchaseOrderId.value ?? localForm.value.purchase_order_id ?? localForm.value.parent_document_id ?? null;
+    if (orderId) {
+        formToSend.parent_document_id = Number(orderId);
     }
+    delete formToSend.purchase_order_id;
     if (props.dialogType === 'create') delete formToSend.id;
     if (!Array.isArray(formToSend.withholdings)) {
         formToSend.withholdings = [];
     }
+    // Solo enviar retenciones con name válido; base_amount puede ser null (se asume subtotal)
+    formToSend.withholdings = formToSend.withholdings
+        .filter((w: { name?: string }) => w && String(w.name ?? '').trim() !== '')
+        .map((w: { name?: string; percentage?: number; base_amount?: number | null }) => {
+            const raw = w.base_amount;
+            const base = raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null;
+            return {
+                name: String(w.name ?? '').trim(),
+                percentage: Number(w.percentage) || 0,
+                base_amount: base,
+            };
+        });
     const url = props.dialogType === 'create' ? '/gastos/facturas-compra-tela' : `/gastos/facturas-compra-tela/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
@@ -397,7 +438,7 @@ function validateForm(): boolean {
 
     if (itemsMissingFabricFields.length) {
         const lines = itemsMissingFabricFields.map(i => `Ítem ${i.idx}: ${i.missing.join(', ')}`);
-        errors.push(`Faltan campos obligatorios en items de telas:\n${lines.join('\n')}`);
+        errors.push(`Faltan campos obligatorios en ítems de telas:\n${lines.join('\n')}\n\nEstos datos (código proveedor, color y ancho) se usan en recepción para identificar rollos y validar el ancho real respecto al pedido.`);
     }
 
     if (errors.length) {
@@ -449,14 +490,24 @@ watch(dialogOpen, (isOpen) => {
 <template>
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
-            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
+            <AlertStack
+                class="absolute inset-x-0 bottom-0 z-10 rounded-b-2xl border-t bg-background/95 px-4 py-2 shadow-sm"
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                success-title="Éxito"
+                error-title="Error"
+                :error-type="errorType"
+                @close-success="successMessage = ''"
+                @close-error="errorMessage = ''"
+            />
+            <DialogHeader class="relative flex-shrink-0 px-4 pt-4 pb-4">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
                         <DialogDescription>
                             Completa los campos y añade los ítems de la factura.
                         </DialogDescription>
                     </div>
-                    <div class="absolute right-12 button-4 flex w-full max-w-[520px] items-end justify-end gap-2">
+                    <div class="absolute right-12 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
                         <div class="w-[280px]">
                             <SelectField
                                 v-model="selectedPurchaseOrderValue"
@@ -480,18 +531,6 @@ watch(dialogOpen, (isOpen) => {
                         </div>
                     </div>
                 </DialogHeader>
-                <div class="relative min-h-[56px]">
-                    <AlertStack
-                        class="absolute inset-x-0 bottom-0"
-                        :success-message="successMessage"
-                        :error-message="errorMessage"
-                        success-title="Éxito"
-                        error-title="Error"
-                        :error-type="errorType"
-                        @close-success="successMessage = ''"
-                        @close-error="errorMessage = ''"
-                    />
-                </div>
                 <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form
                     @submit.prevent="handleSubmit()"
@@ -520,7 +559,7 @@ watch(dialogOpen, (isOpen) => {
                             <div>
                                 <div class="text-sm font-semibold">Datos empresa</div>
                                 <p class="text-xs">
-                                    Razon Social:
+                                    Razón Social:
                                     <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
                                 </p>
                                 <p class="text-xs">
@@ -582,6 +621,7 @@ watch(dialogOpen, (isOpen) => {
                                 <PurchaseInvoiceWithholdingsTable
                                     :modelValue="localForm.withholdings || []"
                                     @update:modelValue="(val) => (localForm.withholdings = val)"
+                                    :invoiceSubtotal="subtotal"
                                     :isReadOnly="isReadOnly"
                                 />
                             </div>
@@ -624,7 +664,7 @@ watch(dialogOpen, (isOpen) => {
                                         <div class="flex justify-between items-center">
                                             <span class="text-card-foreground/60">- {{ w.name }}</span>
                                             <span class="text-red-500 dark:text-red-400">-{{
-                                                ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100).toLocaleString('es-CO', {
+                                                getWithholdingAmount(w).toLocaleString('es-CO', {
                                                     style: 'currency',
                                                     currency: 'COP',
                                                     minimumFractionDigits: 0,

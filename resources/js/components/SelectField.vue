@@ -106,18 +106,6 @@ onBeforeUnmount(() => {
     stopFloatingUpdates();
 });
 
-const filteredOptions = computed(() => {
-    if (!isSearchEnabled.value) {
-        return props.options;
-    }
-    const term = searchTerm.value.trim().toLowerCase();
-    if (!term) {
-        return props.options;
-    }
-    return props.options.filter(option =>
-        option.name.toLowerCase().includes(term)
-    );
-});
 
 const normalizedSearchTerm = computed(() => searchTerm.value.trim());
 const hasExactMatch = computed(() => {
@@ -145,6 +133,19 @@ const customSelection = computed<Option | null>(() => {
     if (match) return null;
     const label = String(modelValue);
     return label ? { id: modelValue, name: label } : null;
+});
+
+const filteredOptions = computed(() => {
+    if (!isSearchEnabled.value) {
+        return props.options;
+    }
+    const term = searchTerm.value.trim().toLowerCase();
+    if (!term) {
+        return props.options;
+    }
+    return props.options.filter(option =>
+        option.name.toLowerCase().includes(term)
+    );
 });
 
 const groupedOptions = computed(() => {
@@ -377,14 +378,14 @@ watch(
                             <ChevronDown class="h-4 w-4" />
                         </ComboboxButton>
                         <Teleport to="body">
-                        <div
-                            v-if="open"
-                            ref="floatingRef"
-                            :style="floatingStyles"
-                            class="z-50"
-                            @pointerdown.stop
-                            @click.stop
-                        >
+                            <div
+                                v-if="open"
+                                ref="floatingRef"
+                                :style="floatingStyles"
+                                class="z-50"
+                                @pointerdown.stop
+                                @click.stop
+                            >
                                 <ComboboxOptions
                                     class="max-h-52 overflow-y-auto rounded-md border border-border bg-card shadow-2xl focus:outline-none"
                                 >

@@ -89,4 +89,47 @@ export interface Item extends Timestamps {
     export_tariff_code?: string | null;
     export_brand?: string | null;
     export_model?: string | null;
+    weighted_average_price?: number | null;
+    cost_price?: number | null;
+}
+
+export type InventoryMovementType = 'entrada' | 'salida' | 'ajuste';
+
+export interface InventoryMovement extends Timestamps {
+    id?: number;
+    document_number?: string;
+    item_id: number;
+    item?: Item;
+    warehouse_id: number;
+    warehouse?: Warehouse;
+    source_type?: string | null;
+    source_id?: number | null;
+    source?: any;
+    type: InventoryMovementType;
+    date: string;
+    quantity: number;
+    unit_price?: number | null;
+    total_cost?: number | null;
+    previous_stock: number;
+    previous_weighted_price: number;
+    new_stock: number;
+    new_weighted_price: number;
+    notes?: string | null;
+    created_by_user_id?: number | null;
+    created_by?: {
+        id: number;
+        name: string;
+    } | null;
+}
+
+export interface InventoryMovementForm {
+    item_id: number | null;
+    warehouse_id: number | null;
+    type: InventoryMovementType;
+    date: string;
+    quantity: number;
+    unit_price?: number | null;
+    source_type?: string | null;
+    source_id?: number | null;
+    notes?: string | null;
 }

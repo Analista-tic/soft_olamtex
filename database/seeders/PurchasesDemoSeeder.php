@@ -69,10 +69,8 @@ class PurchasesDemoSeeder extends Seeder
                 'document_number' => 'FAC-TELA-001',
                 'contact_id' => $supplier->id,
                 'date' => now()->subDays(5),
-                'status' => 'approved',
-                'approval_status' => 'approved',
+                'status' => 'received', // Estados válidos para invoices: pending_receipt, received, rejected
                 'invoiced_at' => now()->subDays(5),
-                'approved_at' => now()->subDays(4),
                 'supplier_invoice_number' => 'PROV-TELA-001',
             ]);
 
@@ -97,8 +95,7 @@ class PurchasesDemoSeeder extends Seeder
                     'document_number' => 'FAC-TELA-002',
                     'contact_id' => $supplier->id,
                     'date' => now()->subDays(3),
-                    'status' => 'pending',
-                    'approval_status' => 'pending',
+                    'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
                     'invoiced_at' => now()->subDays(3),
                     'supplier_invoice_number' => 'PROV-TELA-002',
                 ]);
@@ -156,10 +153,8 @@ class PurchasesDemoSeeder extends Seeder
                 'document_number' => 'FAC-GENERAL-001',
                 'contact_id' => $supplier->id,
                 'date' => now()->subDays(2),
-                'status' => 'approved',
-                'approval_status' => 'approved',
+                'status' => 'received', // Estados válidos para invoices: pending_receipt, received, rejected
                 'invoiced_at' => now()->subDays(2),
-                'approved_at' => now()->subDays(1),
                 'supplier_invoice_number' => 'PROV-GENERAL-001',
             ]);
 
@@ -183,8 +178,7 @@ class PurchasesDemoSeeder extends Seeder
                     'document_number' => 'FAC-GENERAL-002',
                     'contact_id' => $supplier->id,
                     'date' => now()->subDay(),
-                    'status' => 'pending',
-                    'approval_status' => 'pending',
+                    'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
                     'invoiced_at' => now()->subDay(),
                     'supplier_invoice_number' => 'PROV-GENERAL-002',
                 ]);

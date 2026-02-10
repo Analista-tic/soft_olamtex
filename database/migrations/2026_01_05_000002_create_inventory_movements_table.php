@@ -28,9 +28,9 @@ return new class extends Migration
             $table->foreignId('item_id')->constrained('items')->cascadeOnDelete();
             $table->foreignId('warehouse_id')->constrained('warehouses')->cascadeOnDelete();
             
-            // Origen del movimiento (polimórfico)
-            $table->string('source_type')->index(); // PurchaseDocument, InventoryAdjustment, etc.
-            $table->unsignedBigInteger('source_id')->index();
+            // Origen del movimiento (polimórfico, ahora nullable)
+            $table->string('source_type', 255)->nullable()->index(); // PurchaseDocument, InventoryAdjustment, etc.
+            $table->unsignedBigInteger('source_id')->nullable()->index();
             
             // Tipo de movimiento y fecha
             $table->enum('type', ['entrada', 'salida'])->index();

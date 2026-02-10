@@ -31,12 +31,17 @@ const iva = computed(() =>
 );
 const total = computed(() => subtotal.value + iva.value);
         
-// Añade cálculo de retenciones y total a pagar igual que en el dialog
+/** Base efectiva: si base_amount es null se asume el subtotal. */
+function getWithholdingBase(w: { base_amount?: number | null; percentage?: number }): number {
+    const b = w.base_amount;
+    if (b != null && Number.isFinite(Number(b))) return Number(b);
+    return Number(subtotal.value) || 0;
+}
+function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number }): number {
+    return (getWithholdingBase(w) * (Number(w.percentage) || 0)) / 100;
+}
 const retencionesTotal = computed(() =>
-    (props.invoice?.withholdings || []).reduce(
-        (acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100),
-        0
-    )
+    (props.invoice?.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0),
 );
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
 
@@ -184,7 +189,7 @@ function print() {
                                 <div class="flex justify-between items-center">
                                     <span class="text-gray-600">- {{ w.name }}</span>
                                     <span class="text-red-700">-{{
-                                        ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100).toLocaleString('es-CO', {
+                                        getWithholdingAmount(w).toLocaleString('es-CO', {
                                             style: 'currency',
                                             currency: 'COP',
                                             minimumFractionDigits: 0,

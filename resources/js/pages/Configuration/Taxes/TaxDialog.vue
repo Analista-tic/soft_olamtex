@@ -4,17 +4,18 @@ import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogDescription } fr
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import type { Tax } from '@/domain/inventory';
 
 const props = defineProps<{
     open: boolean;
     dialogType: 'create' | 'edit';
-    form: any;
+    form: Tax;
     loading: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:open', value: boolean): void;
-    (e: 'submit', value: any): void;
+    (e: 'submit', value: Tax): void;
     (e: 'cancel'): void;
 }>();
 

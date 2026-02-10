@@ -116,6 +116,17 @@ class WarehouseTransferService
 
             $notes = sprintf('Transferencia %s', $transfer->document_number ?? $transfer->id);
 
+            // Precio ponderado en origen para valorizar la entrada en destino (requerido para entradas)
+            $unitPrice = $this->movementService->getCurrentWeightedPrice($itemId, $originWarehouseId);
+            if ($unitPrice <= 0) {
+                $unitPrice = $this->movementService->getCurrentWeightedPrice($itemId, null);
+            }
+            if ($unitPrice <= 0) {
+                throw ValidationException::withMessages([
+                    'items' => ["El ítem no tiene costo definido en bodega origen. Asigne precio mediante una entrada o ajuste antes de transferir."],
+                ]);
+            }
+
             $this->movementService->createMovement([
                 'item_id' => $itemId,
                 'warehouse_id' => $originWarehouseId,
@@ -134,6 +145,7 @@ class WarehouseTransferService
                 'source_type' => WarehouseTransfer::class,
                 'source_id' => $transfer->id,
                 'type' => 'entrada',
+                'unit_price' => $unitPrice,
                 'date' => $date,
                 'quantity' => $quantity,
                 'notes' => $notes,
@@ -162,12 +174,21 @@ class WarehouseTransferService
             }
 
             if ($transfer->origin_warehouse_id) {
+                // Precio ponderado en destino para valorizar la entrada al devolver al origen
+                $unitPrice = $this->movementService->getCurrentWeightedPrice($line->item_id, $transfer->destination_warehouse_id);
+                if ($unitPrice <= 0) {
+                    $unitPrice = $this->movementService->getCurrentWeightedPrice($line->item_id, null);
+                }
+                if ($unitPrice <= 0) {
+                    continue; // Sin costo definido, omitir reversión de esta línea para no fallar
+                }
                 $this->movementService->createMovement([
                     'item_id' => $line->item_id,
                     'warehouse_id' => $transfer->origin_warehouse_id,
                     'source_type' => self::REVERSAL_SOURCE,
                     'source_id' => $transfer->id,
                     'type' => 'entrada',
+                    'unit_price' => $unitPrice,
                     'date' => $date,
                     'quantity' => $quantity,
                     'notes' => $notes,

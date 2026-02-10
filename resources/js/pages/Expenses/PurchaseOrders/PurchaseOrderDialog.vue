@@ -22,6 +22,7 @@ const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
     form: Partial<PurchaseOrder>;
+    readonly?: boolean;
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
@@ -34,13 +35,25 @@ const localForm = ref<Partial<PurchaseOrder>>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const purchaseRequests = ref<any[]>([]);
 const selectedPurchaseRequestId = ref<number | null>(null);
+const selectedPurchaseRequest = ref<any | null>(null); // Solicitud completa seleccionada para mostrar sugerencia
 const isLoading = ref(false);
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
 const isSendingMail = ref(false);
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref<string>('');
-const itemsTableRef = ref<{ addItem: () => void } | null>(null);
+const itemsTableRef = ref<{ addItem: () => void; validateFabricFields: () => string | null } | null>(null);
+
+// Computed para determinar si la orden puede editarse
+const canEdit = computed(() => {
+    if (props.readonly) return false;
+    if (props.dialogType === 'create') return true;
+    const status = localForm.value.status;
+    // Solo se puede editar si está pendiente
+    return status === 'pending' || !status;
+});
+
+const isReadOnly = computed(() => props.readonly || !canEdit.value);
 
 const subtotal = computed(() =>
     (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total) || 0, 0), 0),
@@ -50,27 +63,30 @@ const iva = computed(() =>
 );
 const total = computed(() => Math.max(subtotal.value, 0) + Math.max(iva.value, 0));
 
-const pendingPurchaseRequestOptions = computed<Option[]>(() =>
-    purchaseRequests.value.map((request) => {
+const pendingPurchaseRequestOptions = computed<Option[]>(() => {
+    return purchaseRequests.value.map((request) => {
         const rawId = request?.id ?? '';
         const numericId = Number(rawId);
         const optionId = Number.isNaN(numericId) ? rawId : numericId;
-        const requestNumber = request?.document_number || request?.request_number || String(request?.id ?? '');
-        const contactName =
-            request?.contact?.full_name ||
-            request?.contact_full_name ||
-            request?.contact_name ||
-            '';
-        const labelParts = [`Solicitud ${requestNumber}`];
-        if (contactName) {
-            labelParts.push(contactName);
+        // request_number ya incluye "SOL-", no duplicar
+        let requestNumber = request?.request_number || '';
+        if (requestNumber && !requestNumber.startsWith('SOL-')) {
+            requestNumber = `SOL-${requestNumber}`;
+        }
+        if (!requestNumber) {
+            requestNumber = String(request?.id ?? '');
+        }
+        const providerName = request?.provider_name || '';
+        const labelParts = [requestNumber];
+        if (providerName) {
+            labelParts.push(providerName);
         }
         return {
             id: optionId,
             name: labelParts.join(' · '),
         };
-    }),
-);
+    });
+});
 
 const selectedPurchaseRequestValue = computed<Option['id'] | ''>({
     get: () => selectedPurchaseRequestId.value ?? '',
@@ -111,6 +127,11 @@ const orderDocumentNumber = computed(() => {
 });
 
 async function initializeDialog() {
+    // Limpiar solicitud asociada al abrir en modo creación
+    if (props.dialogType === 'create') {
+        selectedPurchaseRequest.value = null;
+        selectedPurchaseRequestId.value = null;
+    }
     resetForm();
     await fetchContacts();
     await fetchPendingPurchaseRequests();
@@ -121,9 +142,16 @@ async function initializeDialog() {
 }
 
 function createDefaultForm(): Partial<PurchaseOrder> {
+    // Establecer fecha actual en formato YYYY-MM-DD
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const currentDate = `${year}-${month}-${day}`;
+    
     return {
         contact_id: null,
-        date: '',
+        date: currentDate, // Fecha actual por defecto
         delivery_date: '',
         supplier_order_number: '',
         description: '',
@@ -149,6 +177,14 @@ function createEmptyItem() {
 
 function resetForm() {
     localForm.value = props.form?.id ? { ...props.form } : createDefaultForm();
+    // Si es creación nueva, asegurar que la fecha esté establecida a hoy
+    if (!props.form?.id && !localForm.value.date) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        localForm.value.date = `${year}-${month}-${day}`;
+    }
     if (!localForm.value.items) localForm.value.items = [];
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
@@ -185,47 +221,139 @@ async function fetchNextOrderId() {
 
 async function fetchPendingPurchaseRequests() {
     try {
-        const { data } = await axios.get('/gastos/solicitudes-compra/data', {
-            params: { status: 'approved', per_page: 1000 },
+        // Obtener solo las solicitudes aprobadas que NO tienen órdenes generadas y NO están procesadas
+        const response = await axios.get('/gastos/solicitudes-compra/data', {
+            params: { 
+                per_page: 1000,
+                status: 'approved', // Filtrar solo solicitudes aprobadas
+                exclude_with_orders: true, // Excluir solicitudes que ya tienen órdenes (backend también filtra processed)
+            },
         });
-        purchaseRequests.value = data.data || [];
+        
+        // Manejar diferentes formatos de respuesta
+        let allRequests: any[] = [];
+        if (Array.isArray(response.data?.data)) {
+            allRequests = response.data.data;
+        } else if (Array.isArray(response.data)) {
+            allRequests = response.data;
+        }
+        
+        // Filtrar solo las que están aprobadas y NO procesadas
+        // Solo solicitudes aprobadas (no procesadas) pueden usarse para crear órdenes
+        purchaseRequests.value = allRequests.filter((req: any) => {
+            const status = req?.status || '';
+            // Asegurar que solo sean 'approved' y no 'processed'
+            return status === 'approved' && status !== 'processed';
+        });
+        
+        console.log('Total solicitudes recibidas:', allRequests.length);
+        console.log('Solicitudes filtradas (approved, no processed):', purchaseRequests.value.length);
     } catch (e) {
         purchaseRequests.value = [];
         console.error('Error fetching purchase requests:', e);
+        if ((e as any)?.response) {
+            console.error('Response error:', (e as any).response.data);
+        }
     }
 }
 
 async function loadRequestToOrder(requestId: number) {
     const request = purchaseRequests.value.find((req) => Number(req?.id) === Number(requestId));
     if (!request) return;
+    
+    // Guardar la solicitud completa para mostrar como sugerencia
+    selectedPurchaseRequest.value = request;
+    
+    // Cargar contactos si no están cargados
     if (!contacts.value.length) await fetchContacts();
-    const foundContact = contacts.value.find((c) => Number(c.id) === Number(request.contact_id));
-    localForm.value.contact_id = foundContact ? Number(request.contact_id) : null;
-    localForm.value.description = request.description || '';
-    localForm.value.date = request.date || '';
-    localForm.value.delivery_date = request.delivery_date || '';
-    localForm.value.supplier_order_number = request.document_number || request.request_number || '';
-    localForm.value.items = Array.isArray(request.items) && request.items.length
-        ? request.items.map((item: any) => ({
-              item_id: item.item_id,
-              price: item.price || '',
-              tax: item.tax || 0,
-              quantity: item.quantity || '',
-              description: item.description || '',
-              total: item.total || 0,
-              total_tax: item.total_tax || 0,
-              supplier_code: item.supplier_code || '',
-              supplier_color: item.supplier_color || '',
-              order_width: item.order_width || '',
-              id: item.id,
-          }))
-        : [createEmptyItem()];
+    
+    // Aplicar automáticamente los datos de la solicitud
+    applyRequestSuggestion();
+    
     selectedPurchaseRequestId.value = Number(requestId);
+}
+
+function applyRequestSuggestion() {
+    if (!selectedPurchaseRequest.value) return;
+    
+    const request = selectedPurchaseRequest.value;
+    
+    // Buscar contacto por nombre del proveedor
+    const providerName = request.provider_name || '';
+    let foundContact = null;
+    if (providerName) {
+        foundContact = contacts.value.find((c) => 
+            c.full_name?.toLowerCase().trim() === providerName.toLowerCase().trim()
+        );
+    }
+    
+    // Aplicar datos de la solicitud al formulario
+    if (foundContact) {
+        localForm.value.contact_id = Number(foundContact.id);
+    }
+    
+    localForm.value.description = request.description || '';
+    // NO sobrescribir la fecha de creación - siempre debe ser la fecha actual
+    // localForm.value.date se mantiene con la fecha actual establecida en createDefaultForm
+    localForm.value.delivery_date = request.delivery_date || '';
+    localForm.value.supplier_order_number = request.request_number || '';
+    
+    // Mapear items de la solicitud a items de la orden
+    let requestItems: any[] = [];
+    if (Array.isArray(request.items)) {
+        requestItems = request.items;
+    } else if (typeof request.items === 'string') {
+        try {
+            requestItems = JSON.parse(request.items);
+        } catch {
+            requestItems = [];
+        }
+    }
+    
+    if (requestItems.length > 0) {
+        localForm.value.items = requestItems.map((item: any) => ({
+            item_id: item.item_id || null,
+            price: Number(item.price) || 0,
+            tax: item.tax || 0,
+            quantity: Number(item.quantity) || 1,
+            description: item.description || item.name || '',
+            total: Number(item.total) || 0,
+            total_tax: Number(item.total_tax) || 0,
+            supplier_code: item.supplier_code || '',
+            supplier_color: item.supplier_color || '',
+            order_width: Number(item.order_width) || 0,
+        }));
+    }
+    
     originalFormSnapshot.value = stableStringify(localForm.value);
+}
+
+function getRequestItems() {
+    if (!selectedPurchaseRequest.value) return [];
+    const request = selectedPurchaseRequest.value;
+    if (Array.isArray(request.items)) {
+        return request.items;
+    } else if (typeof request.items === 'string') {
+        try {
+            return JSON.parse(request.items);
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+function formatCurrency(value: number) {
+    return Number(value || 0).toLocaleString('es-CO', { 
+        style: 'currency', 
+        currency: 'COP', 
+        minimumFractionDigits: 0 
+    });
 }
 
 function clearSelectedPurchaseRequest() {
     selectedPurchaseRequestId.value = null;
+    selectedPurchaseRequest.value = null;
     resetForm();
 }
 
@@ -268,7 +396,13 @@ async function handleSubmit(sendMail = false) {
     isLoading.value = true;
     isSendingMail.value = sendMail;
     const formToSend: any = { ...localForm.value };
+    // Asegurar que todos los campos se incluyan, incluso los readonly
+    formToSend.date = localForm.value.date || formToSend.date;
     formToSend.contact_id = formToSend.contact_id ? Number(formToSend.contact_id) : null;
+    // Si se seleccionó una solicitud, incluir su ID para relacionar la orden con la solicitud
+    if (selectedPurchaseRequestId.value) {
+        formToSend.purchase_request_id = Number(selectedPurchaseRequestId.value);
+    }
     formToSend.items = Array.isArray(localForm.value.items)
         ? localForm.value.items.map((item: any) => ({
               ...item,
@@ -294,11 +428,9 @@ async function handleSubmit(sendMail = false) {
             await axios.post(`/gastos/ordenes-compra/${data.data.id}/enviar-correo-pdf`);
             const msg = 'Orden guardada y enviada por correo correctamente.';
             emit('refresh', msg);
-            showSuccess(msg);
         } else {
             const msg = props.dialogType === 'create' ? 'Orden creada correctamente.' : 'Orden actualizada correctamente.';
             emit('refresh', msg);
-            showSuccess(msg);
             const createdId = Number(data?.data?.id);
             if (!Number.isNaN(createdId)) {
                 nextOrderId.value = createdId + 1;
@@ -369,15 +501,24 @@ function validateForm(): boolean {
         return false;
     }
 
+    const fabricError = itemsTableRef.value?.validateFabricFields?.();
+    if (fabricError) {
+        setErrorMessage(fabricError, 'warning');
+        return false;
+    }
+
     return true;
 }
 
 watch(
     () => localForm.value.contact_id,
     (val) => {
+        // Solo normalizar el tipo de dato, no resetear el formulario
         if (val !== null && val !== undefined && typeof val !== 'number') {
             localForm.value.contact_id = Number(val);
         }
+        // NO resetear el formulario cuando se borra el proveedor
+        // El reset solo debe ocurrir cuando se borra la solicitud de compra
     },
 );
 
@@ -392,8 +533,12 @@ watch(dialogOpen, (isOpen) => {
     if (!isOpen) emit('close');
 });
 
-watch(selectedPurchaseRequestId, async (requestId) => {
-    if (requestId) {
+watch(selectedPurchaseRequestId, async (requestId, oldVal) => {
+    // Solo limpiar si el valor es null o '' (no seleccionado)
+    if (requestId === null || (typeof requestId === 'string' && requestId === '')) {
+        selectedPurchaseRequest.value = null;
+        resetForm();
+    } else if (requestId) {
         await loadRequestToOrder(requestId);
     }
 });
@@ -402,57 +547,69 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 <template>
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+            <AlertStack
+                v-show="successMessage || errorMessage"
+                class="z-50 fixed top-4 left-1/2 -translate-x-1/2 w-full max-w-lg"
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                success-title="Éxito"
+                error-title="Error"
+                :error-type="errorType"
+                @close-success="clearSuccess"
+                @close-error="clearError"
+            />
             <TooltipProvider>
-            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
+            <DialogHeader class="relative flex-shrink-0 px-4 pt-4 pb-7">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
                         <DialogDescription>
                             Completa los campos y añade los ítems de la orden.
                         </DialogDescription>
                     </div>
-                    <div class="absolute right-12 button-4 flex w-full max-w-[520px] items-end justify-end gap-2">
+                    <div class="absolute right-12 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
                         <div class="w-[280px]">
                             <SelectField
                                 v-model="selectedPurchaseRequestValue"
                                 :options="pendingPurchaseRequestOptions"
-                                label="Cargar desde solicitud pendiente"
-                                placeholder="Selecciona una solicitud existente"
+                                label="Cargar desde solicitud aprobada"
+                                placeholder="Selecciona una solicitud aprobada para autocompletar"
                                 :disabled="!pendingPurchaseRequestOptions.length || dialogType === 'edit'"
                                 :searchable="pendingPurchaseRequestOptions.length >= 6"
                                 search-placeholder="Buscar solicitud..."
                             />
                         </div>
-                        <div class="w-[100px]">
-                            <button
-                                type="button"
-                                class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-3 text-xs font-semibold uppercase tracking-wide text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                :disabled="!selectedPurchaseRequestId"
-                                @click="clearSelectedPurchaseRequest"
-                            >
-                                Limpiar
-                            </button>
-                        </div>
                     </div>
                 </DialogHeader>
-                <div class="relative min-h-[56px]">
-                    <AlertStack
-                        class="absolute inset-x-0 bottom-0"
-                        :success-message="successMessage"
-                        :error-message="errorMessage"
-                        success-title="Éxito"
-                        error-title="Error"
-                        :error-type="errorType"
-                        @close-success="clearSuccess"
-                        @close-error="clearError"
-                    />
-                </div>
                 <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form
                     @submit.prevent="handleSubmit()"
                     :class="{'pointer-events-none opacity-50':dialogType === 'create' && isLoadingOrderId}"
                     class="space-y-6"
                 >
-                    <div class="mt-8 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+                    <!-- Información de solicitud seleccionada -->
+                    <div v-if="selectedPurchaseRequest" class="rounded-lg border border-border bg-muted/30 p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-medium text-foreground">
+                                Datos desde Solicitud: {{ selectedPurchaseRequest.request_number || selectedPurchaseRequest.id }}
+                            </h3>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <span class="text-muted-foreground">Proveedor:</span>
+                                <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.provider_name || 'No especificado' }}</span>
+                            </div>
+                            <div>
+                                <span class="text-muted-foreground">Fecha:</span>
+                                <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.date || 'No especificada' }}</span>
+                            </div>
+                            <div class="col-span-2">
+                                <span class="text-muted-foreground">Descripción:</span>
+                                <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.description || 'Sin descripción' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
                                 <InputField
@@ -503,6 +660,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                     v-model="localForm.contact_id"
                                     label=""
                                     :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
+                                    :readonly="!canEdit || isReadOnly"
                                     required
                                 />
                             </div>
@@ -511,14 +669,12 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                 label="Numero de identificacion"
                                 :modelValue="contactIdNumber"
                                 readonly
-                                :disabled="true"
                             />
                             <InputField
                                 :key="String(localForm.contact_id ?? '') + '-phone'"
                                 label="Numero de contacto"
                                 :modelValue="contactPhone"
                                 readonly
-                                :disabled="true"
                             />
                         </div>
 
@@ -534,7 +690,12 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         aria-label="Ayuda sobre fecha de creación"
                                     />
                                 </div>
-                                <InputDate v-model="localForm.date" label="" required />
+                                <InputDate 
+                                    v-model="localForm.date" 
+                                    label="" 
+                                    readonly
+                                    required 
+                                />
                             </div>
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
@@ -546,7 +707,12 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         aria-label="Ayuda sobre fecha de entrega"
                                     />
                                 </div>
-                                <InputDate v-model="localForm.delivery_date" label="" required />
+                                <InputDate 
+                                    v-model="localForm.delivery_date" 
+                                    label="" 
+                                    :readonly="!canEdit || isReadOnly"
+                                    required 
+                                />
                             </div>
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
@@ -558,7 +724,12 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         aria-label="Ayuda sobre orden proveedor"
                                     />
                                 </div>
-                                <InputField v-model="localForm.supplier_order_number" label="" required />
+                                <InputField 
+                                    v-model="localForm.supplier_order_number" 
+                                    label="" 
+                                    :readonly="isReadOnly"
+                                    required 
+                                />
                             </div>
                         </div>
 
@@ -567,6 +738,8 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             <PurchaseOrderItemsTable
                                 ref="itemsTableRef"
                                 :items="localForm.items || []"
+                                :suggested-items="getRequestItems()"
+                                :readonly="isReadOnly"
                                 @update:items="(items) => (localForm.items = items)"
                             />
                         </InventoryDetailTableLayout>

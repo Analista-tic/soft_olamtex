@@ -21,6 +21,13 @@ return new class extends Migration
                 ->references('id')
                 ->on('purchase_documents')
                 ->onDelete('set null');
+            
+            // Relación directa con purchase_requests (para órdenes creadas desde solicitudes)
+            $table->unsignedBigInteger('purchase_request_id')->nullable()->index();
+            $table->foreign('purchase_request_id')
+                ->references('id')
+                ->on('purchase_requests')
+                ->onDelete('set null');
 
             // Proveedor / contacto
             $table->unsignedBigInteger('contact_id')->nullable()->index();
@@ -56,14 +63,12 @@ return new class extends Migration
                 ->onDelete('set null');
 
             // Estados generales
-            // Ej:
-            //  - Requests: pending | approved | rejected
-            //  - Orders:   pending | sent
-            //  - Invoices: pending | in_process | approved | rejected
-            $table->enum('status', ['pending', 'in_process', 'approved', 'rejected'])->default('pending')->index();
-
-            // Estado de aprobación más "funcional" (sobre todo para factura)
-            $table->enum('approval_status', ['pending', 'in_process', 'approved', 'rejected'])->nullable()->index();
+            // Para Orders: pending | approved | sent | invoiced | rejected
+            // Para Invoices: pending_receipt | received | rejected
+            $table->enum('status', ['pending', 'approved', 'sent', 'invoiced', 'rejected', 'pending_receipt', 'received'])->default('pending')->index();
+            
+            // Estado de aprobación (complementario al status)
+            $table->string('approval_status', 50)->nullable();
 
             // Datos específicos por tipo
             $table->string('supplier_order_number', 50)->nullable();   // Orden proveedor
@@ -85,11 +90,19 @@ return new class extends Migration
 
             $table->timestamp('rejected_at')->nullable();
 
+            // Campos de aprobación (para órdenes)
+            $table->unsignedBigInteger('approved_by_user_id')->nullable()->index();
+            $table->foreign('approved_by_user_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('set null');
+
+            $table->timestamp('approved_at')->nullable();
+
             // Trazabilidad temporal del ciclo
-            $table->timestamp('requested_at')->nullable(); // CuÃ¡ndo se solicitÃ³
-            $table->timestamp('ordered_at')->nullable();   // CuÃ¡ndo se ordenÃ³
-            $table->timestamp('invoiced_at')->nullable();  // CuÃ¡ndo se facturÃ³
-            $table->timestamp('approved_at')->nullable();  // CuÃ¡ndo se aprobÃ³ (si aplica)
+            $table->timestamp('requested_at')->nullable(); // Cuándo se solicitó
+            $table->timestamp('ordered_at')->nullable();   // Cuándo se ordenó
+            $table->timestamp('invoiced_at')->nullable();  // Cuándo se facturó
 
             // AuditorÃ­a base
             $table->timestamps();
@@ -106,6 +119,7 @@ return new class extends Migration
     {
         Schema::table('purchase_documents', function (Blueprint $table) {
             $table->dropForeign(['parent_document_id']);
+            $table->dropForeign(['purchase_request_id']);
             $table->dropForeign(['contact_id']);
             $table->dropForeign(['created_by_user_id']);
             $table->dropForeign(['executed_by_user_id']);

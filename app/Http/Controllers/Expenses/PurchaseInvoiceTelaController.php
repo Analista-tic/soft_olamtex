@@ -40,10 +40,6 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         $items = $payload['items'] ?? [];
         $withholdings = $payload['withholdings'] ?? [];
 
-        if (empty($payload['purchase_order_id'])) {
-            unset($payload['purchase_order_id']);
-        }
-
         $invoice = $this->invoiceService()->createInvoice($payload, $items, $withholdings);
 
         return response()->json(['data' => $invoice], 201);
@@ -54,10 +50,6 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
         $payload = $this->validateInvoiceRequest($request, true);
         $items = $request->has('items') ? $payload['items'] ?? [] : null;
-
-        if (empty($payload['purchase_order_id'])) {
-            unset($payload['purchase_order_id']);
-        }
 
         $updated = $this->invoiceService()->updateDocument($purchaseInvoice, $payload, $items);
         return response()->json(['data' => $updated]);

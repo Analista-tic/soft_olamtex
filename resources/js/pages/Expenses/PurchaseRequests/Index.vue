@@ -17,39 +17,43 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
-import { Eye, PlusCircle, Search } from 'lucide-vue-next';
+import { Eye, PlusCircle, Search, MoreVertical, CheckCircle, XCircle, Send, X } from 'lucide-vue-next';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAlertStack } from '@/composables/useAlert';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseRequest } from '@/domain/purchases';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
 
 const breadcrumbs = [
     { title: 'Solicitud de compra', href: '/solicitudes-compra' },
 ];
 
 const requests = ref<PurchaseRequest[]>([]);
-const providers = ref<{ id: number; full_name: string }[]>([]);
 const searchQuery = ref('');
 const statusFilter = ref('all');
-const providerFilter = ref('all');
+const providerFilter = ref('');
 const dateFrom = ref('');
 const dateTo = ref('');
 const isLoading = ref(false);
 
 const DEFAULT_STATUS_FILTER = 'all';
-const DEFAULT_PROVIDER_FILTER = 'all';
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
-const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
+const isProviderFilterActive = computed(() => providerFilter.value.trim().length > 0);
 const isDateFromActive = computed(() => Boolean(dateFrom.value));
 const isDateToActive = computed(() => Boolean(dateTo.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
-const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 
 const {
     successMessage,
@@ -65,33 +69,29 @@ const statusOptions = [
     { id: 'draft', name: 'Borrador' },
     { id: 'pending', name: 'Pendiente' },
     { id: 'approved', name: 'Aprobada' },
+    { id: 'processed', name: 'Procesada' },
     { id: 'rejected', name: 'Rechazada' },
-    { id: 'ordered', name: 'Ordenada' },
+    { id: 'cancelled', name: 'Cancelada' },
 ];
 
 const statusLabels: Record<string, string> = {
     draft: 'Borrador',
     pending: 'Pendiente',
     approved: 'Aprobada',
+    processed: 'Procesada',
     rejected: 'Rechazada',
-    ordered: 'Ordenada',
+    cancelled: 'Cancelada',
 };
 
 const statusBadgeStyles: Record<string, string> = {
     draft: 'bg-gray-100 text-gray-800',
     pending: 'bg-yellow-100 text-yellow-800',
     approved: 'bg-green-100 text-green-800',
+    processed: 'bg-blue-100 text-blue-800',
     rejected: 'bg-red-100 text-red-800',
-    ordered: 'bg-indigo-100 text-indigo-800',
+    cancelled: 'bg-slate-100 text-slate-800',
 };
 
-const providerOptions = computed(() => [
-    { id: 'all', name: 'Todos los proveedores' },
-    ...providers.value.map((provider) => ({
-        id: String(provider.id),
-        name: provider.full_name,
-    })),
-]);
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
@@ -112,10 +112,11 @@ const computeRequestTotal = (request: PurchaseRequest) => {
     if (typeof request.estimated_amount === 'number') {
         return request.estimated_amount;
     }
-    if (!request.items?.length) {
+    const items = Array.isArray(request.items) ? request.items : [];
+    if (!items.length) {
         return 0;
     }
-    return request.items.reduce((acc, item) => {
+    return items.reduce((acc, item) => {
         const total = Number(item.total ?? 0);
         const totalTax = Number(item.total_tax ?? 0);
         return acc + total + totalTax;
@@ -123,9 +124,22 @@ const computeRequestTotal = (request: PurchaseRequest) => {
 };
 
 const getRequestItemsPreview = (request: PurchaseRequest) => {
-    const names = (request.items || [])
+    // Parsear items si viene como string JSON
+    let items: any[] = [];
+    if (Array.isArray(request.items)) {
+        items = request.items;
+    } else if (typeof request.items === 'string') {
+        try {
+            const parsed = JSON.parse(request.items);
+            items = Array.isArray(parsed) ? parsed : [];
+        } catch {
+            items = [];
+        }
+    }
+    
+    const names = items
         .map((item) => {
-            const rawName = item.item?.name || item.item_name || item.description;
+            const rawName = item.name || item.item?.name || item.item_name || item.description;
             if (typeof rawName === 'string') {
                 return rawName.trim();
             }
@@ -151,6 +165,8 @@ const dialogForm = ref<Partial<PurchaseRequest>>({});
 const dialogReadonly = ref(false);
 const isDeleteDialogOpen = ref(false);
 const requestToDelete = ref<PurchaseRequest | null>(null);
+const isRejectDialogOpen = ref(false);
+const requestToReject = ref<PurchaseRequest | null>(null);
 
 function closeDialog() {
     isDialogOpen.value = false;
@@ -205,12 +221,80 @@ async function handleDeleteRequest() {
         await axios.delete(`/gastos/solicitudes-compra/${requestToDelete.value.id}`);
         successMessage.value = 'Solicitud eliminada correctamente.';
         fetchRequests();
-    } catch (err) {
-        showError('No se pudo eliminar la solicitud. Intenta nuevamente.');
+    } catch (err: any) {
+        const message = err?.response?.data?.message || 'No se pudo eliminar la solicitud. Intenta nuevamente.';
+        showError(message);
         console.error('Error eliminando solicitud', err);
     } finally {
         isDeleteDialogOpen.value = false;
         requestToDelete.value = null;
+    }
+}
+
+async function handleSendToApproval(request: PurchaseRequest) {
+    if (!request.id) return;
+    try {
+        await axios.post(`/gastos/solicitudes-compra/${request.id}/send-to-approval`);
+        successMessage.value = 'Solicitud enviada a aprobación correctamente.';
+        fetchRequests();
+    } catch (err: any) {
+        const message = err?.response?.data?.message || 'No se pudo enviar la solicitud a aprobación.';
+        showError(message);
+        console.error('Error enviando a aprobación', err);
+    }
+}
+
+async function handleApprove(request: PurchaseRequest) {
+    if (!request.id) return;
+    try {
+        await axios.post(`/gastos/solicitudes-compra/${request.id}/approve`);
+        fetchRequests();
+    } catch (err: any) {
+        const message = err?.response?.data?.message || 'No se pudo aprobar la solicitud.';
+        showError(message);
+        console.error('Error aprobando solicitud', err);
+    }
+}
+
+function confirmRejectRequest(request: PurchaseRequest) {
+    requestToReject.value = request.id ? request : null;
+    isRejectDialogOpen.value = true;
+}
+
+async function handleReject(reason: string) {
+    if (!requestToReject.value?.id) {
+        isRejectDialogOpen.value = false;
+        return;
+    }
+    if (!reason || !reason.trim()) {
+        showError('Debes ingresar un motivo para rechazar la solicitud.');
+        return;
+    }
+    try {
+        await axios.post(`/gastos/solicitudes-compra/${requestToReject.value.id}/reject`, { reason: reason.trim() });
+        successMessage.value = 'Solicitud rechazada correctamente.';
+        fetchRequests();
+    } catch (err: any) {
+        const message = err?.response?.data?.message || 'No se pudo rechazar la solicitud.';
+        showError(message);
+        console.error('Error rechazando solicitud', err);
+    } finally {
+        isRejectDialogOpen.value = false;
+        requestToReject.value = null;
+    }
+}
+
+async function handleCancel(request: PurchaseRequest) {
+    if (!request.id) return;
+    if (!confirm('¿Estás seguro de cancelar esta solicitud?')) return;
+    try {
+        await axios.post(`/gastos/solicitudes-compra/${request.id}/cancel`);
+        successMessage.value = 'Solicitud cancelada correctamente.';
+        fetchRequests();
+    } catch (err: any) {
+        const message = err?.response?.data?.message || 'No se pudo cancelar la solicitud.';
+        showError(message);
+        console.error('Error cancelando solicitud', err);
     }
 }
 
@@ -221,24 +305,38 @@ function handleDialogRefresh(message?: string) {
     fetchRequests();
 }
 
-const getStatusLabel = (status?: string) => statusLabels[status ?? ''] ?? 'Sin estado';
-const getStatusClasses = (status?: string) =>
-    statusBadgeStyles[status ?? ''] ?? 'bg-gray-100 text-gray-800';
+const getStatusLabel = (status?: string) => {
+    if (!status) return 'Sin estado';
+    return statusLabels[status] ?? status;
+};
 
-async function fetchProviders() {
-    try {
-        const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
-        const data = Array.isArray(response.data?.data)
-            ? response.data.data
-            : Array.isArray(response.data)
-                ? response.data
-                : [];
-        providers.value = data;
-    } catch (error) {
-        providers.value = [];
-        console.error('No se pudieron cargar los proveedores', error);
-    }
-}
+const getStatusClasses = (status?: string) => {
+    if (!status) return 'bg-gray-100 text-gray-800';
+    return statusBadgeStyles[status] ?? 'bg-gray-100 text-gray-800';
+};
+
+// Funciones para verificar permisos de estado
+const canEditRequest = (request: PurchaseRequest): boolean => {
+    const status = request.status;
+    return status === 'draft' || status === 'pending';
+};
+
+const canSendToApproval = (request: PurchaseRequest): boolean => {
+    return request.status === 'draft';
+};
+
+const canApprove = (request: PurchaseRequest): boolean => {
+    return request.status === 'pending';
+};
+
+const canReject = (request: PurchaseRequest): boolean => {
+    return request.status === 'pending';
+};
+
+const canCancel = (request: PurchaseRequest): boolean => {
+    const status = request.status;
+    return status === 'draft' || status === 'pending';
+};
 
 async function fetchRequests() {
     isLoading.value = true;
@@ -249,9 +347,8 @@ async function fetchRequests() {
     if (statusFilter.value !== 'all') {
         params.status = statusFilter.value;
     }
-    if (providerFilter.value !== 'all') {
-        const parsed = Number(providerFilter.value);
-        params.provider_id = Number.isNaN(parsed) ? providerFilter.value : parsed;
+    if (providerFilter.value.trim()) {
+        params.provider_name = providerFilter.value.trim();
     }
     if (dateFrom.value) {
         params.date_from = dateFrom.value;
@@ -266,7 +363,21 @@ async function fetchRequests() {
             : Array.isArray(response.data)
                 ? response.data
                 : [];
-        requests.value = rows;
+        
+        // Asegurar que items sea un array en cada solicitud
+        requests.value = rows.map((request: any) => {
+            if (request.items && typeof request.items === 'string') {
+                try {
+                    request.items = JSON.parse(request.items);
+                } catch {
+                    request.items = [];
+                }
+            } else if (!Array.isArray(request.items)) {
+                request.items = [];
+            }
+            return request;
+        });
+        
         clearError();
     } catch (error) {
         requests.value = [];
@@ -286,7 +397,6 @@ watch(searchQuery, () => {
 });
 
 onMounted(() => {
-    fetchProviders();
     fetchRequests();
 });
 </script>
@@ -338,13 +448,7 @@ onMounted(() => {
                     />
                 </FilterField>
                 <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
-                    <SelectField
-                        v-model="providerFilter"
-                        :options="providerOptions"
-                        label=""
-                        placeholder="Escribe un proveedor"
-                        :button-class="providerButtonClasses"
-                    />
+                    <Input v-model="providerFilter" placeholder="Nombre del proveedor" class="h-10 w-full" />
                 </FilterField>
                 <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
                     <InputDate v-model="dateFrom" placeholder="Desde" />
@@ -387,7 +491,7 @@ onMounted(() => {
                             <TableRow v-for="request in requests" :key="request.id" class="text-center">
                                 <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
                                 <TableCell>{{ formatDate(request.date) }}</TableCell>
-                                <TableCell class="max-w-[180px] truncate">{{ request.provider?.full_name || '-' }}</TableCell>
+                                <TableCell class="max-w-[180px] truncate">{{ request.provider_name || '-' }}</TableCell>
                                 <TableCell>{{ getRequestItemsPreview(request) }}</TableCell>
                                 <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
                                 <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
@@ -402,14 +506,65 @@ onMounted(() => {
                                     </span>
                                 </TableCell>
                                 <TableCell class="flex justify-center items-center gap-2">
-                                        <button
-                                            class="flex items-center text-gray-500 hover:text-blue-500 transition-colors duration-200"
-                                            @click="viewRequest(request)"
-                                        >
-                                            <Eye class="w-4 h-4" />
-                                        </button>
-                                        <EditButton :onClick="() => editRequest(request)" />
-                                <DeleteButton :onClick="() => confirmDeleteRequest(request)" />
+                                    <button
+                                        class="flex items-center text-gray-500 hover:text-blue-500 transition-colors duration-200"
+                                        @click="viewRequest(request)"
+                                        title="Ver detalles"
+                                    >
+                                        <Eye class="w-4 h-4" />
+                                    </button>
+                                    <EditButton 
+                                        v-if="canEditRequest(request)"
+                                        :onClick="() => editRequest(request)" 
+                                        title="Editar solicitud"
+                                    />
+                                    <DeleteButton 
+                                        v-if="canEditRequest(request) || request.status === 'cancelled'"
+                                        :onClick="() => confirmDeleteRequest(request)" 
+                                        title="Eliminar solicitud"
+                                    />
+                                    <DropdownMenu
+                                        v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
+                                    >
+                                        <DropdownMenuTrigger as-child>
+                                            <button
+                                                class="flex items-center text-gray-500 hover:text-gray-700 transition-colors duration-200"
+                                                title="Más acciones"
+                                            >
+                                                <MoreVertical class="w-4 h-4" />
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" class="w-48">
+                                            <DropdownMenuItem
+                                                v-if="canSendToApproval(request)"
+                                                class="cursor-pointer gap-2"
+                                                @click="handleSendToApproval(request)"
+                                            >
+                                                <Send class="h-4 w-4" /> Enviar a aprobación
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canApprove(request)"
+                                                class="cursor-pointer gap-2 text-green-600"
+                                                @click="handleApprove(request)"
+                                            >
+                                                <CheckCircle class="h-4 w-4" /> Aprobar
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canReject(request)"
+                                                class="cursor-pointer gap-2 text-red-600"
+                                                @click="confirmRejectRequest(request)"
+                                            >
+                                                <XCircle class="h-4 w-4" /> Rechazar
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canCancel(request)"
+                                                class="cursor-pointer gap-2 text-orange-600"
+                                                @click="handleCancel(request)"
+                                            >
+                                                <X class="h-4 w-4" /> Cancelar
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TableCell>
                             </TableRow>
                         </template>
@@ -435,5 +590,18 @@ onMounted(() => {
         cancel-text="Cancelar"
         :destructive="true"
         @confirm="handleDeleteRequest"
+    />
+
+    <ConfirmWithInputDialog
+        v-model:open="isRejectDialogOpen"
+        title="Rechazar solicitud"
+        description="Ingresa el motivo del rechazo. Esta acción registrará el motivo y cambiará el estado de la solicitud."
+        input-label="Motivo del rechazo"
+        input-placeholder="Ej: No cumple con los requisitos, presupuesto insuficiente, etc."
+        confirm-text="Rechazar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        :input-required="true"
+        @confirm="handleReject"
     />
 </template>

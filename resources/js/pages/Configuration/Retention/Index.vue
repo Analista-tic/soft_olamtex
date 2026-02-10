@@ -25,12 +25,14 @@ const breadcrumbs = [
     { title: 'Retenciones', href: '/configuracion/retenciones' },
 ];
 
-const retentions = ref<any[]>([]);
-const retentionToDelete = ref<any | null>(null);
+import type { Retention } from '@/domain/shared';
+
+const retentions = ref<Retention[]>([]);
+const retentionToDelete = ref<Retention | null>(null);
 const isDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
-const form = ref<any>({ id: undefined, name: '', percent: 0, type: '', description: '', status: 'active' });
+const form = ref<Partial<Retention>>({ name: '', percent: 0, type: '', description: '', status: 'active' });
 const isSubmitting = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');

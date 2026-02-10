@@ -4,6 +4,7 @@ namespace App\Models\Expenses;
 
 use App\Contracts\HasAuditLabel;
 use App\Models\Common\Contact;
+use App\Models\Expenses\PurchaseRequest;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +27,7 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'document_number',
         'document_type',
         'parent_document_id',
+        'purchase_request_id',
         'contact_id',
         'provider_name',
         'provider_phone',
@@ -44,10 +46,11 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'rejection_notes',
         'rejected_by_user_id',
         'rejected_at',
+        'approved_by_user_id',
+        'approved_at',
         'requested_at',
         'ordered_at',
         'invoiced_at',
-        'approved_at',
     ];
 
     protected $casts = [
@@ -85,6 +88,12 @@ class PurchaseDocument extends Model implements HasAuditLabel
     {
         return $this->hasMany(self::class, 'parent_document_id');
     }
+    
+    // Solicitud de compra relacionada (para órdenes creadas desde solicitudes)
+    public function purchaseRequest()
+    {
+        return $this->belongsTo(PurchaseRequest::class, 'purchase_request_id');
+    }
 
     // Proveedor
     public function supplier()
@@ -116,6 +125,12 @@ class PurchaseDocument extends Model implements HasAuditLabel
         return $this->belongsTo(User::class, 'rejected_by_user_id');
     }
 
+    // Usuario que aprobó (si aplica)
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by_user_id');
+    }
+
     public function isRequest(): bool
     {
         return $this->document_type === self::TYPE_REQUEST;
@@ -131,6 +146,14 @@ class PurchaseDocument extends Model implements HasAuditLabel
         return $this->document_type === self::TYPE_INVOICE;
     }
 
+    public function isApproved(): bool
+    {
+        if ($this->isOrder()) {
+            return $this->status === \App\Enums\PurchaseOrderStatus::APPROVED->value;
+        }
+        return false;
+    }
+
     public function scopeRequests($query)
     {
         return $query->where('document_type', self::TYPE_REQUEST);
@@ -144,5 +167,80 @@ class PurchaseDocument extends Model implements HasAuditLabel
     public function scopeInvoices($query)
     {
         return $query->where('document_type', self::TYPE_INVOICE);
+    }
+
+    // Métodos de estado para órdenes
+    public function isOrderPending(): bool
+    {
+        return $this->isOrder() && $this->status === 'pending';
+    }
+
+    public function isOrderApproved(): bool
+    {
+        return $this->isOrder() && $this->status === 'approved';
+    }
+
+    public function isOrderRejected(): bool
+    {
+        return $this->isOrder() && $this->status === 'rejected';
+    }
+
+    public function isOrderInvoiced(): bool
+    {
+        return $this->isOrder() && $this->status === 'invoiced';
+    }
+
+    public function canEditOrder(): bool
+    {
+        return $this->isOrder() && $this->status === 'pending';
+    }
+
+    public function canApproveOrder(): bool
+    {
+        return $this->isOrder() && $this->status === 'pending';
+    }
+
+    public function canApprove(): bool
+    {
+        if ($this->isOrder()) {
+            return $this->status === \App\Enums\PurchaseOrderStatus::PENDING->value;
+        }
+        return false;
+    }
+
+    public function canRejectOrder(): bool
+    {
+        return $this->isOrder() && $this->status === 'pending';
+    }
+
+    public function canInvoiceOrder(): bool
+    {
+        return $this->isOrder() && $this->status === 'approved';
+    }
+
+    // Métodos de estado para facturas
+    public function isInvoicePendingReceipt(): bool
+    {
+        return $this->isInvoice() && $this->status === 'pending_receipt';
+    }
+
+    public function isInvoiceReceived(): bool
+    {
+        return $this->isInvoice() && $this->status === 'received';
+    }
+
+    public function isInvoiceRejected(): bool
+    {
+        return $this->isInvoice() && $this->status === 'rejected';
+    }
+
+    public function canEditInvoice(): bool
+    {
+        return $this->isInvoice() && $this->status === 'pending_receipt';
+    }
+
+    public function canRejectInvoice(): bool
+    {
+        return $this->isInvoice() && $this->status === 'pending_receipt';
     }
 }

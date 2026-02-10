@@ -12,7 +12,7 @@ import type { PurchaseOrder } from '@/domain/purchases';
 import type { Item } from '@/domain/inventory';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText } from 'lucide-vue-next';
+import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText, CheckCircle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
@@ -40,6 +40,7 @@ const isPrintDialogOpen = ref(false);
 const orderToPrint = ref<PurchaseOrder | null>(null);
 const isSendingMail = ref(false);
 const isConverting = ref<number | null>(null);
+const isApproving = ref<number | null>(null);
 const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
@@ -217,6 +218,24 @@ async function sendOrderByEmail(order: PurchaseOrder) {
     }
 }
 
+function canApproveOrder(order: PurchaseOrder): boolean {
+    return order.status === 'pending';
+}
+
+async function approveOrder(order: PurchaseOrder) {
+    if (isApproving.value !== null) return;
+    isApproving.value = order.id ?? null;
+    try {
+        await axios.patch(`/gastos/ordenes-compra/${order.id}/approve`);
+        successMessage.value = 'Orden aprobada correctamente.';
+        fetchOrders(currentPage.value, searchQuery.value);
+    } catch (e: any) {
+        setErrorMessage(e?.response?.data?.message || 'Error al aprobar la orden.');
+    } finally {
+        isApproving.value = null;
+    }
+}
+
 async function convertToInvoice(order: PurchaseOrder) {
     if (isConverting.value !== null) return;
     isConverting.value = order.id ?? null; // order.id nunca debería ser undefined, pero por seguridad
@@ -296,6 +315,8 @@ function handleDialogError(message?: string) {
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobada' },
+                            { id: 'sent', name: 'Enviada' },
+                            { id: 'invoiced', name: 'Facturada' },
                             { id: 'rejected', name: 'Rechazada' },
                         ]"
                         :button-class="statusButtonClasses"
@@ -347,20 +368,34 @@ function handleDialogError(message?: string) {
                                     :class="[
                                         'px-2 py-1 rounded-full text-xs font-semibold',
                                         order.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                            order.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                            'bg-yellow-100 text-yellow-800',
+                                        order.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                                        order.status === 'invoiced' ? 'bg-indigo-100 text-indigo-800' :
+                                        order.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                        'bg-yellow-100 text-yellow-800',
                                     ]"
                                 >
                                     {{
                                         order.status === 'approved' ? 'Aprobada' :
+                                        order.status === 'sent' ? 'Enviada' :
+                                        order.status === 'invoiced' ? 'Facturada' :
                                         order.status === 'rejected' ? 'Rechazada' :
                                         'Pendiente'
                                     }}
                                 </span>
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton :onClick="() => openDialog('edit', order)" title="Editar orden" />
-                                <DeleteButton :onClick="() => confirmDeleteOrder(order)" title="Eliminar orden" />
+                                <EditButton 
+                                    :onClick="() => openDialog('edit', order)" 
+                                    title="Editar orden"
+                                    :customClass="(order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected') ? 'opacity-60 cursor-not-allowed' : ''"
+                                    :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
+                                />
+                                <DeleteButton 
+                                    :onClick="() => confirmDeleteOrder(order)" 
+                                    title="Eliminar orden"
+                                    :customClass="(order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected') ? 'opacity-60 cursor-not-allowed' : ''"
+                                    :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
+                                />
                                 <DropdownMenu>
                                     <DropdownMenuTrigger as-child>
                                         <Button variant="ghost" size="icon" class="h-8 w-8 p-0">
@@ -381,10 +416,19 @@ function handleDialogError(message?: string) {
                                             <Mail class="h-4 w-4" /> Enviar al correo
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
-                                            v-if="order.status !== 'converted'"
+                                            v-if="canApproveOrder(order)"
+                                            class="cursor-pointer gap-2 text-green-600"
+                                            :class="isApproving === order.id ? 'opacity-60 cursor-not-allowed' : ''"
+                                            :disabled="isApproving === order.id || !canApproveOrder(order)"
+                                            @click="approveOrder(order)"
+                                        >
+                                            <CheckCircle class="h-4 w-4" /> Aprobar orden
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            v-if="order.status === 'approved'"
                                             class="cursor-pointer gap-2"
                                             :class="isConverting === order.id ? 'opacity-60 cursor-not-allowed' : ''"
-                                            :disabled="isConverting === order.id"
+                                            :disabled="isConverting === order.id || order.status !== 'approved'"
                                             @click="convertToInvoice(order)"
                                         >
                                             <ReceiptText class="h-4 w-4" /> Convertir en factura

@@ -158,20 +158,7 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Insertar relación en warehouse_item para stock y bodega
-        DB::table('warehouse_items')->updateOrInsert(
-            ['warehouse_id' => $warehouseId, 'item_id' => $itemId],
-            [
-                'quantity' => 100,
-                'stock_min' => 10,
-                'stock_max' => 200,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
-
         // Crear items de TELA específicos
-        $lanaBeige = DB::table('items')->where('bar_code', 'TELA-LANA-001')->first();
         $lanaBeige = DB::table('items')->where('bar_code', 'TELA-LANA-001')->first();
         $lanaId = $lanaBeige ? $lanaBeige->id : DB::table('items')->insertGetId([
             'category_sub_group_id' => $telaSubGroupId,
@@ -204,27 +191,59 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Stock inicial para telas en la bodega principal
-        DB::table('warehouse_items')->updateOrInsert(
-            ['warehouse_id' => $warehouseId, 'item_id' => $lanaId],
-            [
-                'quantity' => 250,
-                'stock_min' => 10,
-                'stock_max' => 500,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
-        DB::table('warehouse_items')->updateOrInsert(
-            ['warehouse_id' => $warehouseId, 'item_id' => $algodonId],
-            [
-                'quantity' => 180,
-                'stock_min' => 10,
-                'stock_max' => 400,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
+        // Stock inicial vía movimientos de entrada (para tener precio ponderado y permitir transferencias)
+        if (Schema::hasTable('inventory_movements')) {
+            $seedUser = User::find($userId);
+            if ($seedUser) {
+                $movementService = app(InventoryMovementService::class);
+                $baseNotes = 'Stock inicial seeder';
+                $movementService->createMovement([
+                    'item_id' => $itemId,
+                    'warehouse_id' => $warehouseId,
+                    'type' => 'entrada',
+                    'quantity' => 100,
+                    'unit_price' => 1200.00,
+                    'notes' => $baseNotes,
+                    'created_by_user_id' => $userId,
+                ]);
+                $movementService->createMovement([
+                    'item_id' => $lanaId,
+                    'warehouse_id' => $warehouseId,
+                    'type' => 'entrada',
+                    'quantity' => 250,
+                    'unit_price' => 50.00,
+                    'notes' => $baseNotes,
+                    'created_by_user_id' => $userId,
+                ]);
+                $movementService->createMovement([
+                    'item_id' => $algodonId,
+                    'warehouse_id' => $warehouseId,
+                    'type' => 'entrada',
+                    'quantity' => 180,
+                    'unit_price' => 50.00,
+                    'notes' => $baseNotes,
+                    'created_by_user_id' => $userId,
+                ]);
+                // Ajustar stock_min y stock_max en warehouse_items
+                DB::table('warehouse_items')->where('item_id', $itemId)->where('warehouse_id', $warehouseId)->update(['stock_min' => 10, 'stock_max' => 200]);
+                DB::table('warehouse_items')->where('item_id', $lanaId)->where('warehouse_id', $warehouseId)->update(['stock_min' => 10, 'stock_max' => 500]);
+                DB::table('warehouse_items')->where('item_id', $algodonId)->where('warehouse_id', $warehouseId)->update(['stock_min' => 10, 'stock_max' => 400]);
+            }
+        } else {
+            // Fallback si no existe tabla de movimientos
+            DB::table('warehouse_items')->updateOrInsert(
+                ['warehouse_id' => $warehouseId, 'item_id' => $itemId],
+                ['quantity' => 100, 'stock_min' => 10, 'stock_max' => 200, 'created_at' => now(), 'updated_at' => now()]
+            );
+            DB::table('warehouse_items')->updateOrInsert(
+                ['warehouse_id' => $warehouseId, 'item_id' => $lanaId],
+                ['quantity' => 250, 'stock_min' => 10, 'stock_max' => 500, 'created_at' => now(), 'updated_at' => now()]
+            );
+            DB::table('warehouse_items')->updateOrInsert(
+                ['warehouse_id' => $warehouseId, 'item_id' => $algodonId],
+                ['quantity' => 180, 'stock_min' => 10, 'stock_max' => 400, 'created_at' => now(), 'updated_at' => now()]
+            );
+        }
 
         // Transferencias de bodega de ejemplo
         if (Schema::hasTable('warehouse_transfers') && Schema::hasTable('warehouse_transfer_items')) {
@@ -263,11 +282,9 @@ class ExampleDataSeeder extends Seeder
             'document_type' => 'purchase_request',
             'contact_id' => $providerId,
             'date' => now()->subDays(5)->toDateString(),
-            'delivery_date' => now()->addDays(10)->toDateString(),
-            'description' => 'Solicitud de compra generada por el seeder de ejemplo',
-            'created_by_user_id' => $userId,
+            'description' => 'Solicitud de compra generada por el seeder de ejemplo. Destino: Producción.',
             'status' => 'approved',
-            'requested_at' => now()->subDays(5),
+            'approved_by_user_id' => $userId,
             'approved_at' => now()->subDays(4),
             'created_at' => now(),
             'updated_at' => now(),
@@ -276,14 +293,16 @@ class ExampleDataSeeder extends Seeder
         $orderDocumentId = DB::table('purchase_documents')->insertGetId([
             'document_number' => 'ORD-001',
             'document_type' => 'purchase_order',
-            'parent_document_id' => $requestDocumentId,
+            'parent_document_id' => null, // Se puede vincular a purchase_request mediante lógica de negocio
             'contact_id' => $providerId,
             'date' => now()->subDays(3)->toDateString(),
             'delivery_date' => now()->addDays(7)->toDateString(),
             'description' => 'Orden de compra vinculada a la solicitud de ejemplo',
             'created_by_user_id' => $userId,
             'executed_by_user_id' => $userId,
-            'status' => 'in_process',
+            'status' => 'approved', // Estados válidos: pending, approved, sent, invoiced, rejected
+            'approved_by_user_id' => $userId,
+            'approved_at' => now()->subDays(2),
             'supplier_order_number' => 'ORD-2025-001',
             'ordered_at' => now()->subDays(3),
             'created_at' => now(),
@@ -339,8 +358,7 @@ class ExampleDataSeeder extends Seeder
             'description' => 'Factura de compra vinculada a la orden de ejemplo',
             'created_by_user_id' => $userId,
             'executed_by_user_id' => $userId,
-            'status' => 'pending',
-            'approval_status' => 'pending',
+            'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
             'supplier_invoice_number' => 'FAC-2025-001',
             'withholdings' => json_encode([
                 ['name' => 'Retefuente', 'percentage' => 2.5, 'base_amount' => 12000.00],
@@ -588,7 +606,7 @@ class ExampleDataSeeder extends Seeder
                 'delivery_date' => now()->subDays(15)->toDateString(),
                 'description' => '[KARDEX-TELA] Factura de tela LANA Beige para producción de enero',
                 'created_by_user_id' => $userId,
-                'status' => 'pending',
+                'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
                 'supplier_invoice_number' => 'FT-2026-001',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -650,7 +668,7 @@ class ExampleDataSeeder extends Seeder
                 'delivery_date' => now()->subDays(10)->toDateString(),
                 'description' => '[KARDEX-TELA] Factura de tela ALGODÓN para línea premium',
                 'created_by_user_id' => $userId,
-                'status' => 'pending',
+                'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
                 'supplier_invoice_number' => 'FT-2026-002',
                 'created_at' => now(),
                 'updated_at' => now(),

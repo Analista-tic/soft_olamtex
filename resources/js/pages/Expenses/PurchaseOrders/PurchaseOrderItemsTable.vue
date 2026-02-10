@@ -12,7 +12,10 @@ import { Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 
-const props = defineProps<{ items: PurchaseOrderItem[] }>();
+const props = defineProps<{ 
+    items: PurchaseOrderItem[];
+    suggestedItems?: any[];
+}>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseOrderItem[]>([]);
@@ -20,7 +23,7 @@ const catalogItems = ref<Item[]>([]); // renombrado desde `items`
 const taxes = ref<Tax[]>([]);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
-const taxForm = ref({ name: '', percentage: 0, status: 'true' });
+const taxForm = ref<any>({ name: '', percentage: 0, status: true });
 const isItemDialogOpen = ref(false);
 const itemDialogForm = ref<Partial<Item>>({
     reference: '',
@@ -89,7 +92,7 @@ onMounted(() => {
 });
 
 function openTaxDialog() {
-    taxForm.value = { name: '', percentage: 0, status: 'true' };
+    taxForm.value = { name: '', percentage: 0, status: true };
     isTaxDialogOpen.value = true;
 }
 
@@ -125,6 +128,20 @@ function isTela(item: PurchaseOrderItem) {
     const itemId = Number(item.item_id);
     const article = itemMap.value.get(itemId);
     return article?.category_sub_group?.name?.toLowerCase() === 'tela';
+}
+
+/** Valida que los ítems de tela tengan ancho obligatorio. Devuelve mensaje de error o null si es válido. */
+function validateFabricFields(): string | null {
+    for (let idx = 0; idx < localItems.value.length; idx++) {
+        const item = localItems.value[idx];
+        if (!isTela(item)) continue;
+        const w = item.order_width;
+        if (w === undefined || w === null || (typeof w === 'string' && String(w).trim() === '') || Number(w) <= 0) {
+            const name = itemMap.value.get(Number(item.item_id))?.name || `Ítem ${idx + 1}`;
+            return `El ítem "${name}" es tela: el ancho pedido (cm) es obligatorio. En recepción se compara el ancho real del rollo con este valor para validar tolerancias.`;
+        }
+    }
+    return null;
 }
 
 function addItem() {
@@ -223,7 +240,38 @@ watch(
     { deep: true, immediate: true },
 );
 
-defineExpose({ addItem });
+function formatSuggestedPrice(value: number) {
+    return Number(value || 0).toLocaleString('es-CO', { 
+        style: 'currency', 
+        currency: 'COP', 
+        minimumFractionDigits: 0 
+    });
+}
+
+function getSuggestedItemForRow(rowIdx: number) {
+    if (!props.suggestedItems || props.suggestedItems.length === 0) return null;
+    // Retornar el item sugerido correspondiente al índice de la fila
+    return props.suggestedItems[rowIdx] || null;
+}
+
+function applySuggestedItem(suggestedItem: any, targetIdx: number) {
+    if (!suggestedItem || targetIdx >= localItems.value.length) return;
+    
+    const targetItem = localItems.value[targetIdx];
+    targetItem.item_id = suggestedItem.item_id || null;
+    targetItem.price = Number(suggestedItem.price) || 0;
+    targetItem.quantity = Number(suggestedItem.quantity) || 1;
+    targetItem.description = suggestedItem.description || suggestedItem.name || '';
+    targetItem.tax = suggestedItem.tax || 0;
+    targetItem.supplier_code = suggestedItem.supplier_code || '';
+    targetItem.supplier_color = suggestedItem.supplier_color || '';
+    targetItem.order_width = Number(suggestedItem.order_width) || 0;
+    
+    calcTotals(targetItem);
+    emit('update:items', localItems.value);
+}
+
+defineExpose({ addItem, validateFabricFields });
 </script>
 
 <template>
@@ -252,23 +300,36 @@ defineExpose({ addItem });
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
                         <TableCell class="p-1 text-left min-w-[150px]">
-                            <SelectField
-                                v-model="item.item_id"
-                                :options="catalogItems.map((a) => ({ id: a.id, name: a.name }))"
-                                label=""
-                                class="w-full"
-                            >
-                                <template #header>
-                                    <button
-                                        type="button"
-                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                                        @click.stop="openItemDialog"
+                            <div class="space-y-1.5">
+                                <SelectField
+                                    v-model="item.item_id"
+                                    :options="catalogItems.map((a) => ({ id: a.id, name: a.name }))"
+                                    label=""
+                                    class="w-full"
+                                >
+                                    <template #header>
+                                        <button
+                                            type="button"
+                                            class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                                            @click.stop="openItemDialog"
+                                        >
+                                            <Plus class="h-4 w-4" />
+                                            Nuevo item
+                                        </button>
+                                    </template>
+                                </SelectField>
+                                <!-- Item sugerido de la solicitud para esta fila -->
+                                <div v-if="getSuggestedItemForRow(idx)" class="text-xs mt-1.5">
+                                    <div 
+                                        class="flex items-center gap-1.5 text-xs bg-accent/30 rounded-md px-2 py-1 border border-border/40 cursor-pointer hover:bg-accent/50 transition-colors group"
+                                        @click="applySuggestedItem(getSuggestedItemForRow(idx), idx)"
+                                        title="Clic para aplicar este item sugerido de la solicitud"
                                     >
-                                        <Plus class="h-4 w-4" />
-                                        Nuevo item
-                                    </button>
-                                </template>
-                            </SelectField>
+                                        <span class="text-[10px] opacity-60 group-hover:opacity-100">💡</span>
+                                        <span class="flex-1 font-medium text-foreground/90">{{ getSuggestedItemForRow(idx)?.name || getSuggestedItemForRow(idx)?.description || `Item sugerido` }}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 120px;">
                             <InputField
@@ -320,7 +381,7 @@ defineExpose({ addItem });
                             <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" class="h-10 w-full" />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
-                            <InputField v-model="item.order_width" type="number" label="" placeholder="Ancho pedido" step="any" class="h-10 w-full" />
+                            <InputField v-model="item.order_width" type="number" label="" placeholder="Ancho pedido (cm) *" step="any" class="h-10 w-full" :required="true" />
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 90px;">
                             {{
