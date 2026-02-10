@@ -5,14 +5,9 @@ use App\Http\Controllers\Expenses\PurchaseInvoiceController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceTelaController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
 use App\Http\Controllers\Expenses\PurchaseRequestController;
-use App\Http\Controllers\ProductSheet\BrandController;
-use App\Http\Controllers\ProductSheet\FabricBaseController;
 use App\Http\Controllers\ProductSheet\GroupController;
-use App\Http\Controllers\ProductSheet\MachineController;
 use App\Http\Controllers\ProductSheet\OperationController;
 use App\Http\Controllers\ProductSheet\SectionController;
-use App\Http\Controllers\ProductSheet\WorldController;
-use App\Http\Controllers\ProductSheet\YarnBaseController;
 use App\Http\Controllers\AuditLogController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
@@ -92,6 +87,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('sabana-productos/{sabana}', [ProductSheetController::class, 'update'])
             ->middleware('permission:editar sabana productos')
             ->name('sabana-productos.update');
+        Route::post('sabana-productos/{sabana}/convert', [ProductSheetController::class, 'convertToProduct'])
+            ->middleware('permission:editar sabana productos')
+            ->name('sabana-productos.convertToProduct');
+
+        Route::get('product-sheets/parameters', [ProductSheetController::class, 'parameters'])
+            ->middleware('permission:ver sabana productos')
+            ->name('product-sheets.parameters');
         Route::delete('sabana-productos/{sabana}', [ProductSheetController::class, 'destroy'])
             ->middleware('permission:eliminar sabana productos')
             ->name('sabana-productos.destroy');
@@ -104,6 +106,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/data', [ProductOperationListController::class, 'index'])
                 ->middleware('permission:ver listados operacionales|ver sabana productos')
                 ->name('data');
+            Route::get('/options', [ProductOperationListController::class, 'options'])
+                ->middleware('permission:ver listados operacionales|ver sabana productos')
+                ->name('options');
             Route::post('/', [ProductOperationListController::class, 'store'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('store');
@@ -361,10 +366,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // === Catálogos para campos parametrizables ===
     Route::get('catalogos/sections', [SectionController::class, 'data']);
     Route::get('catalogos/groups', [GroupController::class, 'data']);
-    Route::get('catalogos/brands', [BrandController::class, 'data']);
-    Route::get('catalogos/worlds', [WorldController::class, 'data']);
-    Route::get('catalogos/fabric-bases', [FabricBaseController::class, 'data']);
-    Route::get('catalogos/yarn-bases', [YarnBaseController::class, 'data']);
+        // Rutas eliminadas: brands, worlds, fabric-bases, yarn-bases (controllers no existen)
 
     // === RETENCIONES ===
     Route::prefix('retenciones')->name('retenciones.')->group(function () {

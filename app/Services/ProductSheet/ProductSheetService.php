@@ -17,13 +17,18 @@ class ProductSheetService
         return $this->model
             ->orderBy('created_at', 'desc')
             ->take($limit)
-            ->select(['id', 'reference'])
+            ->select(['id', 'type', 'sample_reference', 'product_reference'])
             ->get()
             ->map(function ($sheet) {
+                $type = $sheet->type === 'producto' ? 'producto' : 'muestra';
+                $reference = $type === 'producto'
+                    ? ($sheet->product_reference ?? $sheet->sample_reference ?? '')
+                    : ($sheet->sample_reference ?? $sheet->product_reference ?? '');
+
                 return [
                     'id' => $sheet->id,
-                    'reference' => $sheet->reference,
-                    'type' => 'muestra',
+                    'reference' => $reference,
+                    'type' => $type,
                 ];
             });
     }
@@ -42,9 +47,25 @@ class ProductSheetService
     public function searchByReference(string $reference): Collection
     {
         return $this->model
-            ->where('reference', 'like', "%{$reference}%")
+            ->where(function ($query) use ($reference) {
+                $query
+                    ->where('sample_reference', 'like', "%{$reference}%")
+                    ->orWhere('product_reference', 'like', "%{$reference}%");
+            })
             ->orderBy('created_at', 'desc')
             ->limit(20)
-            ->get(['id', 'reference']);
+            ->get(['id', 'type', 'sample_reference', 'product_reference'])
+            ->map(function ($sheet) {
+                $type = $sheet->type === 'producto' ? 'producto' : 'muestra';
+                $reference = $type === 'producto'
+                    ? ($sheet->product_reference ?? $sheet->sample_reference ?? '')
+                    : ($sheet->sample_reference ?? $sheet->product_reference ?? '');
+
+                return [
+                    'id' => $sheet->id,
+                    'reference' => $reference,
+                    'type' => $type,
+                ];
+            });
     }
 }

@@ -12,7 +12,6 @@ import AddNew from './AddNew.vue';
 import type {
     ProductOperationPayload,
     OperationSection,
-    ProductSheetOption,
     OperationOption,
     MachineOption,
 } from '@/domain/product-sheet';
@@ -25,11 +24,18 @@ interface OperationRow {
 }
 
 interface DialogInitialData {
-    productSheetId: number | null;
+    productSheetId: number | string | null;
     operations: OperationRow[];
     operatorEfficiencyFactor: number;
     machineSupplementFactor: number;
     notes: string;
+}
+
+interface ProductSheetDialogOption {
+    id: number | string;
+    reference: string;
+    type: string;
+    isTemporary?: boolean;
 }
 
 const props = defineProps({
@@ -43,7 +49,7 @@ const props = defineProps({
         default: null,
     },
     productSheets: {
-        type: Array as () => ProductSheetOption[],
+        type: Array as () => ProductSheetDialogOption[],
         default: () => [],
     },
     sections: {
@@ -114,10 +120,25 @@ const DEFAULT_MACHINE_SUPPLEMENT = 1.0;
 const isEditMode = computed(() => props.mode === 'edit');
 
 // Datos generales del formulario
-const productSheetId = ref<number | null>(props.productSheets[0]?.id ?? null);
+const productSheetId = ref<number | string | null>(props.productSheets[0]?.id ?? null);
 const operatorEfficiencyFactor = ref(DEFAULT_OPERATOR_EFFICIENCY);
 const machineSupplementFactor = ref(DEFAULT_MACHINE_SUPPLEMENT);
 const notes = ref('');
+
+watch(
+    () => props.productSheets,
+    (next) => {
+        if (!next.length) {
+            productSheetId.value = null;
+            return;
+        }
+        const hasCurrentSelection = next.some((sheet) => sheet.id === productSheetId.value);
+        if (!hasCurrentSelection) {
+            productSheetId.value = next[0].id;
+        }
+    },
+    { deep: true },
+);
 
 // Helper para crear una fila vacía
 const createEmptyRow = (): OperationRow => ({
@@ -311,7 +332,7 @@ function saveOperations() {
     }
 
     const payload: ProductOperationPayload[] = operationList.value.map((row, index) => ({
-        product_sheet_id: productSheetId.value,
+        product_sheet_id: typeof productSheetId.value === 'number' ? productSheetId.value : null,
         section_id: row.section_id,
         operation_id: row.operation_id,
         machine_id: row.machine_id,

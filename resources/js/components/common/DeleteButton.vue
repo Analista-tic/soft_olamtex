@@ -1,27 +1,30 @@
 <script setup lang="ts">
-import { Trash } from 'lucide-vue-next'
+import { Trash } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
 
 const props = defineProps<{
-    onClick?: () => void // Función para manejar la acción de eliminar
-    customClass?: string // Clase adicional para personalizar estilos
-}>()
+    onClick?: () => void;
+    customClass?: string;
+}>();
 
 const emit = defineEmits<{
-    (event: 'click'): void
-}>()
+    (event: 'click'): void;
+}>();
 
 function handleClick() {
-    props.onClick?.()
-    emit('click')
+    props.onClick?.();
+    emit('click');
 }
 </script>
 
 <template>
-    <button
-        :class="['flex items-center text-gray-500 hover:text-red-500 transition-colors duration-200']"
+    <Button
+        variant="ghost"
+        size="icon"
+        class="h-8 w-8 text-muted-foreground hover:text-foreground"
         @click="handleClick"
         type="button"
     >
-        <Trash :class="['w-4 h-4', props.customClass]" />
-    </button>
+        <Trash :class="['h-4 w-4', props.customClass]" />
+    </Button>
 </template>

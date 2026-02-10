@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { Eye } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
 
 defineProps<{
-    onClick: () => void; // Función para manejar la acción de visualizar
+    onClick: () => void;
 }>();
 </script>
 
 <template>
-    <button
-        class="flex items-center text-gray-500 hover:text-gray-700 transition-colors duration-200"
+    <Button
+        variant="ghost"
+        size="icon"
+        class="h-8 w-8 text-muted-foreground hover:text-foreground"
         @click="onClick"
+        type="button"
     >
-        <Eye class="w-4 h-4" />
-    </button>
+        <Eye class="h-4 w-4" />
+    </Button>
 </template>

@@ -1,27 +1,29 @@
 <?php
-
 namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\ProductSheet\ConvertProductSheetRequest;
+use App\Http\Requests\ProductSheet\StoreProductSheetRequest;
+use App\Http\Requests\ProductSheet\UpdateProductSheetRequest;
 use App\Models\ProductSheet\ProductSheet;
-use App\Rules\ValidCatalogOption;
+use App\Services\ProductSheet\ProductSheetCreationService;
 use App\Services\Settings\SettingService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class ProductSheetController extends Controller
 {
-    private const CATALOG_LABELS = [
-        'sections' => 'Sección',
-        'groups' => 'Grupo',
-        'brands' => 'Marca',
-        'worlds' => 'Mundo',
-        'fabric_bases' => 'Base',
-        'yarn_bases' => 'Base de hilaza',
-    ];
-
-    public function __construct(private SettingService $settingService)
+    private const TYPE_PRODUCT = 'producto';
+    private const TYPE_SAMPLE = 'muestra';
+    public function __construct(
+        private SettingService $settingService,
+        private ProductSheetCreationService $productSheetCreationService,
+    )
     {
     }
     /**
@@ -39,76 +41,85 @@ class ProductSheetController extends Controller
             'fabricBases' => $catalogs['fabric_bases']->values()->all(),
             'yarnBases' => $catalogs['yarn_bases']->values()->all(),
             'sizes' => $catalogs['sizes']->values()->all(),
+            'operationalLists' => $catalogs['operational_lists']->values()->all(),
         ]);
     }
 
     /**
      * Valida y crea un nuevo registro en la base de datos.
      */
-    public function store(Request $request)
+    public function store(StoreProductSheetRequest $request)
     {
-        $validatedData = $request->validate([
-            'reference' => 'required|string|max:255',
-            'section_id' => ['required', 'integer', $this->catalogRule('sections')],
-            'group_id' => ['required', 'integer', $this->catalogRule('groups')],
-            'brand_id' => ['required', 'integer', $this->catalogRule('brands')],
-            'world_id' => ['required', 'integer', $this->catalogRule('worlds')],
-            'fabric_base_id' => ['required', 'integer', $this->catalogRule('fabric_bases')],
-            'billing_price' => 'required|numeric',
-            'selling_price' => 'required|numeric',
-            'sizes' => 'required|json',
-            'woven_product' => 'required|boolean',
-            'description' => 'nullable|string',
-            'processes' => 'required|json',
-            'status' => 'required|string|in:incomplete,complete',
-            'yarn_base_id' => ['nullable', 'integer', $this->catalogRule('yarn_bases')],
-        ]);
+        $validatedData = $request->validated();
+        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes'] ?? '[]');
+        $validatedData = $this->prepareFlatSketchUpload($request, $validatedData);
+        $validatedData = $this->productSheetCreationService->sanitizeAttributes($validatedData);
+        $storedFlatSketchPath = $validatedData['flat_sketch_path'] ?? null;
+        $this->logProductSheetSchemaDebug('store', $validatedData);
 
-        // Normalizar sizes antes de guardar
-        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes']);
+        try {
+            $productSheet = DB::transaction(function () use ($validatedData) {
+                return $this->productSheetCreationService->create($validatedData);
+            });
+        } catch (\Throwable $exception) {
+            if ($storedFlatSketchPath) {
+                Storage::disk('public')->delete($storedFlatSketchPath);
+            }
 
-        $productSheet = ProductSheet::create($validatedData); // Asegurarse de que se incluya fabric_base_id
+            throw $exception;
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Product sheet creado exitosamente.',
-            'data' => $productSheet,
+            'data' => $this->serializeProductSheet($productSheet->fresh()),
         ], 201);
     }
 
     /**
      * Valida y actualiza un registro existente.
      */
-    public function update(Request $request, string $id)
+    public function update(UpdateProductSheetRequest $request, ProductSheet $sabana)
     {
-        $validatedData = $request->validate([
-            'reference' => 'required|string|max:255',
-            'section_id' => ['required', 'integer', $this->catalogRule('sections')],
-            'group_id' => ['required', 'integer', $this->catalogRule('groups')],
-            'brand_id' => ['required', 'integer', $this->catalogRule('brands')],
-            'world_id' => ['required', 'integer', $this->catalogRule('worlds')],
-            'fabric_base_id' => ['required', 'integer', $this->catalogRule('fabric_bases')],
-            'billing_price' => 'required|numeric',
-            'selling_price' => 'required|numeric',
-            'sizes' => 'required|json',
-            'woven_product' => 'required|boolean',
-            'description' => 'nullable|string',
-            'processes' => 'required|json',
-            'status' => 'required|string|in:incomplete,complete',
-            'yarn_base_id' => ['nullable', 'integer', $this->catalogRule('yarn_bases')],
+        $validatedData = $request->validated();
+        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes'] ?? '[]');
+        $validatedData = $this->prepareFlatSketchUpload($request, $validatedData, $sabana);
+        $validatedData = $this->productSheetCreationService->sanitizeAttributes($validatedData);
+        $this->logProductSheetSchemaDebug('update', $validatedData);
+        $sabana->update($validatedData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product sheet actualizado exitosamente.',
+            'data' => $this->serializeProductSheet($sabana->fresh()),
+        ]);
+    }
+
+    public function convertToProduct(ConvertProductSheetRequest $request, ProductSheet $sabana)
+    {
+        if ($sabana->type !== self::TYPE_SAMPLE) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Solo se pueden convertir fichas de tipo muestra.',
+            ], 422);
+        }
+
+        $productReference = $request->input('product_reference') ?? $this->generateProductReference($sabana);
+
+        $sabana->update([
+            'product_reference' => $productReference,
+            'type' => self::TYPE_PRODUCT,
         ]);
 
-        // Normalizar sizes antes de actualizar
-        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes']);
-
-        $productSheet = ProductSheet::findOrFail($id); // Busca el registro.
-        $productSheet->update($validatedData); // Actualiza en la base de datos.
-
-        return response()->json(['success' => 'Product sheet actualizado exitosamente.']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Sábana convertida a producto correctamente.',
+            'data' => $sabana->fresh(),
+        ]);
     }
 
     /**
-     * Obtiene un registro específico con datos enriquecidos.
+     * Obtiene un registro especÃ­fico con datos enriquecidos.
      */
     public function show(string $id)
     {
@@ -132,7 +143,7 @@ class ProductSheetController extends Controller
             $productSheet->yarn_base = $productSheet->yarn_base_id ? $yarnBases->get($productSheet->yarn_base_id, ['id' => $productSheet->yarn_base_id, 'name' => 'N/A']) : null;
 
             // Convertir arrays a JSON strings para el frontend
-            $data = $productSheet->toArray();
+            $data = $this->serializeProductSheet($productSheet);
             $data['sizes'] = is_array($productSheet->sizes) ? json_encode($productSheet->sizes) : $productSheet->sizes;
             $data['processes'] = is_array($productSheet->processes) ? json_encode($productSheet->processes) : $productSheet->processes;
             $data['section'] = $productSheet->section;
@@ -173,7 +184,10 @@ class ProductSheetController extends Controller
         $query = ProductSheet::query();
 
         if ($request->has('search') && $request->search != '') {
-            $query->where('reference', 'like', '%' . $request->search . '%');
+            $query->where(function ($sub) use ($request) {
+                $sub->where('sample_reference', 'like', '%' . $request->search . '%')
+                    ->orWhere('product_reference', 'like', '%' . $request->search . '%');
+            });
         }
 
         if ($request->has('status') && $request->status != '') {
@@ -216,7 +230,7 @@ class ProductSheetController extends Controller
 
     private function gatherCatalogs(): array
     {
-        $keys = ['sections', 'groups', 'brands', 'worlds', 'fabric_bases', 'yarn_bases', 'sizes'];
+        $keys = ['sections', 'groups', 'brands', 'worlds', 'fabric_bases', 'yarn_bases', 'sizes', 'operational_lists'];
         $catalogs = [];
         foreach ($keys as $key) {
             $catalogs[$key] = $this->settingService->getCatalogOptions($key);
@@ -224,10 +238,69 @@ class ProductSheetController extends Controller
         return $catalogs;
     }
 
-    private function catalogRule(string $key): ValidCatalogOption
+    public function parameters(Request $request): JsonResponse
     {
-        $label = self::CATALOG_LABELS[$key] ?? ucfirst(str_replace('_', ' ', $key));
-        return new ValidCatalogOption($this->settingService, $key, $label);
+        $key = $request->query('key');
+        if (!$key) {
+            return response()->json(['success' => false, 'message' => 'El parÃ¡metro key es requerido.'], 422);
+        }
+
+        $options = $this->settingService->getCatalogOptions($key);
+
+        if ($options->isEmpty()) {
+            return response()->json(['success' => false, 'message' => 'No se encontraron opciones para esa clave.'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $options->values()->all(),
+        ]);
+    }
+
+    private function prepareFlatSketchUpload(Request $request, array $data, ?ProductSheet $productSheet = null): array
+    {
+        // Never persist the uploaded file object as a DB attribute.
+        unset($data['flat_sketch']);
+
+        if (!$request->hasFile('flat_sketch')) {
+            unset($data['flat_sketch_path']);
+            return $data;
+        }
+
+        $existingPath = $productSheet?->flat_sketch_path;
+
+        if ($existingPath) {
+            Storage::disk('public')->delete($existingPath);
+        }
+
+        $path = Storage::disk('public')->putFile('product_sheets', $request->file('flat_sketch'));
+        $data['flat_sketch_path'] = $path;
+
+        return $data;
+    }
+
+    private function logProductSheetSchemaDebug(string $action, array $data): void
+    {
+        $connection = DB::connection();
+        Log::debug('product_sheet_schema_debug', [
+            'action' => $action,
+            'connection' => $connection->getName(),
+            'database' => $connection->getDatabaseName(),
+            'table' => (new ProductSheet())->getTable(),
+            'keys' => array_keys($data),
+            'contains_flat_sketch' => array_key_exists('flat_sketch', $data),
+            'contains_flat_sketch_path' => array_key_exists('flat_sketch_path', $data),
+            'has_column_flat_sketch' => Schema::connection($connection->getName())->hasColumn('product_sheets', 'flat_sketch'),
+            'has_column_flat_sketch_path' => Schema::connection($connection->getName())->hasColumn('product_sheets', 'flat_sketch_path'),
+        ]);
+    }
+
+    private function serializeProductSheet(ProductSheet $productSheet): array
+    {
+        $data = $productSheet->toArray();
+        $data['flat_sketch_path'] = $productSheet->flat_sketch_path ?? null;
+
+        return $data;
     }
 
     /**
@@ -258,11 +331,28 @@ class ProductSheetController extends Controller
                 return json_encode($filteredSizes);
             }
             
-            // Si ya es un array indexado, retornar como está
+            // Si ya es un array indexado, retornar como estÃ¡
             return $sizesJson;
         } catch (\Exception $e) {
-            // Si hay algún error, retornar el valor original
+            // Si hay algÃºn error, retornar el valor original
             return $sizesJson;
         }
     }
+    private function generateProductReference(ProductSheet $productSheet): string
+    {
+        $base = trim((string) ($productSheet->product_reference ?? $productSheet->sample_reference ?? 'PRODUCTO'));
+        $candidate = $base;
+        $attempt = 0;
+
+        while (ProductSheet::where('product_reference', $candidate)
+            ->where('id', '!=', $productSheet->id)
+            ->exists()
+        ) {
+            $attempt++;
+            $candidate = "{$base}-P{$attempt}";
+        }
+
+        return $candidate;
+    }
+
 }

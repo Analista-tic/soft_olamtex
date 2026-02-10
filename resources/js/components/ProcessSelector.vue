@@ -82,7 +82,19 @@ function safeJsonParse(value: string | undefined): Record<string, boolean> {
 }
 
 const selectedProcesses = ref<Record<string, boolean>>(safeJsonParse(props.modelValue));
-const processOrder = ['Tejido', 'Corte', 'Bordado', 'Sublimado', 'Estampado', 'Lavanderia', 'Muestra', 'Confección', 'Terminación', 'Bodega'];
+const processOrder = [
+    'Tejido',
+    'Corte',
+    'Bordado',
+    'Sublimado',
+    'Estampado',
+    'Lavanderia',
+    'Muestra',
+    'Desarrollo de muestras',
+    'Confección',
+    'Terminación',
+    'Bodega',
+];
 
 const orderedSelectedProcesses = computed(() => {
     return Object.keys(selectedProcesses.value)

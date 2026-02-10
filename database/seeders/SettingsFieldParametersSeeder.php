@@ -180,7 +180,7 @@ class SettingsFieldParametersSeeder extends Seeder
                     'label' => 'Grupo',
                     'description' => 'Catálogo de grupos',
                     'value' => $this->mapNames([
-                        'ORGANIZACIONAL', 'FINANCIERO', 'PRODUCCIÓN', 'COMERCIAL', 'LOGÍSTICO', 'TÉCNICO',
+                        'LÍNEA', 'MODA'
                     ]),
                     'status' => true,
                 ],
@@ -262,7 +262,7 @@ class SettingsFieldParametersSeeder extends Seeder
                     'label' => 'Destinos',
                     'description' => 'Clientes o líneas comerciales frecuentes',
                     'value' => $this->mapNames([
-                        'CCU', 'EJETEX', 'PASSARO', 'HERPO', 'ATUENDOS', 'LOHARY',
+                        'CCU', 'EJETEX', 'PASSARO', 'HERPO', 'ATUENDOS', 'LOHARY', 'OLAMTEX',
                     ]),
                     'status' => true,
                 ],

@@ -36,18 +36,18 @@ const props = defineProps<{
 type AlertType = 'success' | 'error' | 'info' | 'warning';
 
 const MONTHS: Option[] = [
-    { id: 'ENERO', name: 'ENERO' },
-    { id: 'FEBRERO', name: 'FEBRERO' },
-    { id: 'MARZO', name: 'MARZO' },
-    { id: 'ABRIL', name: 'ABRIL' },
-    { id: 'MAYO', name: 'MAYO' },
-    { id: 'JUNIO', name: 'JUNIO' },
-    { id: 'JULIO', name: 'JULIO' },
-    { id: 'AGOSTO', name: 'AGOSTO' },
-    { id: 'SEPTIEMBRE', name: 'SEPTIEMBRE' },
-    { id: 'OCTUBRE', name: 'OCTUBRE' },
-    { id: 'NOVIEMBRE', name: 'NOVIEMBRE' },
-    { id: 'DICIEMBRE', name: 'DICIEMBRE' },
+    { id: 1, name: 'ENERO' },
+    { id: 2, name: 'FEBRERO' },
+    { id: 3, name: 'MARZO' },
+    { id: 4, name: 'ABRIL' },
+    { id: 5, name: 'MAYO' },
+    { id: 6, name: 'JUNIO' },
+    { id: 7, name: 'JULIO' },
+    { id: 8, name: 'AGOSTO' },
+    { id: 9, name: 'SEPTIEMBRE' },
+    { id: 10, name: 'OCTUBRE' },
+    { id: 11, name: 'NOVIEMBRE' },
+    { id: 12, name: 'DICIEMBRE' },
 ];
 
 const PRIORITIES: Option[] = [
@@ -139,12 +139,28 @@ const lotsCountModel = computed<string | number>({
     },
 });
 
+function getProductSheetValue(sheet: ProductSheet): number {
+    const candidate = (sheet as ProductSheet & { value?: number | string }).value ?? sheet.id;
+    return Number(candidate);
+}
+
+function getProductSheetLabel(sheet: ProductSheet): string {
+    const typedSheet = sheet as ProductSheet & { label?: string; display_reference?: string };
+    return String(typedSheet.label ?? typedSheet.display_reference ?? sheet.reference ?? '').trim();
+}
+
 const productSheetOptions = computed(() =>
-    productSheetList.value.map(sheet => ({ id: sheet.id, name: sheet.reference }))
+    productSheetList.value
+        .map((sheet) => ({
+            id: getProductSheetValue(sheet),
+            name: getProductSheetLabel(sheet),
+        }))
+        .filter((option) => option.name !== '')
 );
 
 const selectedProductSheet = computed(() => {
-    return productSheetList.value.find(sheet => sheet.id === form.value.productSheetId) || null;
+    if (!form.value.productSheetId) return null;
+    return productSheetList.value.find((sheet) => getProductSheetValue(sheet) === Number(form.value.productSheetId)) || null;
 });
 
 const destinationOptions = computed<Option[]>(() => props.destinations);
@@ -511,7 +527,7 @@ function handleLotsCountInput(event: Event): void {
                             <tbody>
                                 <tr>
                                     <td class="px-4 py-2 font-bold">Referencia:</td>
-                                    <td class="px-4 py-2 border border-l-0">{{ selectedProductSheet.reference || 'Sin referencia' }}</td>
+                                    <td class="px-4 py-2 border border-l-0">{{ getProductSheetLabel(selectedProductSheet) || 'Sin referencia' }}</td>
                                     <td class="px-4 py-2 font-bold">Sección:</td>
                                     <td class="px-4 py-2 border border-l-0">{{ selectedProductSheet.section?.name || 'Sin sección' }}</td>
                                     <td class="px-4 py-2 font-bold">Grupo:</td>
@@ -648,7 +664,7 @@ function handleLotsCountInput(event: Event): void {
                             </td>
                             <td v-if="lot.isEcommerce" class="px-4 py-4 border text-center">
                                     <EcommerceSizesDialog
-                                        :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet?.reference || '' }"
+                                        :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet ? getProductSheetLabel(selectedProductSheet) : '' }"
                                         :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
                                     @sizesUpdated="(data) => {
                                         // Asegurar que los valores sean números y no null

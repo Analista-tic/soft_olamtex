@@ -28,6 +28,18 @@ class ProductOperationListController extends Controller
     ) {
     }
 
+    public function options(): JsonResponse
+    {
+        return response()->json([
+            'sections' => $this->sectionService->options(),
+            'operations' => $this->operationService->options(),
+            'machines' => $this->machineService->options(),
+            'productSheets' => $this->sheetService->recentOptions(50),
+            'actions' => $this->operationService->getUniqueActions(),
+            'garmentParts' => $this->operationService->getUniqueGarmentParts(),
+        ]);
+    }
+
     /**
      * Renderiza la vista principal con los datos necesarios
      * GET /diseno/listados-operacionales

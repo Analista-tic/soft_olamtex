@@ -8,7 +8,13 @@ export interface OptionParams {
 }
 export interface ProductSheet {
     id: number;
+    type?: 'muestra' | 'producto' | string;
     reference: string;
+    sample_reference?: string | null;
+    product_reference?: string | null;
+    display_reference?: string | null;
+    value?: number;
+    label?: string;
     section_id: number;
     group_id: number;
     brand_id: number;
@@ -24,16 +30,23 @@ export interface ProductSheet {
 }
 export interface Programmer {
     id: number;
+    op_code?: string | null;
     product_sheet_id: number | null;
     product_sheet?: ProductSheet | null;
     season: string | null;
+    season_display?: string | null;
     destination?: { id: number; name: string } | null;
     destination_id: number | null;
     priority: string | null;
     isEcommerce: boolean;
     ecommerce_units: Record<string, number> | string | null;
     units: number | null;
+    estimated_delivery_date?: string | null;
     status: 'complete' | 'incomplete';
+    source?: 'auto' | 'manual';
+    is_auto_from_product_sheet?: boolean;
+    is_pending_completion?: boolean;
+    pending_fields?: string[];
     created_at: string;
     updated_at: string;
 }

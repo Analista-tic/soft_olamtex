@@ -19,6 +19,7 @@ class SettingService
         'destinations' => ['destinations', 'destinos', 'destino'],
         'months' => ['months', 'meses', 'mes'],
         'priorities' => ['priorities', 'prioridades', 'prioridad'],
+        'operational_lists' => ['operational_lists', 'listados_operacionales', 'listado_operacional', 'listado_operacional'],
     ];
 
     /**

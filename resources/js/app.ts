@@ -13,10 +13,22 @@ import { initializeTheme } from './composables/useAppearance';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+// Configuración centralizada de Axios
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
-axios.defaults.withCredentials = true;
+axios.defaults.headers.common['Accept'] = 'application/json';
 axios.defaults.xsrfCookieName = 'XSRF-TOKEN';
 axios.defaults.xsrfHeaderName = 'X-XSRF-TOKEN';
+axios.defaults.withCredentials = true; // Siempre enviar cookies (requerido para CSRF)
+
+// Eliminar cualquier Content-Type default para que axios detecte automáticamente FormData
+delete axios.defaults.headers.post?.['Content-Type'];
+delete axios.defaults.headers.put?.['Content-Type'];
+delete axios.defaults.headers.patch?.['Content-Type'];
+
+const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content;
+if (csrfToken) {
+    axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken;
+}
 
 axios.interceptors.response.use(
     (response) => response,

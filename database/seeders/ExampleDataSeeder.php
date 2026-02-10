@@ -471,7 +471,7 @@ class ExampleDataSeeder extends Seeder
 
         // Product Sheets - Usar updateOrInsert para evitar duplicados
         DB::table('product_sheets')->updateOrInsert(
-            ['reference' => 'MUESTRA-001'],
+            ['sample_reference' => 'MUESTRA-001'],
             [
                 'section_id' => $sectionId,
                 'group_id' => $groupId,
@@ -480,19 +480,22 @@ class ExampleDataSeeder extends Seeder
                 'fabric_base_id' => $fabricBaseId,
                 'yarn_base_id' => null,
                 'description' => 'Pantalón jean básico - Muestra',
+                'flat_sketch_path' => 'product-sheets/flat-sketches/mock-muestra-001.jpg',
                 'billing_price' => null,
                 'selling_price' => null,
                 'sizes' => json_encode(['28' => true, '30' => true, '32' => true, '34' => true, '36' => true]),
                 'woven_product' => 0,
                 'processes' => json_encode([]),
                 'status' => 'incomplete',
+                'type' => 'muestra',
+                'sample_reference' => 'MUESTRA-001',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]
         );
 
         DB::table('product_sheets')->updateOrInsert(
-            ['reference' => 'PROD-001'],
+            ['product_reference' => 'PROD-001'],
             [
                 'section_id' => $sectionId,
                 'group_id' => $groupId,
@@ -501,12 +504,15 @@ class ExampleDataSeeder extends Seeder
                 'fabric_base_id' => $fabricBaseId,
                 'yarn_base_id' => null,
                 'description' => 'Pantalón jean clásico - Producción',
+                'flat_sketch_path' => 'product-sheets/flat-sketches/mock-producto-001.jpg',
                 'billing_price' => null,
                 'selling_price' => null,
                 'sizes' => json_encode(['S' => true, 'M' => true, 'L' => true, 'XL' => true]),
                 'woven_product' => 0,
                 'processes' => json_encode([]),
                 'status' => 'incomplete',
+                'type' => 'producto',
+                'product_reference' => 'PROD-001',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]
@@ -514,7 +520,7 @@ class ExampleDataSeeder extends Seeder
 
         // Programador (Programmer)
         // Obtener el ID de la ficha de producto recién creada
-        $productSheetId = DB::table('product_sheets')->where('reference', 'MUESTRA-001')->value('id');
+        $productSheetId = DB::table('product_sheets')->where('sample_reference', 'MUESTRA-001')->value('id');
 
         // Obtener el ID del destino desde settings (kind=parameter)
         $destinationId = $this->getParameterFirstId('destinations');

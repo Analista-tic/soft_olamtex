@@ -146,6 +146,7 @@ export interface ProductSheet {
 
 export interface Programmer {
     id: number;
+    op_code?: string | null;
     product_sheet_id: number | null;
     product_sheet?: ProductSheet | null;
     season: string | null;
@@ -155,7 +156,12 @@ export interface Programmer {
     isEcommerce: boolean;
     ecommerce_units: Record<string, number> | string | null;
     units: number | null;
+    estimated_delivery_date?: string | null;
     status: 'complete' | 'incomplete';
+    source?: 'auto' | 'manual';
+    is_auto_from_product_sheet?: boolean;
+    is_pending_completion?: boolean;
+    pending_fields?: string[];
     created_at: string;
     updated_at: string;
 }

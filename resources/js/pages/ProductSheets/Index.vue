@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import EditButton from '@/components/common/EditButton.vue';
-import ViewButton from '@/components/common/ViewButton.vue';
+import ActionIconButton from '@/components/common/ActionIconButton.vue';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -35,10 +33,12 @@ import type { OptionParams, ProductSheet } from '@/domain/product-sheet';
 import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Search } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
 import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
+import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
+import { Eye, Pencil, PlusCircle, Repeat2, Search, Trash } from 'lucide-vue-next';
+import { onMounted, ref, watch } from 'vue';
+import { ACTION_LABELS } from '@/lib/actionLabels';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -54,6 +54,7 @@ interface ProductSheetPageProps extends SharedData {
     worlds: OptionParams[];
     fabricBases: OptionParams[]; // Cambiar bases a fabricBases
     yarnBases: OptionParams[];
+    operationalLists: OptionParams[];
 }
 
 interface StatusOption {
@@ -90,6 +91,9 @@ const canView = ref(false);
 const canCreate = ref(false);
 const canEdit = ref(false);
 const canDelete = ref(false);
+const convertRowDialogOpen = ref(false);
+const convertRowTarget = ref<ProductSheet | null>(null);
+const convertRowLoading = ref(false);
 
 // Alert state
 const alertMessage = ref('');
@@ -147,6 +151,53 @@ async function deleteProductSheet() {
     }
 }
 
+function openRowConvertDialog(product: ProductSheet) {
+    if (product.type !== 'muestra' || product.product_reference) {
+        return;
+    }
+    convertRowTarget.value = product;
+    convertRowDialogOpen.value = true;
+}
+
+function closeRowConvertDialog() {
+    convertRowLoading.value = false;
+    convertRowDialogOpen.value = false;
+    convertRowTarget.value = null;
+}
+
+async function submitRowConvertDialog(productReference: string) {
+    if (!convertRowTarget.value) {
+        setAlert('No se pudo identificar la sábana.', 'error');
+        return;
+    }
+
+    convertRowLoading.value = true;
+
+    try {
+        const response = await axios.post(`/produccion/sabana-productos/${convertRowTarget.value.id}/convert`, {
+            product_reference: productReference,
+        });
+        const updated = response.data?.data ?? {};
+        const index = products_sheet.value.findIndex((sheet) => sheet.id === convertRowTarget.value?.id);
+
+        if (index !== -1) {
+                products_sheet.value[index] = {
+                    ...products_sheet.value[index],
+                    ...updated,
+                    type: updated.type ?? 'producto',
+                    product_reference: updated.product_reference ?? productReference,
+                };
+        }
+
+        setAlert('Sábana convertida a producto correctamente.', 'success');
+        closeRowConvertDialog();
+    } catch (error: any) {
+        setAlert(error.response?.data?.message ?? 'Error al convertir la sábana.', 'error');
+    } finally {
+        convertRowLoading.value = false;
+    }
+}
+
 // Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
 async function fetchProductSheets(
     page = 1,
@@ -170,6 +221,9 @@ async function fetchProductSheets(
         if (response && response.data && response.data.products_sheets) {
             products_sheet.value = response.data.products_sheets.data;
             totalItems.value = response.data.products_sheets.total;
+            if (products_sheet.value.length) {
+                console.log('Primer registro product_sheet:', products_sheet.value[0]);
+            }
         } else {
             console.error('Error al obtener los product sheets: Respuesta inválida');
         }
@@ -182,6 +236,17 @@ async function fetchProductSheets(
 watch([searchQuery, statusFilter, sectionFilter, worldFilter], ([newQuery, newStatus, newSection, newWorld]) => {
     fetchProductSheets(1, newQuery, newStatus, newSection, newWorld);
 });
+
+// Handler para recargar la lista después de guardar
+function reloadProductSheets() {
+    fetchProductSheets(currentPage.value, searchQuery.value, statusFilter.value, sectionFilter.value, worldFilter.value);
+}
+
+// Handler para cambio de página
+function handlePageChange(page: number) {
+    currentPage.value = page;
+    fetchProductSheets(page, searchQuery.value, statusFilter.value, sectionFilter.value, worldFilter.value);
+}
 
 async function openEditDialog(product: ProductSheet) {
     try {
@@ -324,7 +389,8 @@ onMounted(async () => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Referencia</TableHead>
+                            <TableHead>Ref. Muestra</TableHead>
+                            <TableHead>Ref. Producto</TableHead>
                             <TableHead>Seccion</TableHead>
                             <TableHead>Grupo</TableHead>
                             <TableHead>Marca</TableHead>
@@ -338,7 +404,12 @@ onMounted(async () => {
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="product in products_sheet" :key="product.id" class="text-center">
-                            <TableCell class="font-medium">{{ product.reference }}</TableCell>
+                            <TableCell class="font-medium">
+                                {{ product.sample_reference ?? (product.type === 'muestra' ? product.reference : '—') }}
+                            </TableCell>
+                            <TableCell class="font-medium">
+                                {{ product.product_reference ?? (product.type === 'producto' ? product.reference : '—') }}
+                            </TableCell>
                             <TableCell>{{ product.section?.name ?? '' }}</TableCell>
                             <TableCell>{{ product.group?.name ?? '' }}</TableCell>
                             <TableCell>{{ product.brand?.name ?? '' }}</TableCell>
@@ -369,9 +440,32 @@ onMounted(async () => {
                                 </Badge>
                             </TableCell>
                             <TableCell class="flex items-center justify-center gap-1">
-                                <ViewButton v-if="canView" :onClick="() => viewProductSheet(product)" />
-                                <EditButton v-if="canEdit" @click="openEditDialog(product)" />
-                                <DeleteButton v-if="canDelete" @click="confirmDeleteProductSheet(product)" />
+                                <ActionIconButton
+                                    v-if="canEdit && product.type === 'muestra' && !product.product_reference"
+                                    :icon="Repeat2"
+                                    :tooltip="ACTION_LABELS.CONVERT_SAMPLE_TO_PRODUCT"
+                                    :disabled="convertRowLoading"
+                                    @click="openRowConvertDialog(product)"
+                                />
+                                <ActionIconButton
+                                    v-if="canView"
+                                    :icon="Eye"
+                                    :tooltip="ACTION_LABELS.VIEW_DETAILS"
+                                    @click="viewProductSheet(product)"
+                                />
+                                <ActionIconButton
+                                    v-if="canEdit"
+                                    :icon="Pencil"
+                                    :tooltip="ACTION_LABELS.EDIT_SABANA"
+                                    @click="openEditDialog(product)"
+                                />
+                                <ActionIconButton
+                                    v-if="canDelete"
+                                    :icon="Trash"
+                                    :tooltip="ACTION_LABELS.DELETE_SABANA"
+                                    variant="destructive"
+                                    @click="confirmDeleteProductSheet(product)"
+                                />
                             </TableCell>
                         </TableRow>
                     </TableBody>
@@ -384,7 +478,7 @@ onMounted(async () => {
                     :sibling-count="1"
                     show-edges
                     :default-page="currentPage"
-                    @page-changed="fetchProductSheets"
+                    @page-changed="handlePageChange"
                 >
                     <PaginationList v-slot="{ items }" class="flex items-center gap-1">
                         <PaginationFirst />
@@ -417,10 +511,18 @@ onMounted(async () => {
         :worlds="props.worlds"
         :fabricBases="props.fabricBases"
         :yarnBases="props.yarnBases"
+        :operationalLists="props.operationalLists"
         v-model:open="isEditDialogOpen"
         :readonly="isViewMode"
-        @productSheetSaved="fetchProductSheets"
+        @productSheetSaved="reloadProductSheets"
         @close="isEditDialogOpen = false"
+    />
+
+    <ConvertSampleToProductDialog
+        v-model:open="convertRowDialogOpen"
+        :loading="convertRowLoading"
+        :initial-value="convertRowTarget?.product_reference ?? ''"
+        @confirm="submitRowConvertDialog"
     />
 
     <AlertDialog v-model:open="isDeleteDialogOpen" @close="isDeleteDialogOpen = false">

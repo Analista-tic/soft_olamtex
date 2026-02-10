@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { Pencil } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
 const emit = defineEmits<{
     (e: 'click'): void;
 }>();
 </script>
 
 <template>
-    <button
-        class="flex items-center text-gray-500 hover:text-blue-500 transition-colors duration-200"
+    <Button
+        variant="ghost"
+        size="icon"
+        class="h-8 w-8 text-muted-foreground hover:text-foreground"
         @click="$emit('click')"
         type="button"
     >
-        <Pencil class="w-4 h-4" />
-    </button>
+        <Pencil class="h-4 w-4" />
+    </Button>
 </template>

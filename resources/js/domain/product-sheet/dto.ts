@@ -7,7 +7,13 @@ export interface OptionParamsDto {
 
 export interface ProductSheetDto {
     id: number;
+    type?: 'muestra' | 'producto' | string;
     reference: string;
+    sample_reference?: string | null;
+    product_reference?: string | null;
+    display_reference?: string | null;
+    value?: number;
+    label?: string;
     section_id: number;
     group_id: number;
     brand_id: number;
@@ -24,6 +30,7 @@ export interface ProductSheetDto {
 
 export interface ProgrammerDto {
     id: number;
+    op_code?: string | null;
     product_sheet_id: number | null;
     product_sheet?: ProductSheetDto | null;
     season: string | null;
@@ -33,7 +40,10 @@ export interface ProgrammerDto {
     is_ecommerce: boolean;
     ecommerce_units: Record<string, number> | string | null;
     units: number | null;
+    estimated_delivery_date?: string | null;
     status: 'complete' | 'incomplete';
+    is_pending_completion?: boolean;
+    pending_fields?: string[];
     created_at: string;
     updated_at: string;
 }
