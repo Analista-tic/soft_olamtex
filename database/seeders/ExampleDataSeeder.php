@@ -158,18 +158,6 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Insertar relación en warehouse_item para stock y bodega
-        DB::table('warehouse_items')->updateOrInsert(
-            ['warehouse_id' => $warehouseId, 'item_id' => $itemId],
-            [
-                'quantity' => 100,
-                'stock_min' => 10,
-                'stock_max' => 200,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
-
         // Crear items de TELA específicos
         $lanaBeige = DB::table('items')->where('bar_code', 'TELA-LANA-001')->first();
         $lanaId = $lanaBeige ? $lanaBeige->id : DB::table('items')->insertGetId([
@@ -203,27 +191,59 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Stock inicial para telas en la bodega principal
-        DB::table('warehouse_items')->updateOrInsert(
-            ['warehouse_id' => $warehouseId, 'item_id' => $lanaId],
-            [
-                'quantity' => 250,
-                'stock_min' => 10,
-                'stock_max' => 500,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
-        DB::table('warehouse_items')->updateOrInsert(
-            ['warehouse_id' => $warehouseId, 'item_id' => $algodonId],
-            [
-                'quantity' => 180,
-                'stock_min' => 10,
-                'stock_max' => 400,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
+        // Stock inicial vía movimientos de entrada (para tener precio ponderado y permitir transferencias)
+        if (Schema::hasTable('inventory_movements')) {
+            $seedUser = User::find($userId);
+            if ($seedUser) {
+                $movementService = app(InventoryMovementService::class);
+                $baseNotes = 'Stock inicial seeder';
+                $movementService->createMovement([
+                    'item_id' => $itemId,
+                    'warehouse_id' => $warehouseId,
+                    'type' => 'entrada',
+                    'quantity' => 100,
+                    'unit_price' => 1200.00,
+                    'notes' => $baseNotes,
+                    'created_by_user_id' => $userId,
+                ]);
+                $movementService->createMovement([
+                    'item_id' => $lanaId,
+                    'warehouse_id' => $warehouseId,
+                    'type' => 'entrada',
+                    'quantity' => 250,
+                    'unit_price' => 50.00,
+                    'notes' => $baseNotes,
+                    'created_by_user_id' => $userId,
+                ]);
+                $movementService->createMovement([
+                    'item_id' => $algodonId,
+                    'warehouse_id' => $warehouseId,
+                    'type' => 'entrada',
+                    'quantity' => 180,
+                    'unit_price' => 50.00,
+                    'notes' => $baseNotes,
+                    'created_by_user_id' => $userId,
+                ]);
+                // Ajustar stock_min y stock_max en warehouse_items
+                DB::table('warehouse_items')->where('item_id', $itemId)->where('warehouse_id', $warehouseId)->update(['stock_min' => 10, 'stock_max' => 200]);
+                DB::table('warehouse_items')->where('item_id', $lanaId)->where('warehouse_id', $warehouseId)->update(['stock_min' => 10, 'stock_max' => 500]);
+                DB::table('warehouse_items')->where('item_id', $algodonId)->where('warehouse_id', $warehouseId)->update(['stock_min' => 10, 'stock_max' => 400]);
+            }
+        } else {
+            // Fallback si no existe tabla de movimientos
+            DB::table('warehouse_items')->updateOrInsert(
+                ['warehouse_id' => $warehouseId, 'item_id' => $itemId],
+                ['quantity' => 100, 'stock_min' => 10, 'stock_max' => 200, 'created_at' => now(), 'updated_at' => now()]
+            );
+            DB::table('warehouse_items')->updateOrInsert(
+                ['warehouse_id' => $warehouseId, 'item_id' => $lanaId],
+                ['quantity' => 250, 'stock_min' => 10, 'stock_max' => 500, 'created_at' => now(), 'updated_at' => now()]
+            );
+            DB::table('warehouse_items')->updateOrInsert(
+                ['warehouse_id' => $warehouseId, 'item_id' => $algodonId],
+                ['quantity' => 180, 'stock_min' => 10, 'stock_max' => 400, 'created_at' => now(), 'updated_at' => now()]
+            );
+        }
 
         // Transferencias de bodega de ejemplo
         if (Schema::hasTable('warehouse_transfers') && Schema::hasTable('warehouse_transfer_items')) {
@@ -262,21 +282,10 @@ class ExampleDataSeeder extends Seeder
             'document_type' => 'purchase_request',
             'contact_id' => $providerId,
             'date' => now()->subDays(5)->toDateString(),
-            'destination' => 'Producción',
-            'description' => 'Solicitud de compra generada por el seeder de ejemplo',
+            'description' => 'Solicitud de compra generada por el seeder de ejemplo. Destino: Producción.',
             'status' => 'approved',
             'approved_by_user_id' => $userId,
             'approved_at' => now()->subDays(4),
-            'items' => json_encode([
-                [
-                    'item_id' => $itemId,
-                    'name' => 'Artículo de prueba',
-                    'price' => 1200.00,
-                    'quantity' => 10,
-                    'description' => 'Línea de solicitud de ejemplo',
-                    'total' => 12000.00,
-                ],
-            ]),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
