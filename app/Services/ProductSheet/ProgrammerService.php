@@ -6,6 +6,7 @@ use App\Models\ProductSheet\ProductSheet;
 use App\Models\ProductSheet\Programmer;
 use App\Services\Settings\SettingService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class ProgrammerService
@@ -20,6 +21,13 @@ class ProgrammerService
 
     public function createFromSample(ProductSheet $productSheet): Programmer
     {
+        Log::info('programmer.auto_create.start', [
+            'endpoint' => 'product_sheet.create',
+            'product_sheet_id' => $productSheet->id,
+            'type' => $productSheet->type,
+            'timestamp' => now()->toIso8601String(),
+        ]);
+
         $destinationId = $this->resolveDestinationId();
         $season = $this->resolveSeasonFromCreationMonth($productSheet);
 
@@ -37,6 +45,14 @@ class ProgrammerService
 
         $programmer->op_code = $this->nextOpCode($productSheet->type, (bool) $productSheet->woven_product);
         $programmer->save();
+
+        Log::info('programmer.auto_create.completed', [
+            'endpoint' => 'product_sheet.create',
+            'product_sheet_id' => $productSheet->id,
+            'programmer_id' => $programmer->id,
+            'op_code' => $programmer->op_code,
+            'timestamp' => now()->toIso8601String(),
+        ]);
 
         return $programmer;
     }

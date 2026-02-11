@@ -19,11 +19,20 @@ import type {
     ProductOperationPayload,
     ProductSheet,
 } from '@/domain/product-sheet';
+import {
+    PRODUCT_SHEET_TYPE_PRODUCT,
+    PRODUCT_SHEET_TYPE_SAMPLE,
+    normalizeProductSheetType,
+    parseBooleanRecord,
+    stringifyJsonRecord,
+} from '@/domain/product-sheet';
+import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
 import { computed, ref, watch } from 'vue';
 import { Eye, Image as ImageIcon, List, Trash } from 'lucide-vue-next';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import axios from 'axios';
+import { convertSampleToProduct, createProductSheet, updateProductSheet } from '@/services/productSheetService';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -95,8 +104,8 @@ const isEditMode = computed(() => props.mode === 'edit');
 const isViewMode = computed(() => props.mode === 'view');
 const isReadonly = computed(() => Boolean(props.readonly) || isViewMode.value);
 
-const TYPE_PRODUCT = 'producto';
-const TYPE_SAMPLE = 'muestra';
+const TYPE_PRODUCT = PRODUCT_SHEET_TYPE_PRODUCT;
+const TYPE_SAMPLE = PRODUCT_SHEET_TYPE_SAMPLE;
 
 const typeOptions = [
     { value: TYPE_PRODUCT, label: 'Producto' },
@@ -116,13 +125,7 @@ const tooltips = {
     flatSketch: 'Boceto tecnico de la referencia con medidas, detalles y observaciones para produccion.',
 } as const;
 
-const normalizeTypeValue = (value?: string) => {
-    if (!value) return TYPE_PRODUCT;
-    const normalized = value.toLowerCase();
-    if (normalized === 'sample' || normalized === 'muestra') return TYPE_SAMPLE;
-    if (normalized === 'product' || normalized === 'producto') return TYPE_PRODUCT;
-    return TYPE_PRODUCT;
-};
+const normalizeTypeValue = (value?: string) => normalizeProductSheetType(value);
 
 const developmentProcessLabel = 'Desarrollo de muestras';
 const hasAppliedDefaultSampleProcess = ref(false);
@@ -283,25 +286,7 @@ const sizeGroups = {
     tallas_3: ['28', '30', '32', '34', '36', '38'],
 };
 
-const parsedSizes = computed<Record<string, boolean>>(() => {
-    const sizesValue = form.value.sizes;
-    if (!sizesValue) return {};
-    if (typeof sizesValue === 'string') {
-        try {
-            const parsed = JSON.parse(sizesValue);
-            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                return parsed as Record<string, boolean>;
-            }
-        } catch {
-            // ignore invalid JSON and fall back to empty record
-        }
-        return {};
-    }
-    if (typeof sizesValue === 'object' && !Array.isArray(sizesValue)) {
-        return sizesValue as Record<string, boolean>;
-    }
-    return {};
-});
+const parsedSizes = computed<Record<string, boolean>>(() => parseBooleanRecord(form.value.sizes));
 
 const overallStatus = computed<boolean>(() => {
     const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
@@ -328,16 +313,7 @@ const allProcesses = ref([
 ]);
 
 function parseProcessesValue(value?: string): Record<string, boolean> {
-    if (!value) return {};
-    try {
-        const parsed = JSON.parse(value);
-        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-            return parsed as Record<string, boolean>;
-        }
-    } catch {
-        // ignore malformed JSON
-    }
-    return {};
+    return parseBooleanRecord(value);
 }
 
 function applyDefaultSampleProcessOnce() {
@@ -368,7 +344,7 @@ const typeModel = computed({
     },
 });
 const showConvertButton = computed(
-    () => isEditMode.value && normalizeTypeValue(form.value.type) === TYPE_SAMPLE,
+    () => isEditMode.value && normalizeTypeValue(form.value.type) === TYPE_SAMPLE && !Boolean(props.productSheet?.has_derived_product),
 );
 const mainReferenceLabel = computed(() => (form.value.type === TYPE_SAMPLE ? 'Referencia (Muestra)' : 'Referencia (Producto)'));
 const displayedReferenceForInput = computed<string>(() =>
@@ -394,6 +370,11 @@ const activeReference = computed<string>({
         }
     },
 });
+const { validationErrors, isValid } = useProductSheetValidation({
+    form,
+    activeReference,
+    requiresOperationalList,
+});
 
 watch(
     () => form.value.type,
@@ -418,7 +399,7 @@ watch(
 watch(
     () => form.value.woven_product,
     (newValue) => {
-        const processes = JSON.parse(form.value.processes || '{}');
+        const processes = parseBooleanRecord(form.value.processes);
         if (newValue) {
             if (!processes['Tejido']) {
                 processes['Tejido'] = true;
@@ -427,7 +408,7 @@ watch(
             delete processes['Tejido'];
             form.value.yarn_base_id = null;
         }
-        form.value.processes = JSON.stringify(processes);
+        form.value.processes = stringifyJsonRecord(processes);
     },
 );
 
@@ -436,9 +417,7 @@ watch(
     (newProductSheet) => {
         if ((isEditMode.value || isViewMode.value) && newProductSheet) {
             resetFlatSketchSelection();
-            const sizeValue = typeof newProductSheet.sizes === 'string'
-                ? newProductSheet.sizes
-                : JSON.stringify(newProductSheet.sizes || {});
+            const sizeValue = stringifyJsonRecord(newProductSheet.sizes, {});
             const normalizedType = normalizeTypeValue(newProductSheet.type);
 
             form.value = {
@@ -460,9 +439,7 @@ watch(
                 flat_sketch_path: String(newProductSheet.flat_sketch_path ?? ''),
                 sample_reference: String(newProductSheet.sample_reference ?? ''),
                 product_reference: String(newProductSheet.product_reference ?? ''),
-                processes: typeof newProductSheet.processes === 'string'
-                    ? newProductSheet.processes
-                    : JSON.stringify(newProductSheet.processes || {}),
+                processes: stringifyJsonRecord(newProductSheet.processes, {}),
                 status: newProductSheet.status === 'complete' ? 'complete' : 'incomplete',
             };
             form.value.reference = form.value.type === TYPE_SAMPLE
@@ -561,15 +538,8 @@ async function submitConvertDialog(productReference: string) {
 
     convertLoading.value = true;
     try {
-            const response = await axios.post(
-                `/produccion/sabana-productos/${props.productSheet.id}/convert`,
-                { product_reference: productReference },
-            );
-        setAlert('Sábana convertida a producto correctamente.', 'success');
-        const updated = response.data.data ?? {};
-        form.value.product_reference = updated.product_reference ?? productReference;
-        form.value.type = TYPE_PRODUCT;
-        form.value.reference = form.value.product_reference ?? form.value.reference;
+        const response = await convertSampleToProduct(props.productSheet.id, productReference);
+        setAlert('Producto derivado creado correctamente.', 'success');
         emit('productSheetSaved', response.data);
         closeConvertDialog();
     } catch (error: unknown) {
@@ -625,10 +595,10 @@ function buildBasePayload() {
         yarn_base_id: wovenProduct ? (form.value.yarn_base_id ?? null) : null,
         billing_price: form.value.billing_price ?? 0,
         selling_price: form.value.selling_price ?? 0,
-        sizes: form.value.sizes || JSON.stringify({}),
+        sizes: stringifyJsonRecord(form.value.sizes, {}),
         woven_product: wovenProduct ? 1 : 0,
         description: form.value.description ?? '',
-        processes: form.value.processes || JSON.stringify({}),
+        processes: stringifyJsonRecord(form.value.processes, {}),
         status: form.value.status ?? 'incomplete',
         operational_list_id: form.value.operational_list_id ?? null,
     };
@@ -731,6 +701,10 @@ function clearFlatSketch(event?: MouseEvent) {
 }
 
 async function saveProductSheet() {
+    if (isLoading.value) {
+        return;
+    }
+
     if (!validateForm()) {
         setAlert('Por favor, completa todos los campos requeridos.', 'warning');
         return;
@@ -750,12 +724,12 @@ async function saveProductSheet() {
             payload.append('flat_sketch', flatSketchToUpload);
         }
 
-        if (isEditMode.value) {
+        if (isEditMode.value && props.productSheet?.id) {
             payload.append('_method', 'PUT');
-            return axios.post(`/produccion/sabana-productos/${props.productSheet?.id}`, payload);
+            return updateProductSheet(props.productSheet.id, payload);
         }
 
-        return axios.post('/produccion/sabana-productos', payload);
+        return createProductSheet(payload);
     });
 
     request
@@ -796,22 +770,11 @@ async function saveProductSheet() {
 }
 
 function validateForm() {
-    const errors = [];
-    if (!form.value.section_id) errors.push('Sección es requerida.');
-    if (!form.value.group_id) errors.push('Grupo es requerido.');
-    if (!form.value.brand_id) errors.push('Marca es requerida.');
-    if (!form.value.world_id) errors.push('Mundo es requerido.');
-    if (!form.value.fabric_base_id) errors.push('Base es requerida.'); // Cambiar base_id a fabric_base_id
-    if (!form.value.type) errors.push('Tipo es requerido.');
-    if (!activeReference.value.trim()) errors.push('Referencia es requerida.');
-    if (requiresOperationalList.value && !form.value.operational_list_id) {
-        errors.push('Selecciona un listado operacional para Desarrollo de muestras.');
-    }
-
-    if (errors.length > 0) {
-        setAlert(errors.join('\n'), 'warning');
+    if (!isValid.value) {
+        setAlert(validationErrors.value.join('\n'), 'warning');
         return false;
     }
+
     return true;
 }
 
@@ -873,6 +836,7 @@ function handleClose() {
                 :error-type="errorType"
                 :success-title="ALERT_TITLES.success"
                 :error-title="errorTitle"
+                class="top-20"
                 @close-success="clearSuccess"
                 @close-error="clearError"
             />
@@ -1232,3 +1196,4 @@ function handleClose() {
     display: none;
 }
 </style>
+

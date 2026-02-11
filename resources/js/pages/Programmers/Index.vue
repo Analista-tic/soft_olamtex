@@ -16,7 +16,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import Badge from '@/components/ui/badge/Badge.vue';
 import Button from '@/components/ui/button/Button.vue';
+import { Calendar } from '@/components/ui/calendar';
 import Input from '@/components/ui/input/Input.vue';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
     Pagination,
     PaginationEllipsis,
@@ -35,10 +37,13 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { ACTION_LABELS } from '@/lib/actionLabels';
 import { monthLabel } from '@/lib/months';
 import { useAuthStore } from '@/stores/auth';
+import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Pencil, Search, Trash } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Eye, Pencil, Search, Trash, X } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CreateProgrammerDialog from './Create.vue';
 import EditProgrammerDialog from './Edit.vue';
 
@@ -116,13 +121,17 @@ const filters = ref({
     priority: 'all',
     status: 'all',
     destination_id: 'all',
-    yarn_base_id: 'all', // Nuevo filtro para yarn bases
+    estimated_delivery_date: '',
 });
+const fetchDebounceMs = 350;
+let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let activeFetchController: AbortController | null = null;
 const DEFAULT_SELECT_VALUE = 'all';
 const seasonIsActive = computed(() => Boolean(filters.value.season) && filters.value.season !== DEFAULT_SELECT_VALUE);
 const priorityIsActive = computed(() => Boolean(filters.value.priority) && filters.value.priority !== DEFAULT_SELECT_VALUE);
 const statusIsActive = computed(() => Boolean(filters.value.status) && filters.value.status !== DEFAULT_SELECT_VALUE);
 const destinationIsActive = computed(() => Boolean(filters.value.destination_id) && filters.value.destination_id !== DEFAULT_SELECT_VALUE);
+const deliveryDateIsActive = computed(() => filters.value.estimated_delivery_date.trim() !== '');
 const seasonOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.months]);
 const priorityOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.priorities]);
 const destinationFilterOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.destinations]);
@@ -131,6 +140,38 @@ const seasonButtonClasses = useFilterButtonClasses(seasonIsActive);
 const priorityButtonClasses = useFilterButtonClasses(priorityIsActive);
 const statusButtonClasses = useFilterButtonClasses(statusIsActive);
 const destinationButtonClasses = useFilterButtonClasses(destinationIsActive);
+const deliveryDateButtonClasses = useFilterButtonClasses(deliveryDateIsActive, {
+    baseClasses:
+        'h-10 w-full rounded-md border px-3 text-sm font-normal flex items-center justify-between transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
+});
+const FALLBACK_REF = 'Sin referencia';
+const deliveryDateValue = computed<DateValue | undefined>({
+    get() {
+        const value = filters.value.estimated_delivery_date;
+        if (!value) return undefined;
+        try {
+            return parseDate(value);
+        } catch {
+            return undefined;
+        }
+    },
+    set(value) {
+        filters.value.estimated_delivery_date = value ? value.toString() : '';
+    },
+});
+const deliveryDateLabel = computed(() => {
+    const value = filters.value.estimated_delivery_date;
+    if (!value) return 'Seleccionar fecha';
+    try {
+        return format(parseDate(value).toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es });
+    } catch {
+        return 'Seleccionar fecha';
+    }
+});
+
+function clearDeliveryDateFilter() {
+    filters.value.estimated_delivery_date = '';
+}
 
 function confirmDeleteProgrammer(programmer: Programmer) {
     programmerToDelete.value = programmer;
@@ -152,20 +193,29 @@ async function deleteProgrammer() {
 }
 
 async function fetchProgrammers(page = 1) {
+    if (activeFetchController) {
+        activeFetchController.abort();
+    }
+
+    const controller = new AbortController();
+    activeFetchController = controller;
+    const normalizedSearch = searchQuery.value.trim();
+
     try {
         const response = await axios.get('/comercial/programmers', {
             params: {
                 page,
                 per_page: itemsPerPage.value,
-                search: searchQuery.value,
-                season: filters.value.season,
-                priority: filters.value.priority,
-                status: filters.value.status,
-                destination_id: filters.value.destination_id,
-                yarn_base_id: filters.value.yarn_base_id,
+                search: normalizedSearch === '' ? undefined : normalizedSearch,
+                season: filters.value.season === DEFAULT_SELECT_VALUE ? undefined : filters.value.season,
+                priority: filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
+                status: filters.value.status === DEFAULT_SELECT_VALUE ? undefined : filters.value.status,
+                destination_id: filters.value.destination_id === DEFAULT_SELECT_VALUE ? undefined : filters.value.destination_id,
+                estimated_delivery_date:
+                    filters.value.estimated_delivery_date.trim() === '' ? undefined : filters.value.estimated_delivery_date,
             },
+            signal: controller.signal,
         });
-        console.log(response);
 
         if (response && response.data) {
             programmers.value = response.data.data;
@@ -175,18 +225,50 @@ async function fetchProgrammers(page = 1) {
             console.error('Error al obtener los programadores: Respuesta invalida');
         }
     } catch (error) {
+        if (axios.isCancel(error)) {
+            return;
+        }
         console.error('Error al obtener los programadores:', error);
+    } finally {
+        if (activeFetchController === controller) {
+            activeFetchController = null;
+        }
     }
 }
 
-// Reactivar la búsqueda cuando cambien los filtros o el término de búsqueda
+
+function clearFetchDebounce() {
+    if (fetchDebounceTimer) {
+        clearTimeout(fetchDebounceTimer);
+        fetchDebounceTimer = null;
+    }
+}
+
+function scheduleProgrammerFetch(page = 1) {
+    clearFetchDebounce();
+    fetchDebounceTimer = setTimeout(() => {
+        fetchProgrammers(page);
+    }, fetchDebounceMs);
+}
+
+function reloadCurrentPage() {
+    clearFetchDebounce();
+    fetchProgrammers(currentPage.value);
+}
+
 watch(
-    [searchQuery, filters],
+    [
+        searchQuery,
+        () => filters.value.season,
+        () => filters.value.priority,
+        () => filters.value.status,
+        () => filters.value.destination_id,
+        () => filters.value.estimated_delivery_date,
+    ],
     () => {
-        fetchProgrammers(1); // Reactivar la búsqueda cuando cambien los filtros o el término de búsqueda
+        scheduleProgrammerFetch(1);
     },
-    { deep: true },
-); // Asegúrate de observar cambios profundos en los filtros
+);
 
 function openEditDialog(programmer: Programmer) {
     editProgrammerDialogRef.value?.openDialog(programmer);
@@ -199,6 +281,7 @@ function viewProgrammer(programmer: Programmer) {
 function handlePageChange(page: number) {
     if (page < 1 || page > Math.ceil(totalItems.value / itemsPerPage.value)) return;
     currentPage.value = page;
+    clearFetchDebounce();
     fetchProgrammers(page);
 }
 
@@ -207,9 +290,38 @@ onMounted(async () => {
     fetchProgrammers();
 });
 
+onUnmounted(() => {
+    clearFetchDebounce();
+    if (activeFetchController) {
+        activeFetchController.abort();
+        activeFetchController = null;
+    }
+});
+
 function getOpLabel(programmer: Programmer): string {
     const opCode = String(programmer.op_code ?? '').trim();
     return opCode !== '' ? opCode : `MF${programmer.id}`;
+}
+
+function getRefLabel(programmer: Programmer): string {
+    const sampleRefRaw = programmer.product_sheet?.sample_reference ?? null;
+    const productRefRaw = programmer.product_sheet?.product_reference ?? null;
+    const sampleRef = sampleRefRaw?.trim() ?? '';
+    const productRef = productRefRaw?.trim() ?? '';
+
+    if (sampleRef !== '' && productRef !== '') {
+        return sampleRef === productRef ? sampleRef : `${sampleRef} - ${productRef}`;
+    }
+
+    if (sampleRef !== '') {
+        return sampleRef;
+    }
+
+    if (productRef !== '') {
+        return productRef;
+    }
+
+    return FALLBACK_REF;
 }
 
 function getPendingMessage(programmer: Programmer): string {
@@ -293,27 +405,27 @@ function shouldHighlightRow(row: Programmer): boolean {
                         :destinations="props.destinations"
                         :months="props.months"
                         :priorities="props.priorities"
-                        @programmerCreated="fetchProgrammers"
+                        @programmerCreated="reloadCurrentPage"
                     />
                     <EditProgrammerDialog
                         ref="editProgrammerDialogRef"
                         :productSheets="props.productSheets"
                         :destinations="props.destinations"
                         :months="props.months"
-                        @programmerUpdated="fetchProgrammers"
+                        @programmerUpdated="reloadCurrentPage"
                     />
                 </div>
             </div>
             <FilterBar align="start" gap="gap-4">
-                <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
-                    <div class="relative w-full max-w-sm">
+                <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[220px] max-w-sm flex-1 p-0">
+                    <div class="relative w-full">
                         <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
-                <FilterField label="Temporada" :active="seasonIsActive" class="min-w-[180px]">
+                <FilterField label="Temporada" :active="seasonIsActive" class="min-w-[160px]">
                     <SelectField
                         v-model="filters.season"
                         placeholder="Filtrar Temporada"
@@ -341,13 +453,59 @@ function shouldHighlightRow(row: Programmer): boolean {
                         :button-class="statusButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Destino" :active="destinationIsActive" class="min-w-[200px]">
+                <FilterField label="Destino" :active="destinationIsActive" class="min-w-[160px]">
                     <SelectField
                         v-model="filters.destination_id"
                         placeholder="Filtrar Destino"
                         :options="destinationFilterOptions"
                         :button-class="destinationButtonClasses"
                     />
+                </FilterField>
+                <FilterField label="Fecha entrega" :active="deliveryDateIsActive" class="min-w-[220px]">
+                    <div class="flex items-center gap-2">
+                        <Popover>
+                            <PopoverTrigger as-child>
+                                <Button type="button" variant="outline" :class="deliveryDateButtonClasses">
+                                    <span class="truncate text-left">{{ deliveryDateLabel }}</span>
+                                    <CalendarIcon class="ml-2 h-4 w-4 shrink-0" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent class="w-auto p-0" align="start">
+                                <Calendar
+                                    :model-value="deliveryDateValue"
+                                    @update:model-value="
+                                        (value) => {
+                                            deliveryDateValue = value;
+                                        }
+                                    "
+                                    initial-focus
+                                />
+                                <div class="border-t p-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        class="w-full justify-center"
+                                        :disabled="!deliveryDateIsActive"
+                                        @click="clearDeliveryDateFilter"
+                                    >
+                                        Limpiar
+                                    </Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                        <Button
+                            v-if="deliveryDateIsActive"
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            class="h-10 w-10 rounded-full"
+                            @click="clearDeliveryDateFilter"
+                        >
+                            <X class="h-4 w-4" />
+                            <span class="sr-only">Limpiar fecha</span>
+                        </Button>
+                    </div>
                 </FilterField>
             </FilterBar>
 
@@ -375,10 +533,11 @@ function shouldHighlightRow(row: Programmer): boolean {
                             :class="[
                                 'text-center',
                                 shouldHighlightRow(programmer) ? 'bg-yellow-50 border-l-4 border-yellow-400' : '',
+                                'text-nowrap'
                             ]"
                         >
                             <TableCell class="font-medium">{{ getOpLabel(programmer) }}</TableCell>
-                            <TableCell class="font-medium">{{ programmer.product_sheet?.reference || 'Sin referencia' }}</TableCell>
+                            <TableCell class="font-medium">{{ getRefLabel(programmer) }}</TableCell>
                             <TableCell>{{ monthLabel(programmer.season_display || programmer.season) }}</TableCell>
                             <TableCell>
                                 <template v-if="programmer.source === 'manual'">

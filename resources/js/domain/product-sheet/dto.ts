@@ -8,6 +8,8 @@ export interface OptionParamsDto {
 export interface ProductSheetDto {
     id: number;
     type?: 'muestra' | 'producto' | string;
+    derived_from_product_sheet_id?: number | null;
+    has_derived_product?: boolean;
     reference: string;
     sample_reference?: string | null;
     product_reference?: string | null;
@@ -18,10 +20,13 @@ export interface ProductSheetDto {
     group_id: number;
     brand_id: number;
     world_id: number;
-    base_id: number;
+    base_id?: number;
+    fabric_base_id?: number;
+    yarn_base_id?: number | null;
     billing_price?: number;
     selling_price?: number;
-    sizes?: string;
+    sizes?: string | Record<string, boolean> | string[];
+    processes?: string | Record<string, boolean>;
     description?: string;
     metadata?: Record<string, unknown>;
     section?: { id: number; name: string } | null;

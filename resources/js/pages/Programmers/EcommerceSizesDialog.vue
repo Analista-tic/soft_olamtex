@@ -10,15 +10,21 @@ const props = withDefaults(defineProps<{
     productSheet: { sizes: string | Record<string, boolean> | null; reference: string };
     existingValues?: Record<string, number> | null;
     readonly?: boolean;
+    triggerLabel?: string;
 }>(), {
     existingValues: null,
     readonly: false,
+    triggerLabel: '',
 });
 
 // Eventos emitidos hacia el componente padre
 const emit = defineEmits(['sizesUpdated']);
 
 const isReadOnly = computed(() => props.readonly === true);
+const triggerText = computed(() => {
+    if (props.triggerLabel && props.triggerLabel.trim() !== '') return props.triggerLabel;
+    return isReadOnly.value ? 'Ver e-commerce' : 'E-commerce';
+});
 
 // Estado reactivo
 const isDialogOpen = ref(false);
@@ -28,12 +34,32 @@ const editableReference = ref(props.productSheet.reference);
 // Convierte las tallas de JSON a un objeto
 const parsedSizes = computed(() => {
     try {
-        // Si sizes ya es un objeto, usarlo directamente
-        const sizesData = typeof props.productSheet.sizes === 'string' 
-            ? JSON.parse(props.productSheet.sizes || '{}')
-            : props.productSheet.sizes || {};
+        let sizesData: Record<string, unknown> | unknown[] = {};
+        if (typeof props.productSheet.sizes === 'string') {
+            const raw = props.productSheet.sizes.trim();
+            if (raw !== '') {
+                try {
+                    const parsed = JSON.parse(raw) as Record<string, unknown> | unknown[];
+                    sizesData = parsed;
+                } catch {
+                    const csvSizes = raw
+                        .split(',')
+                        .map((size) => size.trim())
+                        .filter((size) => size !== '');
+                    sizesData = Object.fromEntries(csvSizes.map((size) => [size, true]));
+                }
+            }
+        } else if (props.productSheet.sizes && typeof props.productSheet.sizes === 'object') {
+            sizesData = props.productSheet.sizes;
+        }
         
-        const sizes = sizesData.sizes || sizesData;
+        const sizes =
+            !Array.isArray(sizesData) &&
+            sizesData &&
+            typeof sizesData === 'object' &&
+            'sizes' in sizesData
+                ? ((sizesData as { sizes?: unknown }).sizes ?? sizesData)
+                : sizesData;
 
         // Si es un array (formato normalizado: ["28", "30", "32"])
         if (Array.isArray(sizes)) {
@@ -110,11 +136,11 @@ function saveSizes() {
                 size="sm"
                 class="rounded-full"
             >
-                {{ isReadOnly ? 'Ver e-commerce' : 'E-commerce' }}
+                {{ triggerText }}
             </Button>
         </DialogTrigger>
 
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[140vh] px-2 py-2">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[130vh] px-2 py-2">
             <div class="flex-shrink-0 px-6 pt-6 pb-4 border-b">
                 <h2 class="text-xl font-semibold">Asignar Cantidades E-commerce</h2>
                 <p class="text-sm text-muted-foreground mt-1">Aquí puedes asignar las cantidades de tallas para el producto seleccionado.</p>

@@ -11,15 +11,14 @@ use App\Models\ProductSheet\Programmer;
 use App\Services\ProductSheet\ProgrammerService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ProgrammerController extends Controller
 {
-    private const PRIORITIES = ['A', 'B', 'C', 'D'];
-    private const STATUSES = ['complete', 'incomplete'];
     private const CATALOG_KEYS = [
         'sections',
         'groups',
@@ -35,8 +34,7 @@ class ProgrammerController extends Controller
     public function __construct(
         private SettingService $settingService,
         private ProgrammerService $programmerService,
-    )
-    {
+    ) {
     }
 
     /**
@@ -100,7 +98,6 @@ class ProgrammerController extends Controller
             return $product;
         });
 
-        // Asegurarse de que los datos sean arreglos antes de pasarlos a la vista
         return Inertia::render('Programmers/Index', [
             'productSheets' => $productSheets ?? [],
             'destinations' => $destinations->values()->all(),
@@ -115,9 +112,6 @@ class ProgrammerController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         return response()->json(['message' => 'Create method not implemented'], 501);
@@ -125,48 +119,117 @@ class ProgrammerController extends Controller
 
     /**
      * Store a newly created resource in storage.
-     * Los registros manuales NO usan estimated_delivery_date, sí usan priority.
+     * Manual records do not use estimated_delivery_date; they use priority.
      */
     public function store(StoreProgrammerRequest $request)
     {
         $validatedData = $request->validated();
+        $requestId = $this->resolveRequestId($request);
+        $idempotencyUser = $request->user()?->id ?? 'guest';
 
-        $programmers = DB::transaction(function () use ($validatedData) {
-            return collect($validatedData['lots'])->map(function (array $lot) {
-                $productSheet = ProductSheet::findOrFail($lot['product_sheet_id']);
-                $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
-                $units = isset($lot['units']) ? (int) $lot['units'] : null;
+        Log::info('programmer.store.received', [
+            'request_id' => $requestId,
+            'endpoint' => 'programador.store',
+            'user_id' => $request->user()?->id,
+            'timestamp' => now()->toIso8601String(),
+            'payload_summary' => [
+                'lots_count' => is_array($validatedData['lots'] ?? null) ? count($validatedData['lots']) : 0,
+                'sample_lot' => $this->summarizeLot($validatedData['lots'][0] ?? null),
+            ],
+        ]);
 
-                // Registros manuales: resuelven status solo con units (no usan estimated_delivery_date)
-                $status = $units !== null && $units > 0 ? 'complete' : 'incomplete';
+        $responseCacheKey = null;
+        $lockKey = null;
+        $lockAcquired = false;
 
-                $programmer = Programmer::create([
-                    'product_sheet_id' => $lot['product_sheet_id'],
-                    'season' => $lot['season'],
-                    'destination_id' => $lot['destination_id'],
-                    'priority' => $lot['priority'] ?? null,
-                    'units' => $units,
-                    'estimated_delivery_date' => null, // Manuales no usan este campo
-                    'ecommerce_units' => $ecommerceUnits,
-                    'status' => $status,
-                    'source' => 'manual',
+        if ($requestId !== null) {
+            $responseCacheKey = $this->idempotencyResponseKey('store', $idempotencyUser, $requestId);
+            $lockKey = $this->idempotencyLockKey('store', $idempotencyUser, $requestId);
+
+            $cachedResponse = Cache::get($responseCacheKey);
+            if (is_array($cachedResponse)) {
+                Log::info('programmer.store.idempotent_replay', [
+                    'request_id' => $requestId,
+                    'endpoint' => 'programador.store',
+                    'user_id' => $request->user()?->id,
                 ]);
 
-                // Generar op_code para registro manual
-                $programmer->op_code = $this->programmerService->nextOpCode(
-                    $productSheet->type ?? 'muestra',
-                    (bool) $productSheet->woven_product
-                );
-                $programmer->save();
+                return response()->json($cachedResponse['body'] ?? [], (int) ($cachedResponse['status'] ?? 200));
+            }
 
-                return $programmer;
+            $lockAcquired = Cache::add($lockKey, true, now()->addMinutes(2));
+            if (!$lockAcquired) {
+                Log::warning('programmer.store.idempotent_lock_rejected', [
+                    'request_id' => $requestId,
+                    'endpoint' => 'programador.store',
+                    'user_id' => $request->user()?->id,
+                ]);
+
+                return response()->json([
+                    'message' => 'La solicitud ya esta en proceso. Intenta nuevamente en unos segundos.',
+                ], 409);
+            }
+        }
+
+        try {
+            $programmers = DB::transaction(function () use ($validatedData) {
+                return collect($validatedData['lots'])->map(function (array $lot) {
+                    $productSheet = ProductSheet::findOrFail($lot['product_sheet_id']);
+                    $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
+                    $units = isset($lot['units']) ? (int) $lot['units'] : null;
+
+                    $status = $units !== null && $units > 0 ? 'complete' : 'incomplete';
+
+                    $programmer = Programmer::create([
+                        'product_sheet_id' => $lot['product_sheet_id'],
+                        'season' => $lot['season'],
+                        'destination_id' => $lot['destination_id'],
+                        'priority' => $lot['priority'] ?? null,
+                        'units' => $units,
+                        'estimated_delivery_date' => null,
+                        'ecommerce_units' => $ecommerceUnits,
+                        'status' => $status,
+                        'source' => 'manual',
+                    ]);
+
+                    $programmer->op_code = $this->programmerService->nextOpCode(
+                        $productSheet->type ?? 'muestra',
+                        (bool) $productSheet->woven_product
+                    );
+                    $programmer->save();
+
+                    return $programmer;
+                });
             });
-        });
 
-        return response()->json([
-            'message' => 'Programmers created successfully.',
-            'data' => $programmers,
-        ], 201);
+            Log::info('programmer.store.completed', [
+                'request_id' => $requestId,
+                'endpoint' => 'programador.store',
+                'user_id' => $request->user()?->id,
+                'timestamp' => now()->toIso8601String(),
+                'created_count' => $programmers->count(),
+                'created_ids' => $programmers->pluck('id')->values()->all(),
+            ]);
+
+            if ($requestId !== null && $responseCacheKey !== null) {
+                Cache::put($responseCacheKey, [
+                    'status' => 201,
+                    'body' => [
+                        'message' => 'Programmers created successfully.',
+                        'data' => $programmers->map(fn (Programmer $programmer) => $programmer->toArray())->values()->all(),
+                    ],
+                ], now()->addDay());
+            }
+
+            return response()->json([
+                'message' => 'Programmers created successfully.',
+                'data' => $programmers,
+            ], 201);
+        } finally {
+            if ($requestId !== null && $lockAcquired && $lockKey !== null) {
+                Cache::forget($lockKey);
+            }
+        }
     }
 
     public function show(Programmer $programmer)
@@ -174,9 +237,6 @@ class ProgrammerController extends Controller
         return response()->json(['data' => $programmer], 200);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Programmer $programmer)
     {
         return response()->json(['message' => 'Edit method not implemented'], 501);
@@ -184,14 +244,59 @@ class ProgrammerController extends Controller
 
     /**
      * Update the specified resource in storage.
-     * - Auto-generados: ignoran priority, usan estimated_delivery_date
-     * - Manuales: ignoran estimated_delivery_date, usan priority
+     * Auto-generated rows ignore priority and use estimated_delivery_date.
+     * Manual rows ignore estimated_delivery_date and use priority.
      */
     public function update(UpdateProgrammerRequest $request, Programmer $programador)
     {
-        $isAutoGenerated = $programador->isAutoGenerated();
+        $requestId = $this->resolveRequestId($request);
+        $idempotencyUser = $request->user()?->id ?? 'guest';
 
-        // Obtener datos validados con limpieza de campos según tipo
+        Log::info('programmer.update.received', [
+            'request_id' => $requestId,
+            'endpoint' => 'programador.update',
+            'programmer_id' => $programador->id,
+            'user_id' => $request->user()?->id,
+            'timestamp' => now()->toIso8601String(),
+            'payload_summary' => $this->summarizeLot($request->all()),
+        ]);
+
+        $responseCacheKey = null;
+        $lockKey = null;
+        $lockAcquired = false;
+
+        if ($requestId !== null) {
+            $responseCacheKey = $this->idempotencyResponseKey('update:' . $programador->id, $idempotencyUser, $requestId);
+            $lockKey = $this->idempotencyLockKey('update:' . $programador->id, $idempotencyUser, $requestId);
+
+            $cachedResponse = Cache::get($responseCacheKey);
+            if (is_array($cachedResponse)) {
+                Log::info('programmer.update.idempotent_replay', [
+                    'request_id' => $requestId,
+                    'endpoint' => 'programador.update',
+                    'programmer_id' => $programador->id,
+                    'user_id' => $request->user()?->id,
+                ]);
+
+                return response()->json($cachedResponse['body'] ?? [], (int) ($cachedResponse['status'] ?? 200));
+            }
+
+            $lockAcquired = Cache::add($lockKey, true, now()->addMinutes(2));
+            if (!$lockAcquired) {
+                Log::warning('programmer.update.idempotent_lock_rejected', [
+                    'request_id' => $requestId,
+                    'endpoint' => 'programador.update',
+                    'programmer_id' => $programador->id,
+                    'user_id' => $request->user()?->id,
+                ]);
+
+                return response()->json([
+                    'message' => 'La solicitud ya esta en proceso. Intenta nuevamente en unos segundos.',
+                ], 409);
+            }
+        }
+
+        $isAutoGenerated = $programador->isAutoGenerated();
         $validatedData = $request->validatedWithCleanup();
 
         if (array_key_exists('ecommerce_units', $validatedData)) {
@@ -202,24 +307,47 @@ class ProgrammerController extends Controller
             ? (isset($validatedData['units']) ? (int) $validatedData['units'] : null)
             : $programador->units;
 
-        // Calcular status según tipo
         if ($isAutoGenerated) {
             $estimatedDeliveryDate = array_key_exists('estimated_delivery_date', $validatedData)
                 ? $validatedData['estimated_delivery_date']
                 : ($programador->estimated_delivery_date ? $programador->estimated_delivery_date->toDateString() : null);
             $validatedData['status'] = $this->programmerService->resolveStatus($units, $estimatedDeliveryDate);
         } else {
-            // Manuales: status solo depende de units
             $validatedData['status'] = $units !== null && $units > 0 ? 'complete' : 'incomplete';
         }
 
-        $programador->update($validatedData);
-        $programador->refresh();
+        try {
+            $programador->update($validatedData);
+            $programador->refresh();
 
-        return response()->json([
-            'message' => 'Programmer updated successfully.',
-            'data' => $programador,
-        ]);
+            Log::info('programmer.update.completed', [
+                'request_id' => $requestId,
+                'endpoint' => 'programador.update',
+                'programmer_id' => $programador->id,
+                'user_id' => $request->user()?->id,
+                'timestamp' => now()->toIso8601String(),
+                'updated_count' => 1,
+            ]);
+
+            if ($requestId !== null && $responseCacheKey !== null) {
+                Cache::put($responseCacheKey, [
+                    'status' => 200,
+                    'body' => [
+                        'message' => 'Programmer updated successfully.',
+                        'data' => $programador->toArray(),
+                    ],
+                ], now()->addDay());
+            }
+
+            return response()->json([
+                'message' => 'Programmer updated successfully.',
+                'data' => $programador,
+            ]);
+        } finally {
+            if ($requestId !== null && $lockAcquired && $lockKey !== null) {
+                Cache::forget($lockKey);
+            }
+        }
     }
 
     public function destroy(Programmer $programador)
@@ -234,15 +362,32 @@ class ProgrammerController extends Controller
      */
     public function getData(Request $request)
     {
-        $filters = $request->only(['season', 'priority', 'status', 'destination_id', 'search']);
+        $filters = $request->only(['season', 'priority', 'status', 'destination_id', 'search', 'estimated_delivery_date']);
         $perPage = $request->input('per_page', 10);
         $page = $request->input('page', 1);
+        $requestId = $this->resolveRequestId($request);
+
+        Log::info('programmer.list.received', [
+            'request_id' => $requestId,
+            'endpoint' => 'programmers.getData',
+            'user_id' => $request->user()?->id,
+            'timestamp' => now()->toIso8601String(),
+            'filters' => [
+                'season' => $filters['season'] ?? null,
+                'priority' => $filters['priority'] ?? null,
+                'status' => $filters['status'] ?? null,
+                'destination_id' => $filters['destination_id'] ?? null,
+                'estimated_delivery_date' => $filters['estimated_delivery_date'] ?? null,
+                'search' => isset($filters['search']) ? mb_substr((string) $filters['search'], 0, 80) : null,
+                'page' => $page,
+                'per_page' => $perPage,
+            ],
+        ]);
 
         $query = Programmer::with([
             'productSheet:id,type,sample_reference,product_reference,section_id,group_id,world_id,brand_id,fabric_base_id,yarn_base_id,billing_price,selling_price,sizes,description,status,deleted_at',
         ]);
 
-        // Aplicar filtros dinámicamente
         if (!empty($filters['season']) && $filters['season'] !== 'all') {
             $query->where('season', $filters['season']);
         }
@@ -259,6 +404,10 @@ class ProgrammerController extends Controller
             $query->where('destination_id', $filters['destination_id']);
         }
 
+        if (!empty($filters['estimated_delivery_date'])) {
+            $query->whereDate('estimated_delivery_date', $filters['estimated_delivery_date']);
+        }
+
         if (!empty($filters['search'])) {
             $query->whereHas('productSheet', function ($q) use ($filters) {
                 $search = trim((string) $filters['search']);
@@ -270,38 +419,32 @@ class ProgrammerController extends Controller
             });
         }
 
-        // Ordenar por fecha de creación (más nuevos primero)
         $query->latest();
-
         $programmers = $query->paginate($perPage, ['*'], 'page', $page);
 
         $catalogs = $this->loadCatalogs(['destinations', 'sections', 'groups']);
         $destinations = $catalogs['destinations']->keyBy('id');
         $sections = $catalogs['sections']->keyBy('id');
         $groups = $catalogs['groups']->keyBy('id');
-        
+
         $programmers->getCollection()->transform(function ($programmer) use ($destinations, $sections, $groups) {
             $isAuto = $programmer->isAutoGenerated();
-            
+
             $programmer->destination = $destinations->get($programmer->destination_id, ['id' => $programmer->destination_id, 'name' => 'N/A']);
-            
-            // Determinar campos pendientes según tipo de registro
+
             if ($isAuto) {
-                // Auto-generados: pendiente si falta units o estimated_delivery_date
                 $programmer->is_pending_completion = !$programmer->units || !$programmer->estimated_delivery_date;
                 $programmer->pending_fields = collect([
                     !$programmer->units ? 'unidades' : null,
                     !$programmer->estimated_delivery_date ? 'fecha de entrega' : null,
                 ])->filter()->values()->all();
             } else {
-                // Manuales: pendiente solo si falta units (no usan estimated_delivery_date)
                 $programmer->is_pending_completion = !$programmer->units;
                 $programmer->pending_fields = collect([
                     !$programmer->units ? 'unidades' : null,
                 ])->filter()->values()->all();
             }
 
-            // Traducir temporada numérica a nombre del mes
             $season = $programmer->season;
             if (is_numeric($season)) {
                 $programmer->season_display = $this->programmerService->getMonthName((int) $season);
@@ -309,7 +452,6 @@ class ProgrammerController extends Controller
                 $programmer->season_display = $season;
             }
 
-            // Campo adicional temporada_label usando el helper centralizado
             $programmer->temporada_label = MonthLabel::fromNumber($programmer->season);
 
             if ($programmer->productSheet) {
@@ -329,8 +471,20 @@ class ProgrammerController extends Controller
                 $programmer->productSheet->display_reference = $displayReference;
                 $programmer->productSheet->reference = $displayReference;
             }
+
             return $programmer;
         });
+
+        Log::info('programmer.list.completed', [
+            'request_id' => $requestId,
+            'endpoint' => 'programmers.getData',
+            'user_id' => $request->user()?->id,
+            'timestamp' => now()->toIso8601String(),
+            'returned_count' => count($programmers->items()),
+            'total' => $programmers->total(),
+            'page' => $programmers->currentPage(),
+            'per_page' => $programmers->perPage(),
+        ]);
 
         return response()->json([
             'data' => $programmers->items(),
@@ -382,5 +536,44 @@ class ProgrammerController extends Controller
         throw ValidationException::withMessages([
             'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
         ]);
+    }
+
+    private function resolveRequestId(Request $request): ?string
+    {
+        $requestId = $request->header('X-Request-Id');
+        if (!is_string($requestId)) {
+            return null;
+        }
+
+        $trimmed = trim($requestId);
+
+        return $trimmed !== '' ? $trimmed : null;
+    }
+
+    private function idempotencyResponseKey(string $action, int|string $userId, string $requestId): string
+    {
+        return sprintf('programmer:idempotency:response:%s:%s:%s', $action, (string) $userId, $requestId);
+    }
+
+    private function idempotencyLockKey(string $action, int|string $userId, string $requestId): string
+    {
+        return sprintf('programmer:idempotency:lock:%s:%s:%s', $action, (string) $userId, $requestId);
+    }
+
+    private function summarizeLot(?array $lot): array
+    {
+        if (!is_array($lot)) {
+            return [];
+        }
+
+        return [
+            'product_sheet_id' => $lot['product_sheet_id'] ?? null,
+            'season' => $lot['season'] ?? null,
+            'destination_id' => $lot['destination_id'] ?? null,
+            'priority' => $lot['priority'] ?? null,
+            'units' => $lot['units'] ?? null,
+            'status' => $lot['status'] ?? null,
+            'has_ecommerce_units' => array_key_exists('ecommerce_units', $lot) && $lot['ecommerce_units'] !== null,
+        ];
     }
 }

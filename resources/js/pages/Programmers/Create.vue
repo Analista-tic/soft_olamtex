@@ -5,7 +5,7 @@ import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import type { ProductSheet, Programmer } from '@/domain/product-sheet';
+import { normalizeSizes, sizesToLabel, type ProductSheet, type Programmer } from '@/domain/product-sheet';
 import type { Option } from '@/domain/shared/types';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
@@ -112,12 +112,7 @@ const lotsForm = ref<Array<ProgrammerLotForm>>([]);
 const formErrors = ref<{ lotIndex: number; fields: string[] }[]>([]);
 const dialogInnerRef = ref<HTMLElement | null>(null);
 const saveDisabled = computed(() => formErrors.value.length > 0);
-const missingFieldsSummary = computed(() => {
-    if (formErrors.value.length === 0) return '';
-    return formErrors.value
-        .map((error) => `Lote ${error.lotIndex + 1}: ${error.fields.join(', ')}`)
-        .join(' • ');
-});
+const isSubmitting = ref(false);
 
 // Alert state
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
@@ -180,16 +175,38 @@ function getProductSheetLabel(sheet: ProductSheet): string {
     return String(typedSheet.label ?? typedSheet.display_reference ?? sheet.reference ?? '').trim();
 }
 
+function getProductSheetOptionLabel(sheet: ProductSheet): string {
+    const typedSheet = sheet as ProductSheet & { sample_reference?: string; product_reference?: string };
+    const sampleReference = typedSheet.sample_reference?.trim() ?? '';
+    const productReference = typedSheet.product_reference?.trim() ?? '';
+
+    if (sampleReference !== '' && productReference !== '') {
+        return sampleReference === productReference
+            ? sampleReference
+            : `${sampleReference} - ${productReference}`;
+    }
+
+    if (sampleReference !== '') {
+        return sampleReference;
+    }
+
+    if (productReference !== '') {
+        return productReference;
+    }
+
+    return getProductSheetLabel(sheet);
+}
+
 const productSheetOptions = computed(() =>
     productSheetList.value
         .map((sheet) => ({
             id: getProductSheetValue(sheet),
-            name: getProductSheetLabel(sheet),
+            name: getProductSheetOptionLabel(sheet),
         }))
         .filter((option) => option.name !== '')
 );
 
-const selectedProductSheet = computed(() => {
+const selectedProductSheet = computed<ProductSheet | null>(() => {
     if (!form.value.productSheetId) return null;
     return productSheetList.value.find((sheet) => getProductSheetValue(sheet) === Number(form.value.productSheetId)) || null;
 });
@@ -279,6 +296,10 @@ function validateForm(): void {
 }
 
 function createProgrammer(): void {
+    if (isSubmitting.value) {
+        return;
+    }
+
     // Validar que existan lotes
     if (lotsForm.value.length === 0) {
         setAlert('Debes generar al menos un lote antes de guardar.', 'warning');
@@ -317,8 +338,15 @@ function createProgrammer(): void {
         };
     });
 
+    const requestId =
+        typeof globalThis.crypto?.randomUUID === 'function'
+            ? globalThis.crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    isSubmitting.value = true;
+
     axios
-        .post('/comercial/programador', { lots: lotsToSend })
+        .post('/comercial/programador', { lots: lotsToSend }, { headers: { 'X-Request-Id': requestId } })
         .then(() => {
             setAlert('Programadores creados exitosamente.', 'success');
             emit('programmerCreated');
@@ -334,6 +362,9 @@ function createProgrammer(): void {
             }
             
             setAlert(errorText, 'error');
+        })
+        .finally(() => {
+            isSubmitting.value = false;
         });
 }
 
@@ -461,21 +492,11 @@ function addProductSheet(response: ProductSheetSavedPayload): void {
     form.value.productSheetId = newProductSheet.id;
 }
 
-// Función para obtener las claves con valores `true` en `sizes`
-function getTrueSizes(sizes: string | Record<string, boolean> | undefined | null): string {
-    if (!sizes) return '';
-    
-    try {
-        // Si sizes ya es un objeto, usarlo directamente
-        const parsedSizes: Record<string, boolean> = typeof sizes === 'string' ? JSON.parse(sizes) : sizes;
-        return Object.entries(parsedSizes)
-            .filter(([, value]) => value === true)
-            .map(([key]) => key)
-            .join(', ');
-    } catch (error) {
-        console.error('Error al parsear sizes:', error);
-        return '';
-    }
+function getDialogProductSheet(sheet: ProductSheet | null): { sizes: string | Record<string, boolean> | null; reference: string } {
+    return {
+        sizes: normalizeSizes(sheet?.sizes),
+        reference: sheet ? getProductSheetLabel(sheet) : '',
+    };
 }
 
 // Función para filtrar solo números enteros en el campo de lotes
@@ -610,7 +631,7 @@ function handleLotsCountInput(event: Event): void {
                                 </tr>
                                 <tr>
                                     <td class="px-4 py-5 font-bold border">Tallas:</td>
-                                    <td class="px-8 py-5 border" colspan="3">{{ getTrueSizes(selectedProductSheet.sizes) || 'Sin tallas' }}</td>
+                                    <td class="px-8 py-5 border" colspan="3">{{ sizesToLabel(selectedProductSheet?.sizes) }}</td>
                                     <td class="px-4 py-5 font-bold border">Descripción:</td>
                                     <td class="px-4 py-5 border" colspan="3">{{ selectedProductSheet.description || 'Sin descripción' }}</td>
                                 </tr>
@@ -703,7 +724,7 @@ function handleLotsCountInput(event: Event): void {
                             </td>
                             <td v-if="lot.isEcommerce" class="px-4 py-4 border text-center">
                                     <EcommerceSizesDialog
-                                        :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet ? getProductSheetLabel(selectedProductSheet) : '' }"
+                                        :productSheet="getDialogProductSheet(selectedProductSheet)"
                                         :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
                                     @sizesUpdated="(data) => {
                                         // Asegurar que los valores sean números y no null
@@ -742,10 +763,10 @@ function handleLotsCountInput(event: Event): void {
                     <Button
                         type="button"
                         class="flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold shadow-sm"
-                        :disabled="saveDisabled"
+                        :disabled="saveDisabled || isSubmitting"
                         @click="createProgrammer"
                     >
-                        Guardar
+                        {{ isSubmitting ? 'Guardando...' : 'Guardar' }}
                     </Button>
                 </div>
             </div>

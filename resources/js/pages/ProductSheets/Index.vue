@@ -14,6 +14,7 @@ import Badge from '@/components/ui/badge/Badge.vue';
 import { Button } from '@/components/ui/button';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -25,20 +26,25 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
-import type { OptionParams, ProductSheet } from '@/domain/product-sheet';
+import { formatCopCurrency, resolveProductSheetReference, type OptionParams, type ProductSheet } from '@/domain/product-sheet';
 import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
 import AlertBox from '@/components/AlertBox.vue';
 import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import { Eye, Pencil, PlusCircle, Repeat2, Search, Trash } from 'lucide-vue-next';
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ACTION_LABELS } from '@/lib/actionLabels';
+import axios from 'axios';
+import {
+    convertSampleToProduct,
+    deleteProductSheet as deleteProductSheetRequest,
+    listProductSheets,
+    showProductSheet,
+} from '@/services/productSheetService';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -57,14 +63,8 @@ interface ProductSheetPageProps extends SharedData {
     operationalLists: OptionParams[];
 }
 
-interface StatusOption {
-    id: number;
-    label: string;
-    value: string | null;
-}
-
 const props = defineProps<ProductSheetPageProps>();
-const products_sheet = ref<ProductSheet[]>([]);
+const productSheets = ref<ProductSheet[]>([]);
 const productSheetToDelete = ref<ProductSheet | null>(null);
 const isEditDialogOpen = ref(false); // Estado para el diálogo de edición/creación
 const isViewMode = ref(false); // Estado para modo de solo lectura
@@ -74,16 +74,20 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
-const statusFilter = ref<string | null>(null); // Cambiar a string | null para mayor claridad
-const sectionFilter = ref<number | null>(null);
-const worldFilter = ref<number | null>(null);
+const statusFilter = ref('all');
+const sectionFilter = ref('all');
+const worldFilter = ref('all');
+const fetchDebounceMs = 350;
+let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let activeFetchController: AbortController | null = null;
 
-
-const statusOptions: StatusOption[] = [
-    { id: 0, label: 'Todos', value: null },
-    { id: 1, label: 'Incompleto', value: 'incomplete' },
-    { id: 2, label: 'Completo', value: 'complete' },
+const statusOptions = [
+    { id: 'all', name: 'Todos' },
+    { id: 'incomplete', name: 'Incompleto' },
+    { id: 'complete', name: 'Completo' },
 ];
+const sectionOptions = computed(() => [{ id: 'all', name: 'Todos' }, ...props.sections]);
+const worldOptions = computed(() => [{ id: 'all', name: 'Todos' }, ...props.worlds]);
 
 const authStore = useAuthStore();
 
@@ -138,10 +142,10 @@ async function deleteProductSheet() {
     if (!productSheetToDelete.value) return;
 
     try {
-        await axios.delete(`/produccion/sabana-productos/${productSheetToDelete.value.id}`);
-        const index = products_sheet.value.findIndex((product) => product.id === productSheetToDelete.value!.id);
+        await deleteProductSheetRequest(productSheetToDelete.value.id);
+        const index = productSheets.value.findIndex((product) => product.id === productSheetToDelete.value!.id);
         if (index !== -1) {
-            products_sheet.value.splice(index, 1);
+            productSheets.value.splice(index, 1);
         }
         productSheetToDelete.value = null;
         isDeleteDialogOpen.value = false;
@@ -174,15 +178,16 @@ async function submitRowConvertDialog(productReference: string) {
     convertRowLoading.value = true;
 
     try {
-        const response = await axios.post(`/produccion/sabana-productos/${convertRowTarget.value.id}/convert`, {
-            product_reference: productReference,
-        });
-        const updated = response.data?.data ?? {};
-        const index = products_sheet.value.findIndex((sheet) => sheet.id === convertRowTarget.value?.id);
+        const response = await convertSampleToProduct(convertRowTarget.value.id, productReference);
+        const updated = response.data?.data;
+        if (!updated) {
+            throw new Error(response.data?.message ?? 'No se recibieron datos de la sábana convertida.');
+        }
+        const index = productSheets.value.findIndex((sheet) => sheet.id === convertRowTarget.value?.id);
 
         if (index !== -1) {
-                products_sheet.value[index] = {
-                    ...products_sheet.value[index],
+                productSheets.value[index] = {
+                    ...productSheets.value[index],
                     ...updated,
                     type: updated.type ?? 'producto',
                     product_reference: updated.product_reference ?? productReference,
@@ -191,70 +196,102 @@ async function submitRowConvertDialog(productReference: string) {
 
         setAlert('Sábana convertida a producto correctamente.', 'success');
         closeRowConvertDialog();
-    } catch (error: any) {
-        setAlert(error.response?.data?.message ?? 'Error al convertir la sábana.', 'error');
+    } catch (error: unknown) {
+        const message = axios.isAxiosError(error)
+            ? (error.response?.data?.message ?? 'Error al convertir la sábana.')
+            : (error instanceof Error ? error.message : 'Error al convertir la sábana.');
+        setAlert(message, 'error');
     } finally {
         convertRowLoading.value = false;
     }
 }
 
 // Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
+function clearFetchDebounce() {
+    if (fetchDebounceTimer) {
+        clearTimeout(fetchDebounceTimer);
+        fetchDebounceTimer = null;
+    }
+}
+
+function scheduleProductSheetsFetch(page = 1) {
+    clearFetchDebounce();
+    fetchDebounceTimer = setTimeout(() => {
+        fetchProductSheets(page, searchQuery.value, statusFilter.value, sectionFilter.value, worldFilter.value);
+    }, fetchDebounceMs);
+}
+
 async function fetchProductSheets(
     page = 1,
     search = '',
-    status: string | null = null,
-    section: number | null = null,
-    world: number | null = null,
+    status = 'all',
+    section = 'all',
+    world = 'all',
 ) {
+    if (activeFetchController) {
+        activeFetchController.abort();
+    }
+
+    const controller = new AbortController();
+    activeFetchController = controller;
+
     try {
-        const response = await axios.get('/produccion/product-sheets', {
-            params: {
-                page,
-                per_page: itemsPerPage,
-                search,
-                status: status || undefined, // Convertir null a undefined para la API
-                section_id: section || undefined,
-                world_id: world || undefined,
-            },
-        });
-        console.log(response);
+        const normalizedSearch = search.trim();
+        const sectionId = section === 'all' ? null : Number(section);
+        const worldId = world === 'all' ? null : Number(world);
+
+        const response = await listProductSheets({
+            page,
+            per_page: itemsPerPage,
+            search: normalizedSearch === '' ? undefined : normalizedSearch,
+            status: status === 'all' ? null : status,
+            section_id: Number.isFinite(sectionId) ? sectionId : null,
+            world_id: Number.isFinite(worldId) ? worldId : null,
+        }, controller.signal);
+
         if (response && response.data && response.data.products_sheets) {
-            products_sheet.value = response.data.products_sheets.data;
+            productSheets.value = response.data.products_sheets.data;
             totalItems.value = response.data.products_sheets.total;
-            if (products_sheet.value.length) {
-                console.log('Primer registro product_sheet:', products_sheet.value[0]);
-            }
+            currentPage.value = page;
         } else {
-            console.error('Error al obtener los product sheets: Respuesta inválida');
+            console.error('Error al obtener los product sheets: Respuesta invalida');
         }
     } catch (error) {
+        if (axios.isCancel(error)) {
+            return;
+        }
         console.error('Error al obtener los product sheets:', error);
+    } finally {
+        if (activeFetchController === controller) {
+            activeFetchController = null;
+        }
     }
 }
 
 // Llamar a fetchProductSheets cuando searchQuery o statusFilter cambien
-watch([searchQuery, statusFilter, sectionFilter, worldFilter], ([newQuery, newStatus, newSection, newWorld]) => {
-    fetchProductSheets(1, newQuery, newStatus, newSection, newWorld);
+watch([searchQuery, statusFilter, sectionFilter, worldFilter], () => {
+    scheduleProductSheetsFetch(1);
 });
 
 // Handler para recargar la lista después de guardar
 function reloadProductSheets() {
+    clearFetchDebounce();
     fetchProductSheets(currentPage.value, searchQuery.value, statusFilter.value, sectionFilter.value, worldFilter.value);
 }
 
 // Handler para cambio de página
 function handlePageChange(page: number) {
     currentPage.value = page;
+    clearFetchDebounce();
     fetchProductSheets(page, searchQuery.value, statusFilter.value, sectionFilter.value, worldFilter.value);
 }
 
-async function openEditDialog(product: ProductSheet) {
+async function loadProductSheetDialog(product: ProductSheet, mode: 'edit' | 'view') {
     try {
-        // Hacer petición al backend para obtener los datos completos
-        const response = await axios.get(`/produccion/sabana-productos/${product.id}`);
+        const response = await showProductSheet(product.id);
         if (response && response.data && response.data.success) {
             editProductSheetData.value = response.data.data;
-            isViewMode.value = false;
+            isViewMode.value = mode === 'view';
             isEditDialogOpen.value = true;
         } else {
             setAlert('Error al cargar los datos del producto', 'error');
@@ -265,21 +302,12 @@ async function openEditDialog(product: ProductSheet) {
     }
 }
 
+async function openEditDialog(product: ProductSheet) {
+    await loadProductSheetDialog(product, 'edit');
+}
+
 async function viewProductSheet(product: ProductSheet) {
-    try {
-        // Hacer petición al backend para obtener los datos completos
-        const response = await axios.get(`/produccion/sabana-productos/${product.id}`);
-        if (response && response.data && response.data.success) {
-            editProductSheetData.value = response.data.data;
-            isViewMode.value = true;
-            isEditDialogOpen.value = true;
-        } else {
-            setAlert('Error al cargar los datos del producto', 'error');
-        }
-    } catch (error) {
-        console.error('Error al cargar el producto:', error);
-        setAlert('Error al cargar los datos del producto', 'error');
-    }
+    await loadProductSheetDialog(product, 'view');
 }
 
 function openCreateDialog() {
@@ -291,6 +319,14 @@ function openCreateDialog() {
 onMounted(async () => {
     await loadPermissions();
     fetchProductSheets();
+});
+
+onUnmounted(() => {
+    clearFetchDebounce();
+    if (activeFetchController) {
+        activeFetchController.abort();
+        activeFetchController = null;
+    }
 });
 </script>
 
@@ -338,49 +374,14 @@ onMounted(async () => {
                     </div>
                 </FilterField>
                 <div class="flex flex-wrap items-center gap-2">
-                    <FilterField label="Estado" :active="statusFilter !== null" class="flex-1 min-w-[220px] max-w-[220px]">
-                        <Select v-model="statusFilter">
-                            <SelectTrigger class="h-10 w-full rounded-md border px-3 text-sm flex items-center justify-between">
-                                <SelectValue placeholder="Todos" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectItem v-for="option in statusOptions" :key="option.id" :value="option.value">
-                                        {{ option.label }}
-                                    </SelectItem>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
+                    <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="statusFilter" :options="statusOptions" placeholder="Todos" />
                     </FilterField>
-                <FilterField label="Sección" :active="sectionFilter !== null" class="flex-1 min-w-[220px] max-w-[220px]">
-                    <Select v-model="sectionFilter">
-                        <SelectTrigger class="h-10 w-full rounded-md border px-3 text-sm flex items-center justify-between">
-                            <SelectValue placeholder="Filtrar por sección" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem :value="null">Todos</SelectItem>
-                                <SelectItem v-for="section in props.sections" :key="section.id" :value="section.id">
-                                    {{ section.name }}
-                                </SelectItem>
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
+                    <FilterField label="Seccion" :active="sectionFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por seccion" />
                     </FilterField>
-                <FilterField label="Mundo" :active="worldFilter !== null" class="flex-1 min-w-[220px] max-w-[220px]">
-                    <Select v-model="worldFilter">
-                        <SelectTrigger class="h-10 w-full rounded-md border px-3 text-sm flex items-center justify-between">
-                            <SelectValue placeholder="Filtrar por mundo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem :value="null">Todos</SelectItem>
-                                <SelectItem v-for="world in props.worlds" :key="world.id" :value="world.id">
-                                    {{ world.name }}
-                                </SelectItem>
-                            </SelectGroup>
-                            </SelectContent>
-                        </Select>
+                    <FilterField label="Mundo" :active="worldFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="worldFilter" :options="worldOptions" placeholder="Filtrar por mundo" />
                     </FilterField>
                 </div>
             </FilterBar>
@@ -403,34 +404,20 @@ onMounted(async () => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="product in products_sheet" :key="product.id" class="text-center">
+                        <TableRow v-for="product in productSheets" :key="product.id" class="text-center">
                             <TableCell class="font-medium">
-                                {{ product.sample_reference ?? (product.type === 'muestra' ? product.reference : '—') }}
+                                {{ product.sample_reference ?? (product.type === 'muestra' ? resolveProductSheetReference(product) : '-') }}
                             </TableCell>
                             <TableCell class="font-medium">
-                                {{ product.product_reference ?? (product.type === 'producto' ? product.reference : '—') }}
+                                {{ product.product_reference ?? (product.type === 'producto' ? resolveProductSheetReference(product) : '-') }}
                             </TableCell>
                             <TableCell>{{ product.section?.name ?? '' }}</TableCell>
                             <TableCell>{{ product.group?.name ?? '' }}</TableCell>
                             <TableCell>{{ product.brand?.name ?? '' }}</TableCell>
                             <TableCell>{{ product.world?.name ?? '' }}</TableCell>
                             <TableCell>{{ product.fabric_base?.name ?? '' }}</TableCell>
-                            <TableCell>{{
-                                new Intl.NumberFormat('es-CO', {
-                                    style: 'currency',
-                                    currency: 'COP',
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0,
-                                }).format(product.billing_price ?? 0)
-                            }}</TableCell>
-                            <TableCell>{{
-                                new Intl.NumberFormat('es-CO', {
-                                    style: 'currency',
-                                    currency: 'COP',
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0,
-                                }).format(product.selling_price ?? 0)
-                            }}</TableCell>
+                            <TableCell>{{ formatCopCurrency(product.billing_price) }}</TableCell>
+                            <TableCell>{{ formatCopCurrency(product.selling_price) }}</TableCell>
                             <TableCell>
                                 <Badge
                                     :variant="'outline'"

@@ -5,10 +5,30 @@ namespace App\Models\ProductSheet;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Log;
 
 class Programmer extends Model
 {
     use HasFactory, SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::creating(function (Programmer $programmer): void {
+            Log::info('programmer.model.creating', self::eventContext($programmer));
+        });
+
+        static::created(function (Programmer $programmer): void {
+            Log::info('programmer.model.created', self::eventContext($programmer));
+        });
+
+        static::updating(function (Programmer $programmer): void {
+            Log::info('programmer.model.updating', self::eventContext($programmer));
+        });
+
+        static::updated(function (Programmer $programmer): void {
+            Log::info('programmer.model.updated', self::eventContext($programmer));
+        });
+    }
 
     protected $table = 'programmers';
 
@@ -67,5 +87,20 @@ class Programmer extends Model
     public function productSheet()
     {
         return $this->belongsTo(ProductSheet::class);
+    }
+
+    private static function eventContext(self $programmer): array
+    {
+        $requestId = request()?->header('X-Request-Id');
+        $normalizedRequestId = is_string($requestId) && trim($requestId) !== '' ? trim($requestId) : null;
+
+        return [
+            'request_id' => $normalizedRequestId,
+            'id' => $programmer->id,
+            'product_sheet_id' => $programmer->product_sheet_id,
+            'source' => $programmer->source,
+            'op_code' => $programmer->op_code,
+            'timestamp' => now()->toIso8601String(),
+        ];
     }
 }
