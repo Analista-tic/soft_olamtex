@@ -40,7 +40,7 @@ import { useAuthStore } from '@/stores/auth';
 import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { format } from 'date-fns';
+import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Eye, Pencil, Search, Trash, X } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -362,6 +362,35 @@ function isIncomplete(row: Programmer): boolean {
 function shouldHighlightRow(row: Programmer): boolean {
     return isAutoFromSheet(row) && isIncomplete(row);
 }
+
+function formatEstimatedDeliveryDate(raw: unknown): string {
+    if (raw === null || raw === undefined) {
+        return '-';
+    }
+
+    const text = String(raw).trim();
+    if (text === '' || text === '-') {
+        return '-';
+    }
+
+    if (text.toUpperCase() === 'N/A') {
+        return 'N/A';
+    }
+
+    const isoPrefixMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoPrefixMatch) {
+        const isoDate = isoPrefixMatch[1];
+        const parsedIso = parse(isoDate, 'yyyy-MM-dd', new Date());
+        return isValid(parsedIso) ? format(parsedIso, 'dd/MM/yyyy', { locale: es }) : '-';
+    }
+
+    const parsedSlash = parse(text, 'dd/MM/yyyy', new Date());
+    if (isValid(parsedSlash)) {
+        return format(parsedSlash, 'dd/MM/yyyy', { locale: es });
+    }
+
+    return '-';
+}
 </script>
 
 <template>
@@ -553,7 +582,7 @@ function shouldHighlightRow(row: Programmer): boolean {
                             <TableCell>{{ programmer.units ?? '-' }}</TableCell>
                             <TableCell>
                                 <template v-if="programmer.source === 'auto'">
-                                    {{ programmer.estimated_delivery_date || '-' }}
+                                    {{ formatEstimatedDeliveryDate(programmer.estimated_delivery_date) }}
                                 </template>
                                 <template v-else>
                                     <span class="text-muted-foreground">N/A</span>

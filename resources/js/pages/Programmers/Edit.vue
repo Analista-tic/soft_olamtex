@@ -10,15 +10,16 @@ import type { Option } from '@/domain/shared/types';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { format } from 'date-fns';
+import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon } from 'lucide-vue-next';
 import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import axios from 'axios';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 const props = defineProps<{
@@ -75,6 +76,7 @@ const programmer = ref<EditableProgrammer>(createEmptyProgrammer());
 const isLoading = ref(false);
 const dialogInnerRef = ref<HTMLElement | null>(null);
 const estimatedDatePopoverOpen = ref(false);
+const estimatedDateText = ref('');
 
 const { successMessage, errorMessage, errorType, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
@@ -157,27 +159,101 @@ const ecommerceActionLabel = computed(() => {
     if (isReadOnly.value) return 'Ver';
     return ecommerceSummary.value.configured ? 'Editar' : 'Configurar';
 });
-const estimatedDeliveryDateValue = computed<DateValue | undefined>({
+
+function normalizeIsoDate(raw: unknown): string | null {
+    if (raw === null || raw === undefined) {
+        return null;
+    }
+
+    const text = String(raw).trim();
+    if (text === '' || text === '-' || text.toUpperCase() === 'N/A') {
+        return null;
+    }
+
+    const isoMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoMatch) {
+        return isoMatch[1];
+    }
+
+    const parsedSlash = parse(text, 'dd/MM/yyyy', new Date());
+    if (isValid(parsedSlash)) {
+        return format(parsedSlash, 'yyyy-MM-dd');
+    }
+
+    return null;
+}
+
+const calendarValue = computed<DateValue | undefined>({
     get() {
-        const value = programmer.value.estimated_delivery_date;
-        if (!value) return undefined;
+        const iso = normalizeIsoDate(programmer.value.estimated_delivery_date);
+        if (!iso) return undefined;
         try {
-            return parseDate(value);
+            return parseDate(iso);
         } catch {
             return undefined;
         }
     },
-    set(value) {
-        programmer.value.estimated_delivery_date = value ? value.toString() : null;
+    set(v) {
+        programmer.value.estimated_delivery_date = v
+            ? format(v.toDate(getLocalTimeZone()), 'yyyy-MM-dd')
+            : null;
     },
 });
+
 const estimatedDeliveryDateLabel = computed(() => {
-    const value = programmer.value.estimated_delivery_date;
+    const value = calendarValue.value;
     if (!value) return 'dd/mm/aaaa';
     try {
-        return format(parseDate(value).toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es });
+        return format(value.toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es });
     } catch {
         return 'dd/mm/aaaa';
+    }
+});
+
+watch(
+    () => programmer.value.estimated_delivery_date,
+    (val) => {
+        const iso = normalizeIsoDate(val);
+        if (!iso) {
+            estimatedDateText.value = '';
+            return;
+        }
+
+        try {
+            estimatedDateText.value = format(parseDate(iso).toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es });
+        } catch {
+            estimatedDateText.value = '';
+        }
+    },
+    { immediate: true },
+);
+
+function commitEstimatedDateText(): void {
+    const text = estimatedDateText.value.trim();
+
+    if (text === '') {
+        programmer.value.estimated_delivery_date = null;
+        return;
+    }
+
+    const parsedInput = parse(text, 'dd/MM/yyyy', new Date());
+    if (isValid(parsedInput)) {
+        programmer.value.estimated_delivery_date = format(parsedInput, 'yyyy-MM-dd');
+        return;
+    }
+
+    const iso = normalizeIsoDate(text);
+    if (iso) {
+        programmer.value.estimated_delivery_date = iso;
+        return;
+    }
+
+    setAlert('Formato inválido. Usa dd/mm/aaaa', 'warning');
+}
+
+watch(estimatedDatePopoverOpen, (open) => {
+    if (!open) {
+        commitEstimatedDateText();
     }
 });
 
@@ -305,7 +381,9 @@ function openDialog(selectedProgrammer: Programmer, mode: 'edit' | 'view' = 'edi
         ...createEmptyProgrammer(),
         ...selectedProgrammer,
         season: normalizeSeasonValue(selectedProgrammer.season),
+        estimated_delivery_date: normalizeIsoDate(selectedProgrammer.estimated_delivery_date),
     };
+    estimatedDatePopoverOpen.value = false;
     initializeEcommerceSizes();
     isDialogOpen.value = true;
     clearAlerts();
@@ -355,7 +433,10 @@ function resolveEcommerceValues(value?: string | Record<string, number> | null):
 }
 
 function handleEstimatedDateSelect(value: DateValue | undefined): void {
-    estimatedDeliveryDateValue.value = value;
+    calendarValue.value = value;
+    estimatedDateText.value = value
+        ? format(value.toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es })
+        : '';
     if (value) {
         estimatedDatePopoverOpen.value = false;
     }
@@ -538,23 +619,32 @@ async function saveChanges() {
                                         <Label class="text-sm font-medium">Fecha entrega estimada</Label>
                                         <HelpTooltip text="Fecha estimada de entrega de la muestra." aria-label="Ayuda sobre fecha entrega estimada" />
                                     </div>
-                                    <Popover v-model:open="estimatedDatePopoverOpen">
-                                        <PopoverTrigger as-child>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                class="mt-1 w-full justify-start px-3 text-left font-normal"
-                                                :disabled="isReadOnly"
-                                            >
-                                                <CalendarIcon class="mr-2 h-4 w-4 shrink-0 opacity-70" />
-                                                <span :class="{ 'text-muted-foreground': !programmer.estimated_delivery_date }">
-                                                    {{ estimatedDeliveryDateLabel }}
-                                                </span>
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent class="w-auto p-0" align="start">
+                                    <div class="mt-1 flex items-center gap-2">
+                                        <Input
+                                            v-model="estimatedDateText"
+                                            type="text"
+                                            placeholder="dd/mm/aaaa"
+                                            class="h-10"
+                                            :disabled="isReadOnly"
+                                            :title="estimatedDeliveryDateLabel"
+                                            @keydown.enter.prevent="commitEstimatedDateText"
+                                        />
+                                        <Popover v-model:open="estimatedDatePopoverOpen" :modal="false">
+                                            <PopoverTrigger as-child>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="icon"
+                                                    class="h-10 w-10 shrink-0"
+                                                    :disabled="isReadOnly"
+                                                    :aria-label="'Abrir calendario'"
+                                                >
+                                                    <CalendarIcon class="h-4 w-4" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent class="z-[9999] pointer-events-auto w-auto p-0" align="end">
                                             <Calendar
-                                                :model-value="estimatedDeliveryDateValue"
+                                                :model-value="calendarValue"
                                                 @update:model-value="handleEstimatedDateSelect"
                                                 caption-layout="dropdown"
                                             />
@@ -570,8 +660,9 @@ async function saveChanges() {
                                                     Limpiar fecha
                                                 </Button>
                                             </div>
-                                        </PopoverContent>
-                                    </Popover>
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
                                 </div>
 
                                 <div class="hidden md:block" />
