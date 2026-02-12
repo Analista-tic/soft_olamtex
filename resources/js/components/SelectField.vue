@@ -40,6 +40,7 @@ const props = withDefaults(defineProps<{
     allowCustom?: boolean;
     customOptionLabel?: string;
     tooltipText?: string;
+    getOptionLabel?: (option: Option) => string;
 }>(), {
     required: false,
     multiple: false,
@@ -186,6 +187,10 @@ const selectedOptions = computed(() => {
     return Array.isArray(comboboxValue.value) ? comboboxValue.value : [];
 });
 
+function labelOf(option: Option): string {
+    return props.getOptionLabel ? props.getOptionLabel(option) : option.name;
+}
+
 function removeSelected(optionId: Option['id']) {
     if (!props.multiple) return;
     if (!isLocalModelArray(localModelValue.value)) return;
@@ -204,9 +209,10 @@ function displayValue(item: Option | Option[] | null): string {
         if (!Array.isArray(item) || item.length === 0) {
             return '';
         }
-        return item.map(opt => opt.name).join(', ');
+        return item.map((opt) => labelOf(opt)).join(', ');
     }
-    return (item as Option | null)?.name ?? '';
+    const selected = item as Option | null;
+    return selected ? labelOf(selected) : '';
 }
 
 function getOptionId(option: Option | null | undefined) {
@@ -354,7 +360,7 @@ watch(
                         <div v-if="multiple && selectedOptions.length" class="absolute left-3 top-2 z-0 flex max-w-[70%] flex-wrap items-center gap-2">
                             <template v-for="opt in selectedOptions" :key="String(opt.id)">
                                 <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 shadow-sm">
-                                    <span class="truncate max-w-[10rem]">{{ opt.name }}</span>
+                                    <span class="truncate max-w-[10rem]">{{ labelOf(opt) }}</span>
                                     <button type="button" @click.stop.prevent="removeSelected(opt.id)" class="inline-flex items-center justify-center rounded-full p-0.5 text-blue-700 hover:bg-blue-100">
                                         <X class="h-3 w-3" />
                                     </button>
@@ -449,7 +455,7 @@ watch(
                                                         ]"
                                                     >
                                                         <span>
-                                                            {{ option.name }}
+                                                            {{ labelOf(option) }}
                                                         </span>
                                                         <span
                                                             v-if="isOptionSelected(option)"

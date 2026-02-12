@@ -33,6 +33,7 @@ export interface OpBasicInfo {
     destination: string | null;
     units: number;
     deliveryDate: string | null;
+    flatDrawingUrl: string | null;
     section: string | null;
     group: string | null;
     world: string | null;

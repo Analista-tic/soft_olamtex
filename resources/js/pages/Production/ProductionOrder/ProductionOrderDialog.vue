@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,8 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ClipboardPen, Eye, ImageIcon } from 'lucide-vue-next';
+import { ClipboardPen } from 'lucide-vue-next';
 import { computed, onUnmounted, ref, watch } from 'vue';
 
 type CatalogEntity = {
@@ -93,6 +95,7 @@ const isLoading = ref(false);
 const fetchError = ref('');
 const payload = ref<ProductionOrderDetailResponse | null>(null);
 const flatSketchLoadFailed = ref(false);
+const isDrawingOpen = ref(false);
 let activeController: AbortController | null = null;
 
 const openModel = computed({
@@ -119,7 +122,7 @@ function resolveImageUrl(rawPath?: string | null): string | null {
     return `/storage/${path.replace(/^\/?storage\//, '')}`;
 }
 
-const flatSketchUrl = computed(() => {
+const drawingUrl = computed(() => {
     if (flatSketchLoadFailed.value) return null;
     return resolveImageUrl(productSheet.value?.flat_sketch_path);
 });
@@ -128,10 +131,9 @@ function handleFlatSketchError() {
     flatSketchLoadFailed.value = true;
 }
 
-function openFlatSketchPreview() {
-    const url = flatSketchUrl.value;
-    if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
+function openDrawing() {
+    if (!drawingUrl.value) return;
+    isDrawingOpen.value = true;
 }
 
 function closeDialog() {
@@ -141,7 +143,7 @@ function closeDialog() {
 function handleCreateTechSheet() {
     const id = productionOrder.value?.id ?? props.productionOrderId;
     if (!id) return;
-    emit('createTechSheet', id);
+    router.visit(`/produccion/ficha-tecnica?op_id=${id}`);
     closeDialog();
 }
 
@@ -280,6 +282,7 @@ function clearState() {
     fetchError.value = '';
     payload.value = null;
     flatSketchLoadFailed.value = false;
+    isDrawingOpen.value = false;
 }
 
 async function fetchDetail(id: number) {
@@ -423,31 +426,33 @@ onUnmounted(() => {
                             <p class="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                 Dibujo plano
                             </p>
-                            <div
-                                class="relative flex min-h-[220px] w-full flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-gray-50"
-                            >
-                                <template v-if="flatSketchUrl">
-                                    <img
-                                        :src="flatSketchUrl"
-                                        alt="Dibujo plano"
-                                        class="absolute inset-0 h-full w-full object-contain p-2"
-                                        @error="handleFlatSketchError"
-                                    />
-                                </template>
-                                <template v-else>
-                                    <ImageIcon class="mb-2 h-12 w-12 text-gray-400" />
-                                    <span class="text-sm text-gray-500">Sin imagen</span>
-                                </template>
-                            </div>
                             <button
-                                v-if="flatSketchUrl"
+                                v-if="drawingUrl"
                                 type="button"
-                                class="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
-                                @click="openFlatSketchPreview"
+                                class="mt-2 flex h-[140px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 transition hover:border-muted-foreground/40 hover:bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                @click="openDrawing"
+                                :disabled="!drawingUrl"
                             >
-                                <Eye class="h-4 w-4" />
-                                Ver imagen
+                                <img
+                                    :src="drawingUrl"
+                                    alt="Dibujo plano"
+                                    class="h-full w-auto max-w-full object-contain"
+                                    @error="handleFlatSketchError"
+                                />
                             </button>
+                            <div
+                                v-else
+                                class="mt-2 flex h-[140px] items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10"
+                            >
+                                <p class="text-sm text-muted-foreground">Sin dibujo</p>
+                            </div>
+
+                            <ImagePreviewDialog
+                                v-model:open="isDrawingOpen"
+                                title="Dibujo plano"
+                                :src="drawingUrl"
+                                alt="Dibujo plano"
+                            />
                         </div>
                     </div>
                 </template>

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -8,7 +8,7 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { ProductSheet, Programmer } from '@/domain/product-sheet';
 import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ClipboardPen, Eye, PackageCheck, PackageSearch, Search } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -388,8 +388,8 @@ function viewRow(row: Programmer) {
 }
 
 function openTechSheet(row: Programmer) {
-    console.log('Ficha técnica OP', row);
-    // TODO: Implementar navegación a ficha técnica
+    if (!row.id) return;
+    router.visit(`/produccion/ficha-tecnica?op_id=${row.id}`);
 }
 
 function handleCreateTechSheetFromDialog(productionOrderId: number) {
@@ -427,8 +427,8 @@ onUnmounted(() => {
 
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl px-2 py-3">
             <div class="flex flex-col gap-1">
-                <h1 class="text-lg font-bold">Órdenes de producción</h1>
-                <p class="text-sm text-muted-foreground">Seguimiento y detalles de órdenes de producción (muestras y productos)</p>
+                <h1 class="text-lg font-bold">Ã“rdenes de producciÃ³n</h1>
+                <p class="text-sm text-muted-foreground">Seguimiento y detalles de Ã³rdenes de producciÃ³n (muestras y productos)</p>
             </div>
 
             <div class="grid grid-cols-12 gap-4">
@@ -560,8 +560,9 @@ onUnmounted(() => {
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="icon"
+                                                                    type="button"
                                                                     :class="actionButtonClass"
-                                                                    @click.stop="viewRow(row)"
+                                                                    @click.stop.prevent="viewRow(row)"
                                                                 >
                                                                     <Eye :class="actionIconClass" />
                                                                 </Button>
@@ -573,13 +574,14 @@ onUnmounted(() => {
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="icon"
+                                                                    type="button"
                                                                     :class="actionButtonClass"
-                                                                    @click.stop="openTechSheet(row)"
+                                                                    @click.stop.prevent="openTechSheet(row)"
                                                                 >
                                                                     <ClipboardPen :class="actionIconClass" />
                                                                 </Button>
                                                             </TooltipTrigger>
-                                                            <TooltipContent>Ficha técnica</TooltipContent>
+                                                            <TooltipContent>Ficha tÃ©cnica</TooltipContent>
                                                         </Tooltip>
                                                     </div>
                                                 </TableCell>
@@ -638,3 +640,5 @@ onUnmounted(() => {
         @create-tech-sheet="handleCreateTechSheetFromDialog"
     />
 </template>
+
+

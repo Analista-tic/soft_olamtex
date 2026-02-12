@@ -1,397 +1,291 @@
-<script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+﻿<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
+import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ClipboardList, DollarSign, FilePlus2, Layers, Package, Volleyball, Workflow } from 'lucide-vue-next';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
 import type { OpBasicInfo } from '@/domain/Production/TechnicalDataSheet';
-// TODO: descomentar cuando el service esté conectado al backend real
-// import { fetchOpOptions, fetchOpBasicInfo } from '@/domain/Production/TechnicalDataSheet';
+import { fetchOpOptions, fetchOpBasicInfo } from '@/domain/Production/TechnicalDataSheet';
 
-// ============================================================================
-// Breadcrumbs
-// ============================================================================
+const props = defineProps<{
+    initialOpId: string | number | null;
+}>();
+
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Producción', href: '/produccion' },
-    { title: 'Ficha Técnica', href: '/produccion/ficha-tecnica' },
+    { title: 'Produccion', href: '/produccion' },
+    { title: 'Ficha Tecnica', href: '/produccion/ficha-tecnica' },
 ];
 
-// ============================================================================
-// State
-// ============================================================================
-const selectedOpId = ref<string | number | null>(null);
+const selectedOpId = ref<string | number | null>(props.initialOpId ?? null);
 const opOptions = ref<Option[]>([]);
 const selectedOp = ref<OpBasicInfo | null>(null);
 const isLoadingOptions = ref(false);
 const isLoadingDetail = ref(false);
+const isDrawingOpen = ref(false);
 
-// ============================================================================
-// Mock data (temporal hasta conectar con backend)
-// ============================================================================
-const MOCK_OP_OPTIONS: Option[] = [
-    { id: 1, name: 'MF-0001 — REF-PRODUCTO-001', groupLabel: 'Productos' },
-    { id: 2, name: 'MF-0002 — REF-PRODUCTO-002', groupLabel: 'Productos' },
-    { id: 3, name: 'MFT-0003 — REF-PRODUCTO-TELA-001', groupLabel: 'Productos' },
-    { id: 4, name: 'MU-0001 — REF-MUESTRA-001', groupLabel: 'Muestras' },
-    { id: 5, name: 'MUT-0002 — REF-MUESTRA-TELA-001', groupLabel: 'Muestras' },
+const drawingUrl = computed(() => {
+    const op = selectedOp.value as (OpBasicInfo & { drawingUrl?: string | null; imageUrl?: string | null }) | null;
+    return op?.flatDrawingUrl ?? op?.drawingUrl ?? op?.imageUrl ?? null;
+});
+const hasDrawing = computed(() => Boolean(drawingUrl.value));
+const isSampleOp = computed(() => String(selectedOp.value?.type ?? selectedOp.value?.opCode ?? '').toUpperCase().startsWith('MU'));
+const displayedSecondReference = computed(() => {
+    const op = selectedOp.value as (OpBasicInfo & {
+        sampleReference?: string | null;
+        productReference?: string | null;
+        sample_reference?: string | null;
+        product_reference?: string | null;
+    }) | null;
+    if (!op) return '-';
+
+    const sampleFromField = (op.sampleReference ?? op.sample_reference ?? '').trim();
+    const productFromField = (op.productReference ?? op.product_reference ?? '').trim();
+    if (isSampleOp.value && sampleFromField) return sampleFromField;
+    if (!isSampleOp.value && productFromField) return productFromField;
+
+    const reference = String(op.reference ?? '').trim();
+    if (!reference) return '-';
+
+    const parts = reference.split(' - ').map((part) => part.trim()).filter(Boolean);
+    const sampleRef = parts[0] ?? reference;
+    const productRef = parts[parts.length - 1] ?? reference;
+    return isSampleOp.value ? sampleRef : productRef;
+});
+const opHeaderLabel = computed(() => {
+    const opCode = String(selectedOp.value?.opCode ?? '').trim() || '-';
+    const ref = displayedSecondReference.value || '-';
+    return `${opCode} — ${ref}`;
+});
+
+const tabs = [
+    { value: 'lista_operacional', label: 'Lista operacional', icon: ClipboardList },
+    { value: 'procesos', label: 'Procesos', icon: Workflow },
+    { value: 'costos', label: 'Costos', icon: DollarSign },
+    { value: 'insumos', label: 'Insumos', icon: Package },
+    { value: 'rollos', label: 'Rollos', icon: Layers },
+    { value: 'hilos', label: 'Hilos', icon: Volleyball },
+    { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
 ];
 
-const MOCK_OP_DETAILS: Record<number, OpBasicInfo> = {
-    1: {
-        id: 1,
-        opCode: 'MF-0001',
-        reference: 'REF-PRODUCTO-001',
-        type: 'MF',
-        status: 'En proceso',
-        season: 'Primavera 2026',
-        destination: 'Nacional',
-        units: 500,
-        deliveryDate: '2026-03-15',
-        section: 'Confección',
-        group: 'Camisetas',
-        world: 'Casual',
-        base: 'Algodón',
-        brand: 'Olamtex',
-        sizes: ['S', 'M', 'L', 'XL'],
-        priceBilling: 25000,
-        priceSale: 35000,
-        ecommerce: true,
-        priority: 1,
-    },
-    2: {
-        id: 2,
-        opCode: 'MF-0002',
-        reference: 'REF-PRODUCTO-002',
-        type: 'MF',
-        status: 'Pendiente',
-        season: 'Verano 2026',
-        destination: 'Exportación',
-        units: 1000,
-        deliveryDate: '2026-04-20',
-        section: 'Tejido',
-        group: 'Polos',
-        world: 'Deportivo',
-        base: 'Poliéster',
-        brand: 'Olamtex Sport',
-        sizes: ['M', 'L', 'XL'],
-        priceBilling: 30000,
-        priceSale: 42000,
-        ecommerce: false,
-        priority: 2,
-    },
-    3: {
-        id: 3,
-        opCode: 'MFT-0003',
-        reference: 'REF-PRODUCTO-TELA-001',
-        type: 'MFT',
-        status: 'En proceso',
-        season: 'Otoño 2026',
-        destination: 'Nacional',
-        units: 300,
-        deliveryDate: '2026-05-10',
-        section: 'Corte',
-        group: 'Pantalones',
-        world: 'Formal',
-        base: 'Lino',
-        brand: 'Olamtex Premium',
-        sizes: ['28', '30', '32', '34'],
-        priceBilling: 45000,
-        priceSale: 65000,
-        ecommerce: true,
-        priority: 1,
-    },
-    4: {
-        id: 4,
-        opCode: 'MU-0001',
-        reference: 'REF-MUESTRA-001',
-        type: 'MU',
-        status: 'Aprobada',
-        season: 'Primavera 2026',
-        destination: 'Showroom',
-        units: 5,
-        deliveryDate: '2026-02-28',
-        section: 'Diseño',
-        group: 'Vestidos',
-        world: 'Elegante',
-        base: 'Seda',
-        brand: 'Olamtex Couture',
-        sizes: ['S', 'M'],
-        priceBilling: null,
-        priceSale: null,
-        ecommerce: false,
-        priority: 3,
-    },
-    5: {
-        id: 5,
-        opCode: 'MUT-0002',
-        reference: 'REF-MUESTRA-TELA-001',
-        type: 'MUT',
-        status: 'En revisión',
-        season: 'Invierno 2026',
-        destination: 'Cliente',
-        units: 3,
-        deliveryDate: '2026-03-05',
-        section: 'Prototipo',
-        group: 'Abrigos',
-        world: 'Outdoor',
-        base: 'Nylon',
-        brand: 'Olamtex Adventure',
-        sizes: ['L', 'XL'],
-        priceBilling: null,
-        priceSale: null,
-        ecommerce: false,
-        priority: 2,
-    },
-};
+function formatDate(value: string | null): string {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString('es-CO', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    });
+}
 
-// ============================================================================
-// Funciones de carga
-// ============================================================================
-
-/**
- * Carga las opciones de OP para el selector
- * TODO: Conectar con fetchOpOptions del service cuando el backend esté listo
- */
-async function loadOpOptions(searchTerm = '') {
+async function loadOpOptions(searchTerm = ''): Promise<void> {
     isLoadingOptions.value = true;
     try {
-        // TODO: Reemplazar mock por llamada real al service:
-        // const options = await fetchOpOptions({
-        //     includeSamples: true,
-        //     includeProducts: true,
-        //     search: searchTerm,
-        // });
-        // opOptions.value = options.map(op => ({
-        //     id: op.id,
-        //     name: op.name,
-        //     groupLabel: op.groupLabel,
-        // }));
-
-        // Mock temporal: filtrar opciones localmente
-        await new Promise((resolve) => setTimeout(resolve, 200)); // Simular latencia
-        const term = searchTerm.toLowerCase().trim();
-        opOptions.value = term
-            ? MOCK_OP_OPTIONS.filter((op) => op.name.toLowerCase().includes(term))
-            : MOCK_OP_OPTIONS;
+        opOptions.value = await fetchOpOptions({ search: searchTerm || undefined });
+    } catch (error) {
+        console.error('Error al cargar opciones de OP:', error);
+        opOptions.value = [];
     } finally {
         isLoadingOptions.value = false;
     }
 }
 
-/**
- * Carga el detalle de una OP seleccionada
- * TODO: Conectar con fetchOpBasicInfo del service cuando el backend esté listo
- */
-async function loadOpDetail(opId: string | number) {
+async function loadOpDetail(opId: string | number): Promise<void> {
     isLoadingDetail.value = true;
     try {
-        // TODO: Reemplazar mock por llamada real al service:
-        // selectedOp.value = await fetchOpBasicInfo(opId);
-
-        // Mock temporal
-        await new Promise((resolve) => setTimeout(resolve, 300)); // Simular latencia
-        selectedOp.value = MOCK_OP_DETAILS[Number(opId)] ?? null;
+        selectedOp.value = await fetchOpBasicInfo(opId);
+    } catch (error) {
+        console.error('Error al cargar detalle de OP:', error);
+        selectedOp.value = null;
     } finally {
         isLoadingDetail.value = false;
     }
 }
 
-// ============================================================================
-// Watchers
-// ============================================================================
-
-watch(selectedOpId, async (newId) => {
-    if (newId !== null && newId !== undefined) {
-        await loadOpDetail(newId);
-    } else {
-        selectedOp.value = null;
-    }
-});
-
-// ============================================================================
-// Computed: campos de información básica
-// ============================================================================
-
-/**
- * Formatea una fecha ISO a dd/MM/yyyy
- */
-function formatDate(dateStr: string | null): string {
-    if (!dateStr) return '-';
-    try {
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return dateStr;
-        return date.toLocaleDateString('es-CO', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-        });
-    } catch {
-        return dateStr;
-    }
+function openDrawing() {
+    if (!drawingUrl.value) return;
+    isDrawingOpen.value = true;
 }
 
-const basicInfoFields = computed(() => [
-    { key: 'fecha', label: 'Fecha', value: formatDate(selectedOp.value?.deliveryDate ?? null) },
-    { key: 'destino', label: 'Destino', value: selectedOp.value?.destination ?? '-' },
-    { key: 'seccion', label: 'Sección', value: selectedOp.value?.section ?? '-' },
-    { key: 'grupo', label: 'Grupo', value: selectedOp.value?.group ?? '-' },
-    { key: 'prioridad', label: 'Prioridad', value: selectedOp.value?.priority?.toString() ?? '-' },
-    { key: 'marca', label: 'Marca', value: selectedOp.value?.brand ?? '-' },
-    { key: 'mundo', label: 'Mundo', value: selectedOp.value?.world ?? '-' },
-    { key: 'temporada', label: 'Temporada', value: selectedOp.value?.season ?? '-' },
-]);
+function formatOpOptionLabel(option: Option): string {
+    const raw = option.name ?? '';
+    const separator = raw.includes(' — ') ? ' — ' : null;
+    if (!separator) return raw;
+    const [left, ...rest] = raw.split(separator);
+    const right = rest.join(separator).trim();
+    if (!left || !right) return raw;
 
-const opSubtitle = computed(() => {
-    if (!selectedOp.value) return '';
-    return `${selectedOp.value.opCode} — ${selectedOp.value.reference}`;
+    const opCode = left;
+    const parts = right.split(' - ').map((segment) => segment.trim()).filter(Boolean);
+    const isSample = opCode.toUpperCase().startsWith('MU');
+    const sampleRef = parts[0] ?? right;
+    const productRef = parts[parts.length - 1] ?? right;
+    const chosen = isSample ? sampleRef : productRef;
+
+    return `${opCode} — ${chosen}`;
+}
+
+watch(
+    () => props.initialOpId,
+    (value) => {
+        selectedOpId.value = value ?? null;
+    },
+);
+
+watch(
+    selectedOpId,
+    async (value) => {
+        if (value === null || value === undefined || value === '') {
+            selectedOp.value = null;
+            return;
+        }
+
+        await loadOpDetail(value);
+    },
+    { immediate: true },
+);
+
+const basicInfoFields = computed(() => {
+    if (!selectedOp.value) return [];
+
+    return [
+        { key: 'fecha', label: 'Fecha', value: formatDate(selectedOp.value.deliveryDate) },
+        { key: 'destino', label: 'Destino', value: selectedOp.value.destination ?? '-' },
+        { key: 'seccion', label: 'Seccion', value: selectedOp.value.section ?? '-' },
+        { key: 'grupo', label: 'Grupo', value: selectedOp.value.group ?? '-' },
+        { key: 'prioridad', label: 'Prioridad', value: selectedOp.value.priority?.toString() ?? '-' },
+        { key: 'marca', label: 'Marca', value: selectedOp.value.brand ?? '-' },
+        { key: 'mundo', label: 'Mundo', value: selectedOp.value.world ?? '-' },
+        { key: 'temporada', label: 'Temporada', value: selectedOp.value.season ?? '-' },
+    ];
 });
 
-// ============================================================================
-// Tabs config
-// ============================================================================
-const tabs = [
-    { value: 'insumos', label: 'Insumos' },
-    { value: 'procesos', label: 'Procesos' },
-    { value: 'rollos', label: 'Rollos' },
-    { value: 'hilos', label: 'Hilos' },
-    { value: 'costos', label: 'Costos' },
-];
-
-// ============================================================================
-// Lifecycle
-// ============================================================================
 onMounted(() => {
-    loadOpOptions();
+    void loadOpOptions();
 });
 </script>
 
 <template>
-    <Head title="Ficha Técnica" />
+    <Head title="Ficha Tecnica" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl px-2 py-3">
-            <!-- Header -->
-            <div class="flex flex-col gap-1">
-                <h1 class="text-lg font-bold">Ficha Técnica</h1>
-                <p class="text-sm text-muted-foreground">
-                    Consulta y gestiona la información técnica de las órdenes de producción
-                </p>
-            </div>
+            <h1 class="text-lg font-bold">Ficha Tecnica</h1>
+            <p class="max-w-4xl text-sm text-muted-foreground">
+                Selecciona una orden de produccion para consultar su informacion basica y revisar el dibujo plano de referencia en vista ampliada.
+            </p>
 
-            <!-- Selector de OP -->
             <div class="max-w-md">
                 <SelectField
                     v-model="selectedOpId"
-                    label="Orden de producción"
-                    placeholder="Selecciona una OP"
+                    label="Orden de produccion"
                     :options="opOptions"
+                    :get-option-label="formatOpOptionLabel"
+                    placeholder="Selecciona una OP"
                     :searchable="true"
-                    search-placeholder="Buscar por código o referencia..."
+                    search-placeholder="Buscar OP..."
+                    :allow-custom="true"
                     @search="loadOpOptions"
                 />
+                <p v-if="isLoadingOptions" class="mt-2 text-sm text-muted-foreground">Cargando opciones...</p>
+                <p v-else-if="opOptions.length === 0" class="mt-2 text-sm text-muted-foreground">No hay resultados</p>
             </div>
 
-            <!-- Empty state: cuando no hay OP seleccionada -->
-            <template v-if="!selectedOp && !isLoadingDetail">
-                <Card class="border-dashed">
-                    <CardContent class="flex flex-col items-center justify-center py-12">
-                        <div class="text-center">
-                            <p class="text-muted-foreground">
-                                Selecciona una orden de producción para ver su ficha técnica
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
-            </template>
+            <div v-if="isLoadingDetail" class="rounded-lg border border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                Cargando informacion...
+            </div>
 
-            <!-- Loading state -->
-            <template v-else-if="isLoadingDetail">
-                <Card>
-                    <CardContent class="flex items-center justify-center py-12">
-                        <p class="text-muted-foreground">Cargando información...</p>
-                    </CardContent>
-                </Card>
-            </template>
+            <div
+                v-else-if="!selectedOpId"
+                class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground"
+            >
+                Selecciona una OP
+            </div>
 
-            <!-- Contenido cuando hay OP seleccionada -->
-            <template v-else-if="selectedOp">
-                <!-- Grid de 2 columnas: Info básica + Dibujo plano -->
-                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <!-- Card izquierda: Información básica -->
-                    <Card>
-                        <CardHeader class="pb-3">
-                            <CardTitle class="text-base">Ficha técnica</CardTitle>
-                            <CardDescription>{{ opSubtitle }}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <div
-                                    v-for="field in basicInfoFields"
-                                    :key="field.key"
-                                    class="flex flex-col gap-0.5"
-                                >
-                                    <span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                        {{ field.label }}
-                                    </span>
-                                    <span class="text-sm font-medium">
-                                        {{ field.value }}
-                                    </span>
+            <div
+                v-else-if="!selectedOp"
+                class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground"
+            >
+                No hay resultados
+            </div>
+
+            <template v-else>
+                <div class="rounded-lg border border-border bg-background p-4">
+                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                        <div class="lg:col-span-2">
+                            <div class="mb-3">
+                                <p class="text-sm font-semibold text-foreground">Informacion basica</p>
+                                <p class="text-xs text-muted-foreground">{{ opHeaderLabel }}</p>
+                            </div>
+                            <div class="grid grid-cols-1 gap-y-4 gap-x-8 sm:grid-cols-2 xl:grid-cols-4">
+                                <div v-for="field in basicInfoFields" :key="field.key" class="space-y-1">
+                                    <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ field.label }}</p>
+                                    <p class="text-sm font-medium text-foreground">{{ field.value }}</p>
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
 
-                    <!-- Card derecha: Dibujo plano (placeholder) -->
-                    <Card>
-                        <CardHeader class="pb-3">
-                            <CardTitle class="text-base">Dibujo plano</CardTitle>
-                            <CardDescription>Referencia visual del producto</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div
-                                class="flex min-h-[200px] items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/20"
-                            >
-                                <p class="text-sm text-muted-foreground">
-                                    Próximamente: plano/imagen de referencia
-                                </p>
+                        <div class="lg:col-span-1 lg:border-l lg:border-border lg:pl-4">
+                            <div class="mb-3">
+                                <p class="text-sm font-semibold text-foreground">Dibujo plano</p>
+                                <p class="text-xs text-muted-foreground">Referencia visual del producto</p>
                             </div>
-                        </CardContent>
-                    </Card>
+
+                            <button
+                                v-if="hasDrawing"
+                                type="button"
+                                class="mt-2 flex h-[110px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 transition hover:border-muted-foreground/40 hover:bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                @click="openDrawing"
+                                :disabled="!drawingUrl"
+                            >
+                                <img
+                                    :src="drawingUrl!"
+                                    class="h-full w-auto max-w-full object-contain"
+                                    alt="Dibujo plano"
+                                />
+                            </button>
+                            <div v-else class="mt-2 flex h-[110px] items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10">
+                                <p class="text-sm text-muted-foreground">Sin dibujo</p>
+                            </div>
+
+                            <ImagePreviewDialog
+                                v-model:open="isDrawingOpen"
+                                title="Dibujo plano"
+                                :src="drawingUrl"
+                                alt="Dibujo plano"
+                            />
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Tabs -->
-                <Card class="mt-2">
-                    <CardContent class="pt-4">
-                        <Tabs default-value="insumos" class="w-full">
-                            <TabsList class="mb-4 flex w-full justify-start gap-1 border-b bg-transparent p-0">
-                                <TabsTrigger
-                                    v-for="tab in tabs"
-                                    :key="tab.value"
-                                    :value="tab.value"
-                                    class="rounded-none border-b-2 border-transparent bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
-                                >
-                                    {{ tab.label }}
-                                </TabsTrigger>
-                            </TabsList>
-
-                            <TabsContent
+                <Tabs default-value="lista_operacional" class="w-full">
+                    <div class="mb-3 flex justify-center">
+                        <TabsList class="inline-flex w-fit items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+                            <TabsTrigger
                                 v-for="tab in tabs"
                                 :key="tab.value"
                                 :value="tab.value"
-                                class="mt-0 rounded-lg border p-4"
+                                class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground data-[state=active]:border data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
                             >
-                                <div class="flex min-h-[150px] items-center justify-center">
-                                    <p class="text-muted-foreground">
-                                        {{ tab.label }} — En construcción
-                                    </p>
-                                </div>
-                            </TabsContent>
-                        </Tabs>
-                    </CardContent>
-                </Card>
+                                <span class="inline-flex items-center gap-2">
+                                    <component :is="tab.icon" class="h-4 w-4 shrink-0" />
+                                    <span>{{ tab.label }}</span>
+                                </span>
+                            </TabsTrigger>
+                        </TabsList>
+                    </div>
+                    <TabsContent v-for="tab in tabs" :key="tab.value" :value="tab.value" class="mt-0">
+                        <div class="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                            En construccion
+                        </div>
+                    </TabsContent>
+                </Tabs>
             </template>
         </div>
     </AppLayout>
 </template>
+
+

@@ -18,6 +18,7 @@ use App\Http\Controllers\ProductSheet\ProductOperationListController;
 use App\Http\Controllers\ProductSheet\ProductSheetController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
 use App\Http\Controllers\Production\ProductionOrderController;
+use App\Http\Controllers\Production\TechnicalDataSheetController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\Settings\RoleController;
 use App\Http\Controllers\Settings\CompanySettingsController;
@@ -75,6 +76,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === COMERCIAL ===
     Route::prefix('produccion')->name('produccion.')->group(function () {
+        Route::get('ficha-tecnica', [TechnicalDataSheetController::class, 'index'])
+            ->name('ficha-tecnica.index');
+        Route::get('ficha-tecnica/opciones', [TechnicalDataSheetController::class, 'options'])
+            ->name('ficha-tecnica.options');
+        Route::get('ficha-tecnica/{opId}/basica', [TechnicalDataSheetController::class, 'basicInfo'])
+            ->name('ficha-tecnica.basicInfo');
+
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])
             ->middleware('permission:ver sabana productos')
             ->name('product-sheets.getData');
