@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { Contact, PurchaseInvoice } from '@/domain/purchases';
 import type { Option } from '@/domain/shared';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
-import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
-import { formatRequiredFieldsMessage } from '@/lib/alert-format';
-import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -53,9 +53,7 @@ function getWithholdingBase(w: { base_amount?: number | null; percentage?: numbe
 function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number }): number {
     return (getWithholdingBase(w) * (Number(w.percentage) || 0)) / 100;
 }
-const retencionesTotal = computed(() =>
-    (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0),
-);
+const retencionesTotal = computed(() => (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0));
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
 
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
@@ -69,11 +67,7 @@ const pendingPurchaseOrderOptions = computed<Option[]>(() =>
         const numericId = Number(rawId);
         const optionId = Number.isNaN(numericId) ? rawId : numericId;
         const orderNumber = order?.supplier_order_number || order?.order_number || String(order?.id ?? '');
-        const contactName =
-            order?.contact?.full_name ||
-            order?.contact?.business_name ||
-            order?.contact_full_name ||
-            '';
+        const contactName = order?.contact?.full_name || order?.contact?.business_name || order?.contact_full_name || '';
         const nameParts = [`Orden ${orderNumber}`];
         if (contactName) {
             nameParts.push(contactName);
@@ -154,20 +148,20 @@ function resetForm() {
     } else {
         localForm.value = createDefaultForm();
     }
-  if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
-      localForm.value.items = [createEmptyItem()];
-  }
-  successMessage.value = '';
-  errorMessage.value = '';
-  errorType.value = 'error';
-  const pid = props.form?.parent_document_id ?? props.form?.purchase_order_id;
-  if (props.dialogType === 'edit' && localForm.value && pid != null) {
-    localForm.value.purchase_order_id = Number(pid);
-    localForm.value.parent_document_id = Number(pid);
-  } else if (props.dialogType === 'create') {
-    selectedPurchaseOrderId.value = pid != null ? Number(pid) : null;
-  }
-  originalFormSnapshot.value = stableStringify(localForm.value);
+    if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
+        localForm.value.items = [createEmptyItem()];
+    }
+    successMessage.value = '';
+    errorMessage.value = '';
+    errorType.value = 'error';
+    const pid = props.form?.parent_document_id ?? props.form?.purchase_order_id;
+    if (props.dialogType === 'edit' && localForm.value && pid != null) {
+        localForm.value.purchase_order_id = Number(pid);
+        localForm.value.parent_document_id = Number(pid);
+    } else if (props.dialogType === 'create') {
+        selectedPurchaseOrderId.value = pid != null ? Number(pid) : null;
+    }
+    originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
 async function initializeDialog() {
@@ -237,9 +231,7 @@ async function fetchPendingPurchaseOrders() {
             params: { per_page: 1000 },
         });
         const invoices = Array.isArray(invoicesRes.data.data) ? invoicesRes.data.data : [];
-        const orderIdsWithInvoice = new Set(
-            invoices.map((inv: { parent_document_id?: number }) => inv.parent_document_id).filter(Boolean)
-        );
+        const orderIdsWithInvoice = new Set(invoices.map((inv: { parent_document_id?: number }) => inv.parent_document_id).filter(Boolean));
 
         // Filtrar órdenes que NO tengan factura asociada
         orders = orders.filter((order: any) => !orderIdsWithInvoice.has(order.id));
@@ -307,10 +299,13 @@ const stableStringify = (value: any): string => {
         if (val && typeof val === 'object') {
             return Object.keys(val)
                 .sort()
-                .reduce((acc: any, key) => {
-                    acc[key] = normalize(val[key]);
-                    return acc;
-                }, {} as Record<string, unknown>);
+                .reduce(
+                    (acc: any, key) => {
+                        acc[key] = normalize(val[key]);
+                        return acc;
+                    },
+                    {} as Record<string, unknown>,
+                );
         }
         return val;
     };
@@ -365,9 +360,7 @@ async function handleSubmit(sendMail = false) {
             emit('refresh', 'Factura guardada y enviada por correo correctamente.');
         } else {
             emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
-            successMessage.value = props.dialogType === 'create'
-                ? 'Factura creada correctamente.'
-                : 'Factura actualizada correctamente.';
+            successMessage.value = props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.';
         }
         dialogOpen.value = false;
     } catch (e: any) {
@@ -401,10 +394,7 @@ function validateForm(): boolean {
     }
 
     if (missingFields.length) {
-        setErrorMessage(
-            formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields),
-            'warning',
-        );
+        setErrorMessage(formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields), 'warning');
         return false;
     }
 
@@ -413,13 +403,15 @@ function validateForm(): boolean {
     if (!items.length) {
         errors.push('La factura debe contener al menos un ítem.');
     }
-    const invalidItems = items.filter((it) =>
-        // item_id puede ser number o string; tratar null/undefined/0/'' como inválido
-        it.item_id == null || Number(it.item_id) <= 0 ||
-        it.price === '' ||
-        it.quantity === '' ||
-        Number(it.price) <= 0 ||
-        Number(it.quantity) <= 0,
+    const invalidItems = items.filter(
+        (it) =>
+            // item_id puede ser number o string; tratar null/undefined/0/'' como inválido
+            it.item_id == null ||
+            Number(it.item_id) <= 0 ||
+            it.price === '' ||
+            it.quantity === '' ||
+            Number(it.price) <= 0 ||
+            Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
         errors.push('Cada item debe tener item, Precio SIN Impuesto y cantidad.');
@@ -437,8 +429,10 @@ function validateForm(): boolean {
     });
 
     if (itemsMissingFabricFields.length) {
-        const lines = itemsMissingFabricFields.map(i => `Ítem ${i.idx}: ${i.missing.join(', ')}`);
-        errors.push(`Faltan campos obligatorios en ítems de telas:\n${lines.join('\n')}\n\nEstos datos (código proveedor, color y ancho) se usan en recepción para identificar rollos y validar el ancho real respecto al pedido.`);
+        const lines = itemsMissingFabricFields.map((i) => `Ítem ${i.idx}: ${i.missing.join(', ')}`);
+        errors.push(
+            `Faltan campos obligatorios en ítems de telas:\n${lines.join('\n')}\n\nEstos datos (código proveedor, color y ancho) se usan en recepción para identificar rollos y validar el ancho real respecto al pedido.`,
+        );
     }
 
     if (errors.length) {
@@ -489,7 +483,7 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+        <DialogContent class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
             <AlertStack
                 class="absolute inset-x-0 bottom-0 z-10 rounded-b-2xl border-t bg-background/95 px-4 py-2 shadow-sm"
                 :success-message="successMessage"
@@ -500,44 +494,42 @@ watch(dialogOpen, (isOpen) => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <DialogHeader class="relative flex-shrink-0 px-4 pt-4 pb-4">
-                    <div class="flex flex-col gap-1">
-                        <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
-                        <DialogDescription>
-                            Completa los campos y añade los ítems de la factura.
-                        </DialogDescription>
+            <DialogHeader class="relative flex-shrink-0 px-4 pb-4 pt-4">
+                <div class="flex flex-col gap-1">
+                    <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra Tela</DialogTitle>
+                    <DialogDescription> Completa los campos y añade los ítems de la factura. </DialogDescription>
+                </div>
+                <div class="absolute right-12 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
+                    <div class="w-[280px]">
+                        <SelectField
+                            v-model="selectedPurchaseOrderValue"
+                            :options="pendingPurchaseOrderOptions"
+                            label="Cargar desde orden pendiente"
+                            placeholder="Selecciona una orden existente"
+                            :disabled="isReadOnly"
+                            :searchable="pendingPurchaseOrderOptions.length >= 6"
+                            search-placeholder="Buscar orden de compra..."
+                        />
                     </div>
-                    <div class="absolute right-12 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
-                        <div class="w-[280px]">
-                            <SelectField
-                                v-model="selectedPurchaseOrderValue"
-                                :options="pendingPurchaseOrderOptions"
-                                label="Cargar desde orden pendiente"
-                                placeholder="Selecciona una orden existente"
-                                :disabled="isReadOnly"
-                                :searchable="pendingPurchaseOrderOptions.length >= 6"
-                                search-placeholder="Buscar orden de compra..."
-                            />
-                        </div>
-                        <div class="w-[100px]">
-                            <button
-                                type="button"
-                                class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-3 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                :disabled="!selectedPurchaseOrderId || isReadOnly"
-                                @click="clearSelectedPurchaseOrder()"
-                            >
-                                Limpiar
-                            </button>
-                        </div>
+                    <div class="w-[100px]">
+                        <button
+                            type="button"
+                            class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-3 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            :disabled="!selectedPurchaseOrderId || isReadOnly"
+                            @click="clearSelectedPurchaseOrder()"
+                        >
+                            Limpiar
+                        </button>
                     </div>
-                </DialogHeader>
-                <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
+                </div>
+            </DialogHeader>
+            <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
                 <form
                     @submit.prevent="handleSubmit()"
-                    :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"
+                    :class="{ 'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly }"
                     class="space-y-6"
                 >
-                    <div class="mt-8 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+                    <div class="mt-8 space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                         <!-- Cabecera -->
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
@@ -550,11 +542,7 @@ watch(dialogOpen, (isOpen) => {
                                 <span v-else-if="dialogType === 'create' && isLoadingInvoiceId" class="text-gray-400">Cargando...</span>
                             </div>
                             <div class="flex h-full items-center justify-center rounded p-4">
-                                <img
-                                    :src="logoUrl"
-                                    alt="Logotipo de la empresa"
-                                    class="max-h-24 max-w-[160px] w-auto object-contain"
-                                />
+                                <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
                             </div>
                             <div>
                                 <div class="text-sm font-semibold">Datos empresa</div>
@@ -603,10 +591,7 @@ watch(dialogOpen, (isOpen) => {
                             <InputDate v-model="localForm.delivery_date" label="Fecha de entrega" required />
                             <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" />
                         </div>
-                        <InventoryDetailTableLayout
-                            @create-line="handleInvoiceAddLine"
-                            :createLineButtonDisabled="isReadOnly"
-                        >
+                        <InventoryDetailTableLayout @create-line="handleInvoiceAddLine" :createLineButtonDisabled="isReadOnly">
                             <PurchaseInvoiceItemsTable
                                 ref="invoiceItemsTableRef"
                                 :items="localForm.items || []"
@@ -625,9 +610,9 @@ watch(dialogOpen, (isOpen) => {
                                     :isReadOnly="isReadOnly"
                                 />
                             </div>
-                            <div class="flex flex-col items-end space-y-0 text-sm w-full">
-                                <div class="w-full max-w-xs rounded p-2 space-y-1 bg-card text-card-foreground shadow-sm">
-                                    <div class="flex justify-between items-center">
+                            <div class="flex w-full flex-col items-end space-y-0 text-sm">
+                                <div class="w-full max-w-xs space-y-1 rounded bg-card p-2 text-card-foreground shadow-sm">
+                                    <div class="flex items-center justify-between">
                                         <span class="font-semibold text-card-foreground/70">Subtotal</span>
                                         <span>{{
                                             Number(subtotal || 0).toLocaleString('es-CO', {
@@ -638,7 +623,7 @@ watch(dialogOpen, (isOpen) => {
                                             })
                                         }}</span>
                                     </div>
-                                    <div class="flex justify-between items-center">
+                                    <div class="flex items-center justify-between">
                                         <span class="font-semibold text-card-foreground/70">IVA 19%</span>
                                         <span>{{
                                             Number(iva || 0).toLocaleString('es-CO', {
@@ -649,7 +634,7 @@ watch(dialogOpen, (isOpen) => {
                                             })
                                         }}</span>
                                     </div>
-                                    <div class="flex justify-between items-center pt-1">
+                                    <div class="flex items-center justify-between pt-1">
                                         <span class="font-bold text-card-foreground">Total orden de compra</span>
                                         <span class="font-bold text-card-foreground">{{
                                             Number(total || 0).toLocaleString('es-CO', {
@@ -661,19 +646,21 @@ watch(dialogOpen, (isOpen) => {
                                         }}</span>
                                     </div>
                                     <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
-                                        <div class="flex justify-between items-center">
+                                        <div class="flex items-center justify-between">
                                             <span class="text-card-foreground/60">- {{ w.name }}</span>
-                                            <span class="text-red-500 dark:text-red-400">-{{
-                                                getWithholdingAmount(w).toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                            }}</span>
+                                            <span class="text-red-500 dark:text-red-400"
+                                                >-{{
+                                                    getWithholdingAmount(w).toLocaleString('es-CO', {
+                                                        style: 'currency',
+                                                        currency: 'COP',
+                                                        minimumFractionDigits: 0,
+                                                        maximumFractionDigits: 0,
+                                                    })
+                                                }}</span
+                                            >
                                         </div>
                                     </template>
-                                    <div class="flex justify-between items-center pt-2 mt-1 border-t border-border/50">
+                                    <div class="mt-1 flex items-center justify-between border-t border-border/50 pt-2">
                                         <span class="font-bold text-card-foreground">Total a pagar</span>
                                         <span class="font-bold text-green-500 dark:text-green-400">{{
                                             Number(totalPagar || 0).toLocaleString('es-CO', {
@@ -691,10 +678,10 @@ watch(dialogOpen, (isOpen) => {
                             <TextareaField v-model="localForm.description" label="Observación" />
                         </div>
                     </div>
-                    <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2 px-4 pb-4">
+                    <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t px-4 pb-4 pt-4">
                         <button
                             type="button"
-                            class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                            class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                             @click="dialogOpen = false"
                         >
                             Cancelar
@@ -702,7 +689,7 @@ watch(dialogOpen, (isOpen) => {
                         <button
                             type="button"
                             :disabled="isLoading || isSendingMail"
-                            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             @click.prevent="handleSubmit(false)"
                         >
                             {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
@@ -710,14 +697,14 @@ watch(dialogOpen, (isOpen) => {
                         <button
                             type="button"
                             :disabled="isLoading || isSendingMail"
-                            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             @click.prevent="handleSubmit(true)"
                         >
                             {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
                         </button>
                     </DialogFooter>
                 </form>
-                </div>
+            </div>
         </DialogContent>
     </Dialog>
 </template>

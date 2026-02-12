@@ -1,5 +1,5 @@
 import type { NavItem } from '@/domain/shared';
-import { BarChart3, ShieldCheck, Settings } from 'lucide-vue-next';
+import { BarChart3, Settings, ShieldCheck } from 'lucide-vue-next';
 
 const toSlug = (value: string) =>
     value

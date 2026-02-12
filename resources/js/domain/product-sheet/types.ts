@@ -77,7 +77,7 @@ export interface ProductOperationListRow {
     section_id: number;
     operation: OperationOption;
     machine: MachineOption;
-    sequence_order: number;
+    sequence: number;
     optimal_time: number;
     operator_efficiency_factor: number;
     machine_supplement_factor: number;
@@ -100,9 +100,10 @@ export interface ProductOperationPayload {
     section_id: number | null;
     operation_id: number | null;
     machine_id: number | null;
-    sequence_order: number;
+    sequence: number;
     optimal_time: string;
     operator_efficiency_factor: number;
     machine_supplement_factor: number;
     notes?: string;
+    quantity?: number;
 }

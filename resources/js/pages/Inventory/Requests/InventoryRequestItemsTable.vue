@@ -25,17 +25,17 @@ watch(
         if (JSON.stringify(val) !== JSON.stringify(localItems.value)) {
             localItems.value = Array.isArray(val)
                 ? val.map((item) => {
-                    const normalized: RequestItem = {
-                        item_id: item.item_id ?? null,
-                        name: item.name ?? '',
-                        quantity: Number(item.quantity) || 0,
-                    };
-                    const match = catalogItems.value.find((entry) => Number(entry.id) === Number(item.item_id));
-                    return {
-                        ...normalized,
-                        name: match?.name || item.name || '',
-                    };
-                })
+                      const normalized: RequestItem = {
+                          item_id: item.item_id ?? null,
+                          name: item.name ?? '',
+                          quantity: Number(item.quantity) || 0,
+                      };
+                      const match = catalogItems.value.find((entry) => Number(entry.id) === Number(item.item_id));
+                      return {
+                          ...normalized,
+                          name: match?.name || item.name || '',
+                      };
+                  })
                 : [];
         }
     },
@@ -134,11 +134,14 @@ defineExpose({ addItem });
 </script>
 
 <template>
-    <div class="w-full" style="overflow: visible; max-height: none;">
-        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none;">
-            <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
+    <div class="w-full" style="overflow: visible; max-height: none">
+        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none">
+            <Table
+                class="min-w-full table-fixed border-separate border-spacing-x-2 border-spacing-y-1 text-center"
+                style="overflow: visible; max-height: none"
+            >
                 <TableHeader>
-                    <TableRow class="text-center border-b border-border/60">
+                    <TableRow class="border-b border-border/60 text-center">
                         <TableHead class="min-w-[200px] px-1 text-left">Item</TableHead>
                         <TableHead class="min-w-[120px] px-1 text-left">Cantidad</TableHead>
                         <TableHead class="w-[60px]"></TableHead>
@@ -146,7 +149,7 @@ defineExpose({ addItem });
                 </TableHeader>
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell class="p-1 text-left min-w-[200px]">
+                        <TableCell class="min-w-[200px] p-1 text-left">
                             <SelectField
                                 :modelValue="getSelectionValue(item)"
                                 @update:modelValue="(value) => handleItemSelection(item, value)"
@@ -159,7 +162,7 @@ defineExpose({ addItem });
                                 :disabled="props.readonly"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 120px;">
+                        <TableCell class="p-1 text-left" style="width: 120px">
                             <InputField
                                 v-model="item.quantity"
                                 type="number"

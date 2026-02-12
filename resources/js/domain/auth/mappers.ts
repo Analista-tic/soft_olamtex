@@ -1,5 +1,5 @@
-import type { Permission, Role, User } from './types';
 import type { PermissionDto, RoleDto, UserDto } from './dto';
+import type { Permission, Role, User } from './types';
 
 export function mapPermissionDto(dto: PermissionDto): Permission {
     return {

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import ItemFormContent from './ItemFormContent.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import type { Item } from '@/domain/inventory/types';
 import { Dialog } from '@/components/ui/dialog';
+import type { Item } from '@/domain/inventory/types';
 import { ref, watch } from 'vue';
+import ItemFormContent from './ItemFormContent.vue';
 
 const props = withDefaults(
     defineProps<{
@@ -57,7 +57,7 @@ function handleFormLoadingState(value: boolean) {
 
 <template>
     <Dialog :open="dialogOpen" @update:open="handleDialogOpenChange">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[180vh] px-2 py-2" :scrollable="false">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[180vh] flex-col px-2 py-2" :scrollable="false">
             <ItemFormContent
                 :is-open="dialogOpen"
                 :dialog-type="props.dialogType"

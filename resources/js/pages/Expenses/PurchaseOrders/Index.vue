@@ -22,9 +22,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
-const breadcrumbs = [
-    { title: 'Órdenes de Compra', href: '/ordenes-compra' },
-];
+const breadcrumbs = [{ title: 'Órdenes de Compra', href: '/ordenes-compra' }];
 
 const orders = ref<PurchaseOrder[]>([]);
 const isDialogOpen = ref(false);
@@ -153,10 +151,7 @@ async function deleteOrder() {
     } catch (e: any) {
         const documentError = e?.response?.data?.errors?.document;
         const normalizedDocumentError = Array.isArray(documentError) ? documentError[0] : documentError;
-        const serverMessage =
-            normalizedDocumentError ||
-            e?.response?.data?.message ||
-            'Error al eliminar la orden.';
+        const serverMessage = normalizedDocumentError || e?.response?.data?.message || 'Error al eliminar la orden.';
         setErrorMessage(serverMessage);
     } finally {
         isDeleteDialogOpen.value = false;
@@ -285,13 +280,11 @@ function handleDialogError(message?: string) {
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.
-                    </p>
+                    <p class="text-sm text-muted-foreground">Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.</p>
                 </div>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openDialog('create')"
                 >
                     <PlusCircle class="h-4 w-4" />
@@ -299,7 +292,7 @@ function handleDialogError(message?: string) {
                 </button>
             </div>
             <FilterBar align="start">
-                <FilterField label="Buscar orden" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                <FilterField label="Buscar orden" :active="isSearchActive" class="min-w-[220px] flex-1">
                     <div class="relative">
                         <Input v-model="searchQuery" placeholder="Buscar orden" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -326,7 +319,10 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="providerFilter"
                         label=""
-                        :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map((prov: { id: number; full_name: string }) => ({ id: String(prov.id), name: prov.full_name }))]"
+                        :options="[
+                            { id: 'all', name: 'Todos los proveedores' },
+                            ...providers.map((prov: { id: number; full_name: string }) => ({ id: String(prov.id), name: prov.full_name })),
+                        ]"
                         :button-class="providerButtonClasses"
                     />
                 </FilterField>
@@ -339,7 +335,7 @@ function handleDialogError(message?: string) {
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
-                        <TableHeader>
+                    <TableHeader>
                         <TableRow>
                             <TableHead>#Orden</TableHead>
                             <TableHead>Fecha de creación</TableHead>
@@ -351,7 +347,7 @@ function handleDialogError(message?: string) {
                             <TableHead>Estado</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
-                        </TableHeader>
+                    </TableHeader>
                     <TableBody>
                         <TableRow v-for="order in orders" :key="order.id" class="text-center">
                             <TableCell class="font-medium">
@@ -366,34 +362,50 @@ function handleDialogError(message?: string) {
                             <TableCell>
                                 <span
                                     :class="[
-                                        'px-2 py-1 rounded-full text-xs font-semibold',
-                                        order.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                        order.status === 'sent' ? 'bg-blue-100 text-blue-800' :
-                                        order.status === 'invoiced' ? 'bg-indigo-100 text-indigo-800' :
-                                        order.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                        'bg-yellow-100 text-yellow-800',
+                                        'rounded-full px-2 py-1 text-xs font-semibold',
+                                        order.status === 'approved'
+                                            ? 'bg-green-100 text-green-800'
+                                            : order.status === 'sent'
+                                              ? 'bg-blue-100 text-blue-800'
+                                              : order.status === 'invoiced'
+                                                ? 'bg-indigo-100 text-indigo-800'
+                                                : order.status === 'rejected'
+                                                  ? 'bg-red-100 text-red-800'
+                                                  : 'bg-yellow-100 text-yellow-800',
                                     ]"
                                 >
                                     {{
-                                        order.status === 'approved' ? 'Aprobada' :
-                                        order.status === 'sent' ? 'Enviada' :
-                                        order.status === 'invoiced' ? 'Facturada' :
-                                        order.status === 'rejected' ? 'Rechazada' :
-                                        'Pendiente'
+                                        order.status === 'approved'
+                                            ? 'Aprobada'
+                                            : order.status === 'sent'
+                                              ? 'Enviada'
+                                              : order.status === 'invoiced'
+                                                ? 'Facturada'
+                                                : order.status === 'rejected'
+                                                  ? 'Rechazada'
+                                                  : 'Pendiente'
                                     }}
                                 </span>
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <EditButton 
-                                    :onClick="() => openDialog('edit', order)" 
+                                <EditButton
+                                    :onClick="() => openDialog('edit', order)"
                                     title="Editar orden"
-                                    :customClass="(order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected') ? 'opacity-60 cursor-not-allowed' : ''"
+                                    :customClass="
+                                        order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'
+                                            ? 'opacity-60 cursor-not-allowed'
+                                            : ''
+                                    "
                                     :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
                                 />
-                                <DeleteButton 
-                                    :onClick="() => confirmDeleteOrder(order)" 
+                                <DeleteButton
+                                    :onClick="() => confirmDeleteOrder(order)"
                                     title="Eliminar orden"
-                                    :customClass="(order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected') ? 'opacity-60 cursor-not-allowed' : ''"
+                                    :customClass="
+                                        order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'
+                                            ? 'opacity-60 cursor-not-allowed'
+                                            : ''
+                                    "
                                     :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
                                 />
                                 <DropdownMenu>
@@ -409,7 +421,7 @@ function handleDialogError(message?: string) {
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                             class="cursor-pointer gap-2"
-                                            :class="isSendingMail ? 'opacity-60 cursor-not-allowed' : ''"
+                                            :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
                                             :disabled="isSendingMail"
                                             @click="sendOrderByEmail(order)"
                                         >
@@ -418,7 +430,7 @@ function handleDialogError(message?: string) {
                                         <DropdownMenuItem
                                             v-if="canApproveOrder(order)"
                                             class="cursor-pointer gap-2 text-green-600"
-                                            :class="isApproving === order.id ? 'opacity-60 cursor-not-allowed' : ''"
+                                            :class="isApproving === order.id ? 'cursor-not-allowed opacity-60' : ''"
                                             :disabled="isApproving === order.id || !canApproveOrder(order)"
                                             @click="approveOrder(order)"
                                         >
@@ -427,7 +439,7 @@ function handleDialogError(message?: string) {
                                         <DropdownMenuItem
                                             v-if="order.status === 'approved'"
                                             class="cursor-pointer gap-2"
-                                            :class="isConverting === order.id ? 'opacity-60 cursor-not-allowed' : ''"
+                                            :class="isConverting === order.id ? 'cursor-not-allowed opacity-60' : ''"
                                             :disabled="isConverting === order.id || order.status !== 'approved'"
                                             @click="convertToInvoice(order)"
                                         >

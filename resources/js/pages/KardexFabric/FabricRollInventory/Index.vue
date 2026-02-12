@@ -1,27 +1,25 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import Input from '@/components/ui/input/Input.vue';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import SelectField from '@/components/SelectField.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
-import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
-import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
-import { ArrowDownToLine, Download, Eye, Search, SlidersHorizontal } from 'lucide-vue-next';
-import axios from 'axios';
-import { computed, onMounted, ref } from 'vue';
-import type { FabricRollView } from '@/domain/fabric';
+import { Button } from '@/components/ui/button';
+import Input from '@/components/ui/input/Input.vue';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { FabricRollView } from '@/domain/fabric';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { ArrowDownToLine, Download, Eye, Search, SlidersHorizontal } from 'lucide-vue-next';
+import { computed, onMounted, ref } from 'vue';
+import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
+import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
+import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
 
-const breadcrumbs = [
-    { title: 'Inventario Telas por Rollo', href: '/kardex-telas/inventario-rollos' },
-];
+const breadcrumbs = [{ title: 'Inventario Telas por Rollo', href: '/kardex-telas/inventario-rollos' }];
 
 const searchQuery = ref('');
 const baseFilter = ref('all');
@@ -72,21 +70,10 @@ const filteredRolls = computed(() => {
     const baseValue = baseFilter.value;
     const providerValue = providerFilter.value;
     return rolls.value.filter((roll) => {
-        const fieldsToSearch = [
-            roll.roll,
-            roll.location,
-            roll.fabric,
-            roll.color,
-            roll.provider,
-            roll.order_number,
-        ];
-        const matchesSearch =
-            !query ||
-            fieldsToSearch.some((field) => normalizedValue(field).includes(query));
-        const matchesBase =
-            baseValue === 'all' || normalizedValue(roll.fabric).includes(baseValue);
-        const matchesProvider =
-            providerValue === 'all' || normalizedValue(roll.provider).includes(providerValue);
+        const fieldsToSearch = [roll.roll, roll.location, roll.fabric, roll.color, roll.provider, roll.order_number];
+        const matchesSearch = !query || fieldsToSearch.some((field) => normalizedValue(field).includes(query));
+        const matchesBase = baseValue === 'all' || normalizedValue(roll.fabric).includes(baseValue);
+        const matchesProvider = providerValue === 'all' || normalizedValue(roll.provider).includes(providerValue);
         if (!matchesSearch || !matchesBase || !matchesProvider) {
             return false;
         }
@@ -161,12 +148,8 @@ async function handleAdjustRequest(payload: { roll: FabricRollView | null; data:
     }
     const exitQuantityValue = Number(roll.exit_quantity ?? 0);
     const partialOutputValue = Number(roll.partial_output ?? 0);
-    const actualOutput = payload.data.actualOutput
-        ? Number(payload.data.actualOutput)
-        : exitQuantityValue;
-    const partialOutput = payload.data.partialOutput
-        ? Number(payload.data.partialOutput)
-        : partialOutputValue;
+    const actualOutput = payload.data.actualOutput ? Number(payload.data.actualOutput) : exitQuantityValue;
+    const partialOutput = payload.data.partialOutput ? Number(payload.data.partialOutput) : partialOutputValue;
     try {
         await axios.patch(`/rollos-tela/${roll.id}/update-output`, {
             actual_output: actualOutput,
@@ -223,14 +206,12 @@ onMounted(fetchFabricRolls);
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Inventario telas por rollo</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Mantén el control preciso de cada rollo.
-                    </p>
+                    <p class="text-sm text-muted-foreground">Mantén el control preciso de cada rollo.</p>
                 </div>
-                <div class="flex flex-wrap gap-2 items-center">
+                <div class="flex flex-wrap items-center gap-2">
                     <Button
                         variant="secondary"
-                        class="w-full md:w-auto rounded-full px-5 py-2 text-sm font-semibold h-10 shadow-sm flex items-center gap-2 justify-center"
+                        class="flex h-10 w-full items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm md:w-auto"
                         type="button"
                         @click="exportFabricRollsExcel"
                     >
@@ -239,7 +220,7 @@ onMounted(fetchFabricRolls);
                     </Button>
                     <Button
                         variant="secondary"
-                        class="w-full md:w-auto rounded-full px-5 py-2 text-sm font-semibold h-10 shadow-sm flex items-center justify-center"
+                        class="flex h-10 w-full items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm md:w-auto"
                         type="button"
                         @click="toggleDownloadedFilter"
                     >
@@ -249,7 +230,7 @@ onMounted(fetchFabricRolls);
             </div>
 
             <FilterBar>
-                <FilterField label="Buscar rollo" :active="searchQuery.trim().length > 0" class="flex-1 min-w-[220px] p-0">
+                <FilterField label="Buscar rollo" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
                     <div class="relative">
                         <Input
                             v-model="searchQuery"
@@ -301,18 +282,18 @@ onMounted(fetchFabricRolls);
                         </TableHeader>
                         <TableBody>
                             <TableRow v-for="roll in filteredRolls" :key="roll.id" class="border-b">
-                                <TableCell class="text-center text-sm ">{{ roll.roll }}</TableCell>
-                                <TableCell class="text-center text-sm ">
+                                <TableCell class="text-center text-sm">{{ roll.roll }}</TableCell>
+                                <TableCell class="text-center text-sm">
                                     {{ roll.location }}
                                 </TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.fabric }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.color }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.width }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.roll_qty }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.partial_output }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.partial_availability }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.exit_quantity }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.real_availability }}</TableCell>
+                                <TableCell class="text-center text-sm">{{ roll.fabric }}</TableCell>
+                                <TableCell class="text-center text-sm">{{ roll.color }}</TableCell>
+                                <TableCell class="text-center text-sm">{{ roll.width }}</TableCell>
+                                <TableCell class="text-center text-sm">{{ roll.roll_qty }}</TableCell>
+                                <TableCell class="text-center text-sm">{{ roll.partial_output }}</TableCell>
+                                <TableCell class="text-center text-sm">{{ roll.partial_availability }}</TableCell>
+                                <TableCell class="text-center text-sm">{{ roll.exit_quantity }}</TableCell>
+                                <TableCell class="text-center text-sm">{{ roll.real_availability }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <button
                                         class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-blue-600"
@@ -343,24 +324,15 @@ onMounted(fetchFabricRolls);
                             </TableRow>
                         </TableBody>
                     </Table>
-                    <div v-if="isLoadingRolls" class="p-4 text-center text-sm text-muted-foreground">
-                        Cargando rollos...
-                    </div>
-                    <div
-                        v-else-if="!isLoadingRolls && filteredRolls.length === 0"
-                        class="p-4 text-center text-sm text-muted-foreground"
-                    >
+                    <div v-if="isLoadingRolls" class="p-4 text-center text-sm text-muted-foreground">Cargando rollos...</div>
+                    <div v-else-if="!isLoadingRolls && filteredRolls.length === 0" class="p-4 text-center text-sm text-muted-foreground">
                         No hay rollos disponibles.
                     </div>
                 </div>
             </div>
         </div>
 
-        <FabricRollInventoryDialog
-            :modelValue="isDialogOpen"
-            :roll="selectedRoll"
-            @update:modelValue="(value) => (isDialogOpen = value)"
-        />
+        <FabricRollInventoryDialog :modelValue="isDialogOpen" :roll="selectedRoll" @update:modelValue="(value) => (isDialogOpen = value)" />
 
         <FabricRollAdjustDialog
             :modelValue="isAdjustDialogOpen"

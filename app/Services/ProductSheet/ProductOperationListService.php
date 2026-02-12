@@ -196,7 +196,7 @@ class ProductOperationListService
             return collect($source)->map(function (ProductOperationList $operation, $index) use ($targetSheetId, $overrides) {
                 $attributes = $operation->replicate([
                     'product_sheet_id',
-                    'sequence_order',
+                    'sequence',
                     'is_active',
                     'created_by',
                     'updated_by',
@@ -204,8 +204,8 @@ class ProductOperationListService
 
                 $attributes = array_merge($attributes, [
                     'product_sheet_id' => $targetSheetId,
-                    'sequence_order' => $index + 1,
-                    'sam' => $attributes['optimal_time'], // Asegurar que SAM esté sincronizado
+                    'sequence' => ($index + 1) * 10,
+                    'sam' => $attributes['optimal_time'] ?? $attributes['sam_base'], // Asegurar que SAM esté sincronizado
                 ], $overrides);
 
                 return $this->model->create($attributes);
@@ -223,7 +223,7 @@ class ProductOperationListService
                 $this->model
                     ->where('id', $operationId)
                     ->where('product_sheet_id', $productSheetId)
-                    ->update(['sequence_order' => $index + 1]);
+                    ->update(['sequence' => ($index + 1) * 10]);
             }
         });
     }

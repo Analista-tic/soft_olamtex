@@ -1,5 +1,23 @@
 # Copilot Instructions for soft_olamtex
 
+## Aplicabilidad obligatoria
+- **Todo código nuevo debe seguir estas instrucciones.** Son la referencia única para consistencia, depuración futura y mantenimiento.
+- Al añadir o modificar features: respetar stack, patrones, convenciones de nombres y estructura descrita aquí. La desviación dificulta el debugging y la evolución del proyecto.
+- Si un patrón no está documentado, replicar el más parecido existente en el código (controllers, services, rutas, componentes) y, si hace falta, proponer una actualización de este documento.
+
+## Criterios de ingeniería (Laravel + Vue)
+- **Enfoque:** Decidir como ingeniero de desarrollo especializado en Laravel y Vue aplicando mejores prácticas.
+- **Cohesión de dominio:** Agrupar modelos y servicios por dominio de negocio, no por tipo técnico. Ejemplo: modelos de producción/diseño en `ProductSheet`, no en `Expenses` si el flujo es diseño-producto.
+- **Alias conceptual vs implementación:** Si un concepto de documentación tiene equivalencia en el código (ej. `ProductionOrder` = `Programmer`), usar el modelo existente y adaptar el diseño en lugar de duplicar entidades.
+- **Namespaces:** Ubicar modelos donde tenga sentido el flujo: `App\Models\ProductSheet\ProductionOrderOperation` cuando la orden/programación vive en ProductSheet (`Programmer`).
+- **Convenciones Laravel:** Respectar fillable, casts, relaciones `belongsTo`/`hasMany`, soft deletes cuando aplique, FormRequests para validación.
+- **Convenciones Vue/Inertia:** TypeScript-first, composables reutilizables, componentes bajo `resources/js/pages/<Dominio>/`, formularios con validación explícita.
+
+### Decisión documentada: Listados Operacionales (ProductionOrder)
+- **ProductionOrder** en documentación = **Programmer** en código (`app/Models/ProductSheet/Programmer.php`). No crear modelo `ProductionOrder` nuevo.
+- **ProductionOrderOperation:** Modelo `App\Models\ProductSheet\ProductionOrderOperation`, tabla `production_order_operations`, FK `programmer_id` (referencia a `programmers`). Mantener nombre de dominio "ProductionOrderOperation" para claridad conceptual; la FK apunta a Programmer.
+- **ProductionOrderService** (o equivalente): En `App\Services\ProductSheet\`, operar sobre `Programmer` para crear snapshots congelados (`ProductionOrderOperation`).
+
 ## Stack & Entry Points
 - Backend: Laravel 12 (PHP ^8.2) with Spatie Permissions, Inertia-Laravel, DOMPDF, PhpSpreadsheet, Maatwebsite Excel.
 - Frontend: Vue 3 + Inertia + Vite 6 + Tailwind; TypeScript-first. Entry files at [resources/js/app.ts](resources/js/app.ts) and SSR at [resources/js/ssr.ts](resources/js/ssr.ts). Aliases: `@` → `resources/js`, `ziggy-js` → `vendor/tightenco/ziggy` (see [vite.config.ts](vite.config.ts)).
@@ -26,8 +44,31 @@
 ## Frontend Patterns
 - Inertia pages map to route targets; create Vue 3 TS components under `resources/js` aligned to route names (e.g., `Inventory/Articles/InventoryAdjustmentForm`).
 - Use Ziggy for client-side navigation by route names; keep names consistent with backend groups.
-- UI libraries in use: Headless UI, Radix Vue, Lucide; state via Pinia.
+- UI libraries in use: **shadcn/vue** (primary component library), Radix Vue, Lucide (icons), and Tailwind CSS for styling; state via Pinia.
 - Formatting & linting: `npm run format` for `resources/`, `npm run lint` uses ESLint + Prettier + Tailwind plugin.
+
+### shadcn/vue Components
+- **Base components:** Import shadcn/vue components from `@/components/ui/*` (e.g., `Button`, `Dialog`, `Input`, `Select`, `DataTable`).
+- **Component usage:** All components are pre-configured with Tailwind and Radix Vue. Customize via `cn()` utility for class merging and Tailwind variants.
+- **Customization:** Components live in `resources/js/components/ui/` and can be modified directly to match project needs. Avoid modifying copies; update the source component.
+- **Form handling:** Use shadcn/vue form components with Vue form libraries (e.g., `vee-validate`) for validation and binding. Example pattern:
+  ```vue
+  <template>
+    <form @submit="onSubmit">
+      <FormField v-slot="{ field }" name="email">
+        <FormItem>
+          <FormLabel>Email</FormLabel>
+          <FormControl>
+            <Input type="email" placeholder="email@example.com" v-bind="field" />
+          </FormControl>
+        </FormItem>
+      </FormField>
+      <Button type="submit">Submit</Button>
+    </form>
+  </template>
+  ```
+- **Data tables:** Use `DataTable` component for displaying tabular data with built-in sorting, filtering, and pagination. Pass column definitions and data rows.
+- **Dialog/Modal:** Use `Dialog` for forms and confirmations. Keep modal logic scoped to Inertia page components.
 
 ### Client Routing
 - Use `route('usuarios.index')` etc. via Ziggy (`ziggy-js` alias). Keep names in [routes/web.php](routes/web.php) aligned with component locations under `resources/js`.
@@ -47,9 +88,14 @@
 - Tests: Pest is configured; run `vendor/bin/pest` or `php artisan test`.
 - Builds: `npm run build` (CSR) or `npm run build:ssr` for SSR bundles.
 
-### Debugging Tips
-- Check the authenticated user, roles y permisos via [routes/web.php#L30-L39](routes/web.php#L30-L39) (`GET /user`).
-- Admin panel renders `Configuration/Index` at [routes/web.php#L78](routes/web.php#L78) for quick navigation.
+### Depuración y mantenibilidad (facilitar debugging futuro)
+- **Usuario y permisos:** Ver usuario autenticado, roles y permisos en [routes/web.php#L30-L39](routes/web.php#L30-L39) (`GET /user`). Panel de administración en `Configuration/Index` [routes/web.php#L78](routes/web.php#L78).
+- **Lógica en servicios:** Mantener la lógica de negocio en `app/Services/` y controladores delgados; así los fallos se acotan a servicios concretos y son más fáciles de reproducir y depurar.
+- **Nombres consistentes:** Usar prefijos y nombres en español en rutas, permisos y agrupaciones; facilita buscar en el código y en logs (ej. `gastos.ordenes-compra`, `inventario.articulos.data`).
+- **Endpoints predecibles:** Siempre `/data` para JSON y vistas Inertia para páginas; mismo patrón en todos los módulos para localizar rápidamente controlador y método.
+- **Auditoría:** Los cambios importantes quedan en `AuditLog`; evitar ruido con `AuditLog::$auditIgnore` en campos de alto churn. Al depurar, revisar `app/Models/AuditLog.php` y el contexto que guarda el observer.
+- **Logs y errores:** En PHP usar `Log::` con contexto (ej. IDs, acción); en frontend no silenciar errores sin registro. Mensajes claros y en español cuando sea posible.
+- **Tests:** Mantener y ampliar pruebas (Pest) en código nuevo; ayudan a reproducir bugs y a refactorizar sin romper comportamiento.
 
 ## Conventions & Examples
 - Spanish naming for routes and permissions; keep `prefix`, `name`, and middleware consistent (see [routes/web.php](routes/web.php)).
@@ -72,15 +118,16 @@
 - Provide both the Inertia page endpoint (commonly `index`) and a `/data` JSON endpoint (commonly `getData`). Some modules add `indexView` for pages (see Product Operation List in [routes/web.php#L55-L72](routes/web.php#L55-L72)).
 
 ## Notes for Agents
-- Respect existing patterns: route grouping, Spanish names, `/data` JSON endpoints, Inertia views.
-- Prefer services for business logic; keep controllers lean.
-- If you need to modify Postman pre/post scripts (`*-pre-*-pm-*`, `*-post-*-pm-*`), consult team rules; the referenced instruction files were not accessible from this workspace.
+- **El código nuevo debe aplicar estas instrucciones.** Respetar patrones existentes (agrupación de rutas, nombres en español, endpoints `/data`, vistas Inertia, servicios para lógica de negocio). La consistencia es la base para depurar y mantener el proyecto.
+- **Criterios de ingeniería:** Actuar como ingeniero de desarrollo especializado en Laravel + Vue. En decisiones de diseño (namespaces, modelos, servicios), aplicar cohesión de dominio, reutilizar entidades existentes cuando el concepto coincida, y documentar aquí decisiones no triviales para futura referencia.
+- Preferir siempre servicios para lógica de negocio; mantener controladores delgados.
+- Si hay que modificar scripts Postman (`*-pre-*-pm-*`, `*-post-*-pm-*`), consultar reglas del equipo.
 
 ### Agent Playbook (Adding a Feature)
-- Backend: Create controller under appropriate domain (e.g., `app/Http/Controllers/Inventory`), define routes with `Route::prefix()` + Spanish `name()`, include `auth`, `verified`, and `permission:*` middleware, and expose `/data` + page endpoints.
-- Services: Put non-trivial logic in `app/Services/<Domain>` and call from controllers.
-- Auditing: If new models are introduced, register observers in [app/Providers/AppServiceProvider.php](app/Providers/AppServiceProvider.php) and set `fillable`/`casts` in models; ignore noisy fields in [app/Models/AuditLog.php](app/Models/AuditLog.php).
-- Frontend: Add Inertia Vue 3 TS components under `resources/js/<Domain>/...`, navigate via Ziggy route names, and keep names aligned with backend groups.
-- QA: Seed the DB with `php artisan migrate:fresh --seed`, run `vendor/bin/pest`, and format/lint the `resources/` folder.
+- **Backend:** Crear controlador en el dominio adecuado (ej. `app/Http/Controllers/Inventory`), definir rutas con `Route::prefix()` y `name()` en español, middleware `auth`, `verified` y `permission:*`, y exponer endpoint `/data` y endpoints de página.
+- **Services:** Poner lógica no trivial en `app/Services/<Domain>` e invocarla desde el controlador.
+- **Auditing:** Si se añaden modelos nuevos, registrar observers en [app/Providers/AppServiceProvider.php](app/Providers/AppServiceProvider.php), definir `fillable`/`casts` en el modelo y excluir campos ruidosos en [app/Models/AuditLog.php](app/Models/AuditLog.php).
+- **Frontend:** Añadir componentes Vue 3 + TS bajo `resources/js/<Domain>/...`, navegar con nombres de ruta Ziggy y mantener nombres alineados con los grupos del backend.
+- **QA:** Ejecutar `php artisan migrate:fresh --seed`, `vendor/bin/pest` y format/lint en `resources/`. Todo código nuevo debe ser depurable siguiendo los patrones de este documento.
 
-If any section is unclear or misses a key pattern, please point it out so we can refine these instructions.
+Si alguna sección no queda clara o falta un patrón importante, indicarlo para refinar estas instrucciones.

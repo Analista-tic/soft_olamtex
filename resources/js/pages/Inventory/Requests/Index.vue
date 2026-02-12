@@ -1,17 +1,11 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import { computed, onMounted, ref, watch } from 'vue';
-import axios from 'axios';
 import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import Input from '@/components/ui/input/Input.vue';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Ban, Check, Eye, Pencil, Search, PlusCircle } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
+import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -22,9 +16,15 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import InventoryRequestDialog from './InventoryRequestDialog.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Ban, Check, Eye, Pencil, PlusCircle, Search } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 import InventoryRequestDeliveryDialog from './InventoryRequestDeliveryDialog.vue';
+import InventoryRequestDialog from './InventoryRequestDialog.vue';
 import InventoryRequestRejectDialog from './InventoryRequestRejectDialog.vue';
 
 type InventoryRequestRow = {
@@ -40,9 +40,7 @@ type InventoryRequestRow = {
     has_missing_items?: boolean;
 };
 
-const breadcrumbs = [
-    { title: 'Solicitudes internas', href: '/inventario/solicitudes-internas' },
-];
+const breadcrumbs = [{ title: 'Solicitudes internas', href: '/inventario/solicitudes-internas' }];
 
 const requests = ref<InventoryRequestRow[]>([]);
 const totalItems = ref(0);
@@ -193,14 +191,12 @@ onMounted(() => {
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Solicitudes internas</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Solicitudes de insumos o materiales con entrega controlada por logistica.
-                    </p>
+                    <p class="text-sm text-muted-foreground">Solicitudes de insumos o materiales con entrega controlada por logistica.</p>
                 </div>
 
                 <Button
                     size="sm"
-                    class="flex items-center gap-1 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                    class="flex h-10 items-center gap-1 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                     @click="openCreateRequest"
                 >
                     <PlusCircle class="h-4 w-4" /> Crear solicitud
@@ -208,7 +204,7 @@ onMounted(() => {
             </div>
 
             <FilterBar align="start">
-                <FilterField label="Buscar solicitud" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                <FilterField label="Buscar solicitud" :active="isSearchActive" class="min-w-[220px] flex-1">
                     <div class="relative">
                         <Input
                             id="search_request"
@@ -223,12 +219,7 @@ onMounted(() => {
                     </div>
                 </FilterField>
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
-                    <SelectField
-                        v-model="statusFilter"
-                        label=""
-                        :options="statusOptions"
-                        :button-class="statusButtonClasses"
-                    />
+                    <SelectField v-model="statusFilter" label="" :options="statusOptions" :button-class="statusButtonClasses" />
                 </FilterField>
             </FilterBar>
 

@@ -18,11 +18,13 @@ class Machine extends Model
     protected $fillable = [
         'code',
         'name',
+        'supplement_factor',
         'is_active',
         'created_by',
     ];
 
     protected $casts = [
+        'supplement_factor' => 'float',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -31,24 +33,19 @@ class Machine extends Model
 
     protected $with = [];
 
-    // Relaciones
-    public function productOperationLists()
-    {
-        return $this->hasMany(ProductOperationList::class);
-    }
-
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
-
-    // Accessors
     /**
-     * Obtiene el factor de suplemento de la máquina según su código/tipo
+     * Obtiene el factor de suplemento: BD si existe, si no el accessor calculado (backward compat).
      */
-    public function getSupplementFactorAttribute(): float
+    public function getSupplementFactorAttribute($value): float
     {
-        // Suplementos por defecto según tipo de máquina
+        return $value !== null ? (float) $value : $this->getSupplementFactorComputed();
+    }
+
+    /**
+     * Factor calculado por código/tipo (cuando supplement_factor no está en BD).
+     */
+    protected function getSupplementFactorComputed(): float
+    {
         $supplements = [
             'RECTA' => 1.05,
             'OVERLOCK' => 1.08,
@@ -62,10 +59,9 @@ class Machine extends Model
             'DEFAULT' => 1.05,
         ];
 
-        $code = strtoupper($this->code);
-        $name = strtoupper($this->name);
+        $code = strtoupper($this->code ?? '');
+        $name = strtoupper($this->name ?? '');
 
-        // Buscar coincidencia por código o nombre
         foreach ($supplements as $type => $supplement) {
             if ($type !== 'DEFAULT' && (str_contains($code, $type) || str_contains($name, $type))) {
                 return $supplement;
@@ -73,6 +69,17 @@ class Machine extends Model
         }
 
         return $supplements['DEFAULT'];
+    }
+
+    // Relaciones
+    public function productOperationLists()
+    {
+        return $this->hasMany(ProductOperationList::class);
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     // Scopes

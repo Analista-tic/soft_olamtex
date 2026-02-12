@@ -55,11 +55,14 @@ thead.sticky {
 
 /* ===== Animaciones para Drag & Drop ===== */
 
-tr[draggable="true"] {
-    transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
+tr[draggable='true'] {
+    transition:
+        opacity 0.2s ease,
+        transform 0.2s ease,
+        background-color 0.15s ease;
 }
 
-tr[draggable="true"]:active {
+tr[draggable='true']:active {
     cursor: grabbing !important;
 }
 
@@ -80,7 +83,7 @@ tr.drag-over {
 
 /* Hardware acceleration para animaciones suaves */
 .scroll-smooth,
-tr[draggable="true"],
+tr[draggable='true'],
 .transition-all {
     will-change: transform;
     transform: translateZ(0);
@@ -116,25 +119,17 @@ tr[draggable="true"],
 
 .scroll-shadow-container::before {
     top: 0;
-    background: linear-gradient(
-        to bottom,
-        hsl(var(--background)) 0%,
-        transparent 100%
-    );
+    background: linear-gradient(to bottom, hsl(var(--background)) 0%, transparent 100%);
 }
 
 .scroll-shadow-container::after {
     bottom: 0;
-    background: linear-gradient(
-        to top,
-        hsl(var(--background)) 0%,
-        transparent 100%
-    );
+    background: linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%);
 }
 
 /* ===== Focus Visible para Accesibilidad ===== */
 
-tr[draggable="true"]:focus-visible {
+tr[draggable='true']:focus-visible {
     outline: 2px solid hsl(var(--primary));
     outline-offset: 2px;
     border-radius: 4px;
@@ -144,11 +139,11 @@ tr[draggable="true"]:focus-visible {
 
 @media (hover: none) and (pointer: coarse) {
     /* Aumentar área táctil en móviles */
-    tr[draggable="true"] td {
+    tr[draggable='true'] td {
         padding-top: 12px;
         padding-bottom: 12px;
     }
-    
+
     /* Scrollbar más visible en móviles */
     .scroll-smooth::-webkit-scrollbar,
     .overflow-y-auto::-webkit-scrollbar {
@@ -196,7 +191,7 @@ tr[draggable="true"]:focus-visible {
 
 /* ===== Mejoras para Diálogos ===== */
 
-[role="dialog"] .overflow-y-auto {
+[role='dialog'] .overflow-y-auto {
     /* Prevenir scroll en el body cuando el diálogo está abierto */
     overscroll-behavior: contain;
 }
@@ -222,12 +217,12 @@ tr[draggable="true"]:focus-visible {
     .overflow-y-auto::-webkit-scrollbar-track {
         background: hsl(var(--muted) / 0.2);
     }
-    
+
     .scroll-smooth::-webkit-scrollbar-thumb,
     .overflow-y-auto::-webkit-scrollbar-thumb {
         background: hsl(var(--muted-foreground) / 0.3);
     }
-    
+
     .scroll-smooth::-webkit-scrollbar-thumb:hover,
     .overflow-y-auto::-webkit-scrollbar-thumb:hover {
         background: hsl(var(--muted-foreground) / 0.5);

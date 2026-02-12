@@ -45,9 +45,7 @@ async function handleSubmit() {
         dialogOpen.value = false;
     } catch (e: any) {
         const serverMessage =
-            e?.response?.data?.message ||
-            Object.values(e?.response?.data?.errors || {})?.flat()?.[0] ||
-            'No se pudo rechazar la solicitud.';
+            e?.response?.data?.message || Object.values(e?.response?.data?.errors || {})?.flat()?.[0] || 'No se pudo rechazar la solicitud.';
         errorMessage.value = serverMessage;
     } finally {
         isLoading.value = false;
@@ -69,13 +67,11 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[80vh] flex flex-col p-0">
+        <DialogContent class="flex max-w-[80vh] flex-col p-0">
             <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                 <div class="flex flex-col gap-1">
                     <DialogTitle>Rechazar Solicitud</DialogTitle>
-                    <DialogDescription class="pb-2">
-                        Indica el motivo del rechazo.
-                    </DialogDescription>
+                    <DialogDescription class="pb-2"> Indica el motivo del rechazo. </DialogDescription>
                 </div>
             </DialogHeader>
             <AlertStack
@@ -89,10 +85,10 @@ watch(dialogOpen, (isOpen) => {
             <div class="px-4 pb-4">
                 <TextareaField v-model="reason" label="Motivo" placeholder="Describe el motivo del rechazo" :required="true" />
             </div>
-            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2 px-4 pb-4">
+            <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t px-4 pb-4 pt-4">
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="dialogOpen = false"
                 >
                     Cancelar
@@ -100,7 +96,7 @@ watch(dialogOpen, (isOpen) => {
                 <button
                     type="button"
                     :disabled="isLoading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-destructive disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     @click.prevent="handleSubmit"
                 >
                     {{ isLoading ? 'Guardando...' : 'Rechazar' }}

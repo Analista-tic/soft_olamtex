@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { Dialog, DialogFooter } from '@/components/ui/dialog';
-import FormHeader from '@/components/FormHeader.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormHeader from '@/components/FormHeader.vue';
 import InputField from '@/components/InputField.vue';
-import TextareaField from '@/components/TextareaField.vue';
 import SwitchField from '@/components/SwitchField.vue';
+import TextareaField from '@/components/TextareaField.vue';
+import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Plus } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 export type ParameterDialogModel = {
     id?: number | string;
@@ -106,10 +106,12 @@ function displayEntry(entry: unknown) {
         return '-';
     }
     if (typeof entry === 'object') {
-        return (entry as Record<string, unknown>).name?.toString()
-            ?? (entry as Record<string, unknown>).label?.toString()
-            ?? ((entry as Record<string, unknown>).id ? String((entry as Record<string, unknown>).id) : undefined)
-            ?? JSON.stringify(entry);
+        return (
+            (entry as Record<string, unknown>).name?.toString() ??
+            (entry as Record<string, unknown>).label?.toString() ??
+            ((entry as Record<string, unknown>).id ? String((entry as Record<string, unknown>).id) : undefined) ??
+            JSON.stringify(entry)
+        );
     }
     return String(entry);
 }
@@ -147,48 +149,35 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[550px] px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[550px] flex-col px-2 py-2">
             <FormHeader
-                :title="dialogType === 'create'
-                    ? 'Crear parámetro'
-                    : dialogType === 'edit'
-                    ? 'Editar parámetro'
-                    : 'Ver parámetro'"
-                :description="dialogType === 'create'
-                    ? 'Define un valor global que el sistema podrá reutilizar en distintos módulos.'
-                    : dialogType === 'edit'
-                    ? 'Actualiza las propiedades del parámetro seleccionado.'
-                    : 'Visualiza los valores almacenados del parámetro sin editar.'"
+                :title="dialogType === 'create' ? 'Crear parámetro' : dialogType === 'edit' ? 'Editar parámetro' : 'Ver parámetro'"
+                :description="
+                    dialogType === 'create'
+                        ? 'Define un valor global que el sistema podrá reutilizar en distintos módulos.'
+                        : dialogType === 'edit'
+                          ? 'Actualiza las propiedades del parámetro seleccionado.'
+                          : 'Visualiza los valores almacenados del parámetro sin editar.'
+                "
             />
-            <div class="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1 pt-4">
-                <div class="pt-2 space-y-4">
-                    <InputField
-                        v-model="localForm.label"
-                        label="Nombre"
-                        placeholder="Nombre visible"
-                        required
-                        :disabled="isViewMode"
-                    />
+            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1 pt-4">
+                <div class="space-y-4 pt-2">
+                    <InputField v-model="localForm.label" label="Nombre" placeholder="Nombre visible" required :disabled="isViewMode" />
                     <div class="space-y-2">
                         <p class="text-sm font-medium">
                             Valores
                             <span class="text-destructive">*</span>
                         </p>
-                            <div v-if="!isViewMode" class="flex gap-2">
-                                <InputField
-                                    v-model="newValueInput"
-                                    label=""
-                                    placeholder="Agregar valor"
-                                    @keydown.enter.prevent="addValueEntry()"
-                                />
-                                <button
-                                    type="button"
-                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-slate-500 transition hover:border-primary hover:bg-primary hover:text-white"
-                                    @click="addValueEntry"
-                                >
-                                    <Plus class="h-4 w-4" />
-                                </button>
-                            </div>
+                        <div v-if="!isViewMode" class="flex gap-2">
+                            <InputField v-model="newValueInput" label="" placeholder="Agregar valor" @keydown.enter.prevent="addValueEntry()" />
+                            <button
+                                type="button"
+                                class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-slate-500 transition hover:border-primary hover:bg-primary hover:text-white"
+                                @click="addValueEntry"
+                            >
+                                <Plus class="h-4 w-4" />
+                            </button>
+                        </div>
                         <div v-if="valueList.length" class="flex flex-wrap gap-2">
                             <span
                                 v-for="(item, index) in valueList"
@@ -209,13 +198,7 @@ function handleSubmit() {
                         </div>
                         <p v-else class="text-xs text-slate-500">Sin valores registrados.</p>
                     </div>
-                    <TextareaField
-                        v-model="localForm.description"
-                        label="Descripción"
-                        placeholder="Opcional"
-                        :rows="3"
-                        :disabled="isViewMode"
-                    />
+                    <TextareaField v-model="localForm.description" label="Descripción" placeholder="Opcional" :rows="3" :disabled="isViewMode" />
                     <div class="flex flex-wrap gap-4">
                         <div class="flex w-full items-center gap-3 text-sm text-slate-600">
                             <span>Activo</span>
@@ -224,23 +207,23 @@ function handleSubmit() {
                     </div>
                 </div>
             </div>
-                <DialogFooter class="justify-end gap-2 mt-6">
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="handleClose"
-                    >
-                        Cancelar
-                    </button>
-                    <button
-                        type="button"
-                        :disabled="loading || hasDuplicateOptions"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        @click="handleSubmit"
-                    >
-                        {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                    </button>
-                </DialogFooter>
+            <DialogFooter class="mt-6 justify-end gap-2">
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    @click="handleClose"
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    :disabled="loading || hasDuplicateOptions"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    @click="handleSubmit"
+                >
+                    {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
+                </button>
+            </DialogFooter>
         </FormDialogContent>
     </Dialog>
 </template>

@@ -7,7 +7,6 @@
 </template>
 
 <script setup lang="ts">
-
 const filterComplete = (isComplete: boolean) => {
     // Emitir evento para filtrar productos completos o incompletos
     // Este código depende de cómo se maneje el estado en el componente padre

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
-import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Item } from '@/domain/inventory';
+import type { PurchaseRequestItem } from '@/domain/purchases';
 import axios from 'axios';
 import { onMounted, ref, watch } from 'vue';
-import type { PurchaseRequestItem } from '@/domain/purchases';
 
 const props = defineProps<{ items: PurchaseRequestItem[]; readonly?: boolean }>();
-const emit = defineEmits(["update:items"]);
+const emit = defineEmits(['update:items']);
 
 const localItems = ref<PurchaseRequestItem[]>([]);
 const catalogItems = ref<Item[]>([]);
@@ -18,7 +18,7 @@ watch(
     (val) => {
         if (JSON.stringify(val) !== JSON.stringify(localItems.value)) {
             localItems.value = Array.isArray(val)
-                  ? val.map((item) => {
+                ? val.map((item) => {
                       const normalized: PurchaseRequestItem = {
                           ...item,
                           price: Number(item.price) || 0,
@@ -105,11 +105,7 @@ watch(
                     () => item.name,
                     (value) => {
                         const match = catalogItems.value.find((entry) => entry.name?.toLowerCase() === (value || '').toLowerCase());
-                        item.item_id = match
-                            ? Number(match.id)
-                            : value && value.trim()
-                                ? value.trim()
-                                : null;
+                        item.item_id = match ? Number(match.id) : value && value.trim() ? value.trim() : null;
                         emit('update:items', localItems.value);
                         calcTotals(item);
                     },
@@ -131,11 +127,14 @@ defineExpose({ addItem });
 </script>
 
 <template>
-    <div class="w-full" style="overflow: visible; max-height: none;">
-        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none;">
-            <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
+    <div class="w-full" style="overflow: visible; max-height: none">
+        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none">
+            <Table
+                class="min-w-full table-fixed border-separate border-spacing-x-2 border-spacing-y-1 text-center"
+                style="overflow: visible; max-height: none"
+            >
                 <TableHeader>
-                    <TableRow class="text-center border-b border-border/60">
+                    <TableRow class="border-b border-border/60 text-center">
                         <TableHead class="min-w-[150px] px-1 text-left">Item</TableHead>
                         <TableHead class="min-w-[120px] px-1 text-left">Precio estimado</TableHead>
                         <TableHead class="min-w-[110px] px-1 text-left">Cantidad</TableHead>
@@ -146,7 +145,7 @@ defineExpose({ addItem });
                 </TableHeader>
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell class="p-1 text-left min-w-[150px]">
+                        <TableCell class="min-w-[150px] p-1 text-left">
                             <InputField
                                 v-model="item.name"
                                 label=""
@@ -158,7 +157,7 @@ defineExpose({ addItem });
                                 @focus="$event.target.select()"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 120px;">
+                        <TableCell class="p-1 text-left" style="width: 120px">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -171,7 +170,7 @@ defineExpose({ addItem });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 110px;">
+                        <TableCell class="p-1 text-left" style="width: 110px">
                             <InputField
                                 v-model="item.quantity"
                                 type="number"
@@ -182,10 +181,16 @@ defineExpose({ addItem });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px;">
-                            <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="props.readonly" :disabled="props.readonly" />
+                        <TableCell class="p-1 text-left" style="width: 160px">
+                            <InputField
+                                v-model="item.description"
+                                label=""
+                                class="h-10 w-full"
+                                :readonly="props.readonly"
+                                :disabled="props.readonly"
+                            />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 90px;">
+                        <TableCell class="p-1 text-left" style="width: 90px">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',

@@ -68,7 +68,7 @@ export interface Item extends Timestamps {
     category_sub_group_id: number;
     category_sub_group?: CategorySubGroup;
     tax_id?: number | null; // Nuevo campo para la relación
-    tax?: Tax | null;       // Relación con el objeto Tax
+    tax?: Tax | null; // Relación con el objeto Tax
     name: string;
     code: string; // Agregado: propiedad code faltante
     reference: string;

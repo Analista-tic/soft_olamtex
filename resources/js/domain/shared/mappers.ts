@@ -1,5 +1,5 @@
-import type { AuditLog, CompanyInfo, PaginationLink } from './types';
 import type { AuditLogDto, CompanyInfoDto, PaginationLinkDto } from './dto';
+import type { AuditLog, CompanyInfo, PaginationLink } from './types';
 
 export function mapPaginationLinkDto(dto: PaginationLinkDto): PaginationLink {
     return {

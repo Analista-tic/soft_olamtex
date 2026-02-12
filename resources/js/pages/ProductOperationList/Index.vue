@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import Button from '@/components/ui/button/Button.vue';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import SamSummaryCard from './SamSummaryCard.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -239,7 +241,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
             operation_id: payload.operation_id,
             machine_id: payload.machine_id,
             operation_section_id: payload.section_id,
-            sequence_order: payload.sequence_order,
+            sequence: payload.sequence,
             optimal_time: Number(payload.optimal_time),
             operator_efficiency_factor: payload.operator_efficiency_factor,
             machine_supplement_factor: payload.machine_supplement_factor,
@@ -317,6 +319,13 @@ function closeSummaryView() {
     summaryToView.value = null;
 }
 
+function handleEditFromView() {
+    if (summaryToView.value) {
+        openEditDialog(summaryToView.value);
+        closeSummaryView();
+    }
+}
+
 function openCreateDialog() {
     clearAlerts();
     dialogMode.value = 'create';
@@ -331,7 +340,7 @@ async function openEditDialog(summary: OperationSummary) {
             params: { product_sheet_id: summary.product_sheet_id },
         });
         const rows = Array.isArray(data?.data) ? data.data : [];
-        const sortedRows = [...rows].sort((a: any, b: any) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0));
+        const sortedRows = [...rows].sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
         const firstRow = sortedRows[0] ?? {};
         dialogMode.value = 'edit';
         dialogInitialData.value = {
@@ -340,7 +349,9 @@ async function openEditDialog(summary: OperationSummary) {
                 section_id: toNumberOrNull(row.operation_section_id ?? row.section_id ?? row.operation_section?.id ?? row.operationSection?.id),
                 operation_id: toNumberOrNull(row.operation_id ?? row.operation?.id),
                 machine_id: toNumberOrNull(row.machine_id ?? row.machine?.id),
-                optimal_time: formatOptimalTime(row.optimal_time ?? row.sam ?? 0),
+                optimal_time: formatOptimalTime(row.optimal_time ?? row.sam ?? row.sam_base ?? 0),
+                quantity: row.quantity ?? 1,
+                fabric_base_id: row.fabric_base_id ?? null,
             })),
             operatorEfficiencyFactor: Number(firstRow.operator_efficiency_factor ?? 1.25) || 1.25,
             machineSupplementFactor: Number(firstRow.machine_supplement_factor ?? 1.0) || 1.0,
@@ -418,14 +429,13 @@ watch(productSheets, () => {
                     </p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    <Button
+                        class="rounded-full px-5 py-2 text-sm font-semibold"
                         @click="openCreateDialog"
                     >
                         <PlusCircle class="w-4 h-4" />
-                        Nueva operacion
-                    </button>
+                        Nueva operación
+                    </Button>
                 </div>
             </div>
 
@@ -460,8 +470,26 @@ watch(productSheets, () => {
                 </FilterField>
             </FilterBar>
 
-            <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <Table>
+            <div v-if="filteredSummaries.length > 0" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <SamSummaryCard
+                    :total-sam="filteredSummaries.reduce((s, r) => s + r.total_sam_confeccion, 0)"
+                    :total-operations="0"
+                    label="SAM total (todos los lotes)"
+                    :compact="true"
+                />
+                <Card>
+                    <CardHeader class="pb-1">
+                        <CardTitle class="text-sm font-medium text-muted-foreground">Lotes con operaciones</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p class="text-2xl font-bold">{{ filteredSummaries.length }}</p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <Card class="relative mt-4 min-h-0 flex-1 overflow-hidden md:min-h-min">
+                <div class="overflow-x-auto">
+                    <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Lote</TableHead>
@@ -510,7 +538,8 @@ watch(productSheets, () => {
                         </TableRow>
                     </TableBody>
                 </Table>
-            </div>
+                </div>
+            </Card>
 
             <ProductOperationListDialog
                 :open="isDialogOpen"
@@ -532,6 +561,7 @@ watch(productSheets, () => {
                 :productSheetReference="summaryToView?.reference ?? ''"
                 :sections="sections"
                 @close="closeSummaryView"
+                @edit="handleEditFromView"
             />
 
             <ConfirmDialog

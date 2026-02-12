@@ -58,5 +58,3 @@ export interface FabricOrderItemDto {
     estimated_width: number;
     price: number;
 }
-
-

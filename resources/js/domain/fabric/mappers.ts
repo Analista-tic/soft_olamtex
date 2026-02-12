@@ -1,14 +1,12 @@
-import type { FabricOrder, FabricOrderItem, FabricRoll, FabricRollView } from './types';
 import type { FabricOrderDto, FabricOrderItemDto, FabricRollDto, FabricRollViewDto } from './dto';
+import type { FabricOrder, FabricOrderItem, FabricRoll, FabricRollView } from './types';
 
 export function mapFabricOrderItemDto(dto: FabricOrderItemDto): FabricOrderItem {
     return {
         id: dto.id,
         fabric: dto.fabric,
         base_fabric_id: dto.base_fabric_id,
-        base_fabric: dto.base_fabric
-            ? { id: dto.base_fabric.id, name: dto.base_fabric.name }
-            : undefined,
+        base_fabric: dto.base_fabric ? { id: dto.base_fabric.id, name: dto.base_fabric.name } : undefined,
         provider_color: dto.provider_color,
         provider_color_code: dto.provider_color_code,
         quantity: dto.quantity,

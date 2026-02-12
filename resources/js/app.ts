@@ -1,11 +1,11 @@
 import '../css/app.css';
 
-import axios from 'axios';
 import { createInertiaApp } from '@inertiajs/vue3';
+import axios from 'axios';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
+import { createPinia } from 'pinia'; // Importar Pinia
 import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
-import { createPinia } from 'pinia'; // Importar Pinia
 import { ZiggyVue } from 'ziggy-js';
 import { initializeTheme } from './composables/useAppearance';
 

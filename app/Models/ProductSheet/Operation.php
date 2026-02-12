@@ -16,13 +16,23 @@ class Operation extends Model
     protected $table = 'operations';
 
     protected $fillable = [
+        'codigo',
         'action',
         'garment_part',
+        'section_id',
+        'location',
+        'measure',
+        'description',
+        'sam_base',
+        'product_sheet_id_reference',
+        'machine_id_reference',
         'is_active',
         'created_by',
     ];
 
     protected $casts = [
+        'measure' => 'float',
+        'sam_base' => 'float',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -34,9 +44,29 @@ class Operation extends Model
     protected $with = [];
 
     // Relaciones
+    public function section()
+    {
+        return $this->belongsTo(OperationSection::class, 'section_id');
+    }
+
+    public function productSheetReference()
+    {
+        return $this->belongsTo(ProductSheet::class, 'product_sheet_id_reference');
+    }
+
+    public function machineReference()
+    {
+        return $this->belongsTo(Machine::class, 'machine_id_reference');
+    }
+
     public function productOperationLists()
     {
         return $this->hasMany(ProductOperationList::class);
+    }
+
+    public function productSheetOperations()
+    {
+        return $this->hasMany(ProductSheetOperation::class);
     }
 
     public function createdBy()

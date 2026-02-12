@@ -7,10 +7,10 @@ import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { User } from '@/domain/auth/types';
+import type { BreadcrumbItem, SharedData } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
-import type { BreadcrumbItem, SharedData } from '@/domain/shared';
-import type { User } from '@/domain/auth/types';
 
 interface Props {
     mustVerifyEmail: boolean;
@@ -92,7 +92,7 @@ const submit = () => {
                         <Button
                             variant="default"
                             :disabled="form.processing"
-                            class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10 flex items-center justify-center gap-2"
+                            class="flex h-10 items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                         >
                             Guardar
                         </Button>

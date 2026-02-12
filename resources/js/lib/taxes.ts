@@ -10,11 +10,7 @@ export function isDefaultTax(tax?: Tax | null): tax is Tax {
 
     const name = (tax.name ?? '').trim();
     const percentage = Number(tax.percentage ?? 0);
-    return (
-        name === DEFAULT_TAX_LABEL &&
-        Number.isFinite(percentage) &&
-        Math.trunc(percentage) === DEFAULT_TAX_PERCENTAGE
-    );
+    return name === DEFAULT_TAX_LABEL && Number.isFinite(percentage) && Math.trunc(percentage) === DEFAULT_TAX_PERCENTAGE;
 }
 
 export function formatTaxOptionLabel(tax: Tax): string {

@@ -68,4 +68,9 @@ class Programmer extends Model
     {
         return $this->belongsTo(ProductSheet::class);
     }
+
+    public function productionOrderOperations()
+    {
+        return $this->hasMany(ProductionOrderOperation::class, 'programmer_id');
+    }
 }

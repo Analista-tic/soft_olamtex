@@ -1,12 +1,10 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
-import { Button } from '@/components/ui/button';
 import { Package } from 'lucide-vue-next';
 
-const breadcrumbs = [
-    { title: 'Kardex de Telas', href: '/kardex-telas' },
-];
+const breadcrumbs = [{ title: 'Kardex de Telas', href: '/kardex-telas' }];
 
 const receptionReturnParam = 'return_to';
 const receptionRoute = '/kardex-telas/recepcion';
@@ -29,7 +27,7 @@ function openReception() {
                     Ver recepciones
                 </Button>
             </div>
-            <p class="text-sm text-muted-foreground mt-4">
+            <p class="mt-4 text-sm text-muted-foreground">
                 Aquí podrás encontrar el control de rollos y movimientos. Por el momento no hay contenido específico para esta vista.
             </p>
         </div>

@@ -1,15 +1,4 @@
 import type {
-    AdditionalContact,
-    Contact,
-    PurchaseInvoice,
-    PurchaseInvoiceItem,
-    PurchaseInvoiceWithholding,
-    PurchaseOrder,
-    PurchaseOrderItem,
-    PurchaseRequest,
-    PurchaseRequestItem,
-} from './types';
-import type {
     AdditionalContactDto,
     ContactDto,
     PurchaseInvoiceDto,
@@ -20,6 +9,17 @@ import type {
     PurchaseRequestDto,
     PurchaseRequestItemDto,
 } from './dto';
+import type {
+    AdditionalContact,
+    Contact,
+    PurchaseInvoice,
+    PurchaseInvoiceItem,
+    PurchaseInvoiceWithholding,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    PurchaseRequest,
+    PurchaseRequestItem,
+} from './types';
 
 import type { Item } from '@/domain/inventory/types';
 

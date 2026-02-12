@@ -1,37 +1,25 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
-import { Head } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import EditButton from '@/components/common/EditButton.vue';
+import StatusBadge from '@/components/common/StatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
-import StatusBadge from '@/components/common/StatusBadge.vue';
 import { Button } from '@/components/ui/button';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import { Eye, PlusCircle, Search } from 'lucide-vue-next';
+import Input from '@/components/ui/input/Input.vue';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import {
-    createParameter,
-    deleteParameter,
-    getParameters,
-    updateParameter,
-} from '@/services/settingsService';
+import type { BreadcrumbItem } from '@/domain/shared';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { createParameter, deleteParameter, getParameters, updateParameter } from '@/services/settingsService';
+import { Head } from '@inertiajs/vue3';
+import { Eye, PlusCircle, Search } from 'lucide-vue-next';
 import type { ParameterDialogModel } from './ParameterDialog.vue';
 import ParameterDialog from './ParameterDialog.vue';
-import type { BreadcrumbItem } from '@/domain/shared';
 
 export type ParameterStatusFilter = 'all' | 'active' | 'inactive';
 
@@ -92,9 +80,7 @@ async function fetchParameters() {
     isLoading.value = true;
     try {
         const status: ParameterStatusFilter | undefined =
-            statusFilter.value === 'active' ? 'active' :
-            statusFilter.value === 'inactive' ? 'inactive' :
-            undefined;
+            statusFilter.value === 'active' ? 'active' : statusFilter.value === 'inactive' ? 'inactive' : undefined;
         const response = await getParameters({
             search: searchQuery.value.trim() || undefined,
             status,
@@ -284,25 +270,20 @@ function truncateString(value: string, maxLength = 80) {
 
 function summarizeStrings(items: string[]) {
     const previewItems = items.slice(0, 3);
-    const suffix = items.length > previewItems.length
-        ? ` (+${items.length - previewItems.length})`
-        : '';
+    const suffix = items.length > previewItems.length ? ` (+${items.length - previewItems.length})` : '';
 
     return `${previewItems.join(', ')}${suffix}`;
 }
 
 function summarizeNames(items: { name: string }[]) {
     const previewItems = items.slice(0, 3).map((item) => item.name);
-    const suffix = items.length > previewItems.length
-        ? ` (+${items.length - previewItems.length})`
-        : '';
+    const suffix = items.length > previewItems.length ? ` (+${items.length - previewItems.length})` : '';
 
     return `${previewItems.join(', ')}${suffix}`;
 }
 
 function isObjectWithName(item: unknown): item is { name: string } {
-    return typeof item === 'object' && item !== null && 'name' in item
-        && typeof (item as Record<string, unknown>).name === 'string';
+    return typeof item === 'object' && item !== null && 'name' in item && typeof (item as Record<string, unknown>).name === 'string';
 }
 </script>
 
@@ -320,45 +301,33 @@ function isObjectWithName(item: unknown): item is { name: string } {
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div class="flex flex-col gap-1 max-w-3xl">
+                <div class="flex max-w-3xl flex-col gap-1">
                     <h1 class="text-lg font-bold">Parámetros</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Configura valores globales reutilizables por distintos módulos del sistema.
-                    </p>
+                    <p class="text-sm text-muted-foreground">Configura valores globales reutilizables por distintos módulos del sistema.</p>
                 </div>
                 <div class="flex items-center justify-end pt-2 lg:pt-0">
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="openDialog('create')"
                     >
-                        <PlusCircle class="w-4 h-4" />
+                        <PlusCircle class="h-4 w-4" />
                         Crear parámetro
                     </button>
                 </div>
             </div>
 
             <FilterBar align="start" gap="gap-4" noMargin>
-                <FilterField label="Buscar parámetro" :active="isSearchActive" class="flex-1 min-w-[220px] p-0">
+                <FilterField label="Buscar parámetro" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input
-                            id="search_parameters"
-                            v-model="searchQuery"
-                            placeholder="Buscar por Nombre"
-                            class="h-10 w-full pl-11"
-                        />
-                        <span class="absolute inset-y-0 start-2 flex items-center justify-center pointer-events-none">
+                        <Input id="search_parameters" v-model="searchQuery" placeholder="Buscar por Nombre" class="h-10 w-full pl-11" />
+                        <span class="pointer-events-none absolute inset-y-0 start-2 flex items-center justify-center">
                             <Search class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[160px]">
-                    <SelectField
-                        v-model="statusFilter"
-                        label=""
-                        :options="statusOptions"
-                        :button-class="statusButtonClasses"
-                    />
+                    <SelectField v-model="statusFilter" label="" :options="statusOptions" :button-class="statusButtonClasses" />
                 </FilterField>
             </FilterBar>
 
@@ -375,14 +344,10 @@ function isObjectWithName(item: unknown): item is { name: string } {
                     </TableHeader>
                     <TableBody>
                         <TableRow v-if="isLoading">
-                            <TableCell colspan="5" class="text-center text-sm text-muted-foreground">
-                                Cargando parámetros...
-                            </TableCell>
+                            <TableCell colspan="5" class="text-center text-sm text-muted-foreground"> Cargando parámetros... </TableCell>
                         </TableRow>
                         <TableRow v-else-if="parameters.length === 0">
-                            <TableCell colspan="5" class="px-4 py-2 text-center text-sm text-gray-400">
-                                No hay parámetros registrados.
-                            </TableCell>
+                            <TableCell colspan="5" class="px-4 py-2 text-center text-sm text-gray-400"> No hay parámetros registrados. </TableCell>
                         </TableRow>
                         <TableRow v-else v-for="param in parameters" :key="param.id">
                             <TableCell class="font-medium">{{ param.label }}</TableCell>
@@ -396,13 +361,8 @@ function isObjectWithName(item: unknown): item is { name: string } {
                                 <StatusBadge :status="param.status" />
                             </TableCell>
                             <TableCell class="flex flex-wrap justify-center gap-1">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    class="px-2 text-[11px] gap-1 flex items-center"
-                                    @click="openViewDialog(param)"
-                                >
-                                    <Eye class="w-4 h-4" />
+                                <Button variant="ghost" size="sm" class="flex items-center gap-1 px-2 text-[11px]" @click="openViewDialog(param)">
+                                    <Eye class="h-4 w-4" />
                                 </Button>
                                 <EditButton :onClick="() => openDialog('edit', param)" />
                                 <DeleteButton :onClick="() => confirmDeleteParameter(param)" />

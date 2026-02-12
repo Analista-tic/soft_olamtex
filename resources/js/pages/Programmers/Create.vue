@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import FormDialogContent from '@/components/FormDialogContent.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { useAlertStack } from '@/composables/useAlert';
 import type { ProductSheet, Programmer } from '@/domain/product-sheet';
 import type { Option } from '@/domain/shared/types';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import AlertStack from '@/components/common/AlertStack.vue';
 import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
-import { useAlertStack } from '@/composables/useAlert';
-import HelpTooltip from '@/components/HelpTooltip.vue';
-import Label from '@/components/ui/label/Label.vue';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 const emit = defineEmits(['programmerCreated']);
 
@@ -82,9 +82,7 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 const saveDisabled = computed(() => formErrors.value.length > 0);
 const missingFieldsSummary = computed(() => {
     if (formErrors.value.length === 0) return '';
-    return formErrors.value
-        .map((error) => `Lote ${error.lotIndex + 1}: ${error.fields.join(', ')}`)
-        .join(' • ');
+    return formErrors.value.map((error) => `Lote ${error.lotIndex + 1}: ${error.fields.join(', ')}`).join(' • ');
 });
 
 // Alert state
@@ -99,7 +97,7 @@ function setAlert(message: string, type: AlertType = 'info'): void {
     } else {
         showError(message, type);
     }
-    
+
     if (dialogInnerRef.value?.scrollTo) {
         dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -130,9 +128,8 @@ const lotsCountModel = computed<string | number>({
             return;
         }
 
-        const normalized =
-            typeof value === 'number' ? value : Number(value.toString().replace(',', '.'));
-        
+        const normalized = typeof value === 'number' ? value : Number(value.toString().replace(',', '.'));
+
         // Redondear al entero más cercano y asegurar que sea positivo
         const integerValue = Math.max(0, Math.floor(normalized));
         form.value.lotsCount = Number.isNaN(integerValue) ? null : integerValue;
@@ -155,7 +152,7 @@ const productSheetOptions = computed(() =>
             id: getProductSheetValue(sheet),
             name: getProductSheetLabel(sheet),
         }))
-        .filter((option) => option.name !== '')
+        .filter((option) => option.name !== ''),
 );
 
 const selectedProductSheet = computed(() => {
@@ -200,14 +197,14 @@ function generateLots(): void {
 
 const errorSummary = computed(() => {
     if (formErrors.value.length === 0) return null;
-    
+
     const totalLots = formErrors.value.length;
     const totalErrors = formErrors.value.reduce((sum, lot) => sum + lot.fields.length, 0);
-    
+
     return {
         totalLots,
         totalErrors,
-        message: `${totalLots} ${totalLots === 1 ? 'lote tiene' : 'lotes tienen'} campos incompletos (${totalErrors} ${totalErrors === 1 ? 'campo' : 'campos'} en total)`
+        message: `${totalLots} ${totalLots === 1 ? 'lote tiene' : 'lotes tienen'} campos incompletos (${totalErrors} ${totalErrors === 1 ? 'campo' : 'campos'} en total)`,
     };
 });
 
@@ -236,19 +233,19 @@ function createProgrammer(): void {
         return;
     }
 
-    const lotsToSend = lotsForm.value.map(lot => {
+    const lotsToSend = lotsForm.value.map((lot) => {
         // Determinar el valor de ecommerce_units
         let ecommerceUnitsValue = null;
-        
+
         if (lot.isEcommerce && lot.ecommerce_units) {
             // Solo enviar si hay tallas configuradas
             const hasValidSizes = Object.keys(lot.ecommerce_units).length > 0;
             ecommerceUnitsValue = hasValidSizes ? lot.ecommerce_units : null;
         }
-        
+
         // Asegurar que units sea un número válido
         const unitsValue = lot.units ? Number(lot.units) : null;
-        
+
         return {
             product_sheet_id: lot.product_sheet_id,
             season: lot.season,
@@ -270,12 +267,12 @@ function createProgrammer(): void {
         })
         .catch((error: unknown) => {
             console.error('Error al crear los programadores:', error);
-            
+
             let errorText = 'Hubo un error al crear los programadores.';
             if (axios.isAxiosError(error) && error.response?.data?.message) {
                 errorText = error.response.data.message;
             }
-            
+
             setAlert(errorText, 'error');
         });
 }
@@ -335,12 +332,12 @@ function getLotErrors(lot: Partial<Programmer>): string[] {
     if (!lot.season) lotErrors.push('Temporada');
     if (!lot.destination_id) lotErrors.push('Destino');
     if (!lot.priority) lotErrors.push('Prioridad');
-    
+
     // Validación robusta de unidades
     const units = lot.units;
     const isValidUnits = units !== null && units !== undefined && !isNaN(Number(units)) && Number(units) > 0;
     if (!isValidUnits) lotErrors.push('Unidades');
-    
+
     return lotErrors;
 }
 
@@ -349,7 +346,7 @@ function validateLotField(lotIndex: number): void {
     const lot = lotsForm.value[lotIndex];
     if (!lot) return;
 
-    const existingErrorIndex = formErrors.value.findIndex(e => e.lotIndex === lotIndex);
+    const existingErrorIndex = formErrors.value.findIndex((e) => e.lotIndex === lotIndex);
     const lotErrors = getLotErrors(lot);
 
     if (lotErrors.length > 0) {
@@ -401,7 +398,7 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
 // Función para obtener las claves con valores `true` en `sizes`
 function getTrueSizes(sizes: string | Record<string, boolean> | undefined | null): string {
     if (!sizes) return '';
-    
+
     try {
         // Si sizes ya es un objeto, usarlo directamente
         const parsedSizes: Record<string, boolean> = typeof sizes === 'string' ? JSON.parse(sizes) : sizes;
@@ -421,23 +418,18 @@ function handleLotsCountInput(event: Event): void {
     // Eliminar cualquier carácter que no sea un dígito
     input.value = input.value.replace(/[^0-9]/g, '');
 }
-
 </script>
 
 <template>
     <Dialog @open="resetForm" v-model:open="isDialogOpen">
         <DialogTrigger as-child>
-            <Button
-                variant="default"
-                size="sm"
-                class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
-            >
+            <Button variant="default" size="sm" class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm">
                 <PlusCircle class="h-4 w-4" />
                 Nuevo Programador
             </Button>
         </DialogTrigger>
-        <FormDialogContent class="flex flex-col max-h-[200vh] max-w-[200vh] px-2 py-2">
-            <DialogHeader class="flex-shrink-0 px-6 pt-6 pb-4">
+        <FormDialogContent class="flex max-h-[200vh] max-w-[200vh] flex-col px-2 py-2">
+            <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
             </DialogHeader>
@@ -452,250 +444,256 @@ function handleLotsCountInput(event: Event): void {
             />
 
             <TooltipProvider>
-            <div ref="dialogInnerRef" class="overflow-y-auto flex-1 px-6 pb-24 scroll-smooth" style="scrollbar-width: thin;">
-                <div class="grid grid-cols-1 gap-4 pt-4">
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-                        <!-- Campo para la referencia seleccionada -->
-                        <div class="flex flex-col gap-1">
-                            <div class="flex items-center gap-2">
-                                <Label class="text-sm font-medium">
-                                    Referencia Seleccionada<span class="text-red-500">*</span>
-                                </Label>
-                                <HelpTooltip
-                                    text="Selecciona la sábana de producto que deseas programar para producción."
-                                    aria-label="Ayuda sobre referencia"
+                <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
+                    <div class="grid grid-cols-1 gap-4 pt-4">
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                            <!-- Campo para la referencia seleccionada -->
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium"> Referencia Seleccionada<span class="text-red-500">*</span> </Label>
+                                    <HelpTooltip
+                                        text="Selecciona la sábana de producto que deseas programar para producción."
+                                        aria-label="Ayuda sobre referencia"
+                                    />
+                                </div>
+                                <SelectField v-model="form.productSheetId" label="" :options="productSheetOptions" required />
+                            </div>
+                            <!-- Campo para la cantidad de lotes -->
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium"> Cantidad de Lotes<span class="text-red-500">*</span> </Label>
+                                    <HelpTooltip
+                                        text="Número de lotes de producción que deseas crear para esta referencia."
+                                        aria-label="Ayuda sobre cantidad de lotes"
+                                    />
+                                </div>
+                                <InputField
+                                    v-model="lotsCountModel"
+                                    label=""
+                                    placeholder="Numero de lotes"
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    required
+                                    @input="handleLotsCountInput"
+                                    @update:modelValue="generateLots"
                                 />
                             </div>
-                            <SelectField
-                                v-model="form.productSheetId"
-                                label=""
-                                :options="productSheetOptions"
-                                required
-                            />
-                        </div>
-                        <!-- Campo para la cantidad de lotes -->
-                        <div class="flex flex-col gap-1">
-                            <div class="flex items-center gap-2">
-                                <Label class="text-sm font-medium">
-                                    Cantidad de Lotes<span class="text-red-500">*</span>
-                                </Label>
-                                <HelpTooltip
-                                    text="Número de lotes de producción que deseas crear para esta referencia."
-                                    aria-label="Ayuda sobre cantidad de lotes"
+                            <div class="flex flex-col gap-2">
+                                <span class="text-sm font-medium leading-tight text-foreground">Accion</span>
+                                <Button
+                                    variant="outline"
+                                    class="h-10 rounded-full px-4 text-sm font-semibold"
+                                    type="button"
+                                    @click="productSheetDialogOpen = true"
+                                >
+                                    Crear Sabana de Productos
+                                </Button>
+                                <CreateProductSheetDialog
+                                    mode="create"
+                                    :sections="props.sections"
+                                    :groups="props.groups"
+                                    :brands="props.brands"
+                                    :worlds="props.worlds"
+                                    :fabricBases="props.fabricBases"
+                                    :yarnBases="props.yarnBases"
+                                    :open="productSheetDialogOpen"
+                                    @update:open="(value) => (productSheetDialogOpen = value)"
+                                    @productSheetSaved="addProductSheet"
                                 />
                             </div>
-                            <InputField
-                                v-model="lotsCountModel"
-                                label=""
-                                placeholder="Numero de lotes"
-                                type="number"
-                                min="1"
-                                step="1"
-                                required
-                                @input="handleLotsCountInput"
-                                @update:modelValue="generateLots"
-                            />
                         </div>
-                        <div class="flex flex-col gap-2">
-                            <span class="text-sm font-medium leading-tight text-foreground">Accion</span>
-                            <Button
-                                variant="outline"
-                                class="h-10 rounded-full px-4 text-sm font-semibold"
-                                type="button"
-                                @click="productSheetDialogOpen = true"
-                            >
-                                Crear Sabana de Productos
-                            </Button>
-                            <CreateProductSheetDialog
-                                mode="create"
-                                :sections="props.sections"
-                                :groups="props.groups"
-                                :brands="props.brands"
-                                :worlds="props.worlds"
-                                :fabricBases="props.fabricBases"
-                                :yarnBases="props.yarnBases"
-                                :open="productSheetDialogOpen"
-                                @update:open="(value) => (productSheetDialogOpen = value)"
-                                @productSheetSaved="addProductSheet"
-                            />
+                        <!-- Tabla informativa para mostrar detalles del ProductSheet seleccionado -->
+                        <div v-if="selectedProductSheet" class="mb-4">
+                            <h3 class="mb-2 text-lg font-bold">Detalles de la Ficha de Producto</h3>
+                            <table class="w-full overflow-hidden rounded-lg border border-gray-300 text-left text-sm">
+                                <tbody>
+                                    <tr>
+                                        <td class="px-4 py-2 font-bold">Referencia:</td>
+                                        <td class="border border-l-0 px-4 py-2">
+                                            {{ getProductSheetLabel(selectedProductSheet) || 'Sin referencia' }}
+                                        </td>
+                                        <td class="px-4 py-2 font-bold">Sección:</td>
+                                        <td class="border border-l-0 px-4 py-2">{{ selectedProductSheet.section?.name || 'Sin sección' }}</td>
+                                        <td class="px-4 py-2 font-bold">Grupo:</td>
+                                        <td class="border border-l-0 px-4 py-2">{{ selectedProductSheet.group?.name || 'Sin grupo' }}</td>
+                                        <td class="px-4 py-2 font-bold">Marca:</td>
+                                        <td class="border border-l-0 px-4 py-2">{{ selectedProductSheet.brand?.name || 'Sin marca' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="border border-r-0 px-4 py-1 font-bold">Mundo:</td>
+                                        <td class="border border-l-0 px-4 py-1">{{ selectedProductSheet.world?.name || 'Sin mundo' }}</td>
+                                        <td class="border border-r-0 px-4 py-1 font-bold">Base:</td>
+                                        <td class="border border-l-0 px-4 py-1">{{ selectedProductSheet.fabric_base?.name || 'Sin base' }}</td>
+                                        <td class="border border-r-0 px-4 py-1 font-bold">Precio Facturación:</td>
+                                        <td class="border border-l-0 px-4 py-1">{{ selectedProductSheet.billing_price ?? 'N/A' }}</td>
+                                        <td class="border border-r-0 px-4 py-1 font-bold">Precio Venta:</td>
+                                        <td class="border border-l-0 px-4 py-1">{{ selectedProductSheet.selling_price ?? 'N/A' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="border px-4 py-5 font-bold">Tallas:</td>
+                                        <td class="border px-8 py-5" colspan="3">{{ getTrueSizes(selectedProductSheet.sizes) || 'Sin tallas' }}</td>
+                                        <td class="border px-4 py-5 font-bold">Descripción:</td>
+                                        <td class="border px-4 py-5" colspan="3">{{ selectedProductSheet.description || 'Sin descripción' }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                    <!-- Tabla informativa para mostrar detalles del ProductSheet seleccionado -->
-                    <div v-if="selectedProductSheet" class="mb-4">
-                        <h3 class="text-lg font-bold mb-2">Detalles de la Ficha de Producto</h3>
-                        <table class="w-full text-sm text-left border border-gray-300 rounded-lg overflow-hidden">
+
+                    <div v-if="hasAttemptedSave && formErrors.length > 0" class="mb-4 mt-4 rounded border-l-4 border-amber-400 bg-amber-50 p-4">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path
+                                        fill-rule="evenodd"
+                                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                                        clip-rule="evenodd"
+                                    />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-amber-800">Campos incompletos</h3>
+                                <div class="mt-2 text-sm text-amber-700">
+                                    <p>{{ errorSummary?.message }}</p>
+                                    <details class="mt-2">
+                                        <summary class="cursor-pointer font-medium hover:text-amber-900">Ver detalles</summary>
+                                        <ul class="mt-2 list-inside list-disc space-y-1">
+                                            <li v-for="(error, index) in formErrors" :key="index">
+                                                Lote {{ error.lotIndex + 1 }}: {{ error.fields.join(', ') }}
+                                            </li>
+                                        </ul>
+                                    </details>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="lotsForm.length > 0" class="mt-4">
+                        <h3 class="mb-2 text-base font-bold">Lotes Generados:</h3>
+                        <table class="w-full overflow-visible rounded-lg border border-gray-300 text-center text-sm shadow-sm">
+                            <thead>
+                                <tr class="bg-gray-50">
+                                    <th class="border px-4 py-3 font-semibold">Lote</th>
+                                    <th class="border px-4 py-3 font-semibold">Referencia</th>
+                                    <th class="border px-4 py-3 font-semibold">Temporada</th>
+                                    <th class="border px-4 py-3 font-semibold">Destino</th>
+                                    <th class="border px-4 py-3 font-semibold">Prioridad</th>
+                                    <th class="border px-4 py-3 font-semibold">E-commerce (opcional)</th>
+                                    <th class="border px-4 py-3 font-semibold">Unidades</th>
+                                    <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border px-4 py-3 font-semibold">Cant. E-commerce</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                <tr>
-                                    <td class="px-4 py-2 font-bold">Referencia:</td>
-                                    <td class="px-4 py-2 border border-l-0">{{ getProductSheetLabel(selectedProductSheet) || 'Sin referencia' }}</td>
-                                    <td class="px-4 py-2 font-bold">Sección:</td>
-                                    <td class="px-4 py-2 border border-l-0">{{ selectedProductSheet.section?.name || 'Sin sección' }}</td>
-                                    <td class="px-4 py-2 font-bold">Grupo:</td>
-                                    <td class="px-4 py-2 border border-l-0">{{ selectedProductSheet.group?.name || 'Sin grupo' }}</td>
-                                    <td class="px-4 py-2 font-bold">Marca:</td>
-                                    <td class="px-4 py-2 border border-l-0">{{ selectedProductSheet.brand?.name || 'Sin marca' }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-4 py-1 font-bold border border-r-0">Mundo:</td>
-                                    <td class="px-4 py-1 border border-l-0">{{ selectedProductSheet.world?.name || 'Sin mundo' }}</td>
-                                    <td class="px-4 py-1 font-bold border border-r-0">Base:</td>
-                                    <td class="px-4 py-1 border border-l-0">{{ selectedProductSheet.fabric_base?.name || 'Sin base' }}</td>
-                                    <td class="px-4 py-1 font-bold border border-r-0">Precio Facturación:</td>
-                                    <td class="px-4 py-1 border border-l-0">{{ selectedProductSheet.billing_price ?? 'N/A' }}</td>
-                                    <td class="px-4 py-1 font-bold border border-r-0">Precio Venta:</td>
-                                    <td class="px-4 py-1 border border-l-0">{{ selectedProductSheet.selling_price ?? 'N/A' }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-4 py-5 font-bold border">Tallas:</td>
-                                    <td class="px-8 py-5 border" colspan="3">{{ getTrueSizes(selectedProductSheet.sizes) || 'Sin tallas' }}</td>
-                                    <td class="px-4 py-5 font-bold border">Descripción:</td>
-                                    <td class="px-4 py-5 border" colspan="3">{{ selectedProductSheet.description || 'Sin descripción' }}</td>
+                                <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
+                                    <td class="whitespace-nowrap border px-4 py-4">MF300{{ index + 1 }}</td>
+                                    <td class="border px-4 py-4">{{ lot.product_sheet_id }}</td>
+                                    <td class="border px-4 py-4" style="min-width: 180px">
+                                        <SelectField
+                                            v-model="lot.season"
+                                            :options="monthOptions"
+                                            label=""
+                                            :aria-label="`Temporada para lote ${index + 1}`"
+                                            :class="{ 'border-red-500': !lot.season }"
+                                            @update:modelValue="validateLotField(index)"
+                                        />
+                                    </td>
+                                    <td class="border px-4 py-4" style="min-width: 200px">
+                                        <SelectField
+                                            v-model="lot.destination_id"
+                                            :options="destinationOptions"
+                                            label=""
+                                            :aria-label="`Destino para lote ${index + 1}`"
+                                            :class="{ 'border-red-500': !lot.destination_id }"
+                                            @update:modelValue="validateLotField(index)"
+                                        />
+                                    </td>
+                                    <td class="border px-4 py-4" style="min-width: 150px">
+                                        <SelectField
+                                            v-model="lot.priority"
+                                            :options="priorityOptions"
+                                            label=""
+                                            :aria-label="`Prioridad para lote ${index + 1}`"
+                                            :class="{ 'border-red-500': !lot.priority }"
+                                            @update:modelValue="validateLotField(index)"
+                                        />
+                                    </td>
+                                    <td class="border px-4 py-4 text-center">
+                                        <input
+                                            type="checkbox"
+                                            v-model="lot.isEcommerce"
+                                            :aria-label="`Habilitar e-commerce para lote ${index + 1}`"
+                                            class="form-checkbox h-5 w-5 cursor-pointer text-blue-600"
+                                            @change="
+                                                () => {
+                                                    // Si se desmarca e-commerce, limpiar los datos
+                                                    if (!lot.isEcommerce) {
+                                                        lot.ecommerce_units = null;
+                                                    }
+                                                }
+                                            "
+                                        />
+                                    </td>
+                                    <td class="border px-4 py-4" style="min-width: 180px">
+                                        <InputField
+                                            :model-value="lot.unitsInput ?? ''"
+                                            inputmode="numeric"
+                                            @update:modelValue="
+                                                (value) => {
+                                                    const normalizedRaw = typeof value === 'string' ? value : String(value);
+                                                    lot.unitsInput = normalizedRaw;
+                                                    lot.units = parseUnitsInput(normalizedRaw);
+                                                    validateLotField(index);
+                                                }
+                                            "
+                                            label=""
+                                            placeholder="Unidades a programar"
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            :aria-label="`Unidades para lote ${index + 1}`"
+                                            :class="{ 'border-red-500': !lot.units || lot.units <= 0 }"
+                                        />
+                                    </td>
+                                    <td v-if="lot.isEcommerce" class="border px-4 py-4 text-center">
+                                        <EcommerceSizesDialog
+                                            :productSheet="{
+                                                sizes: selectedProductSheet?.sizes || '{}',
+                                                reference: selectedProductSheet ? getProductSheetLabel(selectedProductSheet) : '',
+                                            }"
+                                            :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
+                                            @sizesUpdated="
+                                                (data) => {
+                                                    // Asegurar que los valores sean números y no null
+                                                    if (data?.sizes && Object.keys(data.sizes).length > 0) {
+                                                        const sanitizedSizes = Object.fromEntries(
+                                                            Object.entries(data.sizes).map(([size, value]) => [
+                                                                size,
+                                                                typeof value === 'number' ? Math.max(0, value) : 0,
+                                                            ]),
+                                                        );
+                                                        lot.ecommerce_units = sanitizedSizes;
+                                                    } else {
+                                                        // Si no hay tallas válidas, establecer como objeto vacío
+                                                        lot.ecommerce_units = {};
+                                                    }
+                                                }
+                                            "
+                                        />
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-                
-                <div v-if="hasAttemptedSave && formErrors.length > 0" class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded mb-4 mt-4">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0">
-                            <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                            </svg>
-                        </div>
-                        <div class="ml-3">
-                            <h3 class="text-sm font-medium text-amber-800">Campos incompletos</h3>
-                            <div class="mt-2 text-sm text-amber-700">
-                                <p>{{ errorSummary?.message }}</p>
-                                <details class="mt-2">
-                                    <summary class="cursor-pointer font-medium hover:text-amber-900">Ver detalles</summary>
-                                    <ul class="mt-2 space-y-1 list-disc list-inside">
-                                        <li v-for="(error, index) in formErrors" :key="index">
-                                            Lote {{ error.lotIndex + 1 }}: {{ error.fields.join(', ') }}
-                                        </li>
-                                    </ul>
-                                </details>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div v-if="lotsForm.length > 0" class="mt-4">
-                    <h3 class="text-base font-bold mb-2">Lotes Generados:</h3>
-                    <table class="w-full text-sm border border-gray-300 rounded-lg overflow-visible shadow-sm text-center">
-                    <thead>
-                        <tr class="bg-gray-50">
-                            <th class="px-4 py-3 border font-semibold">Lote</th>
-                            <th class="px-4 py-3 border font-semibold">Referencia</th>
-                            <th class="px-4 py-3 border font-semibold">Temporada</th>
-                            <th class="px-4 py-3 border font-semibold">Destino</th>
-                            <th class="px-4 py-3 border font-semibold">Prioridad</th>
-                            <th class="px-4 py-3 border font-semibold">E-commerce (opcional)</th>
-                            <th class="px-4 py-3 border font-semibold">Unidades</th>
-                            <th v-if="lotsForm.some(lot => lot.isEcommerce)" class="px-4 py-3 border font-semibold">Cant. E-commerce</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
-                            <td class="px-4 py-4 border whitespace-nowrap">MF300{{ index + 1 }}</td>
-                            <td class="px-4 py-4 border">{{ lot.product_sheet_id }}</td>
-                            <td class="px-4 py-4 border" style="min-width: 180px;">
-                            <SelectField
-                                v-model="lot.season"
-                                :options="monthOptions"
-                                label=""
-                                    :aria-label="`Temporada para lote ${index + 1}`"
-                                    :class="{ 'border-red-500': !lot.season }"
-                                    @update:modelValue="validateLotField(index)"
-                                />
-                            </td>
-                            <td class="px-4 py-4 border" style="min-width: 200px;">
-                                <SelectField
-                                    v-model="lot.destination_id"
-                                    :options="destinationOptions"
-                                    label=""
-                                    :aria-label="`Destino para lote ${index + 1}`"
-                                    :class="{ 'border-red-500': !lot.destination_id }"
-                                    @update:modelValue="validateLotField(index)"
-                                />
-                            </td>
-                            <td class="px-4 py-4 border" style="min-width: 150px;">
-                    <SelectField
-                        v-model="lot.priority"
-                        :options="priorityOptions"
-                        label=""
-                        :aria-label="`Prioridad para lote ${index + 1}`"
-                        :class="{ 'border-red-500': !lot.priority }"
-                        @update:modelValue="validateLotField(index)"
-                    />
-                            </td>
-                            <td class="px-4 py-4 border text-center">
-                                <input 
-                                    type="checkbox" 
-                                    v-model="lot.isEcommerce" 
-                                    :aria-label="`Habilitar e-commerce para lote ${index + 1}`"
-                                    class="form-checkbox h-5 w-5 text-blue-600 cursor-pointer"
-                                    @change="() => {
-                                        // Si se desmarca e-commerce, limpiar los datos
-                                        if (!lot.isEcommerce) {
-                                            lot.ecommerce_units = null;
-                                        }
-                                    }"
-                                />
-                            </td>
-                            <td class="px-4 py-4 border" style="min-width: 180px;">
-                    <InputField
-                        :model-value="lot.unitsInput ?? ''"
-                        inputmode="numeric"
-                        @update:modelValue="(value) => {
-                            const normalizedRaw = typeof value === 'string' ? value : String(value);
-                            lot.unitsInput = normalizedRaw;
-                            lot.units = parseUnitsInput(normalizedRaw);
-                            validateLotField(index);
-                        }"
-                        label=""
-                        placeholder="Unidades a programar"
-                        type="number"
-                        min="1"
-                        step="1"
-                        :aria-label="`Unidades para lote ${index + 1}`"
-                        :class="{ 'border-red-500': !lot.units || lot.units <= 0 }"
-                    />
-                            </td>
-                            <td v-if="lot.isEcommerce" class="px-4 py-4 border text-center">
-                                    <EcommerceSizesDialog
-                                        :productSheet="{ sizes: selectedProductSheet?.sizes || '{}', reference: selectedProductSheet ? getProductSheetLabel(selectedProductSheet) : '' }"
-                                        :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
-                                    @sizesUpdated="(data) => {
-                                        // Asegurar que los valores sean números y no null
-                                        if (data?.sizes && Object.keys(data.sizes).length > 0) {
-                                            const sanitizedSizes = Object.fromEntries(
-                                                Object.entries(data.sizes).map(([size, value]) => [
-                                                    size, 
-                                                    typeof value === 'number' ? Math.max(0, value) : 0
-                                                ])
-                                            );
-                                            lot.ecommerce_units = sanitizedSizes;
-                                        } else {
-                                            // Si no hay tallas válidas, establecer como objeto vacío
-                                            lot.ecommerce_units = {};
-                                        }
-                                    }"
-                                />
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            </div>
             </TooltipProvider>
 
             <!-- Botones flotantes en la esquina inferior derecha -->
-            <div class="absolute bottom-0 right-0 left-0 bg-white border-t shadow-lg px-6 py-4 flex flex-col gap-2 items-end rounded-b-[24px]">
-                <div class="flex items-center justify-end gap-3 w-full max-w-lg">
+            <div class="absolute bottom-0 left-0 right-0 flex flex-col items-end gap-2 rounded-b-[24px] border-t bg-white px-6 py-4 shadow-lg">
+                <div class="flex w-full max-w-lg items-center justify-end gap-3">
                     <button
                         type="button"
-                        class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="closeDialog"
                     >
                         Cancelar
@@ -709,9 +707,7 @@ function handleLotsCountInput(event: Event): void {
                         Guardar
                     </Button>
                 </div>
-                <p v-if="saveDisabled" class="text-xs text-rose-600 text-right">
-                    Campos incompletos: {{ missingFieldsSummary }}
-                </p>
+                <p v-if="saveDisabled" class="text-right text-xs text-rose-600">Campos incompletos: {{ missingFieldsSummary }}</p>
             </div>
         </FormDialogContent>
     </Dialog>

@@ -227,7 +227,9 @@ function getPendingMessage(programmer: Programmer): string {
  * Retorna true si el OP inicia con MU o MUT.
  */
 function isAutoFromSheet(row: Programmer): boolean {
-    const opCode = String(row.op_code ?? '').trim().toUpperCase();
+    const opCode = String(row.op_code ?? '')
+        .trim()
+        .toUpperCase();
     return opCode.startsWith('MU');
 }
 
@@ -372,10 +374,7 @@ function shouldHighlightRow(row: Programmer): boolean {
                         <TableRow
                             v-for="programmer in programmers"
                             :key="programmer.id"
-                            :class="[
-                                'text-center',
-                                shouldHighlightRow(programmer) ? 'bg-yellow-50 border-l-4 border-yellow-400' : '',
-                            ]"
+                            :class="['text-center', shouldHighlightRow(programmer) ? 'border-l-4 border-yellow-400 bg-yellow-50' : '']"
                         >
                             <TableCell class="font-medium">{{ getOpLabel(programmer) }}</TableCell>
                             <TableCell class="font-medium">{{ programmer.product_sheet?.reference || 'Sin referencia' }}</TableCell>

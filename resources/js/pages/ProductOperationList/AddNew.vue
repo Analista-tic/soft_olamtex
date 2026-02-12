@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
-import { Plus } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
+import { Plus } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -26,20 +26,26 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
-watch(() => props.isOpen, (newValue) => {
-    internalIsOpen.value = newValue;
-    if (newValue) {
-        successMessage.value = '';
-        errorMessage.value = '';
-        errorType.value = 'error';
-    }
-});
+watch(
+    () => props.isOpen,
+    (newValue) => {
+        internalIsOpen.value = newValue;
+        if (newValue) {
+            successMessage.value = '';
+            errorMessage.value = '';
+            errorType.value = 'error';
+        }
+    },
+);
 
-watch(() => internalIsOpen.value, (newValue) => {
-    if (!newValue) {
-        emit('close');
-    }
-});
+watch(
+    () => internalIsOpen.value,
+    (newValue) => {
+        if (!newValue) {
+            emit('close');
+        }
+    },
+);
 
 const form = ref({
     name: '',
@@ -62,15 +68,21 @@ const sectionOptions = [
     { id: 'confeccion', label: 'Confección' },
     { id: 'presentacion', label: 'Presentación' },
 ] as const;
-const selectedSectionType = ref<typeof sectionOptions[number]['id']>('confeccion');
+const selectedSectionType = ref<(typeof sectionOptions)[number]['id']>('confeccion');
 
-watch(() => props.actions, (newActions) => {
-    if (newActions) actionsList.value = [...newActions];
-});
+watch(
+    () => props.actions,
+    (newActions) => {
+        if (newActions) actionsList.value = [...newActions];
+    },
+);
 
-watch(() => props.garmentParts, (newParts) => {
-    if (newParts) garmentPartsList.value = [...newParts];
-});
+watch(
+    () => props.garmentParts,
+    (newParts) => {
+        if (newParts) garmentPartsList.value = [...newParts];
+    },
+);
 
 watch(newActionValue, (value) => {
     const normalized = value.toUpperCase();
@@ -81,7 +93,6 @@ watch(newGarmentPartValue, (value) => {
     const normalized = value.toUpperCase();
     if (value !== normalized) newGarmentPartValue.value = normalized;
 });
-
 
 const entityLabels = {
     section: {
@@ -159,7 +170,7 @@ async function submitForm() {
 
     try {
         let response;
-        
+
         if (props.entity === 'section') {
             response = await axios.post('/produccion/secciones', {
                 name: form.value.name,
@@ -202,10 +213,8 @@ async function submitForm() {
     } catch (error: any) {
         console.error('Error al crear entidad:', error);
         const serverMessage =
-            error.response?.data?.message ||
-            Object.values(error.response?.data?.errors || {})?.flat()?.[0] ||
-            'Error al crear el elemento';
-        
+            error.response?.data?.message || Object.values(error.response?.data?.errors || {})?.flat()?.[0] || 'Error al crear el elemento';
+
         // Manejar errores de validación (422) con tipo warning
         if (error.response?.status === 422 && error.response?.data?.type === 'warning') {
             errorType.value = 'warning';
@@ -226,12 +235,11 @@ function clearSuccessMessage() {
 function clearErrorMessage() {
     errorMessage.value = '';
 }
-
 </script>
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <DialogContent class="max-w-3xl max-h-[90vh] flex flex-col">
+        <DialogContent class="flex max-h-[90vh] max-w-3xl flex-col">
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ entityConfig.title }}</DialogTitle>
                 <DialogDescription>
@@ -245,171 +253,153 @@ function clearErrorMessage() {
                 @close-success="clearSuccessMessage"
                 @close-error="clearErrorMessage"
             />
-            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
+            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
                 <div class="space-y-4 pt-4">
-                <!-- Formulario para Seccion -->
-                <template v-if="entity === 'section'">
-                    <div class="space-y-3">
-                        <label class="text-sm font-medium">Tipo de seccion <span class="text-destructive">*</span></label>
-                        <div class="flex rounded-full border border-border bg-muted/40 p-1">
-                            <button
-                                v-for="option in sectionOptions"
-                                :key="option.id"
-                                type="button"
-                                class="flex-1 rounded-full px-4 py-2 text-sm font-semibold transition"
-                                :class="selectedSectionType === option.id
-                                    ? 'bg-primary text-white shadow-sm'
-                                    : 'text-muted-foreground hover:text-foreground'"
-                                @click="selectedSectionType = option.id"
-                            >
-                                {{ option.label }}
-                            </button>
+                    <!-- Formulario para Seccion -->
+                    <template v-if="entity === 'section'">
+                        <div class="space-y-3">
+                            <label class="text-sm font-medium">Tipo de seccion <span class="text-destructive">*</span></label>
+                            <div class="flex rounded-full border border-border bg-muted/40 p-1">
+                                <button
+                                    v-for="option in sectionOptions"
+                                    :key="option.id"
+                                    type="button"
+                                    class="flex-1 rounded-full px-4 py-2 text-sm font-semibold transition"
+                                    :class="
+                                        selectedSectionType === option.id
+                                            ? 'bg-primary text-white shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    "
+                                    @click="selectedSectionType = option.id"
+                                >
+                                    {{ option.label }}
+                                </button>
+                            </div>
+                            <InputField v-model="form.name" label="Nombre de la seccion" placeholder="Ej: Confeccion especial" required />
                         </div>
+                    </template>
+
+                    <!-- Formulario para Operación -->
+                    <template v-else-if="entity === 'operation'">
                         <InputField
-                            v-model="form.name"
-                            label="Nombre de la seccion"
-                            placeholder="Ej: Confeccion especial"
-                            required
+                            :model-value="operationName"
+                            label="Nombre"
+                            placeholder="Se genera automáticamente"
+                            disabled
+                            class="bg-muted/30"
                         />
-                    </div>
-                </template>
 
-                <!-- Formulario para Operación -->
-                <template v-else-if="entity === 'operation'">
-                    <InputField
-                        :model-value="operationName"
-                        label="Nombre"
-                        placeholder="Se genera automáticamente"
-                        disabled
-                        class="bg-muted/30"
-                    />
-
-                    <div class="grid gap-4 md:grid-cols-2">
-
-                    <!-- Acción -->
-                    <div>
-                        <label class="text-sm font-medium mb-1.5 block">Acción <span class="text-destructive">*</span></label>
-                        <SelectField
-                            v-if="!showActionInput"
-                            v-model="form.action"
-                            :options="actionsList.map(a => ({ id: a, name: a }))"
-                            placeholder="Selecciona acción"
-                            required
-                        >
-                            <template #header>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                    @click="showActionInput = true"
+                        <div class="grid gap-4 md:grid-cols-2">
+                            <!-- Acción -->
+                            <div>
+                                <label class="mb-1.5 block text-sm font-medium">Acción <span class="text-destructive">*</span></label>
+                                <SelectField
+                                    v-if="!showActionInput"
+                                    v-model="form.action"
+                                    :options="actionsList.map((a) => ({ id: a, name: a }))"
+                                    placeholder="Selecciona acción"
+                                    required
                                 >
-                                    <Plus class="h-4 w-4" />
-                                    Nueva acción
-                                </Button>
-                            </template>
-                        </SelectField>
-                        <div v-else class="flex gap-2">
-                            <InputField
-                                v-model="newActionValue"
-                                label=""
-                                placeholder="Ej: UNIR, PEGAR, COSER"
-                                class="flex-1"
-                            />
-                            <button
-                                type="button"
-                                class="px-3 py-2 text-sm font-semibold bg-primary text-white rounded-md hover:bg-primary/90"
-                                @click="addNewAction"
-                            >
-                                Agregar
-                            </button>
-                            <button
-                                type="button"
-                                class="px-3 py-2 text-sm font-semibold border rounded-md hover:bg-muted/50"
-                                @click="showActionInput = false; newActionValue = ''"
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Parte de la prenda -->
-                    <div>
-                        <label class="text-sm font-medium mb-1.5 block">Parte de la prenda <span class="text-destructive">*</span></label>
-                        <SelectField
-                            v-if="!showGarmentPartInput"
-                            v-model="form.garment_part"
-                            :options="garmentPartsList.map(g => ({ id: g, name: g }))"
-                            placeholder="Selecciona parte de la prenda"
-                            required
-                        >
-                            <template #header>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                    @click="showGarmentPartInput = true"
-                                >
-                                    <Plus class="h-4 w-4" />
-                                    Nueva parte
-                                </Button>
-                            </template>
-                        </SelectField>
-                        <div v-else class="flex gap-2">
-                            <InputField
-                                v-model="newGarmentPartValue"
-                                label=""
-                                placeholder="Ej: CUELLO, MANGA, BOLSILLO"
-                                class="flex-1"
-                            />
-                            <button
-                                type="button"
-                                class="px-3 py-2 text-sm font-semibold bg-primary text-white rounded-md hover:bg-primary/90"
-                                @click="addNewGarmentPart"
-                            >
-                                Agregar
-                            </button>
-                            <button
-                                type="button"
-                                class="px-3 py-2 text-sm font-semibold border rounded-md hover:bg-muted/50"
-                                @click="showGarmentPartInput = false; newGarmentPartValue = ''"
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                </template>
+                                    <template #header>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                            @click="showActionInput = true"
+                                        >
+                                            <Plus class="h-4 w-4" />
+                                            Nueva acción
+                                        </Button>
+                                    </template>
+                                </SelectField>
+                                <div v-else class="flex gap-2">
+                                    <InputField v-model="newActionValue" label="" placeholder="Ej: UNIR, PEGAR, COSER" class="flex-1" />
+                                    <button
+                                        type="button"
+                                        class="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+                                        @click="addNewAction"
+                                    >
+                                        Agregar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-md border px-3 py-2 text-sm font-semibold hover:bg-muted/50"
+                                        @click="
+                                            showActionInput = false;
+                                            newActionValue = '';
+                                        "
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
 
-                <!-- Formulario para Máquina -->
-                <template v-else-if="entity === 'machine'">
-                    <InputField
-                        v-model="form.code"
-                        label="Código de la máquina"
-                        placeholder="Ej: MAQ-001"
-                        required
-                    />
-                    <InputField
-                        v-model="form.machine_name"
-                        label="Nombre de la máquina"
-                        placeholder="Ej: Recta industrial"
-                        required
-                    />
-                </template>
+                            <!-- Parte de la prenda -->
+                            <div>
+                                <label class="mb-1.5 block text-sm font-medium">Parte de la prenda <span class="text-destructive">*</span></label>
+                                <SelectField
+                                    v-if="!showGarmentPartInput"
+                                    v-model="form.garment_part"
+                                    :options="garmentPartsList.map((g) => ({ id: g, name: g }))"
+                                    placeholder="Selecciona parte de la prenda"
+                                    required
+                                >
+                                    <template #header>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                            @click="showGarmentPartInput = true"
+                                        >
+                                            <Plus class="h-4 w-4" />
+                                            Nueva parte
+                                        </Button>
+                                    </template>
+                                </SelectField>
+                                <div v-else class="flex gap-2">
+                                    <InputField v-model="newGarmentPartValue" label="" placeholder="Ej: CUELLO, MANGA, BOLSILLO" class="flex-1" />
+                                    <button
+                                        type="button"
+                                        class="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+                                        @click="addNewGarmentPart"
+                                    >
+                                        Agregar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-md border px-3 py-2 text-sm font-semibold hover:bg-muted/50"
+                                        @click="
+                                            showGarmentPartInput = false;
+                                            newGarmentPartValue = '';
+                                        "
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Formulario para Máquina -->
+                    <template v-else-if="entity === 'machine'">
+                        <InputField v-model="form.code" label="Código de la máquina" placeholder="Ej: MAQ-001" required />
+                        <InputField v-model="form.machine_name" label="Nombre de la máquina" placeholder="Ej: Recta industrial" required />
+                    </template>
                 </div>
             </div>
-            <DialogFooter class="mt-6 flex justify-end gap-2 flex-shrink-0 border-t pt-4">
+            <DialogFooter class="mt-6 flex flex-shrink-0 justify-end gap-2 border-t pt-4">
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="closeDialog"
                 >
                     Cancelar
                 </button>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="submitForm"
                 >
                     {{ entityConfig.button }}

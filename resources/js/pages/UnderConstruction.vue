@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/domain/shared';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
@@ -45,9 +45,7 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => {
                     <span v-if="moduleTitle">{{ moduleTitle }}</span>
                     <span v-else>Modulo en desarrollo</span>
                 </h1>
-                <p class="text-sm text-muted-foreground">
-                    Este modulo aun no esta disponible. Estamos trabajando para habilitarlo lo antes posible.
-                </p>
+                <p class="text-sm text-muted-foreground">Este modulo aun no esta disponible. Estamos trabajando para habilitarlo lo antes posible.</p>
             </div>
         </div>
     </AppLayout>

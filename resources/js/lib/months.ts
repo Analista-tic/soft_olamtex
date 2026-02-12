@@ -21,10 +21,10 @@ export const MONTH_LABELS: Record<number, string> = {
 /**
  * Retorna el nombre del mes en español dado un valor numérico (1-12).
  * Soporta number, string numérico, o null/undefined.
- * 
+ *
  * @param value - Número o string representando el mes (1-12)
  * @returns Nombre del mes en español o '—' si no es válido
- * 
+ *
  * @example
  * monthLabel(2)      // 'FEBRERO'
  * monthLabel('3')    // 'MARZO'

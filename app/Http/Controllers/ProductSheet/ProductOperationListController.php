@@ -4,6 +4,7 @@ namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductSheet\ProductOperationList;
+use App\Models\ProductSheet\ProductSheetOperationHistory;
 use App\Services\ProductSheet\ProductOperationListService;
 use App\Services\ProductSheet\OperationService;
 use App\Services\ProductSheet\MachineService;
@@ -117,7 +118,7 @@ class ProductOperationListController extends Controller
             'operations.*.operation_id' => ['required', 'integer', 'exists:operations,id'],
             'operations.*.machine_id' => ['required', 'integer', 'exists:machines,id'],
             'operations.*.operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
-            'operations.*.sequence_order' => ['required', 'integer', 'min:1'],
+            'operations.*.sequence' => ['required', 'integer', 'min:1'],
             'operations.*.optimal_time' => ['required', 'numeric', 'min:0'],
             'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:1,2'],
             'operations.*.machine_supplement_factor' => ['required', 'numeric', 'min:1'],
@@ -233,5 +234,19 @@ class ProductOperationListController extends Controller
         return response()->json([
             'message' => 'Orden actualizado correctamente.'
         ]);
+    }
+
+    /**
+     * Obtiene el historial de cambios de una operación
+     * GET /produccion/listados-operacionales/{listItem}/history
+     */
+    public function history(ProductOperationList $listItem): JsonResponse
+    {
+        $history = ProductSheetOperationHistory::where('product_sheet_operation_id', $listItem->id)
+            ->with('usuario:id,name')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json(['data' => $history]);
     }
 }

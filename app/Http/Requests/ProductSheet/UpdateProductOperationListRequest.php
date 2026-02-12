@@ -37,11 +37,11 @@ class UpdateProductOperationListRequest extends FormRequest
             ],
             'machine_id' => ['sometimes', 'integer', 'exists:machines,id'],
             'operation_section_id' => ['sometimes', 'integer', 'exists:operation_sections,id'],
-            'sequence_order' => [
+            'sequence' => [
                 'sometimes',
                 'integer',
                 'min:1',
-                // Validar que el orden sea único (excepto el registro actual)
+                // Validar que la secuencia sea única (excepto el registro actual)
                 Rule::unique('product_operation_lists')
                     ->where('product_sheet_id', $listItem->product_sheet_id)
                     ->ignore($listItem->id)
@@ -73,7 +73,7 @@ class UpdateProductOperationListRequest extends FormRequest
     {
         return [
             'operation_id.unique' => 'Esta operación ya está agregada en este lote. No se pueden duplicar operaciones.',
-            'sequence_order.unique' => 'Ya existe una operación con este orden de secuencia en el lote.',
+            'sequence.unique' => 'Ya existe una operación con esta secuencia en el lote.',
             'operator_efficiency_factor.min' => 'El factor de eficiencia del operario debe ser al menos 1.0 (100%).',
             'operator_efficiency_factor.max' => 'El factor de eficiencia del operario no puede superar 2.0 (200%).',
             'machine_supplement_factor.min' => 'El suplemento de máquina debe ser al menos 1.0 (sin suplemento).',
@@ -92,7 +92,7 @@ class UpdateProductOperationListRequest extends FormRequest
             'operation_id' => 'operación',
             'machine_id' => 'máquina',
             'operation_section_id' => 'sección',
-            'sequence_order' => 'orden de secuencia',
+            'sequence' => 'secuencia',
             'optimal_time' => 'tiempo óptimo',
             'operator_efficiency_factor' => 'factor de eficiencia del operario',
             'machine_supplement_factor' => 'suplemento de máquina',

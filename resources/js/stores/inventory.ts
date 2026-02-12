@@ -22,8 +22,8 @@ interface InventoryState {
     search: string;
 }
 
+export { DEFAULT_PER_PAGE, DEFAULT_STATUS_FILTER };
 export type { Item };
-export { DEFAULT_STATUS_FILTER, DEFAULT_PER_PAGE };
 
 export const useInventoryStore = defineStore('inventory', {
     state: (): InventoryState => ({

@@ -21,6 +21,8 @@ interface OperationRow {
     operation_id: number | null;
     machine_id: number | null;
     optimal_time: string;
+    quantity?: number;
+    fabric_base_id?: number | null;
 }
 
 interface DialogInitialData {
@@ -146,6 +148,8 @@ const createEmptyRow = (): OperationRow => ({
     operation_id: props.operations[0]?.id ?? null,
     machine_id: props.machines[0]?.id ?? null,
     optimal_time: '0.00',
+    quantity: 1,
+    fabric_base_id: null,
 });
 
 // Fila actual para añadir
@@ -242,6 +246,22 @@ function getProductionTime(optimalTime: string): number {
     return Number((optimal * efficiency * supplement).toFixed(4));
 }
 
+/** SAM unitario = sam_base × suplemento × factor_tela × factor_operario (doc) */
+function getSamUnitario(row: OperationRow): number {
+    const samBase = Number.parseFloat(row.optimal_time) || 0;
+    const supplement = Number(machineSupplementFactor.value) || 1.0;
+    const factorTela = 1.0;
+    const factorOp = Number(operatorEfficiencyFactor.value) || 1.25;
+    return Number((samBase * supplement * factorTela * factorOp).toFixed(4));
+}
+
+/** SAM operación = sam_unitario × cantidad (doc) */
+function getSamOperacion(row: OperationRow): number {
+    const unitario = getSamUnitario(row);
+    const quantity = row.quantity ?? 1;
+    return Number((unitario * quantity).toFixed(4));
+}
+
 function getSectionName(sectionId: number | null): string {
     return sectionsList.value.find(s => s.id === sectionId)?.name ?? '-';
 }
@@ -336,11 +356,12 @@ function saveOperations() {
         section_id: row.section_id,
         operation_id: row.operation_id,
         machine_id: row.machine_id,
-        sequence_order: index + 1,
+        sequence: (index + 1) * 10,
         optimal_time: row.optimal_time,
         operator_efficiency_factor: operatorEfficiencyFactor.value,
         machine_supplement_factor: machineSupplementFactor.value,
         notes: notes.value || undefined,
+        quantity: row.quantity ?? 1,
     }));
 
     emit('save', payload);
@@ -422,7 +443,7 @@ function resetForm() {
                 </Button>
             </div>
 
-            <!-- Fila de añadir operación -->
+            <!-- Fila de añadir operación (doc: Operación, Máquina, Base tela, Cantidad, SAM base, Factor operario; SAM unitario/operación solo lectura) -->
             <div class="grid gap-3 grid-cols-12 items-end border rounded-lg p-3 bg-muted/30">
                 <div class="col-span-2">
                     <label class="text-xs font-medium text-muted-foreground mb-1.5 block">Sección <span class="text-destructive">*</span></label>
@@ -490,8 +511,20 @@ function resetForm() {
                         </template>
                     </SelectField>
                 </div>
-                <div class="col-span-2" @keydown.enter.prevent="addOperation">
-                    <label class="text-xs font-medium text-muted-foreground mb-1.5 block">SAM <span class="text-destructive">*</span></label>
+                <div class="col-span-1">
+                    <label class="text-xs font-medium text-muted-foreground mb-1.5 block">Cant.</label>
+                    <InputField
+                        v-model.number="currentRow.quantity"
+                        label=""
+                        type="number"
+                        step="1"
+                        min="1"
+                        placeholder="1"
+                        class="h-9"
+                    />
+                </div>
+                <div class="col-span-1" @keydown.enter.prevent="addOperation">
+                    <label class="text-xs font-medium text-muted-foreground mb-1.5 block">SAM base <span class="text-destructive">*</span></label>
                     <InputField
                         v-model="currentRow.optimal_time"
                         label=""
@@ -501,10 +534,25 @@ function resetForm() {
                         class="h-9"
                     />
                 </div>
-                <div class="col-span-2">
-                    <label class="text-xs font-medium text-muted-foreground mb-1.5 block">UND 100%</label>
-                    <div class="h-9 flex items-center justify-center rounded-md border bg-background px-3 text-sm font-medium">
-                        {{ currentUnits100 }}
+                <div class="col-span-1">
+                    <label class="text-xs font-medium text-muted-foreground mb-1.5 block">Base tela</label>
+                    <SelectField
+                        v-model="currentRow.fabric_base_id"
+                        :options="[]"
+                        placeholder="—"
+                        class="h-9"
+                    />
+                </div>
+                <div class="col-span-1">
+                    <label class="text-xs font-medium text-muted-foreground mb-1.5 block">SAM unit.</label>
+                    <div class="h-9 flex items-center rounded-md border bg-muted/50 px-2 text-xs font-mono text-muted-foreground">
+                        {{ getSamUnitario(currentRow) }}
+                    </div>
+                </div>
+                <div class="col-span-1">
+                    <label class="text-xs font-medium text-muted-foreground mb-1.5 block">SAM op.</label>
+                    <div class="h-9 flex items-center rounded-md border bg-muted/50 px-2 text-xs font-mono text-muted-foreground">
+                        {{ getSamOperacion(currentRow) }}
                     </div>
                 </div>
             </div>
@@ -524,9 +572,10 @@ function resetForm() {
                             <th class="text-left px-3 py-2 font-medium text-muted-foreground">Sección</th>
                             <th class="text-left px-3 py-2 font-medium text-muted-foreground">Operación</th>
                             <th class="text-left px-3 py-2 font-medium text-muted-foreground">Máquina</th>
-                            <th class="text-right px-3 py-2 font-medium text-muted-foreground">SAM</th>
-                            <th class="text-right px-3 py-2 font-medium text-muted-foreground">Tiempo Prod.</th>
-                            <th class="text-right px-3 py-2 font-medium text-muted-foreground">UND 100%</th>
+                            <th class="text-right px-3 py-2 font-medium text-muted-foreground">Cant.</th>
+                            <th class="text-right px-3 py-2 font-medium text-muted-foreground">SAM base</th>
+                            <th class="text-right px-3 py-2 font-medium text-muted-foreground">SAM unit.</th>
+                            <th class="text-right px-3 py-2 font-medium text-muted-foreground">SAM op.</th>
                             <th class="w-10"></th>
                         </tr>
                     </thead>
@@ -571,6 +620,18 @@ function resetForm() {
                             <td class="px-3 py-2 text-right font-mono">
                                 <InputField
                                     v-if="isEditingRow(index) && editRow"
+                                    v-model.number="editRow.quantity"
+                                    label=""
+                                    type="number"
+                                    step="1"
+                                    min="1"
+                                    class="h-8 w-14 text-right"
+                                />
+                                <span v-else>{{ row.quantity ?? 1 }}</span>
+                            </td>
+                            <td class="px-3 py-2 text-right font-mono">
+                                <InputField
+                                    v-if="isEditingRow(index) && editRow"
                                     v-model="editRow.optimal_time"
                                     label=""
                                     type="number"
@@ -579,11 +640,11 @@ function resetForm() {
                                 />
                                 <span v-else>{{ row.optimal_time }}</span>
                             </td>
-                            <td class="px-3 py-2 text-right font-mono text-blue-600 dark:text-blue-400 font-semibold">
-                                {{ getProductionTime(isEditingRow(index) && editRow ? editRow.optimal_time : row.optimal_time) }}
+                            <td class="px-3 py-2 text-right font-mono text-muted-foreground">
+                                {{ getSamUnitario(isEditingRow(index) && editRow ? editRow : row) }}
                             </td>
                             <td class="px-3 py-2 text-right font-mono font-semibold">
-                                {{ getUnits100(isEditingRow(index) && editRow ? editRow.optimal_time : row.optimal_time) }}
+                                {{ getSamOperacion(isEditingRow(index) && editRow ? editRow : row) }}
                             </td>
                             <td class="px-3 py-2">
                                 <div class="flex items-center justify-end gap-2">

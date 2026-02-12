@@ -1,12 +1,13 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
-import { Button } from '@/components/ui/button';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import Input from '@/components/ui/input/Input.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -18,17 +19,16 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import AppLayout from '@/layouts/AppLayout.vue';
-import type { BreadcrumbItem } from '@/domain/shared';
+import { useAlertStack } from '@/composables/useAlert';
 import type { Permission, Role } from '@/domain/auth/types';
+import type { BreadcrumbItem } from '@/domain/shared';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import RoleDialog from './RoleDialog.vue';
-import { useAuthStore } from '@/stores/auth';
-import AlertStack from '@/components/common/AlertStack.vue';
-import { useAlertStack } from '@/composables/useAlert';
 
 type RolePayload = {
     id?: number | null;
@@ -65,7 +65,7 @@ const formattedPermissions = computed(() =>
     (props.permissions ?? []).map((permission) => ({
         name: permission.name,
         module: 'default',
-    }))
+    })),
 );
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
@@ -88,7 +88,7 @@ function resolveApiMessage(error: unknown, fallback: string): string {
         if (data?.message) return data.message;
         if (data?.errors) {
             const firstError = Object.values(data.errors)
-                .flatMap((value) => Array.isArray(value) ? value : [value])
+                .flatMap((value) => (Array.isArray(value) ? value : [value]))
                 .find((value) => Boolean(value));
             if (firstError) return String(firstError);
         }
@@ -121,7 +121,7 @@ function normalizeText(value: string): string {
 function resolvePermissionGroup(permission: string): string {
     const normalized = normalizeText(permission);
     for (const group of permissionGroups) {
-        if (group.tokens.some(token => normalized.includes(token))) {
+        if (group.tokens.some((token) => normalized.includes(token))) {
             return group.label;
         }
     }
@@ -258,20 +258,15 @@ onMounted(async () => {
                     @click="openFormDialog()"
                     variant="default"
                     size="sm"
-                    class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                    class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                 >
                     <PlusCircle class="h-4 w-4" /> Crear Nuevo Rol
                 </Button>
             </div>
             <FilterBar align="start">
-                <FilterField label="Buscar rol" :active="isSearchActive" class="flex-1 min-w-[220px] p-0">
+                <FilterField label="Buscar rol" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input
-                            id="search_role"
-                            v-model="searchQuery"
-                            placeholder="Buscar por nombre del rol"
-                            class="h-10 w-full pl-10"
-                        />
+                        <Input id="search_role" v-model="searchQuery" placeholder="Buscar por nombre del rol" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
@@ -293,17 +288,10 @@ onMounted(async () => {
                             <TableCell class="text-center font-medium">{{ role.name }}</TableCell>
                             <TableCell class="text-left">
                                 <div class="flex flex-wrap justify-start gap-2">
-                                    <Badge
-                                        v-for="chip in getPermissionChips(role)"
-                                        :key="chip.label"
-                                        variant="secondary"
-                                        class="whitespace-nowrap"
-                                    >
+                                    <Badge v-for="chip in getPermissionChips(role)" :key="chip.label" variant="secondary" class="whitespace-nowrap">
                                         {{ chip.label }} {{ chip.count }}
                                     </Badge>
-                                    <span v-if="!role.permissions?.length" class="text-xs text-muted-foreground">
-                                        Sin permisos
-                                    </span>
+                                    <span v-if="!role.permissions?.length" class="text-xs text-muted-foreground"> Sin permisos </span>
                                 </div>
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
@@ -357,13 +345,5 @@ onMounted(async () => {
         @confirm="deleteRole"
     />
 
-    <RoleDialog
-        :isOpen="isEditDialogOpen"
-        :role="roleToEdit"
-        :permissions="formattedPermissions"
-        @close="closeDialog"
-        @submit="handleRoleSubmit"
-    />
+    <RoleDialog :isOpen="isEditDialogOpen" :role="roleToEdit" :permissions="formattedPermissions" @close="closeDialog" @submit="handleRoleSubmit" />
 </template>
-
-

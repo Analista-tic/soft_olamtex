@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
+use App\Http\Controllers\ProductSheet\MachineController;
 use App\Http\Controllers\ProductSheet\ProductOperationListController;
 use App\Http\Controllers\ProductSheet\ProductSheetController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
@@ -122,6 +123,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/copiar-desde-producto', [ProductOperationListController::class, 'copyFromProduct'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('copy-from-product');
+            Route::get('/{listItem}/history', [ProductOperationListController::class, 'history'])
+                ->middleware('permission:ver listados operacionales|ver sabana productos')
+                ->name('history');
         });
 
         // Parametros

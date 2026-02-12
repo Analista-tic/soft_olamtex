@@ -1,30 +1,30 @@
 <script setup lang="ts">
+import AlertBox from '@/components/AlertBox.vue';
+import FormHeader from '@/components/FormHeader.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
 import SwitchField from '@/components/SwitchField.vue';
-import SubGroupDialog from '@/pages/Configuration/Category/SubGroupDialog.vue';
 import TextareaField from '@/components/TextareaField.vue';
-import GroupDialog from '@/pages/Configuration/Category/GroupDialog.vue';
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
-import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
-import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
-import { ITEM_FORM_DRAFT_KEY } from './constants';
-import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Tax, Warehouse, AdditionalField, AdditionalFieldType } from '@/domain/inventory';
+import unitMeasureData from '@/data/unitMeasures.json';
+import type { AdditionalField, AdditionalFieldType, CategoryGroup, CategorySubGroup, ExtraFields, Item, Tax, Warehouse } from '@/domain/inventory';
 import type { Option } from '@/domain/shared';
-import axios from 'axios';
-import { Image, Plus, Trash2, ExternalLink } from 'lucide-vue-next';
-import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
-import FormHeader from '@/components/FormHeader.vue';
-import AlertBox from '@/components/AlertBox.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
-import unitMeasureData from '@/data/unitMeasures.json';
+import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
+import GroupDialog from '@/pages/Configuration/Category/GroupDialog.vue';
+import SubGroupDialog from '@/pages/Configuration/Category/SubGroupDialog.vue';
+import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
+import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
+import axios from 'axios';
+import { ExternalLink, Image, Plus, Trash2 } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { ITEM_FORM_DRAFT_KEY } from './constants';
 
 // Props y eventos
 const props = withDefaults(
@@ -81,12 +81,9 @@ const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce(
     },
     {} as Record<ItemType, string>,
 );
-const normalizeItemType = (value?: string | null): ItemType =>
-    value === 'service' ? 'service' : 'product';
+const normalizeItemType = (value?: string | null): ItemType => (value === 'service' ? 'service' : 'product');
 const prepareLocalForm = (source: Partial<Item>): ItemForm => {
-    const resolvedTaxId =
-        source.tax_id ??
-        (typeof source.tax === 'object' && source.tax !== null ? source.tax.id : undefined);
+    const resolvedTaxId = source.tax_id ?? (typeof source.tax === 'object' && source.tax !== null ? source.tax.id : undefined);
 
     return {
         ...source,
@@ -115,9 +112,7 @@ const extraFieldNames = ref<string[]>([]);
 const additionalFieldOptions = ref<Record<string, string[]>>({});
 const additionalFieldsMeta = ref<AdditionalField[]>([]);
 const requiredAdditionalFieldNames = computed(() =>
-    (additionalFieldsMeta.value ?? [])
-        .filter((field) => field?.name && field.is_required)
-        .map((field) => field.name),
+    (additionalFieldsMeta.value ?? []).filter((field) => field?.name && field.is_required).map((field) => field.name),
 );
 const extraFields = ref<ExtraFields>({});
 const missingRequiredAdditionalFieldNames = computed(() => {
@@ -126,9 +121,7 @@ const missingRequiredAdditionalFieldNames = computed(() => {
         return value === undefined || String(value ?? '').trim() === '';
     });
 });
-const hasMissingRequiredAdditionalFields = computed(
-    () => missingRequiredAdditionalFieldNames.value.length > 0,
-);
+const hasMissingRequiredAdditionalFields = computed(() => missingRequiredAdditionalFieldNames.value.length > 0);
 
 const additionalFieldOrder = computed(() => {
     const map = new Map<string, number>();
@@ -152,9 +145,7 @@ type WarehouseStockEntry = {
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
 const taxes = ref<Tax[]>([]);
 const defaultTaxEntry = computed(() => taxes.value.find(isDefaultTax));
-const nonDefaultTaxes = computed(() =>
-    taxes.value.filter((tax): tax is Tax => !isDefaultTax(tax)),
-);
+const nonDefaultTaxes = computed(() => taxes.value.filter((tax): tax is Tax => !isDefaultTax(tax)));
 const taxOptions = computed<Option[]>(() => {
     const defaultTax = defaultTaxEntry.value;
     const baseOption = { id: defaultTax?.id ?? 'none', name: DEFAULT_TAX_LABEL };
@@ -206,35 +197,31 @@ const subGroupDialogForm = ref<Partial<CategorySubGroup>>({
     name: '',
     category_group_id: undefined,
 });
-const groupOptions = computed(() => categoryGroups.value.map((group) => ({
-    id: String(group.id ?? ''),
-    name: group.name,
-})));
+const groupOptions = computed(() =>
+    categoryGroups.value.map((group) => ({
+        id: String(group.id ?? ''),
+        name: group.name,
+    })),
+);
 const filteredSubGroups = computed(() => {
     if (!selectedGroupId.value) {
         return [];
     }
-    return categorySubGroups.value.filter(
-        (sg) => String(sg.category_group_id ?? '') === selectedGroupId.value,
-    );
+    return categorySubGroups.value.filter((sg) => String(sg.category_group_id ?? '') === selectedGroupId.value);
 });
-const subGroupOptions = computed(() => filteredSubGroups.value.map((sg) => ({
-    id: String(sg.id ?? ''),
-    name: sg.name,
-})));
-const currentSubGroup = computed(() =>
-    categorySubGroups.value.find(
-        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
-    )
+const subGroupOptions = computed(() =>
+    filteredSubGroups.value.map((sg) => ({
+        id: String(sg.id ?? ''),
+        name: sg.name,
+    })),
 );
+const currentSubGroup = computed(() => categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id)));
 const currentGroup = computed(() => {
     if (currentSubGroup.value?.category_group) {
         return currentSubGroup.value.category_group;
     }
     if (selectedGroupId.value) {
-        return categoryGroups.value.find(
-            (group) => String(group.id) === selectedGroupId.value,
-        ) ?? null;
+        return categoryGroups.value.find((group) => String(group.id) === selectedGroupId.value) ?? null;
     }
     return null;
 });
@@ -247,8 +234,7 @@ type UnitMeasureGroup = {
 type UnitMeasureData = {
     unitMeasureGroups: UnitMeasureGroup[];
 };
-const unitMeasureGroups: UnitMeasureGroup[] =
-    (unitMeasureData as UnitMeasureData)?.unitMeasureGroups ?? [];
+const unitMeasureGroups: UnitMeasureGroup[] = (unitMeasureData as UnitMeasureData)?.unitMeasureGroups ?? [];
 const unitMeasures = unitMeasureGroups.flatMap((group) =>
     group.options.map((option) => ({
         ...option,
@@ -258,8 +244,7 @@ const unitMeasures = unitMeasureGroups.flatMap((group) =>
 const serviceUnitId = 'servicio';
 const defaultProductUnitValue = String(unitMeasures[0]?.id ?? 'unidad');
 const getInitialUnitMeasure = (form: Partial<Item>): string =>
-    form.unit_measure ??
-    (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
+    form.unit_measure ?? (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
 const unitMeasure = ref(getInitialUnitMeasure(props.form));
 const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
@@ -349,7 +334,7 @@ watch(
         if (!value) {
             closeImageZoom();
         }
-    }
+    },
 );
 
 // Carga de catálogos y datos iniciales
@@ -430,9 +415,7 @@ async function fetchAdditionalFields() {
                     id: field?.id,
                     name: field?.name ? String(field.name) : '',
                     field_type: fieldType,
-                    options: Array.isArray(field?.options)
-                        ? field.options.map((opt: any) => String(opt))
-                        : [],
+                    options: Array.isArray(field?.options) ? field.options.map((opt: any) => String(opt)) : [],
                     default_value: field?.default_value ?? null,
                     description: field?.description ?? '',
                     is_required: Boolean(field?.is_required),
@@ -452,14 +435,15 @@ async function fetchAdditionalFields() {
         // Si el backend no devuelve campos, dejamos el arreglo vacío.
         extraFieldNames.value = names;
         additionalFieldsMeta.value = normalizedFields;
-        additionalFieldOptions.value = normalizedFields.reduce((acc: Record<string, string[]>, field: any) => {
-            if (field?.name) {
-                acc[field.name] = Array.isArray(field.options)
-                    ? field.options.map((opt: any) => String(opt))
-                    : [];
-            }
-            return acc;
-        }, {} as Record<string, string[]>);
+        additionalFieldOptions.value = normalizedFields.reduce(
+            (acc: Record<string, string[]>, field: any) => {
+                if (field?.name) {
+                    acc[field.name] = Array.isArray(field.options) ? field.options.map((opt: any) => String(opt)) : [];
+                }
+                return acc;
+            },
+            {} as Record<string, string[]>,
+        );
     } catch (error) {
         console.error('Error al cargar campos adicionales:', error);
         // En caso de error no llenamos campos adicionales; el formulario los mostrará vacíos.
@@ -554,9 +538,7 @@ function fillExtraFields(obj: unknown) {
 }
 
 function syncGroupFromSubgroup() {
-    const subGroup = categorySubGroups.value.find(
-        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
-    );
+    const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id));
     if (subGroup && subGroup.category_group_id) {
         selectedGroupId.value = String(subGroup.category_group_id);
     } else {
@@ -567,13 +549,7 @@ function syncGroupFromSubgroup() {
 // Carga inicial de datos al montar el componente
 onMounted(() => {
     void trackLoading(async () => {
-        await Promise.all([
-            fetchWarehouses(),
-            fetchCategorySubGroups(),
-            fetchCategoryGroups(),
-            fetchTaxes(),
-            fetchAdditionalFields(),
-        ]);
+        await Promise.all([fetchWarehouses(), fetchCategorySubGroups(), fetchCategoryGroups(), fetchTaxes(), fetchAdditionalFields()]);
         fillExtraFields(props.form.extra_fields);
         if (props.form.id) {
             await fetchWarehouseStocks(props.form.id);
@@ -606,7 +582,7 @@ async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
     }
 
     await fetchWarehouseStocks(resolvedItemId);
- }
+}
 
 // Devuelve bodegas disponibles para seleccionar (evita duplicados)
 function availableWarehouses(idx?: number) {
@@ -618,7 +594,7 @@ function availableWarehouses(idx?: number) {
         .filter((w) => typeof w.id === 'number' && !usedIds.includes(String(w.id)))
         .map((w) => ({
             id: String(w.id),
-            name: w.name
+            name: w.name,
         }));
 }
 
@@ -663,7 +639,7 @@ watch(
     async () => {
         // handled elsewhere on open; noop watcher removed
     },
-    { immediate: true }
+    { immediate: true },
 );
 watch(currentItemType, (type, prevType) => {
     if (type === 'service' && unitMeasure.value !== serviceUnitId) {
@@ -683,9 +659,7 @@ watch(
     () => localForm.value.category_sub_group_id,
     (newVal) => {
         if (!newVal) return;
-        const subGroup = categorySubGroups.value.find(
-            (sg) => String(sg.id) === String(newVal),
-        );
+        const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(newVal));
         if (subGroup && subGroup.category_group_id) {
             selectedGroupId.value = String(subGroup.category_group_id);
         }
@@ -701,10 +675,7 @@ const buildErrorMessage = (err: any): string => {
     const resp = err?.response?.data;
     const validation = resp?.errors;
     if (validation && typeof validation === 'object') {
-        const joined = Object.values(validation)
-            .flat()
-            .filter(Boolean)
-            .join('. ');
+        const joined = Object.values(validation).flat().filter(Boolean).join('. ');
         if (joined.trim()) return joined;
     }
     return resp?.message || 'Ocurrió un error inesperado al guardar el ítem.';
@@ -770,10 +741,7 @@ async function handleSubmit() {
     });
     if (requiredErrors.length > 0) {
         alertType.value = 'warning';
-        alertMessage.value = formatRequiredFieldsMessage(
-            'Por favor, completa todos los campos obligatorios',
-            requiredErrors,
-        );
+        alertMessage.value = formatRequiredFieldsMessage('Por favor, completa todos los campos obligatorios', requiredErrors);
         scrollDialogToTop();
         return;
     }
@@ -815,15 +783,8 @@ async function handleSubmit() {
     const cleanForm: any = {
         ...localForm.value,
         category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
-        tax_id:
-            resolvedTaxId !== undefined &&
-            resolvedTaxId !== null &&
-            String(resolvedTaxId) !== ''
-                ? Number(resolvedTaxId)
-                : undefined,
-        tax: localForm.value.tax && typeof localForm.value.tax === 'object'
-            ? Number(localForm.value.tax.percentage)
-            : 0,
+        tax_id: resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== '' ? Number(resolvedTaxId) : undefined,
+        tax: localForm.value.tax && typeof localForm.value.tax === 'object' ? Number(localForm.value.tax.percentage) : 0,
         negative_movement: localForm.value.negative_movement,
         bar_code: localForm.value.bar_code || '',
         description: (localForm.value.description || '').trim() || 'N/A',
@@ -832,9 +793,14 @@ async function handleSubmit() {
         name: nameField.value,
         unit_measure: unitMeasure.value,
         item_type: normalizeItemType(localForm.value.item_type),
-        status: typeof localForm.value.status === 'boolean'
-            ? (localForm.value.status ? 1 : 0)
-            : (localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true ? 1 : 0),
+        status:
+            typeof localForm.value.status === 'boolean'
+                ? localForm.value.status
+                    ? 1
+                    : 0
+                : localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true
+                  ? 1
+                  : 0,
     };
 
     const formData = new FormData();
@@ -854,12 +820,19 @@ async function handleSubmit() {
     if (imageFile.value) {
         formData.append('image', imageFile.value);
     }
-    formData.append('warehouses', JSON.stringify(warehouseStocks.value.filter((w) => Number(w.warehouse_id)).map((w) => ({
-        warehouse_id: Number(w.warehouse_id),
-        quantity: Number(w.quantity),
-        stock_min: Number(w.stock_min),
-        stock_max: Number(w.stock_max),
-    }))));
+    formData.append(
+        'warehouses',
+        JSON.stringify(
+            warehouseStocks.value
+                .filter((w) => Number(w.warehouse_id))
+                .map((w) => ({
+                    warehouse_id: Number(w.warehouse_id),
+                    quantity: Number(w.quantity),
+                    stock_min: Number(w.stock_min),
+                    stock_max: Number(w.stock_max),
+                })),
+        ),
+    );
 
     const url = props.dialogType === 'create' ? '/item' : `/item/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'POST';
@@ -940,9 +913,7 @@ watch(
 const INVENTORY_ADJUSTMENT_SAVED_EVENT = 'inventory-adjustment-saved';
 const handleInventoryAdjustmentSaved = (event: Event) => {
     const evt = event as CustomEvent<{ itemIds?: number[] }>;
-    const itemIds = (evt?.detail?.itemIds ?? [])
-        .map(id => Number(id))
-        .filter((id) => Number.isFinite(id) && id > 0);
+    const itemIds = (evt?.detail?.itemIds ?? []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
     const currentItemId = Number(props.form.id);
     if (!currentItemId || !itemIds.includes(currentItemId)) return;
     if (!props.isOpen) return;
@@ -992,10 +963,7 @@ function persistAdvancedFormDraft() {
     try {
         localStorage.setItem(ITEM_FORM_DRAFT_KEY, JSON.stringify(buildAdvancedFormDraft()));
     } catch (error) {
-        console.warn(
-            'No se pudo guardar el borrador del formulario avanzado en el almacenamiento local.',
-            error,
-        );
+        console.warn('No se pudo guardar el borrador del formulario avanzado en el almacenamiento local.', error);
     }
 }
 
@@ -1015,55 +983,45 @@ function redirectToAdvancedForm() {
 const NEGATIVE_STOCK_WARNING =
     'Este ítem tiene cantidades negativas en una o más bodegas. ' +
     'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
-const NEGATIVE_MOVEMENT_INVENTORY_WARNING =
-    'Asocia el ítem con al menos una bodega antes de habilitar movimientos negativos.';
+const NEGATIVE_MOVEMENT_INVENTORY_WARNING = 'Asocia el ítem con al menos una bodega antes de habilitar movimientos negativos.';
 
 function showNegativeMovementWarning() {
-  alertType.value = 'warning';
-  alertMessage.value = NEGATIVE_STOCK_WARNING;
+    alertType.value = 'warning';
+    alertMessage.value = NEGATIVE_STOCK_WARNING;
 
-  scrollDialogToTop();
+    scrollDialogToTop();
 }
 
 const hasInventoryDetails = computed(() => warehouseStocks.value.length > 0);
 
-const hasNegativeStock = computed(() =>
-  warehouseStocks.value.some((w) => Number(w.quantity) < 0)
-);
+const hasNegativeStock = computed(() => warehouseStocks.value.some((w) => Number(w.quantity) < 0));
 
-const negativeMovementBool = computed(() =>
-  localForm.value.negative_movement === 1 ||
-  localForm.value.negative_movement === true
-);
+const negativeMovementBool = computed(() => localForm.value.negative_movement === 1 || localForm.value.negative_movement === true);
 
-const negativeMovementToggleDisabled = computed(
-  () => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value),
-);
+const negativeMovementToggleDisabled = computed(() => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value));
 
 function showNegativeMovementInventoryWarning() {
-  alertType.value = 'warning';
-  alertMessage.value = NEGATIVE_MOVEMENT_INVENTORY_WARNING;
-  scrollDialogToTop();
+    alertType.value = 'warning';
+    alertMessage.value = NEGATIVE_MOVEMENT_INVENTORY_WARNING;
+    scrollDialogToTop();
 }
 
 function handleNegativeMovementChange(val: boolean) {
-  if (val && !hasInventoryDetails.value) {
-    showNegativeMovementInventoryWarning();
-    return;
-  }
+    if (val && !hasInventoryDetails.value) {
+        showNegativeMovementInventoryWarning();
+        return;
+    }
 
-  if (hasNegativeStock.value && !val) {
-    showNegativeMovementWarning();
-    return;
-  }
+    if (hasNegativeStock.value && !val) {
+        showNegativeMovementWarning();
+        return;
+    }
 
-  localForm.value.negative_movement = val ? 1 : 0;
+    localForm.value.negative_movement = val ? 1 : 0;
 }
 
 function updateNameField(orderedFields?: Record<string, string>): void {
-    const subGroup = categorySubGroups.value.find(
-        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id)
-    );
+    const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id));
     const extrasObj: Record<string, string> =
         orderedFields ??
         Object.fromEntries(
@@ -1114,12 +1072,9 @@ watch(
 );
 
 watch(
-    [
-        () => localForm.value.category_sub_group_id,
-        () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|'),
-    ],
+    [() => localForm.value.category_sub_group_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|')],
     () => updateNameField(),
-    { immediate: true }
+    { immediate: true },
 );
 
 function triggerFileInput() {
@@ -1148,190 +1103,192 @@ function handleFileChange(e: Event) {
 watch(
     () => localForm.value.tax_id,
     (taxId) => {
-        const taxObj = taxes.value.find(t => String(t.id) === String(taxId));
+        const taxObj = taxes.value.find((t) => String(t.id) === String(taxId));
         localForm.value.tax = taxObj || null;
-    }
+    },
 );
 </script>
 
 <template>
-    <div class="flex min-h-0 flex-1 flex-col -mx-6 -my-10">
-            <transition name="fade">
-                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-6">
-                    <AlertBox
-                        :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
-                        :message="alertMessage"
-                        class="pointer-events-auto w-full max-w-xl"
-                        @close="alertMessage = ''"
-                    />
-                </div>
-            </transition>
-            <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
+    <div class="-mx-6 -my-10 flex min-h-0 flex-1 flex-col">
+        <transition name="fade">
+            <div
+                v-if="alertMessage"
+                class="pointer-events-none absolute left-1/2 top-20 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-6"
+            >
+                <AlertBox
+                    :type="alertType"
+                    :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
+                    :message="alertMessage"
+                    class="pointer-events-auto w-full max-w-xl"
+                    @close="alertMessage = ''"
+                />
+            </div>
+        </transition>
+        <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
             <FormHeader
                 class="flex-shrink-0 px-6 pt-10"
                 headerClass="mb-4"
                 :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
-                :description="dialogType === 'create' ? 'Complete los campos para crear un nuevo ítem.' : dialogType === 'edit' ? 'Edite los campos del ítem seleccionado.' : 'Visualice la información del ítem.'"
+                :description="
+                    dialogType === 'create'
+                        ? 'Complete los campos para crear un nuevo ítem.'
+                        : dialogType === 'edit'
+                          ? 'Edite los campos del ítem seleccionado.'
+                          : 'Visualice la información del ítem.'
+                "
             />
 
-            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto px-6 scroll-smooth" style="scrollbar-width: thin;">
+            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6" style="scrollbar-width: thin">
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
-                        <div>
-                            <div class="mb-2 flex items-center gap-1">
-                                <span class="text-sm font-semibold text-card-foreground">
-                                    Tipo de ítem
-                                </span>
-                                <HelpTooltip text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes." />
+                            <div>
+                                <div class="mb-2 flex items-center gap-1">
+                                    <span class="text-sm font-semibold text-card-foreground"> Tipo de ítem </span>
+                                    <HelpTooltip
+                                        text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes."
+                                    />
+                                </div>
+                                <template v-if="isViewMode">
+                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                        {{ itemTypeLabelMap[currentItemType] }}
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="mt-2 grid grid-cols-2 gap-2">
+                                        <button
+                                            v-for="option in itemTypeOptions"
+                                            :key="option.value"
+                                            type="button"
+                                            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
+                                            :class="[
+                                                option.value === currentItemType
+                                                    ? 'border-blue-500 bg-blue-500 text-white shadow'
+                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
+                                            ]"
+                                            :aria-pressed="option.value === currentItemType"
+                                            :disabled="isViewMode"
+                                            @click="handleItemTypeSelect(option.value)"
+                                        >
+                                            {{ option.label }}
+                                        </button>
+                                    </div>
+                                </template>
                             </div>
-                            <template v-if="isViewMode">
-                                <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                    {{ itemTypeLabelMap[currentItemType] }}
-                                </div>
-                            </template>
-                            <template v-else>
-                                <div class="mt-2 grid grid-cols-2 gap-2">
-                                    <button
-                                        v-for="option in itemTypeOptions"
-                                        :key="option.value"
-                                        type="button"
-                                        class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
-                                        :class="[
-                                            option.value === currentItemType
-                                                ? 'border-blue-500 bg-blue-500 text-white shadow'
-                                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
-                                        ]"
-                                        :aria-pressed="option.value === currentItemType"
-                                        :disabled="isViewMode"
-                                        @click="handleItemTypeSelect(option.value)"
-                                    >
-                                        {{ option.label }}
-                                    </button>
-                                </div>
-                            </template>
-                        </div>
                             <div>
                                 <Label>Nombre</Label>
-                                <Input
-                                    v-model="nameField"
-                                    label="Nombre"
-                                    readonly
-                                    class="mt-1"
-                                    placeholder="Nombre autocompletado"
-                                />
+                                <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
                             </div>
 
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            <template v-if="isViewMode">
-                                <div class="flex flex-col gap-1">
-                                    <Label>Grupo</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{ currentGroup?.name || '-' }}
+                                <template v-if="isViewMode">
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Grupo</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{ currentGroup?.name || '-' }}
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="flex flex-col gap-1">
-                                    <Label>Subgrupo</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{ currentSubGroup?.name || '-' }}
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Subgrupo</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{ currentSubGroup?.name || '-' }}
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="flex flex-col gap-1">
-                                    <Label>Impuesto</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{ displayedTaxLabel }}
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Impuesto</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{ displayedTaxLabel }}
+                                        </div>
                                     </div>
-                                </div>
-                            </template>
+                                </template>
 
-                            <template v-else>
-                                <SelectField
-                                    v-model="selectedGroupId"
-                                    label="Grupo"
-                                    :options="groupOptions"
-                                    required
-                                    placeholder="Selecciona un grupo"
-                                    searchable
-                                    search-placeholder="Buscar..."
-                                    :show-placeholder-option="false"
-                                >
-                                    <template #header>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                            @click.stop="openGroupDialog"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                            Nuevo grupo
-                                        </Button>
-                                    </template>
-                                </SelectField>
-                                <SelectField
-                                    v-model="localForm.category_sub_group_id"
-                                    label="Subgrupo"
-                                    :options="subGroupOptions"
-                                    :disabled="!selectedGroupId"
-                                    :placeholder="selectedGroupId ? 'Selecciona un subgrupo' : 'Selecciona un grupo primero'"
-                                    required
-                                    button-class="min-h-[34px] py-1"
-                                    searchable
-                                    search-placeholder="Buscar..."
-                                    :show-placeholder-option="false"
-                                >
-                                    <template #header>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                            @click.stop="openSubGroupDialog"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                            Nuevo subgrupo
-                                        </Button>
-                                    </template>
-                                </SelectField>
-                                <SelectField
-                                    v-model="localForm.tax_id"
-                                    label="Impuesto"
-                                    :options="taxOptions"
-                                    option-label="name"
-                                    option-value="id"
-                                    required
-                                    searchable
-                                    search-placeholder="Buscar..."
-                                    :show-placeholder-option="false"
-                                >
-                                    <template #header>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                            @click.stop="openTaxDialog"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                            Nuevo impuesto
-                                        </Button>
-                                    </template>
-                                </SelectField>
-                            </template>
+                                <template v-else>
+                                    <SelectField
+                                        v-model="selectedGroupId"
+                                        label="Grupo"
+                                        :options="groupOptions"
+                                        required
+                                        placeholder="Selecciona un grupo"
+                                        searchable
+                                        search-placeholder="Buscar..."
+                                        :show-placeholder-option="false"
+                                    >
+                                        <template #header>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                                @click.stop="openGroupDialog"
+                                            >
+                                                <Plus class="h-4 w-4" />
+                                                Nuevo grupo
+                                            </Button>
+                                        </template>
+                                    </SelectField>
+                                    <SelectField
+                                        v-model="localForm.category_sub_group_id"
+                                        label="Subgrupo"
+                                        :options="subGroupOptions"
+                                        :disabled="!selectedGroupId"
+                                        :placeholder="selectedGroupId ? 'Selecciona un subgrupo' : 'Selecciona un grupo primero'"
+                                        required
+                                        button-class="min-h-[34px] py-1"
+                                        searchable
+                                        search-placeholder="Buscar..."
+                                        :show-placeholder-option="false"
+                                    >
+                                        <template #header>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                                @click.stop="openSubGroupDialog"
+                                            >
+                                                <Plus class="h-4 w-4" />
+                                                Nuevo subgrupo
+                                            </Button>
+                                        </template>
+                                    </SelectField>
+                                    <SelectField
+                                        v-model="localForm.tax_id"
+                                        label="Impuesto"
+                                        :options="taxOptions"
+                                        option-label="name"
+                                        option-value="id"
+                                        required
+                                        searchable
+                                        search-placeholder="Buscar..."
+                                        :show-placeholder-option="false"
+                                    >
+                                        <template #header>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
+                                                @click.stop="openTaxDialog"
+                                            >
+                                                <Plus class="h-4 w-4" />
+                                                Nuevo impuesto
+                                            </Button>
+                                        </template>
+                                    </SelectField>
+                                </template>
                             </div>
 
-                        <div
-                            v-if="currentItemType !== 'service'"
-                            class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
-                        >
-                        <div class="mb-2 flex items-center justify-between">
-                            <p class="text-sm font-semibold flex items-center gap-1">
-                                <span>Detalle de Inventario</span>
-                                <HelpTooltip text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock." />
-                            </p>
+                            <div v-if="currentItemType !== 'service'" class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900">
+                                <div class="mb-2 flex items-center justify-between">
+                                    <p class="flex items-center gap-1 text-sm font-semibold">
+                                        <span>Detalle de Inventario</span>
+                                        <HelpTooltip
+                                            text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock."
+                                        />
+                                    </p>
                                     <button
                                         v-if="!isViewMode"
                                         type="button"
@@ -1344,21 +1301,19 @@ watch(
                                     </button>
                                 </div>
 
-                                <div
-                                    v-for="(ws, idx) in warehouseStocks"
-                                    :key="idx"
-                                    class="mb-2 rounded-md bg-gray-50 p-2 dark:bg-gray-800"
-                                >
+                                <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-gray-50 p-2 dark:bg-gray-800">
                                     <div class="grid grid-cols-1 gap-2 sm:grid-cols-[220px,1fr,1fr,1fr,auto] sm:items-end">
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Bodega</Label>
                                             <SelectField
                                                 v-model="ws.warehouse_id"
                                                 label=""
-                                                :options="availableWarehouses(idx).map((w) => ({
-                                                    id: String(w.id ?? ''),
-                                                    name: w.name,
-                                                }))"
+                                                :options="
+                                                    availableWarehouses(idx).map((w) => ({
+                                                        id: String(w.id ?? ''),
+                                                        name: w.name,
+                                                    }))
+                                                "
                                                 @change="updateWarehouseName(idx)"
                                                 class="w-full"
                                                 placeholder="Bodega"
@@ -1369,7 +1324,7 @@ watch(
                                                         type="button"
                                                         size="sm"
                                                         variant="outline"
-                                                        class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                                        class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
                                                         @click.stop="openCatalog('warehouse')"
                                                     >
                                                         <Plus class="h-3 w-3" />
@@ -1386,30 +1341,18 @@ watch(
                                                 type="number"
                                                 class="w-full"
                                                 placeholder="Cantidad"
-                                                :allowNegative="true"  
+                                                :allowNegative="true"
                                             />
                                         </div>
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Cantidad Min</Label>
-                                            <InputIntegerField
-                                                v-model="ws.stock_min"
-                                                label=""
-                                                type="number"
-                                                class="w-full"
-                                                placeholder="Min"
-                                            />
+                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" />
                                         </div>
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Cantidad Max</Label>
-                                            <InputIntegerField
-                                                v-model="ws.stock_max"
-                                                label=""
-                                                type="number"
-                                                class="w-full"
-                                                placeholder="Max"
-                                            />
+                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" />
                                         </div>
-                                        <div class="flex items-base justify-end">
+                                        <div class="items-base flex justify-end">
                                             <button
                                                 v-if="!isViewMode"
                                                 type="button"
@@ -1423,18 +1366,13 @@ watch(
                                     </div>
                                 </div>
 
-                                <div
-                                    v-if="warehouseStocks.length === 0"
-                                    class="px-2 py-1 text-xs text-gray-400"
-                                >
-                                    No hay bodegas asociadas.
-                                </div>
+                                <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
                             </div>
                         </div>
 
                         <div class="flex flex-col gap-2 md:col-span-1">
                             <div class="flex w-full flex-col items-start gap-2">
-                                <Label class="mb-1 block text-sm font-medium text-left">Imagen</Label>
+                                <Label class="mb-1 block text-left text-sm font-medium">Imagen</Label>
                                 <div class="w-full">
                                     <!-- input file (se deshabilita por el fieldset + prop) -->
                                     <input
@@ -1448,9 +1386,7 @@ watch(
                                     <div
                                         :class="[
                                             'group relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
-                                            isViewMode
-                                                ? 'cursor-default opacity-100'
-                                                : 'cursor-pointer hover:border-blue-400 hover:shadow-lg',
+                                            isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-blue-400 hover:shadow-lg',
                                         ]"
                                         @click="!isViewMode && triggerFileInput()"
                                         style="min-width: 0; position: relative"
@@ -1465,23 +1401,19 @@ watch(
                                                 />
                                                 <button
                                                     type="button"
-                                                    class="absolute top-2 right-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-black"
+                                                    class="absolute right-2 top-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-black"
                                                     @click.stop="openImageZoom"
                                                     aria-label="Ver imagen ampliada"
                                                 >
                                                     Ver imagen
                                                 </button>
                                             </div>
-                                            <div
-                                                class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
-                                            >
+                                            <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
                                                 {{ isViewMode ? 'Imagen del ítem' : 'Cambiar imagen' }}
                                             </div>
                                         </template>
                                         <template v-else>
-                                            <div
-                                                class="z-10 flex h-full w-full flex-col items-center justify-center"
-                                            >
+                                            <div class="z-10 flex h-full w-full flex-col items-center justify-center">
                                                 <Image class="mb-2 h-12 w-12 text-gray-400" />
                                                 <span class="text-sm text-gray-500">
                                                     {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
@@ -1500,10 +1432,7 @@ watch(
                             <template v-if="isViewMode">
                                 <Label>Unidad de Medida</Label>
                                 <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                    {{
-                                        unitMeasures.find((u) => u.id === unitMeasure)?.name ||
-                                        unitMeasure
-                                    }}
+                                    {{ unitMeasures.find((u) => u.id === unitMeasure)?.name || unitMeasure }}
                                 </div>
                             </template>
                             <template v-else>
@@ -1522,20 +1451,18 @@ watch(
                             <InputField v-model="localForm.bar_code" label="Código de Barras" />
                         </div>
                         <div class="md:col-span-1">
-                            <InputField
-                                v-model="localForm.reference"
-                                label="Referencia"
-                                required
-                            />
+                            <InputField v-model="localForm.reference" label="Referencia" required />
                         </div>
                         <div class="flex items-center md:col-span-1">
                             <SwitchField
                                 :model-value="negativeMovementBool"
                                 @update:modelValue="handleNegativeMovementChange"
                                 label="Movimiento Negativo"
-                                :tooltip-text="hasInventoryDetails
-                                    ? 'Permite que las bodegas registren cantidades negativas cuando lo necesites.'
-                                    : 'Asocia al menos una bodega antes de habilitar movimientos negativos.'"
+                                :tooltip-text="
+                                    hasInventoryDetails
+                                        ? 'Permite que las bodegas registren cantidades negativas cuando lo necesites.'
+                                        : 'Asocia al menos una bodega antes de habilitar movimientos negativos.'
+                                "
                                 :disabled="negativeMovementToggleDisabled"
                             />
                         </div>
@@ -1548,9 +1475,11 @@ watch(
 
                     <!-- Campos adicionales -->
                     <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                        <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
                             <span>Campos adicionales</span>
-                            <HelpTooltip text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo." />
+                            <HelpTooltip
+                                text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo."
+                            />
                         </p>
                     </div>
                     <div class="space-y-2">
@@ -1564,14 +1493,13 @@ watch(
                             :show-label="false"
                         />
                     </div>
-                    <section
-                        v-if="props.showAdvancedSections"
-                        class="rounded-2xl border border-border bg-card p-4 shadow-sm"
-                    >
+                    <section v-if="props.showAdvancedSections" class="rounded-2xl border border-border bg-card p-4 shadow-sm">
                         <div class="flex items-center justify-between pb-2">
-                            <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                            <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
                                 <span>Contabilidad</span>
-                                <HelpTooltip text="Indica las cuentas contables que deben usarse al vender o mover este ítem dentro del inventario." />
+                                <HelpTooltip
+                                    text="Indica las cuentas contables que deben usarse al vender o mover este ítem dentro del inventario."
+                                />
                             </p>
                         </div>
                         <div class="grid gap-4 md:grid-cols-2">
@@ -1601,77 +1529,60 @@ watch(
                             />
                         </div>
                     </section>
-                    <section
-                        v-if="props.showAdvancedSections"
-                        class="rounded-2xl border border-border bg-card p-4 shadow-sm"
-                    >
+                    <section v-if="props.showAdvancedSections" class="rounded-2xl border border-border bg-card p-4 shadow-sm">
                         <div class="flex items-center justify-between pb-2">
-                            <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                            <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
                                 <span>Datos adicionales para factura de exportación</span>
-                                <HelpTooltip text="Completa estos campos solo si este ítem se usa en operaciones de exportación para facilitar la factura." />
+                                <HelpTooltip
+                                    text="Completa estos campos solo si este ítem se usa en operaciones de exportación para facilitar la factura."
+                                />
                             </p>
                         </div>
                         <div class="grid gap-4 md:grid-cols-3">
-                            <InputField
-                                v-model="localForm.export_tariff_code"
-                                label="Partida arancelaria"
-                            />
-                            <InputField
-                                v-model="localForm.export_brand"
-                                label="Marca"
-                            />
-                            <InputField
-                                v-model="localForm.export_model"
-                                label="Modelo"
-                            />
+                            <InputField v-model="localForm.export_tariff_code" label="Partida arancelaria" />
+                            <InputField v-model="localForm.export_brand" label="Marca" />
+                            <InputField v-model="localForm.export_model" label="Modelo" />
                         </div>
                     </section>
                 </fieldset>
             </div>
 
-                <!-- FOOTER -->
-                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 px-6 pb-10 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
-                    <div
-                        v-if="dialogType !== 'view' && showAdvancedLink"
-                        class="w-full md:w-auto"
+            <!-- FOOTER -->
+            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col-reverse gap-2 border-t px-6 pb-10 pt-4 md:flex-row md:justify-end">
+                <div v-if="dialogType !== 'view' && showAdvancedLink" class="w-full md:w-auto">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        @click="redirectToAdvancedForm"
                     >
-                        <button
-                            type="button"
-                            class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                            @click="redirectToAdvancedForm"
-                        >
-                            <ExternalLink class="h-4 w-4" />
-                            Ir al formulario avanzado
-                        </button>
-                    </div>
-                    <div class="w-full md:w-auto">
-                        <button
-                            type="button"
-                            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                            @click="handleClose"
-                        >
-                            {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
-                        </button>
-                    </div>
-                    <div class="w-full md:w-auto">
-                        <Button
-                            v-if="dialogType !== 'view'"
-                            variant="default"
-                            type="submit"
-                            class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                            :disabled="hasMissingRequiredAdditionalFields"
-                        >
-                            {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                        </Button>
-                    </div>
-                </DialogFooter>
-            </form>
-        </div>
-    <GroupDialog
-        v-model:isOpen="isGroupDialogOpen"
-        @created="handleGroupCreated"
-        @close="isGroupDialogOpen = false"
-    />
+                        <ExternalLink class="h-4 w-4" />
+                        Ir al formulario avanzado
+                    </button>
+                </div>
+                <div class="w-full md:w-auto">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        @click="handleClose"
+                    >
+                        {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
+                    </button>
+                </div>
+                <div class="w-full md:w-auto">
+                    <Button
+                        v-if="dialogType !== 'view'"
+                        variant="default"
+                        type="submit"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                        :disabled="hasMissingRequiredAdditionalFields"
+                    >
+                        {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
+                    </Button>
+                </div>
+            </DialogFooter>
+        </form>
+    </div>
+    <GroupDialog v-model:isOpen="isGroupDialogOpen" @created="handleGroupCreated" @close="isGroupDialogOpen = false" />
     <SubGroupDialog
         :isOpen="isSubGroupDialogOpen"
         dialog-type="create"
@@ -1693,7 +1604,7 @@ watch(
         dialogType="create"
         :form="additionalFieldDialogForm"
         :loading="additionalFieldDialogLoading"
-        @update:open="(value) => additionalFieldDialogOpen = value"
+        @update:open="(value) => (additionalFieldDialogOpen = value)"
         @submit="handleAdditionalFieldDialogSubmit"
         @cancel="closeAdditionalFieldDialog"
     />
@@ -1706,14 +1617,10 @@ watch(
             role="dialog"
         >
             <div
-                class="relative mx-auto max-h-[98vh] max-w-[98vw] overflow-hidden rounded-2xl bg-white shadow-[0_25px_70px_rgba(15,23,42,0.8)] transform scale-125"
+                class="relative mx-auto max-h-[98vh] max-w-[98vw] scale-125 transform overflow-hidden rounded-2xl bg-white shadow-[0_25px_70px_rgba(15,23,42,0.8)]"
                 @click.stop
             >
-                <img
-                    :src="imagePreview"
-                    alt="Imagen ampliada"
-                    class="zoom-img max-h-[105vh] max-w-[105vw] object-cover"
-                />
+                <img :src="imagePreview" alt="Imagen ampliada" class="zoom-img max-h-[105vh] max-w-[105vw] object-cover" />
                 <button
                     type="button"
                     class="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white transition hover:bg-black"
@@ -1729,7 +1636,9 @@ watch(
 <style scoped>
 .zoom-enter-active,
 .zoom-leave-active {
-    transition: opacity 160ms ease, transform 160ms ease;
+    transition:
+        opacity 160ms ease,
+        transform 160ms ease;
 }
 .zoom-enter-from,
 .zoom-leave-to {

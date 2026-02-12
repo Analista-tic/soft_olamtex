@@ -14,19 +14,29 @@ class ProductOperationListResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $samBase = $this->sam_base ?? $this->sam ?? $this->optimal_time ?? 0;
+        $samTotalUnitario = $this->sam_total_unitario;
+        $samTotalOperacion = $this->sam_total_operacion;
+
         return [
             'id' => $this->id,
             'product_sheet_id' => $this->product_sheet_id,
             'operation_id' => $this->operation_id,
             'machine_id' => $this->machine_id,
             'operation_section_id' => $this->operation_section_id,
-            'sequence_order' => $this->sequence_order,
+            'sequence' => $this->sequence,
+            'fabric_base_id' => $this->fabric_base_id,
+            'quantity' => $this->quantity ?? 1,
             'is_active' => $this->is_active,
-            
-            // Tiempos
-            'optimal_time' => round($this->optimal_time, 4),
-            'sam' => round($this->sam, 4),
-            'production_time' => round($this->production_time, 4),
+
+            // Tiempos y SAM
+            'sam_base' => is_numeric($samBase) ? round((float) $samBase, 4) : null,
+            'optimal_time' => $this->optimal_time ? round($this->optimal_time, 4) : null,
+            'sam' => $this->sam ? round($this->sam, 4) : null,
+            'sam_total_unitario' => is_numeric($samTotalUnitario) ? round((float) $samTotalUnitario, 4) : null,
+            'sam_total_operacion' => is_numeric($samTotalOperacion) ? round((float) $samTotalOperacion, 4) : null,
+            'fabric_base_factor' => $this->fabric_base_factor ? round($this->fabric_base_factor, 4) : null,
+            'production_time' => $this->production_time ? round($this->production_time, 4) : null,
             'actual_time' => $this->actual_time ? round($this->actual_time, 4) : null,
             'variance' => $this->variance ? round($this->variance, 2) : null,
             

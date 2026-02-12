@@ -1,24 +1,14 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
-import SelectField from '@/components/SelectField.vue';
-import Button from '@/components/ui/button/Button.vue';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import Input from '@/components/ui/input/Input.vue';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import AppLayout from '@/layouts/AppLayout.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import type { Item } from '@/domain/inventory/types';
-import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import { Ban, CheckCircle, Download, FileSpreadsheet, PlusCircle, Pencil, Search, Trash, Upload } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch, reactive } from 'vue';
+import SelectField from '@/components/SelectField.vue';
+import Button from '@/components/ui/button/Button.vue';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -29,15 +19,18 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
-import ItemDialog from './ItemDialog.vue';
-import BulkUploadDialog from './BulkUploadDialog.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { Item } from '@/domain/inventory/types';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Ban, CheckCircle, Download, FileSpreadsheet, Pencil, PlusCircle, Search, Trash, Upload } from 'lucide-vue-next';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import BulkUploadDialog from './BulkUploadDialog.vue';
+import ItemDialog from './ItemDialog.vue';
 
-const breadcrumbs = [
-    { title: 'Catálogo de ítem', href: '/inventario/item' },
-];
+const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
 const items = ref<Item[]>([]);
 const isDialogOpen = ref(false);
@@ -62,7 +55,7 @@ const statusOptions = ref([
     reactive({ id: 'all', name: 'Todos' }),
     // Usar booleanos para mantener un contrato claro con la API
     reactive({ id: true, name: 'Habilitados' }),
-    reactive({ id: false, name: 'Deshabilitados' })
+    reactive({ id: false, name: 'Deshabilitados' }),
 ]);
 
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
@@ -110,10 +103,10 @@ async function deleteItem() {
         await axios.delete(`/item/${itemToDelete.value.id}`);
         fetchItems();
         isDeleteDialogOpen.value = false;
-        successMessage.value = "El ítem se eliminó correctamente.";
-        errorMessage.value = "";
+        successMessage.value = 'El ítem se eliminó correctamente.';
+        errorMessage.value = '';
     } catch (err: unknown) {
-        let message = "No se pudo eliminar el ítem.";
+        let message = 'No se pudo eliminar el ítem.';
         if (axios.isAxiosError(err)) {
             // err.response puede ser undefined; usar any para acceder a data.message si es necesario
             message = (err.response?.data as any)?.message ?? message;
@@ -121,20 +114,20 @@ async function deleteItem() {
             message = err.message ?? message;
         }
         errorMessage.value = message;
-        successMessage.value = "";
+        successMessage.value = '';
     }
 }
 
 function handleDialogRefresh() {
-  fetchItems(currentPage.value, searchQuery.value, statusFilter.value);
+    fetchItems(currentPage.value, searchQuery.value, statusFilter.value);
 
-  if (dialogType.value === 'create') {
-    successMessage.value = 'El ítem se creó correctamente.';
-  } else {
-    successMessage.value = 'El ítem se actualizó correctamente.';
-  }
+    if (dialogType.value === 'create') {
+        successMessage.value = 'El ítem se creó correctamente.';
+    } else {
+        successMessage.value = 'El ítem se actualizó correctamente.';
+    }
 
-  errorMessage.value = '';
+    errorMessage.value = '';
 }
 
 function handleDialogLoadingState(value: boolean) {
@@ -254,16 +247,14 @@ async function downloadTemplate() {
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Catálogo de ítem</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Gestiona los ítems del inventario: categorías, stock y estado.
-                    </p>
+                    <p class="text-sm text-muted-foreground">Gestiona los ítems del inventario: categorías, stock y estado.</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <Button
                         @click="openDialog('create')"
                         variant="default"
                         size="sm"
-                        class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                        class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                     >
                         <PlusCircle class="h-4 w-4" /> Crear nuevo ítem
                     </Button>
@@ -278,17 +269,10 @@ async function downloadTemplate() {
                                 <span>Otras acciones</span>
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            align="end"
-                            side="bottom"
-                            side-offset="1"
-                            :avoid-collisions="false"
-                            collision-padding="0"
-                            class="w-56"
-                        >
+                        <DropdownMenuContent align="end" side="bottom" side-offset="1" :avoid-collisions="false" collision-padding="0" class="w-56">
                             <DropdownMenuItem
                                 class="cursor-pointer gap-2"
-                                :class="isTemplateDownloading ? 'opacity-60 cursor-not-allowed' : ''"
+                                :class="isTemplateDownloading ? 'cursor-not-allowed opacity-60' : ''"
                                 :disabled="isTemplateDownloading"
                                 @click="downloadTemplate"
                             >
@@ -306,16 +290,12 @@ async function downloadTemplate() {
             </div>
             <!-- FILTROS: UNA SOLA FILA -->
             <FilterBar>
-                <FilterField
-                    label="Buscar ítem"
-                    :active="searchQuery.trim().length > 0"
-                    class="flex-1 min-w-[220px] p-0"
-                >
+                <FilterField label="Buscar ítem" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
                     <div class="relative">
                         <Input
                             v-model="searchQuery"
                             placeholder="Buscar ítem"
-                            class="h-10 w-full rounded-md border border-gray-200 bg-white pl-10 text-sm focus:border-primary focus:ring-0 dark:bg-slate-800 dark:border-slate-700 dark:placeholder:text-slate-400"
+                            class="h-10 w-full rounded-md border border-gray-200 bg-white pl-10 text-sm focus:border-primary focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:placeholder:text-slate-400"
                         />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
@@ -323,13 +303,7 @@ async function downloadTemplate() {
                     </div>
                 </FilterField>
                 <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[180px]">
-                    <SelectField
-                        v-model="statusFilter"
-                        label=""
-                        :options="statusOptions"
-                        placeholder="Estado"
-                        :button-class="statusButtonClasses"
-                    />
+                    <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
                 </FilterField>
                 <!-- Puedes agregar más filtros aquí siguiendo el mismo patrón visual -->
             </FilterBar>
@@ -355,33 +329,16 @@ async function downloadTemplate() {
                                 <StatusBadge :text="item.status ? 'Habilitado' : 'Deshabilitado'" :type="item.status ? 'green' : 'red'" />
                             </TableCell>
                             <TableCell class="flex justify-center gap-1">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-8 w-8"
-                                    title="Editar"
-                                    @click="openDialog('edit', item)"
-                                >
+                                <Button variant="ghost" size="icon" class="h-8 w-8" title="Editar" @click="openDialog('edit', item)">
                                     <Pencil class="h-4 w-4" />
                                 </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-8 w-8"
-                                    title="Eliminar"
-                                    @click="confirmDeleteItem(item)"
-                                >
+                                <Button variant="ghost" size="icon" class="h-8 w-8" title="Eliminar" @click="confirmDeleteItem(item)">
                                     <Trash class="h-4 w-4" />
                                 </Button>
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    :class="[
-                                        'h-8 w-8',
-                                        item.status
-                                            ? 'text-red-600 hover:text-red-700'
-                                            : 'text-emerald-600 hover:text-emerald-700',
-                                    ]"
+                                    :class="['h-8 w-8', item.status ? 'text-red-600 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-700']"
                                     title="Habilitar/Deshabilitar"
                                     @click="openStatusDialog(item)"
                                 >
@@ -405,15 +362,8 @@ async function downloadTemplate() {
                         <PaginationFirst />
                         <PaginationPrev />
 
-                        <template
-                            v-for="(item, index) in items"
-                            :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`"
-                        >
-                            <PaginationListItem
-                                v-if="item.type === 'page'"
-                                :value="item.value"
-                                as-child
-                            >
+                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
+                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
                                 <Button
                                     class="h-6 w-6 p-0"
                                     :variant="item.value === currentPage ? 'default' : 'outline'"
@@ -463,7 +413,7 @@ async function downloadTemplate() {
                     <div class="w-full md:w-auto">
                         <button
                             type="button"
-                            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                             @click="isStatusDialogOpen = false"
                         >
                             Cancelar
@@ -496,13 +446,9 @@ async function downloadTemplate() {
                 role="status"
                 aria-live="assertive"
             >
-                <span class="inline-flex h-12 w-12 animate-spin rounded-full border-4 border-t-transparent border-primary"></span>
+                <span class="inline-flex h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></span>
                 <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Cargando diálogo...</p>
             </div>
         </transition>
     </AppLayout>
 </template>
-
-
-
-

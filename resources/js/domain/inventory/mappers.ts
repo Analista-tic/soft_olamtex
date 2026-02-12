@@ -1,5 +1,5 @@
+import type { CategorySubGroupDto, ItemDto, TaxDto, WarehouseDto } from './dto';
 import type { CategorySubGroup, ExtraFields, Item, Tax, Warehouse } from './types';
-import type { ItemDto, WarehouseDto, CategorySubGroupDto, TaxDto } from './dto';
 
 function parseExtraFields(value?: string | Record<string, string>): ExtraFields | undefined {
     if (!value) {

@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import InputField from '@/components/InputField.vue';
+import AlertBox from '@/components/AlertBox.vue';
 import InputDate from '@/components/InputDate.vue';
+import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { PurchaseInvoiceItem } from '@/domain/purchases';
 import axios from 'axios';
-import { ref, watch, computed, onMounted } from 'vue';
-import AlertBox from '@/components/AlertBox.vue';
 import { Pencil, Trash2 } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const TOLERANCE_QUANTITY_PERCENT = 30;
 const TOLERANCE_WIDTH_CM = 0.05;
@@ -82,9 +82,7 @@ const itemInfo = computed(() => {
     };
 });
 
-const totalReceived = computed(() =>
-    rolls.value.reduce((acc, roll) => acc + Number(roll.quantity || 0), 0),
-);
+const totalReceived = computed(() => rolls.value.reduce((acc, roll) => acc + Number(roll.quantity || 0), 0));
 
 /** Tolerancia de cantidad: 30% por encima o por debajo del pedido. */
 const quantityTolerance = computed(() => {
@@ -150,7 +148,11 @@ function resetForm() {
 }
 
 function fillFormFromRoll(roll: any) {
-    const entryDate = roll.entry_date ? (typeof roll.entry_date === 'string' ? roll.entry_date.split('T')[0] : roll.entry_date) : new Date().toISOString().split('T')[0];
+    const entryDate = roll.entry_date
+        ? typeof roll.entry_date === 'string'
+            ? roll.entry_date.split('T')[0]
+            : roll.entry_date
+        : new Date().toISOString().split('T')[0];
     form.value = {
         roll_number: roll.roll_number ?? roll.roll ?? '',
         purchase_document_item_id: roll.purchase_document_item_id ?? props.item?.id ?? null,
@@ -283,18 +285,24 @@ function formatDate(dateStr: string) {
     return Number.isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('es-CO');
 }
 
-watch(() => props.isOpen, (isOpen) => {
-    dialogOpen.value = isOpen;
-    if (isOpen) {
-        resetForm();
-        form.value.roll_number = generateRollNumber();
-        fetchRolls();
-    }
-});
+watch(
+    () => props.isOpen,
+    (isOpen) => {
+        dialogOpen.value = isOpen;
+        if (isOpen) {
+            resetForm();
+            form.value.roll_number = generateRollNumber();
+            fetchRolls();
+        }
+    },
+);
 
-watch(() => props.item?.id, (newId) => {
-    if (props.isOpen && newId) fetchRolls();
-});
+watch(
+    () => props.item?.id,
+    (newId) => {
+        if (props.isOpen && newId) fetchRolls();
+    },
+);
 
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) emit('close');
@@ -307,44 +315,68 @@ onMounted(() => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
-            <div class="flex-shrink-0 px-6 pt-5 pb-2">
-                    <DialogHeader>
+        <DialogContent class="flex max-h-[90vh] max-w-3xl flex-col gap-0 p-0">
+            <div class="flex-shrink-0 px-6 pb-2 pt-5">
+                <DialogHeader>
                     <DialogTitle class="text-lg">{{ editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}</DialogTitle>
                     <DialogDescription class="text-sm text-muted-foreground">
-                        {{ editingRoll ? 'Modifique los datos del rollo y guarde.' : 'Cada recepción guarda un nuevo rollo con identificador único (RL). Relacione el rollo al ítem de la factura.' }}
+                        {{
+                            editingRoll
+                                ? 'Modifique los datos del rollo y guarde.'
+                                : 'Cada recepción guarda un nuevo rollo con identificador único (RL). Relacione el rollo al ítem de la factura.'
+                        }}
                     </DialogDescription>
                 </DialogHeader>
             </div>
 
             <transition name="fade">
-                <div
-                    v-if="showAlert && alertMessage"
-                    class="mx-6 mt-2"
-                >
+                <div v-if="showAlert && alertMessage" class="mx-6 mt-2">
                     <AlertBox
                         :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :title="
+                            alertType === 'warning'
+                                ? 'Advertencia'
+                                : alertType === 'success'
+                                  ? 'Éxito'
+                                  : alertType === 'info'
+                                    ? 'Información'
+                                    : 'Error'
+                        "
                         :message="alertMessage"
                         @close="clearAlert"
                     />
                 </div>
             </transition>
 
-            <div class="overflow-y-auto flex-1 px-6 py-4" style="scrollbar-width: thin;">
+            <div class="flex-1 overflow-y-auto px-6 py-4" style="scrollbar-width: thin">
                 <div ref="dialogInnerRef" class="space-y-5">
                     <!-- Tabs -->
                     <div class="flex gap-2 border-b pb-2">
                         <button
                             type="button"
-                            :class="['px-4 py-2 rounded-t text-sm font-medium transition', activeTab === 'form' ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-muted/50 text-muted-foreground hover:bg-muted']"
-                            @click="resetForm(); form.roll_number = generateRollNumber(); form.roll_width = props.item?.order_width?.toString() ?? ''; activeTab = 'form'"
+                            :class="[
+                                'rounded-t px-4 py-2 text-sm font-medium transition',
+                                activeTab === 'form'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'bg-muted/50 text-muted-foreground hover:bg-muted',
+                            ]"
+                            @click="
+                                resetForm();
+                                form.roll_number = generateRollNumber();
+                                form.roll_width = props.item?.order_width?.toString() ?? '';
+                                activeTab = 'form';
+                            "
                         >
                             {{ editingRoll ? 'Editar rollo' : 'Registrar rollo' }}
                         </button>
                         <button
                             type="button"
-                            :class="['px-4 py-2 rounded-t text-sm font-medium transition', activeTab === 'list' ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-muted/50 text-muted-foreground hover:bg-muted']"
+                            :class="[
+                                'rounded-t px-4 py-2 text-sm font-medium transition',
+                                activeTab === 'list'
+                                    ? 'bg-primary text-primary-foreground shadow-sm'
+                                    : 'bg-muted/50 text-muted-foreground hover:bg-muted',
+                            ]"
                             @click="activeTab = 'list'"
                         >
                             Rollos recibidos ({{ rolls.length }})
@@ -354,8 +386,8 @@ onMounted(() => {
                     <template v-if="activeTab === 'form'">
                         <!-- Resumen del ítem -->
                         <div v-if="itemInfo" class="rounded-lg border bg-muted/30 p-4">
-                            <h3 class="text-sm font-semibold mb-3">Resumen del ítem</h3>
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                            <h3 class="mb-3 text-sm font-semibold">Resumen del ítem</h3>
+                            <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
                                 <div><span class="text-muted-foreground">Tela:</span> {{ itemInfo.articleName }}</div>
                                 <div><span class="text-muted-foreground">Pedido:</span> {{ itemInfo.orderedQuantity }} mts</div>
                                 <div><span class="text-muted-foreground">Ya ingresado:</span> {{ totalReceived }} mts</div>
@@ -367,7 +399,7 @@ onMounted(() => {
 
                         <form @submit.prevent="handleSubmit" class="space-y-5">
                             <!-- Longitud y ancho (destacados) -->
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
                                 <div class="space-y-1">
                                     <InputField
                                         v-model="form.quantity"
@@ -379,8 +411,14 @@ onMounted(() => {
                                         required
                                         class="text-base"
                                     />
-                                    <p v-if="quantityTolerance" class="text-xs mt-1" :class="quantityTolerance.isApproved ? 'text-green-600' : 'text-amber-600'">
-                                        Tras guardar: {{ quantityTolerance.receivedAfterSave.toFixed(2) }} mts ({{ quantityTolerance.percentageDiff.toFixed(1) }}% {{ quantityTolerance.isApproved ? '— dentro de tolerancia' : '— fuera de tolerancia ±30%' }})
+                                    <p
+                                        v-if="quantityTolerance"
+                                        class="mt-1 text-xs"
+                                        :class="quantityTolerance.isApproved ? 'text-green-600' : 'text-amber-600'"
+                                    >
+                                        Tras guardar: {{ quantityTolerance.receivedAfterSave.toFixed(2) }} mts ({{
+                                            quantityTolerance.percentageDiff.toFixed(1)
+                                        }}% {{ quantityTolerance.isApproved ? '— dentro de tolerancia' : '— fuera de tolerancia ±30%' }})
                                     </p>
                                 </div>
                                 <div class="space-y-1">
@@ -394,54 +432,47 @@ onMounted(() => {
                                         required
                                         class="text-base"
                                     />
-                                    <p v-if="widthTolerance" class="text-xs mt-1" :class="widthTolerance.withinTolerance ? 'text-green-600' : 'text-muted-foreground'">
-                                        Dif. {{ widthTolerance.difference.toFixed(2) }} cm {{ widthTolerance.withinTolerance ? '(dentro de ±0.05 cm)' : '(ancho no bloquea aprobación)' }}
+                                    <p
+                                        v-if="widthTolerance"
+                                        class="mt-1 text-xs"
+                                        :class="widthTolerance.withinTolerance ? 'text-green-600' : 'text-muted-foreground'"
+                                    >
+                                        Dif. {{ widthTolerance.difference.toFixed(2) }} cm
+                                        {{ widthTolerance.withinTolerance ? '(dentro de ±0.05 cm)' : '(ancho no bloquea aprobación)' }}
                                     </p>
                                 </div>
                             </div>
 
                             <!-- Número de rollo y fecha -->
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <InputField
-                                    v-model="form.roll_number"
-                                    label="Número de rollo (RL)"
-                                    placeholder="Generado automáticamente"
-                                    readonly
-                                />
-                                <InputDate
-                                    v-model="form.entry_date"
-                                    label="Fecha de entrada"
-                                    required
-                                />
+                            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                <InputField v-model="form.roll_number" label="Número de rollo (RL)" placeholder="Generado automáticamente" readonly />
+                                <InputDate v-model="form.entry_date" label="Fecha de entrada" required />
                             </div>
 
                             <!-- Ubicación -->
                             <div>
-                                <InputField
-                                    v-model="form.location"
-                                    label="Ubicación"
-                                    placeholder="Ej: Bodega A, estante 2"
-                                    required
-                                />
+                                <InputField v-model="form.location" label="Ubicación" placeholder="Ej: Bodega A, estante 2" required />
                             </div>
                             <!-- Observaciones -->
                             <div>
-                                <TextareaField
-                                    v-model="form.description"
-                                    label="Observaciones"
-                                    :rows="2"
-                                    placeholder="Opcional"
-                                />
+                                <TextareaField v-model="form.description" label="Observaciones" :rows="2" placeholder="Opcional" />
                             </div>
 
-                            <DialogFooter class="flex flex-wrap gap-2 justify-end pt-2 border-t">
-                                <Button type="button" variant="outline" @click="dialogOpen = false">
-                                    Cancelar
-                                </Button>
+                            <DialogFooter class="flex flex-wrap justify-end gap-2 border-t pt-2">
+                                <Button type="button" variant="outline" @click="dialogOpen = false"> Cancelar </Button>
                                 <Button type="submit" :disabled="isLoading">
-                                    {{ isLoading ? 'Guardando...' : (editingRoll ? 'Actualizar rollo' : 'Guardar rollo') }}
+                                    {{ isLoading ? 'Guardando...' : editingRoll ? 'Actualizar rollo' : 'Guardar rollo' }}
                                 </Button>
-                                <Button v-if="editingRoll" type="button" variant="outline" @click="resetForm(); form.roll_number = generateRollNumber(); form.roll_width = props.item?.order_width?.toString() ?? ''">
+                                <Button
+                                    v-if="editingRoll"
+                                    type="button"
+                                    variant="outline"
+                                    @click="
+                                        resetForm();
+                                        form.roll_number = generateRollNumber();
+                                        form.roll_width = props.item?.order_width?.toString() ?? '';
+                                    "
+                                >
                                     Cancelar edición
                                 </Button>
                             </DialogFooter>
@@ -450,18 +481,20 @@ onMounted(() => {
 
                     <template v-else>
                         <div v-if="rollsLoading" class="py-8 text-center text-muted-foreground">Cargando rollos...</div>
-                        <div v-else-if="rolls.length === 0" class="py-8 text-center text-muted-foreground">Aún no hay rollos registrados para este ítem.</div>
+                        <div v-else-if="rolls.length === 0" class="py-8 text-center text-muted-foreground">
+                            Aún no hay rollos registrados para este ítem.
+                        </div>
                         <div v-else class="space-y-3">
-                            <div class="rounded-lg border overflow-hidden">
+                            <div class="overflow-hidden rounded-lg border">
                                 <table class="w-full text-sm">
                                     <thead>
                                         <tr class="bg-muted/50">
-                                            <th class="text-left px-4 py-3 font-medium"># Rollo</th>
-                                            <th class="text-right px-4 py-3 font-medium">Longitud</th>
-                                            <th class="text-right px-4 py-3 font-medium">Ancho</th>
-                                            <th class="text-left px-4 py-3 font-medium">Ubicación</th>
-                                            <th class="text-left px-4 py-3 font-medium">Fecha</th>
-                                            <th v-if="canDeleteEditRolls" class="text-center px-4 py-3 font-medium w-24">Acciones</th>
+                                            <th class="px-4 py-3 text-left font-medium"># Rollo</th>
+                                            <th class="px-4 py-3 text-right font-medium">Longitud</th>
+                                            <th class="px-4 py-3 text-right font-medium">Ancho</th>
+                                            <th class="px-4 py-3 text-left font-medium">Ubicación</th>
+                                            <th class="px-4 py-3 text-left font-medium">Fecha</th>
+                                            <th v-if="canDeleteEditRolls" class="w-24 px-4 py-3 text-center font-medium">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -475,7 +508,7 @@ onMounted(() => {
                                                 <div class="flex items-center justify-center gap-1">
                                                     <button
                                                         type="button"
-                                                        class="p-1.5 rounded text-muted-foreground hover:text-primary hover:bg-muted"
+                                                        class="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"
                                                         title="Editar rollo"
                                                         @click="startEditRoll(roll)"
                                                     >
@@ -483,7 +516,7 @@ onMounted(() => {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        class="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-muted"
+                                                        class="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
                                                         title="Eliminar rollo"
                                                         @click="deleteRoll(roll)"
                                                     >
@@ -495,14 +528,18 @@ onMounted(() => {
                                     </tbody>
                                 </table>
                             </div>
-                            <p class="text-sm font-medium text-muted-foreground">
-                                Longitud total recibida: {{ totalReceived.toFixed(2) }} mts
-                            </p>
-                            <DialogFooter class="flex justify-end pt-2 border-t">
-                                <Button type="button" variant="outline" @click="dialogOpen = false">
-                                    Cerrar
-                                </Button>
-                                <Button type="button" @click="resetForm(); form.roll_number = generateRollNumber(); form.roll_width = props.item?.order_width?.toString() ?? ''; activeTab = 'form'">
+                            <p class="text-sm font-medium text-muted-foreground">Longitud total recibida: {{ totalReceived.toFixed(2) }} mts</p>
+                            <DialogFooter class="flex justify-end border-t pt-2">
+                                <Button type="button" variant="outline" @click="dialogOpen = false"> Cerrar </Button>
+                                <Button
+                                    type="button"
+                                    @click="
+                                        resetForm();
+                                        form.roll_number = generateRollNumber();
+                                        form.roll_width = props.item?.order_width?.toString() ?? '';
+                                        activeTab = 'form';
+                                    "
+                                >
                                     Registrar otro rollo
                                 </Button>
                             </DialogFooter>

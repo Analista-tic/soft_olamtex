@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
-import ItemDialog from '@/pages/Inventory/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
-import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
-import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
-import type { PurchaseOrderItem } from '@/domain/purchases';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Item, Tax } from '@/domain/inventory';
+import type { PurchaseOrderItem } from '@/domain/purchases';
+import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
+import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
+import ItemDialog from '@/pages/Inventory/Item/ItemDialog.vue';
 import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 
-const props = defineProps<{ 
+const props = defineProps<{
     items: PurchaseOrderItem[];
     suggestedItems?: any[];
 }>();
@@ -241,10 +241,10 @@ watch(
 );
 
 function formatSuggestedPrice(value: number) {
-    return Number(value || 0).toLocaleString('es-CO', { 
-        style: 'currency', 
-        currency: 'COP', 
-        minimumFractionDigits: 0 
+    return Number(value || 0).toLocaleString('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0,
     });
 }
 
@@ -256,7 +256,7 @@ function getSuggestedItemForRow(rowIdx: number) {
 
 function applySuggestedItem(suggestedItem: any, targetIdx: number) {
     if (!suggestedItem || targetIdx >= localItems.value.length) return;
-    
+
     const targetItem = localItems.value[targetIdx];
     targetItem.item_id = suggestedItem.item_id || null;
     targetItem.price = Number(suggestedItem.price) || 0;
@@ -266,7 +266,7 @@ function applySuggestedItem(suggestedItem: any, targetIdx: number) {
     targetItem.supplier_code = suggestedItem.supplier_code || '';
     targetItem.supplier_color = suggestedItem.supplier_color || '';
     targetItem.order_width = Number(suggestedItem.order_width) || 0;
-    
+
     calcTotals(targetItem);
     emit('update:items', localItems.value);
 }
@@ -275,15 +275,14 @@ defineExpose({ addItem, validateFabricFields });
 </script>
 
 <template>
-    <div
-        style="overflow: visible; max-height: none;"
-        class="w-full"
-    >
-
-        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none;">
-            <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
+    <div style="overflow: visible; max-height: none" class="w-full">
+        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none">
+            <Table
+                class="min-w-full table-fixed border-separate border-spacing-x-2 border-spacing-y-1 text-center"
+                style="overflow: visible; max-height: none"
+            >
                 <TableHeader>
-                    <TableRow class="text-center border-b border-border/60">
+                    <TableRow class="border-b border-border/60 text-center">
                         <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
                         <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
                         <TableHead class="min-w-[160px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
@@ -299,7 +298,7 @@ defineExpose({ addItem, validateFabricFields });
 
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell class="p-1 text-left min-w-[150px]">
+                        <TableCell class="min-w-[150px] p-1 text-left">
                             <div class="space-y-1.5">
                                 <SelectField
                                     v-model="item.item_id"
@@ -310,7 +309,7 @@ defineExpose({ addItem, validateFabricFields });
                                     <template #header>
                                         <button
                                             type="button"
-                                            class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                                            class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                                             @click.stop="openItemDialog"
                                         >
                                             <Plus class="h-4 w-4" />
@@ -319,19 +318,21 @@ defineExpose({ addItem, validateFabricFields });
                                     </template>
                                 </SelectField>
                                 <!-- Item sugerido de la solicitud para esta fila -->
-                                <div v-if="getSuggestedItemForRow(idx)" class="text-xs mt-1.5">
-                                    <div 
-                                        class="flex items-center gap-1.5 text-xs bg-accent/30 rounded-md px-2 py-1 border border-border/40 cursor-pointer hover:bg-accent/50 transition-colors group"
+                                <div v-if="getSuggestedItemForRow(idx)" class="mt-1.5 text-xs">
+                                    <div
+                                        class="group flex cursor-pointer items-center gap-1.5 rounded-md border border-border/40 bg-accent/30 px-2 py-1 text-xs transition-colors hover:bg-accent/50"
                                         @click="applySuggestedItem(getSuggestedItemForRow(idx), idx)"
                                         title="Clic para aplicar este item sugerido de la solicitud"
                                     >
                                         <span class="text-[10px] opacity-60 group-hover:opacity-100">💡</span>
-                                        <span class="flex-1 font-medium text-foreground/90">{{ getSuggestedItemForRow(idx)?.name || getSuggestedItemForRow(idx)?.description || `Item sugerido` }}</span>
+                                        <span class="flex-1 font-medium text-foreground/90">{{
+                                            getSuggestedItemForRow(idx)?.name || getSuggestedItemForRow(idx)?.description || `Item sugerido`
+                                        }}</span>
                                     </div>
                                 </div>
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 120px;">
+                        <TableCell class="p-1 text-left" style="width: 120px">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -342,18 +343,23 @@ defineExpose({ addItem, validateFabricFields });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px;">
+                        <TableCell class="p-1 text-left" style="width: 160px">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
                                 label=""
                                 class="w-full"
-                                @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
+                                @update:modelValue="
+                                    (val) => {
+                                        item.tax = Number(val) || 0;
+                                        calcTotals(item);
+                                    }
+                                "
                             >
                                 <template #header>
                                     <button
                                         type="button"
-                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                                         @click.stop="openTaxDialog"
                                     >
                                         <Plus class="h-4 w-4" />
@@ -362,28 +368,30 @@ defineExpose({ addItem, validateFabricFields });
                                 </template>
                             </SelectField>
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 110px;">
-                            <InputField
-                                v-model="item.quantity"
-                                type="number"
-                                label=""
-                                class="h-10 w-full"
-                                @input="calcTotals(item)"
-                            />
+                        <TableCell class="p-1 text-left" style="width: 110px">
+                            <InputField v-model="item.quantity" type="number" label="" class="h-10 w-full" @input="calcTotals(item)" />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px;">
+                        <TableCell class="p-1 text-left" style="width: 160px">
                             <InputField v-model="item.description" label="" class="h-10 w-full" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
+                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px">
                             <InputField v-model="item.supplier_code" label="" placeholder="Código proveedor" class="h-10 w-full" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
+                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px">
                             <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" class="h-10 w-full" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
-                            <InputField v-model="item.order_width" type="number" label="" placeholder="Ancho pedido (cm) *" step="any" class="h-10 w-full" :required="true" />
+                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px">
+                            <InputField
+                                v-model="item.order_width"
+                                type="number"
+                                label=""
+                                placeholder="Ancho pedido (cm) *"
+                                step="any"
+                                class="h-10 w-full"
+                                :required="true"
+                            />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 90px;">
+                        <TableCell class="p-1 text-left" style="width: 90px">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',

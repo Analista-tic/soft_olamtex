@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import AlertBox from '@/components/AlertBox.vue';
 import ActionIconButton from '@/components/common/ActionIconButton.vue';
+import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -12,8 +16,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import Badge from '@/components/ui/badge/Badge.vue';
 import { Button } from '@/components/ui/button';
-import FilterBar from '@/components/FilterBar.vue';
-import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -27,18 +29,16 @@ import {
 } from '@/components/ui/pagination';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { useAuthStore } from '@/stores/auth';
 import type { OptionParams, ProductSheet } from '@/domain/product-sheet';
 import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { ACTION_LABELS } from '@/lib/actionLabels';
+import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import AlertBox from '@/components/AlertBox.vue';
-import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
-import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import { Eye, Pencil, PlusCircle, Repeat2, Search, Trash } from 'lucide-vue-next';
 import { onMounted, ref, watch } from 'vue';
-import { ACTION_LABELS } from '@/lib/actionLabels';
+import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -77,7 +77,6 @@ const searchQuery = ref('');
 const statusFilter = ref<string | null>(null); // Cambiar a string | null para mayor claridad
 const sectionFilter = ref<number | null>(null);
 const worldFilter = ref<number | null>(null);
-
 
 const statusOptions: StatusOption[] = [
     { id: 0, label: 'Todos', value: null },
@@ -181,12 +180,12 @@ async function submitRowConvertDialog(productReference: string) {
         const index = products_sheet.value.findIndex((sheet) => sheet.id === convertRowTarget.value?.id);
 
         if (index !== -1) {
-                products_sheet.value[index] = {
-                    ...products_sheet.value[index],
-                    ...updated,
-                    type: updated.type ?? 'producto',
-                    product_reference: updated.product_reference ?? productReference,
-                };
+            products_sheet.value[index] = {
+                ...products_sheet.value[index],
+                ...updated,
+                type: updated.type ?? 'producto',
+                product_reference: updated.product_reference ?? productReference,
+            };
         }
 
         setAlert('Sábana convertida a producto correctamente.', 'success');
@@ -199,13 +198,7 @@ async function submitRowConvertDialog(productReference: string) {
 }
 
 // Modificar la función fetchProductSheets para aceptar un parámetro de búsqueda y filtro de estado
-async function fetchProductSheets(
-    page = 1,
-    search = '',
-    status: string | null = null,
-    section: number | null = null,
-    world: number | null = null,
-) {
+async function fetchProductSheets(page = 1, search = '', status: string | null = null, section: number | null = null, world: number | null = null) {
     try {
         const response = await axios.get('/produccion/product-sheets', {
             params: {
@@ -299,13 +292,18 @@ onMounted(async () => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <transition name="fade">
-                <div
-                    v-if="showAlert && alertMessage"
-                    class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-xl -translate-x-1/2"
-                >
+                <div v-if="showAlert && alertMessage" class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-xl -translate-x-1/2">
                     <AlertBox
                         :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
+                        :title="
+                            alertType === 'warning'
+                                ? 'Advertencia'
+                                : alertType === 'success'
+                                  ? 'Éxito'
+                                  : alertType === 'info'
+                                    ? 'Información'
+                                    : 'Error'
+                        "
                         :message="alertMessage"
                         class="pointer-events-auto"
                         @close="clearAlert"
@@ -318,18 +316,14 @@ onMounted(async () => {
                     v-if="canCreate"
                     variant="default"
                     size="sm"
-                    class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                    class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                     @click="openCreateDialog"
                 >
                     <PlusCircle class="h-4 w-4" /> Nuevo Producto
                 </Button>
             </div>
             <FilterBar align="start">
-                <FilterField
-                    label="Referencia"
-                    :active="searchQuery.trim().length > 0"
-                    class="flex-1 min-w-[220px] p-0"
-                >
+                <FilterField label="Referencia" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
                         <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -338,9 +332,9 @@ onMounted(async () => {
                     </div>
                 </FilterField>
                 <div class="flex flex-wrap items-center gap-2">
-                    <FilterField label="Estado" :active="statusFilter !== null" class="flex-1 min-w-[220px] max-w-[220px]">
+                    <FilterField label="Estado" :active="statusFilter !== null" class="min-w-[220px] max-w-[220px] flex-1">
                         <Select v-model="statusFilter">
-                            <SelectTrigger class="h-10 w-full rounded-md border px-3 text-sm flex items-center justify-between">
+                            <SelectTrigger class="flex h-10 w-full items-center justify-between rounded-md border px-3 text-sm">
                                 <SelectValue placeholder="Todos" />
                             </SelectTrigger>
                             <SelectContent>
@@ -352,33 +346,33 @@ onMounted(async () => {
                             </SelectContent>
                         </Select>
                     </FilterField>
-                <FilterField label="Sección" :active="sectionFilter !== null" class="flex-1 min-w-[220px] max-w-[220px]">
-                    <Select v-model="sectionFilter">
-                        <SelectTrigger class="h-10 w-full rounded-md border px-3 text-sm flex items-center justify-between">
-                            <SelectValue placeholder="Filtrar por sección" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem :value="null">Todos</SelectItem>
-                                <SelectItem v-for="section in props.sections" :key="section.id" :value="section.id">
-                                    {{ section.name }}
-                                </SelectItem>
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
+                    <FilterField label="Sección" :active="sectionFilter !== null" class="min-w-[220px] max-w-[220px] flex-1">
+                        <Select v-model="sectionFilter">
+                            <SelectTrigger class="flex h-10 w-full items-center justify-between rounded-md border px-3 text-sm">
+                                <SelectValue placeholder="Filtrar por sección" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem :value="null">Todos</SelectItem>
+                                    <SelectItem v-for="section in props.sections" :key="section.id" :value="section.id">
+                                        {{ section.name }}
+                                    </SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
                     </FilterField>
-                <FilterField label="Mundo" :active="worldFilter !== null" class="flex-1 min-w-[220px] max-w-[220px]">
-                    <Select v-model="worldFilter">
-                        <SelectTrigger class="h-10 w-full rounded-md border px-3 text-sm flex items-center justify-between">
-                            <SelectValue placeholder="Filtrar por mundo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem :value="null">Todos</SelectItem>
-                                <SelectItem v-for="world in props.worlds" :key="world.id" :value="world.id">
-                                    {{ world.name }}
-                                </SelectItem>
-                            </SelectGroup>
+                    <FilterField label="Mundo" :active="worldFilter !== null" class="min-w-[220px] max-w-[220px] flex-1">
+                        <Select v-model="worldFilter">
+                            <SelectTrigger class="flex h-10 w-full items-center justify-between rounded-md border px-3 text-sm">
+                                <SelectValue placeholder="Filtrar por mundo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem :value="null">Todos</SelectItem>
+                                    <SelectItem v-for="world in props.worlds" :key="world.id" :value="world.id">
+                                        {{ world.name }}
+                                    </SelectItem>
+                                </SelectGroup>
                             </SelectContent>
                         </Select>
                     </FilterField>
@@ -537,7 +531,7 @@ onMounted(async () => {
                 <AlertDialogCancel asChild>
                     <button
                         type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="isDeleteDialogOpen = false"
                     >
                         Cancelar
