@@ -6,6 +6,7 @@ use App\Http\Controllers\Expenses\PurchaseInvoiceTelaController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
 use App\Http\Controllers\Expenses\PurchaseRequestController;
 use App\Http\Controllers\ProductSheet\GroupController;
+use App\Http\Controllers\ProductSheet\MachineController;
 use App\Http\Controllers\ProductSheet\OperationController;
 use App\Http\Controllers\ProductSheet\SectionController;
 use App\Http\Controllers\AuditLogController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\ProductSheet\MachineController;
 use App\Http\Controllers\ProductSheet\ProductOperationListController;
 use App\Http\Controllers\ProductSheet\ProductSheetController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
+use App\Http\Controllers\Production\ProductionOrderController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\Settings\RoleController;
 use App\Http\Controllers\Settings\CompanySettingsController;
@@ -161,6 +163,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // === DISEÑO ===
+    Route::get('produccion/ordenes-produccion', [ProductionOrderController::class, 'index'])
+        ->middleware('permission:ver sabana productos')
+        ->name('production.orders.index');
+    Route::get('produccion/ordenes-produccion/{programmer}/detalle', [ProductionOrderController::class, 'show'])
+        ->middleware('permission:ver sabana productos')
+        ->name('production.orders.show');
+
     Route::prefix('comercial')->name('comercial.')->group(function () {
         Route::get('programmers', [ProgrammerController::class, 'getData'])
             ->middleware('permission:ver programador')

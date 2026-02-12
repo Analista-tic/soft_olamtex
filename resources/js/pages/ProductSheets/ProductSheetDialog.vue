@@ -19,10 +19,20 @@ import type {
     ProductOperationPayload,
     ProductSheet,
 } from '@/domain/product-sheet';
+import {
+    PRODUCT_SHEET_TYPE_PRODUCT,
+    PRODUCT_SHEET_TYPE_SAMPLE,
+    normalizeProductSheetType,
+    parseBooleanRecord,
+    stringifyJsonRecord,
+} from '@/domain/product-sheet';
+import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
 import { computed, ref, watch } from 'vue';
 import { Eye, Image as ImageIcon, List, Trash } from 'lucide-vue-next';
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
+import { useAlertStack } from '@/composables/useAlert';
 import axios from 'axios';
+import { convertSampleToProduct, createProductSheet, updateProductSheet } from '@/services/productSheetService';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -35,39 +45,58 @@ interface Props {
     worlds: OptionParams[];
     fabricBases: OptionParams[]; // Cambiar bases a fabricBases
     yarnBases: OptionParams[]; // Asegúrate de que el tipo sea un arreglo
-    operationalLists: OptionParams[];
+    operationalLists?: OptionParams[]; // Opcional para uso desde otros contextos
     readonly?: boolean; // Prop para modo de solo lectura
 }
 
 const props = defineProps<Props & { open: boolean }>(); // Agregar la propiedad `open`
+
+/** Respuesta estructurada del backend al guardar/actualizar ProductSheet */
+interface ProductSheetSavedPayload {
+    success?: boolean;
+    message?: string;
+    data?: ProductSheet;
+}
+
 const emit = defineEmits<{
-    (e: 'productSheetSaved', payload: unknown): void;
+    (e: 'productSheetSaved', payload: ProductSheetSavedPayload): void;
     (e: 'update:open', value: boolean): void;
+    (e: 'close'): void;
 }>();
 
 const localDialogOpen = ref(false); // Estado local para el diálogo
 
-// Alert state
-const alertMessage = ref('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
-const showAlert = ref(false);
+// Alert state - usando el mismo patrón que Programador
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const dialogInnerRef = ref<HTMLElement | null>(null);
 const isLoading = ref(false);
 
-function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
-    alertMessage.value = message;
-    alertType.value = type;
-    showAlert.value = true;
-    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
+// Títulos de alertas consistentes con el resto de la app
+type AlertType = 'success' | 'error' | 'info' | 'warning';
+const ALERT_TITLES: Record<AlertType, string> = {
+    warning: 'Advertencia',
+    success: 'Éxito',
+    info: 'Información',
+    error: 'Error',
+};
+const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
+
+function setAlert(message: string, type: AlertType = 'info'): void {
+    if (type === 'success') {
+        showSuccess(message);
+    } else {
+        showError(message, type);
+    }
+    
+    if (dialogInnerRef.value?.scrollTo) {
         dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 }
 
-function clearAlert() {
-    alertMessage.value = '';
-    showAlert.value = false;
+function clearAlert(): void {
+    clearAlerts();
 }
 
 const isCreateMode = computed(() => props.mode === 'create');
@@ -75,8 +104,8 @@ const isEditMode = computed(() => props.mode === 'edit');
 const isViewMode = computed(() => props.mode === 'view');
 const isReadonly = computed(() => Boolean(props.readonly) || isViewMode.value);
 
-const TYPE_PRODUCT = 'producto';
-const TYPE_SAMPLE = 'muestra';
+const TYPE_PRODUCT = PRODUCT_SHEET_TYPE_PRODUCT;
+const TYPE_SAMPLE = PRODUCT_SHEET_TYPE_SAMPLE;
 
 const typeOptions = [
     { value: TYPE_PRODUCT, label: 'Producto' },
@@ -96,13 +125,7 @@ const tooltips = {
     flatSketch: 'Boceto tecnico de la referencia con medidas, detalles y observaciones para produccion.',
 } as const;
 
-const normalizeTypeValue = (value?: string) => {
-    if (!value) return TYPE_PRODUCT;
-    const normalized = value.toLowerCase();
-    if (normalized === 'sample' || normalized === 'muestra') return TYPE_SAMPLE;
-    if (normalized === 'product' || normalized === 'producto') return TYPE_PRODUCT;
-    return TYPE_PRODUCT;
-};
+const normalizeTypeValue = (value?: string) => normalizeProductSheetType(value);
 
 const developmentProcessLabel = 'Desarrollo de muestras';
 const hasAppliedDefaultSampleProcess = ref(false);
@@ -263,25 +286,7 @@ const sizeGroups = {
     tallas_3: ['28', '30', '32', '34', '36', '38'],
 };
 
-const parsedSizes = computed<Record<string, boolean>>(() => {
-    const sizesValue = form.value.sizes;
-    if (!sizesValue) return {};
-    if (typeof sizesValue === 'string') {
-        try {
-            const parsed = JSON.parse(sizesValue);
-            if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                return parsed as Record<string, boolean>;
-            }
-        } catch {
-            // ignore invalid JSON and fall back to empty record
-        }
-        return {};
-    }
-    if (typeof sizesValue === 'object' && !Array.isArray(sizesValue)) {
-        return sizesValue as Record<string, boolean>;
-    }
-    return {};
-});
+const parsedSizes = computed<Record<string, boolean>>(() => parseBooleanRecord(form.value.sizes));
 
 const overallStatus = computed<boolean>(() => {
     const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
@@ -308,16 +313,7 @@ const allProcesses = ref([
 ]);
 
 function parseProcessesValue(value?: string): Record<string, boolean> {
-    if (!value) return {};
-    try {
-        const parsed = JSON.parse(value);
-        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-            return parsed as Record<string, boolean>;
-        }
-    } catch {
-        // ignore malformed JSON
-    }
-    return {};
+    return parseBooleanRecord(value);
 }
 
 function applyDefaultSampleProcessOnce() {
@@ -348,7 +344,7 @@ const typeModel = computed({
     },
 });
 const showConvertButton = computed(
-    () => isEditMode.value && normalizeTypeValue(form.value.type) === TYPE_SAMPLE,
+    () => isEditMode.value && normalizeTypeValue(form.value.type) === TYPE_SAMPLE && !Boolean(props.productSheet?.has_derived_product),
 );
 const mainReferenceLabel = computed(() => (form.value.type === TYPE_SAMPLE ? 'Referencia (Muestra)' : 'Referencia (Producto)'));
 const displayedReferenceForInput = computed<string>(() =>
@@ -374,6 +370,11 @@ const activeReference = computed<string>({
         }
     },
 });
+const { validationErrors, isValid } = useProductSheetValidation({
+    form,
+    activeReference,
+    requiresOperationalList,
+});
 
 watch(
     () => form.value.type,
@@ -398,7 +399,7 @@ watch(
 watch(
     () => form.value.woven_product,
     (newValue) => {
-        const processes = JSON.parse(form.value.processes || '{}');
+        const processes = parseBooleanRecord(form.value.processes);
         if (newValue) {
             if (!processes['Tejido']) {
                 processes['Tejido'] = true;
@@ -407,7 +408,7 @@ watch(
             delete processes['Tejido'];
             form.value.yarn_base_id = null;
         }
-        form.value.processes = JSON.stringify(processes);
+        form.value.processes = stringifyJsonRecord(processes);
     },
 );
 
@@ -416,9 +417,7 @@ watch(
     (newProductSheet) => {
         if ((isEditMode.value || isViewMode.value) && newProductSheet) {
             resetFlatSketchSelection();
-            const sizeValue = typeof newProductSheet.sizes === 'string'
-                ? newProductSheet.sizes
-                : JSON.stringify(newProductSheet.sizes || {});
+            const sizeValue = stringifyJsonRecord(newProductSheet.sizes, {});
             const normalizedType = normalizeTypeValue(newProductSheet.type);
 
             form.value = {
@@ -440,9 +439,7 @@ watch(
                 flat_sketch_path: String(newProductSheet.flat_sketch_path ?? ''),
                 sample_reference: String(newProductSheet.sample_reference ?? ''),
                 product_reference: String(newProductSheet.product_reference ?? ''),
-                processes: typeof newProductSheet.processes === 'string'
-                    ? newProductSheet.processes
-                    : JSON.stringify(newProductSheet.processes || {}),
+                processes: stringifyJsonRecord(newProductSheet.processes, {}),
                 status: newProductSheet.status === 'complete' ? 'complete' : 'incomplete',
             };
             form.value.reference = form.value.type === TYPE_SAMPLE
@@ -541,15 +538,8 @@ async function submitConvertDialog(productReference: string) {
 
     convertLoading.value = true;
     try {
-            const response = await axios.post(
-                `/produccion/sabana-productos/${props.productSheet.id}/convert`,
-                { product_reference: productReference },
-            );
-        setAlert('Sábana convertida a producto correctamente.', 'success');
-        const updated = response.data.data ?? {};
-        form.value.product_reference = updated.product_reference ?? productReference;
-        form.value.type = TYPE_PRODUCT;
-        form.value.reference = form.value.product_reference ?? form.value.reference;
+        const response = await convertSampleToProduct(props.productSheet.id, productReference);
+        setAlert('Producto derivado creado correctamente.', 'success');
         emit('productSheetSaved', response.data);
         closeConvertDialog();
     } catch (error: unknown) {
@@ -605,10 +595,10 @@ function buildBasePayload() {
         yarn_base_id: wovenProduct ? (form.value.yarn_base_id ?? null) : null,
         billing_price: form.value.billing_price ?? 0,
         selling_price: form.value.selling_price ?? 0,
-        sizes: form.value.sizes || JSON.stringify({}),
+        sizes: stringifyJsonRecord(form.value.sizes, {}),
         woven_product: wovenProduct ? 1 : 0,
         description: form.value.description ?? '',
-        processes: form.value.processes || JSON.stringify({}),
+        processes: stringifyJsonRecord(form.value.processes, {}),
         status: form.value.status ?? 'incomplete',
         operational_list_id: form.value.operational_list_id ?? null,
     };
@@ -711,6 +701,10 @@ function clearFlatSketch(event?: MouseEvent) {
 }
 
 async function saveProductSheet() {
+    if (isLoading.value) {
+        return;
+    }
+
     if (!validateForm()) {
         setAlert('Por favor, completa todos los campos requeridos.', 'warning');
         return;
@@ -730,12 +724,12 @@ async function saveProductSheet() {
             payload.append('flat_sketch', flatSketchToUpload);
         }
 
-        if (isEditMode.value) {
+        if (isEditMode.value && props.productSheet?.id) {
             payload.append('_method', 'PUT');
-            return axios.post(`/produccion/sabana-productos/${props.productSheet?.id}`, payload);
+            return updateProductSheet(props.productSheet.id, payload);
         }
 
-        return axios.post('/produccion/sabana-productos', payload);
+        return createProductSheet(payload);
     });
 
     request
@@ -776,22 +770,11 @@ async function saveProductSheet() {
 }
 
 function validateForm() {
-    const errors = [];
-    if (!form.value.section_id) errors.push('Sección es requerida.');
-    if (!form.value.group_id) errors.push('Grupo es requerido.');
-    if (!form.value.brand_id) errors.push('Marca es requerida.');
-    if (!form.value.world_id) errors.push('Mundo es requerido.');
-    if (!form.value.fabric_base_id) errors.push('Base es requerida.'); // Cambiar base_id a fabric_base_id
-    if (!form.value.type) errors.push('Tipo es requerido.');
-    if (!activeReference.value.trim()) errors.push('Referencia es requerida.');
-    if (requiresOperationalList.value && !form.value.operational_list_id) {
-        errors.push('Selecciona un listado operacional para Desarrollo de muestras.');
-    }
-
-    if (errors.length > 0) {
-        setAlert(errors.join('\n'), 'warning');
+    if (!isValid.value) {
+        setAlert(validationErrors.value.join('\n'), 'warning');
         return false;
     }
+
     return true;
 }
 
@@ -822,6 +805,7 @@ function resetForm() {
     hasAppliedDefaultSampleProcess.value = false;
     autoAddedSampleProcess.value = false;
     form.value = createInitialFormState();
+    clearAlert();
 }
 
 function handleClose() {
@@ -838,28 +822,27 @@ function handleClose() {
 <template>
     <Dialog v-model:open="localDialogOpen" @close="handleClose">
         <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[190vh] px-2 py-2">
-            <DialogHeader class="flex-shrink-0">
+            <DialogHeader class="flex-shrink-0 px-6 pt-6 pb-4">
                 <DialogTitle>
                     {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos
                 </DialogTitle>
-                <DialogDescription class="pb-3">
+                <DialogDescription>
                     {{ isViewMode ? 'Visualiza los detalles del producto.' : `Completa los campos para ${isEditMode ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.` }}
                 </DialogDescription>
             </DialogHeader>
-            <TooltipProvider>
-                <div ref="dialogInnerRef" class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
-                    <transition name="fade">
-                        <div v-if="showAlert && alertMessage" class="mb-4">
-                            <AlertBox
-                                :type="alertType"
-                                :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : alertType === 'info' ? 'Información' : 'Error'"
-                                :message="alertMessage"
-                                class="pointer-events-auto"
-                                @close="clearAlert"
-                            />
-                        </div>
-                    </transition>
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                :error-type="errorType"
+                :success-title="ALERT_TITLES.success"
+                :error-title="errorTitle"
+                class="top-20"
+                @close-success="clearSuccess"
+                @close-error="clearError"
+            />
 
+            <TooltipProvider>
+                <div ref="dialogInnerRef" class="overflow-y-auto flex-1 px-6 pb-24 scroll-smooth" style="scrollbar-width: thin;">
                     <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
                             <div class="grid gap-2">
@@ -1075,10 +1058,10 @@ function handleClose() {
                         <div class="min-w-0 w-full md:w-[320px]">
                             <div class="sticky top-3 space-y-4">
                                 <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium">Dibujo plano / imagen</Label>
+                                    <Label class="text-sm font-medium">Dibujo plano</Label>
                                     <HelpTooltip
                                         :text="tooltips.flatSketch"
-                                        aria-label="Ayuda sobre Dibujo plano o imagen"
+                                        aria-label="Ayuda sobre Dibujo plano"
                                     />
                                 </div>
                                 <div class="flex w-full flex-col items-start gap-2">
@@ -1094,7 +1077,7 @@ function handleClose() {
                                         />
                                         <div
                                             :class="[
-                                                'group relative flex min-h-[380px] w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
+                                                'group relative flex min-h-[320px] w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
                                                 isReadonly ? 'cursor-default opacity-100' : 'hover:border-blue-400 hover:shadow-lg',
                                             ]"
                                             style="min-width: 0;"
@@ -1119,26 +1102,24 @@ function handleClose() {
                                             </template>
                                         </div>
                                     </div>
-                                    <div v-if="canClearFlatSketch" class="flex w-full items-center gap-3">
-                                        <Button
-                                            variant="ghost"
+                                    <div v-if="canClearFlatSketch" class="flex w-full items-center gap-2">
+                                        <button
                                             type="button"
-                                            class="h-8 px-3 text-xs"
+                                            class="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
                                             @click="openFlatSketchPreview"
                                         >
-                                            <Eye class="mr-1 h-3.5 w-3.5" />
+                                            <Eye class="h-4 w-4" />
                                             Ver imagen
-                                        </Button>
-                                        <Button
+                                        </button>
+                                        <button
                                             v-if="!isReadonly"
-                                            variant="ghost"
                                             type="button"
-                                            class="h-8 px-3 text-xs text-destructive hover:text-destructive"
+                                            class="flex flex-1 items-center justify-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm font-medium text-destructive transition hover:bg-destructive/10"
                                             @click="clearFlatSketch"
                                         >
-                                            <Trash class="mr-1 h-3.5 w-3.5" />
+                                            <Trash class="h-4 w-4" />
                                             Eliminar
-                                        </Button>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -1213,3 +1194,4 @@ function handleClose() {
     display: none;
 }
 </style>
+

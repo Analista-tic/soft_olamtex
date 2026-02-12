@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -60,6 +61,9 @@ const statusOptions = ref([
 
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 
 // Variables reactivas para mensajes de éxito y error
 const successMessage = ref<string>('');
@@ -308,6 +312,7 @@ async function downloadTemplate() {
                 <!-- Puedes agregar más filtros aquí siguiendo el mismo patrón visual -->
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                <TooltipProvider>
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -316,7 +321,7 @@ async function downloadTemplate() {
                             <TableHead>Referencia</TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -328,27 +333,62 @@ async function downloadTemplate() {
                             <TableCell>
                                 <StatusBadge :text="item.status ? 'Habilitado' : 'Deshabilitado'" :type="item.status ? 'green' : 'red'" />
                             </TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <Button variant="ghost" size="icon" class="h-8 w-8" title="Editar" @click="openDialog('edit', item)">
-                                    <Pencil class="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" class="h-8 w-8" title="Eliminar" @click="confirmDeleteItem(item)">
-                                    <Trash class="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    :class="['h-8 w-8', item.status ? 'text-red-600 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-700']"
-                                    title="Habilitar/Deshabilitar"
-                                    @click="openStatusDialog(item)"
-                                >
-                                    <Ban v-if="item.status" class="h-4 w-4" />
-                                    <CheckCircle v-else class="h-4 w-4" />
-                                </Button>
+                            <TableCell class="text-center">
+                                <div class="flex justify-center gap-2">
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Editar"
+                                                @click="openDialog('edit', item)"
+                                            >
+                                                <Pencil :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Editar</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Eliminar"
+                                                @click="confirmDeleteItem(item)"
+                                            >
+                                                <Trash :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Eliminar</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="[
+                                                    actionButtonClass,
+                                                    item.status
+                                                        ? 'text-red-600 hover:text-red-700'
+                                                        : 'text-emerald-600 hover:text-emerald-700',
+                                                ]"
+                                                aria-label="Habilitar o deshabilitar"
+                                                @click="openStatusDialog(item)"
+                                            >
+                                                <Ban v-if="item.status" :class="actionIconClass" />
+                                                <CheckCircle v-else :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Habilitar o deshabilitar</TooltipContent>
+                                    </Tooltip>
+                                </div>
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
+                </TooltipProvider>
                 <Pagination
                     class="mt-5 flex justify-center"
                     :items-per-page="itemsPerPage"

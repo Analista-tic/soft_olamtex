@@ -126,10 +126,10 @@ export interface Option {
 }
 
 export interface OptionParams {
-    id: number;
+    id: string | number | boolean;
     name: string;
-    created_at: string;
-    updated_at: string;
+    created_at?: string | null;
+    updated_at?: string | null;
 }
 
 export interface Branch {

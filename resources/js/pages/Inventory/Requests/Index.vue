@@ -3,6 +3,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
@@ -65,6 +66,9 @@ const DEFAULT_STATUS_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 
 const statusLabels: Record<string, string> = {
     solicitado: 'Solicitado',
@@ -224,6 +228,7 @@ onMounted(() => {
             </FilterBar>
 
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                <TooltipProvider>
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
@@ -233,7 +238,7 @@ onMounted(() => {
                             <TableHead>Estado</TableHead>
                             <TableHead>Solicitante</TableHead>
                             <TableHead>Observacion</TableHead>
-                            <TableHead class="w-[160px]">Acciones</TableHead>
+                            <TableHead class="w-[160px] text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -248,50 +253,65 @@ onMounted(() => {
                             </TableCell>
                             <TableCell>{{ request.requester?.name || '-' }}</TableCell>
                             <TableCell>{{ request.observation || '-' }}</TableCell>
-                            <TableCell class="flex justify-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-8 w-8"
-                                    title="Ver solicitud"
-                                    aria-label="Ver solicitud"
-                                    @click="openViewRequest(request)"
-                                >
-                                    <Eye class="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    v-if="canEdit(request)"
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-8 w-8"
-                                    title="Editar solicitud"
-                                    aria-label="Editar solicitud"
-                                    @click="openEditRequest(request)"
-                                >
-                                    <Pencil class="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    v-if="canManage(request)"
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-8 w-8"
-                                    title="Marcar como entregada"
-                                    aria-label="Marcar como entregada"
-                                    @click="openDelivery(request)"
-                                >
-                                    <Check class="h-4 w-4 text-emerald-600" />
-                                </Button>
-                                <Button
-                                    v-if="canManage(request)"
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-8 w-8 text-destructive"
-                                    title="Rechazar solicitud"
-                                    aria-label="Rechazar solicitud"
-                                    @click="openReject(request)"
-                                >
-                                    <Ban class="h-4 w-4" />
-                                </Button>
+                            <TableCell class="text-center">
+                                <div class="flex justify-center gap-2">
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Ver detalle"
+                                                @click="openViewRequest(request)"
+                                            >
+                                                <Eye :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Ver detalle</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip v-if="canEdit(request)">
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Editar"
+                                                @click="openEditRequest(request)"
+                                            >
+                                                <Pencil :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Editar</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip v-if="canManage(request)">
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Marcar como entregada"
+                                                @click="openDelivery(request)"
+                                            >
+                                                <Check :class="[actionIconClass, 'text-emerald-600']" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Marcar como entregada</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip v-if="canManage(request)">
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="[actionButtonClass, 'text-destructive']"
+                                                aria-label="Rechazar solicitud"
+                                                @click="openReject(request)"
+                                            >
+                                                <Ban :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Rechazar solicitud</TooltipContent>
+                                    </Tooltip>
+                                </div>
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="requests.length === 0">
@@ -299,6 +319,7 @@ onMounted(() => {
                         </TableRow>
                     </TableBody>
                 </Table>
+                </TooltipProvider>
 
                 <Pagination
                     class="mt-5 flex justify-center"

@@ -18,37 +18,50 @@ const props = withDefaults(defineProps<Props>(), {
 });
 const emit = defineEmits(['update:modelValue']);
 const isDialogOpen = ref(false);
-const localModelValue = ref<Record<string, boolean>>({}); // Renombrar para evitar conflicto
+const localModelValue = ref<Record<string, boolean>>({});
+
+function parseSizeValue(value: string | undefined): Record<string, boolean> {
+    if (!value) return {};
+
+    try {
+        const parsed = JSON.parse(value);
+
+        if (Array.isArray(parsed)) {
+            return Object.fromEntries(parsed.map((size) => [String(size), true]));
+        }
+
+        if (parsed && typeof parsed === 'object') {
+            return parsed as Record<string, boolean>;
+        }
+    } catch (error) {
+        console.error('Error al analizar modelValue:', error);
+    }
+
+    return {};
+}
 
 watch(
     () => props.modelValue,
     (newValue) => {
-        try {
-            localModelValue.value = typeof newValue === 'string'
-                ? JSON.parse(newValue) // Deserializar si es una cadena JSON
-                : {}; // Inicializar como un objeto vacío si no es una cadena
-        } catch (error) {
-            console.error('Error al analizar modelValue:', error);
-            localModelValue.value = {}; // Restablecer a un objeto vacío en caso de error
-        }
+        localModelValue.value = parseSizeValue(newValue);
     },
     { immediate: true }
 );
 
 function updateModelValue(key: string, value: boolean) {
-    const updatedValue = { ...localModelValue.value }; // Crear una copia mutable
-    updatedValue[key] = value; // Actualizar la copia
-    localModelValue.value = updatedValue; // Asignar la copia al estado reactivo
-    emit('update:modelValue', JSON.stringify(localModelValue.value)); // Emitir como cadena JSON
+    const updatedValue = { ...localModelValue.value };
+    updatedValue[key] = value;
+    localModelValue.value = updatedValue;
+    emit('update:modelValue', JSON.stringify(localModelValue.value));
 }
 
 function toggleGroup(group: string, value: boolean) {
-    const updatedValue = { ...localModelValue.value }; // Crear una copia mutable
+    const updatedValue = { ...localModelValue.value };
     props.sizeGroups[group].forEach((size) => {
-        updatedValue[size] = value; // Actualizar la copia
+        updatedValue[size] = value;
     });
-    localModelValue.value = updatedValue; // Asignar la copia al estado reactivo
-    emit('update:modelValue', JSON.stringify(localModelValue.value)); // Emitir como cadena JSON
+    localModelValue.value = updatedValue;
+    emit('update:modelValue', JSON.stringify(localModelValue.value));
 }
 
 function isGroupChecked(group: string): boolean {
@@ -56,14 +69,7 @@ function isGroupChecked(group: string): boolean {
 }
 
 function resetLocalModelValue() {
-    try {
-        localModelValue.value = typeof props.modelValue === 'string'
-            ? JSON.parse(props.modelValue) // Reiniciar al valor inicial del padre
-            : {}; // Inicializar como un objeto vacío si no es una cadena
-    } catch (error) {
-        console.error('Error al reiniciar localModelValue:', error);
-        localModelValue.value = {}; // Restablecer a un objeto vacío en caso de error
-    }
+    localModelValue.value = parseSizeValue(props.modelValue);
 }
 </script>
 
@@ -84,7 +90,6 @@ function resetLocalModelValue() {
                 <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                     <div class="space-y-4">
                     <div v-for="(sizes, group) in sizeGroups" :key="group" class="rounde py-2">
-                        <!-- Checkbox para seleccionar/deseleccionar todo el grupo -->
                         <label v-if="!props.disabled" class="flex items-center font-medium text-gray-700">
                             <input
                                 type="checkbox"
@@ -94,7 +99,6 @@ function resetLocalModelValue() {
                             />
                             (Seleccionar Todo)
                         </label>
-                        <!-- Lista de checkboxes para cada talla individual -->
                         <div class="mt-1 flex flex-wrap gap-2">
                             <label
                                 v-for="size in sizes"

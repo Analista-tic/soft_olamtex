@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import AlertBox from '@/components/AlertBox.vue';
-import ActionIconButton from '@/components/common/ActionIconButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -16,7 +15,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import Badge from '@/components/ui/badge/Badge.vue';
 import Button from '@/components/ui/button/Button.vue';
+import { Calendar } from '@/components/ui/calendar';
 import Input from '@/components/ui/input/Input.vue';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     Pagination,
     PaginationEllipsis,
@@ -32,13 +34,15 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { ProductSheet, Programmer } from '@/domain/product-sheet';
 import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { ACTION_LABELS } from '@/lib/actionLabels';
 import { monthLabel } from '@/lib/months';
 import { useAuthStore } from '@/stores/auth';
+import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Pencil, Search, Trash } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { format, isValid, parse } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Eye, Pencil, Search, Trash, X } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CreateProgrammerDialog from './Create.vue';
 import EditProgrammerDialog from './Edit.vue';
 
@@ -75,6 +79,7 @@ const props = defineProps<{
     worlds: Option[];
     fabricBases: Option[];
     productSheets: ProductSheet[];
+    productSheetsForCreate?: ProductSheet[];
     destinations: Option[];
     yarnBases: Option[];
     months: Option[];
@@ -116,13 +121,20 @@ const filters = ref({
     priority: 'all',
     status: 'all',
     destination_id: 'all',
-    yarn_base_id: 'all', // Nuevo filtro para yarn bases
+    estimated_delivery_date: '',
 });
+const fetchDebounceMs = 350;
+let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let activeFetchController: AbortController | null = null;
 const DEFAULT_SELECT_VALUE = 'all';
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 const seasonIsActive = computed(() => Boolean(filters.value.season) && filters.value.season !== DEFAULT_SELECT_VALUE);
 const priorityIsActive = computed(() => Boolean(filters.value.priority) && filters.value.priority !== DEFAULT_SELECT_VALUE);
 const statusIsActive = computed(() => Boolean(filters.value.status) && filters.value.status !== DEFAULT_SELECT_VALUE);
 const destinationIsActive = computed(() => Boolean(filters.value.destination_id) && filters.value.destination_id !== DEFAULT_SELECT_VALUE);
+const deliveryDateIsActive = computed(() => filters.value.estimated_delivery_date.trim() !== '');
 const seasonOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.months]);
 const priorityOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.priorities]);
 const destinationFilterOptions = computed<Option[]>(() => [{ id: 'all', name: 'Todos' }, ...props.destinations]);
@@ -131,6 +143,38 @@ const seasonButtonClasses = useFilterButtonClasses(seasonIsActive);
 const priorityButtonClasses = useFilterButtonClasses(priorityIsActive);
 const statusButtonClasses = useFilterButtonClasses(statusIsActive);
 const destinationButtonClasses = useFilterButtonClasses(destinationIsActive);
+const deliveryDateButtonClasses = useFilterButtonClasses(deliveryDateIsActive, {
+    baseClasses:
+        'h-10 w-full rounded-md border px-3 text-sm font-normal flex items-center justify-between transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
+});
+const FALLBACK_REF = 'Sin referencia';
+const deliveryDateValue = computed<DateValue | undefined>({
+    get() {
+        const value = filters.value.estimated_delivery_date;
+        if (!value) return undefined;
+        try {
+            return parseDate(value);
+        } catch {
+            return undefined;
+        }
+    },
+    set(value) {
+        filters.value.estimated_delivery_date = value ? value.toString() : '';
+    },
+});
+const deliveryDateLabel = computed(() => {
+    const value = filters.value.estimated_delivery_date;
+    if (!value) return 'Seleccionar fecha';
+    try {
+        return format(parseDate(value).toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es });
+    } catch {
+        return 'Seleccionar fecha';
+    }
+});
+
+function clearDeliveryDateFilter() {
+    filters.value.estimated_delivery_date = '';
+}
 
 function confirmDeleteProgrammer(programmer: Programmer) {
     programmerToDelete.value = programmer;
@@ -152,20 +196,29 @@ async function deleteProgrammer() {
 }
 
 async function fetchProgrammers(page = 1) {
+    if (activeFetchController) {
+        activeFetchController.abort();
+    }
+
+    const controller = new AbortController();
+    activeFetchController = controller;
+    const normalizedSearch = searchQuery.value.trim();
+
     try {
         const response = await axios.get('/comercial/programmers', {
             params: {
                 page,
                 per_page: itemsPerPage.value,
-                search: searchQuery.value,
-                season: filters.value.season,
-                priority: filters.value.priority,
-                status: filters.value.status,
-                destination_id: filters.value.destination_id,
-                yarn_base_id: filters.value.yarn_base_id,
+                search: normalizedSearch === '' ? undefined : normalizedSearch,
+                season: filters.value.season === DEFAULT_SELECT_VALUE ? undefined : filters.value.season,
+                priority: filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
+                status: filters.value.status === DEFAULT_SELECT_VALUE ? undefined : filters.value.status,
+                destination_id: filters.value.destination_id === DEFAULT_SELECT_VALUE ? undefined : filters.value.destination_id,
+                estimated_delivery_date:
+                    filters.value.estimated_delivery_date.trim() === '' ? undefined : filters.value.estimated_delivery_date,
             },
+            signal: controller.signal,
         });
-        console.log(response);
 
         if (response && response.data) {
             programmers.value = response.data.data;
@@ -175,18 +228,50 @@ async function fetchProgrammers(page = 1) {
             console.error('Error al obtener los programadores: Respuesta invalida');
         }
     } catch (error) {
+        if (axios.isCancel(error)) {
+            return;
+        }
         console.error('Error al obtener los programadores:', error);
+    } finally {
+        if (activeFetchController === controller) {
+            activeFetchController = null;
+        }
     }
 }
 
-// Reactivar la búsqueda cuando cambien los filtros o el término de búsqueda
+
+function clearFetchDebounce() {
+    if (fetchDebounceTimer) {
+        clearTimeout(fetchDebounceTimer);
+        fetchDebounceTimer = null;
+    }
+}
+
+function scheduleProgrammerFetch(page = 1) {
+    clearFetchDebounce();
+    fetchDebounceTimer = setTimeout(() => {
+        fetchProgrammers(page);
+    }, fetchDebounceMs);
+}
+
+function reloadCurrentPage() {
+    clearFetchDebounce();
+    fetchProgrammers(currentPage.value);
+}
+
 watch(
-    [searchQuery, filters],
+    [
+        searchQuery,
+        () => filters.value.season,
+        () => filters.value.priority,
+        () => filters.value.status,
+        () => filters.value.destination_id,
+        () => filters.value.estimated_delivery_date,
+    ],
     () => {
-        fetchProgrammers(1); // Reactivar la búsqueda cuando cambien los filtros o el término de búsqueda
+        scheduleProgrammerFetch(1);
     },
-    { deep: true },
-); // Asegúrate de observar cambios profundos en los filtros
+);
 
 function openEditDialog(programmer: Programmer) {
     editProgrammerDialogRef.value?.openDialog(programmer);
@@ -199,6 +284,7 @@ function viewProgrammer(programmer: Programmer) {
 function handlePageChange(page: number) {
     if (page < 1 || page > Math.ceil(totalItems.value / itemsPerPage.value)) return;
     currentPage.value = page;
+    clearFetchDebounce();
     fetchProgrammers(page);
 }
 
@@ -207,9 +293,38 @@ onMounted(async () => {
     fetchProgrammers();
 });
 
+onUnmounted(() => {
+    clearFetchDebounce();
+    if (activeFetchController) {
+        activeFetchController.abort();
+        activeFetchController = null;
+    }
+});
+
 function getOpLabel(programmer: Programmer): string {
     const opCode = String(programmer.op_code ?? '').trim();
     return opCode !== '' ? opCode : `MF${programmer.id}`;
+}
+
+function getRefLabel(programmer: Programmer): string {
+    const sampleRefRaw = programmer.product_sheet?.sample_reference ?? null;
+    const productRefRaw = programmer.product_sheet?.product_reference ?? null;
+    const sampleRef = sampleRefRaw?.trim() ?? '';
+    const productRef = productRefRaw?.trim() ?? '';
+
+    if (sampleRef !== '' && productRef !== '') {
+        return sampleRef === productRef ? sampleRef : `${sampleRef} - ${productRef}`;
+    }
+
+    if (sampleRef !== '') {
+        return sampleRef;
+    }
+
+    if (productRef !== '') {
+        return productRef;
+    }
+
+    return FALLBACK_REF;
 }
 
 function getPendingMessage(programmer: Programmer): string {
@@ -252,6 +367,35 @@ function isIncomplete(row: Programmer): boolean {
 function shouldHighlightRow(row: Programmer): boolean {
     return isAutoFromSheet(row) && isIncomplete(row);
 }
+
+function formatEstimatedDeliveryDate(raw: unknown): string {
+    if (raw === null || raw === undefined) {
+        return '-';
+    }
+
+    const text = String(raw).trim();
+    if (text === '' || text === '-') {
+        return '-';
+    }
+
+    if (text.toUpperCase() === 'N/A') {
+        return 'N/A';
+    }
+
+    const isoPrefixMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoPrefixMatch) {
+        const isoDate = isoPrefixMatch[1];
+        const parsedIso = parse(isoDate, 'yyyy-MM-dd', new Date());
+        return isValid(parsedIso) ? format(parsedIso, 'dd/MM/yyyy', { locale: es }) : '-';
+    }
+
+    const parsedSlash = parse(text, 'dd/MM/yyyy', new Date());
+    if (isValid(parsedSlash)) {
+        return format(parsedSlash, 'dd/MM/yyyy', { locale: es });
+    }
+
+    return '-';
+}
 </script>
 
 <template>
@@ -291,31 +435,31 @@ function shouldHighlightRow(row: Programmer): boolean {
                         :worlds="props.worlds"
                         :fabricBases="props.fabricBases"
                         :yarnBases="props.yarnBases"
-                        :productSheets="props.productSheets"
+                        :productSheets="props.productSheetsForCreate ?? []"
                         :destinations="props.destinations"
                         :months="props.months"
                         :priorities="props.priorities"
-                        @programmerCreated="fetchProgrammers"
+                        @programmerCreated="reloadCurrentPage"
                     />
                     <EditProgrammerDialog
                         ref="editProgrammerDialogRef"
                         :productSheets="props.productSheets"
                         :destinations="props.destinations"
                         :months="props.months"
-                        @programmerUpdated="fetchProgrammers"
+                        @programmerUpdated="reloadCurrentPage"
                     />
                 </div>
             </div>
             <FilterBar align="start" gap="gap-4">
-                <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
-                    <div class="relative w-full max-w-sm">
+                <FilterField label="Buscar referencia" :active="searchQuery.trim().length > 0" class="min-w-[220px] max-w-sm flex-1 p-0">
+                    <div class="relative w-full">
                         <Input id="search" v-model="searchQuery" type="text" placeholder="Buscar por referencia" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
-                <FilterField label="Temporada" :active="seasonIsActive" class="min-w-[180px]">
+                <FilterField label="Temporada" :active="seasonIsActive" class="min-w-[160px]">
                     <SelectField
                         v-model="filters.season"
                         placeholder="Filtrar Temporada"
@@ -343,7 +487,7 @@ function shouldHighlightRow(row: Programmer): boolean {
                         :button-class="statusButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Destino" :active="destinationIsActive" class="min-w-[200px]">
+                <FilterField label="Destino" :active="destinationIsActive" class="min-w-[160px]">
                     <SelectField
                         v-model="filters.destination_id"
                         placeholder="Filtrar Destino"
@@ -351,9 +495,56 @@ function shouldHighlightRow(row: Programmer): boolean {
                         :button-class="destinationButtonClasses"
                     />
                 </FilterField>
+                <FilterField label="Fecha entrega" :active="deliveryDateIsActive" class="min-w-[220px]">
+                    <div class="flex items-center gap-2">
+                        <Popover>
+                            <PopoverTrigger as-child>
+                                <Button type="button" variant="outline" :class="deliveryDateButtonClasses">
+                                    <span class="truncate text-left">{{ deliveryDateLabel }}</span>
+                                    <CalendarIcon class="ml-2 h-4 w-4 shrink-0" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent class="w-auto p-0" align="start">
+                                <Calendar
+                                    :model-value="deliveryDateValue"
+                                    @update:model-value="
+                                        (value) => {
+                                            deliveryDateValue = value;
+                                        }
+                                    "
+                                    initial-focus
+                                />
+                                <div class="border-t p-2">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        class="w-full justify-center"
+                                        :disabled="!deliveryDateIsActive"
+                                        @click="clearDeliveryDateFilter"
+                                    >
+                                        Limpiar
+                                    </Button>
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                        <Button
+                            v-if="deliveryDateIsActive"
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            class="h-10 w-10 rounded-full"
+                            @click="clearDeliveryDateFilter"
+                        >
+                            <X class="h-4 w-4" />
+                            <span class="sr-only">Limpiar fecha</span>
+                        </Button>
+                    </div>
+                </FilterField>
             </FilterBar>
 
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                <TooltipProvider>
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -367,17 +558,21 @@ function shouldHighlightRow(row: Programmer): boolean {
                             <TableHead>Total Unidades</TableHead>
                             <TableHead>Fecha Entrega Est.</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow
                             v-for="programmer in programmers"
                             :key="programmer.id"
-                            :class="['text-center', shouldHighlightRow(programmer) ? 'border-l-4 border-yellow-400 bg-yellow-50' : '']"
+                            :class="[
+                                'text-center',
+                                'text-nowrap',
+                                shouldHighlightRow(programmer) ? 'border-l-4 border-yellow-400 bg-yellow-50' : '',
+                            ]"
                         >
                             <TableCell class="font-medium">{{ getOpLabel(programmer) }}</TableCell>
-                            <TableCell class="font-medium">{{ programmer.product_sheet?.reference || 'Sin referencia' }}</TableCell>
+                            <TableCell class="font-medium">{{ getRefLabel(programmer) }}</TableCell>
                             <TableCell>{{ monthLabel(programmer.season_display || programmer.season) }}</TableCell>
                             <TableCell>
                                 <template v-if="programmer.source === 'manual'">
@@ -393,7 +588,7 @@ function shouldHighlightRow(row: Programmer): boolean {
                             <TableCell>{{ programmer.units ?? '-' }}</TableCell>
                             <TableCell>
                                 <template v-if="programmer.source === 'auto'">
-                                    {{ programmer.estimated_delivery_date || '-' }}
+                                    {{ formatEstimatedDeliveryDate(programmer.estimated_delivery_date) }}
                                 </template>
                                 <template v-else>
                                     <span class="text-muted-foreground">N/A</span>
@@ -412,30 +607,56 @@ function shouldHighlightRow(row: Programmer): boolean {
                                     {{ (programmer.is_pending_completion ?? false) ? 'Pendiente' : 'Completo' }}
                                 </Badge>
                             </TableCell>
-                            <TableCell class="flex items-center justify-center gap-1">
-                                <ActionIconButton
-                                    v-if="canView"
-                                    :icon="Eye"
-                                    :tooltip="ACTION_LABELS.VIEW_PROGRAMMER"
-                                    @click="viewProgrammer(programmer)"
-                                />
-                                <ActionIconButton
-                                    v-if="canEdit"
-                                    :icon="Pencil"
-                                    :tooltip="ACTION_LABELS.EDIT_PROGRAMMER"
-                                    @click="openEditDialog(programmer)"
-                                />
-                                <ActionIconButton
-                                    v-if="canDelete"
-                                    :icon="Trash"
-                                    :tooltip="ACTION_LABELS.DELETE_PROGRAMMER"
-                                    variant="destructive"
-                                    @click="confirmDeleteProgrammer(programmer)"
-                                />
+                            <TableCell class="text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    <Tooltip v-if="canView">
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Ver detalle"
+                                                @click="viewProgrammer(programmer)"
+                                            >
+                                                <Eye :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Ver detalle</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip v-if="canEdit">
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Editar"
+                                                @click="openEditDialog(programmer)"
+                                            >
+                                                <Pencil :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Editar</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip v-if="canDelete">
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
+                                                aria-label="Eliminar"
+                                                @click="confirmDeleteProgrammer(programmer)"
+                                            >
+                                                <Trash :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Eliminar</TooltipContent>
+                                    </Tooltip>
+                                </div>
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
+                </TooltipProvider>
                 <Pagination
                     class="mt-5 flex justify-center"
                     v-slot="{ page }"

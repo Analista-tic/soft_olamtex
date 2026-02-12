@@ -6,6 +6,7 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Pencil, Search, Trash } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
@@ -50,6 +51,9 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 
 const setError = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') => {
     if (message) {
@@ -231,13 +235,14 @@ onMounted(() => {
                 </FilterBar>
             </div>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                <TooltipProvider>
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
                             <TableHead>Id</TableHead>
                             <TableHead>Nombre</TableHead>
                             <TableHead>Observación</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -245,29 +250,42 @@ onMounted(() => {
                             <TableCell class="font-medium">{{ warehouse.id }}</TableCell>
                             <TableCell class="font-medium">{{ warehouse.name }}</TableCell>
                             <TableCell>{{ warehouse.observation }}</TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-8 w-8"
-                                    title="Editar"
-                                    @click="openDialog('edit', warehouse)"
-                                >
-                                    <Pencil class="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-8 w-8"
-                                    title="Eliminar"
-                                    @click="confirmDeleteWarehouse(warehouse)"
-                                >
-                                    <Trash class="h-4 w-4" />
-                                </Button>
+                            <TableCell class="text-center">
+                                <div class="flex justify-center gap-2">
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Editar"
+                                                @click="openDialog('edit', warehouse)"
+                                            >
+                                                <Pencil :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Editar</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Eliminar"
+                                                @click="confirmDeleteWarehouse(warehouse)"
+                                            >
+                                                <Trash :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Eliminar</TooltipContent>
+                                    </Tooltip>
+                                </div>
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
+                </TooltipProvider>
                 <Pagination
                     class="mt-5 flex justify-center"
                     :items-per-page="itemsPerPage"

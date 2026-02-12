@@ -9,7 +9,7 @@ import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } f
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
-import type { ProductSheet, Programmer } from '@/domain/product-sheet';
+import { normalizeSizes, sizesToLabel, type ProductSheet, type Programmer } from '@/domain/product-sheet';
 import type { Option } from '@/domain/shared/types';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
@@ -19,18 +19,29 @@ import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 const emit = defineEmits(['programmerCreated']);
 
-const props = defineProps<{
-    productSheets: ProductSheet[];
-    destinations: Option[];
-    sections: Option[];
-    groups: Option[];
-    brands: Option[];
-    worlds: Option[];
-    fabricBases: Option[];
-    yarnBases: Option[];
-    months: Option[];
-    priorities: Option[];
-}>();
+const props = withDefaults(defineProps<{
+    productSheets?: ProductSheet[];
+    destinations?: Option[];
+    sections?: Option[];
+    groups?: Option[];
+    brands?: Option[];
+    worlds?: Option[];
+    fabricBases?: Option[];
+    yarnBases?: Option[];
+    months?: Option[];
+    priorities?: Option[];
+}>(), {
+    productSheets: () => [],
+    destinations: () => [],
+    sections: () => [],
+    groups: () => [],
+    brands: () => [],
+    worlds: () => [],
+    fabricBases: () => [],
+    yarnBases: () => [],
+    months: () => [],
+    priorities: () => [],
+});
 
 // Constants
 type AlertType = 'success' | 'error' | 'info' | 'warning';
@@ -72,6 +83,38 @@ const priorityOptions = computed<Option[]>(() => {
     return Array.isArray(props.priorities) && props.priorities.length > 0 ? props.priorities : PRIORITIES;
 });
 
+/**
+ * Normaliza un valor de option a su name string.
+ * Busca primero por id, luego verifica si ya es el name.
+ */
+function normalizeOptionToName(
+    value: string | number | null | undefined,
+    options: Option[]
+): string | null {
+    if (value === null || value === undefined || value === '') return null;
+
+    // Buscar por id
+    const byId = options.find((opt) => opt.id === value || String(opt.id) === String(value));
+    if (byId) return String(byId.name).toUpperCase();
+
+    // Si el value ya es un name válido
+    const byName = options.find((opt) =>
+        String(opt.name).toUpperCase() === String(value).toUpperCase()
+    );
+    if (byName) return String(byName.name).toUpperCase();
+
+    // Fallback: devolver el valor como string en mayúscula si no se encuentra
+    return String(value).toUpperCase();
+}
+
+function normalizeSeason(value: string | number | null | undefined): string | null {
+    return normalizeOptionToName(value, monthOptions.value);
+}
+
+function normalizePriority(value: string | number | null | undefined): string | null {
+    return normalizeOptionToName(value, priorityOptions.value);
+}
+
 // State
 const isDialogOpen = ref(false);
 const productSheetDialogOpen = ref(false);
@@ -84,11 +127,11 @@ const missingFieldsSummary = computed(() => {
     if (formErrors.value.length === 0) return '';
     return formErrors.value.map((error) => `Lote ${error.lotIndex + 1}: ${error.fields.join(', ')}`).join(' • ');
 });
+const isSubmitting = ref(false);
 
 // Alert state
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
-const hasAttemptedSave = ref(false);
 
 // Alert functions
 function setAlert(message: string, type: AlertType = 'info'): void {
@@ -146,19 +189,54 @@ function getProductSheetLabel(sheet: ProductSheet): string {
     return String(typedSheet.label ?? typedSheet.display_reference ?? sheet.reference ?? '').trim();
 }
 
+function getProductReference(sheet: ProductSheet): string {
+    return String(sheet.product_reference ?? '').trim();
+}
+
+function hasProductReference(sheet: ProductSheet): boolean {
+    return getProductReference(sheet).length > 0;
+}
+
 const productSheetOptions = computed(() =>
     productSheetList.value
         .map((sheet) => ({
             id: getProductSheetValue(sheet),
-            name: getProductSheetLabel(sheet),
+            name: getProductReference(sheet),
         }))
         .filter((option) => option.name !== ''),
 );
 
-const selectedProductSheet = computed(() => {
+const selectedProductSheet = computed<ProductSheet | null>(() => {
     if (!form.value.productSheetId) return null;
     return productSheetList.value.find((sheet) => getProductSheetValue(sheet) === Number(form.value.productSheetId)) || null;
 });
+
+// Mapa de productSheets por ID para búsqueda rápida
+const productSheetsById = computed(() => {
+    const map = new Map<number, ProductSheet>();
+    for (const sheet of productSheetList.value) {
+        map.set(getProductSheetValue(sheet), sheet);
+    }
+    return map;
+});
+
+// Helper para obtener la referencia humana (sample_reference o product_reference) dado un ID
+function getDisplayReference(productSheetId: number | null | undefined): string {
+    if (!productSheetId) return 'Sin referencia';
+    const sheet = productSheetsById.value.get(Number(productSheetId));
+    if (!sheet) return 'Sin referencia';
+
+    // Si es muestra, usar sample_reference; si es producto, usar product_reference
+    // Fallback al label o display_reference existente
+    if (sheet.type === 'muestra' && sheet.sample_reference) {
+        return sheet.sample_reference;
+    }
+    if (sheet.type === 'producto' && sheet.product_reference) {
+        return sheet.product_reference;
+    }
+    // Fallback a cualquier referencia disponible
+    return sheet.sample_reference || sheet.product_reference || sheet.display_reference || sheet.reference || getProductSheetLabel(sheet) || 'Sin referencia';
+}
 
 const destinationOptions = computed<Option[]>(() => props.destinations);
 
@@ -218,7 +296,10 @@ function validateForm(): void {
 }
 
 function createProgrammer(): void {
-    hasAttemptedSave.value = true;
+    if (isSubmitting.value) {
+        return;
+    }
+
     // Validar que existan lotes
     if (lotsForm.value.length === 0) {
         setAlert('Debes generar al menos un lote antes de guardar.', 'warning');
@@ -248,17 +329,24 @@ function createProgrammer(): void {
 
         return {
             product_sheet_id: lot.product_sheet_id,
-            season: lot.season,
+            season: normalizeSeason(lot.season),
             destination_id: lot.destination_id || null,
-            priority: lot.priority,
+            priority: normalizePriority(lot.priority),
             units: unitsValue,
             ecommerce_units: ecommerceUnitsValue,
             status: lot.status,
         };
     });
 
+    const requestId =
+        typeof globalThis.crypto?.randomUUID === 'function'
+            ? globalThis.crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    isSubmitting.value = true;
+
     axios
-        .post('/comercial/programador', { lots: lotsToSend })
+        .post('/comercial/programador', { lots: lotsToSend }, { headers: { 'X-Request-Id': requestId } })
         .then(() => {
             setAlert('Programadores creados exitosamente.', 'success');
             emit('programmerCreated');
@@ -274,6 +362,9 @@ function createProgrammer(): void {
             }
 
             setAlert(errorText, 'error');
+        })
+        .finally(() => {
+            isSubmitting.value = false;
         });
 }
 
@@ -287,7 +378,6 @@ function resetForm(): void {
     productSheetDialogOpen.value = false;
     dialogInnerRef.value = null;
     clearAlert();
-    hasAttemptedSave.value = false;
 }
 
 function parseUnitsInput(value: string | number | null | undefined): number | null {
@@ -305,9 +395,11 @@ function closeDialog(): void {
     isDialogOpen.value = false;
 }
 
-const allProductSheets = ref<ProductSheet[]>([...props.productSheets]);
+const allProductSheets = ref<ProductSheet[]>(
+    Array.isArray(props.productSheets) ? [...props.productSheets] : [],
+);
 
-const productSheetList = computed(() => allProductSheets.value);
+const productSheetList = computed(() => allProductSheets.value.filter(hasProductReference));
 
 watch(
     () => form.value.productSheetId,
@@ -383,7 +475,14 @@ function resolveEcommerceValues(value?: string | Record<string, number> | null):
     return null;
 }
 
-function addProductSheet(response: { success: boolean; message: string; data: ProductSheet } | undefined): void {
+/** Payload recibido del ProductSheetDialog al guardar */
+interface ProductSheetSavedPayload {
+    success?: boolean;
+    message?: string;
+    data?: ProductSheet;
+}
+
+function addProductSheet(response: ProductSheetSavedPayload): void {
     if (!response?.success || !response?.data?.id) {
         console.error('El ProductSheet creado no es válido:', response);
         setAlert('Hubo un problema al crear la ficha de producto. Intenta nuevamente.', 'error');
@@ -391,25 +490,21 @@ function addProductSheet(response: { success: boolean; message: string; data: Pr
     }
 
     const newProductSheet = response.data;
+
+    if (!hasProductReference(newProductSheet)) {
+        setAlert('La sábana fue creada sin referencia de producto. No aparece en este selector.', 'info');
+        return;
+    }
+
     allProductSheets.value = [...allProductSheets.value, newProductSheet];
     form.value.productSheetId = newProductSheet.id;
 }
 
-// Función para obtener las claves con valores `true` en `sizes`
-function getTrueSizes(sizes: string | Record<string, boolean> | undefined | null): string {
-    if (!sizes) return '';
-
-    try {
-        // Si sizes ya es un objeto, usarlo directamente
-        const parsedSizes: Record<string, boolean> = typeof sizes === 'string' ? JSON.parse(sizes) : sizes;
-        return Object.entries(parsedSizes)
-            .filter(([, value]) => value === true)
-            .map(([key]) => key)
-            .join(', ');
-    } catch (error) {
-        console.error('Error al parsear sizes:', error);
-        return '';
-    }
+function getDialogProductSheet(sheet: ProductSheet | null): { sizes: string | Record<string, boolean> | null; reference: string } {
+    return {
+        sizes: normalizeSizes(sheet?.sizes),
+        reference: sheet ? getProductSheetLabel(sheet) : '',
+    };
 }
 
 // Función para filtrar solo números enteros en el campo de lotes
@@ -657,14 +752,10 @@ function handleLotsCountInput(event: Event): void {
                                     </td>
                                     <td v-if="lot.isEcommerce" class="border px-4 py-4 text-center">
                                         <EcommerceSizesDialog
-                                            :productSheet="{
-                                                sizes: selectedProductSheet?.sizes || '{}',
-                                                reference: selectedProductSheet ? getProductSheetLabel(selectedProductSheet) : '',
-                                            }"
+                                            :productSheet="getDialogProductSheet(selectedProductSheet)"
                                             :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
                                             @sizesUpdated="
                                                 (data) => {
-                                                    // Asegurar que los valores sean números y no null
                                                     if (data?.sizes && Object.keys(data.sizes).length > 0) {
                                                         const sanitizedSizes = Object.fromEntries(
                                                             Object.entries(data.sizes).map(([size, value]) => [
@@ -674,7 +765,6 @@ function handleLotsCountInput(event: Event): void {
                                                         );
                                                         lot.ecommerce_units = sanitizedSizes;
                                                     } else {
-                                                        // Si no hay tallas válidas, establecer como objeto vacío
                                                         lot.ecommerce_units = {};
                                                     }
                                                 }
@@ -701,10 +791,10 @@ function handleLotsCountInput(event: Event): void {
                     <Button
                         type="button"
                         class="flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold shadow-sm"
-                        :disabled="saveDisabled"
+                        :disabled="saveDisabled || isSubmitting"
                         @click="createProgrammer"
                     >
-                        Guardar
+                        {{ isSubmitting ? 'Guardando...' : 'Guardar' }}
                     </Button>
                 </div>
                 <p v-if="saveDisabled" class="text-right text-xs text-rose-600">Campos incompletos: {{ missingFieldsSummary }}</p>

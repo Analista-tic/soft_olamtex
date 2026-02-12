@@ -7,24 +7,24 @@ use App\Http\Requests\ProductSheet\StoreProductSheetRequest;
 use App\Http\Requests\ProductSheet\UpdateProductSheetRequest;
 use App\Models\ProductSheet\ProductSheet;
 use App\Services\ProductSheet\ProductSheetCreationService;
+use App\Services\ProductSheet\ProductSheetPersistenceService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class ProductSheetController extends Controller
 {
     private const TYPE_PRODUCT = 'producto';
     private const TYPE_SAMPLE = 'muestra';
+
     public function __construct(
         private SettingService $settingService,
         private ProductSheetCreationService $productSheetCreationService,
-    )
-    {
+        private ProductSheetPersistenceService $productSheetPersistenceService,
+    ) {
     }
     /**
      * Carga datos relacionados y los envía a la vista.
@@ -51,20 +51,17 @@ class ProductSheetController extends Controller
     public function store(StoreProductSheetRequest $request)
     {
         $validatedData = $request->validated();
-        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes'] ?? '[]');
-        $validatedData = $this->prepareFlatSketchUpload($request, $validatedData);
+        $validatedData['sizes'] = $this->productSheetPersistenceService->normalizeSizes($validatedData['sizes'] ?? '[]');
+        $validatedData = $this->productSheetPersistenceService->prepareFlatSketchUpload($request, $validatedData);
         $validatedData = $this->productSheetCreationService->sanitizeAttributes($validatedData);
         $storedFlatSketchPath = $validatedData['flat_sketch_path'] ?? null;
-        $this->logProductSheetSchemaDebug('store', $validatedData);
 
         try {
             $productSheet = DB::transaction(function () use ($validatedData) {
                 return $this->productSheetCreationService->create($validatedData);
             });
         } catch (\Throwable $exception) {
-            if ($storedFlatSketchPath) {
-                Storage::disk('public')->delete($storedFlatSketchPath);
-            }
+            $this->productSheetPersistenceService->rollbackFlatSketch($storedFlatSketchPath);
 
             throw $exception;
         }
@@ -72,7 +69,7 @@ class ProductSheetController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Product sheet creado exitosamente.',
-            'data' => $this->serializeProductSheet($productSheet->fresh()),
+            'data' => $this->productSheetPersistenceService->serializeProductSheet($productSheet->fresh()),
         ], 201);
     }
 
@@ -82,16 +79,15 @@ class ProductSheetController extends Controller
     public function update(UpdateProductSheetRequest $request, ProductSheet $sabana)
     {
         $validatedData = $request->validated();
-        $validatedData['sizes'] = $this->normalizeSizes($validatedData['sizes'] ?? '[]');
-        $validatedData = $this->prepareFlatSketchUpload($request, $validatedData, $sabana);
+        $validatedData['sizes'] = $this->productSheetPersistenceService->normalizeSizes($validatedData['sizes'] ?? '[]');
+        $validatedData = $this->productSheetPersistenceService->prepareFlatSketchUpload($request, $validatedData, $sabana);
         $validatedData = $this->productSheetCreationService->sanitizeAttributes($validatedData);
-        $this->logProductSheetSchemaDebug('update', $validatedData);
         $sabana->update($validatedData);
 
         return response()->json([
             'success' => true,
             'message' => 'Product sheet actualizado exitosamente.',
-            'data' => $this->serializeProductSheet($sabana->fresh()),
+            'data' => $this->productSheetPersistenceService->serializeProductSheet($sabana->fresh()),
         ]);
     }
 
@@ -143,7 +139,7 @@ class ProductSheetController extends Controller
             $productSheet->yarn_base = $productSheet->yarn_base_id ? $yarnBases->get($productSheet->yarn_base_id, ['id' => $productSheet->yarn_base_id, 'name' => 'N/A']) : null;
 
             // Convertir arrays a JSON strings para el frontend
-            $data = $this->serializeProductSheet($productSheet);
+            $data = $this->productSheetPersistenceService->serializeProductSheet($productSheet);
             $data['sizes'] = is_array($productSheet->sizes) ? json_encode($productSheet->sizes) : $productSheet->sizes;
             $data['processes'] = is_array($productSheet->processes) ? json_encode($productSheet->processes) : $productSheet->processes;
             $data['section'] = $productSheet->section;
@@ -181,6 +177,24 @@ class ProductSheetController extends Controller
      */
     public function getData(Request $request)
     {
+        $requestIdHeader = $request->header('X-Request-Id');
+        $requestId = is_string($requestIdHeader) && trim($requestIdHeader) !== '' ? trim($requestIdHeader) : null;
+
+        Log::info('product_sheet.list.received', [
+            'request_id' => $requestId,
+            'endpoint' => 'product-sheets.getData',
+            'user_id' => $request->user()?->id,
+            'timestamp' => now()->toIso8601String(),
+            'filters' => [
+                'search' => $request->filled('search') ? mb_substr((string) $request->input('search'), 0, 80) : null,
+                'status' => $request->input('status'),
+                'section_id' => $request->input('section_id'),
+                'world_id' => $request->input('world_id'),
+                'page' => $request->input('page', 1),
+                'per_page' => 10,
+            ],
+        ]);
+
         $query = ProductSheet::query();
 
         if ($request->has('search') && $request->search != '') {
@@ -223,6 +237,17 @@ class ProductSheetController extends Controller
             return $product;
         });
 
+        Log::info('product_sheet.list.completed', [
+            'request_id' => $requestId,
+            'endpoint' => 'product-sheets.getData',
+            'user_id' => $request->user()?->id,
+            'timestamp' => now()->toIso8601String(),
+            'returned_count' => count($products_sheets->items()),
+            'total' => $products_sheets->total(),
+            'page' => $products_sheets->currentPage(),
+            'per_page' => $products_sheets->perPage(),
+        ]);
+
         return response()->json([
             'products_sheets' => $products_sheets,
         ]);
@@ -257,87 +282,6 @@ class ProductSheetController extends Controller
         ]);
     }
 
-    private function prepareFlatSketchUpload(Request $request, array $data, ?ProductSheet $productSheet = null): array
-    {
-        // Never persist the uploaded file object as a DB attribute.
-        unset($data['flat_sketch']);
-
-        if (!$request->hasFile('flat_sketch')) {
-            unset($data['flat_sketch_path']);
-            return $data;
-        }
-
-        $existingPath = $productSheet?->flat_sketch_path;
-
-        if ($existingPath) {
-            Storage::disk('public')->delete($existingPath);
-        }
-
-        $path = Storage::disk('public')->putFile('product_sheets', $request->file('flat_sketch'));
-        $data['flat_sketch_path'] = $path;
-
-        return $data;
-    }
-
-    private function logProductSheetSchemaDebug(string $action, array $data): void
-    {
-        $connection = DB::connection();
-        Log::debug('product_sheet_schema_debug', [
-            'action' => $action,
-            'connection' => $connection->getName(),
-            'database' => $connection->getDatabaseName(),
-            'table' => (new ProductSheet())->getTable(),
-            'keys' => array_keys($data),
-            'contains_flat_sketch' => array_key_exists('flat_sketch', $data),
-            'contains_flat_sketch_path' => array_key_exists('flat_sketch_path', $data),
-            'has_column_flat_sketch' => Schema::connection($connection->getName())->hasColumn('product_sheets', 'flat_sketch'),
-            'has_column_flat_sketch_path' => Schema::connection($connection->getName())->hasColumn('product_sheets', 'flat_sketch_path'),
-        ]);
-    }
-
-    private function serializeProductSheet(ProductSheet $productSheet): array
-    {
-        $data = $productSheet->toArray();
-        $data['flat_sketch_path'] = $productSheet->flat_sketch_path ?? null;
-
-        return $data;
-    }
-
-    /**
-     * Normaliza el campo sizes para guardar solo las tallas seleccionadas (true).
-     * Convierte {"28": true, "30": false} -> ["28"]
-     * 
-     * @param string $sizesJson JSON string con las tallas
-     * @return string JSON normalizado
-     */
-    private function normalizeSizes($sizesJson)
-    {
-        try {
-            $sizes = json_decode($sizesJson, true);
-            
-            if (!is_array($sizes)) {
-                return $sizesJson;
-            }
-            
-            // Si es un array asociativo con valores booleanos, filtrar solo los true
-            if (array_keys($sizes) !== range(0, count($sizes) - 1)) {
-                // Es array asociativo - extraer solo claves donde el valor sea true
-                $filteredSizes = array_values(array_filter(
-                    array_keys($sizes),
-                    fn($key) => $sizes[$key] === true
-                ));
-                
-                // Retornar como array JSON simple
-                return json_encode($filteredSizes);
-            }
-            
-            // Si ya es un array indexado, retornar como estÃ¡
-            return $sizesJson;
-        } catch (\Exception $e) {
-            // Si hay algÃºn error, retornar el valor original
-            return $sizesJson;
-        }
-    }
     private function generateProductReference(ProductSheet $productSheet): string
     {
         $base = trim((string) ($productSheet->product_reference ?? $productSheet->sample_reference ?? 'PRODUCTO'));
@@ -356,3 +300,4 @@ class ProductSheetController extends Controller
     }
 
 }
+
