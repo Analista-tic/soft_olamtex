@@ -98,8 +98,15 @@ class ProgrammerController extends Controller
             return $product;
         });
 
+        $productSheetsForCreate = $productSheets
+            ->filter(function ($product) {
+                return trim((string) ($product->product_reference ?? '')) !== '';
+            })
+            ->values();
+
         return Inertia::render('Programmers/Index', [
             'productSheets' => $productSheets ?? [],
+            'productSheetsForCreate' => $productSheetsForCreate ?? [],
             'destinations' => $destinations->values()->all(),
             'sections' => $sections->values()->all(),
             'groups' => $groups->values()->all(),
@@ -385,7 +392,7 @@ class ProgrammerController extends Controller
         ]);
 
         $query = Programmer::with([
-            'productSheet:id,type,sample_reference,product_reference,section_id,group_id,world_id,brand_id,fabric_base_id,yarn_base_id,billing_price,selling_price,sizes,description,status,deleted_at',
+            'productSheet:id,type,sample_reference,product_reference,section_id,group_id,world_id,brand_id,fabric_base_id,yarn_base_id,billing_price,selling_price,sizes,description,status,flat_sketch_path,deleted_at',
         ]);
 
         if (!empty($filters['season']) && $filters['season'] !== 'all') {
@@ -408,13 +415,23 @@ class ProgrammerController extends Controller
             $query->whereDate('estimated_delivery_date', $filters['estimated_delivery_date']);
         }
 
-        if (!empty($filters['search'])) {
-            $query->whereHas('productSheet', function ($q) use ($filters) {
-                $search = trim((string) $filters['search']);
-                $q->whereNull('deleted_at')
-                    ->where(function ($sub) use ($search) {
-                        $sub->where('sample_reference', 'like', '%' . $search . '%')
-                            ->orWhere('product_reference', 'like', '%' . $search . '%');
+        if (!empty($filters['search']) && trim((string) $filters['search']) !== '') {
+            $search = trim((string) $filters['search']);
+            $searchLike = '%' . $search . '%';
+            $searchNoSpaces = preg_replace('/\s+/', '', $search) ?? '';
+            $searchNoSpacesLike = '%' . $searchNoSpaces . '%';
+
+            $query->where(function ($q) use ($searchLike, $searchNoSpacesLike) {
+                $q->where('op_code', 'like', $searchLike)
+                    ->orWhereRaw("REPLACE(COALESCE(op_code, ''), ' ', '') LIKE ?", [$searchNoSpacesLike])
+                    ->orWhereHas('productSheet', function ($sheetQuery) use ($searchLike, $searchNoSpacesLike) {
+                        $sheetQuery->whereNull('deleted_at')
+                            ->where(function ($sub) use ($searchLike, $searchNoSpacesLike) {
+                                $sub->where('sample_reference', 'like', $searchLike)
+                                    ->orWhere('product_reference', 'like', $searchLike)
+                                    ->orWhereRaw("REPLACE(COALESCE(sample_reference, ''), ' ', '') LIKE ?", [$searchNoSpacesLike])
+                                    ->orWhereRaw("REPLACE(COALESCE(product_reference, ''), ' ', '') LIKE ?", [$searchNoSpacesLike]);
+                            });
                     });
             });
         }

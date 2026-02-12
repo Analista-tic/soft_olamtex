@@ -20,6 +20,7 @@ import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [
@@ -63,6 +64,9 @@ const isDateToActive = computed(() => Boolean(dateTo.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 
 const formatDate = (value?: string | null) => {
     if (!value) return '-';
@@ -338,6 +342,7 @@ function handleDialogError(message?: string) {
                 </FilterField>
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                <TooltipProvider>
                 <Table>
                         <TableHeader>
                         <TableRow>
@@ -349,7 +354,7 @@ function handleDialogError(message?: string) {
                             <TableHead>Total</TableHead>
                             <TableHead>Descripción</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                         </TableHeader>
                     <TableBody>
@@ -397,12 +402,17 @@ function handleDialogError(message?: string) {
                                     :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
                                 />
                                 <DropdownMenu>
-                                    <DropdownMenuTrigger as-child>
-                                        <Button variant="ghost" size="icon" class="h-8 w-8 p-0">
-                                            <MoreVertical class="h-4 w-4" />
-                                            <span class="sr-only">Acciones</span>
-                                        </Button>
-                                    </DropdownMenuTrigger>
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <DropdownMenuTrigger as-child>
+                                                <Button variant="ghost" size="icon" :class="actionButtonClass">
+                                                    <MoreVertical :class="actionIconClass" />
+                                                    <span class="sr-only">Acciones</span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Acciones</TooltipContent>
+                                    </Tooltip>
                                     <DropdownMenuContent align="end" class="w-48">
                                         <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(order)">
                                             <Printer class="h-4 w-4" /> Imprimir
@@ -439,6 +449,7 @@ function handleDialogError(message?: string) {
                         </TableRow>
                     </TableBody>
                 </Table>
+                </TooltipProvider>
             </div>
         </div>
         <PurchaseOrderDialog

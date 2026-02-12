@@ -22,6 +22,7 @@ import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { Search, Eye, PlusCircle, Pencil } from 'lucide-vue-next';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type {
     ProductOperationListPageProps,
     ProductOperationPayload,
@@ -86,6 +87,9 @@ const summaryToView = ref<OperationSummary | null>(null);
 const { errorMessage, successMessage, showError, showSuccess, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const dialogMode = ref<'create' | 'edit'>('create');
 const dialogInitialData = ref<DialogInitialData | null>(null);
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 
 function normalizeText(value: string): string {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -461,6 +465,7 @@ watch(productSheets, () => {
             </FilterBar>
 
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                <TooltipProvider>
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -483,24 +488,34 @@ watch(productSheets, () => {
                             <TableCell class="text-center">{{ formatTotal(summary.total_cost_product) }}</TableCell>
                             <TableCell class="text-center">
                                 <div class="flex items-center justify-center gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        class="h-8 w-8"
-                                        title="Ver operaciones del lote"
-                                        @click="openSummaryView(summary)"
-                                    >
-                                        <Eye class="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        class="h-8 w-8"
-                                        title="Editar operaciones del lote"
-                                        @click="openEditDialog(summary)"
-                                    >
-                                        <Pencil class="h-4 w-4" />
-                                    </Button>
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Ver detalle"
+                                                @click="openSummaryView(summary)"
+                                            >
+                                                <Eye :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Ver detalle</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Editar"
+                                                @click="openEditDialog(summary)"
+                                            >
+                                                <Pencil :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Editar</TooltipContent>
+                                    </Tooltip>
                                     <DeleteButton
                                         :onClick="() => confirmDeleteSummary(summary)"
                                         customClass="h-4 w-4"
@@ -510,6 +525,7 @@ watch(productSheets, () => {
                         </TableRow>
                     </TableBody>
                 </Table>
+                </TooltipProvider>
             </div>
 
             <ProductOperationListDialog

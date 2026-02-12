@@ -5,7 +5,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
-import { Search, Eye, ArrowUp, ArrowDown, Settings } from 'lucide-vue-next';
+import { Search, Eye } from 'lucide-vue-next';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import axios from 'axios';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AlertStack from '@/components/common/AlertStack.vue';
@@ -61,6 +62,9 @@ const isDateToActive = computed(() => Boolean(dateTo.value));
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
 const itemButtonClasses = useFilterButtonClasses(isItemFilterActive);
 const warehouseButtonClasses = useFilterButtonClasses(isWarehouseFilterActive);
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 
 const { successMessage, errorMessage, errorType, showError, clearSuccess, clearError } = useAlertStack();
 
@@ -296,6 +300,7 @@ onMounted(() => {
             <div
                 class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min"
             >
+                <TooltipProvider>
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
@@ -310,7 +315,7 @@ onMounted(() => {
                             <TableHead>Stock Anterior</TableHead>
                             <TableHead>Stock Nuevo</TableHead>
                             <TableHead>Precio Ponderado</TableHead>
-                            <TableHead class="w-[100px]">Acciones</TableHead>
+                            <TableHead class="w-[100px] text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -362,20 +367,28 @@ onMounted(() => {
                             <TableCell>{{ formatNumber(movement.previous_stock, 2) }}</TableCell>
                             <TableCell class="font-medium">{{ formatNumber(movement.new_stock, 2) }}</TableCell>
                             <TableCell class="font-medium">{{ formatCurrency(movement.new_weighted_price) }}</TableCell>
-                            <TableCell>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-8 w-8"
-                                    @click="openDetailDialog(movement)"
-                                    title="Ver detalles"
-                                >
-                                    <Eye class="h-4 w-4" />
-                                </Button>
+                            <TableCell class="text-center">
+                                <div class="flex justify-center gap-2">
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Ver detalle"
+                                                @click="openDetailDialog(movement)"
+                                            >
+                                                <Eye :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Ver detalle</TooltipContent>
+                                    </Tooltip>
+                                </div>
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
+                </TooltipProvider>
 
                 <Pagination
                     v-if="totalItems > itemsPerPage"

@@ -1058,10 +1058,10 @@ function handleClose() {
                         <div class="min-w-0 w-full md:w-[320px]">
                             <div class="sticky top-3 space-y-4">
                                 <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium">Dibujo plano / imagen</Label>
+                                    <Label class="text-sm font-medium">Dibujo plano</Label>
                                     <HelpTooltip
                                         :text="tooltips.flatSketch"
-                                        aria-label="Ayuda sobre Dibujo plano o imagen"
+                                        aria-label="Ayuda sobre Dibujo plano"
                                     />
                                 </div>
                                 <div class="flex w-full flex-col items-start gap-2">
@@ -1077,7 +1077,7 @@ function handleClose() {
                                         />
                                         <div
                                             :class="[
-                                                'group relative flex min-h-[380px] w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
+                                                'group relative flex min-h-[320px] w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
                                                 isReadonly ? 'cursor-default opacity-100' : 'hover:border-blue-400 hover:shadow-lg',
                                             ]"
                                             style="min-width: 0;"
@@ -1102,26 +1102,24 @@ function handleClose() {
                                             </template>
                                         </div>
                                     </div>
-                                    <div v-if="canClearFlatSketch" class="flex w-full items-center gap-3">
-                                        <Button
-                                            variant="ghost"
+                                    <div v-if="canClearFlatSketch" class="flex w-full items-center gap-2">
+                                        <button
                                             type="button"
-                                            class="h-8 px-3 text-xs"
+                                            class="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
                                             @click="openFlatSketchPreview"
                                         >
-                                            <Eye class="mr-1 h-3.5 w-3.5" />
+                                            <Eye class="h-4 w-4" />
                                             Ver imagen
-                                        </Button>
-                                        <Button
+                                        </button>
+                                        <button
                                             v-if="!isReadonly"
-                                            variant="ghost"
                                             type="button"
-                                            class="h-8 px-3 text-xs text-destructive hover:text-destructive"
+                                            class="flex flex-1 items-center justify-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm font-medium text-destructive transition hover:bg-destructive/10"
                                             @click="clearFlatSketch"
                                         >
-                                            <Trash class="mr-1 h-3.5 w-3.5" />
+                                            <Trash class="h-4 w-4" />
                                             Eliminar
-                                        </Button>
+                                        </button>
                                     </div>
                                 </div>
                             </div>

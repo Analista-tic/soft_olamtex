@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import AlertBox from '@/components/AlertBox.vue';
-import ActionIconButton from '@/components/common/ActionIconButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -19,6 +18,7 @@ import Button from '@/components/ui/button/Button.vue';
 import { Calendar } from '@/components/ui/calendar';
 import Input from '@/components/ui/input/Input.vue';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     Pagination,
     PaginationEllipsis,
@@ -34,7 +34,6 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { ProductSheet, Programmer } from '@/domain/product-sheet';
 import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { ACTION_LABELS } from '@/lib/actionLabels';
 import { monthLabel } from '@/lib/months';
 import { useAuthStore } from '@/stores/auth';
 import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
@@ -80,6 +79,7 @@ const props = defineProps<{
     worlds: Option[];
     fabricBases: Option[];
     productSheets: ProductSheet[];
+    productSheetsForCreate?: ProductSheet[];
     destinations: Option[];
     yarnBases: Option[];
     months: Option[];
@@ -127,6 +127,9 @@ const fetchDebounceMs = 350;
 let fetchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let activeFetchController: AbortController | null = null;
 const DEFAULT_SELECT_VALUE = 'all';
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 const seasonIsActive = computed(() => Boolean(filters.value.season) && filters.value.season !== DEFAULT_SELECT_VALUE);
 const priorityIsActive = computed(() => Boolean(filters.value.priority) && filters.value.priority !== DEFAULT_SELECT_VALUE);
 const statusIsActive = computed(() => Boolean(filters.value.status) && filters.value.status !== DEFAULT_SELECT_VALUE);
@@ -430,7 +433,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         :worlds="props.worlds"
                         :fabricBases="props.fabricBases"
                         :yarnBases="props.yarnBases"
-                        :productSheets="props.productSheets"
+                        :productSheets="props.productSheetsForCreate ?? []"
                         :destinations="props.destinations"
                         :months="props.months"
                         :priorities="props.priorities"
@@ -539,6 +542,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
             </FilterBar>
 
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                <TooltipProvider>
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -552,7 +556,7 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                             <TableHead>Total Unidades</TableHead>
                             <TableHead>Fecha Entrega Est.</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -601,30 +605,56 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                     {{ (programmer.is_pending_completion ?? false) ? 'Pendiente' : 'Completo' }}
                                 </Badge>
                             </TableCell>
-                            <TableCell class="flex items-center justify-center gap-1">
-                                <ActionIconButton
-                                    v-if="canView"
-                                    :icon="Eye"
-                                    :tooltip="ACTION_LABELS.VIEW_PROGRAMMER"
-                                    @click="viewProgrammer(programmer)"
-                                />
-                                <ActionIconButton
-                                    v-if="canEdit"
-                                    :icon="Pencil"
-                                    :tooltip="ACTION_LABELS.EDIT_PROGRAMMER"
-                                    @click="openEditDialog(programmer)"
-                                />
-                                <ActionIconButton
-                                    v-if="canDelete"
-                                    :icon="Trash"
-                                    :tooltip="ACTION_LABELS.DELETE_PROGRAMMER"
-                                    variant="destructive"
-                                    @click="confirmDeleteProgrammer(programmer)"
-                                />
+                            <TableCell class="text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    <Tooltip v-if="canView">
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Ver detalle"
+                                                @click="viewProgrammer(programmer)"
+                                            >
+                                                <Eye :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Ver detalle</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip v-if="canEdit">
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Editar"
+                                                @click="openEditDialog(programmer)"
+                                            >
+                                                <Pencil :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Editar</TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip v-if="canDelete">
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
+                                                aria-label="Eliminar"
+                                                @click="confirmDeleteProgrammer(programmer)"
+                                            >
+                                                <Trash :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Eliminar</TooltipContent>
+                                    </Tooltip>
+                                </div>
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
+                </TooltipProvider>
                 <Pagination
                     class="mt-5 flex justify-center"
                     v-slot="{ page }"

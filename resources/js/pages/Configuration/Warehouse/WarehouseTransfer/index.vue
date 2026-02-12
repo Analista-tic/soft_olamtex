@@ -4,6 +4,7 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search, Eye, Pencil, Trash } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
@@ -140,6 +141,9 @@ const isSearchActive = computed(() => normalizedQuery.value.length > 0);
 const dateFilter = ref('');
 
 const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 
 const transferRows = computed<Transfer[]>(() =>
 	transfersRaw.value.map((transfer) => ({
@@ -278,7 +282,7 @@ async function loadTransfers() {
 		const response = await axios.get('/transferencias-bodegas/data', { params: { per_page: 200 } });
 		const data = response?.data?.data;
 		transfersRaw.value = Array.isArray(data) ? data : [];
-	} catch (error) {
+	} catch {
 		showError('No se pudieron cargar las transferencias.');
 		transfersRaw.value = [];
 	}
@@ -454,6 +458,7 @@ onMounted(async () => {
 			</FilterBar>
 
 			<div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+				<TooltipProvider>
 				<Table class="text-center">
 					<TableHeader>
 						<TableRow>
@@ -461,7 +466,7 @@ onMounted(async () => {
 							<TableHead>Fecha</TableHead>
 							<TableHead>Bodega origen</TableHead>
 							<TableHead>Bodega destino</TableHead>
-							<TableHead>Acciones</TableHead>
+							<TableHead class="text-center">Acciones</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -470,38 +475,56 @@ onMounted(async () => {
 							<TableCell class="font-medium">{{ transfer.date }}</TableCell>
 							<TableCell>{{ transfer.origin }}</TableCell>
 							<TableCell>{{ transfer.destination }}</TableCell>
-							<TableCell class="flex justify-center gap-1">
-								<Button
-									variant="ghost"
-									size="icon"
-									class="h-8 w-8"
-									title="Ver"
-									@click="openTransferDialog('view', transfer)"
-								>
-									<Eye class="h-4 w-4" />
-								</Button>
-								<Button
-									variant="ghost"
-									size="icon"
-									class="h-8 w-8"
-									title="Editar"
-									@click="openTransferDialog('edit', transfer)"
-								>
-									<Pencil class="h-4 w-4" />
-								</Button>
-								<Button
-									variant="ghost"
-									size="icon"
-									class="h-8 w-8"
-									title="Eliminar"
-									@click="promptDeleteTransfer(transfer)"
-								>
-									<Trash class="h-4 w-4" />
-								</Button>
+							<TableCell class="text-center">
+								<div class="flex justify-center gap-2">
+									<Tooltip>
+										<TooltipTrigger as-child>
+											<Button
+												variant="ghost"
+												size="icon"
+												:class="actionButtonClass"
+												aria-label="Ver detalle"
+												@click="openTransferDialog('view', transfer)"
+											>
+												<Eye :class="actionIconClass" />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Ver detalle</TooltipContent>
+									</Tooltip>
+									<Tooltip>
+										<TooltipTrigger as-child>
+											<Button
+												variant="ghost"
+												size="icon"
+												:class="actionButtonClass"
+												aria-label="Editar"
+												@click="openTransferDialog('edit', transfer)"
+											>
+												<Pencil :class="actionIconClass" />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Editar</TooltipContent>
+									</Tooltip>
+									<Tooltip>
+										<TooltipTrigger as-child>
+											<Button
+												variant="ghost"
+												size="icon"
+												:class="actionButtonClass"
+												aria-label="Eliminar"
+												@click="promptDeleteTransfer(transfer)"
+											>
+												<Trash :class="actionIconClass" />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent>Eliminar</TooltipContent>
+									</Tooltip>
+								</div>
 							</TableCell>
 						</TableRow>
 					</TableBody>
 				</Table>
+				</TooltipProvider>
 				<Pagination
 					class="mt-5 flex justify-center"
 					:items-per-page="ITEMS_PER_PAGE"

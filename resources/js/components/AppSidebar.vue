@@ -166,7 +166,7 @@ const moduleSections: ModuleSection[] = [
                 items: [
                     { title: 'Sábana de Productos', href: '/produccion/sabana-productos' },
                     { title: 'Programación de producción', href: '/comercial/programador' },
-                    { title: 'Órdenes de producción', href: '/produccion/ordenes-produccion' },
+                    { title: 'Órdenes de producción', href:'/produccion/ordenes-produccion' },
                     { title: 'Control de lotes', href: underConstructionHref('Control de lotes'), },
                     { title: 'Ficha Técnica', href: underConstructionHref('Ficha Técnica'), },
                 ],

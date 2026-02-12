@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/table';
 import { Eye, PlusCircle, Search } from 'lucide-vue-next';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     createParameter,
     deleteParameter,
@@ -70,6 +71,9 @@ const parameterToDelete = ref<ParameterItem | null>(null);
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 
 function clearMessages() {
     successMessage.value = '';
@@ -363,6 +367,7 @@ function isObjectWithName(item: unknown): item is { name: string } {
             </FilterBar>
 
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+                <TooltipProvider>
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
@@ -370,7 +375,7 @@ function isObjectWithName(item: unknown): item is { name: string } {
                             <TableHead>Descripción</TableHead>
                             <TableHead>Valor</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -395,21 +400,30 @@ function isObjectWithName(item: unknown): item is { name: string } {
                             <TableCell>
                                 <StatusBadge :status="param.status" />
                             </TableCell>
-                            <TableCell class="flex flex-wrap justify-center gap-1">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    class="px-2 text-[11px] gap-1 flex items-center"
-                                    @click="openViewDialog(param)"
-                                >
-                                    <Eye class="w-4 h-4" />
-                                </Button>
+                            <TableCell class="text-center">
+                                <div class="flex flex-wrap justify-center gap-2">
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            :class="actionButtonClass"
+                                            aria-label="Ver detalle"
+                                            @click="openViewDialog(param)"
+                                        >
+                                            <Eye :class="actionIconClass" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Ver detalle</TooltipContent>
+                                </Tooltip>
                                 <EditButton :onClick="() => openDialog('edit', param)" />
                                 <DeleteButton :onClick="() => confirmDeleteParameter(param)" />
+                                </div>
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
+                </TooltipProvider>
             </div>
         </div>
 

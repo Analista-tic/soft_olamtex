@@ -19,18 +19,29 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 const emit = defineEmits(['programmerCreated']);
 
-const props = defineProps<{
-    productSheets: ProductSheet[];
-    destinations: Option[];
-    sections: Option[];
-    groups: Option[];
-    brands: Option[];
-    worlds: Option[];
-    fabricBases: Option[];
-    yarnBases: Option[];
-    months: Option[];
-    priorities: Option[];
-}>();
+const props = withDefaults(defineProps<{
+    productSheets?: ProductSheet[];
+    destinations?: Option[];
+    sections?: Option[];
+    groups?: Option[];
+    brands?: Option[];
+    worlds?: Option[];
+    fabricBases?: Option[];
+    yarnBases?: Option[];
+    months?: Option[];
+    priorities?: Option[];
+}>(), {
+    productSheets: () => [],
+    destinations: () => [],
+    sections: () => [],
+    groups: () => [],
+    brands: () => [],
+    worlds: () => [],
+    fabricBases: () => [],
+    yarnBases: () => [],
+    months: () => [],
+    priorities: () => [],
+});
 
 // Constants
 type AlertType = 'success' | 'error' | 'info' | 'warning';
@@ -175,33 +186,19 @@ function getProductSheetLabel(sheet: ProductSheet): string {
     return String(typedSheet.label ?? typedSheet.display_reference ?? sheet.reference ?? '').trim();
 }
 
-function getProductSheetOptionLabel(sheet: ProductSheet): string {
-    const typedSheet = sheet as ProductSheet & { sample_reference?: string; product_reference?: string };
-    const sampleReference = typedSheet.sample_reference?.trim() ?? '';
-    const productReference = typedSheet.product_reference?.trim() ?? '';
+function getProductReference(sheet: ProductSheet): string {
+    return String(sheet.product_reference ?? '').trim();
+}
 
-    if (sampleReference !== '' && productReference !== '') {
-        return sampleReference === productReference
-            ? sampleReference
-            : `${sampleReference} - ${productReference}`;
-    }
-
-    if (sampleReference !== '') {
-        return sampleReference;
-    }
-
-    if (productReference !== '') {
-        return productReference;
-    }
-
-    return getProductSheetLabel(sheet);
+function hasProductReference(sheet: ProductSheet): boolean {
+    return getProductReference(sheet).length > 0;
 }
 
 const productSheetOptions = computed(() =>
     productSheetList.value
         .map((sheet) => ({
             id: getProductSheetValue(sheet),
-            name: getProductSheetOptionLabel(sheet),
+            name: getProductReference(sheet),
         }))
         .filter((option) => option.name !== '')
 );
@@ -395,9 +392,11 @@ function closeDialog(): void {
     isDialogOpen.value = false;
 }
 
-const allProductSheets = ref<ProductSheet[]>([...props.productSheets]);
+const allProductSheets = ref<ProductSheet[]>(
+    Array.isArray(props.productSheets) ? [...props.productSheets] : [],
+);
 
-const productSheetList = computed(() => allProductSheets.value);
+const productSheetList = computed(() => allProductSheets.value.filter(hasProductReference));
 
 watch(
     () => form.value.productSheetId,
@@ -488,6 +487,12 @@ function addProductSheet(response: ProductSheetSavedPayload): void {
     }
 
     const newProductSheet = response.data;
+
+    if (!hasProductReference(newProductSheet)) {
+        setAlert('La sábana fue creada sin referencia de producto. No aparece en este selector.', 'info');
+        return;
+    }
+
     allProductSheets.value = [...allProductSheets.value, newProductSheet];
     form.value.productSheetId = newProductSheet.id;
 }

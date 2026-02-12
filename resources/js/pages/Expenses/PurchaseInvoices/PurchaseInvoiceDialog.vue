@@ -293,7 +293,7 @@ async function fetchPendingPurchaseOrders() {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
             params: { status: 'approved', per_page: 1000, exclude_fabric: true },
         });
-        let orders = data.data || [];
+        const orders = data.data || [];
         // Filtrar órdenes que NO tengan una factura asociada
         // Una orden está facturada si existe una factura con parent_document_id igual al id de la orden
         const invoiceRes = await axios.get('/gastos/facturas-compra/data', {
