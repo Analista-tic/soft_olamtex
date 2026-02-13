@@ -205,6 +205,24 @@ class SettingsFieldParametersSeeder extends Seeder
             ],
             [
                 'kind' => 'parameter',
+                'key' => 'cutting_cost',
+                'data' => [
+                    'label' => 'Costo corte',
+                    'value' => 350,
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'minute_cost',
+                'data' => [
+                    'label' => 'Costo minuto',
+                    'value' => 120,
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
                 'key' => 'lines',
                 'data' => [
                     'label' => 'Líneas',

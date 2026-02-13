@@ -118,10 +118,10 @@ function parseSizes(sizes: unknown): string[] {
     return [];
 }
 
-const toNullableNumber = (value: unknown): number | null => {
-    if (value === null || value === undefined || value === '') return null;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
+const toNullableText = (value: unknown): string | null => {
+    if (value === null || value === undefined) return null;
+    const text = String(value).trim();
+    return text !== '' ? text : null;
 };
 
 export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo {
@@ -133,7 +133,7 @@ export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo
         status: 'N/A',
         season: dto.season ?? null,
         destination: dto.destination ?? null,
-        units: 0,
+        units: dto.units ?? null,
         deliveryDate: dto.date ?? null,
         flatDrawingUrl: dto.flatDrawingUrl ?? null,
         section: dto.section ?? null,
@@ -145,7 +145,7 @@ export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo
         priceBilling: null,
         priceSale: null,
         ecommerce: false,
-        priority: toNullableNumber(dto.priority),
+        priority: toNullableText(dto.priority),
     };
 }
 
@@ -186,7 +186,7 @@ export function mapDetailResponseToBasicInfo(response: ProductionOrderDetailResp
         status,
         season: order?.season_display ?? (String(order?.season ?? programmer?.season ?? '') || null),
         destination: order?.destination?.name ?? null,
-        units: order?.units ?? programmer?.units ?? 0,
+        units: order?.units ?? programmer?.units ?? null,
         deliveryDate: order?.estimated_delivery_date ?? programmer?.estimated_delivery_date ?? null,
         flatDrawingUrl: sheet?.flat_sketch_path ?? null,
         section: sheet?.section?.name ?? null,
@@ -199,7 +199,7 @@ export function mapDetailResponseToBasicInfo(response: ProductionOrderDetailResp
         priceSale: sheet?.selling_price != null ? Number(sheet.selling_price) : null,
         ecommerce: Boolean(programmer?.ecommerce_units),
         source: order?.source ?? programmer?.source ?? null,
-        priority: order?.priority != null ? Number(order.priority) : (programmer?.priority != null ? Number(programmer.priority) : null),
+        priority: toNullableText(order?.priority ?? programmer?.priority ?? null),
         baseYarn: sheet?.yarn_base?.name ?? null,
         estimatedDeliveryTime: null, // No disponible en la respuesta actual
     };

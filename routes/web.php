@@ -18,6 +18,10 @@ use App\Http\Controllers\ProductSheet\ProductOperationListController;
 use App\Http\Controllers\ProductSheet\ProductSheetController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
 use App\Http\Controllers\Production\ProductionOrderController;
+use App\Http\Controllers\Production\TechnicalDataSheetAdditionalInfoController;
+use App\Http\Controllers\Production\TechnicalDataSheetRollsController;
+use App\Http\Controllers\Production\TechnicalDataSheetSuppliesController;
+use App\Http\Controllers\Production\TechnicalDataSheetThreadsController;
 use App\Http\Controllers\Production\TechnicalDataSheetController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\Settings\RoleController;
@@ -82,6 +86,44 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('ficha-tecnica.options');
         Route::get('ficha-tecnica/{opId}/basica', [TechnicalDataSheetController::class, 'basicInfo'])
             ->name('ficha-tecnica.basicInfo');
+        Route::get('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'operationalList'])
+            ->name('ficha-tecnica.operational-list');
+        Route::get('ficha-tecnica/listados-operacionales/opciones', [TechnicalDataSheetController::class, 'operationalListOptions'])
+            ->name('ficha-tecnica.operational-list-options');
+        Route::post('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'assignOperationalList'])
+            ->name('ficha-tecnica.assign-operational-list');
+        Route::get('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'processesSummary'])
+            ->name('ficha-tecnica.processes-summary');
+        Route::post('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'saveProcesses'])
+            ->name('ficha-tecnica.processes.save');
+        Route::get('ficha-tecnica/{opId}/costos', [TechnicalDataSheetController::class, 'costsSummary'])
+            ->name('ficha-tecnica.costs-summary');
+        Route::get('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'index'])
+            ->name('ficha-tecnica.supplies.index');
+        Route::post('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'upsert'])
+            ->name('ficha-tecnica.supplies.upsert');
+        Route::delete('ficha-tecnica/{opId}/insumos/{supplyId}', [TechnicalDataSheetSuppliesController::class, 'destroy'])
+            ->name('ficha-tecnica.supplies.destroy');
+        Route::get('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'index'])
+            ->name('ficha-tecnica.rolls.index');
+        Route::post('ficha-tecnica/{opId}/rollos/params', [TechnicalDataSheetRollsController::class, 'saveParams'])
+            ->name('ficha-tecnica.rolls.params');
+        Route::post('ficha-tecnica/{opId}/rollos/lines', [TechnicalDataSheetRollsController::class, 'upsertLine'])
+            ->name('ficha-tecnica.rolls.lines.upsert');
+        Route::delete('ficha-tecnica/{opId}/rollos/lines/{lineId}', [TechnicalDataSheetRollsController::class, 'destroyLine'])
+            ->name('ficha-tecnica.rolls.lines.destroy');
+        Route::get('ficha-tecnica/{opId}/hilos', [TechnicalDataSheetThreadsController::class, 'index'])
+            ->name('ficha-tecnica.threads.index');
+        Route::post('ficha-tecnica/{opId}/hilos/params', [TechnicalDataSheetThreadsController::class, 'saveParams'])
+            ->name('ficha-tecnica.threads.params');
+        Route::post('ficha-tecnica/{opId}/hilos/lines', [TechnicalDataSheetThreadsController::class, 'upsertLine'])
+            ->name('ficha-tecnica.threads.lines.upsert');
+        Route::delete('ficha-tecnica/{opId}/hilos/lines/{lineId}', [TechnicalDataSheetThreadsController::class, 'destroyLine'])
+            ->name('ficha-tecnica.threads.lines.destroy');
+        Route::get('ficha-tecnica/{opId}/info-adicional', [TechnicalDataSheetAdditionalInfoController::class, 'show'])
+            ->name('ficha-tecnica.additional-info.show');
+        Route::post('ficha-tecnica/{opId}/info-adicional', [TechnicalDataSheetAdditionalInfoController::class, 'store'])
+            ->name('ficha-tecnica.additional-info.store');
 
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])
             ->middleware('permission:ver sabana productos')

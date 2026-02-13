@@ -1,6 +1,56 @@
 // Types
-export type { OpType, OpOption, OpBasicInfo } from './types';
+export type {
+    OpType,
+    OpOption,
+    OpBasicInfo,
+    OperationalList,
+    OperationalListItem,
+    OperationalListResponse,
+    ProcessSummary,
+    OpProcessType,
+    OpProcessRow,
+    OpProcessesData,
+    CostsSummary,
+    SupplyStage,
+    SupplyItem,
+    FabricType,
+    RollLine,
+    RollParams,
+    RollState,
+    ThreadLine,
+    ThreadParams,
+    ThreadState,
+    CuttingParams,
+    SizeUnit,
+    PieceType,
+    Side,
+    Grain,
+    CuttingPiece,
+    AdditionalInfo,
+} from './types';
 
 // Service
-export type { FetchOpOptionsParams } from './service';
-export { fetchOpOptions, fetchOpBasicInfo } from './service';
+export type { FetchOpOptionsParams, FetchOperationalListOptionsParams } from './service';
+export {
+    fetchOpOptions,
+    fetchOpBasicInfo,
+    fetchOpOperationalList,
+    fetchOperationalListOptions,
+    assignOperationalListToOp,
+    fetchOpProcesses,
+    saveOpProcesses,
+    fetchOpCostsSummary,
+    fetchOpSupplies,
+    upsertOpSupply,
+    deleteOpSupply,
+    fetchOpRolls,
+    saveOpRollParams,
+    upsertOpRollLine,
+    deleteOpRollLine,
+    fetchOpThreads,
+    saveOpThreadParams,
+    upsertOpThreadLine,
+    deleteOpThreadLine,
+    fetchOpAdditionalInfo,
+    saveOpAdditionalInfo,
+} from './service';

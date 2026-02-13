@@ -4,11 +4,23 @@ import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import SelectField from '@/components/SelectField.vue';
+import ProcessesTab from './tabs/ProcessesTab.vue';
+import CostsTab from './tabs/CostsTab.vue';
+import SuppliesTab from './tabs/SuppliesTab.vue';
+import RollsTab from './tabs/RollsTab.vue';
+import ThreadsTab from './tabs/ThreadsTab.vue';
+import AdditionalInfoTab from './tabs/AdditionalInfoTab.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClipboardList, DollarSign, FilePlus2, Layers, Package, Volleyball, Workflow } from 'lucide-vue-next';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
-import type { OpBasicInfo } from '@/domain/Production/TechnicalDataSheet';
-import { fetchOpOptions, fetchOpBasicInfo } from '@/domain/Production/TechnicalDataSheet';
+import type { OpBasicInfo, OperationalList } from '@/domain/Production/TechnicalDataSheet';
+import {
+    assignOperationalListToOp,
+    fetchOpBasicInfo,
+    fetchOperationalListOptions,
+    fetchOpOperationalList,
+    fetchOpOptions,
+} from '@/domain/Production/TechnicalDataSheet';
 
 const props = defineProps<{
     initialOpId: string | number | null;
@@ -25,6 +37,13 @@ const selectedOp = ref<OpBasicInfo | null>(null);
 const isLoadingOptions = ref(false);
 const isLoadingDetail = ref(false);
 const isDrawingOpen = ref(false);
+const operationalList = ref<OperationalList | null>(null);
+const hasOperationalList = ref(false);
+const isLoadingOperationalList = ref(false);
+const operationalListOptions = ref<Option[]>([]);
+const selectedOperationalListId = ref<string | number | null>(null);
+const isAssigningOperationalList = ref(false);
+const operationalListMessage = ref<string | null>(null);
 
 const drawingUrl = computed(() => {
     const op = selectedOp.value as (OpBasicInfo & { drawingUrl?: string | null; imageUrl?: string | null }) | null;
@@ -63,12 +82,17 @@ const opHeaderLabel = computed(() => {
 const tabs = [
     { value: 'lista_operacional', label: 'Lista operacional', icon: ClipboardList },
     { value: 'procesos', label: 'Procesos', icon: Workflow },
-    { value: 'costos', label: 'Costos', icon: DollarSign },
-    { value: 'insumos', label: 'Insumos', icon: Package },
     { value: 'rollos', label: 'Rollos', icon: Layers },
     { value: 'hilos', label: 'Hilos', icon: Volleyball },
+    { value: 'insumos', label: 'Insumos', icon: Package },
     { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
+    { value: 'costos', label: 'Costos', icon: DollarSign },
 ];
+
+const defaultTabValue = computed(() => (
+    tabs.some((tab) => tab.value === 'lista_operacional') ? 'lista_operacional' : 'procesos'
+));
+const activeTab = ref<string>(defaultTabValue.value);
 
 function formatDate(value: string | null): string {
     if (!value) return '-';
@@ -103,6 +127,63 @@ async function loadOpDetail(opId: string | number): Promise<void> {
     } finally {
         isLoadingDetail.value = false;
     }
+}
+
+async function loadOperationalList(opId: string | number): Promise<void> {
+    isLoadingOperationalList.value = true;
+    operationalListMessage.value = null;
+    try {
+        const response = await fetchOpOperationalList(opId);
+        hasOperationalList.value = response.hasList;
+        operationalList.value = response.list;
+
+        if (!response.hasList) {
+            await loadOperationalListOptions();
+        }
+    } catch (error) {
+        console.error('Error al cargar listado operacional:', error);
+        hasOperationalList.value = false;
+        operationalList.value = null;
+        operationalListMessage.value = 'No se pudo cargar el listado operacional.';
+    } finally {
+        isLoadingOperationalList.value = false;
+    }
+}
+
+async function loadOperationalListOptions(searchTerm = ''): Promise<void> {
+    try {
+        operationalListOptions.value = await fetchOperationalListOptions({ search: searchTerm || undefined });
+    } catch (error) {
+        console.error('Error al cargar opciones de listados operacionales:', error);
+        operationalListOptions.value = [];
+    }
+}
+
+async function assignOperationalList(): Promise<void> {
+    if (!selectedOpId.value || selectedOperationalListId.value === null || selectedOperationalListId.value === undefined || selectedOperationalListId.value === '') {
+        return;
+    }
+
+    isAssigningOperationalList.value = true;
+    operationalListMessage.value = null;
+    try {
+        await assignOperationalListToOp(selectedOpId.value, selectedOperationalListId.value);
+        selectedOperationalListId.value = null;
+        await loadOperationalList(selectedOpId.value);
+    } catch (error) {
+        console.error('Error al asignar listado operacional:', error);
+        operationalListMessage.value = 'No se pudo asignar el listado operacional.';
+    } finally {
+        isAssigningOperationalList.value = false;
+    }
+}
+
+function resetOperationalListState(): void {
+    operationalList.value = null;
+    hasOperationalList.value = false;
+    isLoadingOperationalList.value = false;
+    selectedOperationalListId.value = null;
+    operationalListMessage.value = null;
 }
 
 function openDrawing() {
@@ -140,10 +221,12 @@ watch(
     async (value) => {
         if (value === null || value === undefined || value === '') {
             selectedOp.value = null;
+            resetOperationalListState();
             return;
         }
 
         await loadOpDetail(value);
+        await loadOperationalList(value);
     },
     { immediate: true },
 );
@@ -156,7 +239,7 @@ const basicInfoFields = computed(() => {
         { key: 'destino', label: 'Destino', value: selectedOp.value.destination ?? '-' },
         { key: 'seccion', label: 'Seccion', value: selectedOp.value.section ?? '-' },
         { key: 'grupo', label: 'Grupo', value: selectedOp.value.group ?? '-' },
-        { key: 'prioridad', label: 'Prioridad', value: selectedOp.value.priority?.toString() ?? '-' },
+        { key: 'prioridad', label: 'Prioridad', value: selectedOp.value.priority ?? '-' },
         { key: 'marca', label: 'Marca', value: selectedOp.value.brand ?? '-' },
         { key: 'mundo', label: 'Mundo', value: selectedOp.value.world ?? '-' },
         { key: 'temporada', label: 'Temporada', value: selectedOp.value.season ?? '-' },
@@ -261,14 +344,14 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <Tabs default-value="lista_operacional" class="w-full">
+                <Tabs v-model="activeTab" :default-value="defaultTabValue" class="w-full">
                     <div class="mb-3 flex justify-center">
-                        <TabsList class="inline-flex w-fit items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+                        <TabsList class="inline-flex w-fit items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
                             <TabsTrigger
                                 v-for="tab in tabs"
                                 :key="tab.value"
                                 :value="tab.value"
-                                class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground data-[state=active]:border data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                                class="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground data-[state=active]:border data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
                             >
                                 <span class="inline-flex items-center gap-2">
                                     <component :is="tab.icon" class="h-4 w-4 shrink-0" />
@@ -277,7 +360,131 @@ onMounted(() => {
                             </TabsTrigger>
                         </TabsList>
                     </div>
-                    <TabsContent v-for="tab in tabs" :key="tab.value" :value="tab.value" class="mt-0">
+                    <TabsContent value="lista_operacional" class="mt-0">
+                        <div v-if="isLoadingOperationalList" class="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">
+                            Cargando listado operacional...
+                        </div>
+
+                        <div
+                            v-else-if="!hasOperationalList"
+                            class="rounded-lg border border-dashed border-border bg-background px-4 py-6"
+                        >
+                            <div class="space-y-4">
+                                <div>
+                                    <p class="text-sm font-semibold text-foreground">Lista operacional</p>
+                                    <p class="text-sm text-muted-foreground">Esta OP no tiene listado operacional asignado.</p>
+                                </div>
+
+                                <div class="grid grid-cols-1 gap-3 md:max-w-lg">
+                                    <SelectField
+                                        v-model="selectedOperationalListId"
+                                        label="Listado operacional"
+                                        :options="operationalListOptions"
+                                        placeholder="Selecciona un listado"
+                                        :searchable="true"
+                                        search-placeholder="Buscar listado..."
+                                        @search="loadOperationalListOptions"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="inline-flex w-fit items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                                        :disabled="isAssigningOperationalList || !selectedOperationalListId"
+                                        @click="assignOperationalList"
+                                    >
+                                        {{ isAssigningOperationalList ? 'Asignando...' : 'Asignar listado' }}
+                                    </button>
+                                    <p v-if="operationalListMessage" class="text-sm text-destructive">{{ operationalListMessage }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-else class="rounded-lg border border-border bg-background p-4">
+                            <div class="mb-4 border-b border-border pb-3">
+                                <p class="text-sm font-semibold text-foreground">Lista operacional</p>
+                                <p class="text-xs text-muted-foreground">Listado asignado a la OP</p>
+                                <p class="mt-1 text-sm font-medium text-foreground">
+                                    {{ operationalList?.reference ?? 'Sin referencia' }}{{ operationalList?.name ? ` — ${operationalList.name}` : '' }}
+                                </p>
+                            </div>
+
+                            <div
+                                v-if="!operationalList?.items?.length"
+                                class="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground"
+                            >
+                                Listado asignado (sin detalle)
+                            </div>
+                            <div v-else class="overflow-x-auto">
+                                <div class="min-w-[760px] rounded-md border border-border">
+                                    <div class="grid grid-cols-[90px_220px_1fr_120px_170px] border-b border-border bg-muted/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                        <p># / Orden</p>
+                                        <p>Proceso / Operacion</p>
+                                        <p>Descripcion</p>
+                                        <p>Tiempo (min)</p>
+                                        <p>Tipo</p>
+                                    </div>
+                                    <div
+                                        v-for="(item, index) in operationalList?.items"
+                                        :key="`${item.order ?? index}-${item.process ?? 'sin-proceso'}-${index}`"
+                                        class="grid grid-cols-[90px_220px_1fr_120px_170px] border-b border-border px-3 py-2 text-sm last:border-b-0"
+                                    >
+                                        <p class="text-foreground">{{ item.order ?? '-' }}</p>
+                                        <p class="text-foreground">{{ item.process ?? '-' }}</p>
+                                        <p class="text-muted-foreground">{{ item.description ?? '-' }}</p>
+                                        <p class="text-foreground">{{ item.minutes ?? '-' }}</p>
+                                        <p class="text-foreground">{{ item.type ?? '-' }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="procesos" class="mt-0">
+                        <ProcessesTab
+                            :op-id="selectedOpId"
+                            :selected-op="selectedOp"
+                            @go-to-operational-list="activeTab = 'lista_operacional'"
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="rollos" class="mt-0">
+                        <RollsTab
+                            v-if="selectedOpId"
+                            :op-id="selectedOpId"
+                            :units="selectedOp?.units ?? null"
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="insumos" class="mt-0">
+                        <SuppliesTab
+                            v-if="selectedOpId"
+                            :op-id="selectedOpId"
+                            :units="selectedOp?.units ?? null"
+                            :has-operational-list="hasOperationalList"
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="hilos" class="mt-0">
+                        <ThreadsTab
+                            v-if="selectedOpId"
+                            :op-id="selectedOpId"
+                            :units="selectedOp?.units ?? null"
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="informacion_adicional" class="mt-0">
+                        <AdditionalInfoTab
+                            v-if="selectedOpId"
+                            :op-id="selectedOpId"
+                            :sizes="selectedOp?.sizes ?? null"
+                            :total-units="selectedOp?.units ?? null"
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="costos" class="mt-0">
+                        <CostsTab :op-id="selectedOpId" :selected-op="selectedOp" />
+                    </TabsContent>
+
+                    <TabsContent v-for="tab in tabs.filter((item) => !['lista_operacional', 'procesos', 'costos', 'insumos', 'rollos', 'hilos', 'informacion_adicional'].includes(item.value))" :key="tab.value" :value="tab.value" class="mt-0">
                         <div class="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
                             En construccion
                         </div>
@@ -287,5 +494,3 @@ onMounted(() => {
         </div>
     </AppLayout>
 </template>
-
-

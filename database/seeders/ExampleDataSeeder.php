@@ -543,9 +543,34 @@ class ExampleDataSeeder extends Seeder
             ]
         );
 
+        // Escenario C: ProductSheet tipo 'producto', woven_product=false â†’ OP MF-0001 (manual)
+        DB::table('product_sheets')->updateOrInsert(
+            ['product_reference' => 'PRODUCTO01'],
+            [
+                'section_id' => $sectionId,
+                'group_id' => $groupId,
+                'brand_id' => $brandId,
+                'world_id' => $worldId,
+                'fabric_base_id' => $fabricBaseId,
+                'yarn_base_id' => null,
+                'description' => 'Pantalon drill clasico - Producto NO tejido',
+                'flat_sketch_path' => 'product-sheets/flat-sketches/mock-producto-002.jpg',
+                'billing_price' => 40000.00,
+                'selling_price' => 76000.00,
+                'sizes' => json_encode(['30' => true, '32' => true, '34' => true, '36' => true]),
+                'woven_product' => false,
+                'processes' => json_encode([]),
+                'status' => 'complete',
+                'type' => 'producto',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
         // Obtener IDs de las fichas creadas
         $muestraSheetId = DB::table('product_sheets')->where('sample_reference', 'MUESTRA001')->value('id');
         $productoSheetId = DB::table('product_sheets')->where('product_reference', 'PRODUCTO02')->value('id');
+        $productoMfSheetId = DB::table('product_sheets')->where('product_reference', 'PRODUCTO01')->value('id');
 
         // Obtener el ID del destino desde settings (kind=parameter)
         $destinationId = $this->getParameterFirstId('destinations');
@@ -589,6 +614,25 @@ class ExampleDataSeeder extends Seeder
                 'estimated_delivery_date' => null, // Manuales NO usan fecha entrega
                 'ecommerce_units' => json_encode(['S' => 100, 'M' => 150, 'L' => 150, 'XL' => 100]),
                 'status' => 'complete', // Manuales: completo si units > 0
+                'source' => 'manual',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        // Fixture explicito para Ficha Tecnica: MF-0001 con prioridad A
+        DB::table('programmers')->updateOrInsert(
+            ['op_code' => 'MF-0001'],
+            [
+                'product_sheet_id' => $productoMfSheetId,
+                'op_code' => 'MF-0001',
+                'season' => $seasonLabel,
+                'destination_id' => $destinationId,
+                'priority' => 'A',
+                'units' => 300,
+                'estimated_delivery_date' => null,
+                'ecommerce_units' => json_encode(['30' => 80, '32' => 90, '34' => 80, '36' => 50]),
+                'status' => 'complete',
                 'source' => 'manual',
                 'created_at' => now(),
                 'updated_at' => now(),
