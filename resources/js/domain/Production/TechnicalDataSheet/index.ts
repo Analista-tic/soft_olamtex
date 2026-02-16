@@ -12,14 +12,17 @@ export type {
     OpProcessesData,
     CostsSummary,
     SupplyStage,
+    SupplyModaLinea,
     SupplyItem,
+    SupplyCatalogItem,
     FabricType,
     RollLine,
+    RollSavePayload,
     RollParams,
     RollState,
     ThreadLine,
-    ThreadParams,
     ThreadState,
+    ThreadSavePayload,
     CuttingParams,
     SizeUnit,
     PieceType,
@@ -31,6 +34,7 @@ export type {
 
 // Service
 export type { FetchOpOptionsParams, FetchOperationalListOptionsParams } from './service';
+export type { AvailableFabricRoll } from './service';
 export {
     fetchOpOptions,
     fetchOpBasicInfo,
@@ -41,16 +45,18 @@ export {
     saveOpProcesses,
     fetchOpCostsSummary,
     fetchOpSupplies,
+    fetchSupplyCatalogItems,
     upsertOpSupply,
+    saveOpSupplies,
     deleteOpSupply,
     fetchOpRolls,
+    fetchAvailableFabricRolls,
     saveOpRollParams,
+    saveOpRolls,
     upsertOpRollLine,
     deleteOpRollLine,
     fetchOpThreads,
-    saveOpThreadParams,
-    upsertOpThreadLine,
-    deleteOpThreadLine,
+    saveOpThreads,
     fetchOpAdditionalInfo,
     saveOpAdditionalInfo,
 } from './service';

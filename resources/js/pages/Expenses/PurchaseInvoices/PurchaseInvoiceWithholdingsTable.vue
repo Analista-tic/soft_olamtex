@@ -3,7 +3,7 @@ import { ref, watch, onMounted, computed } from 'vue';
 import axios from 'axios';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { CirclePlus, Plus } from 'lucide-vue-next';
+import { CirclePlus } from 'lucide-vue-next';
 import type { PurchaseInvoiceWithholding } from '@/domain/purchases';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import RetentionDialog from '@/pages/Configuration/Retention/RetentionDialog.vue';
@@ -125,9 +125,9 @@ async function handleRetentionSubmit(formData: any) {
         });
         await fetchRetentions();
         retentionDialogOpen.value = false;
-        successMessage.value = 'Retenci髇 guardada correctamente.';
+        successMessage.value = 'Retenci贸n guardada correctamente.';
     } catch (e) {
-        console.error('Error al crear retenci髇', e);
+        console.error('Error al crear retenci贸n', e);
     } finally {
         retentionDialogLoading.value = false;
     }
@@ -157,7 +157,7 @@ async function handleRetentionSubmit(formData: any) {
                     @click="addWithholding"
                 >
                     <CirclePlus class="h-4 w-4" />
-                    A馻dir Retenci髇
+                    A帽adir Retenci贸n
                 </button>
             </div>
         </div>
@@ -178,29 +178,21 @@ async function handleRetentionSubmit(formData: any) {
                                 v-model="withholding.name"
                                 :options="retentionOptions"
                                 label=""
-                                placeholder="Retenci髇"
+                                placeholder="Retenci贸n"
                                 size="xs"
                                 class="text-xs flex-1"
                                 :key="`${retentionSelectKey}-${idx}`"
                                 :disabled="isReadOnly"
                                 :showPlaceholderOption="false"
+                                :action-label="!isReadOnly ? 'Nueva retenci贸n' : undefined"
+                                :action-disabled="isReadOnly"
+                                @action="openRetentionDialogFromDropdown"
                                 @update:modelValue="(val) => {
                                     const found = retentions.find(r => r.name === val);
                                     if (found) withholding.percentage = found.percentage;
                                     emit('update:modelValue', localWithholdings);
                                 }"
-                            >
-                                <template #header>
-                                    <button
-                                        type="button"
-                                        class="inline-flex h-8 w-full items-center justify-center gap-2 rounded-full border border-border/70 bg-muted px-3 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                                        @click.stop="openRetentionDialogFromDropdown"
-                                    >
-                                        <Plus class="mr-2 h-4 w-4" />
-                                        Nueva retenci髇
-                                    </button>
-                                </template>
-                            </SelectField>
+                            />
                         </td>
                         <td class="px-1">
                             <InputField
@@ -254,3 +246,4 @@ async function handleRetentionSubmit(formData: any) {
         />
     </div>
 </template>
+

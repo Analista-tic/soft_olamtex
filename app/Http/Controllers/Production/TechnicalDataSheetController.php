@@ -372,8 +372,7 @@ class TechnicalDataSheetController extends Controller
 
         $rawMaterial = $this->calculateRollsTotal($opId, $units ?? 0.0)
             + $this->calculateThreadsTotal($opId, $units ?? 0.0);
-        $unitsForSupplies = $units ?? 0.0;
-        $supplies = $this->calculateSuppliesTotal($opId, $unitsForSupplies);
+        $supplies = $this->calculateSuppliesTotal($opId);
         $processesTotal = $processes['total'];
         $total = $rawMaterial + $supplies + $processesTotal;
 
@@ -724,10 +723,10 @@ class TechnicalDataSheetController extends Controller
         return is_numeric($value) ? (float) $value : null;
     }
 
-    private function calculateSuppliesTotal(int $opId, float $units): float
+    private function calculateSuppliesTotal(int $opId): float
     {
         $items = $this->suppliesStore->read($opId);
-        if (empty($items) || $units <= 0) {
+        if (empty($items)) {
             return 0.0;
         }
 
@@ -735,7 +734,8 @@ class TechnicalDataSheetController extends Controller
         foreach ($items as $item) {
             $qtyPerUnit = is_numeric($item['qtyPerUnit'] ?? null) ? (float) $item['qtyPerUnit'] : 0.0;
             $unitCost = is_numeric($item['unitCost'] ?? null) ? (float) $item['unitCost'] : 0.0;
-            $total += $qtyPerUnit * $units * $unitCost;
+            // En Costos se usa el costo prenda directo de la tabla de Insumos: cantidad * precio.
+            $total += $qtyPerUnit * $unitCost;
         }
 
         return $total;
@@ -765,6 +765,12 @@ class TechnicalDataSheetController extends Controller
             $base = is_numeric($line['consumptionBase'] ?? null) ? (float) $line['consumptionBase'] : 0.0;
             $extra = is_numeric($line['extraMeters'] ?? null) ? (float) $line['extraMeters'] : 0.0;
             $price = is_numeric($line['pricePerMeter'] ?? null) ? (float) $line['pricePerMeter'] : 0.0;
+            $programmedMeters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : null;
+
+            if ($programmedMeters !== null) {
+                $total += $programmedMeters * $price;
+                continue;
+            }
 
             $consumoAjustado = ($base / $trazo) + $extra;
             $metros = $consumoAjustado * $units;

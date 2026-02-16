@@ -16,7 +16,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Lock, Trash } from 'lucide-vue-next';
+import { Lock, Plus, Save, Trash } from 'lucide-vue-next';
 import type { OpBasicInfo, OpProcessRow, OpProcessType, OpProcessesData } from '@/domain/Production/TechnicalDataSheet';
 import { fetchOpProcesses, saveOpProcesses } from '@/domain/Production/TechnicalDataSheet';
 import type { Option } from '@/domain/shared';
@@ -44,6 +44,7 @@ type LocalProcessRow = OpProcessRow & {
     tempId: string;
     _deleted?: boolean;
 };
+type SelectFieldValue = string | number | boolean | Array<string | number | boolean> | null | undefined;
 
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -162,8 +163,29 @@ function normalizeRowsForSave(): OpProcessRow[] {
     }));
 }
 
-function updateType(index: number, rawType: string | number | null): void {
-    const nextType = String(rawType || 'OTRO') as OpProcessType;
+function toSingleSelectValue(value: SelectFieldValue): string | number | null {
+    if (Array.isArray(value)) {
+        const first = value[0];
+        if (first === undefined || first === null || first === '') {
+            return null;
+        }
+        return typeof first === 'boolean' ? String(first) : first;
+    }
+
+    if (value === undefined || value === null || value === '') {
+        return null;
+    }
+
+    if (typeof value === 'boolean') {
+        return String(value);
+    }
+
+    return value;
+}
+
+function updateType(index: number, rawType: SelectFieldValue): void {
+    const normalized = toSingleSelectValue(rawType);
+    const nextType = String(normalized || 'OTRO') as OpProcessType;
     const row = rows.value[index];
     row.type = nextType;
 
@@ -183,12 +205,17 @@ function updateManualPrice(index: number, value: string): void {
     row.manualPrice = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
 }
 
+function updateSupplier(index: number, value: string | number): void {
+    const row = rows.value[index];
+    row.supplier = String(value ?? '').trim() || null;
+}
+
 function addProcess(): void {
     rows.value.push({
-        id: null,
+        id: undefined,
         order: rows.value.length + 1,
         type: 'OTRO',
-        supplier: '',
+        supplier: null,
         manualPrice: 0,
         tempId: generateTempId(),
         _deleted: false,
@@ -363,9 +390,10 @@ watch(
                                     </TableCell>
                                     <TableCell class="min-w-[180px]">
                                         <Input
-                                            v-model="rows[index].supplier"
+                                            :model-value="rows[index].supplier ?? ''"
                                             placeholder="Proveedor"
                                             :disabled="isSaving"
+                                            @update:model-value="(value) => updateSupplier(index, value)"
                                         />
                                     </TableCell>
                                     <TableCell class="min-w-[140px]">
@@ -429,6 +457,7 @@ watch(
                                 :disabled="isSaving"
                                 @click="addProcess"
                             >
+                                <Plus class="mr-1 h-4 w-4" />
                                 Agregar proceso
                             </Button>
                             <Button
@@ -437,6 +466,7 @@ watch(
                                 :disabled="!canSave"
                                 @click="handleSave"
                             >
+                                <Save class="mr-1 h-4 w-4" />
                                 {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                             </Button>
                         </div>

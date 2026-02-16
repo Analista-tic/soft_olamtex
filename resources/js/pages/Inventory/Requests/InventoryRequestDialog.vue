@@ -28,15 +28,29 @@ type InventoryRequestForm = {
     image_url?: string | null;
 };
 
+type InitialDraftItem = {
+    item_id?: number | null;
+    item_name?: string | null;
+    quantity?: number | string | null;
+};
+
+type InitialDraftPayload = {
+    date?: string | null;
+    observation?: string | null;
+    items?: InitialDraftItem[];
+};
+
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit' | 'view';
     requestId: number | null;
+    initialDraft?: InitialDraftPayload | null;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'saved', message?: string): void;
+    (e: 'saved', message: string, requestId: number | null): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
@@ -87,6 +101,23 @@ function createEmptyItem(): RequestItem {
         name: '',
         quantity: 1,
     };
+}
+
+function applyInitialDraft(payload: InitialDraftPayload | null | undefined): void {
+    if (!payload) return;
+    if (payload.date) {
+        localForm.value.date = formatDateValue(String(payload.date));
+    }
+    if (typeof payload.observation === 'string') {
+        localForm.value.observation = payload.observation;
+    }
+    if (Array.isArray(payload.items) && payload.items.length > 0) {
+        localForm.value.items = payload.items.map((item) => ({
+            item_id: item.item_id ?? null,
+            name: String(item.item_name ?? '').trim(),
+            quantity: Number(item.quantity ?? 1) || 1,
+        }));
+    }
 }
 
 function getTodayDate() {
@@ -157,6 +188,7 @@ async function initializeDialog() {
         return;
     }
     await fetchNextNumber();
+    applyInitialDraft(props.initialDraft);
 }
 
 function handleAddLine() {
@@ -288,11 +320,12 @@ async function handleSubmit() {
         : `/inventario/solicitudes-internas/${localForm.value.id}`;
 
     try {
-        await axios({ method, url, data: payload, headers });
+        const response = await axios({ method, url, data: payload, headers });
+        const savedId = Number(response?.data?.data?.id ?? 0) || null;
         const msg = props.dialogType === 'create'
             ? 'Solicitud creada correctamente.'
             : 'Solicitud actualizada correctamente.';
-        emit('saved', msg);
+        emit('saved', msg, savedId);
         dialogOpen.value = false;
     } catch (e: any) {
         const serverMessage =
@@ -357,7 +390,7 @@ onUnmounted(() => {
             <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form @submit.prevent="handleSubmit()" class="space-y-6">
                     <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
-                        <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+                        <div class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
                                 <InputField
                                     label="# Solicitud"

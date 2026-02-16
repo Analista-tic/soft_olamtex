@@ -8,7 +8,6 @@ import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@
 import type { PurchaseInvoiceItem } from '@/domain/purchases';
 import type { Item, Tax } from '@/domain/inventory';
 import axios from 'axios';
-import { Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 
@@ -344,18 +343,10 @@ defineExpose({ addItem });
                                 placeholder="Selecciona item"
                                 :disabled="isReadOnly"
                                 class="w-full"
-                            >
-                                <template v-if="!isReadOnly" #header>
-                                    <button
-                                        type="button"
-                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                                        @click.stop="openItemDialog"
-                                    >
-                                        <Plus class="h-4 w-4" />
-                                        Nuevo item
-                                    </button>
-                                </template>
-                            </SelectField>
+                                :action-label="!isReadOnly ? 'Nuevo item' : undefined"
+                                :action-disabled="isReadOnly"
+                                @action="openItemDialog"
+                            />
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 120px;">
                             <InputField
@@ -389,19 +380,11 @@ defineExpose({ addItem });
                                 label=""
                                 class="w-full"
                                 :disabled="isReadOnly"
+                                :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
+                                :action-disabled="isReadOnly"
+                                @action="openTaxDialog"
                                 @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
-                            >
-                                <template #header>
-                                    <button
-                                        type="button"
-                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                                        @click.stop="openTaxDialog"
-                                    >
-                                        <Plus class="h-4 w-4" />
-                                        Nuevo impuesto
-                                    </button>
-                                </template>
-                            </SelectField>
+                            />
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 110px;">
                             <InputField

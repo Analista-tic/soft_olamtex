@@ -2,215 +2,176 @@
 import { computed, ref, watch } from 'vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Plus, Save, Trash } from 'lucide-vue-next';
 import type { ThreadLine, ThreadState } from '@/domain/Production/TechnicalDataSheet';
-import { deleteOpThreadLine, fetchOpThreads, saveOpThreadParams, upsertOpThreadLine } from '@/domain/Production/TechnicalDataSheet';
+import { fetchOpThreads, saveOpThreads } from '@/domain/Production/TechnicalDataSheet';
 
 const props = defineProps<{
     opId: string | number;
     units: number | null;
 }>();
 
-type ThreadForm = {
-    id: string;
-    year: string;
+type LocalThreadRow = {
+    uid: string;
+    id: string | null;
     threadName: string;
+    gauge: string;
+    brand: string;
     color: string;
-    supplier: string;
-    costPerGarment: string;
-    notes: string;
+    colorCode: string;
+    stitchesPerInch: string;
 };
 
 const isLoading = ref(false);
-const isSavingParams = ref(false);
-const isSavingLine = ref(false);
-const isDialogOpen = ref(false);
+const isSaving = ref(false);
 const error = ref<string | null>(null);
-const defaultYearInput = ref(String(new Date().getFullYear()));
-const params = ref<{ defaultYear: number; method: 'PER_GARMENT' }>({
-    defaultYear: new Date().getFullYear(),
-    method: 'PER_GARMENT',
-});
-const lines = ref<ThreadLine[]>([]);
-const editId = ref<string | null>(null);
-const form = ref<ThreadForm>(createEmptyForm(new Date().getFullYear()));
+const saveMessage = ref<string | null>(null);
+const rows = ref<LocalThreadRow[]>([]);
+const deletedIds = ref<string[]>([]);
+const snapshot = ref('');
 
-const safeUnits = computed(() => Number(props.units ?? 0));
-const unitsUnavailable = computed(() => props.units === null || safeUnits.value <= 0);
-const parsedDefaultYear = computed(() => Number(defaultYearInput.value || 0));
-const canSaveParams = computed(() => (
-    !isSavingParams.value
-    && !Number.isNaN(parsedDefaultYear.value)
-    && parsedDefaultYear.value >= 2000
-    && parsedDefaultYear.value <= 2100
-));
+function generateUid(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
 
-const rows = computed(() => lines.value.map((line) => ({
-    ...line,
-    total: Number(line.costPerGarment || 0) * safeUnits.value,
-})));
-
-const totalThreads = computed(() => rows.value.reduce((acc, line) => acc + line.total, 0));
-
-const canSaveLine = computed(() => {
-    const year = Number(form.value.year);
-    const cost = Number(form.value.costPerGarment);
-    return (
-        !isSavingLine.value
-        && form.value.threadName.trim() !== ''
-        && !Number.isNaN(year)
-        && year >= 2000
-        && year <= 2100
-        && !Number.isNaN(cost)
-        && cost >= 0
-    );
-});
-
-function createEmptyForm(defaultYear: number): ThreadForm {
-    return {
-        id: '',
-        year: String(defaultYear),
-        threadName: '',
-        color: '',
-        supplier: '',
-        costPerGarment: '0',
-        notes: '',
-    };
+    return `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function toCOP(value: number): string {
+function formatCOP(value: number): string {
     return new Intl.NumberFormat('es-CO', {
         style: 'currency',
         currency: 'COP',
         maximumFractionDigits: 0,
-    }).format(Number(value || 0));
+    }).format(Number(value || 0)).replace(/\u00A0/g, ' ');
 }
 
-function normalizeText(value: string): string | null {
-    const text = value.trim();
-    return text !== '' ? text : null;
+const totalHilos = computed(() => 0);
+const costoHilos = computed(() => formatCOP(totalHilos.value));
+
+function toNullableText(value: string): string | null {
+    const clean = value.trim();
+    return clean === '' ? null : clean;
 }
+
+function toNullableNumber(value: string): number | null {
+    const clean = String(value ?? '').trim();
+    if (clean === '') return null;
+
+    const parsed = Number(clean);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function mapApiLineToLocal(line: ThreadLine): LocalThreadRow {
+    return {
+        uid: generateUid(),
+        id: line.id ? String(line.id) : null,
+        threadName: String(line.threadName ?? ''),
+        gauge: line.gauge !== null && line.gauge !== undefined ? String(line.gauge) : '',
+        brand: String(line.brand ?? ''),
+        color: String(line.color ?? ''),
+        colorCode: String(line.colorCode ?? ''),
+        stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined ? String(line.stitchesPerInch) : '',
+    };
+}
+
+function createEmptyRow(): LocalThreadRow {
+    return {
+        uid: generateUid(),
+        id: null,
+        threadName: '',
+        gauge: '',
+        brand: '',
+        color: '',
+        colorCode: '',
+        stitchesPerInch: '',
+    };
+}
+
+function normalizeRowsForSave(): ThreadLine[] {
+    return rows.value.map((row) => ({
+        id: row.id ?? '',
+        threadName: row.threadName.trim(),
+        gauge: toNullableNumber(row.gauge),
+        brand: toNullableText(row.brand),
+        color: toNullableText(row.color),
+        colorCode: toNullableText(row.colorCode),
+        stitchesPerInch: toNullableNumber(row.stitchesPerInch),
+    }));
+}
+
+function serializeState(): string {
+    return JSON.stringify({
+        threads: normalizeRowsForSave(),
+        deletedIds: deletedIds.value.slice().sort(),
+    });
+}
+
+const dirty = computed(() => serializeState() !== snapshot.value);
+const hasInvalidRows = computed(() => rows.value.some((row) => row.threadName.trim() === ''));
+const canSave = computed(() => !isLoading.value && !isSaving.value && dirty.value && !hasInvalidRows.value);
 
 function applyState(state: ThreadState): void {
-    params.value = {
-        defaultYear: Number(state.params.defaultYear || new Date().getFullYear()),
-        method: 'PER_GARMENT',
-    };
-    defaultYearInput.value = String(params.value.defaultYear);
-    lines.value = state.lines;
+    const loadedRows = Array.isArray(state.lines) ? state.lines.map(mapApiLineToLocal) : [];
+    rows.value = loadedRows.length > 0 ? loadedRows : [createEmptyRow()];
+    deletedIds.value = [];
+    snapshot.value = serializeState();
 }
 
-function resetDialog(): void {
-    form.value = createEmptyForm(params.value.defaultYear);
-    editId.value = null;
-    isDialogOpen.value = false;
+function addThread(): void {
+    rows.value.push(createEmptyRow());
 }
 
-function openCreateDialog(): void {
-    error.value = null;
-    form.value = createEmptyForm(params.value.defaultYear);
-    editId.value = null;
-    isDialogOpen.value = true;
-}
+function removeThread(uid: string): void {
+    const target = rows.value.find((row) => row.uid === uid);
+    if (!target) return;
 
-function openEditDialog(line: ThreadLine): void {
-    error.value = null;
-    editId.value = line.id;
-    form.value = {
-        id: line.id,
-        year: String(line.year),
-        threadName: line.threadName ?? '',
-        color: line.color ?? '',
-        supplier: line.supplier ?? '',
-        costPerGarment: String(line.costPerGarment ?? 0),
-        notes: line.notes ?? '',
-    };
-    isDialogOpen.value = true;
+    if (target.id && !deletedIds.value.includes(target.id)) {
+        deletedIds.value.push(target.id);
+    }
+
+    rows.value = rows.value.filter((row) => row.uid !== uid);
 }
 
 async function loadThreads(): Promise<void> {
     isLoading.value = true;
     error.value = null;
+    saveMessage.value = null;
+
     try {
         const state = await fetchOpThreads(props.opId);
         applyState(state);
     } catch (err) {
         console.error('Error al cargar hilos:', err);
-        error.value = 'No se pudo cargar la programación de hilos.';
+        error.value = 'No se pudo cargar la informacion de hilos.';
+        rows.value = [createEmptyRow()];
+        deletedIds.value = [];
+        snapshot.value = serializeState();
     } finally {
         isLoading.value = false;
     }
 }
 
-async function handleSaveParams(): Promise<void> {
-    if (!canSaveParams.value) return;
+async function handleSave(): Promise<void> {
+    if (!canSave.value) return;
 
-    isSavingParams.value = true;
+    isSaving.value = true;
     error.value = null;
+    saveMessage.value = null;
+
     try {
-        const state = await saveOpThreadParams(props.opId, {
-            defaultYear: parsedDefaultYear.value,
-            method: 'PER_GARMENT',
+        const state = await saveOpThreads(props.opId, {
+            threads: normalizeRowsForSave(),
+            deletedIds: [...deletedIds.value],
         });
         applyState(state);
+        saveMessage.value = 'Hilos guardados.';
     } catch (err) {
-        console.error('Error al guardar parámetros de hilos:', err);
-        error.value = 'No se pudieron guardar los parámetros de hilos.';
+        console.error('Error al guardar hilos:', err);
+        error.value = 'No se pudieron guardar los hilos.';
     } finally {
-        isSavingParams.value = false;
-    }
-}
-
-async function handleSaveLine(): Promise<void> {
-    if (!canSaveLine.value) return;
-
-    isSavingLine.value = true;
-    error.value = null;
-    try {
-        const payload: ThreadLine = {
-            id: editId.value ?? '',
-            year: Number(form.value.year),
-            threadName: form.value.threadName.trim(),
-            color: normalizeText(form.value.color),
-            supplier: normalizeText(form.value.supplier),
-            costPerGarment: Number(form.value.costPerGarment),
-            notes: normalizeText(form.value.notes),
-            threadItemId: null,
-        };
-
-        const state = await upsertOpThreadLine(props.opId, payload);
-        applyState(state);
-        resetDialog();
-    } catch (err) {
-        console.error('Error al guardar línea de hilo:', err);
-        error.value = 'No se pudo guardar la línea de hilo.';
-    } finally {
-        isSavingLine.value = false;
-    }
-}
-
-async function handleDelete(line: ThreadLine): Promise<void> {
-    if (!window.confirm(`¿Eliminar el hilo "${line.threadName}"?`)) {
-        return;
-    }
-
-    error.value = null;
-    try {
-        const state = await deleteOpThreadLine(props.opId, line.id);
-        applyState(state);
-    } catch (err) {
-        console.error('Error al eliminar línea de hilo:', err);
-        error.value = 'No se pudo eliminar la línea de hilo.';
+        isSaving.value = false;
     }
 }
 
@@ -225,145 +186,142 @@ watch(
 
 <template>
     <div class="space-y-4">
-        <div class="rounded-lg border border-border bg-background p-4">
-            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                    <p class="text-sm font-semibold text-foreground">Hilos</p>
-                    <p class="text-xs text-muted-foreground">
-                        Costo estimado informativo por prenda (promedio anual). No afecta inventario.
-                    </p>
-                </div>
-                <Badge variant="outline" class="w-fit text-sm">
-                    Total Hilos: {{ toCOP(totalThreads) }}
-                </Badge>
+        <div class="flex flex-col gap-3 p-2 md:flex-row md:items-start md:justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-foreground">Hilos</h2>
+                <p class="text-sm text-muted-foreground">Costo estimado informativo por prenda. No afecta inventario.</p>
+            </div>
+            <div class="w-fit rounded-full border border-border bg-muted/30 px-3 py-1.5 text-sm font-medium text-foreground">
+                Costo Hilos: {{ costoHilos }}
             </div>
         </div>
 
-        <div
-            v-if="unitsUnavailable"
-            class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-        >
-            Unidades no disponibles. Totales en 0.
-        </div>
-
-        <div class="rounded-lg border border-border bg-background p-4">
-            <div class="mb-3">
-                <p class="text-sm font-semibold text-foreground">Parámetros</p>
-                <p class="text-xs text-muted-foreground">Este costo es por prenda (promedio anual).</p>
-            </div>
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div class="space-y-1">
-                    <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Año por defecto</p>
-                    <Input v-model="defaultYearInput" type="number" min="2000" max="2100" step="1" />
-                </div>
-                <div class="flex items-end">
-                    <Button type="button" :disabled="!canSaveParams" @click="handleSaveParams">
-                        {{ isSavingParams ? 'Guardando...' : 'Guardar parámetros' }}
-                    </Button>
-                </div>
-            </div>
-        </div>
-
-        <div v-if="isLoading" class="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">
+        <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">
             Cargando hilos...
         </div>
 
         <template v-else>
-            <div class="flex justify-end">
-                <Button type="button" @click="openCreateDialog">Agregar hilo</Button>
-            </div>
-
             <div
                 v-if="rows.length === 0"
                 class="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center"
             >
-                <p class="text-sm font-medium text-foreground">No hay hilos registrados.</p>
-                <p class="mt-1 text-sm text-muted-foreground">Agrega una línea para iniciar la estimación.</p>
-                <Button type="button" class="mt-4" @click="openCreateDialog">Agregar hilo</Button>
+                <p class="text-sm font-medium text-foreground">No hay hilos registrados. Agrega una linea para iniciar.</p>
             </div>
 
-            <div v-else class="rounded-lg border border-border bg-background p-2">
+            <div v-else class="max-h-[460px] overflow-auto rounded-md border border-border">
                 <Table>
-                    <TableHeader>
+                    <TableHeader class="sticky top-0 z-10 bg-background">
                         <TableRow>
-                            <TableHead class="text-left">Año</TableHead>
-                            <TableHead class="text-left">Hilo</TableHead>
-                            <TableHead class="text-left">Proveedor</TableHead>
-                            <TableHead class="text-left">Costo/prenda</TableHead>
-                            <TableHead class="text-left">Unidades</TableHead>
-                            <TableHead class="text-left">Total</TableHead>
-                            <TableHead class="text-left">Acciones</TableHead>
+                            <TableHead class="min-w-[170px] text-left">Hilo</TableHead>
+                            <TableHead class="min-w-[120px] text-left">Calibre</TableHead>
+                            <TableHead class="min-w-[160px] text-left">Marca</TableHead>
+                            <TableHead class="min-w-[140px] text-left">Color</TableHead>
+                            <TableHead class="min-w-[140px] text-left">Cod. color</TableHead>
+                            <TableHead class="min-w-[180px] text-left">Puntada por pulgada</TableHead>
+                            <TableHead class="w-[80px] text-center">Accion</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="line in rows" :key="line.id">
-                            <TableCell>{{ line.year }}</TableCell>
-                            <TableCell class="font-medium text-foreground">
-                                {{ line.threadName }}{{ line.color ? ` - ${line.color}` : '' }}
-                            </TableCell>
-                            <TableCell>{{ line.supplier ?? '-' }}</TableCell>
-                            <TableCell>{{ toCOP(line.costPerGarment) }}</TableCell>
-                            <TableCell>{{ safeUnits }}</TableCell>
-                            <TableCell class="font-medium">{{ toCOP(line.total) }}</TableCell>
+                        <TableRow v-for="(row, index) in rows" :key="row.uid" class="group transition-colors hover:bg-muted/30">
                             <TableCell>
-                                <div class="flex gap-2">
-                                    <Button type="button" size="sm" variant="outline" @click="openEditDialog(line)">Editar</Button>
-                                    <Button type="button" size="sm" variant="outline" @click="handleDelete(line)">Eliminar</Button>
-                                </div>
+                                <Input
+                                    v-model="rows[index].threadName"
+                                    placeholder="Nombre del hilo"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].gauge"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="0"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].brand"
+                                    placeholder="Marca"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].color"
+                                    placeholder="Color"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].colorCode"
+                                    placeholder="Codigo"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="rows[index].stitchesPerInch"
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="0"
+                                    :disabled="isSaving"
+                                />
+                            </TableCell>
+                            <TableCell class="text-center">
+                                <button
+                                    type="button"
+                                    class="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-destructive disabled:pointer-events-none disabled:opacity-40"
+                                    :disabled="isSaving"
+                                    @click="removeThread(row.uid)"
+                                >
+                                    <Trash class="h-4 w-4" />
+                                </button>
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
             </div>
-        </template>
 
-        <div v-if="error" class="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {{ error }}
-        </div>
-
-        <Dialog :open="isDialogOpen" @update:open="(value) => { if (!value) resetDialog(); }">
-            <DialogContent class="sm:max-w-[600px]">
-                <DialogHeader>
-                    <DialogTitle>{{ editId ? 'Editar hilo' : 'Agregar hilo' }}</DialogTitle>
-                    <DialogDescription>
-                        Registra el costo promedio anual por prenda para estimación informativa.
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div class="grid grid-cols-1 gap-3 py-2 md:grid-cols-2">
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Año</p>
-                        <Input v-model="form.year" type="number" min="2000" max="2100" step="1" />
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Nombre del hilo</p>
-                        <Input v-model="form.threadName" placeholder="Ej: Hilo poliéster 40/2" />
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Color</p>
-                        <Input v-model="form.color" placeholder="Opcional" />
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Proveedor</p>
-                        <Input v-model="form.supplier" placeholder="Opcional" />
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Costo por prenda (COP)</p>
-                        <Input v-model="form.costPerGarment" type="number" min="0" step="0.01" />
-                    </div>
-                    <div class="space-y-1 md:col-span-2">
-                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Observaciones</p>
-                        <Textarea v-model="form.notes" rows="3" placeholder="Opcional" />
-                    </div>
+            <div class="mt-4 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        class="h-9 rounded-full border border-input bg-background px-4 hover:bg-muted/40"
+                        :disabled="isSaving"
+                        @click="addThread"
+                    >
+                        <Plus class="mr-1 h-4 w-4" />
+                        Agregar hilo
+                    </Button>
+                    <Button
+                        type="button"
+                        class="h-9 rounded-full px-4"
+                        :disabled="!canSave"
+                        @click="handleSave"
+                    >
+                        <Save class="mr-1 h-4 w-4" />
+                        {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
+                    </Button>
                 </div>
 
-                <DialogFooter>
-                    <Button type="button" variant="outline" @click="resetDialog">Cancelar</Button>
-                    <Button type="button" :disabled="!canSaveLine" @click="handleSaveLine">
-                        {{ isSavingLine ? 'Guardando...' : 'Guardar' }}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                <div class="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                    <div class="flex items-center gap-2">
+                        <p class="text-xs uppercase tracking-wide text-muted-foreground">Total hilos</p>
+                        <p class="text-sm font-semibold tabular-nums text-foreground">{{ costoHilos }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <p v-if="saveMessage" class="text-sm text-emerald-700">{{ saveMessage }}</p>
+        </template>
+
+        <div v-if="error" class="rounded-lg border-0 bg-destructive/10 px-4 py-3 text-sm text-destructive shadow-none">
+            {{ error }}
+        </div>
     </div>
 </template>

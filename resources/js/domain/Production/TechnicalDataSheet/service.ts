@@ -18,11 +18,12 @@ import type {
     OpBasicInfo,
     OperationalListResponse,
     RollLine,
+    RollSavePayload,
     RollParams,
     RollState,
     SupplyItem,
-    ThreadLine,
-    ThreadParams,
+    SupplyCatalogItem,
+    ThreadSavePayload,
     ThreadState,
 } from './types';
 import { mapOpBasicInfoDtoToOpBasicInfo } from './mappers';
@@ -35,17 +36,53 @@ const ENDPOINTS = {
     OP_PROCESSES_SUMMARY: '/produccion/ficha-tecnica/:id/procesos',
     OP_COSTS_SUMMARY: '/produccion/ficha-tecnica/:id/costos',
     OP_SUPPLIES: '/produccion/ficha-tecnica/:id/insumos',
+    OP_SUPPLY_ITEM_OPTIONS: '/produccion/ficha-tecnica/insumos/opciones',
+    OP_SUPPLIES_BULK: '/produccion/ficha-tecnica/:id/insumos',
     OP_SUPPLY_DELETE: '/produccion/ficha-tecnica/:id/insumos/:supplyId',
     OP_ROLLS: '/produccion/ficha-tecnica/:id/rollos',
     OP_ROLLS_PARAMS: '/produccion/ficha-tecnica/:id/rollos/params',
     OP_ROLLS_LINES: '/produccion/ficha-tecnica/:id/rollos/lines',
     OP_ROLLS_LINE_DELETE: '/produccion/ficha-tecnica/:id/rollos/lines/:lineId',
+    INVENTORY_ROLLS: '/kardex-telas/inventario-rollos/data',
     OP_THREADS: '/produccion/ficha-tecnica/:id/hilos',
-    OP_THREADS_PARAMS: '/produccion/ficha-tecnica/:id/hilos/params',
-    OP_THREADS_LINES: '/produccion/ficha-tecnica/:id/hilos/lines',
-    OP_THREADS_LINE_DELETE: '/produccion/ficha-tecnica/:id/hilos/lines/:lineId',
     OP_ADDITIONAL_INFO: '/produccion/ficha-tecnica/:id/info-adicional',
 } as const;
+
+type ItemCatalogDto = {
+    id: number;
+    name: string;
+    reference?: string | null;
+    unit?: string | null;
+};
+
+type InventoryRollDto = {
+    id: number | string;
+    roll?: string | null;
+    location?: string | null;
+    fabric?: string | null;
+    color?: string | null;
+    color_code?: string | null;
+    width?: string | null;
+    partial_availability?: string | null;
+    real_availability?: string | null;
+    provider?: string | null;
+    price_per_meter?: number | null;
+    pricePerMeter?: number | null;
+};
+
+export type AvailableFabricRoll = {
+    id: string;
+    label: string;
+    roll: string;
+    fabricName: string;
+    color: string | null;
+    colorCode: string | null;
+    supplier: string | null;
+    widthCm: number | null;
+    availableMeters: number | null;
+    pricePerMeter: number | null;
+    location: string | null;
+};
 
 export interface FetchOpOptionsParams {
     search?: string;
@@ -223,9 +260,46 @@ export async function fetchOpSupplies(opId: string | number): Promise<SupplyItem
     return Array.isArray(response.data) ? response.data : [];
 }
 
+export async function fetchSupplyCatalogItems(search = ''): Promise<SupplyCatalogItem[]> {
+    const response = await axios.get<ItemCatalogDto[]>(ENDPOINTS.OP_SUPPLY_ITEM_OPTIONS, {
+        params: {
+            group: 'insumos',
+            search: search || undefined,
+            status: 'habilitado',
+        },
+    });
+
+    const rawItems = Array.isArray(response.data) ? response.data : [];
+
+    return rawItems
+        .map((item) => {
+            const name = String(item.name ?? '').trim();
+            const reference = item.reference ? String(item.reference).trim() : null;
+            const label = reference ? `${name} (${reference})` : name;
+
+            return {
+                id: Number(item.id),
+                label,
+                name,
+                reference,
+                unit: item.unit ? String(item.unit).trim() : null,
+                supplier: null,
+                description: null,
+                suggestedPrice: null,
+            };
+        })
+        .filter((item) => item.label !== '');
+}
+
 export async function upsertOpSupply(opId: string | number, payload: SupplyItem): Promise<SupplyItem[]> {
     const url = ENDPOINTS.OP_SUPPLIES.replace(':id', String(opId));
     const response = await axios.post<SupplyItem[]>(url, payload);
+    return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function saveOpSupplies(opId: string | number, items: SupplyItem[]): Promise<SupplyItem[]> {
+    const url = ENDPOINTS.OP_SUPPLIES_BULK.replace(':id', String(opId));
+    const response = await axios.put<SupplyItem[]>(url, { items });
     return Array.isArray(response.data) ? response.data : [];
 }
 
@@ -246,14 +320,24 @@ function normalizeRollState(data: RollStateDto | null | undefined): RollState {
         lines: Array.isArray(data?.lines)
             ? data!.lines.map((line) => ({
                 id: line.id,
+                consecutive: line.consecutive ?? null,
                 type: line.type,
                 fabricName: line.fabricName,
+                averageTrace: line.averageTrace !== null && line.averageTrace !== undefined ? Number(line.averageTrace) : null,
+                factor: line.factor !== null && line.factor !== undefined ? Number(line.factor) : null,
+                programmedMeters: line.programmedMeters !== null && line.programmedMeters !== undefined ? Number(line.programmedMeters) : null,
+                colors: line.colors ?? null,
+                availableMeters: line.availableMeters !== null && line.availableMeters !== undefined ? Number(line.availableMeters) : null,
                 color: line.color ?? null,
+                colorCode: line.colorCode ?? null,
                 widthCm: line.widthCm ?? null,
                 supplier: line.supplier ?? null,
                 pricePerMeter: Number(line.pricePerMeter ?? 0),
                 consumptionBase: Number(line.consumptionBase ?? 0),
                 extraMeters: Number(line.extraMeters ?? 0),
+                unitCost: line.unitCost !== null && line.unitCost !== undefined ? Number(line.unitCost) : null,
+                totalCost: line.totalCost !== null && line.totalCost !== undefined ? Number(line.totalCost) : null,
+                balanceMeters: line.balanceMeters !== null && line.balanceMeters !== undefined ? Number(line.balanceMeters) : null,
                 notes: line.notes ?? null,
                 fabricItemId: line.fabricItemId ?? null,
                 rollId: line.rollId ?? null,
@@ -290,27 +374,70 @@ export async function deleteOpRollLine(opId: string | number, lineId: string): P
     return normalizeRollState(response.data);
 }
 
+export async function saveOpRolls(opId: string | number, payload: RollSavePayload): Promise<RollState> {
+    const url = ENDPOINTS.OP_ROLLS.replace(':id', String(opId));
+    const response = await axios.put<RollStateDto>(url, payload);
+    return normalizeRollState(response.data);
+}
+
+function parseMeters(value: string | null | undefined): number | null {
+    if (!value) return null;
+    const parsed = Number(String(value).replace(/[^\d.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseWidth(value: string | null | undefined): number | null {
+    return parseMeters(value);
+}
+
+export async function fetchAvailableFabricRolls(): Promise<AvailableFabricRoll[]> {
+    const response = await axios.get<{ data?: InventoryRollDto[] } | InventoryRollDto[]>(ENDPOINTS.INVENTORY_ROLLS);
+    const raw = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.data)
+            ? response.data.data
+            : [];
+
+    return raw.map((roll) => {
+        const id = String(roll.id);
+        const rollCode = String(roll.roll ?? `Rollo ${id}`);
+        const fabricName = String(roll.fabric ?? 'Tela');
+        const color = roll.color ? String(roll.color) : null;
+        const label = color ? `${rollCode} - ${fabricName} - ${color}` : `${rollCode} - ${fabricName}`;
+
+        return {
+            id,
+            label,
+            roll: rollCode,
+            fabricName,
+            color,
+            colorCode: roll.color_code ? String(roll.color_code) : null,
+            supplier: roll.provider ? String(roll.provider) : null,
+            widthCm: parseWidth(roll.width),
+            availableMeters: parseMeters(roll.real_availability ?? roll.partial_availability),
+            pricePerMeter: roll.pricePerMeter ?? roll.price_per_meter ?? null,
+            location: roll.location ? String(roll.location) : null,
+        };
+    });
+}
+
 function normalizeThreadState(data: ThreadStateDto | null | undefined): ThreadState {
-    const currentYear = new Date().getFullYear();
+    const rawLines = Array.isArray(data?.lines) ? data.lines : [];
+
     return {
-        params: {
-            defaultYear: Number(data?.params?.defaultYear ?? currentYear),
-            method: 'PER_GARMENT',
-        },
-        lines: Array.isArray(data?.lines)
-            ? data!.lines.map((line) => ({
-                id: line.id,
-                year: Number(line.year ?? currentYear),
-                threadName: line.threadName,
-                color: line.color ?? null,
-                supplier: line.supplier ?? null,
-                costPerGarment: Number(line.costPerGarment ?? 0),
-                notes: line.notes ?? null,
-                threadItemId: line.threadItemId ?? null,
-                createdAt: line.createdAt,
-                updatedAt: line.updatedAt,
-            }))
-            : [],
+        lines: rawLines.map((line) => ({
+            id: line.id,
+            threadName: line.threadName,
+            gauge: line.gauge !== null && line.gauge !== undefined ? Number(line.gauge) : null,
+            brand: line.brand ?? null,
+            color: line.color ?? null,
+            colorCode: line.colorCode ?? null,
+            stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined
+                ? Number(line.stitchesPerInch)
+                : null,
+            createdAt: line.createdAt,
+            updatedAt: line.updatedAt,
+        })),
     };
 }
 
@@ -320,23 +447,9 @@ export async function fetchOpThreads(opId: string | number): Promise<ThreadState
     return normalizeThreadState(response.data);
 }
 
-export async function saveOpThreadParams(opId: string | number, params: ThreadParams): Promise<ThreadState> {
-    const url = ENDPOINTS.OP_THREADS_PARAMS.replace(':id', String(opId));
-    const response = await axios.post<ThreadStateDto>(url, params);
-    return normalizeThreadState(response.data);
-}
-
-export async function upsertOpThreadLine(opId: string | number, payload: ThreadLine): Promise<ThreadState> {
-    const url = ENDPOINTS.OP_THREADS_LINES.replace(':id', String(opId));
-    const response = await axios.post<ThreadStateDto>(url, payload);
-    return normalizeThreadState(response.data);
-}
-
-export async function deleteOpThreadLine(opId: string | number, lineId: string): Promise<ThreadState> {
-    const url = ENDPOINTS.OP_THREADS_LINE_DELETE
-        .replace(':id', String(opId))
-        .replace(':lineId', encodeURIComponent(lineId));
-    const response = await axios.delete<ThreadStateDto>(url);
+export async function saveOpThreads(opId: string | number, payload: ThreadSavePayload): Promise<ThreadState> {
+    const url = ENDPOINTS.OP_THREADS.replace(':id', String(opId));
+    const response = await axios.put<ThreadStateDto>(url, payload);
     return normalizeThreadState(response.data);
 }
 

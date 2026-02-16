@@ -4,7 +4,7 @@ import { Combobox, ComboboxInput, ComboboxButton, ComboboxOptions, ComboboxOptio
 import { Label } from '@/components/ui/label';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import type { Option } from '@/domain/shared';
-import { ChevronDown, Check, X } from 'lucide-vue-next';
+import { ChevronDown, Check, Plus, X } from 'lucide-vue-next';
 import { computePosition, offset, flip, shift, autoUpdate } from '@floating-ui/dom';
 
 type LocalModelValue = Option['id'] | Option['id'][] | null;
@@ -41,6 +41,11 @@ const props = withDefaults(defineProps<{
     customOptionLabel?: string;
     tooltipText?: string;
     getOptionLabel?: (option: Option) => string;
+    actionLabel?: string;
+    actionIcon?: 'plus' | false;
+    actionDisabled?: boolean;
+    actionClass?: string;
+    actionSticky?: boolean;
 }>(), {
     required: false,
     multiple: false,
@@ -54,11 +59,16 @@ const props = withDefaults(defineProps<{
     allowCustom: false,
     customOptionLabel: '',
     tooltipText: '',
+    actionIcon: 'plus',
+    actionDisabled: false,
+    actionClass: '',
+    actionSticky: true,
 });
 
 const emit = defineEmits<{
     (e: 'update:modelValue', value: Option['id'] | Option['id'][] | undefined | null): void;
     (e: 'search', searchTerm: string): void;
+    (e: 'action'): void;
 }>();
 
 const localModelValue = ref<LocalModelValue>(normalizeModelValue(props.modelValue, props.multiple));
@@ -125,7 +135,7 @@ const customOption = computed<Option | null>(() => {
 });
 
 const customSelection = computed<Option | null>(() => {
-    if (!props.allowCustom || props.multiple) return null;
+    if (props.multiple) return null;
     const modelValue = localModelValue.value;
     if (modelValue === null || isLocalModelArray(modelValue)) {
         return null;
@@ -257,9 +267,22 @@ function handleInput(event: Event) {
 }
 
 const hasLabel = computed(() => Boolean(props.label?.trim()));
+const hasAction = computed(() => Boolean(props.actionLabel?.trim()));
+const actionButtonClass = computed(() => {
+    const base = 'w-full inline-flex items-center justify-center gap-2 rounded-full border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50';
+    const customClass = props.actionClass || '';
+    return customClass ? `${base} ${customClass}` : base;
+});
+
+function handleActionClick() {
+    if (props.disabled || props.actionDisabled) return;
+    searchTerm.value = '';
+    emit('action');
+}
 
 const triggerRef = ref<HTMLElement | null>(null);
 const floatingRef = ref<HTMLElement | null>(null);
+const inputRef = ref<HTMLInputElement | null>(null);
 const floatingStyles = ref<Record<string, string>>({
     position: 'fixed',
     left: '0px',
@@ -369,6 +392,7 @@ watch(
                         </div>
 
                         <ComboboxInput
+                            ref="inputRef"
                             class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
                             :class="[!isSearchEnabled ? 'cursor-default' : '', buttonClass, multiple ? 'pl-28' : '']"
                             :placeholder="placeholderText"
@@ -395,8 +419,32 @@ watch(
                                 <ComboboxOptions
                                     class="max-h-52 overflow-y-auto rounded-md border border-border bg-card shadow-2xl focus:outline-none"
                                 >
-                                    <div v-if="$slots.header" class="border-b border-border/70 bg-muted px-2 py-2">
-                                        <slot name="header" />
+                                    <div
+                                        v-if="hasAction"
+                                        :class="[
+                                            'border-b border-border/70 bg-muted/20 px-3 py-2',
+                                            actionSticky ? 'sticky top-0 z-10' : '',
+                                        ]"
+                                    >
+                                        <button
+                                            type="button"
+                                            :class="actionButtonClass"
+                                            :disabled="disabled || actionDisabled"
+                                            @mousedown.prevent
+                                            @click.stop.prevent="handleActionClick"
+                                        >
+                                            <Plus v-if="actionIcon === 'plus'" class="h-4 w-4" />
+                                            {{ actionLabel }}
+                                        </button>
+                                    </div>
+                                    <div
+                                        v-if="$slots.header"
+                                        :class="[
+                                            'border-b border-border/70 bg-card px-2 py-2',
+                                            !hasAction ? 'sticky top-0 z-10' : '',
+                                        ]"
+                                    >
+                                        <slot name="header" :searchTerm="normalizedSearchTerm" />
                                     </div>
                                     <ComboboxOption
                                         v-if="customOption"
@@ -475,10 +523,12 @@ watch(
                                         v-if="filteredOptions.length === 0 && !customOption"
                                         class="px-3 py-2 text-sm text-muted-foreground/70"
                                     >
-                                        No se encontraron opciones.
+                                        <slot name="empty" :search-term="normalizedSearchTerm">
+                                            No se encontraron opciones.
+                                        </slot>
                                     </div>
                                     <div v-if="$slots.footer" class="border-t border-border/70 bg-muted px-2 pb-2 pt-2">
-                                        <slot name="footer" />
+                                        <slot name="footer" :searchTerm="normalizedSearchTerm" />
                                     </div>
                                 </ComboboxOptions>
                             </div>

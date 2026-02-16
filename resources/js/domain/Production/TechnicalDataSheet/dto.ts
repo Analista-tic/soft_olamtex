@@ -230,14 +230,24 @@ export interface CostsSummaryDto {
 
 export interface RollLineDto {
     id: string;
+    consecutive?: string | null;
     type: 'PRINCIPAL' | 'SECUNDARIA';
     fabricName: string;
+    averageTrace?: number | null;
+    factor?: number | null;
+    programmedMeters?: number | null;
+    colors?: string | null;
+    availableMeters?: number | null;
     color?: string | null;
+    colorCode?: string | null;
     widthCm?: number | null;
     supplier?: string | null;
     pricePerMeter: number;
     consumptionBase: number;
     extraMeters: number;
+    unitCost?: number | null;
+    totalCost?: number | null;
+    balanceMeters?: number | null;
     notes?: string | null;
     fabricItemId?: string | number | null;
     rollId?: string | number | null;
@@ -257,24 +267,17 @@ export interface RollStateDto {
 
 export interface ThreadLineDto {
     id: string;
-    year: number;
     threadName: string;
+    gauge?: number | null;
+    brand?: string | null;
     color?: string | null;
-    supplier?: string | null;
-    costPerGarment: number;
-    notes?: string | null;
-    threadItemId?: string | number | null;
+    colorCode?: string | null;
+    stitchesPerInch?: number | null;
     createdAt?: string;
     updatedAt?: string;
 }
 
-export interface ThreadParamsDto {
-    defaultYear: number;
-    method: 'PER_GARMENT';
-}
-
 export interface ThreadStateDto {
-    params: ThreadParamsDto;
     lines: ThreadLineDto[];
 }
 

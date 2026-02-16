@@ -82,9 +82,9 @@ const opHeaderLabel = computed(() => {
 const tabs = [
     { value: 'lista_operacional', label: 'Lista operacional', icon: ClipboardList },
     { value: 'procesos', label: 'Procesos', icon: Workflow },
+    { value: 'insumos', label: 'Insumos', icon: Package },
     { value: 'rollos', label: 'Rollos', icon: Layers },
     { value: 'hilos', label: 'Hilos', icon: Volleyball },
-    { value: 'insumos', label: 'Insumos', icon: Package },
     { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
     { value: 'costos', label: 'Costos', icon: DollarSign },
 ];
@@ -446,20 +446,22 @@ onMounted(() => {
                         />
                     </TabsContent>
 
-                    <TabsContent value="rollos" class="mt-0">
-                        <RollsTab
-                            v-if="selectedOpId"
-                            :op-id="selectedOpId"
-                            :units="selectedOp?.units ?? null"
-                        />
-                    </TabsContent>
-
                     <TabsContent value="insumos" class="mt-0">
                         <SuppliesTab
                             v-if="selectedOpId"
                             :op-id="selectedOpId"
                             :units="selectedOp?.units ?? null"
                             :has-operational-list="hasOperationalList"
+                            :op-code="selectedOp?.opCode ?? null"
+                            :op-group="selectedOp?.group ?? null"
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="rollos" class="mt-0">
+                        <RollsTab
+                            v-if="selectedOpId"
+                            :op-id="selectedOpId"
+                            :units="selectedOp?.units ?? null"
                         />
                     </TabsContent>
 

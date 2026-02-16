@@ -8,7 +8,6 @@ import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@
 import type { PurchaseOrderItem } from '@/domain/purchases';
 import type { Item, Tax } from '@/domain/inventory';
 import axios from 'axios';
-import { Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 
@@ -306,18 +305,9 @@ defineExpose({ addItem, validateFabricFields });
                                     :options="catalogItems.map((a) => ({ id: a.id, name: a.name }))"
                                     label=""
                                     class="w-full"
-                                >
-                                    <template #header>
-                                        <button
-                                            type="button"
-                                            class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                                            @click.stop="openItemDialog"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                            Nuevo item
-                                        </button>
-                                    </template>
-                                </SelectField>
+                                    action-label="Nuevo item"
+                                    @action="openItemDialog"
+                                />
                                 <!-- Item sugerido de la solicitud para esta fila -->
                                 <div v-if="getSuggestedItemForRow(idx)" class="text-xs mt-1.5">
                                     <div 
@@ -348,19 +338,10 @@ defineExpose({ addItem, validateFabricFields });
                                 :options="taxOptions"
                                 label=""
                                 class="w-full"
+                                action-label="Nuevo impuesto"
+                                @action="openTaxDialog"
                                 @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
-                            >
-                                <template #header>
-                                    <button
-                                        type="button"
-                                        class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-full border border-border bg-white px-2 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                                        @click.stop="openTaxDialog"
-                                    >
-                                        <Plus class="h-4 w-4" />
-                                        Nuevo impuesto
-                                    </button>
-                                </template>
-                            </SelectField>
+                            />
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 110px;">
                             <InputField

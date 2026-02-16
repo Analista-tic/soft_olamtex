@@ -100,12 +100,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('ficha-tecnica.costs-summary');
         Route::get('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'index'])
             ->name('ficha-tecnica.supplies.index');
+        Route::get('ficha-tecnica/insumos/opciones', [TechnicalDataSheetSuppliesController::class, 'itemOptions'])
+            ->name('ficha-tecnica.supplies.item-options');
         Route::post('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'upsert'])
             ->name('ficha-tecnica.supplies.upsert');
+        Route::put('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'saveAll'])
+            ->name('ficha-tecnica.supplies.save-all');
         Route::delete('ficha-tecnica/{opId}/insumos/{supplyId}', [TechnicalDataSheetSuppliesController::class, 'destroy'])
             ->name('ficha-tecnica.supplies.destroy');
         Route::get('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'index'])
             ->name('ficha-tecnica.rolls.index');
+        Route::put('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'saveAll'])
+            ->name('ficha-tecnica.rolls.save-all');
         Route::post('ficha-tecnica/{opId}/rollos/params', [TechnicalDataSheetRollsController::class, 'saveParams'])
             ->name('ficha-tecnica.rolls.params');
         Route::post('ficha-tecnica/{opId}/rollos/lines', [TechnicalDataSheetRollsController::class, 'upsertLine'])
@@ -114,6 +120,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('ficha-tecnica.rolls.lines.destroy');
         Route::get('ficha-tecnica/{opId}/hilos', [TechnicalDataSheetThreadsController::class, 'index'])
             ->name('ficha-tecnica.threads.index');
+        Route::put('ficha-tecnica/{opId}/hilos', [TechnicalDataSheetThreadsController::class, 'saveAll'])
+            ->name('ficha-tecnica.threads.save-all');
         Route::post('ficha-tecnica/{opId}/hilos/params', [TechnicalDataSheetThreadsController::class, 'saveParams'])
             ->name('ficha-tecnica.threads.params');
         Route::post('ficha-tecnica/{opId}/hilos/lines', [TechnicalDataSheetThreadsController::class, 'upsertLine'])

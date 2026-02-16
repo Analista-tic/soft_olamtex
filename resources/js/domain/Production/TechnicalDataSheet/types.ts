@@ -141,33 +141,63 @@ export type CostsSummary = {
     };
 };
 
-export type SupplyStage = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'GENERAL';
+export type SupplyStage = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'GENERAL' | 'OTRO';
+export type SupplyModaLinea = 'MODA' | 'LINEA' | 'NA';
 
 export type SupplyItem = {
     id: string;
     name: string;
     stage: SupplyStage;
+    sequence?: number | null;
+    displayLabel?: string | null;
+    itemId?: number | null;
+    requestedName?: string | null;
     supplier?: string | null;
+    description?: string | null;
+    modaLinea?: SupplyModaLinea;
     uom?: string | null;
     qtyPerUnit: number;
     unitCost: number;
+    internalRequestId?: number | null;
     notes?: string | null;
     createdAt?: string;
     updatedAt?: string;
+};
+
+export type SupplyCatalogItem = {
+    id: number;
+    label: string;
+    name?: string | null;
+    reference?: string | null;
+    unit?: string | null;
+    code?: string | null;
+    supplier?: string | null;
+    description?: string | null;
+    suggestedPrice?: number | null;
 };
 
 export type FabricType = 'PRINCIPAL' | 'SECUNDARIA';
 
 export type RollLine = {
     id: string;
+    consecutive?: string | null;
     type: FabricType;
     fabricName: string;
+    averageTrace?: number | null;
+    factor?: number | null;
+    programmedMeters?: number | null;
+    colors?: string | null;
+    availableMeters?: number | null;
     color?: string | null;
+    colorCode?: string | null;
     widthCm?: number | null;
     supplier?: string | null;
     pricePerMeter: number;
     consumptionBase: number;
     extraMeters: number;
+    unitCost?: number | null;
+    totalCost?: number | null;
+    balanceMeters?: number | null;
     notes?: string | null;
     fabricItemId?: string | number | null;
     rollId?: string | number | null;
@@ -185,27 +215,30 @@ export type RollState = {
     lines: RollLine[];
 };
 
+export type RollSavePayload = {
+    rolls: RollLine[];
+    deletedIds: string[];
+};
+
 export type ThreadLine = {
     id: string;
-    year: number;
     threadName: string;
+    gauge?: number | null;
+    brand?: string | null;
     color?: string | null;
-    supplier?: string | null;
-    costPerGarment: number;
-    notes?: string | null;
-    threadItemId?: string | number | null;
+    colorCode?: string | null;
+    stitchesPerInch?: number | null;
     createdAt?: string;
     updatedAt?: string;
 };
 
-export type ThreadParams = {
-    defaultYear: number;
-    method: 'PER_GARMENT';
+export type ThreadState = {
+    lines: ThreadLine[];
 };
 
-export type ThreadState = {
-    params: ThreadParams;
-    lines: ThreadLine[];
+export type ThreadSavePayload = {
+    threads: ThreadLine[];
+    deletedIds: string[];
 };
 
 export type CuttingParams = {
