@@ -53,7 +53,7 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const successMessage = ref('');
 const errorMessage = ref('');
-const isLogistics = ref(false);
+const canManageRequests = ref(false);
 const currentUserId = ref<number | null>(null);
 
 const isRequestDialogOpen = ref(false);
@@ -68,8 +68,10 @@ const DEFAULT_STATUS_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
-const actionButtonClass =
-    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const iconPillButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-white text-foreground shadow-sm transition-colors hover:bg-muted/60 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+const iconPillButtonSuccessClass = 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700';
+const iconPillButtonDangerClass = 'border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive';
 const actionIconClass = 'h-4 w-4';
 
 const statusLabels: Record<string, string> = {
@@ -110,7 +112,7 @@ async function fetchRequests(page = 1, search = '') {
         requests.value = data.data ?? [];
         totalItems.value = data.total ?? 0;
         currentPage.value = data.current_page ?? page;
-        isLogistics.value = Boolean(data.is_logistics);
+        canManageRequests.value = Boolean(data.can_manage_requests);
         currentUserId.value = data.current_user_id ?? null;
         errorMessage.value = '';
     } catch {
@@ -171,8 +173,12 @@ function canEdit(request: InventoryRequestRow) {
     return request.status === 'solicitado' && request.created_by_user_id === currentUserId.value;
 }
 
-function canManage(request: InventoryRequestRow) {
-    return isLogistics.value && request.status === 'solicitado' && !request.has_missing_items;
+function canDeliver(request: InventoryRequestRow) {
+    return canManageRequests.value && request.status === 'solicitado' && request.has_missing_items === false;
+}
+
+function canReject(request: InventoryRequestRow) {
+    return canManageRequests.value && request.status === 'solicitado';
 }
 
 onMounted(() => {
@@ -263,13 +269,12 @@ onMounted(() => {
                             <TableCell>{{ request.requester?.name || '-' }}</TableCell>
                             <TableCell>{{ request.observation || '-' }}</TableCell>
                             <TableCell class="text-center">
-                                <div class="flex justify-center gap-2">
+                                <div class="flex items-center justify-center gap-2">
                                     <Tooltip>
                                         <TooltipTrigger as-child>
                                             <Button
                                                 variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
+                                                :class="iconPillButtonClass"
                                                 aria-label="Ver detalle"
                                                 @click="openViewRequest(request)"
                                             >
@@ -282,8 +287,7 @@ onMounted(() => {
                                         <TooltipTrigger as-child>
                                             <Button
                                                 variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
+                                                :class="iconPillButtonClass"
                                                 aria-label="Editar"
                                                 @click="openEditRequest(request)"
                                             >
@@ -292,26 +296,24 @@ onMounted(() => {
                                         </TooltipTrigger>
                                         <TooltipContent>Editar</TooltipContent>
                                     </Tooltip>
-                                    <Tooltip v-if="canManage(request)">
+                                    <Tooltip v-if="canDeliver(request)">
                                         <TooltipTrigger as-child>
                                             <Button
                                                 variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
+                                                :class="[iconPillButtonClass, iconPillButtonSuccessClass]"
                                                 aria-label="Marcar como entregada"
                                                 @click="openDelivery(request)"
                                             >
-                                                <Check :class="[actionIconClass, 'text-emerald-600']" />
+                                                <Check :class="actionIconClass" />
                                             </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>Marcar como entregada</TooltipContent>
                                     </Tooltip>
-                                    <Tooltip v-if="canManage(request)">
+                                    <Tooltip v-if="canReject(request)">
                                         <TooltipTrigger as-child>
                                             <Button
                                                 variant="ghost"
-                                                size="icon"
-                                                :class="[actionButtonClass, 'text-destructive']"
+                                                :class="[iconPillButtonClass, iconPillButtonDangerClass]"
                                                 aria-label="Rechazar solicitud"
                                                 @click="openReject(request)"
                                             >

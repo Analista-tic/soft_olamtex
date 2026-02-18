@@ -16,6 +16,8 @@ class FabricRollResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'fabric_item_id' => $this->purchaseDocumentItem?->item_id,
+            'purchase_document_item_id' => $this->purchase_document_item_id,
             'roll' => $this->roll_number,
             'location' => $this->location,
             'fabric' => $this->purchaseDocumentItem?->item?->name

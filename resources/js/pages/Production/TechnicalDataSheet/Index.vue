@@ -9,9 +9,10 @@ import CostsTab from './tabs/CostsTab.vue';
 import SuppliesTab from './tabs/SuppliesTab.vue';
 import RollsTab from './tabs/RollsTab.vue';
 import ThreadsTab from './tabs/ThreadsTab.vue';
+import RawMaterialTab from './tabs/RawMaterialTab.vue';
 import AdditionalInfoTab from './tabs/AdditionalInfoTab.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ClipboardList, DollarSign, FilePlus2, Layers, Package, Volleyball, Workflow } from 'lucide-vue-next';
+import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Layers, Package, Volleyball, Workflow } from 'lucide-vue-next';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
 import type { OpBasicInfo, OperationalList } from '@/domain/Production/TechnicalDataSheet';
 import {
@@ -44,6 +45,7 @@ const operationalListOptions = ref<Option[]>([]);
 const selectedOperationalListId = ref<string | number | null>(null);
 const isAssigningOperationalList = ref(false);
 const operationalListMessage = ref<string | null>(null);
+const isBasicInfoCollapsed = ref(false);
 
 const drawingUrl = computed(() => {
     const op = selectedOp.value as (OpBasicInfo & { drawingUrl?: string | null; imageUrl?: string | null }) | null;
@@ -82,9 +84,10 @@ const opHeaderLabel = computed(() => {
 const tabs = [
     { value: 'lista_operacional', label: 'Lista operacional', icon: ClipboardList },
     { value: 'procesos', label: 'Procesos', icon: Workflow },
-    { value: 'insumos', label: 'Insumos', icon: Package },
+    { value: 'materia_prima', label: 'Materia prima', icon: Box },
     { value: 'rollos', label: 'Rollos', icon: Layers },
     { value: 'hilos', label: 'Hilos', icon: Volleyball },
+    { value: 'insumos', label: 'Insumos', icon: Package },
     { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
     { value: 'costos', label: 'Costos', icon: DollarSign },
 ];
@@ -297,51 +300,72 @@ onMounted(() => {
 
             <template v-else>
                 <div class="rounded-lg border border-border bg-background p-4">
-                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                        <div class="lg:col-span-2">
-                            <div class="mb-3">
-                                <p class="text-sm font-semibold text-foreground">Informacion basica</p>
-                                <p class="text-xs text-muted-foreground">{{ opHeaderLabel }}</p>
-                            </div>
-                            <div class="grid grid-cols-1 gap-y-4 gap-x-8 sm:grid-cols-2 xl:grid-cols-4">
-                                <div v-for="field in basicInfoFields" :key="field.key" class="space-y-1">
-                                    <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ field.label }}</p>
-                                    <p class="text-sm font-medium text-foreground">{{ field.value }}</p>
+                    <div class="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-semibold text-foreground">Informacion basica</p>
+                            <p class="text-xs text-muted-foreground">{{ opHeaderLabel }}</p>
+                        </div>
+                        <button
+                            type="button"
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            :aria-label="isBasicInfoCollapsed ? 'Expandir información' : 'Minimizar información'"
+                            @click="isBasicInfoCollapsed = !isBasicInfoCollapsed"
+                        >
+                            <ChevronDown v-if="isBasicInfoCollapsed" class="h-4 w-4" />
+                            <ChevronUp v-else class="h-4 w-4" />
+                        </button>
+                    </div>
+
+                    <transition
+                        enter-active-class="transition-all duration-200 ease-out"
+                        enter-from-class="max-h-0 opacity-0"
+                        enter-to-class="max-h-[700px] opacity-100"
+                        leave-active-class="transition-all duration-150 ease-in"
+                        leave-from-class="max-h-[700px] opacity-100"
+                        leave-to-class="max-h-0 opacity-0"
+                    >
+                        <div v-show="!isBasicInfoCollapsed" class="grid grid-cols-1 gap-4 overflow-hidden lg:grid-cols-3">
+                            <div class="lg:col-span-2">
+                                <div class="grid grid-cols-1 gap-y-4 gap-x-8 sm:grid-cols-2 xl:grid-cols-4">
+                                    <div v-for="field in basicInfoFields" :key="field.key" class="space-y-1">
+                                        <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ field.label }}</p>
+                                        <p class="text-sm font-medium text-foreground">{{ field.value }}</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div class="lg:col-span-1 lg:border-l lg:border-border lg:pl-4">
-                            <div class="mb-3">
-                                <p class="text-sm font-semibold text-foreground">Dibujo plano</p>
-                                <p class="text-xs text-muted-foreground">Referencia visual del producto</p>
-                            </div>
+                            <div class="lg:col-span-1 lg:border-l lg:border-border lg:pl-4">
+                                <div class="mb-3">
+                                    <p class="text-sm font-semibold text-foreground">Dibujo plano</p>
+                                    <p class="text-xs text-muted-foreground">Referencia visual del producto</p>
+                                </div>
 
-                            <button
-                                v-if="hasDrawing"
-                                type="button"
-                                class="mt-2 flex h-[110px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 transition hover:border-muted-foreground/40 hover:bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary/30"
-                                @click="openDrawing"
-                                :disabled="!drawingUrl"
-                            >
-                                <img
-                                    :src="drawingUrl!"
-                                    class="h-full w-auto max-w-full object-contain"
+                                <button
+                                    v-if="hasDrawing"
+                                    type="button"
+                                    class="mt-2 flex h-[110px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 transition hover:border-muted-foreground/40 hover:bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                    @click="openDrawing"
+                                    :disabled="!drawingUrl"
+                                >
+                                    <img
+                                        :src="drawingUrl!"
+                                        class="h-full w-auto max-w-full object-contain"
+                                        alt="Dibujo plano"
+                                    />
+                                </button>
+                                <div v-else class="mt-2 flex h-[110px] items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10">
+                                    <p class="text-sm text-muted-foreground">Sin dibujo</p>
+                                </div>
+
+                                <ImagePreviewDialog
+                                    v-model:open="isDrawingOpen"
+                                    title="Dibujo plano"
+                                    :src="drawingUrl"
                                     alt="Dibujo plano"
                                 />
-                            </button>
-                            <div v-else class="mt-2 flex h-[110px] items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10">
-                                <p class="text-sm text-muted-foreground">Sin dibujo</p>
                             </div>
-
-                            <ImagePreviewDialog
-                                v-model:open="isDrawingOpen"
-                                title="Dibujo plano"
-                                :src="drawingUrl"
-                                alt="Dibujo plano"
-                            />
                         </div>
-                    </div>
+                    </transition>
                 </div>
 
                 <Tabs v-model="activeTab" :default-value="defaultTabValue" class="w-full">
@@ -446,14 +470,10 @@ onMounted(() => {
                         />
                     </TabsContent>
 
-                    <TabsContent value="insumos" class="mt-0">
-                        <SuppliesTab
+                    <TabsContent value="materia_prima" class="mt-0">
+                        <RawMaterialTab
                             v-if="selectedOpId"
                             :op-id="selectedOpId"
-                            :units="selectedOp?.units ?? null"
-                            :has-operational-list="hasOperationalList"
-                            :op-code="selectedOp?.opCode ?? null"
-                            :op-group="selectedOp?.group ?? null"
                         />
                     </TabsContent>
 
@@ -473,6 +493,17 @@ onMounted(() => {
                         />
                     </TabsContent>
 
+                    <TabsContent value="insumos" class="mt-0">
+                        <SuppliesTab
+                            v-if="selectedOpId"
+                            :op-id="selectedOpId"
+                            :units="selectedOp?.units ?? null"
+                            :has-operational-list="hasOperationalList"
+                            :op-code="selectedOp?.opCode ?? null"
+                            :op-group="selectedOp?.group ?? null"
+                        />
+                    </TabsContent>
+
                     <TabsContent value="informacion_adicional" class="mt-0">
                         <AdditionalInfoTab
                             v-if="selectedOpId"
@@ -484,12 +515,6 @@ onMounted(() => {
 
                     <TabsContent value="costos" class="mt-0">
                         <CostsTab :op-id="selectedOpId" :selected-op="selectedOp" />
-                    </TabsContent>
-
-                    <TabsContent v-for="tab in tabs.filter((item) => !['lista_operacional', 'procesos', 'costos', 'insumos', 'rollos', 'hilos', 'informacion_adicional'].includes(item.value))" :key="tab.value" :value="tab.value" class="mt-0">
-                        <div class="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
-                            En construccion
-                        </div>
                     </TabsContent>
                 </Tabs>
             </template>

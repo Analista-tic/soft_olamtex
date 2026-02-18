@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { Option } from '@/domain/shared';
+import { toUnitNumber } from '@/domain/fabric';
 import type {
     AdditionalInfoDto,
     OpProcessesResponseDto,
@@ -29,6 +30,7 @@ import type {
 import { mapOpBasicInfoDtoToOpBasicInfo } from './mappers';
 
 const ENDPOINTS = {
+    SETTINGS_PARAMETERS: '/settings/parameters',
     OPTIONS: '/produccion/ficha-tecnica/opciones',
     BASIC_INFO: '/produccion/ficha-tecnica/:id/basica',
     OP_OPERATIONAL_LIST: '/produccion/ficha-tecnica/:id/listado-operacional',
@@ -37,6 +39,8 @@ const ENDPOINTS = {
     OP_COSTS_SUMMARY: '/produccion/ficha-tecnica/:id/costos',
     OP_SUPPLIES: '/produccion/ficha-tecnica/:id/insumos',
     OP_SUPPLY_ITEM_OPTIONS: '/produccion/ficha-tecnica/insumos/opciones',
+    LAST_PURCHASE_BY_ITEM: '/produccion/insumos/items/:itemId/last-purchase',
+    ITEM_META_BY_ITEM: '/produccion/insumos/items/:itemId/meta',
     OP_SUPPLIES_BULK: '/produccion/ficha-tecnica/:id/insumos',
     OP_SUPPLY_DELETE: '/produccion/ficha-tecnica/:id/insumos/:supplyId',
     OP_ROLLS: '/produccion/ficha-tecnica/:id/rollos',
@@ -55,8 +59,47 @@ type ItemCatalogDto = {
     unit?: string | null;
 };
 
+export type LastPurchaseByItem = {
+    provider: {
+        id: number | null;
+        name: string | null;
+    } | null;
+    price: number | null;
+    currency: 'COP';
+    date: string | null;
+    source: 'invoice' | 'purchase_order';
+};
+
+type LastPurchaseByItemResponse = {
+    data: LastPurchaseByItem | null;
+};
+
+export type RawMaterialItemMeta = {
+    itemId: number;
+    provider: {
+        id: number | null;
+        name: string | null;
+    } | null;
+    price: number | null;
+    currency: 'COP';
+    date: string | null;
+    invoiceNumber: string | null;
+    width: number | null;
+    widthUnit: 'm' | 'cm' | null;
+    source: {
+        price: 'invoice' | 'purchase_order' | 'unknown';
+        width: 'inventory' | 'item' | 'unknown';
+    };
+};
+
+type RawMaterialItemMetaResponse = {
+    data: RawMaterialItemMeta | null;
+};
+
 type InventoryRollDto = {
     id: number | string;
+    fabric_item_id?: number | null;
+    item_id?: number | null;
     roll?: string | null;
     location?: string | null;
     fabric?: string | null;
@@ -72,6 +115,7 @@ type InventoryRollDto = {
 
 export type AvailableFabricRoll = {
     id: string;
+    fabricItemId: number | null;
     label: string;
     roll: string;
     fabricName: string;
@@ -108,6 +152,10 @@ export async function fetchOpBasicInfo(opId: string | number): Promise<OpBasicIn
 export interface FetchOperationalListOptionsParams {
     search?: string;
 }
+
+type SettingsParametersResponse = {
+    data?: Record<string, Array<{ id: string | number | boolean; name: string }>>;
+};
 
 export async function fetchOpOperationalList(opId: string | number): Promise<OperationalListResponse> {
     const url = ENDPOINTS.OP_OPERATIONAL_LIST.replace(':id', String(opId));
@@ -159,6 +207,30 @@ export async function assignOperationalListToOp(opId: string | number, listId: s
     });
 
     return response.data;
+}
+
+export async function fetchSettingsParameters(keys: string[]): Promise<Record<string, Option[]>> {
+    if (!Array.isArray(keys) || keys.length === 0) {
+        return {};
+    }
+
+    const response = await axios.get<SettingsParametersResponse>(ENDPOINTS.SETTINGS_PARAMETERS, {
+        params: { keys },
+    });
+
+    const source = response.data?.data ?? {};
+    const result: Record<string, Option[]> = {};
+
+    Object.entries(source).forEach(([key, options]) => {
+        result[key] = Array.isArray(options)
+            ? options.map((option) => ({
+                id: option.id,
+                name: String(option.name ?? ''),
+            }))
+            : [];
+    });
+
+    return result;
 }
 
 export async function fetchOpProcesses(opId: string | number): Promise<OpProcessesData> {
@@ -291,6 +363,48 @@ export async function fetchSupplyCatalogItems(search = ''): Promise<SupplyCatalo
         .filter((item) => item.label !== '');
 }
 
+export async function fetchRawMaterialCatalogOptions(search = ''): Promise<Option[]> {
+    const response = await axios.get<ItemCatalogDto[]>(ENDPOINTS.OP_SUPPLY_ITEM_OPTIONS, {
+        params: {
+            group: 'materia prima',
+            search: search || undefined,
+            status: 'habilitado',
+        },
+    });
+
+    const rawItems = Array.isArray(response.data) ? response.data : [];
+
+    return rawItems
+        .map((item) => {
+            const id = Number(item.id);
+            const name = String(item.name ?? '').trim();
+            const reference = String(item.reference ?? '').trim();
+            const label = reference ? `${name} (${reference})` : name;
+            return { id, name: label };
+        })
+        .filter((option) => Number.isFinite(Number(option.id)) && option.name !== '');
+}
+
+export async function fetchLastPurchaseByItem(itemId: number): Promise<LastPurchaseByItem | null> {
+    if (!Number.isFinite(itemId) || itemId <= 0) {
+        return null;
+    }
+
+    const url = ENDPOINTS.LAST_PURCHASE_BY_ITEM.replace(':itemId', String(itemId));
+    const response = await axios.get<LastPurchaseByItemResponse>(url);
+    return response.data?.data ?? null;
+}
+
+export async function fetchRawMaterialItemMeta(itemId: number): Promise<RawMaterialItemMeta | null> {
+    if (!Number.isFinite(itemId) || itemId <= 0) {
+        return null;
+    }
+
+    const url = ENDPOINTS.ITEM_META_BY_ITEM.replace(':itemId', String(itemId));
+    const response = await axios.get<RawMaterialItemMetaResponse>(url);
+    return response.data?.data ?? null;
+}
+
 export async function upsertOpSupply(opId: string | number, payload: SupplyItem): Promise<SupplyItem[]> {
     const url = ENDPOINTS.OP_SUPPLIES.replace(':id', String(opId));
     const response = await axios.post<SupplyItem[]>(url, payload);
@@ -381,17 +495,27 @@ export async function saveOpRolls(opId: string | number, payload: RollSavePayloa
 }
 
 function parseMeters(value: string | null | undefined): number | null {
-    if (!value) return null;
-    const parsed = Number(String(value).replace(/[^\d.-]/g, ''));
-    return Number.isFinite(parsed) ? parsed : null;
+    return toUnitNumber(value);
 }
 
 function parseWidth(value: string | null | undefined): number | null {
-    return parseMeters(value);
+    const parsed = toUnitNumber(value);
+    if (parsed === null) return null;
+
+    const raw = String(value ?? '').toLowerCase();
+    if (/\bm\b/.test(raw) && !/\bcm\b/.test(raw)) {
+        return parsed * 100;
+    }
+
+    return parsed;
 }
 
-export async function fetchAvailableFabricRolls(): Promise<AvailableFabricRoll[]> {
-    const response = await axios.get<{ data?: InventoryRollDto[] } | InventoryRollDto[]>(ENDPOINTS.INVENTORY_ROLLS);
+export async function fetchAvailableFabricRolls(fabricItemIds: number[] = []): Promise<AvailableFabricRoll[]> {
+    const response = await axios.get<{ data?: InventoryRollDto[] } | InventoryRollDto[]>(ENDPOINTS.INVENTORY_ROLLS, {
+        params: {
+            fabricItemIds: fabricItemIds.length > 0 ? fabricItemIds : undefined,
+        },
+    });
     const raw = Array.isArray(response.data)
         ? response.data
         : Array.isArray(response.data?.data)
@@ -407,6 +531,7 @@ export async function fetchAvailableFabricRolls(): Promise<AvailableFabricRoll[]
 
         return {
             id,
+            fabricItemId: roll.fabric_item_id ?? roll.item_id ?? null,
             label,
             roll: rollCode,
             fabricName,
@@ -455,8 +580,14 @@ export async function saveOpThreads(opId: string | number, payload: ThreadSavePa
 
 function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): AdditionalInfo {
     const parsedPieces: CuttingPiece[] = Array.isArray(data?.cutting?.pieces)
-        ? data!.cutting.pieces.map((piece) => ({
-            id: String(piece.id ?? ''),
+        ? data!.cutting.pieces.map((piece) => {
+            const rawId = String(piece.id ?? '').trim();
+            const rawUid = String(piece.uid ?? '').trim();
+            const stableId = rawId || rawUid;
+
+            return {
+            id: stableId,
+            uid: stableId || undefined,
             name: String(piece.name ?? ''),
             type: piece.type === 'SECUNDARIO' ? 'SECUNDARIO' : 'PRINCIPAL',
             side: ['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(String(piece.side))
@@ -466,16 +597,20 @@ function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): Ad
                 ? (piece.grain as CuttingPiece['grain'])
                 : '90',
             notes: piece.notes ?? null,
-        }))
+            };
+        })
         : [];
 
     return {
         cutting: {
             params: {
-                cutCostCop: Number(data?.cutting?.params?.cutCostCop ?? 350),
+                cutCostCop: data?.cutting?.params?.cutCostCop !== null && data?.cutting?.params?.cutCostCop !== undefined
+                    ? Number(data.cutting.params.cutCostCop)
+                    : null,
             },
             sizes: Array.isArray(data?.cutting?.sizes)
                 ? data!.cutting.sizes.map((sizeRow) => ({
+                    uid: sizeRow.uid ? String(sizeRow.uid) : undefined,
                     size: String(sizeRow.size ?? ''),
                     units: Number(sizeRow.units ?? 0),
                 }))
@@ -492,6 +627,7 @@ function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): Ad
             attachments: Array.isArray(data?.stamping?.attachments) ? data!.stamping.attachments : [],
         },
         laundry: {
+            type: data?.laundry?.type ?? null,
             instructions: data?.laundry?.instructions ?? null,
         },
     };

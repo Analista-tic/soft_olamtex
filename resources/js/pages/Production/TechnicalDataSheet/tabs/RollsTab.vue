@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Save, Trash } from 'lucide-vue-next';
 import type { Option } from '@/domain/shared';
+import { formatMeters, formatNumberEsCO, formatWidthToMeters, toUnitNumber } from '@/domain/fabric';
 import type { AvailableFabricRoll, FabricType, RollLine, RollState } from '@/domain/Production/TechnicalDataSheet';
 import { fetchAvailableFabricRolls, fetchOpRolls, saveOpRolls } from '@/domain/Production/TechnicalDataSheet';
+import { getAllowedFabricItemIds } from '@/domain/Production/TechnicalDataSheet/rawMaterialSelection';
 import PurchaseRequestDialog from '@/pages/Expenses/PurchaseRequests/PurchaseRequestDialog.vue';
 
 const props = defineProps<{
@@ -53,6 +55,7 @@ const isRequestDialogOpen = ref(false);
 const requestDraft = ref<{ rowUid: string; name: string } | null>(null);
 
 const availableRolls = ref<AvailableFabricRoll[]>([]);
+const allowedFabricItemIds = ref<number[]>([]);
 
 const safeUnits = computed(() => {
     const value = Number(props.units ?? 0);
@@ -61,7 +64,21 @@ const safeUnits = computed(() => {
 
 const unitsAvailable = computed(() => safeUnits.value > 0);
 
-const rollOptions = computed<Option[]>(() => availableRolls.value.map((roll) => ({
+const hasAllowedFabricItemIds = computed(() => allowedFabricItemIds.value.length > 0);
+
+const filteredAvailableRolls = computed(() => {
+    if (!hasAllowedFabricItemIds.value) {
+        return [] as AvailableFabricRoll[];
+    }
+
+    const allowed = new Set(allowedFabricItemIds.value);
+    return availableRolls.value.filter((roll) => {
+        const rollFabricItemId = roll.fabricItemId;
+        return rollFabricItemId !== null && allowed.has(rollFabricItemId);
+    });
+});
+
+const rollOptions = computed<Option[]>(() => filteredAvailableRolls.value.map((roll) => ({
     id: roll.id,
     name: roll.label,
 })));
@@ -75,16 +92,12 @@ function generateUid(): string {
 }
 
 function toNumber(value: string | number | null | undefined): number {
-    const parsed = Number(value ?? 0);
-    return Number.isFinite(parsed) ? parsed : 0;
+    const parsed = toUnitNumber(value);
+    return parsed ?? 0;
 }
 
 function toNullableNumber(value: string | number | null | undefined): number | null {
-    const clean = String(value ?? '').trim();
-    if (clean === '') return null;
-
-    const parsed = Number(clean);
-    return Number.isFinite(parsed) ? parsed : null;
+    return toUnitNumber(value);
 }
 
 function toNullableText(value: string | null | undefined): string | null {
@@ -93,15 +106,28 @@ function toNullableText(value: string | null | undefined): string | null {
 }
 
 function formatCOP(value: number): string {
-    return new Intl.NumberFormat('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        maximumFractionDigits: 0,
-    }).format(Number(value || 0)).replace(/\u00A0/g, ' ');
+    const formatted = formatNumberEsCO(value, { maximumFractionDigits: 0, fallback: '0' });
+    return `$ ${formatted}`.replace(/\u00A0/g, ' ');
 }
 
-function formatMeters(value: number): string {
-    return `${value.toFixed(4)} m`;
+function normalizeRoll(roll: {
+    width?: string | number | null;
+    widthCm?: string | number | null;
+    roll_qty?: string | number | null;
+    partial_output?: string | number | null;
+    partial_availability?: string | number | null;
+    exit_quantity?: string | number | null;
+    real_availability?: string | number | null;
+    availableMeters?: string | number | null;
+} | null | undefined) {
+    return {
+        width: formatWidthToMeters(roll?.widthCm ?? roll?.width),
+        rollQty: formatMeters(roll?.roll_qty ?? roll?.availableMeters),
+        partialOutput: formatMeters(roll?.partial_output),
+        partialAvailability: formatMeters(roll?.partial_availability),
+        exitQuantity: formatMeters(roll?.exit_quantity),
+        realAvailability: formatMeters(roll?.real_availability),
+    };
 }
 
 function getDefaultConsecutive(index: number): string {
@@ -296,6 +322,15 @@ function findAvailableRoll(rollId: string | null): AvailableFabricRoll | null {
     return availableRolls.value.find((roll) => roll.id === rollId) ?? null;
 }
 
+function refreshAllowedFabricFilters(): boolean {
+    const nextIds = getAllowedFabricItemIds(props.opId);
+    const changed = JSON.stringify(nextIds) !== JSON.stringify(allowedFabricItemIds.value);
+    if (changed) {
+        allowedFabricItemIds.value = nextIds;
+    }
+    return changed;
+}
+
 function onRollSelected(index: number, value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
     const selected = Array.isArray(value) ? value[0] : value;
     const rollId = selected === null || selected === undefined || selected === '' ? null : String(selected);
@@ -406,7 +441,7 @@ async function loadAvailableRolls(): Promise<void> {
     isLoadingRollOptions.value = true;
 
     try {
-        availableRolls.value = await fetchAvailableFabricRolls();
+        availableRolls.value = await fetchAvailableFabricRolls(allowedFabricItemIds.value);
     } catch (err) {
         console.error('Error al cargar rollos disponibles:', err);
         availableRolls.value = [];
@@ -421,6 +456,7 @@ async function loadRolls(): Promise<void> {
     warning.value = null;
     saveMessage.value = null;
     requestMessage.value = null;
+    refreshAllowedFabricFilters();
 
     try {
         const [state] = await Promise.all([
@@ -479,6 +515,30 @@ watch(
     },
     { immediate: true },
 );
+
+function handleRawMaterialSaved(event: Event): void {
+    const customEvent = event as CustomEvent<{ opId?: string | number }>;
+    const eventOpId = customEvent.detail?.opId;
+    if (eventOpId !== undefined && String(eventOpId) !== String(props.opId)) {
+        return;
+    }
+
+    const changed = refreshAllowedFabricFilters();
+    if (!changed) return;
+    void loadAvailableRolls();
+}
+
+onMounted(() => {
+    if (typeof window !== 'undefined') {
+        window.addEventListener('tds-raw-material-saved', handleRawMaterialSaved as EventListener);
+    }
+});
+
+onBeforeUnmount(() => {
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('tds-raw-material-saved', handleRawMaterialSaved as EventListener);
+    }
+});
 </script>
 
 <template>
@@ -522,21 +582,21 @@ watch(
                                     :model-value="rows[index].rollId"
                                     :options="rollOptions"
                                     :searchable="true"
-                                    :disabled="isSaving || isLoadingRollOptions"
+                                    :disabled="isSaving || isLoadingRollOptions || !hasAllowedFabricItemIds"
                                     action-label="Solicitar rollo"
-                                    placeholder="Seleccionar rollo"
+                                    :placeholder="hasAllowedFabricItemIds ? 'Seleccionar rollo' : 'Sin telas seleccionadas'"
                                     @action="openRollRequestDialog(index)"
                                     @update:model-value="(value) => onRollSelected(index, value)"
                                 />
                             </TableCell>
                             <TableCell>
-                                {{ findAvailableRoll(row.rollId)?.location ?? '-' }}
+                                <span class="text-sm text-foreground/90">{{ findAvailableRoll(row.rollId)?.location ?? '-' }}</span>
                             </TableCell>
                             <TableCell>
-                                {{ toNullableNumber(rows[index].widthCm) === null ? '-' : `${toNumber(rows[index].widthCm).toFixed(2)} cm` }}
+                                <span class="text-sm text-foreground/90">{{ normalizeRoll({ widthCm: rows[index].widthCm }).width }}</span>
                             </TableCell>
                             <TableCell>
-                                {{ row.availableMeters === null ? '-' : formatMeters(row.availableMeters) }}
+                                <span class="text-sm text-foreground/90">{{ normalizeRoll({ availableMeters: row.availableMeters }).rollQty }}</span>
                             </TableCell>
                             <TableCell>
                                 <div class="flex items-center gap-2">
@@ -598,6 +658,9 @@ watch(
 
             <p v-if="saveMessage" class="text-sm text-emerald-700">{{ saveMessage }}</p>
             <p v-if="requestMessage" class="text-sm text-emerald-700">{{ requestMessage }}</p>
+            <p v-if="!hasAllowedFabricItemIds" class="text-sm text-muted-foreground">
+                Selecciona al menos una tela en Materia prima para ver rollos disponibles.
+            </p>
         </template>
 
         <div v-if="warning" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

@@ -190,7 +190,7 @@ watch(
 </script>
 
 <template>
-    <div v-if="hasOp" class="space-y-6">
+    <div v-if="hasOp" class="space-y-4">
         <div class="rounded-lg bg-background p-4 ring-1 ring-border/60">
             <p class="text-sm font-semibold text-foreground">Resumen de costos</p>
             <p class="text-xs text-muted-foreground">Consolidado con base en materia prima, insumos y procesos.</p>
@@ -201,14 +201,14 @@ watch(
         </div>
 
         <template v-else-if="summary">
-            <section class="space-y-3">
-                <p class="text-sm font-semibold text-foreground">Resumen de costos</p>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section class="space-y-2">
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <MetricTile
                         v-for="tile in costTiles"
                         :key="tile.label"
                         :label="tile.label"
                         :value="tile.value"
+                        dense
                         :badge-status="tile.badgeStatus"
                         :badge-text="tile.badgeText"
                         :container-class="tile.containerClass"
@@ -218,14 +218,15 @@ watch(
                 </div>
             </section>
 
-            <section class="space-y-3">
+            <section class="space-y-2">
                 <p class="text-sm font-semibold text-foreground">Subtotales de procesos</p>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <MetricTile
                         v-for="tile in processSubtotalTiles"
                         :key="tile.label"
                         :label="tile.label"
                         :value="tile.value"
+                        dense
                         :badge-status="tile.badgeStatus"
                         :badge-text="tile.badgeText"
                         :container-class="tile.containerClass"
@@ -235,14 +236,15 @@ watch(
                 </div>
             </section>
 
-            <section class="space-y-3">
+            <section class="space-y-2">
                 <p class="text-sm font-semibold text-foreground">Precios</p>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <MetricTile
                         v-for="tile in priceTiles"
                         :key="tile.label"
                         :label="tile.label"
                         :value="tile.value"
+                        dense
                         :badge-status="tile.badgeStatus"
                         :badge-text="tile.badgeText"
                         :container-class="tile.containerClass"
@@ -252,14 +254,15 @@ watch(
                 </div>
             </section>
 
-            <section class="space-y-3">
+            <section class="space-y-2">
                 <p class="text-sm font-semibold text-foreground">Rentabilidad</p>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <MetricTile
                         v-for="tile in profitabilityTiles"
                         :key="tile.label"
                         :label="tile.label"
                         :value="tile.value"
+                        dense
                         :badge-status="tile.badgeStatus"
                         :badge-text="tile.badgeText"
                         :container-class="tile.containerClass"

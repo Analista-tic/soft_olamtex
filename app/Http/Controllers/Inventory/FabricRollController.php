@@ -111,9 +111,18 @@ class FabricRollController extends Controller
         ]);
     }
 
-    public function inventoryRollsData()
+    public function inventoryRollsData(Request $request)
     {
-        $rolls = $this->service->export();
+        $rawIds = $request->query('fabricItemIds', []);
+        $ids = is_array($rawIds) ? $rawIds : [$rawIds];
+        $fabricItemIds = collect($ids)
+            ->map(fn ($id) => is_numeric($id) ? (int) $id : null)
+            ->filter(fn ($id) => is_int($id) && $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $rolls = $this->service->export($fabricItemIds);
         return FabricRollResource::collection($rolls);
     }
 

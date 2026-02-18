@@ -20,7 +20,7 @@ import { useAlertStack } from '@/composables/useAlert';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Upload, X, FileText } from 'lucide-vue-next';
+import { Upload, X, FileText, Plus } from 'lucide-vue-next';
 
 // Tipo local que extiende PurchaseRequestForm para el formulario del di?logo
 type PurchaseRequestDialogForm = Omit<PurchaseRequestForm, 'items' | 'estimated_amount'> & {
@@ -642,16 +642,15 @@ watch(
                                         <h3 class="text-sm font-semibold">Items</h3>
                                         <p class="text-xs text-muted-foreground">Agrega los items necesarios para esta solicitud</p>
                                     </div>
-                                    <Button
+                                    <button
                                         v-if="!isReadOnly"
                                         type="button"
-                                        variant="outline"
-                                        size="sm"
+                                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                         @click="itemsTableRef?.addItem()"
                                     >
-                                        <span class="mr-1">+</span>
+                                        <Plus class="h-4 w-4" />
                                         Agregar Item
-                                    </Button>
+                                    </button>
                                 </div>
                                 <PurchaseRequestItemsTable
                                     ref="itemsTableRef"
@@ -749,30 +748,32 @@ watch(
                 </TooltipProvider>
             </div>
 
-            <DialogFooter class="px-4 py-3 border-t flex justify-end gap-2">
-                <Button
+            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4 px-4 pb-4">
+                <button
                     type="button"
-                    variant="outline"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="dialogOpen = false"
                 >
                     Cancelar
-                </Button>
-                <Button
+                </button>
+                <button
                     v-if="!props.readonly && !isReadOnly"
                     type="button"
                     :disabled="isLoading"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     @click="handleSubmit(false)"
                 >
                     {{ isLoading ? 'Guardando...' : 'Guardar' }}
-                </Button>
-                <Button
+                </button>
+                <button
                     v-if="!props.readonly && !isReadOnly && canSendToApproval"
                     type="button"
                     :disabled="isLoading"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     @click="handleSubmit(true)"
                 >
                     {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobación' }}
-                </Button>
+                </button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

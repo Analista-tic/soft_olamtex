@@ -243,13 +243,21 @@ class FabricRollService
             ->get();
     }
 
-    public function export(): Collection
+    public function export(array $fabricItemIds = []): Collection
     {
-        return FabricRoll::with([
+        $query = FabricRoll::with([
             'purchaseDocumentItem.item',
             'purchaseDocumentItem.document.supplier',
             'purchaseDocumentItem.document.creator',
-        ])
+        ]);
+
+        if (!empty($fabricItemIds)) {
+            $query->whereHas('purchaseDocumentItem', function ($builder) use ($fabricItemIds) {
+                $builder->whereIn('item_id', $fabricItemIds);
+            });
+        }
+
+        return $query
             ->orderBy('entry_date', 'desc')
             ->get();
     }

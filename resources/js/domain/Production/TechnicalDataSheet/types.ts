@@ -242,10 +242,11 @@ export type ThreadSavePayload = {
 };
 
 export type CuttingParams = {
-    cutCostCop: number;
+    cutCostCop: number | null;
 };
 
 export type SizeUnit = {
+    uid?: string;
     size: string;
     units: number;
 };
@@ -256,6 +257,7 @@ export type Grain = '90' | '180' | 'SESGO';
 
 export type CuttingPiece = {
     id: string;
+    uid?: string;
     name: string;
     type: PieceType;
     side: Side;
@@ -279,6 +281,7 @@ export type AdditionalInfo = {
         attachments?: { id: string; name: string; url: string }[];
     };
     laundry: {
+        type?: string | null;
         instructions?: string | null;
     };
 };

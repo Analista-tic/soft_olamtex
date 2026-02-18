@@ -5,7 +5,6 @@ use App\Http\Controllers\Expenses\PurchaseInvoiceController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceTelaController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
 use App\Http\Controllers\Expenses\PurchaseRequestController;
-use App\Http\Controllers\ProductSheet\GroupController;
 use App\Http\Controllers\ProductSheet\MachineController;
 use App\Http\Controllers\ProductSheet\OperationController;
 use App\Http\Controllers\ProductSheet\SectionController;
@@ -65,6 +64,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Perfil
     Route::get('profile', fn() => Inertia::render('Profile'))->name('profile');
+    Route::get('settings/parameters', [TechnicalDataSheetController::class, 'settingsParameters'])
+        ->name('settings.parameters');
 
     // Módulos en desarrollo
     Route::get('en-desarrollo/{modulo?}', function (?string $modulo = null) {
@@ -102,6 +103,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('ficha-tecnica.supplies.index');
         Route::get('ficha-tecnica/insumos/opciones', [TechnicalDataSheetSuppliesController::class, 'itemOptions'])
             ->name('ficha-tecnica.supplies.item-options');
+        Route::get('insumos/items/{itemId}/last-purchase', [TechnicalDataSheetSuppliesController::class, 'lastPurchaseForItem'])
+            ->middleware('permission:ver gastos|ver sabana productos|ver programador')
+            ->name('ficha-tecnica.supplies.last-purchase');
+        Route::get('insumos/items/{itemId}/meta', [TechnicalDataSheetSuppliesController::class, 'itemMeta'])
+            ->middleware('permission:ver gastos|ver sabana productos|ver programador')
+            ->name('ficha-tecnica.supplies.item-meta');
         Route::post('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'upsert'])
             ->name('ficha-tecnica.supplies.upsert');
         Route::put('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'saveAll'])
@@ -443,8 +450,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === Catálogos para campos parametrizables ===
     Route::get('catalogos/sections', [SectionController::class, 'data']);
-    Route::get('catalogos/groups', [GroupController::class, 'data']);
-        // Rutas eliminadas: brands, worlds, fabric-bases, yarn-bases (controllers no existen)
+        // Rutas eliminadas: groups, brands, worlds, fabric-bases, yarn-bases (controllers no existen)
 
     // === RETENCIONES ===
     Route::prefix('retenciones')->name('retenciones.')->group(function () {

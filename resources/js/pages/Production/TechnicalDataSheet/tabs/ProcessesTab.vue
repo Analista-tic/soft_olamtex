@@ -232,11 +232,15 @@ function requestDelete(row: (typeof rowsWithCost.value)[number]): void {
 }
 
 function confirmDelete(): void {
-    if (deleteTempId.value === null) {
+    // TEMP: validar que el handler se ejecuta al confirmar en el dialog.
+    console.log('[ProcessesTab] confirmDelete', { deleteTempId: deleteTempId.value });
+
+    const currentDeleteTempId = deleteTempId.value;
+    if (currentDeleteTempId === null) {
         return;
     }
 
-    const rowIndex = rows.value.findIndex((item) => item.tempId === deleteTempId.value);
+    const rowIndex = rows.value.findIndex((item) => item.tempId === currentDeleteTempId);
     if (rowIndex === -1) {
         deleteTempId.value = null;
         isDeleteDialogOpen.value = false;
@@ -357,7 +361,7 @@ watch(
                     <p class="text-sm">Calculado con el listado operacional asignado a la OP.</p>
                 </div>
 
-                <CardContent>
+                <CardContent class="p-0">
                     <div class="max-h-[460px] overflow-auto rounded-md border border-border">
                         <Table>
                             <TableHeader class="sticky top-0 z-10 bg-background">
@@ -423,17 +427,17 @@ watch(
                                                 <TooltipTrigger as-child>
                                                     <span
                                                         v-if="row.isFixed"
-                                                        class="inline-flex h-8 w-8 items-center justify-center text-muted-foreground"
+                                                        class="inline-flex h-9 w-9 items-center justify-center text-muted-foreground"
                                                     >
                                                         <Lock class="h-4 w-4" />
                                                     </span>
-                                                    <button
-                                                        v-else
-                                                        type="button"
-                                                        class="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground opacity-0 transition hover:bg-muted hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 disabled:pointer-events-none disabled:opacity-40"
-                                                        :disabled="isSaving"
-                                                        @click="requestDelete(row)"
-                                                    >
+                <button
+                    v-else
+                    type="button"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40"
+                    :disabled="isSaving"
+                    @click="requestDelete(row)"
+                >
                                                         <Trash class="h-4 w-4" />
                                                     </button>
                                                 </TooltipTrigger>
@@ -488,7 +492,7 @@ watch(
             {{ error }}
         </div>
 
-        <AlertDialog :open="isDeleteDialogOpen" @update:open="(value) => { if (!value) closeDeleteDialog(); }">
+        <AlertDialog v-model:open="isDeleteDialogOpen">
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Eliminar proceso</AlertDialogTitle>
@@ -497,8 +501,16 @@ watch(
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel @click="closeDeleteDialog">Cancelar</AlertDialogCancel>
-                    <AlertDialogAction @click="confirmDelete">Eliminar</AlertDialogAction>
+                    <AlertDialogCancel as-child>
+                        <button type="button" class="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground" @click="closeDeleteDialog">
+                            Cancelar
+                        </button>
+                    </AlertDialogCancel>
+                    <AlertDialogAction as-child>
+                        <button type="button" class="inline-flex h-9 items-center justify-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90" @click.prevent.stop="confirmDelete">
+                            Eliminar
+                        </button>
+                    </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

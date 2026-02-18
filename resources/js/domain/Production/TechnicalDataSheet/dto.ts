@@ -282,7 +282,8 @@ export interface ThreadStateDto {
 }
 
 export interface CuttingPieceDto {
-    id: string;
+    id?: string | null;
+    uid?: string | null;
     name: string;
     type: 'PRINCIPAL' | 'SECUNDARIO';
     side: 'IZQUIERDA' | 'DERECHA' | 'AMBOS' | 'NO_APLICA';
@@ -291,6 +292,7 @@ export interface CuttingPieceDto {
 }
 
 export interface SizeUnitDto {
+    uid?: string | null;
     size: string;
     units: number;
 }
@@ -298,7 +300,7 @@ export interface SizeUnitDto {
 export interface AdditionalInfoDto {
     cutting: {
         params: {
-            cutCostCop: number;
+            cutCostCop?: number | null;
         };
         sizes: SizeUnitDto[];
         espigaLength?: number | null;
@@ -313,6 +315,7 @@ export interface AdditionalInfoDto {
         attachments?: { id: string; name: string; url: string }[];
     };
     laundry: {
+        type?: string | null;
         instructions?: string | null;
     };
 }

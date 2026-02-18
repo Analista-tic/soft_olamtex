@@ -35,8 +35,11 @@ export type {
 // Service
 export type { FetchOpOptionsParams, FetchOperationalListOptionsParams } from './service';
 export type { AvailableFabricRoll } from './service';
+export type { LastPurchaseByItem } from './service';
+export type { RawMaterialItemMeta } from './service';
 export {
     fetchOpOptions,
+    fetchSettingsParameters,
     fetchOpBasicInfo,
     fetchOpOperationalList,
     fetchOperationalListOptions,
@@ -46,6 +49,9 @@ export {
     fetchOpCostsSummary,
     fetchOpSupplies,
     fetchSupplyCatalogItems,
+    fetchRawMaterialCatalogOptions,
+    fetchLastPurchaseByItem,
+    fetchRawMaterialItemMeta,
     upsertOpSupply,
     saveOpSupplies,
     deleteOpSupply,

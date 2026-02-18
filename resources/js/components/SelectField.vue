@@ -269,7 +269,7 @@ function handleInput(event: Event) {
 const hasLabel = computed(() => Boolean(props.label?.trim()));
 const hasAction = computed(() => Boolean(props.actionLabel?.trim()));
 const actionButtonClass = computed(() => {
-    const base = 'w-full inline-flex items-center justify-center gap-2 rounded-full border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50';
+    const base = 'w-full inline-flex items-center justify-center gap-2 rounded-full border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted/20 disabled:text-muted-foreground';
     const customClass = props.actionClass || '';
     return customClass ? `${base} ${customClass}` : base;
 });
@@ -417,13 +417,13 @@ watch(
                                 @click.stop
                             >
                                 <ComboboxOptions
-                                    class="max-h-52 overflow-y-auto rounded-md border border-border bg-card shadow-2xl focus:outline-none"
+                                    class="relative max-h-52 overflow-y-auto rounded-md border border-border bg-background shadow-2xl focus:outline-none"
                                 >
                                     <div
                                         v-if="hasAction"
                                         :class="[
-                                            'border-b border-border/70 bg-muted/20 px-3 py-2',
-                                            actionSticky ? 'sticky top-0 z-10' : '',
+                                            'relative isolate z-20 border-b border-border bg-background px-3 py-2 shadow-sm',
+                                            actionSticky ? 'sticky top-0' : '',
                                         ]"
                                     >
                                         <button
@@ -440,7 +440,7 @@ watch(
                                     <div
                                         v-if="$slots.header"
                                         :class="[
-                                            'border-b border-border/70 bg-card px-2 py-2',
+                                            'border-b border-border/70 bg-background px-2 py-2',
                                             !hasAction ? 'sticky top-0 z-10' : '',
                                         ]"
                                     >

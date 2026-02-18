@@ -4,6 +4,7 @@ import { Plus, Save, Trash } from 'lucide-vue-next';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
+import ReadOnlyCell from '@/components/ReadOnlyCell.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Option } from '@/domain/shared';
 import type { SupplyItem, SupplyModaLinea, SupplyStage } from '@/domain/Production/TechnicalDataSheet';
@@ -13,6 +14,7 @@ import {
     saveOpSupplies,
 } from '@/domain/Production/TechnicalDataSheet';
 import PurchaseRequestDialog from '@/pages/Expenses/PurchaseRequests/PurchaseRequestDialog.vue';
+import { useLastPurchaseByItem } from '@/composables/useLastPurchaseByItem';
 
 type LocalSupplyRow = {
     uuid: string;
@@ -66,6 +68,9 @@ const isLoadingCatalog = ref(false);
 const purchaseDialogOpen = ref(false);
 const purchasePrefillName = ref('');
 const purchaseRowIndex = ref<number | null>(null);
+const loadingLastPurchaseByRow = ref<Record<string, boolean>>({});
+const { getLastPurchase, cancelRequest } = useLastPurchaseByItem();
+const lastPurchaseDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function generateUuid(): string {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -80,6 +85,11 @@ function toCOP(value: number): string {
         currency: 'COP',
         maximumFractionDigits: 0,
     }).format(Number(value || 0));
+}
+
+function toCOPOrEmpty(value: number): string {
+    const amount = Number(value || 0);
+    return amount > 0 ? toCOP(amount) : '';
 }
 
 function normalizeText(value: string | null | undefined): string | null {
@@ -250,6 +260,10 @@ async function loadSupplies(): Promise<void> {
     isLoading.value = true;
     error.value = null;
     successMessage.value = null;
+    lastPurchaseDebounceTimers.forEach((timer) => clearTimeout(timer));
+    lastPurchaseDebounceTimers.clear();
+    rows.value.forEach((row) => cancelRequest(row.uuid));
+    loadingLastPurchaseByRow.value = {};
     try {
         const [items] = await Promise.all([
             fetchOpSupplies(props.opId),
@@ -271,11 +285,26 @@ function addRow(stage: SupplyStage = 'CONFECCION'): void {
 }
 
 function removeRow(rowUuid: string): void {
+    const timer = lastPurchaseDebounceTimers.get(rowUuid);
+    if (timer) {
+        clearTimeout(timer);
+        lastPurchaseDebounceTimers.delete(rowUuid);
+    }
+    cancelRequest(rowUuid);
+    delete loadingLastPurchaseByRow.value[rowUuid];
+
     if (rows.value.length <= 1) {
         rows.value = [createRow('CONFECCION')];
         return;
     }
     rows.value = rows.value.filter((row) => row.uuid !== rowUuid);
+}
+
+function setLastPurchaseLoading(rowUuid: string, value: boolean): void {
+    loadingLastPurchaseByRow.value = {
+        ...loadingLastPurchaseByRow.value,
+        [rowUuid]: value,
+    };
 }
 
 function toSingleSelectValue(value: SelectFieldValue): string | number | null {
@@ -318,6 +347,13 @@ function onItemSelected(rowUuid: string, value: SelectFieldValue): void {
 
     const normalized = toSingleSelectValue(value);
     if (normalized === null) {
+        const timer = lastPurchaseDebounceTimers.get(rowUuid);
+        if (timer) {
+            clearTimeout(timer);
+            lastPurchaseDebounceTimers.delete(rowUuid);
+        }
+        cancelRequest(rowUuid);
+        setLastPurchaseLoading(rowUuid, false);
         row.itemId = null;
         row.requestedName = null;
         return;
@@ -336,6 +372,7 @@ function onItemSelected(rowUuid: string, value: SelectFieldValue): void {
         if ((Number(row.unitCost) || 0) <= 0 && selected.suggestedPrice !== null) {
             row.unitCost = Number(selected.suggestedPrice);
         }
+        scheduleFillFromLastPurchase(row);
         return;
     }
 
@@ -344,8 +381,54 @@ function onItemSelected(rowUuid: string, value: SelectFieldValue): void {
 
     row.itemId = null;
     row.requestedName = customName;
+    const timer = lastPurchaseDebounceTimers.get(rowUuid);
+    if (timer) {
+        clearTimeout(timer);
+        lastPurchaseDebounceTimers.delete(rowUuid);
+    }
+    cancelRequest(rowUuid);
+    setLastPurchaseLoading(rowUuid, false);
     const rowIndex = rows.value.findIndex((item) => item.uuid === rowUuid);
     openInsumoRequest(customName, rowIndex);
+}
+
+function scheduleFillFromLastPurchase(row: LocalSupplyRow): void {
+    const current = lastPurchaseDebounceTimers.get(row.uuid);
+    if (current) {
+        clearTimeout(current);
+    }
+
+    const timer = setTimeout(() => {
+        lastPurchaseDebounceTimers.delete(row.uuid);
+        void fillFromLastPurchase(row);
+    }, 180);
+
+    lastPurchaseDebounceTimers.set(row.uuid, timer);
+}
+
+async function fillFromLastPurchase(row: LocalSupplyRow): Promise<void> {
+    if (!row.itemId) return;
+
+    setLastPurchaseLoading(row.uuid, true);
+
+    try {
+        const lastPurchase = await getLastPurchase(row.itemId, row.uuid);
+        if (!lastPurchase) return;
+
+        if (!normalizeText(row.supplier) && normalizeText(lastPurchase.provider?.name)) {
+            row.supplier = String(lastPurchase.provider?.name ?? '');
+        }
+
+        const currentUnitCost = Number(row.unitCost || 0);
+        const lastUnitPrice = Number(lastPurchase.price || 0);
+        if (currentUnitCost <= 0 && lastUnitPrice > 0) {
+            row.unitCost = lastUnitPrice;
+        }
+    } catch (err) {
+        console.error('Error al autocompletar ultima compra del insumo:', err);
+    } finally {
+        setLastPurchaseLoading(row.uuid, false);
+    }
 }
 
 function openInsumoRequest(searchTerm: string, rowIndex: number): void {
@@ -467,10 +550,9 @@ watch(
                                     />
                                 </TableCell>
                                 <TableCell>
-                                    <Input
-                                        v-model="meta.row.supplier"
-                                        placeholder="Proveedor"
-                                        :disabled="isSaving"
+                                    <ReadOnlyCell
+                                        :value="meta.row.supplier"
+                                        :placeholder="loadingLastPurchaseByRow[meta.row.uuid] ? 'Autocompletando...' : '-'"
                                     />
                                 </TableCell>
                                 <TableCell>
@@ -501,14 +583,10 @@ watch(
                                     />
                                 </TableCell>
                                 <TableCell>
-                                    <Input
-                                        :model-value="String(meta.row.unitCost)"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        class="text-right tabular-nums"
-                                        :disabled="isSaving"
-                                        @update:model-value="(value) => { meta.row.unitCost = Math.max(0, Number(value) || 0); }"
+                                    <ReadOnlyCell
+                                        :value="toCOPOrEmpty(meta.row.unitCost)"
+                                        placeholder="-"
+                                        align="right"
                                     />
                                 </TableCell>
                                 <TableCell class="text-right font-semibold tabular-nums">{{ toCOP(meta.rowTotal) }}</TableCell>

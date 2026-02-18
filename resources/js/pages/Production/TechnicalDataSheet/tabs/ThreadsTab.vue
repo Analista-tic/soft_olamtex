@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
+import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Save, Trash } from 'lucide-vue-next';
 import type { ThreadLine, ThreadState } from '@/domain/Production/TechnicalDataSheet';
-import { fetchOpThreads, saveOpThreads } from '@/domain/Production/TechnicalDataSheet';
+import { fetchOpThreads, fetchSettingsParameters, saveOpThreads } from '@/domain/Production/TechnicalDataSheet';
+import type { Option } from '@/domain/shared';
 
 const props = defineProps<{
     opId: string | number;
@@ -16,11 +18,11 @@ type LocalThreadRow = {
     uid: string;
     id: string | null;
     threadName: string;
-    gauge: string;
+    gauge: string | number | null;
     brand: string;
     color: string;
     colorCode: string;
-    stitchesPerInch: string;
+    stitchesPerInch: string | number | null;
 };
 
 const isLoading = ref(false);
@@ -30,6 +32,10 @@ const saveMessage = ref<string | null>(null);
 const rows = ref<LocalThreadRow[]>([]);
 const deletedIds = ref<string[]>([]);
 const snapshot = ref('');
+const isLoadingParameterOptions = ref(false);
+const gaugeOptions = ref<Option[]>([]);
+const stitchesPerInchOptions = ref<Option[]>([]);
+const brandOptions = ref<Option[]>([]);
 
 function generateUid(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -55,7 +61,7 @@ function toNullableText(value: string): string | null {
     return clean === '' ? null : clean;
 }
 
-function toNullableNumber(value: string): number | null {
+function toNullableNumber(value: unknown): number | null {
     const clean = String(value ?? '').trim();
     if (clean === '') return null;
 
@@ -68,11 +74,13 @@ function mapApiLineToLocal(line: ThreadLine): LocalThreadRow {
         uid: generateUid(),
         id: line.id ? String(line.id) : null,
         threadName: String(line.threadName ?? ''),
-        gauge: line.gauge !== null && line.gauge !== undefined ? String(line.gauge) : '',
+        gauge: line.gauge !== null && line.gauge !== undefined ? Number(line.gauge) : null,
         brand: String(line.brand ?? ''),
         color: String(line.color ?? ''),
         colorCode: String(line.colorCode ?? ''),
-        stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined ? String(line.stitchesPerInch) : '',
+        stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined
+            ? Number(line.stitchesPerInch)
+            : null,
     };
 }
 
@@ -81,11 +89,11 @@ function createEmptyRow(): LocalThreadRow {
         uid: generateUid(),
         id: null,
         threadName: '',
-        gauge: '',
+        gauge: null,
         brand: '',
         color: '',
         colorCode: '',
-        stitchesPerInch: '',
+        stitchesPerInch: null,
     };
 }
 
@@ -132,6 +140,50 @@ function removeThread(uid: string): void {
     }
 
     rows.value = rows.value.filter((row) => row.uid !== uid);
+}
+
+function mapNumericOption(option: Option): Option {
+    const label = String(option.name ?? '').trim();
+    const parsed = Number(label);
+
+    return {
+        id: Number.isFinite(parsed) ? parsed : option.id,
+        name: label !== '' ? label : String(option.id ?? ''),
+    };
+}
+
+function mapTextOption(option: Option): Option {
+    const label = String(option.name ?? '').trim();
+    if (label === '') {
+        return {
+            id: String(option.id ?? ''),
+            name: String(option.id ?? ''),
+        };
+    }
+
+    return {
+        id: label,
+        name: label,
+    };
+}
+
+async function loadThreadParameterOptions(): Promise<void> {
+    if (isLoadingParameterOptions.value) return;
+
+    isLoadingParameterOptions.value = true;
+    try {
+        const data = await fetchSettingsParameters(['calibre', 'puntada_por_pulgada', 'brands']);
+        gaugeOptions.value = (data.calibre ?? []).map(mapNumericOption);
+        stitchesPerInchOptions.value = (data.puntada_por_pulgada ?? []).map(mapNumericOption);
+        brandOptions.value = (data.brands ?? []).map(mapTextOption);
+    } catch (err) {
+        console.error('Error al cargar parametros de hilos:', err);
+        gaugeOptions.value = [];
+        stitchesPerInchOptions.value = [];
+        brandOptions.value = [];
+    } finally {
+        isLoadingParameterOptions.value = false;
+    }
 }
 
 async function loadThreads(): Promise<void> {
@@ -182,6 +234,10 @@ watch(
     },
     { immediate: true },
 );
+
+onMounted(() => {
+    void loadThreadParameterOptions();
+});
 </script>
 
 <template>
@@ -231,20 +287,24 @@ watch(
                                 />
                             </TableCell>
                             <TableCell>
-                                <Input
+                                <SelectField
                                     v-model="rows[index].gauge"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0"
-                                    :disabled="isSaving"
+                                    label=""
+                                    placeholder="Selecciona"
+                                    :options="gaugeOptions"
+                                    :disabled="isSaving || isLoadingParameterOptions"
                                 />
                             </TableCell>
                             <TableCell>
-                                <Input
+                                <SelectField
                                     v-model="rows[index].brand"
-                                    placeholder="Marca"
-                                    :disabled="isSaving"
+                                    label=""
+                                    placeholder="Selecciona o escribe"
+                                    :options="brandOptions"
+                                    :disabled="isSaving || isLoadingParameterOptions"
+                                    :searchable="true"
+                                    :allow-custom="true"
+                                    custom-option-label="Crear &quot;{value}&quot;"
                                 />
                             </TableCell>
                             <TableCell>
@@ -262,13 +322,12 @@ watch(
                                 />
                             </TableCell>
                             <TableCell>
-                                <Input
+                                <SelectField
                                     v-model="rows[index].stitchesPerInch"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="0"
-                                    :disabled="isSaving"
+                                    label=""
+                                    placeholder="Selecciona"
+                                    :options="stitchesPerInchOptions"
+                                    :disabled="isSaving || isLoadingParameterOptions"
                                 />
                             </TableCell>
                             <TableCell class="text-center">

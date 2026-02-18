@@ -4,11 +4,12 @@ import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import InventoryRequestItemsTable from './InventoryRequestItemsTable.vue';
-import { Image } from 'lucide-vue-next';
+import { Image, Plus } from 'lucide-vue-next';
 
 type RequestItem = {
     item_id: number | null;
@@ -65,6 +66,13 @@ const imagePreview = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const isReadonly = computed(() => props.dialogType === 'view');
+const footerContainerClass = 'mt-4 flex flex-shrink-0 flex-wrap justify-end gap-2 border-t px-4 pb-4 pt-4';
+const primaryPillButtonClass =
+    'shadow-sm';
+const secondaryPillButtonClass =
+    'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
+const actionPillButtonClass =
+    'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
 
 const statusLabels: Record<string, string> = {
     solicitado: 'Solicitado',
@@ -435,6 +443,20 @@ onUnmounted(() => {
                                 title="Items solicitados"
                                 @create-line="handleAddLine"
                             >
+                                <template #actions>
+                                    <Button
+                                        v-if="!isReadonly"
+                                        type="button"
+                                        variant="outline"
+                                        size="pill"
+                                        :disabled="isReadonly"
+                                        :class="actionPillButtonClass"
+                                        @click="handleAddLine"
+                                    >
+                                        <Plus class="h-4 w-4" />
+                                        Agregar item
+                                    </Button>
+                                </template>
                                 <InventoryRequestItemsTable
                                     ref="itemsTableRef"
                                     :items="localForm.items || []"
@@ -492,32 +514,36 @@ onUnmounted(() => {
                         </div>
                     </div>
 
-                    <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2 px-4 pb-4">
+                    <DialogFooter :class="footerContainerClass">
                         <template v-if="isReadonly">
-                            <button
+                            <Button
                                 type="button"
-                                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                                size="pill"
+                                :class="primaryPillButtonClass"
                                 @click="dialogOpen = false"
                             >
                                 Cerrar
-                            </button>
+                            </Button>
                         </template>
                         <template v-else>
-                            <button
+                            <Button
                                 type="button"
-                                class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                                variant="outline"
+                                size="pill"
+                                :class="secondaryPillButtonClass"
                                 @click="dialogOpen = false"
                             >
                                 Cancelar
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 type="button"
+                                size="pill"
                                 :disabled="isLoading"
-                                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                :class="primaryPillButtonClass"
                                 @click.prevent="handleSubmit"
                             >
                                 {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                            </button>
+                            </Button>
                         </template>
                     </DialogFooter>
                 </form>

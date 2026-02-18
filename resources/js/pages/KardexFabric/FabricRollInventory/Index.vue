@@ -16,6 +16,7 @@ import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import { ArrowDownToLine, Download, Eye, Search, SlidersHorizontal } from 'lucide-vue-next';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
+import { formatMeters, formatWidthToMeters, toUnitNumber } from '@/domain/fabric';
 import type { FabricRollView } from '@/domain/fabric';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
@@ -95,8 +96,8 @@ const filteredRolls = computed(() => {
             return true;
         }
 
-        const partialOutputValue = Number(String(roll.partial_output ?? '').replace(/[^\d.-]/g, '')) || 0;
-        const exitQuantityValue = Number(String(roll.exit_quantity ?? '').replace(/[^\d.-]/g, '')) || 0;
+        const partialOutputValue = toUnitNumber(roll.partial_output) ?? 0;
+        const exitQuantityValue = toUnitNumber(roll.exit_quantity) ?? 0;
         return partialOutputValue > 0 || exitQuantityValue > 0;
     });
 });
@@ -159,8 +160,8 @@ async function handleAdjustRequest(payload: { roll: FabricRollView | null; data:
         errorMessage.value = 'No se encontró el rollo seleccionado.';
         return;
     }
-    const exitQuantityValue = Number(roll.exit_quantity ?? 0);
-    const partialOutputValue = Number(roll.partial_output ?? 0);
+    const exitQuantityValue = toUnitNumber(roll.exit_quantity) ?? 0;
+    const partialOutputValue = toUnitNumber(roll.partial_output) ?? 0;
     const actualOutput = payload.data.actualOutput
         ? Number(payload.data.actualOutput)
         : exitQuantityValue;
@@ -307,12 +308,12 @@ onMounted(fetchFabricRolls);
                                 </TableCell>
                                 <TableCell class="text-center text-sm ">{{ roll.fabric }}</TableCell>
                                 <TableCell class="text-center text-sm ">{{ roll.color }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.width }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.roll_qty }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.partial_output }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.partial_availability }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.exit_quantity }}</TableCell>
-                                <TableCell class="text-center text-sm ">{{ roll.real_availability }}</TableCell>
+                                <TableCell class="text-center text-sm text-foreground/90">{{ formatWidthToMeters(roll.width) }}</TableCell>
+                                <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.roll_qty) }}</TableCell>
+                                <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.partial_output) }}</TableCell>
+                                <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.partial_availability) }}</TableCell>
+                                <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.exit_quantity) }}</TableCell>
+                                <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.real_availability) }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <button
                                         class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-blue-600"

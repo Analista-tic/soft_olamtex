@@ -95,6 +95,42 @@ class TechnicalDataSheetController extends Controller
     }
 
     /**
+     * Retorna opciones de parámetros de settings por llaves.
+     * Formato: { data: { key: [{ id, name }] } }
+     */
+    public function settingsParameters(Request $request): JsonResponse
+    {
+        $keys = $request->query('keys', []);
+        if (!is_array($keys)) {
+            $keys = [$keys];
+        }
+
+        $data = [];
+        foreach ($keys as $rawKey) {
+            if (!is_string($rawKey)) {
+                continue;
+            }
+
+            $key = trim($rawKey);
+            if ($key === '') {
+                continue;
+            }
+
+            $canonicalKey = $this->settingService->canonicalKey($key);
+            if (array_key_exists($canonicalKey, $data)) {
+                continue;
+            }
+
+            $data[$canonicalKey] = $this->settingService
+                ->getCatalogOptions($canonicalKey)
+                ->values()
+                ->all();
+        }
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
      * Retorna la información básica de una OP específica.
      * Reutiliza la misma lógica del módulo Órdenes de Producción.
      */

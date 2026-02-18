@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Production;
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\Item;
 use App\Models\ProductSheet\Programmer;
+use App\Services\Production\TechnicalDataSheetItemOptionsService;
 use App\Services\Production\TechnicalDataSheetSuppliesStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ class TechnicalDataSheetSuppliesController extends Controller
 {
     public function __construct(
         private TechnicalDataSheetSuppliesStore $store,
+        private TechnicalDataSheetItemOptionsService $itemOptionsService,
     ) {
     }
 
@@ -28,52 +30,28 @@ class TechnicalDataSheetSuppliesController extends Controller
     {
         $group = trim((string) $request->query('group', ''));
         $search = trim((string) $request->query('search', ''));
-        $status = mb_strtolower(trim((string) $request->query('status', 'habilitado')));
-
-        if ($group === '' || !str_contains(mb_strtolower($group), 'insumo')) {
-            return response()->json([]);
-        }
-
-        $query = Item::query()
-            ->select(['id', 'name', 'reference', 'unit_measure', 'status'])
-            ->with([
-                'categorySubGroup.categoryGroup:id,name',
-            ])
-            ->whereHas('categorySubGroup.categoryGroup', function ($q) {
-                $q->whereRaw('LOWER(name) LIKE ?', ['%insumo%']);
-            })
-            ->orderBy('name')
-            ->limit(100);
-
-        if ($search !== '') {
-            $term = '%' . $search . '%';
-            $query->where(function ($q) use ($term) {
-                $q->where('name', 'like', $term)
-                    ->orWhere('reference', 'like', $term);
-            });
-        }
-
-        if (!in_array($status, ['all', 'todos'], true)) {
-            $enabledStatuses = ['habilitado', 'enabled', 'active', 'activo', '1', 'true'];
-            $disabledStatuses = ['inhabilitado', 'disabled', 'inactive', 'inactivo', '0', 'false'];
-
-            if (in_array($status, $disabledStatuses, true)) {
-                $query->where('status', false);
-            } else {
-                $query->where('status', true);
-            }
-        }
-
-        $items = $query->get()->map(function (Item $item) {
-            return [
-                'id' => (int) $item->id,
-                'name' => trim((string) $item->name),
-                'reference' => $this->nullableText($item->reference),
-                'unit' => $this->nullableText($item->unit_measure),
-            ];
-        })->values();
+        $status = trim((string) $request->query('status', 'habilitado'));
+        $items = $this->itemOptionsService->getOptions($group, $search, $status);
 
         return response()->json($items);
+    }
+
+    public function lastPurchaseForItem(int $itemId): JsonResponse
+    {
+        $item = Item::query()->findOrFail($itemId);
+
+        return response()->json([
+            'data' => $this->store->getLastPurchaseForItem((int) $item->id),
+        ]);
+    }
+
+    public function itemMeta(int $itemId): JsonResponse
+    {
+        $item = Item::query()->findOrFail($itemId);
+
+        return response()->json([
+            'data' => $this->store->getItemMeta((int) $item->id),
+        ]);
     }
 
     public function upsert(int $opId, Request $request): JsonResponse
@@ -170,6 +148,7 @@ class TechnicalDataSheetSuppliesController extends Controller
         if (!is_string($value)) {
             return null;
         }
+
         $text = trim($value);
         return $text !== '' ? $text : null;
     }

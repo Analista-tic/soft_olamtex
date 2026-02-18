@@ -13,10 +13,10 @@ class InventoryRequestService
 {
     public function __construct(protected InventoryMovementService $movementService) {}
 
-    public function paginate(array $filters, int $perPage, ?User $user, bool $isLogistics): LengthAwarePaginator
+    public function paginate(array $filters, int $perPage, ?User $user, bool $canManageRequests): LengthAwarePaginator
     {
         $query = InventoryRequest::with(['items.item', 'requester'])
-            ->when(!$isLogistics && $user, fn ($q) => $q->where('created_by_user_id', $user->id));
+            ->when(!$canManageRequests && $user, fn ($q) => $q->where('created_by_user_id', $user->id));
 
         if (!empty($filters['search'])) {
             $search = trim($filters['search']);
@@ -102,6 +102,12 @@ class InventoryRequestService
     public function deliver(InventoryRequest $request, array $payload, User $user): InventoryRequest
     {
         $this->assertPending($request);
+        $hasMissingItems = $request->items()->whereNull('item_id')->exists();
+        if ($hasMissingItems) {
+            throw ValidationException::withMessages([
+                'items' => ['No se puede entregar la solicitud porque tiene lineas sin item asociado.'],
+            ]);
+        }
 
         return DB::transaction(function () use ($request, $payload, $user) {
             $deliveryDate = $payload['delivery_date'] ?? now()->toDateString();
