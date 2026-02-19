@@ -228,17 +228,26 @@ const formattedValue = computed({
   },
 });
 
-function handleFocus() {
+function handleFocus(event: FocusEvent) {
   if (props.type !== 'currency') return;
   isFocused.value = true;
   const sourceValue = isControlled.value ? localModelValue.value : props.value;
   const formatted = formatNumberForEditing(sourceValue);
   if (!formatted) {
     editingValue.value = '';
-    return;
+  } else {
+    const withComma = formatted.replace('.', ',');
+    editingValue.value = withComma.replace(/\./g, '');
   }
-  const withComma = formatted.replace('.', ',');
-  editingValue.value = withComma.replace(/\./g, '');
+
+  const target = event.target;
+  if (target instanceof HTMLInputElement) {
+    requestAnimationFrame(() => {
+      if (document.activeElement === target) {
+        target.select();
+      }
+    });
+  }
 }
 
 function handleBlur() {
@@ -280,6 +289,8 @@ function togglePasswordVisibility() {
             : props.type
             ? props.type === 'password'
               ? 'password'
+              : props.type === 'currency'
+              ? 'text'
               : props.type
             : 'text'
         "
@@ -316,6 +327,8 @@ function togglePasswordVisibility() {
           : props.type
             ? props.type === 'password'
               ? 'password'
+              : props.type === 'currency'
+              ? 'text'
               : props.type
             : 'text'
         "

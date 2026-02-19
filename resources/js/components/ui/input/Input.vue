@@ -3,6 +3,10 @@ import { cn } from '@/lib/utils';
 import { useVModel } from '@vueuse/core';
 import type { HTMLAttributes } from 'vue';
 
+defineOptions({
+    inheritAttrs: false,
+});
+
 const props = defineProps<{
     defaultValue?: string | number;
     modelValue?: string | number;
@@ -34,6 +38,7 @@ function onInput(event: Event) {
 <template>
     <div class="w-full">
         <input
+            v-bind="$attrs"
             v-model="modelValue"
             @input="onInput"
             :aria-invalid="props.invalid ? 'true' : undefined"
