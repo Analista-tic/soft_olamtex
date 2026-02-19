@@ -330,6 +330,57 @@ class SettingsFieldParametersSeeder extends Seeder
                     'status' => true,
                 ],
             ],
+            [
+                'kind' => 'parameter',
+                'key' => 'piezas',
+                'data' => [
+                    'label' => 'Piezas',
+                    'value' => $this->mapNames([
+                        'DELANTERO',
+                        'TRASERO',
+                        'FRENTE',
+                        'ESPALDA',
+                        'MANGAS',
+                        'CUELLO',
+                        'PRETINA',
+                        'CAPOTA',
+                        'PUÑO',
+                        'SESGO',
+                        'TIRA',
+                        'BOLSILLO',
+                        'TAPA',
+                        'FALSO',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'lateral',
+                'data' => [
+                    'label' => 'Lateral',
+                    'value' => $this->mapNames([
+                        'IZQUIERDA',
+                        'DERECHA',
+                        'AMBOS',
+                        'NO APLICA',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'hilo',
+                'data' => [
+                    'label' => 'Hilo',
+                    'value' => $this->mapNames([
+                        '90',
+                        '180',
+                        'SESGO',
+                    ]),
+                    'status' => true,
+                ],
+            ],
         ];
 
         // Definiciones de campos

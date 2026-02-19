@@ -613,6 +613,7 @@ function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): Ad
                     uid: sizeRow.uid ? String(sizeRow.uid) : undefined,
                     size: String(sizeRow.size ?? ''),
                     units: Number(sizeRow.units ?? 0),
+                    curve: sizeRow.curve !== null && sizeRow.curve !== undefined ? String(sizeRow.curve) : null,
                 }))
                 : [],
             espigaLength: data?.cutting?.espigaLength ?? null,

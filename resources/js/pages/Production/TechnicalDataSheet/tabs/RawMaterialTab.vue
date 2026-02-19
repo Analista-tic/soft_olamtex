@@ -36,6 +36,11 @@ type StoredRawMaterialRow = {
     uid: string;
     telaItemId: number | null;
     tela: string;
+    supplierId: number | null;
+    lastSupplierName: string | null;
+    lastUnitPriceCop: number | null;
+    ancho: number | null;
+    anchoUnit: 'm' | 'cm' | null;
     promTrazo: number;
     largoTrazo: number;
     largoLiq: number;
@@ -129,6 +134,11 @@ function toStorageRows(value: RawMaterialRow[]): StoredRawMaterialRow[] {
         uid: row.uid,
         telaItemId: row.telaItemId,
         tela: row.tela,
+        supplierId: row.supplierId,
+        lastSupplierName: row.lastSupplierName,
+        lastUnitPriceCop: row.lastUnitPriceCop,
+        ancho: row.ancho,
+        anchoUnit: row.anchoUnit,
         promTrazo: row.promTrazo,
         largoTrazo: row.largoTrazo,
         largoLiq: row.largoLiq,

@@ -145,6 +145,8 @@ class TechnicalDataSheetController extends Controller
         $groups = $this->settingService->getCatalogOptions('groups')->keyBy('id');
         $brands = $this->settingService->getCatalogOptions('brands')->keyBy('id');
         $worlds = $this->settingService->getCatalogOptions('worlds')->keyBy('id');
+        $fabricBases = $this->settingService->getCatalogOptions('fabric_bases')->keyBy('id');
+        $yarnBases = $this->settingService->getCatalogOptions('yarn_bases')->keyBy('id');
 
         $destination = $destinations->get($programmer->destination_id);
         $productSheet = $programmer->productSheet;
@@ -153,6 +155,8 @@ class TechnicalDataSheetController extends Controller
         $group = null;
         $brand = null;
         $world = null;
+        $base = null;
+        $baseYarn = null;
 
         if ($productSheet) {
             $section = $productSheet->section_id
@@ -166,6 +170,12 @@ class TechnicalDataSheetController extends Controller
                 : null;
             $world = $productSheet->world_id
                 ? $worlds->get($productSheet->world_id)
+                : null;
+            $base = $productSheet->fabric_base_id
+                ? $fabricBases->get($productSheet->fabric_base_id)
+                : null;
+            $baseYarn = $productSheet->yarn_base_id
+                ? $yarnBases->get($productSheet->yarn_base_id)
                 : null;
         }
 
@@ -200,7 +210,10 @@ class TechnicalDataSheetController extends Controller
             'priority' => $priority,
             'brand' => $brand['name'] ?? null,
             'world' => $world['name'] ?? null,
+            'base' => $base['name'] ?? null,
+            'baseYarn' => $baseYarn['name'] ?? null,
             'season' => $seasonDisplay,
+            'sizes' => $this->normalizeSizes($productSheet?->sizes),
         ]);
     }
 
@@ -716,6 +729,50 @@ class TechnicalDataSheetController extends Controller
 
         $text = trim($value);
         return $text !== '' ? $text : null;
+    }
+
+    private function normalizeSizes(mixed $sizes): array
+    {
+        if ($sizes === null) {
+            return [];
+        }
+
+        $extractFromArray = function (array $value): array {
+            if (array_keys($value) !== range(0, count($value) - 1)) {
+                return array_values(array_filter(
+                    array_map(static fn ($key) => is_string($key) ? trim($key) : '', array_keys($value)),
+                    static fn ($key) => $key !== '' && ($value[$key] ?? false) === true
+                ));
+            }
+
+            return array_values(array_filter(
+                array_map(static fn ($item) => is_string($item) ? trim($item) : '', $value),
+                static fn ($item) => $item !== ''
+            ));
+        };
+
+        if (is_array($sizes)) {
+            return $extractFromArray($sizes);
+        }
+
+        if (is_string($sizes)) {
+            $trimmed = trim($sizes);
+            if ($trimmed === '') {
+                return [];
+            }
+
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                return $extractFromArray($decoded);
+            }
+
+            return array_values(array_filter(
+                array_map('trim', explode(',', $trimmed)),
+                static fn ($item) => $item !== ''
+            ));
+        }
+
+        return [];
     }
 
     private function calculateProcessesForSheet(int $opId, ?int $productSheetId, bool $hasOperationalList): array

@@ -6,31 +6,41 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import type { Tax } from '@/domain/inventory';
 
+type TaxDialogForm = Partial<Tax> & {
+    name: string;
+    percentage: number;
+    status: boolean;
+};
+
+type TaxDialogSubmitPayload = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
+
 const props = defineProps<{
     open: boolean;
     dialogType: 'create' | 'edit';
-    form: Tax;
+    form: TaxDialogForm;
     loading: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:open', value: boolean): void;
-    (e: 'submit', value: Tax): void;
+    (e: 'submit', value: TaxDialogSubmitPayload): void;
     (e: 'cancel'): void;
 }>();
 
-const normalizeStatusValue = (value: unknown): 'true' | 'false' | '' => {
-    if (value === 'false' || value === false) return 'false';
-    if (value === 'true' || value === true) return 'true';
-    return '';
+const normalizeStatusValue = (value: unknown): boolean => {
+    if (value === 'false' || value === false) return false;
+    if (value === 'true' || value === true) return true;
+    return true;
 };
 
-const normalizeForm = (source: any = {}) => ({
-    ...source,
+const normalizeForm = (source: Partial<TaxDialogForm> = {}): TaxDialogForm => ({
+    id: source.id,
+    name: String(source.name ?? ''),
+    percentage: Number(source.percentage ?? 0),
     status: normalizeStatusValue(source.status),
 });
 
-const localForm = ref<any>(normalizeForm(props.form));
+const localForm = ref<TaxDialogForm>(normalizeForm(props.form));
 
 watch(
     () => props.form,
@@ -45,11 +55,12 @@ function handleClose() {
 }
 
 function handleSubmit() {
-    // Convierte el valor de status a booleano antes de emitir
-    const formToSend = { ...localForm.value };
-    if (typeof formToSend.status === 'string') {
-        formToSend.status = formToSend.status === 'true';
-    }
+    const formToSend: TaxDialogSubmitPayload = {
+        id: localForm.value.id,
+        name: String(localForm.value.name ?? '').trim(),
+        percentage: Number(localForm.value.percentage ?? 0),
+        status: localForm.value.status,
+    };
     emit('submit', formToSend);
 }
 </script>
@@ -71,7 +82,7 @@ function handleSubmit() {
                 <SelectField
                     v-model="localForm.status"
                     label="Estado"
-                    :options="[{id:'true',name:'Activo'},{id:'false',name:'Inactivo'}]"
+                    :options="[{id:true,name:'Activo'},{id:false,name:'Inactivo'}]"
                     required
                     placeholder="Estado del impuesto"
                 />

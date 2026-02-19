@@ -69,7 +69,7 @@ const purchaseDialogOpen = ref(false);
 const purchasePrefillName = ref('');
 const purchaseRowIndex = ref<number | null>(null);
 const loadingLastPurchaseByRow = ref<Record<string, boolean>>({});
-const { getLastPurchase, cancelRequest } = useLastPurchaseByItem();
+const { getLastPurchase, cancelRequest, clearCache } = useLastPurchaseByItem();
 const lastPurchaseDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function generateUuid(): string {
@@ -260,6 +260,7 @@ async function loadSupplies(): Promise<void> {
     isLoading.value = true;
     error.value = null;
     successMessage.value = null;
+    clearCache();
     lastPurchaseDebounceTimers.forEach((timer) => clearTimeout(timer));
     lastPurchaseDebounceTimers.clear();
     rows.value.forEach((row) => cancelRequest(row.uuid));
@@ -270,6 +271,11 @@ async function loadSupplies(): Promise<void> {
             loadCatalog(),
         ]);
         applyLoadedRows(items);
+        rows.value.forEach((row) => {
+            if (row.itemId && (!normalizeText(row.supplier) || Number(row.unitCost || 0) <= 0)) {
+                scheduleFillFromLastPurchase(row);
+            }
+        });
     } catch (err) {
         console.error('Error al cargar insumos:', err);
         error.value = 'No se pudo cargar la informacion de insumos.';
@@ -442,6 +448,12 @@ function openSupplyRequestDialog(rowIndex: number): void {
     openInsumoRequest('', rowIndex);
 }
 
+function resetPurchaseDialogState(): void {
+    purchaseDialogOpen.value = false;
+    purchasePrefillName.value = '';
+    purchaseRowIndex.value = null;
+}
+
 async function handleSaveRows(): Promise<void> {
     if (!canSave.value) return;
     isSaving.value = true;
@@ -462,21 +474,19 @@ async function handleSaveRows(): Promise<void> {
 
 function onRequestSaved(_message?: string): void {
     const rowIndex = purchaseRowIndex.value;
-    if (rowIndex === null) return;
-    const row = rows.value[rowIndex];
-    if (!row) return;
+    const row = rowIndex === null ? null : rows.value[rowIndex];
 
-    row.itemId = null;
-    row.requestedName = purchasePrefillName.value.trim() || 'Insumo solicitado';
-    purchaseDialogOpen.value = false;
-    purchasePrefillName.value = '';
-    purchaseRowIndex.value = null;
+    if (row) {
+        row.itemId = null;
+        row.requestedName = normalizeText(purchasePrefillName.value) ?? 'Insumo solicitado';
+    }
+
+    successMessage.value = normalizeText(_message) ?? 'Solicitud de insumo creada.';
+    resetPurchaseDialogState();
 }
 
 function onRequestClosed(): void {
-    purchaseDialogOpen.value = false;
-    purchasePrefillName.value = '';
-    purchaseRowIndex.value = null;
+    resetPurchaseDialogState();
 }
 
 watch(
@@ -576,7 +586,7 @@ watch(
                                         :model-value="String(meta.row.qtyPerUnit)"
                                         type="number"
                                         min="0"
-                                        step="0.01"
+                                        step="1"
                                         class="text-right tabular-nums"
                                         :disabled="isSaving"
                                         @update:model-value="(value) => { meta.row.qtyPerUnit = Math.max(0, Number(value) || 0); }"

@@ -2,7 +2,6 @@
 
 namespace App\Services\Production;
 
-use App\Enums\PurchaseInvoiceStatus;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Inventory\FabricRoll;
@@ -56,11 +55,13 @@ class TechnicalDataSheetSuppliesStore
             ->leftJoin('contacts', 'contacts.id', '=', 'purchase_documents.contact_id')
             ->where('purchase_document_items.item_id', $itemId)
             ->where('purchase_documents.document_type', PurchaseDocument::TYPE_INVOICE)
-            ->whereIn('purchase_documents.status', [
-                PurchaseInvoiceStatus::RECEIVED->value,
-                PurchaseInvoiceStatus::PENDING_RECEIPT->value,
-            ])
+            ->where(function ($query) {
+                $query
+                    ->where('purchase_documents.status', 'approved')
+                    ->orWhere('purchase_documents.approval_status', 'approved');
+            })
             ->whereNull('purchase_documents.deleted_at')
+            ->orderByDesc('purchase_documents.approved_at')
             ->orderByDesc('purchase_documents.date')
             ->orderByDesc('purchase_documents.id')
             ->selectRaw('
@@ -146,11 +147,13 @@ class TechnicalDataSheetSuppliesStore
             ->leftJoin('contacts', 'contacts.id', '=', 'purchase_documents.contact_id')
             ->where('purchase_document_items.item_id', $itemId)
             ->where('purchase_documents.document_type', PurchaseDocument::TYPE_INVOICE)
-            ->whereIn('purchase_documents.status', [
-                PurchaseInvoiceStatus::RECEIVED->value,
-                PurchaseInvoiceStatus::PENDING_RECEIPT->value,
-            ])
+            ->where(function ($query) {
+                $query
+                    ->where('purchase_documents.status', 'approved')
+                    ->orWhere('purchase_documents.approval_status', 'approved');
+            })
             ->whereNull('purchase_documents.deleted_at')
+            ->orderByDesc('purchase_documents.approved_at')
             ->orderByDesc('purchase_documents.date')
             ->orderByDesc('purchase_documents.id')
             ->selectRaw('

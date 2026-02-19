@@ -24,7 +24,8 @@ const catalogItems = ref<Item[]>([]);
 const taxes = ref<Tax[]>([]);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
-const taxForm = ref({ name: '', percentage: 0, status: 'true' });
+type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
+const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 const isItemDialogOpen = ref(false);
 const itemDialogForm = ref<Partial<Item>>({
     reference: '',
@@ -163,11 +164,11 @@ onMounted(() => {
 });
 
 function openTaxDialog() {
-    taxForm.value = { name: '', percentage: 0, status: 'true' };
+    taxForm.value = { name: '', percentage: 0, status: true };
     isTaxDialogOpen.value = true;
 }
 
-async function handleTaxDialogSubmit(formData: any) {
+async function handleTaxDialogSubmit(formData: TaxDialogForm) {
     taxDialogLoading.value = true;
     try {
         await axios.post('/impuestos', formData);

@@ -22,7 +22,8 @@ const catalogItems = ref<Item[]>([]); // renombrado desde `items`
 const taxes = ref<Tax[]>([]);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
-const taxForm = ref<any>({ name: '', percentage: 0, status: true });
+type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
+const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 const isItemDialogOpen = ref(false);
 const itemDialogForm = ref<Partial<Item>>({
     reference: '',
@@ -110,7 +111,7 @@ async function handleItemDialogRefresh() {
     await fetchItems();
 }
 
-async function handleTaxDialogSubmit(formData: any) {
+async function handleTaxDialogSubmit(formData: TaxDialogForm) {
     taxDialogLoading.value = true;
     try {
         await axios.post('/impuestos', formData);
@@ -238,14 +239,6 @@ watch(
     },
     { deep: true, immediate: true },
 );
-
-function formatSuggestedPrice(value: number) {
-    return Number(value || 0).toLocaleString('es-CO', { 
-        style: 'currency', 
-        currency: 'COP', 
-        minimumFractionDigits: 0 
-    });
-}
 
 function getSuggestedItemForRow(rowIdx: number) {
     if (!props.suggestedItems || props.suggestedItems.length === 0) return null;

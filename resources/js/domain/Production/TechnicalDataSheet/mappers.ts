@@ -124,7 +124,17 @@ const toNullableText = (value: unknown): string | null => {
     return text !== '' ? text : null;
 };
 
+const readCatalogName = (value: unknown): string | null => {
+    if (!value) return null;
+    if (typeof value === 'string') return toNullableText(value);
+    if (typeof value === 'object') return toNullableText((value as { name?: unknown }).name);
+    return null;
+};
+
 export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo {
+    const base = toNullableText(dto.base) ?? toNullableText(dto.fabricBase) ?? readCatalogName(dto.fabric_base) ?? null;
+    const baseYarn = toNullableText(dto.baseYarn) ?? toNullableText(dto.yarnBase) ?? readCatalogName(dto.yarn_base) ?? null;
+
     return {
         id: dto.id,
         opCode: dto.opCode,
@@ -139,13 +149,14 @@ export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo
         section: dto.section ?? null,
         group: dto.group ?? null,
         world: dto.world ?? null,
-        base: null,
+        base,
         brand: dto.brand ?? null,
-        sizes: [],
+        sizes: parseSizes(dto.sizes),
         priceBilling: null,
         priceSale: null,
         ecommerce: false,
         priority: toNullableText(dto.priority),
+        baseYarn,
     };
 }
 

@@ -32,6 +32,7 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
             'cutting.sizes' => ['nullable', 'array'],
             'cutting.sizes.*.size' => ['required_with:cutting.sizes', 'string', 'max:50'],
             'cutting.sizes.*.units' => ['required_with:cutting.sizes', 'numeric', 'min:0'],
+            'cutting.sizes.*.curve' => ['nullable', 'numeric', 'min:0'],
             'cutting.espigaLength' => ['nullable', 'numeric', 'min:0'],
             'cutting.espigaCurve' => ['nullable', 'string', 'max:100'],
             'cutting.liqLength' => ['nullable', 'numeric', 'min:0'],
@@ -57,4 +58,3 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
         return response()->json($this->store->read($opId));
     }
 }
-

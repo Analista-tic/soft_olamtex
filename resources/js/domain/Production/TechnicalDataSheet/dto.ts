@@ -116,6 +116,13 @@ export interface OpBasicInfoDto {
     brand: string | null;
     world: string | null;
     season: string | null;
+    sizes?: unknown;
+    base?: string | null;
+    baseYarn?: string | null;
+    fabricBase?: string | null;
+    yarnBase?: string | null;
+    fabric_base?: CatalogEntityDto | null;
+    yarn_base?: CatalogEntityDto | null;
 }
 
 export interface OperationalListItemDto {
@@ -295,6 +302,7 @@ export interface SizeUnitDto {
     uid?: string | null;
     size: string;
     units: number;
+    curve?: string | null;
 }
 
 export interface AdditionalInfoDto {

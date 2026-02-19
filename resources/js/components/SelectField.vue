@@ -46,6 +46,8 @@ const props = withDefaults(defineProps<{
     actionDisabled?: boolean;
     actionClass?: string;
     actionSticky?: boolean;
+    invalid?: boolean;
+    errorMessage?: string;
 }>(), {
     required: false,
     multiple: false,
@@ -63,6 +65,8 @@ const props = withDefaults(defineProps<{
     actionDisabled: false,
     actionClass: '',
     actionSticky: true,
+    invalid: false,
+    errorMessage: '',
 });
 
 const emit = defineEmits<{
@@ -394,7 +398,14 @@ watch(
                         <ComboboxInput
                             ref="inputRef"
                             class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
-                            :class="[!isSearchEnabled ? 'cursor-default' : '', buttonClass, multiple ? 'pl-28' : '']"
+                            :class="[
+                                !isSearchEnabled ? 'cursor-default' : '',
+                                buttonClass,
+                                multiple ? 'pl-28' : '',
+                                invalid ? 'border-destructive ring-2 ring-destructive/40 focus:border-destructive focus:ring-destructive/40' : '',
+                            ]"
+                            :aria-invalid="invalid ? 'true' : undefined"
+                            :data-invalid="invalid ? 'true' : undefined"
                             :placeholder="placeholderText"
                             :display-value="displayValue as (item: unknown) => string"
                             :disabled="disabled"
@@ -537,5 +548,6 @@ watch(
                 </template>
             </Combobox>
         </div>
+        <p v-if="invalid && errorMessage" class="text-xs text-destructive">{{ errorMessage }}</p>
     </div>
 </template>

@@ -14,7 +14,17 @@ import ExtraFieldsForm from '@/pages/Inventory/Item/ExtraFieldsForm.vue';
 import AdditionalFieldDialog from '@/pages/Configuration/AdditionalFields/AdditionalFieldDialog.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import { ITEM_FORM_DRAFT_KEY } from './constants';
-import type { Item, CategorySubGroup, CategoryGroup, ExtraFields, Tax, Warehouse, AdditionalField, AdditionalFieldType } from '@/domain/inventory';
+import type {
+    Item,
+    CategorySubGroup,
+    CategoryGroup,
+    ExtraFields,
+    Tax,
+    Warehouse,
+    AdditionalField,
+    AdditionalFieldType,
+    AdditionalFieldPayload,
+} from '@/domain/inventory';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { Image, Plus, Trash2, ExternalLink } from 'lucide-vue-next';
@@ -126,9 +136,6 @@ const missingRequiredAdditionalFieldNames = computed(() => {
         return value === undefined || String(value ?? '').trim() === '';
     });
 });
-const hasMissingRequiredAdditionalFields = computed(
-    () => missingRequiredAdditionalFieldNames.value.length > 0,
-);
 
 const additionalFieldOrder = computed(() => {
     const map = new Map<string, number>();
@@ -268,7 +275,9 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 const isImageZoomOpen = ref(false);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
-const taxForm = ref({ name: '', percentage: 0, status: 'true' });
+type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
+type TaxDialogSubmitPayload = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
+const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 const additionalFieldDialogOpen = ref(false);
 const additionalFieldDialogLoading = ref(false);
 const createAdditionalFieldForm = (): AdditionalField => ({
@@ -478,10 +487,15 @@ function closeAdditionalFieldDialog() {
     additionalFieldDialogOpen.value = false;
 }
 
-async function handleAdditionalFieldDialogSubmit(field: AdditionalField) {
+async function handleAdditionalFieldDialogSubmit(field: AdditionalFieldPayload) {
     additionalFieldDialogLoading.value = true;
     try {
-        await axios.post('/campos-adicionales', field);
+        const payload = {
+            ...field,
+            name: String(field.label ?? '').trim(),
+        };
+        delete payload.label;
+        await axios.post('/campos-adicionales', payload);
         await fetchAdditionalFields();
         additionalFieldDialogOpen.value = false;
     } catch (error) {
@@ -492,11 +506,11 @@ async function handleAdditionalFieldDialogSubmit(field: AdditionalField) {
 }
 
 function openTaxDialog() {
-    taxForm.value = { name: '', percentage: 0, status: 'true' };
+    taxForm.value = { name: '', percentage: 0, status: true };
     isTaxDialogOpen.value = true;
 }
 
-async function handleTaxDialogSubmit(formData: any) {
+async function handleTaxDialogSubmit(formData: TaxDialogSubmitPayload) {
     taxDialogLoading.value = true;
     try {
         await axios.post('/impuestos', formData);
@@ -971,8 +985,20 @@ type AdvancedFormDraft = Partial<Item> & {
 };
 
 function buildAdvancedFormDraft(): AdvancedFormDraft {
+    const draftTaxId: unknown = localForm.value.tax_id;
+    const isDraftTaxIdBlank =
+        draftTaxId === undefined ||
+        draftTaxId === null ||
+        (typeof draftTaxId === 'string' && (draftTaxId.trim() === '' || draftTaxId === 'none'));
+    const normalizedTaxId =
+        isDraftTaxIdBlank
+            ? undefined
+            : Number(draftTaxId);
     const draft: AdvancedFormDraft = {
         ...localForm.value,
+        tax_id: normalizedTaxId !== undefined && Number.isFinite(normalizedTaxId)
+            ? normalizedTaxId
+            : undefined,
         extra_fields: extraFields.value ? { ...extraFields.value } : {},
         unit_measure: unitMeasure.value,
     };
@@ -1659,7 +1685,7 @@ watch(
                             variant="default"
                             type="submit"
                             class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                            :disabled="hasMissingRequiredAdditionalFields"
+                            :disabled="isLoadingState"
                         >
                             {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                         </Button>

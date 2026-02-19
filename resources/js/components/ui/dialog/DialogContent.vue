@@ -15,13 +15,14 @@ const props = defineProps<
     DialogContentProps & {
         class?: HTMLAttributes['class'];
         closeClass?: HTMLAttributes['class'];
+        overlayClass?: HTMLAttributes['class'];
         scrollable?: boolean;
     }
 >();
 const emits = defineEmits<DialogContentEmits>();
 
 const delegatedProps = computed(() => {
-    const { class: _, closeClass: __, ...delegated } = props;
+    const { class: _, closeClass: __, overlayClass: ___, ...delegated } = props;
 
     return delegated;
 });
@@ -33,13 +34,18 @@ const isScrollable = computed(() => props.scrollable ?? true);
 <template>
     <DialogPortal>
         <DialogOverlay
-            class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+            :class="
+                cn(
+                    'fixed inset-0 z-50 bg-black/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+                    props.overlayClass,
+                )
+            "
         />
         <DialogContent
             v-bind="forwarded"
             :class="
                 cn(
-                    'fixed left-1/2 top-1/2 z-50 w-full max-w-4xl -translate-x-1/2 -translate-y-1/2 border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-[28px]',
+                    'fixed inset-0 z-50 m-auto h-fit max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-4xl border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-[28px]',
                     props.class,
                 )
             "

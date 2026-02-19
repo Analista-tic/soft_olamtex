@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
@@ -10,7 +10,7 @@ import SuppliesTab from './tabs/SuppliesTab.vue';
 import RollsTab from './tabs/RollsTab.vue';
 import ThreadsTab from './tabs/ThreadsTab.vue';
 import RawMaterialTab from './tabs/RawMaterialTab.vue';
-import AdditionalInfoTab from './tabs/AdditionalInfoTab.vue';
+import AdditionalInfoTab from './tabs/AdditionalInfoTab/index.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Layers, Package, Volleyball, Workflow } from 'lucide-vue-next';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
@@ -46,6 +46,18 @@ const selectedOperationalListId = ref<string | number | null>(null);
 const isAssigningOperationalList = ref(false);
 const operationalListMessage = ref<string | null>(null);
 const isBasicInfoCollapsed = ref(false);
+type RawMaterialsInfoRow = {
+    uid: string;
+    tela: string;
+    ancho: number | null;
+    promTrazo: number;
+    largoTrazo: number;
+    largoLiq: number;
+    consumo: number;
+    precioTela: number | null;
+    proveedor: string | null;
+};
+const rawMaterialsInfo = ref<RawMaterialsInfoRow[]>([]);
 
 const drawingUrl = computed(() => {
     const op = selectedOp.value as (OpBasicInfo & { drawingUrl?: string | null; imageUrl?: string | null }) | null;
@@ -106,6 +118,62 @@ function formatDate(value: string | null): string {
         month: '2-digit',
         year: 'numeric',
     });
+}
+
+function loadRawMaterialsInfo(opId: string | number | null): void {
+    if (typeof window === 'undefined' || opId === null || opId === undefined || opId === '') {
+        rawMaterialsInfo.value = [];
+        return;
+    }
+
+    try {
+        const raw = window.localStorage.getItem(`tDS_rawMaterial_${opId}`);
+        if (!raw) {
+            rawMaterialsInfo.value = [];
+            return;
+        }
+
+        const parsed = JSON.parse(raw) as Array<Record<string, unknown>>;
+        if (!Array.isArray(parsed)) {
+            rawMaterialsInfo.value = [];
+            return;
+        }
+
+        rawMaterialsInfo.value = parsed
+            .map((row, index) => {
+                const toNumberOrNull = (value: unknown): number | null => {
+                    const parsedNumber = Number(value);
+                    return Number.isFinite(parsedNumber) ? parsedNumber : null;
+                };
+                const toNumber = (value: unknown): number => {
+                    const parsedNumber = Number(value);
+                    return Number.isFinite(parsedNumber) ? parsedNumber : 0;
+                };
+
+                return {
+                    uid: String(row.uid ?? `raw_${index}`),
+                    tela: String(row.tela ?? '').trim(),
+                    ancho: toNumberOrNull(row.ancho),
+                    promTrazo: toNumber(row.promTrazo),
+                    largoTrazo: toNumber(row.largoTrazo),
+                    largoLiq: toNumber(row.largoLiq),
+                    consumo: toNumber(row.consumo),
+                    precioTela: toNumberOrNull(row.lastUnitPriceCop ?? row.precioTela),
+                    proveedor: String(row.lastSupplierName ?? row.proveedor ?? '').trim() || null,
+                } satisfies RawMaterialsInfoRow;
+            })
+            .filter((row) => row.tela !== '');
+    } catch (error) {
+        console.error('Error al leer materia prima para informacion adicional:', error);
+        rawMaterialsInfo.value = [];
+    }
+}
+
+function handleRawMaterialSaved(event: Event): void {
+    const customEvent = event as CustomEvent<{ opId?: string | number }>;
+    const opId = customEvent.detail?.opId;
+    if (opId === undefined || opId === null || String(opId) !== String(selectedOpId.value ?? '')) return;
+    loadRawMaterialsInfo(selectedOpId.value);
 }
 
 async function loadOpOptions(searchTerm = ''): Promise<void> {
@@ -225,11 +293,13 @@ watch(
         if (value === null || value === undefined || value === '') {
             selectedOp.value = null;
             resetOperationalListState();
+            rawMaterialsInfo.value = [];
             return;
         }
 
         await loadOpDetail(value);
         await loadOperationalList(value);
+        loadRawMaterialsInfo(value);
     },
     { immediate: true },
 );
@@ -251,6 +321,15 @@ const basicInfoFields = computed(() => {
 
 onMounted(() => {
     void loadOpOptions();
+    if (typeof window !== 'undefined') {
+        window.addEventListener('tds-raw-material-saved', handleRawMaterialSaved as EventListener);
+    }
+});
+
+onBeforeUnmount(() => {
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('tds-raw-material-saved', handleRawMaterialSaved as EventListener);
+    }
 });
 </script>
 
@@ -510,6 +589,9 @@ onMounted(() => {
                             :op-id="selectedOpId"
                             :sizes="selectedOp?.sizes ?? null"
                             :total-units="selectedOp?.units ?? null"
+                            :raw-materials-info="rawMaterialsInfo"
+                            :drawing-url="drawingUrl"
+                            :op-basic-info="selectedOp"
                         />
                     </TabsContent>
 

@@ -249,6 +249,7 @@ export type SizeUnit = {
     uid?: string;
     size: string;
     units: number;
+    curve?: string | null;
 };
 
 export type PieceType = 'PRINCIPAL' | 'SECUNDARIO';
