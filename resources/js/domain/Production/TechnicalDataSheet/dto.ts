@@ -172,7 +172,15 @@ export interface ProcessSummaryDto {
     } | null;
 }
 
-export type OpProcessTypeDto = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'ESTAMPADO' | 'LAVANDERIA' | 'OTRO';
+export type OpProcessTypeDto =
+    | 'CORTE'
+    | 'CONFECCION'
+    | 'TERMINACION'
+    | 'ESTAMPADO'
+    | 'BORDADO'
+    | 'LAVANDERIA'
+    | 'OTRO'
+    | (string & {});
 
 export interface OpProcessRowDto {
     id?: string;
@@ -211,6 +219,7 @@ export interface UpdateProcessParametersResponseDto {
 export interface CostsSummaryDto {
     prices: {
         invoicing: number | null;
+        fixedCost: number | null;
         sale: number | null;
         historicInvoicing: number | null;
     };

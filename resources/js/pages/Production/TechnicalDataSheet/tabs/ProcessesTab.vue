@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -18,7 +18,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Lock, Plus, Save, Trash } from 'lucide-vue-next';
 import type { OpBasicInfo, OpProcessRow, OpProcessType, OpProcessesData } from '@/domain/Production/TechnicalDataSheet';
-import { fetchOpProcesses, saveOpProcesses } from '@/domain/Production/TechnicalDataSheet';
+import { fetchOpProcesses, fetchSettingsParameters, saveOpProcesses } from '@/domain/Production/TechnicalDataSheet';
 import type { Option } from '@/domain/shared';
 
 const props = defineProps<{
@@ -29,7 +29,7 @@ const emit = defineEmits<{
     (e: 'go-to-operational-list'): void;
 }>();
 
-const PROCESS_OPTIONS: Option[] = [
+const DEFAULT_PROCESS_OPTIONS: Option[] = [
     { id: 'CORTE', name: 'CORTE' },
     { id: 'CONFECCION', name: 'CONFECCION' },
     { id: 'TERMINACION', name: 'TERMINACION' },
@@ -52,6 +52,7 @@ const isSaving = ref(false);
 const error = ref<string | null>(null);
 const saveMessage = ref<string | null>(null);
 const data = ref<OpProcessesData | null>(null);
+const processTypeOptions = ref<Option[]>([...DEFAULT_PROCESS_OPTIONS]);
 const rows = ref<LocalProcessRow[]>([]);
 const snapshot = ref<LocalProcessRow[]>([]);
 
@@ -61,6 +62,7 @@ const deleteTempId = ref<string | null>(null);
 const params = computed(() => data.value?.params ?? { cuttingCost: 0, minuteCost: 0 });
 const minutes = computed(() => data.value?.minutes ?? { confeccion: 0, terminacion: 0 });
 const hasOperationalList = computed(() => Boolean(data.value?.hasOperationalList));
+const resolvedProcessOptions = computed(() => (processTypeOptions.value.length > 0 ? processTypeOptions.value : DEFAULT_PROCESS_OPTIONS));
 
 function generateTempId(): string {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -72,6 +74,43 @@ function generateTempId(): string {
 
 function deepCloneRows(value: LocalProcessRow[]): LocalProcessRow[] {
     return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeProcessTypeOptions(options: Option[]): Option[] {
+    const normalized = options
+        .map((option) => {
+            const name = String(option?.name ?? '')
+                .trim()
+                .toUpperCase();
+
+            if (!name) {
+                return null;
+            }
+
+            return {
+                id: name,
+                name,
+            } as Option;
+        })
+        .filter((option): option is Option => option !== null);
+
+    const unique = new Map<string, Option>();
+    normalized.forEach((option) => {
+        unique.set(String(option.id), option);
+    });
+
+    return Array.from(unique.values());
+}
+
+async function loadProcessTypeOptions(): Promise<void> {
+    try {
+        const parameters = await fetchSettingsParameters(['process_types']);
+        const options = normalizeProcessTypeOptions(parameters.process_types ?? []);
+        processTypeOptions.value = options.length > 0 ? options : [...DEFAULT_PROCESS_OPTIONS];
+    } catch (err) {
+        console.error('Error al cargar tipos de proceso:', err);
+        processTypeOptions.value = [...DEFAULT_PROCESS_OPTIONS];
+    }
 }
 
 function normalizeRowsForCompare(value: LocalProcessRow[]): LocalProcessRow[] {
@@ -233,9 +272,6 @@ function requestDelete(row: (typeof rowsWithCost.value)[number]): void {
 }
 
 function confirmDelete(): void {
-    // TEMP: validar que el handler se ejecuta al confirmar en el dialog.
-    console.log('[ProcessesTab] confirmDelete', { deleteTempId: deleteTempId.value });
-
     const currentDeleteTempId = deleteTempId.value;
     if (currentDeleteTempId === null) {
         return;
@@ -330,6 +366,10 @@ watch(
     },
     { immediate: true },
 );
+
+onMounted(() => {
+    void loadProcessTypeOptions();
+});
 </script>
 
 <template>
@@ -387,7 +427,7 @@ watch(
                                     <TableCell class="min-w-[180px]">
                                         <SelectField
                                             :model-value="row.type"
-                                            :options="PROCESS_OPTIONS"
+                                            :options="resolvedProcessOptions"
                                             :searchable="false"
                                             :disabled="isSaving"
                                             @update:model-value="(value) => updateType(index, value)"

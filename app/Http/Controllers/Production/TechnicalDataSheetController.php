@@ -28,6 +28,7 @@ class TechnicalDataSheetController extends Controller
     private const DEFAULT_COST_MINUTE = 0.0;
     private const COST_CUT_KEY = 'cutting_cost';
     private const COST_MINUTE_KEY = 'minute_cost';
+    private const FIXED_COST_RATE = 0.1458; // 14,58%
     private const FIXED_PROCESS_TYPES = ['CORTE', 'CONFECCION', 'TERMINACION'];
     private const DEFAULT_PROCESS_TYPES = ['CORTE', 'CONFECCION', 'TERMINACION', 'ESTAMPADO', 'BORDADO', 'LAVANDERIA', 'OTRO'];
 
@@ -429,11 +430,15 @@ class TechnicalDataSheetController extends Controller
         $processesTotal = $processes['total'];
         $total = $rawMaterial + $supplies + $processesTotal;
 
+        $fixedCost = null;
         $olamtexValue = null;
         $olamtexPercent = null;
-        if ($priceInvoicing !== null && $priceInvoicing > 0) {
-            $olamtexValue = $priceInvoicing - $total;
-            $olamtexPercent = ($olamtexValue / $priceInvoicing) * 100;
+        if ($priceInvoicing !== null) {
+            $fixedCost = $priceInvoicing * self::FIXED_COST_RATE;
+            $olamtexValue = $priceInvoicing - $fixedCost;
+            $olamtexPercent = $priceInvoicing > 0
+                ? ($olamtexValue / $priceInvoicing) * 100
+                : 0.0;
         }
 
         $clientValue = null;
@@ -446,6 +451,7 @@ class TechnicalDataSheetController extends Controller
         return response()->json([
             'prices' => [
                 'invoicing' => $priceInvoicing,
+                'fixedCost' => $fixedCost !== null ? round($fixedCost, 4) : null,
                 'sale' => $priceSale,
                 'historicInvoicing' => null,
             ],
@@ -472,7 +478,7 @@ class TechnicalDataSheetController extends Controller
             'breakdownAvailable' => [
                 'rawMaterial' => $this->hasRollsData($opId) || $this->hasThreadsData($opId),
                 'supplies' => $this->hasSuppliesData($opId),
-                'processes' => $processes['hasOperationalList'],
+                'processes' => ($processes['rowsCount'] ?? 0) > 0,
             ],
         ]);
     }
@@ -840,6 +846,7 @@ class TechnicalDataSheetController extends Controller
 
         return [
             'hasOperationalList' => (bool) ($payload['hasOperationalList'] ?? false),
+            'rowsCount' => count($rows),
             'cut' => $cut,
             'confection' => $confection,
             'finishing' => $finishing,

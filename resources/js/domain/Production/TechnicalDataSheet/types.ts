@@ -91,7 +91,15 @@ export type ProcessSummary = {
     } | null;
 };
 
-export type OpProcessType = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'ESTAMPADO' | 'LAVANDERIA' | 'OTRO';
+export type OpProcessType =
+    | 'CORTE'
+    | 'CONFECCION'
+    | 'TERMINACION'
+    | 'ESTAMPADO'
+    | 'BORDADO'
+    | 'LAVANDERIA'
+    | 'OTRO'
+    | (string & {});
 
 export type OpProcessRow = {
     id?: string;
@@ -117,6 +125,7 @@ export type OpProcessesData = {
 export type CostsSummary = {
     prices: {
         invoicing: number | null;
+        fixedCost: number | null;
         sale: number | null;
         historicInvoicing: number | null;
     };

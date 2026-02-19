@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import { cn } from '@/lib/utils';
 
 type BadgeStatus = 'sin_datos' | 'pendiente' | 'calculado';
@@ -11,6 +10,7 @@ const props = withDefaults(defineProps<{
     label: string;
     value: string;
     dense?: boolean;
+    showBadge?: boolean;
     badgeStatus?: BadgeStatus;
     badgeText?: string | null;
     badgeClass?: string;
@@ -20,6 +20,7 @@ const props = withDefaults(defineProps<{
 }>(), {
     badgeStatus: 'calculado',
     dense: false,
+    showBadge: true,
     badgeText: null,
     badgeClass: '',
     containerClass: '',
@@ -52,25 +53,10 @@ const defaultBadgeClass = computed(() => {
             <div class="flex items-start justify-between gap-2">
                 <div class="flex items-center gap-1.5">
                     <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ label }}</p>
-                    <TooltipProvider v-if="tooltipText" :delay-duration="100">
-                        <Tooltip>
-                            <TooltipTrigger as-child>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-5 w-5 rounded-full p-0 text-muted-foreground hover:text-foreground"
-                                >
-                                    ?
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" class="max-w-xs text-xs">
-                                {{ tooltipText }}
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                    <HelpTooltip v-if="tooltipText" :text="tooltipText" :aria-label="`Ayuda sobre ${label}`" />
                 </div>
                 <Badge
+                    v-if="showBadge"
                     variant="outline"
                     :class="cn(
                         'shrink-0',
@@ -91,6 +77,7 @@ const defaultBadgeClass = computed(() => {
 
         <template v-else>
             <Badge
+                v-if="showBadge"
                 variant="outline"
                 :class="cn(
                     'absolute right-3 top-3',
@@ -101,26 +88,10 @@ const defaultBadgeClass = computed(() => {
                 {{ badgeText ?? defaultBadgeText }}
             </Badge>
 
-            <div class="flex h-full min-h-[124px] flex-col justify-between gap-4 pr-20">
+            <div :class="cn('flex h-full min-h-[124px] flex-col justify-between gap-4', showBadge ? 'pr-20' : '')">
                 <div class="flex items-center gap-1.5">
                     <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ label }}</p>
-                    <TooltipProvider v-if="tooltipText" :delay-duration="100">
-                        <Tooltip>
-                            <TooltipTrigger as-child>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    class="h-5 w-5 rounded-full p-0 text-muted-foreground hover:text-foreground"
-                                >
-                                    ?
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top" class="max-w-xs text-xs">
-                                {{ tooltipText }}
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                    <HelpTooltip v-if="tooltipText" :text="tooltipText" :aria-label="`Ayuda sobre ${label}`" />
                 </div>
 
                 <p :class="cn('text-2xl font-semibold leading-none tabular-nums text-foreground', valueClass)">

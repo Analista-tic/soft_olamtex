@@ -295,6 +295,7 @@ export async function fetchOpCostsSummary(opId: string | number): Promise<CostsS
     return {
         prices: {
             invoicing: data?.prices?.invoicing ?? null,
+            fixedCost: data?.prices?.fixedCost ?? null,
             sale: data?.prices?.sale ?? null,
             historicInvoicing: data?.prices?.historicInvoicing ?? null,
         },
