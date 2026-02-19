@@ -377,7 +377,7 @@ function handleDialogOpenChange(value: boolean): void {
                                     <p class="text-sm font-medium text-foreground">{{ hasStampingProcess ? formatCOP(stampingProcess.price) : 'No definido' }}</p>
                                 </div>
                             </div>
-                            <p v-if="!hasStampingProcess" class="mt-2 text-xs text-muted-foreground">Configúralo en el tab Procesos.</p>
+                            <p v-if="!hasStampingProcess" class="mt-2 text-xs text-muted-foreground">Configúralo en los Procesos.</p>
                         </div>
 
                         <div class="mt-4 border-t border-border pt-4">
@@ -557,7 +557,7 @@ function handleDialogOpenChange(value: boolean): void {
             <DialogFooter class="mt-4 shrink-0 justify-end gap-2 border-t bg-background px-1 pt-4">
                 <Button type="button" variant="outline" class="rounded-full px-6" @click="handleClose">Cerrar</Button>
                 <Button type="button" class="rounded-full px-6" :disabled="savingSection === effectiveSaveSection" @click="handleSave">
-                    {{ savingSection === effectiveSaveSection ? 'Guardando...' : `Guardar ${displayNameLower}` }}
+                    {{ savingSection === effectiveSaveSection ? 'Guardando...' : 'Guardar' }}
                 </Button>
             </DialogFooter>
         </FormDialogContent>

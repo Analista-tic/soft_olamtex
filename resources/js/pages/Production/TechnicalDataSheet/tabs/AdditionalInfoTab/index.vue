@@ -67,8 +67,9 @@ const stampingProcessGuide = ref<{ supplier: string | null; price: number | null
 const localStorageKey = computed(() => `op_additional_info_${props.opId}`);
 const opCode = computed(() => String(props.opBasicInfo?.opCode ?? '').trim().toUpperCase());
 const isEmbroidery = computed(() => {
+    // Regla negocio: MFT/MUT => Bordado; MF/MU => Estampado.
     if (!opCode.value) return false;
-    return opCode.value.startsWith('MU') || opCode.value.startsWith('MF');
+    return opCode.value.startsWith('MFT') || opCode.value.startsWith('MUT');
 });
 const stampingDisplayName = computed(() => (isEmbroidery.value ? 'Bordado' : 'Estampado'));
 const stampingDisplayNameLower = computed(() => (isEmbroidery.value ? 'bordado' : 'estampado'));
@@ -236,7 +237,7 @@ function resolveDefaultSectionVisibility(): SectionVisibility {
         return {
             cutting: Boolean(props.enabledSections.cutting),
             stamping: Boolean(props.enabledSections.stamping) || isEmbroidery.value,
-            laundry: Boolean(props.enabledSections.laundry),
+            laundry: true,
         };
     }
 
@@ -250,7 +251,7 @@ function resolveDefaultSectionVisibility(): SectionVisibility {
             stamping:
                 detected.some((item) => item.includes('ESTAMPADO') || item.includes('BORDADO') || item.includes('ESTAMPA')) ||
                 isEmbroidery.value,
-            laundry: detected.includes('LAVANDERIA'),
+            laundry: true,
         };
     }
 
@@ -437,18 +438,29 @@ async function loadAdditionalInfo(): Promise<void> {
     }
 }
 
-async function loadStampingProcessGuide(): Promise<void> {
+function normalizeProcessType(value: string | null | undefined): string {
+    return String(value ?? '').toUpperCase().trim();
+}
+
+function resolveGuideProcessTypes(section: 'stamping' | 'laundry'): string[] {
+    if (section === 'laundry') {
+        return ['LAVANDERIA'];
+    }
+
+    return isEmbroidery.value
+        ? ['BORDADO']
+        : ['ESTAMPADO', 'ESTAMPA'];
+}
+
+async function loadStampingProcessGuide(section: 'stamping' | 'laundry' = activeStampingDialogSection.value): Promise<void> {
     try {
         const response = await fetchOpProcesses(props.opId);
-        const row = (response.processes ?? []).find((process) => {
-            const processType = String(process.type ?? '').toUpperCase().trim();
-            return (
-                processType === 'ESTAMPADO' ||
-                processType === 'ESTAMPA' ||
-                processType === 'BORDADO' ||
-                processType.includes('BORDADO')
-            );
-        });
+        const targetTypes = resolveGuideProcessTypes(section);
+        const processRows = response.processes ?? [];
+        const row = targetTypes
+            .map((targetType) => processRows.find((process) => normalizeProcessType(process.type) === normalizeProcessType(targetType)))
+            .find((process) => Boolean(process));
+
         if (!row) {
             stampingProcessGuide.value = { supplier: null, price: null, processType: null };
             return;
@@ -469,11 +481,12 @@ function openSectionDialog(section: SectionKey): void {
     if (section === 'cutting') isCuttingDialogOpen.value = true;
     if (section === 'stamping') {
         activeStampingDialogSection.value = 'stamping';
-        void loadStampingProcessGuide();
+        void loadStampingProcessGuide('stamping');
         isStampingDialogOpen.value = true;
     }
     if (section === 'laundry') {
         activeStampingDialogSection.value = 'laundry';
+        void loadStampingProcessGuide('laundry');
         isStampingDialogOpen.value = true;
     }
 }
@@ -496,7 +509,7 @@ watch(
     () => {
         sectionVisibility.value = resolveDefaultSectionVisibility();
         void loadAdditionalInfo();
-        void loadStampingProcessGuide();
+        void loadStampingProcessGuide(activeStampingDialogSection.value);
     },
     { immediate: true },
 );
@@ -513,6 +526,7 @@ watch(
     () => opCode.value,
     () => {
         sectionVisibility.value = resolveDefaultSectionVisibility();
+        void loadStampingProcessGuide(activeStampingDialogSection.value);
     },
 );
 </script>

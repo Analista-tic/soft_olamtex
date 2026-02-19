@@ -248,7 +248,11 @@ async function approveReception(invoice: PurchaseInvoice) {
         setAlert(`Recepción de factura #${invoice.id} aprobada. La factura queda en estado Aprobado.`, 'success');
     } catch (e: any) {
         console.log('Error al aprobar recepción:', e);
-        setAlert(`Error al aprobar la recepción de la factura #${invoice?.id ?? 'N/A'}`, 'error');
+        const detail =
+            e?.response?.data?.errors?.general?.[0] ||
+            e?.response?.data?.message ||
+            `Error al aprobar la recepción de la factura #${invoice?.id ?? 'N/A'}`;
+        setAlert(String(detail), 'error');
     }
 }
 
@@ -275,7 +279,11 @@ async function confirmRejectReception() {
         setAlert(`Recepción de factura #${invoice.id} rechazada`, 'success');
     } catch (e: any) {
         console.log('Error al rechazar recepción:', e);
-        setAlert(`Error al rechazar la recepción de la factura #${invoice?.id ?? 'N/A'}`, 'error');
+        const detail =
+            e?.response?.data?.errors?.general?.[0] ||
+            e?.response?.data?.message ||
+            `Error al rechazar la recepción de la factura #${invoice?.id ?? 'N/A'}`;
+        setAlert(String(detail), 'error');
     } finally {
         isRejectDialogOpen.value = false;
         invoiceToReject.value = null;

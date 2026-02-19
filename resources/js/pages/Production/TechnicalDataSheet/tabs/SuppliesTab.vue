@@ -472,7 +472,7 @@ async function handleSaveRows(): Promise<void> {
     }
 }
 
-function onRequestSaved(_message?: string): void {
+function onRequestSaved(message?: string): void {
     const rowIndex = purchaseRowIndex.value;
     const row = rowIndex === null ? null : rows.value[rowIndex];
 
@@ -481,7 +481,7 @@ function onRequestSaved(_message?: string): void {
         row.requestedName = normalizeText(purchasePrefillName.value) ?? 'Insumo solicitado';
     }
 
-    successMessage.value = normalizeText(_message) ?? 'Solicitud de insumo creada.';
+    successMessage.value = normalizeText(message) ?? 'Solicitud de insumo creada.';
     resetPurchaseDialogState();
 }
 

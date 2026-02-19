@@ -1246,7 +1246,7 @@ watch(
             <DialogFooter class="mt-4 shrink-0 justify-end gap-2 border-t bg-background px-1 pt-4">
                 <Button type="button" variant="outline" class="rounded-full px-6" @click="handleClose">Cerrar</Button>
                 <Button type="button" class="rounded-full px-6" :disabled="savingSection === 'cutting'" @click="handleSave">
-                    {{ savingSection === 'cutting' ? 'Guardando...' : 'Guardar corte' }}
+                    {{ savingSection === 'cutting' ? 'Guardando...' : 'Guardar' }}
                 </Button>
             </DialogFooter>
         </FormDialogContent>

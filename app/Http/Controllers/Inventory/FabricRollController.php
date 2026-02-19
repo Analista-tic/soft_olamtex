@@ -261,6 +261,15 @@ class FabricRollController extends Controller
                 'message' => 'Recepción aprobada correctamente',
                 'data' => $invoice
             ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'No se pudo aprobar la recepción.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Factura no encontrada.',
+            ], 404);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error al aprobar la recepción: ' . $e->getMessage()
@@ -276,6 +285,10 @@ class FabricRollController extends Controller
                 'message' => 'Recepción rechazada correctamente',
                 'data' => $invoice
             ]);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Factura no encontrada.',
+            ], 404);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error al rechazar la recepción: ' . $e->getMessage()

@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -27,6 +28,8 @@ class TechnicalDataSheetController extends Controller
     private const DEFAULT_COST_MINUTE = 0.0;
     private const COST_CUT_KEY = 'cutting_cost';
     private const COST_MINUTE_KEY = 'minute_cost';
+    private const FIXED_PROCESS_TYPES = ['CORTE', 'CONFECCION', 'TERMINACION'];
+    private const DEFAULT_PROCESS_TYPES = ['CORTE', 'CONFECCION', 'TERMINACION', 'ESTAMPADO', 'BORDADO', 'LAVANDERIA', 'OTRO'];
 
     public function __construct(
         private SettingService $settingService,
@@ -360,17 +363,18 @@ class TechnicalDataSheetController extends Controller
     {
         $programmer = Programmer::with('productSheet:id,operational_list_id')
             ->findOrFail($opId);
+        $allowedProcessTypes = $this->getConfiguredProcessTypes();
 
         $validated = $request->validate([
             'processes' => ['required', 'array'],
             'processes.*.id' => ['nullable', 'string', 'max:100'],
             'processes.*.order' => ['required', 'integer', 'min:1'],
-            'processes.*.type' => ['required', 'in:CORTE,CONFECCION,TERMINACION,ESTAMPADO,LAVANDERIA,OTRO'],
+            'processes.*.type' => ['required', Rule::in($allowedProcessTypes)],
             'processes.*.supplier' => ['nullable', 'string', 'max:150'],
             'processes.*.manualPrice' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $normalized = $this->normalizeProcessesRows($validated['processes']);
+        $normalized = $this->normalizeProcessesRows($validated['processes'], $allowedProcessTypes);
         $this->processesStore->write($opId, $normalized);
 
         $productSheet = $programmer->productSheet;
@@ -603,7 +607,7 @@ class TechnicalDataSheetController extends Controller
             'minuteCost' => round($this->getNumericParameterValue(self::COST_MINUTE_KEY, self::DEFAULT_COST_MINUTE), 4),
         ];
 
-        $rows = $this->normalizeProcessesRows($this->processesStore->read($opId));
+        $rows = $this->normalizeProcessesRows($this->processesStore->read($opId), $this->getConfiguredProcessTypes());
 
         return [
             'hasOperationalList' => $hasOperationalList,
@@ -647,9 +651,18 @@ class TechnicalDataSheetController extends Controller
         return [$minutesConfeccion, $minutesTerminacion];
     }
 
-    private function normalizeProcessesRows(array $rows): array
+    private function normalizeProcessesRows(array $rows, ?array $allowedTypes = null): array
     {
-        $allowedTypes = ['CORTE', 'CONFECCION', 'TERMINACION', 'ESTAMPADO', 'LAVANDERIA', 'OTRO'];
+        $normalizedAllowedTypes = collect($allowedTypes ?? $this->getConfiguredProcessTypes())
+            ->map(fn ($value) => strtoupper(trim((string) $value)))
+            ->filter(fn (string $value) => $value !== '')
+            ->values()
+            ->all();
+
+        if (empty($normalizedAllowedTypes)) {
+            $normalizedAllowedTypes = self::DEFAULT_PROCESS_TYPES;
+        }
+
         $normalized = [];
 
         foreach ($rows as $index => $row) {
@@ -658,17 +671,17 @@ class TechnicalDataSheetController extends Controller
             }
 
             $type = strtoupper(trim((string) ($row['type'] ?? 'OTRO')));
-            if (!in_array($type, $allowedTypes, true)) {
+            if (!in_array($type, $normalizedAllowedTypes, true)) {
                 $type = 'OTRO';
             }
 
             $supplier = $this->nullableText($row['supplier'] ?? null);
-            if (in_array($type, ['CORTE', 'CONFECCION', 'TERMINACION'], true) && $supplier === null) {
+            if (in_array($type, self::FIXED_PROCESS_TYPES, true) && $supplier === null) {
                 $supplier = 'OLAMTEX';
             }
 
             $manualPrice = null;
-            if (!in_array($type, ['CORTE', 'CONFECCION', 'TERMINACION'], true) && is_numeric($row['manualPrice'] ?? null)) {
+            if (!in_array($type, self::FIXED_PROCESS_TYPES, true) && is_numeric($row['manualPrice'] ?? null)) {
                 $manualPrice = (float) $row['manualPrice'];
             }
 
@@ -696,6 +709,33 @@ class TechnicalDataSheetController extends Controller
         unset($row);
 
         return $normalized;
+    }
+
+    private function getConfiguredProcessTypes(): array
+    {
+        $configured = $this->settingService
+            ->getCatalogOptions('process_types')
+            ->map(fn (array $option) => strtoupper(trim((string) ($option['name'] ?? ''))))
+            ->filter(fn (string $name) => $name !== '')
+            ->values()
+            ->all();
+
+        if (empty($configured)) {
+            return self::DEFAULT_PROCESS_TYPES;
+        }
+
+        $merged = array_merge($configured, self::DEFAULT_PROCESS_TYPES);
+        $unique = [];
+
+        foreach ($merged as $type) {
+            $normalized = strtoupper(trim((string) $type));
+            if ($normalized === '' || in_array($normalized, $unique, true)) {
+                continue;
+            }
+            $unique[] = $normalized;
+        }
+
+        return $unique;
     }
 
     private function resolveProcessCost(array $row, array $params, array $minutes, bool $hasOperationalList): float

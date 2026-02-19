@@ -310,6 +310,23 @@ class SettingsFieldParametersSeeder extends Seeder
             ],
             [
                 'kind' => 'parameter',
+                'key' => 'process_types',
+                'data' => [
+                    'label' => 'Tipos de proceso',
+                    'value' => $this->mapNames([
+                        'CORTE',
+                        'CONFECCION',
+                        'TERMINACION',
+                        'ESTAMPADO',
+                        'BORDADO',
+                        'LAVANDERIA',
+                        'OTRO',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
                 'key' => 'calibre',
                 'data' => [
                     'label' => 'Calibre',
@@ -481,6 +498,7 @@ class SettingsFieldParametersSeeder extends Seeder
             'destinations' => ['destinations', 'destinos', 'destino'],
             'months' => ['months', 'meses', 'mes'],
             'priorities' => ['priorities', 'prioridades', 'prioridad'],
+            'process_types' => ['process_types', 'tipos_proceso', 'tipos_de_proceso', 'tipo_proceso', 'process_type', 'processes'],
             'calibre' => ['calibre', 'calibres', 'gauge'],
             'puntada_por_pulgada' => ['puntada_por_pulgada', 'puntadas_por_pulgada', 'stitches_per_inch'],
         ];

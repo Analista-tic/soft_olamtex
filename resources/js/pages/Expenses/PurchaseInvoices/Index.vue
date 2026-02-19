@@ -15,6 +15,7 @@ import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
+import { Button } from '@/components/ui/button';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import {
@@ -444,6 +445,7 @@ function handleDialogError(message?: string) {
                                     :class="[
                                         'px-2 py-1 rounded-full text-xs font-medium',
                                         invoice.status === 'pending_receipt' ? 'bg-yellow-100 text-yellow-800' :
+                                        invoice.status === 'approved' ? 'bg-green-100 text-green-800' :
                                         invoice.status === 'received' ? 'bg-green-100 text-green-800' :
                                         invoice.status === 'rejected' ? 'bg-red-100 text-red-800' :
                                         'bg-gray-100 text-gray-800'
@@ -451,6 +453,7 @@ function handleDialogError(message?: string) {
                                 >
                                     {{ 
                                         invoice.status === 'pending_receipt' ? 'Pendiente' :
+                                        invoice.status === 'approved' ? 'Aprobado' :
                                         invoice.status === 'received' ? 'Recibida' :
                                         invoice.status === 'rejected' ? 'Rechazada' :
                                         'Sin estado'

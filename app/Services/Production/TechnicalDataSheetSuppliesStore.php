@@ -55,11 +55,7 @@ class TechnicalDataSheetSuppliesStore
             ->leftJoin('contacts', 'contacts.id', '=', 'purchase_documents.contact_id')
             ->where('purchase_document_items.item_id', $itemId)
             ->where('purchase_documents.document_type', PurchaseDocument::TYPE_INVOICE)
-            ->where(function ($query) {
-                $query
-                    ->where('purchase_documents.status', 'approved')
-                    ->orWhere('purchase_documents.approval_status', 'approved');
-            })
+            ->where('purchase_documents.status', 'approved')
             ->whereNull('purchase_documents.deleted_at')
             ->orderByDesc('purchase_documents.approved_at')
             ->orderByDesc('purchase_documents.date')
@@ -147,11 +143,7 @@ class TechnicalDataSheetSuppliesStore
             ->leftJoin('contacts', 'contacts.id', '=', 'purchase_documents.contact_id')
             ->where('purchase_document_items.item_id', $itemId)
             ->where('purchase_documents.document_type', PurchaseDocument::TYPE_INVOICE)
-            ->where(function ($query) {
-                $query
-                    ->where('purchase_documents.status', 'approved')
-                    ->orWhere('purchase_documents.approval_status', 'approved');
-            })
+            ->where('purchase_documents.status', 'approved')
             ->whereNull('purchase_documents.deleted_at')
             ->orderByDesc('purchase_documents.approved_at')
             ->orderByDesc('purchase_documents.date')

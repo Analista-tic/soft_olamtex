@@ -276,7 +276,7 @@ class FabricRollService
 
     public function approveReception($invoiceId)
     {
-        $invoice = PurchaseDocument::with(['items', 'items.item'])->where('document_type', PurchaseDocument::TYPE_INVOICE)
+        $invoice = PurchaseDocument::with(['items', 'items.item.categorySubGroup'])->where('document_type', PurchaseDocument::TYPE_INVOICE)
             ->findOrFail($invoiceId);
 
         $this->validateReceptionTolerances($invoice);
@@ -293,6 +293,10 @@ class FabricRollService
     {
         $failing = [];
         foreach ($invoice->items as $item) {
+            if (!$item instanceof PurchaseDocumentItem || !$this->isFabricDocumentItem($item)) {
+                continue;
+            }
+
             $ordered = (float) $item->quantity;
             if ($ordered <= 0) {
                 continue;
@@ -319,6 +323,17 @@ class FabricRollService
                 ],
             ]);
         }
+    }
+
+    protected function isFabricDocumentItem(PurchaseDocumentItem $item): bool
+    {
+        $subgroupName = mb_strtolower(trim((string) ($item->item?->categorySubGroup?->name ?? '')));
+        if ($subgroupName !== '') {
+            return str_contains($subgroupName, 'tela');
+        }
+
+        $fallbackName = mb_strtolower(trim((string) ($item->item_name ?? $item->item?->name ?? '')));
+        return $fallbackName !== '' && str_contains($fallbackName, 'tela');
     }
 
     public function rejectReception($invoiceId)
