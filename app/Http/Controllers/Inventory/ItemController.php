@@ -24,7 +24,7 @@ class ItemController extends Controller
 
     public function index()
     {
-        return Inertia::render('Inventory/Item/Index', [
+        return Inertia::render('MasterData/Item/Index', [
             'items' => Item::with(['warehouses', 'categorySubGroup', 'tax'])->get(),
         ]);
     }
@@ -590,7 +590,7 @@ class ItemController extends Controller
 
     public function listView()
     {
-        return Inertia::render('Inventory/Item/Index', [
+        return Inertia::render('MasterData/Item/Index', [
             'items' => Item::with(['categorySubGroup', 'tax'])->get(),
         ]);
     }
@@ -607,7 +607,7 @@ class ItemController extends Controller
             $payload['initialForm'] = $item->toArray();
         }
 
-        return Inertia::render('Inventory/Item/AdvancedForm', $payload);
+        return Inertia::render('MasterData/Item/AdvancedForm', $payload);
     }
 
     public function adjustmentView()

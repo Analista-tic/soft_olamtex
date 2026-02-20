@@ -12,7 +12,7 @@ class CategorySubGroupController extends Controller
 {
     public function index()
     {
-        return Inertia::render('Configuration/Category/Index', [
+        return Inertia::render('MasterData/Category/Index', [
             'groups' => CategoryGroup::all(),
         ]);
     }

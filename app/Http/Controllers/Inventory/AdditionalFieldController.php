@@ -15,7 +15,7 @@ class AdditionalFieldController extends Controller
 
     public function index()
     {
-        return Inertia::render('Configuration/AdditionalFields/Index', [
+        return Inertia::render('MasterData/AdditionalFields/Index', [
             'fieldTypes' => Setting::FIELD_TYPES,
         ]);
     }

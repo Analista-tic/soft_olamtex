@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
-import ItemDialog from '@/pages/Inventory/Item/ItemDialog.vue';
+import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';

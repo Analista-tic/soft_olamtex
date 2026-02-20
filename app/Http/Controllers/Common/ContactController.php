@@ -13,7 +13,7 @@ class ContactController extends Controller
 {
     public function index()
     {
-        return Inertia::render('Configuration/Contact/Index', [
+        return Inertia::render('MasterData/Contact/Index', [
             'contacts' => Contact::all(),
         ]);
     }
