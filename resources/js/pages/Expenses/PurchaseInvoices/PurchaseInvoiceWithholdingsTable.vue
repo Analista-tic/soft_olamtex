@@ -6,7 +6,7 @@ import SelectField from '@/components/SelectField.vue';
 import { CirclePlus } from 'lucide-vue-next';
 import type { PurchaseInvoiceWithholding } from '@/domain/purchases';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import RetentionDialog from '@/pages/Configuration/Retention/RetentionDialog.vue';
+import RetentionDialog from '@/pages/Finance/Retention/RetentionDialog.vue';
 import AlertBox from '@/components/AlertBox.vue';
 
 defineOptions({ name: 'WithholdingTable' });

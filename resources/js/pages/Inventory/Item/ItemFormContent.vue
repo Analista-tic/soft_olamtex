@@ -28,7 +28,7 @@ import type {
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { Image, Plus, Trash2, ExternalLink } from 'lucide-vue-next';
-import TaxDialog from '@/pages/Configuration/Taxes/TaxDialog.vue';
+import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import FormHeader from '@/components/FormHeader.vue';
 import AlertBox from '@/components/AlertBox.vue';

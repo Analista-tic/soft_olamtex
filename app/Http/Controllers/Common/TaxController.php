@@ -11,7 +11,7 @@ class TaxController extends Controller
 {
     public function index()
     {
-        return inertia('Configuration/Taxes/Index');
+        return inertia('Finance/Taxes/Index');
     }
 
     public function data(Request $request)

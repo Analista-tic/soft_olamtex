@@ -14,7 +14,7 @@ class RetentionController extends Controller
     public function __construct(protected RetentionService $service) {}
     public function index()
     {
-        return Inertia::render('Configuration/Retention/Index', [
+        return Inertia::render('Finance/Retention/Index', [
             'retentions' => $this->service->all(),
         ]);
     }
