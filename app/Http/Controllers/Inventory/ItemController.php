@@ -612,7 +612,7 @@ class ItemController extends Controller
 
     public function adjustmentView()
     {
-        return Inertia::render('Inventory/InventoryAdjustment/InventoryAdjustment');
+        return Inertia::render('Inventory/InventoryAdjustment/Index');
     }
 
     private function resolveWarehouses(Request $request): array

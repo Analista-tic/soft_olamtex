@@ -11,7 +11,7 @@ class WarehouseController extends Controller
 {
     public function index()
     {
-        return Inertia::render('Configuration/Warehouse/Index', [
+        return Inertia::render('Inventory/Warehouse/Index', [
             'warehouses' => Warehouse::all(),
         ]);
     }
