@@ -2,8 +2,8 @@
 
 namespace App\Services\ProductSheet;
 
-use App\Models\ProductSheet\ProductSheet;
-use App\Models\ProductSheet\Programmer;
+use App\Models\Production\ProductSheet;
+use App\Models\Production\Programmer;
 use App\Services\Settings\SettingService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;

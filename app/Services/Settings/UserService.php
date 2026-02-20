@@ -2,7 +2,7 @@
 
 namespace App\Services\Settings;
 
-use App\Models\User;
+use App\Models\Settings\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;

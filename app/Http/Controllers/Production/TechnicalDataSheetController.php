@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Production;
 
 use App\Helpers\MonthLabel;
 use App\Http\Controllers\Controller;
-use App\Models\Setting;
-use App\Models\ProductSheet\ProductOperationList;
-use App\Models\ProductSheet\Programmer;
+use App\Models\Settings\Setting;
+use App\Models\Production\ProductOperationList;
+use App\Models\Production\Programmer;
 use App\Services\Production\TechnicalDataSheetRollsStore;
 use App\Services\Production\TechnicalDataSheetProcessesStore;
 use App\Services\Production\TechnicalDataSheetSuppliesStore;

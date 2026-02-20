@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserRequest;
-use App\Models\User;
+use App\Models\Settings\User;
 use App\Services\Settings\UserService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;

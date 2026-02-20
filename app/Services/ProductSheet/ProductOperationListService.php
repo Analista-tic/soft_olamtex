@@ -2,7 +2,7 @@
 
 namespace App\Services\ProductSheet;
 
-use App\Models\ProductSheet\ProductOperationList;
+use App\Models\Production\ProductOperationList;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 

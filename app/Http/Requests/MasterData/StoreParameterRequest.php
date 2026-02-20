@@ -3,7 +3,7 @@
 namespace App\Http\Requests\MasterData;
 
 use App\Http\Requests\Settings\SettingKindRules;
-use App\Models\Setting;
+use App\Models\Settings\Setting;
 use Illuminate\Validation\Rule;
 
 class StoreParameterRequest extends MasterDataFormRequest

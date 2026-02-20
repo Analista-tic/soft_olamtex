@@ -2,7 +2,7 @@
 
 namespace App\Services\Inventory;
 
-use App\Models\Setting;
+use App\Models\Settings\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;

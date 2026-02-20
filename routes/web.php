@@ -1,21 +1,21 @@
 <?php
 
-use App\Http\Controllers\Common\ContactController;
+use App\Http\Controllers\MasterData\ContactController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceTelaController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
 use App\Http\Controllers\Expenses\PurchaseRequestController;
-use App\Http\Controllers\ProductSheet\MachineController;
-use App\Http\Controllers\ProductSheet\OperationController;
-use App\Http\Controllers\ProductSheet\SectionController;
-use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\Production\MachineController;
+use App\Http\Controllers\Production\OperationController;
+use App\Http\Controllers\Production\SectionController;
+use App\Http\Controllers\Settings\AuditLogController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
-use App\Http\Controllers\ProductSheet\ProductOperationListController;
-use App\Http\Controllers\ProductSheet\ProductSheetController;
-use App\Http\Controllers\ProductSheet\ProgrammerController;
+use App\Http\Controllers\Production\ProductOperationListController;
+use App\Http\Controllers\Production\ProductSheetController;
+use App\Http\Controllers\Production\ProgrammerController;
 use App\Http\Controllers\Production\ProductionOrderController;
 use App\Http\Controllers\Production\TechnicalDataSheetAdditionalInfoController;
 use App\Http\Controllers\Production\TechnicalDataSheetRollsController;
@@ -25,13 +25,13 @@ use App\Http\Controllers\Production\TechnicalDataSheetController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\Settings\RoleController;
 use App\Http\Controllers\Settings\CompanySettingsController;
-use App\Http\Controllers\Common\CategoryGroupController;
-use App\Http\Controllers\Common\CategorySubGroupController;
-use App\Http\Controllers\Common\WarehouseController;
-use App\Http\Controllers\Inventory\ItemController;
-use App\Http\Controllers\Inventory\AdditionalFieldController;
-use App\Http\Controllers\Settings\RetentionController;
-use App\Http\Controllers\Common\TaxController;
+use App\Http\Controllers\MasterData\CategoryGroupController;
+use App\Http\Controllers\MasterData\CategorySubGroupController;
+use App\Http\Controllers\Inventory\WarehouseController;
+use App\Http\Controllers\MasterData\ItemController;
+use App\Http\Controllers\MasterData\AdditionalFieldController;
+use App\Http\Controllers\Finance\RetentionController;
+use App\Http\Controllers\Finance\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\InventoryMovementController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
@@ -381,15 +381,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === FABRIC ROLLS ===
     Route::prefix('rollos-tela')->name('fabric-rolls.')->group(function () {
-        Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'index'])->name('index');
-        Route::get('/crear', [App\Http\Controllers\Inventory\FabricRollController::class, 'create'])->name('create');
-        Route::get('/data', [App\Http\Controllers\Inventory\FabricRollController::class, 'getData'])->name('getData');
-        Route::post('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'store'])->name('store');
-        Route::get('/{fabricRoll}', [App\Http\Controllers\Inventory\FabricRollController::class, 'show'])->name('show');
-        Route::get('/{fabricRoll}/editar', [App\Http\Controllers\Inventory\FabricRollController::class, 'edit'])->name('edit');
-        Route::put('/{fabricRoll}', [App\Http\Controllers\Inventory\FabricRollController::class, 'update'])->name('update');
-        Route::delete('/{fabricRoll}', [App\Http\Controllers\Inventory\FabricRollController::class, 'destroy'])->name('destroy');
-        Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Inventory\FabricRollController::class, 'updateOutput'])->name('update-output');
+        Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'index'])->name('index');
+        Route::get('/crear', [App\Http\Controllers\Textil\FabricRollController::class, 'create'])->name('create');
+        Route::get('/data', [App\Http\Controllers\Textil\FabricRollController::class, 'getData'])->name('getData');
+        Route::post('/', [App\Http\Controllers\Textil\FabricRollController::class, 'store'])->name('store');
+        Route::get('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'show'])->name('show');
+        Route::get('/{fabricRoll}/editar', [App\Http\Controllers\Textil\FabricRollController::class, 'edit'])->name('edit');
+        Route::put('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'update'])->name('update');
+        Route::delete('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'destroy'])->name('destroy');
+        Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Textil\FabricRollController::class, 'updateOutput'])->name('update-output');
     });
 
     // === GASTOS (AGRUPADO) ===
@@ -475,20 +475,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === KARDEX TELAS ===
     Route::prefix('kardex-telas')->name('kardex-telas.')->group(function () {
-          Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'kardex'])->name('index');
-          Route::get('/inventario-rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'inventoryRolls'])->name('inventario-rollos');
-          Route::get('/inventario-rollos/data', [App\Http\Controllers\Inventory\FabricRollController::class, 'inventoryRollsData'])->name('inventario-rollos.data');
-          Route::get('/descargue-orden', [App\Http\Controllers\Inventory\FabricRollController::class, 'downloadOrders'])->name('descargue-orden');
-          Route::get('/descargue-orden/descarga', [App\Http\Controllers\Inventory\FabricRollController::class, 'downloadWindow'])->name('descargue-orden.descarga');
-          Route::get('/exportar-rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'exportRolls'])->name('exportar-rollos');
+          Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'kardex'])->name('index');
+          Route::get('/inventario-rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRolls'])->name('inventario-rollos');
+          Route::get('/inventario-rollos/data', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRollsData'])->name('inventario-rollos.data');
+          Route::get('/descargue-orden', [App\Http\Controllers\Textil\FabricRollController::class, 'downloadOrders'])->name('descargue-orden');
+          Route::get('/descargue-orden/descarga', [App\Http\Controllers\Textil\FabricRollController::class, 'downloadWindow'])->name('descargue-orden.descarga');
+          Route::get('/exportar-rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'exportRolls'])->name('exportar-rollos');
         Route::prefix('recepcion')->name('reception.')->group(function () {
-            Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'reception'])->name('index');
-            Route::get('/{invoice}', [App\Http\Controllers\Inventory\FabricRollController::class, 'receptionShow'])->name('show');
-            Route::patch('/{invoice}/aprobar', [App\Http\Controllers\Inventory\FabricRollController::class, 'approveReception'])->name('approve');
-            Route::patch('/{invoice}/rechazar', [App\Http\Controllers\Inventory\FabricRollController::class, 'rejectReception'])->name('reject');
+            Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'reception'])->name('index');
+            Route::get('/{invoice}', [App\Http\Controllers\Textil\FabricRollController::class, 'receptionShow'])->name('show');
+            Route::patch('/{invoice}/aprobar', [App\Http\Controllers\Textil\FabricRollController::class, 'approveReception'])->name('approve');
+            Route::patch('/{invoice}/rechazar', [App\Http\Controllers\Textil\FabricRollController::class, 'rejectReception'])->name('reject');
         });
-        Route::post('/rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'storeFromReception'])->name('rollos.store');
-        Route::get('/rollos/item/{itemId}', [App\Http\Controllers\Inventory\FabricRollController::class, 'getByInvoiceItem'])->name('rollos.by-item');
+        Route::post('/rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'storeFromReception'])->name('rollos.store');
+        Route::get('/rollos/item/{itemId}', [App\Http\Controllers\Textil\FabricRollController::class, 'getByInvoiceItem'])->name('rollos.by-item');
     });
 
     // === INVENTARIO ===

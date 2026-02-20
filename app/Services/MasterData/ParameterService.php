@@ -2,7 +2,7 @@
 
 namespace App\Services\MasterData;
 
-use App\Models\Setting;
+use App\Models\Settings\Setting;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;

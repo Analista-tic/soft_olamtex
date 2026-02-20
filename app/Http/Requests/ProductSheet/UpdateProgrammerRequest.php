@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\ProductSheet;
 
-use App\Models\ProductSheet\Programmer;
+use App\Models\Production\Programmer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;

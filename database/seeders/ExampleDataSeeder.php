@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\Setting;
+use App\Models\Settings\User;
+use App\Models\Settings\Setting;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\WarehouseTransferService;
 use App\Services\ProductSheet\ProgrammerService;

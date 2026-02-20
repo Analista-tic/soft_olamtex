@@ -3,7 +3,7 @@
 namespace App\Models\Expenses;
 
 use App\Enums\PurchaseRequestStatus;
-use App\Models\User;
+use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

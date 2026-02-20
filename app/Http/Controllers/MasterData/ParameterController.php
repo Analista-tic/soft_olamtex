@@ -8,6 +8,8 @@ use App\Http\Requests\MasterData\UpdateParameterRequest;
 use App\Services\MasterData\ParameterService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use App\Models\Settings\Setting;
+use Illuminate\Http\JsonResponse;
 
 class ParameterController extends Controller
 {
@@ -52,5 +54,11 @@ class ParameterController extends Controller
         $this->service->delete((int) $id);
 
         return response()->noContent();
+    }
+
+    public function areas(): JsonResponse
+    {
+        $setting = Setting::parameters()->where('key', 'areas')->first();
+        return response()->json($setting ? $setting->value : []);
     }
 }

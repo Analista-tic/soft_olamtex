@@ -4,8 +4,8 @@ namespace App\Services\Inventory;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
-use App\Models\Inventory\FabricRoll;
-use App\Models\Inventory\Item;
+use App\Models\Textil\FabricRoll;
+use App\Models\MasterData\Item;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;

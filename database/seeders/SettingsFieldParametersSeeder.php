@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Setting;
+use App\Models\Settings\Setting;
 use App\Services\Settings\SettingService;
 use Illuminate\Database\Seeder;
 

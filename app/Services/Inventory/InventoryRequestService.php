@@ -4,7 +4,7 @@ namespace App\Services\Inventory;
 
 use App\Models\Inventory\InventoryRequest;
 use App\Models\Inventory\InventoryRequestItem;
-use App\Models\User;
+use App\Models\Settings\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;

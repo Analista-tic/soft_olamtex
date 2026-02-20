@@ -3,7 +3,7 @@
 namespace App\Services\Inventory;
 
 use App\Models\Inventory\InventoryMovement;
-use App\Models\Inventory\Item;
+use App\Models\MasterData\Item;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;

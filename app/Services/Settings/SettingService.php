@@ -2,7 +2,7 @@
 
 namespace App\Services\Settings;
 
-use App\Models\Setting;
+use App\Models\Settings\Setting;
 use Illuminate\Support\Collection;
 
 class SettingService

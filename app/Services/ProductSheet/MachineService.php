@@ -2,7 +2,7 @@
 
 namespace App\Services\ProductSheet;
 
-use App\Models\ProductSheet\Machine;
+use App\Models\Production\Machine;
 use Illuminate\Support\Collection;
 
 class MachineService

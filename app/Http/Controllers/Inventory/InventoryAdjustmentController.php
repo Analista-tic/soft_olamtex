@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\Common\Warehouse;
+use App\Models\Inventory\Warehouse;
 use App\Models\Inventory\InventoryAdjustment;
-use App\Models\Inventory\Item;
+use App\Models\MasterData\Item;
 use App\Services\Inventory\InventoryAdjustmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

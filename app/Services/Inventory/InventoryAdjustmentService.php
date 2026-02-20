@@ -4,7 +4,7 @@ namespace App\Services\Inventory;
 
 use App\Models\Inventory\InventoryAdjustment;
 use App\Models\Inventory\InventoryAdjustmentLine;
-use App\Models\Inventory\Item;
+use App\Models\MasterData\Item;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\InventoryStockService;
 use Illuminate\Pagination\LengthAwarePaginator;

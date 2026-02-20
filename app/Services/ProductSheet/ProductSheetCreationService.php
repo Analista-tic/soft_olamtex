@@ -2,7 +2,7 @@
 
 namespace App\Services\ProductSheet;
 
-use App\Models\ProductSheet\ProductSheet;
+use App\Models\Production\ProductSheet;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 

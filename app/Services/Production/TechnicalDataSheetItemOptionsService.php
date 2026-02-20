@@ -2,7 +2,7 @@
 
 namespace App\Services\Production;
 
-use App\Models\Inventory\Item;
+use App\Models\MasterData\Item;
 use Illuminate\Database\Eloquent\Builder;
 
 class TechnicalDataSheetItemOptionsService

@@ -2,7 +2,7 @@
 
 namespace App\Services\Settings;
 
-use App\Models\Settings\Retention;
+use App\Models\Finance\Retention;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 

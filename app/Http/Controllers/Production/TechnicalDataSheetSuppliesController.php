@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
-use App\Models\Inventory\Item;
-use App\Models\ProductSheet\Programmer;
+use App\Models\MasterData\Item;
+use App\Models\Production\Programmer;
 use App\Services\Production\TechnicalDataSheetItemOptionsService;
 use App\Services\Production\TechnicalDataSheetSuppliesStore;
 use Illuminate\Http\JsonResponse;

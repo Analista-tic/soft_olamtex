@@ -2,7 +2,7 @@
 
 namespace App\Services\ProductSheet;
 
-use App\Models\ProductSheet\OperationSection;
+use App\Models\Production\OperationSection;
 use Illuminate\Support\Collection;
 
 class SectionService

@@ -5,8 +5,8 @@ namespace Database\Seeders;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Expenses\PurchaseRequest;
-use App\Models\Inventory\Item;
-use App\Models\Common\Contact;
+use App\Models\MasterData\Item;
+use App\Models\MasterData\Contact;
 use Illuminate\Database\Seeder;
 
 class PurchasesDemoSeeder extends Seeder

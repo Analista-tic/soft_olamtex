@@ -2,8 +2,8 @@
 
 namespace App\Services\Inventory;
 
-use App\Models\Inventory\Item;
-use App\Models\Common\Warehouse;
+use App\Models\MasterData\Item;
+use App\Models\Inventory\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 

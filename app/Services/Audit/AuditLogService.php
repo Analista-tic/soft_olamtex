@@ -2,7 +2,8 @@
 
 namespace App\Services\Audit;
 
-use App\Models\AuditLog;
+use App\Models\Settings\AuditLog;
+use App\Models\Settings\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -82,24 +83,28 @@ class AuditLogService
 
         $logs->getCollection()->transform(function (AuditLog $log) {
             $log->module_label = $this->translateModuleName($log->module);
-            $log->resource_label = $this->resolveResourceLabel($log);            // Obtener área y rol desde parámetros/usuario
+            $log->resource_label = $this->resolveResourceLabel($log);
+
+            // Inicializar valores
             $log->user_area = null;
             $log->user_role = null;
-            $user = $log->user_id ? $log->user : null;
-            if (!$user && $log->user_id) {
-                $user = \App\Models\User::find($log->user_id);
-            }
+
+            // El usuario debería estar eager-loaded por with('user.roles') arriba; usar directamente
+            $user = $log->user ?? null;
+
             if ($user) {
-                if ($user->area_id) {
-                    // Buscar área en parámetros
-                    $param = \App\Models\Parameter::where('nombre', 'areas')->first();
-                    if ($param && is_array($param->valor)) {
-                        $area = collect($param->valor)->firstWhere('id', $user->area_id);
+                if (!empty($user->area_id)) {
+                    // Buscar área en settings (kind=parameter, key=areas)
+                    $param = Setting::parameters()->where('key', 'areas')->first();
+                    $areas = $param?->value ?? [];
+                    if (is_array($areas)) {
+                        $area = collect($areas)->firstWhere('id', $user->area_id);
                         if ($area) {
                             $log->user_area = $area['name'] ?? $area['nombre'] ?? null;
                         }
                     }
                 }
+
                 $roles = $user->getRoleNames();
                 if ($roles->isNotEmpty()) {
                     $log->user_role = $roles->implode(', ');
@@ -185,26 +190,24 @@ class AuditLogService
     protected function guessModule(Model $model): ?string
     {
         return match (true) {
-            $model instanceof \App\Models\Expenses\PurchaseOrder,
-            $model instanceof \App\Models\Expenses\PurchaseInvoice,
             $model instanceof \App\Models\Expenses\PurchaseRequest,
             $model instanceof \App\Models\Expenses\PurchaseDocument,
             $model instanceof \App\Models\Expenses\PurchaseDocumentItem
                 => 'Expenses',
 
-            $model instanceof \App\Models\Inventory\Item,
-            $model instanceof \App\Models\Common\Warehouse
+            $model instanceof \App\Models\MasterData\Item,
+            $model instanceof \App\Models\Inventory\Warehouse
                 => 'Inventory',
 
-            $model instanceof \App\Models\Common\Contact,
-            $model instanceof \App\Models\User
+            $model instanceof \App\Models\MasterData\Contact,
+            $model instanceof \App\Models\Settings\User
                 => 'Contacts',
 
             $model instanceof \App\Models\Settings\CompanySetting,
-            $model instanceof \App\Models\Settings\Retention,
-            $model instanceof \App\Models\Common\Tax,
-            $model instanceof \App\Models\Common\CategoryGroup,
-            $model instanceof \App\Models\Common\CategorySubGroup
+            $model instanceof \App\Models\Finance\Retention,
+            $model instanceof \App\Models\Finance\Tax,
+            $model instanceof \App\Models\MasterData\CategoryGroup,
+            $model instanceof \App\Models\MasterData\CategorySubGroup
                 => 'Configuration',
 
             default => null,
