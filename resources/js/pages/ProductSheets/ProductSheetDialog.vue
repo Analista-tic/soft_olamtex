@@ -6,7 +6,7 @@ import SizeSelector from '@/components/SizeSelector.vue';
 import SwitchField from '@/components/SwitchField.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import SegmentedToggle from '@/components/SegmentedToggle.vue';
-import ProductOperationListDialog from '@/pages/ProductOperationList/ProductOperationListDialog.vue';
+import ProductOperationListDialog from '@/pages/Production/ProductOperationList/ProductOperationListDialog.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';

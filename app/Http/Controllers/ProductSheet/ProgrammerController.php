@@ -104,7 +104,7 @@ class ProgrammerController extends Controller
             })
             ->values();
 
-        return Inertia::render('Programmers/Index', [
+        return Inertia::render('Production/Programmers/Index', [
             'productSheets' => $productSheets ?? [],
             'productSheetsForCreate' => $productSheetsForCreate ?? [],
             'destinations' => $destinations->values()->all(),

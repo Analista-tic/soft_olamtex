@@ -33,7 +33,7 @@ class ProductSheetController extends Controller
     {
         $catalogs = $this->gatherCatalogs();
 
-        return Inertia::render('ProductSheets/Index', [
+        return Inertia::render('Production/ProductSheets/Index', [
             'sections' => $catalogs['sections']->values()->all(),
             'groups' => $catalogs['groups']->values()->all(),
             'brands' => $catalogs['brands']->values()->all(),
