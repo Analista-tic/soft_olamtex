@@ -43,17 +43,17 @@ class FabricRollController extends Controller
 
     public function kardex()
     {
-        return Inertia::render('KardexFabric/Index');
+        return Inertia::render('Textil/Index');
     }
 
     public function inventoryRolls()
     {
-        return Inertia::render('KardexFabric/FabricRollInventory/Index');
+        return Inertia::render('Textil/FabricRollInventory/Index');
     }
 
     public function downloadOrders()
     {
-        return Inertia::render('KardexFabric/FabricRollOrders/Index');
+        return Inertia::render('Textil/FabricRollOrders/Index');
     }
 
     public function downloadWindow(Request $request)
@@ -103,7 +103,7 @@ class FabricRollController extends Controller
             }
         }
 
-        return Inertia::render('KardexFabric/FabricRollOrders/Download', [
+        return Inertia::render('Textil/FabricRollOrders/Download', [
             'roll' => $roll,
             'lotName' => $lotName,
             'rolls' => FabricRollResource::collection($this->service->available())->resolve(),

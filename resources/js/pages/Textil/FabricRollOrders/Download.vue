@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Head } from '@inertiajs/vue3';
-import RollDownloadFormDialog from '@/pages/KardexFabric/FabricRollOrders/RollDownloadFormDialog.vue';
+import RollDownloadFormDialog from '@/pages/Textil/FabricRollOrders/RollDownloadFormDialog.vue';
 import { computed, reactive, ref, watch } from 'vue';
 import type { FabricRollView } from '@/domain/fabric/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
