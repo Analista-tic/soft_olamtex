@@ -19,7 +19,7 @@ class UserController extends Controller
         $users = $this->service->listAll();
         $roles = Role::with('permissions')->get();
 
-        return Inertia::render('Users/Index', [
+        return Inertia::render('Configuration/Users/Index', [
             'users' => $users,
             'roles' => $roles,
         ]);

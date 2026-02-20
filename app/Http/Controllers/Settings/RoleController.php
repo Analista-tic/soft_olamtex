@@ -18,7 +18,7 @@ class RoleController extends Controller
     {
         $roles = $this->service->listAll();
         $permissions = $this->service->allPermissions();
-        return Inertia::render('Roles/Index', [
+        return Inertia::render('Configuration/Roles/Index', [
             'roles' => $roles,
             'permissions' => $permissions
         ]);
