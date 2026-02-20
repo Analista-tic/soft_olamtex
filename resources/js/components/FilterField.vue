@@ -76,3 +76,4 @@ const labelClasses = computed(() => {
     color: var(--filter-title-active-color, #1d4ed8);
 }
 </style>
+

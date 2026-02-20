@@ -30,3 +30,4 @@ const rootProps = computed(() => {
     <ScrollAreaCorner />
   </ScrollAreaRoot>
 </template>
+

@@ -3,7 +3,7 @@ import { ref, watch } from 'vue';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
-import type { CategoryGroup } from '@/domain/inventory';
+import type { CategoryGroup } from '@/domain/Inventory';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -77,3 +77,4 @@ function submitForm() {
         </FormDialogContent>
     </Dialog>
 </template>
+

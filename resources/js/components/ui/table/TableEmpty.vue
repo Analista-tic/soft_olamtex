@@ -35,3 +35,4 @@ const delegatedProps = computed(() => {
     </TableCell>
   </TableRow>
 </template>
+

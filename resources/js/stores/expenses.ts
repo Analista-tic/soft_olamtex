@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { defineStore } from 'pinia';
 
-import type { PurchaseOrder, PurchaseOrderDto } from '@/domain/purchases';
-import { mapPurchaseOrderDto } from '@/domain/purchases';
+import type { PurchaseOrder, PurchaseOrderDto } from '@/domain/Expenses';
+import { mapPurchaseOrderDto } from '@/domain/Expenses';
 
 interface FetchOrdersParams {
     page?: number;
@@ -64,3 +64,4 @@ export const useExpensesStore = defineStore('expenses', {
         },
     },
 });
+

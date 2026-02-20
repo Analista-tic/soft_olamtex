@@ -18,3 +18,4 @@ const delegatedProps = computed(() => {
     <slot />
   </AlertDialogAction>
 </template>
+

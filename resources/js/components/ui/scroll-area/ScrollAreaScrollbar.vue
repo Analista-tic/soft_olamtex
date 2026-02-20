@@ -30,3 +30,4 @@ const orientationClasses = computed(() => {
     <slot />
   </RekaScrollAreaScrollbar>
 </template>
+

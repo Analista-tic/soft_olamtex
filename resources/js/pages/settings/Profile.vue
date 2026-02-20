@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import type { BreadcrumbItem, SharedData } from '@/domain/shared';
-import type { User } from '@/domain/auth/types';
+import type { User } from '@/domain/Settings/types';
 
 interface Props {
     mustVerifyEmail: boolean;
@@ -113,3 +113,4 @@ const submit = () => {
         </SettingsLayout>
     </AppLayout>
 </template>
+

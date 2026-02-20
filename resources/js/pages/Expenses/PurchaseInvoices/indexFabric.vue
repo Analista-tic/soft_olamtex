@@ -6,7 +6,7 @@ import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { PurchaseInvoice } from '@/domain/purchases';
+import type { PurchaseInvoice } from '@/domain/Expenses';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
@@ -532,3 +532,4 @@ function handleDialogError(message?: string) {
     />
     </AppLayout>
 </template>
+

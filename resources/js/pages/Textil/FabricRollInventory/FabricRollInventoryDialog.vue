@@ -3,7 +3,7 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import { computed } from 'vue';
-import type { FabricRollView } from '@/domain/fabric';
+import type { FabricRollView } from '@/domain/Textil';
 
 const props = withDefaults(
     defineProps<{
@@ -127,3 +127,4 @@ function closeDialog() {
         </FormDialogContent>
     </Dialog>
 </template>
+

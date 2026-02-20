@@ -9,7 +9,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import SwitchField from '@/components/SwitchField.vue';
 import { Label } from '@/components/ui/label';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { AdditionalField, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/inventory';
+import type { AdditionalField, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/Inventory';
 import { Plus } from 'lucide-vue-next';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 
@@ -443,3 +443,4 @@ function handleSubmit() {
     border: 0;
 }
 </style>
+

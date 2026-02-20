@@ -26,7 +26,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import type {
     ProductOperationListPageProps,
     ProductOperationPayload,
-} from '@/domain/product-sheet';
+} from '@/domain/Production';
 import { useAlertStack } from '@/composables/useAlert';
 
 const page = usePage<ProductOperationListPageProps>();
@@ -562,3 +562,4 @@ watch(productSheets, () => {
         </div>
     </AppLayout>
 </template>
+

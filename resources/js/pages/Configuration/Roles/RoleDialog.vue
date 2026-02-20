@@ -262,3 +262,4 @@ function handleCheckboxChange(event: Event, module: string): void {
 <style scoped>
 /* Eliminé los estilos personalizados */
 </style>
+

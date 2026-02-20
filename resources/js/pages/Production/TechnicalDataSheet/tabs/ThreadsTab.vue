@@ -5,8 +5,8 @@ import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Save, Trash } from 'lucide-vue-next';
-import type { ThreadLine, ThreadState } from '@/domain/Production/TechnicalDataSheet';
-import { fetchOpThreads, fetchSettingsParameters, saveOpThreads } from '@/domain/Production/TechnicalDataSheet';
+import type { ThreadLine, ThreadState } from '@/domain/Production';
+import { fetchOpThreads, fetchSettingsParameters, saveOpThreads } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
 
 const props = defineProps<{
@@ -384,3 +384,4 @@ onMounted(() => {
         </div>
     </div>
 </template>
+

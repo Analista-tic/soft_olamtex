@@ -21,3 +21,4 @@ const forwarded = useForwardProps(delegatedProps)
     <slot />
   </StepperTitle>
 </template>
+

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -14,14 +14,14 @@ import AdditionalInfoTab from './tabs/AdditionalInfoTab/index.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Layers, Package, Volleyball, Workflow } from 'lucide-vue-next';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
-import type { OpBasicInfo, OperationalList } from '@/domain/Production/TechnicalDataSheet';
+import type { OpBasicInfo, OperationalList } from '@/domain/Production';
 import {
     assignOperationalListToOp,
     fetchOpBasicInfo,
     fetchOperationalListOptions,
     fetchOpOperationalList,
     fetchOpOptions,
-} from '@/domain/Production/TechnicalDataSheet';
+} from '@/domain/Production';
 
 const props = defineProps<{
     initialOpId: string | number | null;
@@ -90,7 +90,7 @@ const displayedSecondReference = computed(() => {
 const opHeaderLabel = computed(() => {
     const opCode = String(selectedOp.value?.opCode ?? '').trim() || '-';
     const ref = displayedSecondReference.value || '-';
-    return `${opCode} — ${ref}`;
+    return `${opCode} � ${ref}`;
 });
 
 const tabs = [
@@ -264,7 +264,7 @@ function openDrawing() {
 
 function formatOpOptionLabel(option: Option): string {
     const raw = option.name ?? '';
-    const separator = raw.includes(' — ') ? ' — ' : null;
+    const separator = raw.includes(' � ') ? ' � ' : null;
     if (!separator) return raw;
     const [left, ...rest] = raw.split(separator);
     const right = rest.join(separator).trim();
@@ -277,7 +277,7 @@ function formatOpOptionLabel(option: Option): string {
     const productRef = parts[parts.length - 1] ?? right;
     const chosen = isSample ? sampleRef : productRef;
 
-    return `${opCode} — ${chosen}`;
+    return `${opCode} � ${chosen}`;
 }
 
 watch(
@@ -387,7 +387,7 @@ onBeforeUnmount(() => {
                         <button
                             type="button"
                             class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                            :aria-label="isBasicInfoCollapsed ? 'Expandir información' : 'Minimizar información'"
+                            :aria-label="isBasicInfoCollapsed ? 'Expandir informaci�n' : 'Minimizar informaci�n'"
                             @click="isBasicInfoCollapsed = !isBasicInfoCollapsed"
                         >
                             <ChevronDown v-if="isBasicInfoCollapsed" class="h-4 w-4" />
@@ -506,7 +506,7 @@ onBeforeUnmount(() => {
                                 <p class="text-sm font-semibold text-foreground">Lista operacional</p>
                                 <p class="text-xs text-muted-foreground">Listado asignado a la OP</p>
                                 <p class="mt-1 text-sm font-medium text-foreground">
-                                    {{ operationalList?.reference ?? 'Sin referencia' }}{{ operationalList?.name ? ` — ${operationalList.name}` : '' }}
+                                    {{ operationalList?.reference ?? 'Sin referencia' }}{{ operationalList?.name ? ` � ${operationalList.name}` : '' }}
                                 </p>
                             </div>
 
@@ -603,3 +603,4 @@ onBeforeUnmount(() => {
         </div>
     </AppLayout>
 </template>
+

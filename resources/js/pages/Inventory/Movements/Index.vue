@@ -25,7 +25,7 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { InventoryMovement, Item, Warehouse } from '@/domain/inventory/types';
+import type { InventoryMovement, Item, Warehouse } from '@/domain/Inventory';
 import { useAlertStack } from '@/composables/useAlert';
 
 const breadcrumbs = [
@@ -577,3 +577,4 @@ onMounted(() => {
         </Dialog>
     </AppLayout>
 </template>
+

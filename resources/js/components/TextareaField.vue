@@ -46,3 +46,4 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
         ></textarea>
     </div>
 </template>
+

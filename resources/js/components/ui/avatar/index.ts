@@ -22,3 +22,4 @@ export const avatarVariant = cva(
 );
 
 export type AvatarVariants = VariantProps<typeof avatarVariant>;
+

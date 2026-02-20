@@ -3,7 +3,7 @@ import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Contact, PurchaseOrder } from '@/domain/purchases';
+import type { Contact, PurchaseOrder } from '@/domain/Expenses';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
@@ -836,3 +836,4 @@ watch(selectedPurchaseRequestId, async (requestId, oldVal) => {
         </DialogContent>
     </Dialog>
 </template>
+

@@ -56,3 +56,4 @@ const currentPath = (page.props.ziggy as any)?.location ? new URL((page.props.zi
         </div>
     </div>
 </template>
+

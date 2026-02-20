@@ -28,3 +28,4 @@ const icon = computed(() => {
 <template>
     <component :is="icon" :class="className" :size="size" :stroke-width="strokeWidth" :color="color" />
 </template>
+

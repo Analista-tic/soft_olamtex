@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import type { BreadcrumbItem } from '@/domain/shared';
-import type { Warehouse } from '@/domain/inventory';
+import type { Warehouse } from '@/domain/Inventory';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Pencil, Search, Trash } from 'lucide-vue-next';
@@ -334,3 +334,4 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
+

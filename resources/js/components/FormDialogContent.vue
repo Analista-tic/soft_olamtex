@@ -12,3 +12,4 @@ const props = defineProps<{ class?: string; overlayClass?: string; scrollable?: 
     <slot />
   </DialogContent>
 </template>
+

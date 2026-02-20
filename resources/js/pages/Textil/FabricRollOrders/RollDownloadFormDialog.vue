@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import Input from '@/components/ui/input/Input.vue';
-import type { FabricRollView } from '@/domain/fabric';
+import type { FabricRollView } from '@/domain/Textil';
 import { computed, reactive, watch } from 'vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -353,3 +353,4 @@ function submitForm() {
     </FormDialogContent>
   </Dialog>
 </template>
+

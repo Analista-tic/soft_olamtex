@@ -7,7 +7,8 @@ import { CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Save, Trash } from 'lucide-vue-next';
 import type { Option } from '@/domain/shared';
-import { fetchRawMaterialCatalogOptions, fetchRawMaterialItemMeta, type RawMaterialItemMeta } from '@/domain/Production/TechnicalDataSheet';
+import { fetchRawMaterialCatalogOptions, fetchRawMaterialItemMeta } from '@/domain/Production';
+import type { RawMaterialItemMeta } from '@/domain/Production';
 
 const props = defineProps<{
     opId: string | number;
@@ -658,3 +659,4 @@ watch(
         </div>
     </div>
 </template>
+

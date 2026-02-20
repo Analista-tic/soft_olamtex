@@ -2,7 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import ItemFormContent from './ItemFormContent.vue';
-import type { Item } from '@/domain/inventory';
+import type { Item } from '@/domain/Inventory';
 import { computed, ref, watch, onMounted } from 'vue';
 import { ITEM_FORM_DRAFT_KEY } from './constants';
 
@@ -104,3 +104,4 @@ function handleLoadingState(value: boolean) {
     </section>
   </AppLayout>
 </template>
+

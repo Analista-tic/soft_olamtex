@@ -6,7 +6,7 @@ import InputField from '@/components/InputField.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { Warehouse } from '@/domain/inventory';
+import type { Warehouse } from '@/domain/Inventory';
 
 const props = defineProps<{
     open: boolean;
@@ -113,3 +113,4 @@ function handleSubmit() {
         </FormDialogContent>
     </Dialog>
 </template>
+

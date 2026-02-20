@@ -867,3 +867,4 @@ watch(detailDialogOpen, (value) => {
         </Dialog>
     </AppLayout>
 </template>
+

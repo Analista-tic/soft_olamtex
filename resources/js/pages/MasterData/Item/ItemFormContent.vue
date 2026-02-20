@@ -24,7 +24,7 @@ import type {
     AdditionalField,
     AdditionalFieldType,
     AdditionalFieldPayload,
-} from '@/domain/inventory';
+} from '@/domain/Inventory';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { Image, Plus, Trash2, ExternalLink } from 'lucide-vue-next';
@@ -1763,3 +1763,4 @@ watch(
     transform: scale(0.95);
 }
 </style>
+

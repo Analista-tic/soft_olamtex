@@ -24,3 +24,4 @@ const props = defineProps<Props>();
         <rect x="3" y="3" width="18" height="18" rx="4" />
     </svg>
 </template>
+

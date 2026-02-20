@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ItemFormContent from './ItemFormContent.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import type { Item } from '@/domain/inventory/types';
+import type { Item } from '@/domain/Inventory';
 import { Dialog } from '@/components/ui/dialog';
 import { ref, watch } from 'vue';
 
@@ -72,3 +72,4 @@ function handleFormLoadingState(value: boolean) {
         </FormDialogContent>
     </Dialog>
 </template>
+

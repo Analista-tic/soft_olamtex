@@ -2,7 +2,7 @@
 import UserInfo from '@/components/UserInfo.vue';
 import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import type { NavItem } from '@/domain/shared';
-import type { User } from '@/domain/auth';
+import type { User } from '@/domain/Settings';
 import { Link } from '@inertiajs/vue3';
 import { LogOut, Pencil } from 'lucide-vue-next';
 
@@ -47,3 +47,4 @@ defineProps<Props>();
         </Link>
     </DropdownMenuItem>
 </template>
+

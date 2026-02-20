@@ -1,9 +1,9 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Scissors, Stamp, WashingMachine, ChevronRight } from 'lucide-vue-next';
-import type { AdditionalInfo, Grain, PieceType, Side, OpBasicInfo } from '@/domain/Production/TechnicalDataSheet';
-import { fetchOpAdditionalInfo, fetchOpProcesses, saveOpAdditionalInfo } from '@/domain/Production/TechnicalDataSheet';
+import type { AdditionalInfo, Grain, PieceType, Side, OpBasicInfo } from '@/domain/Production';
+import { fetchOpAdditionalInfo, fetchOpProcesses, saveOpAdditionalInfo } from '@/domain/Production';
 import CuttingDialog from './CuttingDialog.vue';
 import StampingLaundryDialog from './StampingLaundryDialog.vue';
 
@@ -188,8 +188,8 @@ const stampingBasicInfoItems = computed<Array<{ label: string; value: string }>>
         '-';
     return [
         { label: 'Base', value: resolvedBase },
-        { label: 'Diseñador', value: String(op?.designer ?? op?.designerName ?? '-') },
-        { label: 'Orden de producción (OP)', value: String(op?.opCode ?? '-') },
+        { label: 'Dise�ador', value: String(op?.designer ?? op?.designerName ?? '-') },
+        { label: 'Orden de producci�n (OP)', value: String(op?.opCode ?? '-') },
         { label: 'Referencia cliente / almacenes', value: String(op?.reference ?? op?.destination ?? '-') },
     ];
 });
@@ -678,3 +678,4 @@ watch(
         />
     </div>
 </template>
+

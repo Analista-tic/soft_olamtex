@@ -29,7 +29,7 @@ import {
 import { useAlertStack } from '@/composables/useAlert';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { PurchaseRequest } from '@/domain/purchases';
+import type { PurchaseRequest } from '@/domain/Expenses';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
 
@@ -605,3 +605,4 @@ onMounted(() => {
         @confirm="handleReject"
     />
 </template>
+

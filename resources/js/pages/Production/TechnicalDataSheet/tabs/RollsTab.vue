@@ -6,10 +6,9 @@ import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Save, Trash } from 'lucide-vue-next';
 import type { Option } from '@/domain/shared';
-import { formatMeters, formatNumberEsCO, formatWidthToMeters, toUnitNumber } from '@/domain/fabric';
-import type { AvailableFabricRoll, FabricType, RollLine, RollState } from '@/domain/Production/TechnicalDataSheet';
-import { fetchAvailableFabricRolls, fetchOpRolls, saveOpRolls } from '@/domain/Production/TechnicalDataSheet';
-import { getAllowedFabricItemIds } from '@/domain/Production/TechnicalDataSheet/rawMaterialSelection';
+import { formatMeters, formatNumberEsCO, formatWidthToMeters, toUnitNumber } from '@/domain/Textil';
+import type { AvailableFabricRoll, FabricType, RollLine, RollState } from '@/domain/Production';
+import { fetchAvailableFabricRolls, fetchOpRolls, saveOpRolls, getAllowedFabricItemIds } from '@/domain/Production';
 import PurchaseRequestDialog from '@/pages/Expenses/PurchaseRequests/PurchaseRequestDialog.vue';
 
 const props = defineProps<{
@@ -681,3 +680,4 @@ onBeforeUnmount(() => {
         />
     </div>
 </template>
+

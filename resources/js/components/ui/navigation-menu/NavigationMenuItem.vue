@@ -9,3 +9,4 @@ const props = defineProps<NavigationMenuItemProps>()
     <slot />
   </NavigationMenuItem>
 </template>
+

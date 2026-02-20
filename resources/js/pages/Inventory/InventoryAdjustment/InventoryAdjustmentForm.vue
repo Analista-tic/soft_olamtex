@@ -13,7 +13,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import axios from 'axios';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
-import type { Item, Warehouse, Tax } from '@/domain/inventory/types';
+import type { Item, Warehouse, Tax } from '@/domain/Inventory';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
@@ -721,4 +721,5 @@ async function handleSubmit() {
     </DialogContent>
   </Dialog>
 </template>
+
 

@@ -4,7 +4,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogDescription } fr
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import type { Tax } from '@/domain/inventory';
+import type { Tax } from '@/domain/Finance';
 
 type TaxDialogForm = Partial<Tax> & {
     name: string;
@@ -107,3 +107,4 @@ function handleSubmit() {
     </FormDialogContent>
     </Dialog>
 </template>
+

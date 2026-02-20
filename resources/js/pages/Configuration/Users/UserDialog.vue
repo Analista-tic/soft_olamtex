@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Role, User } from '@/domain/auth'; // Importar los tipos centralizados
+import type { Role, User } from '@/domain/Settings'; // Importar los tipos centralizados
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -326,6 +326,7 @@ function submitForm() {
 </template>
 
 \n
+
 
 
 

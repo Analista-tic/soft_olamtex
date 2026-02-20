@@ -3,7 +3,7 @@ import UserInfo from '@/components/UserInfo.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
 import type { NavItem, SharedData } from '@/domain/shared';
-import type { User } from '@/domain/auth/types';
+import type { User } from '@/domain/Settings/types';
 import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { BarChart3, ChevronsUpDown, Settings, ShieldCheck } from 'lucide-vue-next';
@@ -76,3 +76,4 @@ const filteredUserNavItems = computed<NavItem[]>(() =>
         </SidebarMenuItem>
     </SidebarMenu>
 </template>
+

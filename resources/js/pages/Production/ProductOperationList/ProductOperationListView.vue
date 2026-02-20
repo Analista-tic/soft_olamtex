@@ -10,7 +10,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import type { OperationSection } from '@/domain/product-sheet';
+import type { OperationSection } from '@/domain/Production';
 
 type OperationEntry = {
     id: number;
@@ -363,3 +363,4 @@ watch(() => [props.productSheetId, props.open], ([sheetId, isOpen]) => {
         </DialogContent>
     </Dialog>
 </template>
+

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { PurchaseInvoice } from '@/domain/purchases';
+import type { PurchaseInvoice } from '@/domain/Expenses';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import type { PageProps as InertiaPageProps } from '@inertiajs/core';
 import axios from 'axios';
@@ -1091,3 +1091,4 @@ function onFabricRollSuccess() {
         </div>
     </AppLayout>
 </template>
+

@@ -5,7 +5,8 @@ import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import { normalizeSizes, sizesToLabel, type ProductSheet, type Programmer } from '@/domain/product-sheet';
+import { normalizeSizes, sizesToLabel } from '@/domain/Production';
+import type { ProductSheet, Programmer } from '@/domain/Production';
 import type { Option } from '@/domain/shared/types';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
@@ -778,3 +779,4 @@ function handleLotsCountInput(event: Event): void {
         </FormDialogContent>
     </Dialog>
 </template>
+

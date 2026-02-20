@@ -10,3 +10,4 @@ import AppLogoIcon from '@/components/AppLogoIcon.vue';
         <span class="mb-0.5 truncate font-semibold leading-none">ForU Tex</span>
     </div>
 </template>
+

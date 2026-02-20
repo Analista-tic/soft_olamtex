@@ -12,7 +12,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import type { PurchaseRequestForm } from '@/domain/purchases';
+import type { PurchaseRequestForm } from '@/domain/Expenses';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 import AlertStack from '@/components/common/AlertStack.vue';
@@ -778,3 +778,4 @@ watch(
         </DialogContent>
     </Dialog>
 </template>
+

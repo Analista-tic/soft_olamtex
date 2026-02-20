@@ -86,3 +86,4 @@ const isScrollable = computed(() => props.scrollable ?? true);
     height: 6px;
 }
 </style>
+

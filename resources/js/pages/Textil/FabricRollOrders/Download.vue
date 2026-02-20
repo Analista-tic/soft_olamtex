@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Head } from '@inertiajs/vue3';
 import RollDownloadFormDialog from '@/pages/Textil/FabricRollOrders/RollDownloadFormDialog.vue';
 import { computed, reactive, ref, watch } from 'vue';
-import type { FabricRollView } from '@/domain/fabric/types';
+import type { FabricRollView } from '@/domain/Textil';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type BreadcrumbItem = { title: string; href: string };
@@ -458,3 +458,4 @@ function cleanSizeLabel(size: string | number): string {
     />
   </AppLayout>
 </template>
+

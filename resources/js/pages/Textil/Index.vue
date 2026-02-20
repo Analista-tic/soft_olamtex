@@ -35,3 +35,4 @@ function openReception() {
         </div>
     </AppLayout>
 </template>
+

@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { defineStore } from 'pinia';
 
-import type { Item } from '@/domain/inventory';
-import { mapItemsDto } from '@/domain/inventory';
+import type { Item } from '@/domain/MasterData';
+import { mapItemsDto } from '@/domain/MasterData';
 
 const DEFAULT_STATUS_FILTER = 'all' as const;
 const DEFAULT_PER_PAGE = 10;
@@ -66,3 +66,4 @@ export const useInventoryStore = defineStore('inventory', {
         },
     },
 });
+

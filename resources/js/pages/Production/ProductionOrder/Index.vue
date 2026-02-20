@@ -1,11 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { ProductSheet, Programmer } from '@/domain/product-sheet';
+import type { ProductSheet, Programmer } from '@/domain/Production';
 import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
@@ -412,14 +412,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head title="Órdenes de producción" />
+    <Head title="�rdenes de producci�n" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :success-message="successMessage"
             :error-message="errorMessage"
             :error-type="errorType"
-            success-title="Operación exitosa"
+            success-title="Operaci�n exitosa"
             error-title="Aviso"
             @close-success="clearSuccess"
             @close-error="clearError"
@@ -427,8 +427,8 @@ onUnmounted(() => {
 
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl px-2 py-3">
             <div class="flex flex-col gap-1">
-                <h1 class="text-lg font-bold">Órdenes de producción</h1>
-                <p class="text-sm text-muted-foreground">Seguimiento y detalles de órdenes de producción (muestras y productos)</p>
+                <h1 class="text-lg font-bold">�rdenes de producci�n</h1>
+                <p class="text-sm text-muted-foreground">Seguimiento y detalles de �rdenes de producci�n (muestras y productos)</p>
             </div>
 
             <div class="grid grid-cols-12 gap-4">
@@ -581,7 +581,7 @@ onUnmounted(() => {
                                                                     <ClipboardPen :class="actionIconClass" />
                                                                 </Button>
                                                             </TooltipTrigger>
-                                                            <TooltipContent>Ficha tÃ©cnica</TooltipContent>
+                                                            <TooltipContent>Ficha técnica</TooltipContent>
                                                         </Tooltip>
                                                     </div>
                                                 </TableCell>
@@ -640,5 +640,6 @@ onUnmounted(() => {
         @create-tech-sheet="handleCreateTechSheetFromDialog"
     />
 </template>
+
 
 

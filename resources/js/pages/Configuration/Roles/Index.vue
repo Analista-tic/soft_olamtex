@@ -20,7 +20,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/domain/shared';
-import type { Permission, Role } from '@/domain/auth/types';
+import type { Permission, Role } from '@/domain/Settings/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
@@ -365,5 +365,6 @@ onMounted(async () => {
         @submit="handleRoleSubmit"
     />
 </template>
+
 
 

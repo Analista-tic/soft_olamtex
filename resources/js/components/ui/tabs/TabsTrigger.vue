@@ -24,3 +24,4 @@ const forwardedProps = useForwardProps(delegatedProps)
     </span>
   </TabsTrigger>
 </template>
+

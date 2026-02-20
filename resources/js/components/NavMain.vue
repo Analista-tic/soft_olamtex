@@ -31,3 +31,4 @@ const page = usePage<SharedData>();
     color: #3490dc;
 }
 </style>
+

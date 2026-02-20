@@ -3,7 +3,7 @@ import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Item } from '@/domain/inventory';
+import type { Item } from '@/domain/Inventory';
 import axios from 'axios';
 import { onMounted, ref, watch } from 'vue';
 
@@ -183,3 +183,4 @@ defineExpose({ addItem });
         </div>
     </div>
 </template>
+

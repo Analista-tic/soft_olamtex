@@ -15,7 +15,7 @@ import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { BreadcrumbItem } from '@/domain/shared';
-import type { AdditionalField, AdditionalFieldPayload } from '@/domain/inventory';
+import type { AdditionalField, AdditionalFieldPayload } from '@/domain/Inventory';
 import {
     Pagination,
     PaginationEllipsis,
@@ -487,3 +487,4 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
+

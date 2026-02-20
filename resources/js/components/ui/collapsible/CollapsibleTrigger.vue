@@ -9,3 +9,4 @@ const props = defineProps<CollapsibleTriggerProps>();
         <slot />
     </CollapsibleTrigger>
 </template>
+

@@ -28,3 +28,4 @@ function handleClick() {
         <Trash :class="['h-4 w-4', props.customClass]" />
     </Button>
 </template>
+

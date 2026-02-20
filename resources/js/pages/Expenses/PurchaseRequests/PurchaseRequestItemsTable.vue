@@ -2,10 +2,10 @@
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
-import type { Item } from '@/domain/inventory';
+import type { Item } from '@/domain/Inventory';
 import axios from 'axios';
 import { onMounted, ref, watch } from 'vue';
-import type { PurchaseRequestItem } from '@/domain/purchases';
+import type { PurchaseRequestItem } from '@/domain/Expenses';
 
 const props = defineProps<{ items: PurchaseRequestItem[]; readonly?: boolean }>();
 const emit = defineEmits(["update:items"]);
@@ -212,3 +212,4 @@ defineExpose({ addItem });
         </datalist>
     </div>
 </template>
+

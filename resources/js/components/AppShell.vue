@@ -29,3 +29,4 @@ const handleSidebarChange = (open: boolean) => {
         <slot />
     </SidebarProvider>
 </template>
+

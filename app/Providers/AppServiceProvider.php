@@ -16,6 +16,7 @@ use App\Models\Inventory\Item;
 use App\Models\Settings\CompanySetting;
 use App\Models\Settings\Retention;
 use App\Models\User;
+use App\Models\ProductSheet\Programmer;
 use App\Observers\AuditObserver;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
@@ -39,6 +40,7 @@ class AppServiceProvider extends ServiceProvider
         Schema::defaultStringLength(191); // Limita las cadenas a 191 caracteres
 
         Route::model('purchaseDocument', PurchaseDocument::class);
+        Route::model('programador', Programmer::class);
 
         //se debe agregar un observer para cada modelo que se quiera auditar
         PurchaseRequest::observe(AuditObserver::class);

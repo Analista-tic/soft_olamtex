@@ -5,8 +5,9 @@ import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
-import type { PurchaseOrderItem } from '@/domain/purchases';
-import type { Item, Tax } from '@/domain/inventory';
+import type { PurchaseOrderItem } from '@/domain/Expenses/purchases';
+import type { Item } from '@/domain/Inventory';
+import type { Tax } from '@/domain/Finance';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
@@ -397,3 +398,4 @@ defineExpose({ addItem, validateFabricFields });
         />
     </div>
 </template>
+

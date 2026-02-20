@@ -10,7 +10,7 @@ import { ArrowDownToLine, Search } from 'lucide-vue-next';
 import { Inertia } from '@inertiajs/inertia';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
-import type { Programmer } from '@/domain/product-sheet';
+import type { Programmer } from '@/domain/Production';
 
 const breadcrumbs = [
   { title: 'Descargue de tela por orden', href: '/kardex-telas/descargue-orden' },
@@ -195,6 +195,7 @@ onMounted(fetchProgrammers);
     </div>
   </AppLayout>
 </template>
+
 
 
 

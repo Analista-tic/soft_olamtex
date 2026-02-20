@@ -101,3 +101,4 @@ const defaultBadgeClass = computed(() => {
         </template>
     </div>
 </template>
+

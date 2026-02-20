@@ -9,3 +9,4 @@ const props = defineProps<AlertDialogTriggerProps>()
     <slot />
   </AlertDialogTrigger>
 </template>
+

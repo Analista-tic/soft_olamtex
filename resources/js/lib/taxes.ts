@@ -1,4 +1,4 @@
-import type { Tax } from '@/domain/inventory';
+import type { Tax } from '@/domain/Finance';
 
 export const DEFAULT_TAX_LABEL = 'Ninguno (0%)';
 export const DEFAULT_TAX_PERCENTAGE = 0;
@@ -22,3 +22,4 @@ export function formatTaxOptionLabel(tax: Tax): string {
     const truncated = Number.isFinite(percentage) ? Math.trunc(percentage) : 0;
     return `${tax.name} (${truncated}%)`;
 }
+

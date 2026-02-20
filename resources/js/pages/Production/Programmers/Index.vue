@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { ProductSheet, Programmer } from '@/domain/product-sheet';
+import type { ProductSheet, Programmer } from '@/domain/Production';
 import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { monthLabel } from '@/lib/months';
@@ -718,3 +718,4 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
         </AlertDialogContent>
     </AlertDialog>
 </template>
+

@@ -7,12 +7,12 @@ import SelectField from '@/components/SelectField.vue';
 import ReadOnlyCell from '@/components/ReadOnlyCell.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Option } from '@/domain/shared';
-import type { SupplyItem, SupplyModaLinea, SupplyStage } from '@/domain/Production/TechnicalDataSheet';
+import type { SupplyItem, SupplyModaLinea, SupplyStage } from '@/domain/Production';
 import {
     fetchOpSupplies,
     fetchSupplyCatalogItems,
     saveOpSupplies,
-} from '@/domain/Production/TechnicalDataSheet';
+} from '@/domain/Production';
 import PurchaseRequestDialog from '@/pages/Expenses/PurchaseRequests/PurchaseRequestDialog.vue';
 import { useLastPurchaseByItem } from '@/composables/useLastPurchaseByItem';
 
@@ -660,3 +660,4 @@ watch(
         />
     </div>
 </template>
+

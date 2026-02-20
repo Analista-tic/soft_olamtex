@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import type { PurchaseOrder } from '@/domain/purchases';
+import type { PurchaseOrder } from '@/domain/Expenses';
 import { computed, watch, ref } from 'vue';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 
@@ -204,3 +204,4 @@ function print() {
     }
 }
 </style>
+

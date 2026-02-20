@@ -511,3 +511,4 @@ export interface FabricRollView {
     creator: string | null;
     status: 'available' | 'depleted';
 }
+

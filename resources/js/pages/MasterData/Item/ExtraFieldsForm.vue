@@ -4,7 +4,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import type { ExtraFields, AdditionalField } from '@/domain/inventory/types';
+import type { ExtraFields, AdditionalField } from '@/domain/Inventory';
 import type { Option } from '@/domain/shared/types';
 import { Plus } from 'lucide-vue-next';
 
@@ -356,3 +356,4 @@ function isAddDisabled() {
         </div>
     </div>
 </template>
+

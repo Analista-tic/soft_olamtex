@@ -14,7 +14,7 @@ import type {
     OperationSection,
     OperationOption,
     MachineOption,
-} from '@/domain/product-sheet';
+} from '@/domain/Production';
 
 interface OperationRow {
     section_id: number | null;
@@ -664,3 +664,4 @@ function resetForm() {
         </FormDialogContent>
     </Dialog>
 </template>
+

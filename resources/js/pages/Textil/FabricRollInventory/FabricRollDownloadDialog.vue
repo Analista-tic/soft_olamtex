@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import FormHeader from '@/components/FormHeader.vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
-import type { FabricRollView } from '@/domain/fabric';
+import type { FabricRollView } from '@/domain/Textil';
 import { reactive, watch } from 'vue';
 
 type DownloadForm = {
@@ -144,3 +144,4 @@ function submitDownload() {
         </FormDialogContent>
     </Dialog>
 </template>
+

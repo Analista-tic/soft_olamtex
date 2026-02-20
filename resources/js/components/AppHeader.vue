@@ -18,7 +18,7 @@ import UserMenuContent from '@/components/UserMenuContent.vue';
 import { getInitials } from '@/composables/useInitials';
 import type { BreadcrumbItem, NavItem } from '@/domain/shared';
 import { Link, usePage } from '@inertiajs/vue3';
-import type { Auth } from '@/domain/auth';
+import type { Auth } from '@/domain/Settings';
 import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-vue-next';
 import { computed } from 'vue';
 
@@ -192,3 +192,4 @@ const rightNavItems: NavItem[] = [
         </div>
     </div>
 </template>
+

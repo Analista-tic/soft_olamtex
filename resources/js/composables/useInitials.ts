@@ -12,3 +12,4 @@ export function getInitials(fullName?: string): string {
 export function useInitials() {
     return { getInitials };
 }
+

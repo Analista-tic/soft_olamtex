@@ -6,7 +6,7 @@ import TextareaField from '@/components/TextareaField.vue';
 import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Contact, PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/purchases';
+import type { Contact, PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/Expenses';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -825,3 +825,4 @@ watch(dialogOpen, (isOpen) => {
         @cancel="closeDifferenceDialog"
     />
 </template>
+

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { BreadcrumbItem } from '@/domain/shared/types';
-import type { Contact } from '@/domain/purchases';
+import type { Contact } from '@/domain/Expenses';
 import EditButton from '@/components/common/EditButton.vue';
 import ContactDialog from './ContactDialog.vue';
 import { Button } from '@/components/ui/button';
@@ -372,3 +372,4 @@ onMounted(() => {
         @confirm="deleteContact"
     />
 </template>
+

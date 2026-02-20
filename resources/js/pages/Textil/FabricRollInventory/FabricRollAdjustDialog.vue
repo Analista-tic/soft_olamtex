@@ -4,7 +4,7 @@ import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Button } from '@/components/ui/button';
 import FormHeader from '@/components/FormHeader.vue';
 import Input from '@/components/ui/input/Input.vue';
-import type { FabricRollView } from '@/domain/fabric';
+import type { FabricRollView } from '@/domain/Textil';
 import { reactive, watch } from 'vue';
 
 type AdjustForm = {
@@ -132,3 +132,4 @@ function submitAdjust() {
         </FormDialogContent>
     </Dialog>
 </template>
+

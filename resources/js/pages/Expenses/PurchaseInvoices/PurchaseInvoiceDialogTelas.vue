@@ -5,7 +5,7 @@ import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Contact, PurchaseInvoice } from '@/domain/purchases';
+import type { Contact, PurchaseInvoice } from '@/domain/Expenses';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -721,3 +721,4 @@ watch(dialogOpen, (isOpen) => {
         </DialogContent>
     </Dialog>
 </template>
+

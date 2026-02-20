@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
@@ -17,8 +17,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Lock, Plus, Save, Trash } from 'lucide-vue-next';
-import type { OpBasicInfo, OpProcessRow, OpProcessType, OpProcessesData } from '@/domain/Production/TechnicalDataSheet';
-import { fetchOpProcesses, fetchSettingsParameters, saveOpProcesses } from '@/domain/Production/TechnicalDataSheet';
+import type { OpBasicInfo, OpProcessRow, OpProcessType, OpProcessesData } from '@/domain/Production';
+import { fetchOpProcesses, fetchSettingsParameters, saveOpProcesses } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
 
 const props = defineProps<{
@@ -557,3 +557,4 @@ onMounted(() => {
         </AlertDialog>
     </div>
 </template>
+

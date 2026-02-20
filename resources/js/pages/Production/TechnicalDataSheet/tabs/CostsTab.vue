@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import type { CostsSummary, OpBasicInfo } from '@/domain/Production/TechnicalDataSheet';
-import { fetchOpCostsSummary } from '@/domain/Production/TechnicalDataSheet';
+import type { CostsSummary, OpBasicInfo } from '@/domain/Production';
+import { fetchOpCostsSummary } from '@/domain/Production';
 import MetricTile from '@/components/MetricTile.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Minus, TrendingDown, TrendingUp } from 'lucide-vue-next';
@@ -311,3 +311,4 @@ watch(
         </div>
     </div>
 </template>
+

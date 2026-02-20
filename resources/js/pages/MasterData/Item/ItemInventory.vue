@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/pagination';
 import axios from 'axios';
 import type { Option } from '@/domain/shared';
-import type { Warehouse } from '@/domain/inventory';
+import type { Warehouse } from '@/domain/Inventory';
 import { Search } from 'lucide-vue-next';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
@@ -253,3 +253,4 @@ onMounted(() => {
         </div>
     </AppLayout>
 </template>
+

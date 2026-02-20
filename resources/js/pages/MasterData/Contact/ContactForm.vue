@@ -4,7 +4,7 @@ import SelectField from '@/components/SelectField.vue';
 import GroupSelect from '@/components/GroupSelect.vue';
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
-import type { Contact } from '@/domain/purchases';
+import type { Contact } from '@/domain/Expenses';
 import colombiaData from '../../../data/colombia.json';
 
 const props = defineProps<{
@@ -270,3 +270,4 @@ const validateField = (field: string) => {
 <style scoped>
 /* Agregar estilos específicos si es necesario */
 </style>
+

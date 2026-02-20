@@ -4,7 +4,7 @@ import InputDate from '@/components/InputDate.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { PurchaseInvoiceItem } from '@/domain/purchases';
+import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 import axios from 'axios';
 import { ref, watch, computed, onMounted } from 'vue';
 import AlertBox from '@/components/AlertBox.vue';
@@ -513,3 +513,4 @@ onMounted(() => {
         </DialogContent>
     </Dialog>
 </template>
+

@@ -5,7 +5,8 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { useAlertStack } from '@/composables/useAlert';
-import { normalizeSizes, type OptionParams, type ProductSheet, type Programmer } from '@/domain/product-sheet';
+import { normalizeSizes } from '@/domain/Production';
+import type { OptionParams, ProductSheet, Programmer } from '@/domain/Production';
 import type { Option } from '@/domain/shared/types';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -739,3 +740,4 @@ async function saveChanges() {
     background-color: hsl(var(--muted));
 }
 </style>
+

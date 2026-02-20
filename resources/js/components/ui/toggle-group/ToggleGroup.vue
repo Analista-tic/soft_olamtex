@@ -24,3 +24,4 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
         <slot />
     </ToggleGroupRoot>
 </template>
+

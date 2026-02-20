@@ -1,4 +1,4 @@
-ï»¿<script setup lang="ts">
+<script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import { Badge } from '@/components/ui/badge';
@@ -186,16 +186,16 @@ const infoRows = computed<InfoRow[]>(() => {
         !isSample
             ? { label: 'Prioridad', value: normalizeText(productionOrder.value?.priority ?? programmer.value?.priority) }
             : null,
-        { label: 'SecciÃ³n', value: normalizeText(productSheet.value?.section?.name) },
+        { label: 'Sección', value: normalizeText(productSheet.value?.section?.name) },
         { label: 'Grupo', value: normalizeText(productSheet.value?.group?.name) },
         { label: 'Marca', value: normalizeText(productSheet.value?.brand?.name) },
         { label: 'Mundo', value: normalizeText(productSheet.value?.world?.name) },
         { label: 'Base', value: normalizeText(productSheet.value?.fabric_base?.name) },
         !isProduct ? { label: 'Base hilaza', value: normalizeText(productSheet.value?.yarn_base?.name) } : null,
-        { label: 'Precio facturaciÃ³n', value: normalizeText(productSheet.value?.billing_price) },
+        { label: 'Precio facturación', value: normalizeText(productSheet.value?.billing_price) },
         { label: 'Precio venta', value: normalizeText(productSheet.value?.selling_price) },
         { label: 'Tallas', value: formatSizes(productSheet.value?.sizes) },
-        { label: 'E-commerce', value: programmer.value?.ecommerce_units ? 'SÃ­' : '-' },
+        { label: 'E-commerce', value: programmer.value?.ecommerce_units ? 'Sí' : '-' },
     ];
 
     return rows
@@ -306,7 +306,7 @@ async function fetchDetail(id: number) {
         if (axios.isCancel(error)) return;
 
         payload.value = null;
-        fetchError.value = 'No se pudo cargar la informaciÃ³n de la orden de producciÃ³n.';
+        fetchError.value = 'No se pudo cargar la información de la orden de producción.';
     } finally {
         if (activeController === controller) {
             activeController = null;
@@ -325,7 +325,7 @@ watch(
 
         if (!id) {
             payload.value = null;
-            fetchError.value = 'No se recibiÃ³ un identificador vÃ¡lido para consultar el detalle.';
+            fetchError.value = 'No se recibió un identificador válido para consultar el detalle.';
             return;
         }
 
@@ -345,9 +345,9 @@ onUnmounted(() => {
     <Dialog v-model:open="openModel">
         <FormDialogContent class="flex max-h-[95vh] max-w-[1050px] flex-col px-2 py-2">
             <DialogHeader class="space-y-1 px-6 pb-2 pt-6">
-                <DialogTitle class="text-xl font-semibold tracking-tight text-foreground">Detalle de orden de producciÃ³n</DialogTitle>
+                <DialogTitle class="text-xl font-semibold tracking-tight text-foreground">Detalle de orden de producción</DialogTitle>
                 <DialogDescription class="text-sm font-normal text-muted-foreground">
-                    Visualiza la informaciÃ³n consolidada de la OP seleccionada.
+                    Visualiza la información consolidada de la OP seleccionada.
                 </DialogDescription>
             </DialogHeader>
 
@@ -378,7 +378,7 @@ onUnmounted(() => {
 
                 <template v-else-if="!hasData">
                     <div class="rounded-lg border border-border px-4 py-3 text-sm text-muted-foreground">
-                        No hay informaciÃ³n disponible para esta orden de producciÃ³n.
+                        No hay información disponible para esta orden de producción.
                     </div>
                 </template>
 
@@ -414,7 +414,7 @@ onUnmounted(() => {
                             </div>
 
                             <div v-if="normalizeText(productSheet?.description, '') !== ''" class="mt-4 border-t pt-4">
-                                <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">DescripciÃ³n</p>
+                                <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripción</p>
                                 <p class="mt-1 text-sm text-foreground">
                                     {{ normalizeText(productSheet?.description) }}
                                 </p>
@@ -477,10 +477,11 @@ onUnmounted(() => {
                         @click="handleCreateTechSheet"
                     >
                         <ClipboardPen class="h-4 w-4" />
-                        Crear ficha tÃ©cnica
+                        Crear ficha técnica
                     </Button>
                 </div>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>
 </template>
+

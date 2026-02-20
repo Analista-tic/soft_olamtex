@@ -27,3 +27,4 @@ const forwardedProps = useForwardProps(delegatedProps)
     <slot />
   </NavigationMenuList>
 </template>
+

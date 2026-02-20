@@ -116,3 +116,4 @@ createInertiaApp({
 // This will set light / dark mode on page load...
 initializeTheme();
 localStorage.setItem('appearance', localStorage.getItem('appearance') || 'light'); // Forzar 'light' si no hay preferencia guardada
+

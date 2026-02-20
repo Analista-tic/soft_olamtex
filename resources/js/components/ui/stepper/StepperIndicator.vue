@@ -33,3 +33,4 @@ const forwarded = useForwardProps(delegatedProps)
     <slot />
   </StepperIndicator>
 </template>
+

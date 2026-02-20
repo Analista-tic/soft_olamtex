@@ -1,0 +1,648 @@
+import axios from 'axios';
+import type { Option } from '@/domain/shared';
+import { toUnitNumber } from '@/domain/Textil';
+import type {
+    AdditionalInfoDto,
+    OpProcessesResponseDto,
+    OpBasicInfoDto,
+    OperationalListOptionDto,
+    OperationalListResponseDto,
+    CostsSummaryDto,
+    RollStateDto,
+    ThreadStateDto,
+} from './dto';
+import type {
+    AdditionalInfo,
+    CuttingPiece,
+    CostsSummary,
+    OpProcessesData,
+    OpBasicInfo,
+    OperationalListResponse,
+    RollLine,
+    RollSavePayload,
+    RollParams,
+    RollState,
+    SupplyItem,
+    SupplyCatalogItem,
+    ThreadSavePayload,
+    ThreadState,
+} from './types';
+import { mapOpBasicInfoDtoToOpBasicInfo } from './mappers';
+
+const ENDPOINTS = {
+    SETTINGS_PARAMETERS: '/settings/parameters',
+    OPTIONS: '/produccion/ficha-tecnica/opciones',
+    BASIC_INFO: '/produccion/ficha-tecnica/:id/basica',
+    OP_OPERATIONAL_LIST: '/produccion/ficha-tecnica/:id/listado-operacional',
+    OPERATIONAL_LIST_OPTIONS: '/produccion/ficha-tecnica/listados-operacionales/opciones',
+    OP_PROCESSES_SUMMARY: '/produccion/ficha-tecnica/:id/procesos',
+    OP_COSTS_SUMMARY: '/produccion/ficha-tecnica/:id/costos',
+    OP_SUPPLIES: '/produccion/ficha-tecnica/:id/insumos',
+    OP_SUPPLY_ITEM_OPTIONS: '/produccion/ficha-tecnica/insumos/opciones',
+    LAST_PURCHASE_BY_ITEM: '/produccion/insumos/items/:itemId/last-purchase',
+    ITEM_META_BY_ITEM: '/produccion/insumos/items/:itemId/meta',
+    OP_SUPPLIES_BULK: '/produccion/ficha-tecnica/:id/insumos',
+    OP_SUPPLY_DELETE: '/produccion/ficha-tecnica/:id/insumos/:supplyId',
+    OP_ROLLS: '/produccion/ficha-tecnica/:id/rollos',
+    OP_ROLLS_PARAMS: '/produccion/ficha-tecnica/:id/rollos/params',
+    OP_ROLLS_LINES: '/produccion/ficha-tecnica/:id/rollos/lines',
+    OP_ROLLS_LINE_DELETE: '/produccion/ficha-tecnica/:id/rollos/lines/:lineId',
+    INVENTORY_ROLLS: '/kardex-telas/inventario-rollos/data',
+    OP_THREADS: '/produccion/ficha-tecnica/:id/hilos',
+    OP_ADDITIONAL_INFO: '/produccion/ficha-tecnica/:id/info-adicional',
+} as const;
+
+type ItemCatalogDto = {
+    id: number;
+    name: string;
+    reference?: string | null;
+    unit?: string | null;
+};
+
+export type LastPurchaseByItem = {
+    provider: {
+        id: number | null;
+        name: string | null;
+    } | null;
+    price: number | null;
+    currency: 'COP';
+    date: string | null;
+    source: 'invoice' | 'purchase_order';
+};
+
+type LastPurchaseByItemResponse = {
+    data: LastPurchaseByItem | null;
+};
+
+export type RawMaterialItemMeta = {
+    itemId: number;
+    provider: {
+        id: number | null;
+        name: string | null;
+    } | null;
+    price: number | null;
+    currency: 'COP';
+    date: string | null;
+    invoiceNumber: string | null;
+    width: number | null;
+    widthUnit: 'm' | 'cm' | null;
+    source: {
+        price: 'invoice' | 'purchase_order' | 'unknown';
+        width: 'inventory' | 'item' | 'unknown';
+    };
+};
+
+type RawMaterialItemMetaResponse = {
+    data: RawMaterialItemMeta | null;
+};
+
+type InventoryRollDto = {
+    id: number | string;
+    fabric_item_id?: number | null;
+    item_id?: number | null;
+    roll?: string | null;
+    location?: string | null;
+    fabric?: string | null;
+    color?: string | null;
+    color_code?: string | null;
+    width?: string | null;
+    partial_availability?: string | null;
+    real_availability?: string | null;
+    provider?: string | null;
+    price_per_meter?: number | null;
+    pricePerMeter?: number | null;
+};
+
+export type AvailableFabricRoll = {
+    id: string;
+    fabricItemId: number | null;
+    label: string;
+    roll: string;
+    fabricName: string;
+    color: string | null;
+    colorCode: string | null;
+    supplier: string | null;
+    widthCm: number | null;
+    availableMeters: number | null;
+    pricePerMeter: number | null;
+    location: string | null;
+};
+
+export interface FetchOpOptionsParams {
+    search?: string;
+}
+
+export async function fetchOpOptions(params: FetchOpOptionsParams = {}): Promise<Option[]> {
+    const response = await axios.get<Option[]>(ENDPOINTS.OPTIONS, {
+        params: {
+            search: params.search || undefined,
+        },
+    });
+
+    return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function fetchOpBasicInfo(opId: string | number): Promise<OpBasicInfo> {
+    const url = ENDPOINTS.BASIC_INFO.replace(':id', String(opId));
+    const response = await axios.get<OpBasicInfoDto>(url);
+
+    return mapOpBasicInfoDtoToOpBasicInfo(response.data);
+}
+
+export interface FetchOperationalListOptionsParams {
+    search?: string;
+}
+
+type SettingsParametersResponse = {
+    data?: Record<string, Array<{ id: string | number | boolean; name: string }>>;
+};
+
+export async function fetchOpOperationalList(opId: string | number): Promise<OperationalListResponse> {
+    const url = ENDPOINTS.OP_OPERATIONAL_LIST.replace(':id', String(opId));
+    const response = await axios.get<OperationalListResponseDto>(url);
+    const data = response.data;
+
+    return {
+        hasList: Boolean(data?.hasList),
+        list: data?.list
+            ? {
+                  id: data.list.id,
+                  name: data.list.name ?? null,
+                  reference: data.list.reference ?? null,
+                  items: Array.isArray(data.list.items)
+                      ? data.list.items.map((item) => ({
+                            order: item.order ?? null,
+                            process: item.process ?? null,
+                            description: item.description ?? null,
+                            minutes: item.minutes ?? null,
+                            type: item.type ?? null,
+                        }))
+                      : [],
+              }
+            : null,
+    };
+}
+
+export async function fetchOperationalListOptions(params: FetchOperationalListOptionsParams = {}): Promise<Option[]> {
+    const response = await axios.get<OperationalListOptionDto[]>(ENDPOINTS.OPERATIONAL_LIST_OPTIONS, {
+        params: {
+            search: params.search || undefined,
+        },
+    });
+
+    if (!Array.isArray(response.data)) {
+        return [];
+    }
+
+    return response.data.map((option) => ({
+        id: option.value,
+        name: option.label,
+    }));
+}
+
+export async function assignOperationalListToOp(opId: string | number, listId: string | number): Promise<{ ok: boolean }> {
+    const url = ENDPOINTS.OP_OPERATIONAL_LIST.replace(':id', String(opId));
+    const response = await axios.post<{ ok: boolean }>(url, {
+        list_id: Number(listId),
+    });
+
+    return response.data;
+}
+
+export async function fetchSettingsParameters(keys: string[]): Promise<Record<string, Option[]>> {
+    if (!Array.isArray(keys) || keys.length === 0) {
+        return {};
+    }
+
+    const response = await axios.get<SettingsParametersResponse>(ENDPOINTS.SETTINGS_PARAMETERS, {
+        params: { keys },
+    });
+
+    const source = response.data?.data ?? {};
+    const result: Record<string, Option[]> = {};
+
+    Object.entries(source).forEach(([key, options]) => {
+        result[key] = Array.isArray(options)
+            ? options.map((option) => ({
+                  id: option.id,
+                  name: String(option.name ?? ''),
+              }))
+            : [];
+    });
+
+    return result;
+}
+
+export async function fetchOpProcesses(opId: string | number): Promise<OpProcessesData> {
+    const url = ENDPOINTS.OP_PROCESSES_SUMMARY.replace(':id', String(opId));
+    const response = await axios.get<OpProcessesResponseDto>(url);
+    const data = response.data;
+
+    return {
+        hasOperationalList: Boolean(data?.hasOperationalList),
+        params: {
+            cuttingCost: Number(data?.params?.cuttingCost ?? 0),
+            minuteCost: Number(data?.params?.minuteCost ?? 0),
+        },
+        minutes: {
+            confeccion: Number(data?.minutes?.confeccion ?? 0),
+            terminacion: Number(data?.minutes?.terminacion ?? 0),
+        },
+        processes: Array.isArray(data?.processes)
+            ? data.processes.map((row, index) => ({
+                  id: row.id,
+                  order: Number(row.order ?? index + 1),
+                  type: row.type,
+                  supplier: row.supplier ?? null,
+                  manualPrice: row.manualPrice !== null && row.manualPrice !== undefined ? Number(row.manualPrice) : null,
+              }))
+            : [],
+    };
+}
+
+export async function saveOpProcesses(opId: string | number, payload: { processes: OpProcessesData['processes'] }): Promise<OpProcessesData> {
+    const url = ENDPOINTS.OP_PROCESSES_SUMMARY.replace(':id', String(opId));
+    const response = await axios.post<OpProcessesResponseDto>(url, payload);
+    const data = response.data;
+
+    return {
+        hasOperationalList: Boolean(data?.hasOperationalList),
+        params: {
+            cuttingCost: Number(data?.params?.cuttingCost ?? 0),
+            minuteCost: Number(data?.params?.minuteCost ?? 0),
+        },
+        minutes: {
+            confeccion: Number(data?.minutes?.confeccion ?? 0),
+            terminacion: Number(data?.minutes?.terminacion ?? 0),
+        },
+        processes: Array.isArray(data?.processes)
+            ? data.processes.map((row, index) => ({
+                  id: row.id,
+                  order: Number(row.order ?? index + 1),
+                  type: row.type,
+                  supplier: row.supplier ?? null,
+                  manualPrice: row.manualPrice !== null && row.manualPrice !== undefined ? Number(row.manualPrice) : null,
+              }))
+            : [],
+    };
+}
+
+export async function fetchOpCostsSummary(opId: string | number): Promise<CostsSummary> {
+    const url = ENDPOINTS.OP_COSTS_SUMMARY.replace(':id', String(opId));
+    const response = await axios.get<CostsSummaryDto>(url);
+    const data = response.data;
+
+    return {
+        prices: {
+            invoicing: data?.prices?.invoicing ?? null,
+            fixedCost: data?.prices?.fixedCost ?? null,
+            sale: data?.prices?.sale ?? null,
+            historicInvoicing: data?.prices?.historicInvoicing ?? null,
+        },
+        units: data?.units ?? null,
+        costs: {
+            rawMaterial: Number(data?.costs?.rawMaterial ?? 0),
+            supplies: Number(data?.costs?.supplies ?? 0),
+            processes: Number(data?.costs?.processes ?? 0),
+            cut: Number(data?.costs?.cut ?? 0),
+            confection: Number(data?.costs?.confection ?? 0),
+            finishing: Number(data?.costs?.finishing ?? 0),
+            total: Number(data?.costs?.total ?? 0),
+        },
+        profitability: {
+            olamtex: {
+                value: data?.profitability?.olamtex?.value ?? null,
+                percent: data?.profitability?.olamtex?.percent ?? null,
+            },
+            client: {
+                value: data?.profitability?.client?.value ?? null,
+                percent: data?.profitability?.client?.percent ?? null,
+            },
+        },
+        breakdownAvailable: {
+            rawMaterial: Boolean(data?.breakdownAvailable?.rawMaterial),
+            supplies: Boolean(data?.breakdownAvailable?.supplies),
+            processes: Boolean(data?.breakdownAvailable?.processes),
+        },
+    };
+}
+
+export async function fetchOpSupplies(opId: string | number): Promise<SupplyItem[]> {
+    const url = ENDPOINTS.OP_SUPPLIES.replace(':id', String(opId));
+    const response = await axios.get<SupplyItem[]>(url);
+    return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function fetchSupplyCatalogItems(search = ''): Promise<SupplyCatalogItem[]> {
+    const response = await axios.get<ItemCatalogDto[]>(ENDPOINTS.OP_SUPPLY_ITEM_OPTIONS, {
+        params: {
+            group: 'insumos',
+            search: search || undefined,
+            status: 'habilitado',
+        },
+    });
+
+    const rawItems = Array.isArray(response.data) ? response.data : [];
+
+    return rawItems
+        .map((item) => {
+            const name = String(item.name ?? '').trim();
+            const reference = item.reference ? String(item.reference).trim() : null;
+            const label = reference ? `${name} (${reference})` : name;
+
+            return {
+                id: Number(item.id),
+                label,
+                name,
+                reference,
+                unit: item.unit ? String(item.unit).trim() : null,
+                supplier: null,
+                description: null,
+                suggestedPrice: null,
+            };
+        })
+        .filter((item) => item.label !== '');
+}
+
+export async function fetchRawMaterialCatalogOptions(search = ''): Promise<Option[]> {
+    const response = await axios.get<ItemCatalogDto[]>(ENDPOINTS.OP_SUPPLY_ITEM_OPTIONS, {
+        params: {
+            group: 'materia prima',
+            search: search || undefined,
+            status: 'habilitado',
+        },
+    });
+
+    const rawItems = Array.isArray(response.data) ? response.data : [];
+
+    return rawItems
+        .map((item) => {
+            const id = Number(item.id);
+            const name = String(item.name ?? '').trim();
+            const reference = String(item.reference ?? '').trim();
+            const label = reference ? `${name} (${reference})` : name;
+            return { id, name: label };
+        })
+        .filter((option) => Number.isFinite(Number(option.id)) && option.name !== '');
+}
+
+export async function fetchLastPurchaseByItem(itemId: number): Promise<LastPurchaseByItem | null> {
+    if (!Number.isFinite(itemId) || itemId <= 0) {
+        return null;
+    }
+
+    const url = ENDPOINTS.LAST_PURCHASE_BY_ITEM.replace(':itemId', String(itemId));
+    const response = await axios.get<LastPurchaseByItemResponse>(url);
+    return response.data?.data ?? null;
+}
+
+export async function fetchRawMaterialItemMeta(itemId: number): Promise<RawMaterialItemMeta | null> {
+    if (!Number.isFinite(itemId) || itemId <= 0) {
+        return null;
+    }
+
+    const url = ENDPOINTS.ITEM_META_BY_ITEM.replace(':itemId', String(itemId));
+    const response = await axios.get<RawMaterialItemMetaResponse>(url);
+    return response.data?.data ?? null;
+}
+
+export async function upsertOpSupply(opId: string | number, payload: SupplyItem): Promise<SupplyItem[]> {
+    const url = ENDPOINTS.OP_SUPPLIES.replace(':id', String(opId));
+    const response = await axios.post<SupplyItem[]>(url, payload);
+    return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function saveOpSupplies(opId: string | number, items: SupplyItem[]): Promise<SupplyItem[]> {
+    const url = ENDPOINTS.OP_SUPPLIES_BULK.replace(':id', String(opId));
+    const response = await axios.put<SupplyItem[]>(url, { items });
+    return Array.isArray(response.data) ? response.data : [];
+}
+
+export async function deleteOpSupply(opId: string | number, supplyId: string): Promise<SupplyItem[]> {
+    const url = ENDPOINTS.OP_SUPPLY_DELETE
+        .replace(':id', String(opId))
+        .replace(':supplyId', encodeURIComponent(supplyId));
+    const response = await axios.delete<SupplyItem[]>(url);
+    return Array.isArray(response.data) ? response.data : [];
+}
+
+function normalizeRollState(data: RollStateDto | null | undefined): RollState {
+    return {
+        params: {
+            trazo: Number(data?.params?.trazo ?? 0.8),
+            defaultExtra: Number(data?.params?.defaultExtra ?? 0.03),
+        },
+        lines: Array.isArray(data?.lines)
+            ? data!.lines.map((line) => ({
+                  id: line.id,
+                  consecutive: line.consecutive ?? null,
+                  type: line.type,
+                  fabricName: line.fabricName,
+                  averageTrace: line.averageTrace !== null && line.averageTrace !== undefined ? Number(line.averageTrace) : null,
+                  factor: line.factor !== null && line.factor !== undefined ? Number(line.factor) : null,
+                  programmedMeters: line.programmedMeters !== null && line.programmedMeters !== undefined ? Number(line.programmedMeters) : null,
+                  colors: line.colors ?? null,
+                  availableMeters: line.availableMeters !== null && line.availableMeters !== undefined ? Number(line.availableMeters) : null,
+                  color: line.color ?? null,
+                  colorCode: line.colorCode ?? null,
+                  widthCm: line.widthCm ?? null,
+                  supplier: line.supplier ?? null,
+                  pricePerMeter: Number(line.pricePerMeter ?? 0),
+                  consumptionBase: Number(line.consumptionBase ?? 0),
+                  extraMeters: Number(line.extraMeters ?? 0),
+                  unitCost: line.unitCost !== null && line.unitCost !== undefined ? Number(line.unitCost) : null,
+                  totalCost: line.totalCost !== null && line.totalCost !== undefined ? Number(line.totalCost) : null,
+                  balanceMeters: line.balanceMeters !== null && line.balanceMeters !== undefined ? Number(line.balanceMeters) : null,
+                  notes: line.notes ?? null,
+                  fabricItemId: line.fabricItemId ?? null,
+                  rollId: line.rollId ?? null,
+                  createdAt: line.createdAt,
+                  updatedAt: line.updatedAt,
+              }))
+            : [],
+    };
+}
+
+export async function fetchOpRolls(opId: string | number): Promise<RollState> {
+    const url = ENDPOINTS.OP_ROLLS.replace(':id', String(opId));
+    const response = await axios.get<RollStateDto>(url);
+    return normalizeRollState(response.data);
+}
+
+export async function saveOpRollParams(opId: string | number, params: RollParams): Promise<RollState> {
+    const url = ENDPOINTS.OP_ROLLS_PARAMS.replace(':id', String(opId));
+    const response = await axios.post<RollStateDto>(url, params);
+    return normalizeRollState(response.data);
+}
+
+export async function upsertOpRollLine(opId: string | number, payload: RollLine): Promise<RollState> {
+    const url = ENDPOINTS.OP_ROLLS_LINES.replace(':id', String(opId));
+    const response = await axios.post<RollStateDto>(url, payload);
+    return normalizeRollState(response.data);
+}
+
+export async function deleteOpRollLine(opId: string | number, lineId: string): Promise<RollState> {
+    const url = ENDPOINTS.OP_ROLLS_LINE_DELETE
+        .replace(':id', String(opId))
+        .replace(':lineId', encodeURIComponent(lineId));
+    const response = await axios.delete<RollStateDto>(url);
+    return normalizeRollState(response.data);
+}
+
+export async function saveOpRolls(opId: string | number, payload: RollSavePayload): Promise<RollState> {
+    const url = ENDPOINTS.OP_ROLLS.replace(':id', String(opId));
+    const response = await axios.put<RollStateDto>(url, payload);
+    return normalizeRollState(response.data);
+}
+
+function parseMeters(value: string | null | undefined): number | null {
+    return toUnitNumber(value);
+}
+
+function parseWidth(value: string | null | undefined): number | null {
+    const parsed = toUnitNumber(value);
+    if (parsed === null) return null;
+
+    const raw = String(value ?? '').toLowerCase();
+    if (/\bm\b/.test(raw) && !/\bcm\b/.test(raw)) {
+        return parsed * 100;
+    }
+
+    return parsed;
+}
+
+export async function fetchAvailableFabricRolls(fabricItemIds: number[] = []): Promise<AvailableFabricRoll[]> {
+    const response = await axios.get<{ data?: InventoryRollDto[] } | InventoryRollDto[]>(ENDPOINTS.INVENTORY_ROLLS, {
+        params: {
+            fabricItemIds: fabricItemIds.length > 0 ? fabricItemIds : undefined,
+        },
+    });
+    const raw = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.data)
+        ? response.data.data
+        : [];
+
+    return raw.map((roll) => {
+        const id = String(roll.id);
+        const rollCode = String(roll.roll ?? `Rollo ${id}`);
+        const fabricName = String(roll.fabric ?? 'Tela');
+        const color = roll.color ? String(roll.color) : null;
+        const label = color ? `${rollCode} - ${fabricName} - ${color}` : `${rollCode} - ${fabricName}`;
+
+        return {
+            id,
+            fabricItemId: roll.fabric_item_id ?? roll.item_id ?? null,
+            label,
+            roll: rollCode,
+            fabricName,
+            color,
+            colorCode: roll.color_code ? String(roll.color_code) : null,
+            supplier: roll.provider ? String(roll.provider) : null,
+            widthCm: parseWidth(roll.width),
+            availableMeters: parseMeters(roll.real_availability ?? roll.partial_availability),
+            pricePerMeter: roll.pricePerMeter ?? roll.price_per_meter ?? null,
+            location: roll.location ? String(roll.location) : null,
+        };
+    });
+}
+
+function normalizeThreadState(data: ThreadStateDto | null | undefined): ThreadState {
+    const rawLines = Array.isArray(data?.lines) ? data.lines : [];
+
+    return {
+        lines: rawLines.map((line) => ({
+            id: line.id,
+            threadName: line.threadName,
+            gauge: line.gauge !== null && line.gauge !== undefined ? Number(line.gauge) : null,
+            brand: line.brand ?? null,
+            color: line.color ?? null,
+            colorCode: line.colorCode ?? null,
+            stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined
+                ? Number(line.stitchesPerInch)
+                : null,
+            createdAt: line.createdAt,
+            updatedAt: line.updatedAt,
+        })),
+    };
+}
+
+export async function fetchOpThreads(opId: string | number): Promise<ThreadState> {
+    const url = ENDPOINTS.OP_THREADS.replace(':id', String(opId));
+    const response = await axios.get<ThreadStateDto>(url);
+    return normalizeThreadState(response.data);
+}
+
+export async function saveOpThreads(opId: string | number, payload: ThreadSavePayload): Promise<ThreadState> {
+    const url = ENDPOINTS.OP_THREADS.replace(':id', String(opId));
+    const response = await axios.put<ThreadStateDto>(url, payload);
+    return normalizeThreadState(response.data);
+}
+
+function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): AdditionalInfo {
+    const parsedPieces: CuttingPiece[] = Array.isArray(data?.cutting?.pieces)
+        ? data!.cutting.pieces.map((piece) => {
+              const rawId = String(piece.id ?? '').trim();
+              const rawUid = String(piece.uid ?? '').trim();
+              const stableId = rawId || rawUid;
+
+              return {
+                  id: stableId,
+                  uid: stableId || undefined,
+                  name: String(piece.name ?? ''),
+                  type: piece.type === 'SECUNDARIO' ? 'SECUNDARIO' : 'PRINCIPAL',
+                  side: ['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(String(piece.side))
+                      ? (piece.side as CuttingPiece['side'])
+                      : 'NO_APLICA',
+                  grain: ['90', '180', 'SESGO'].includes(String(piece.grain))
+                      ? (piece.grain as CuttingPiece['grain'])
+                      : '90',
+                  notes: piece.notes ?? null,
+              };
+          })
+        : [];
+
+    return {
+        cutting: {
+            params: {
+                cutCostCop: data?.cutting?.params?.cutCostCop !== null && data?.cutting?.params?.cutCostCop !== undefined
+                    ? Number(data.cutting.params.cutCostCop)
+                    : null,
+            },
+            sizes: Array.isArray(data?.cutting?.sizes)
+                ? data!.cutting.sizes.map((sizeRow) => ({
+                      uid: sizeRow.uid ? String(sizeRow.uid) : undefined,
+                      size: String(sizeRow.size ?? ''),
+                      units: Number(sizeRow.units ?? 0),
+                      curve: sizeRow.curve !== null && sizeRow.curve !== undefined ? String(sizeRow.curve) : null,
+                  }))
+                : [],
+            espigaLength: data?.cutting?.espigaLength ?? null,
+            espigaCurve: data?.cutting?.espigaCurve ?? null,
+            liqLength: data?.cutting?.liqLength ?? null,
+            liqCurve: data?.cutting?.liqCurve ?? null,
+            pieces: parsedPieces,
+            generalNotes: data?.cutting?.generalNotes ?? null,
+        },
+        stamping: {
+            designNotes: data?.stamping?.designNotes ?? null,
+            attachments: Array.isArray(data?.stamping?.attachments) ? data!.stamping.attachments : [],
+        },
+        laundry: {
+            type: data?.laundry?.type ?? null,
+            instructions: data?.laundry?.instructions ?? null,
+        },
+    };
+}
+
+export async function fetchOpAdditionalInfo(opId: string | number): Promise<AdditionalInfo> {
+    const url = ENDPOINTS.OP_ADDITIONAL_INFO.replace(':id', String(opId));
+    const response = await axios.get<AdditionalInfoDto>(url);
+    return normalizeAdditionalInfo(response.data);
+}
+
+export async function saveOpAdditionalInfo(opId: string | number, payload: AdditionalInfo): Promise<AdditionalInfo> {
+    const url = ENDPOINTS.OP_ADDITIONAL_INFO.replace(':id', String(opId));
+    const response = await axios.post<AdditionalInfoDto>(url, payload);
+    return normalizeAdditionalInfo(response.data);
+}

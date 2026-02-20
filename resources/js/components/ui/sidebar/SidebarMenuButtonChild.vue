@@ -31,3 +31,4 @@ const props = withDefaults(defineProps<SidebarMenuButtonProps>(), {
         <slot />
     </Primitive>
 </template>
+
