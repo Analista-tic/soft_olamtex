@@ -13,21 +13,33 @@ export type TaxPayload = {
     status?: boolean;
 };
 
+export type RetentionStatus = 'active' | 'inactive';
+
 export interface Retention {
     id?: number | null;
     name: string;
     percent: number;
     type: string;
     description?: string | null;
-    status: 'active' | 'inactive';
+    status: RetentionStatus;
     created_at?: string;
     updated_at?: string;
 }
+
+export type RetentionForm = Omit<Retention, 'description'> & { description: string };
 
 export type RetentionPayload = {
     name: string;
     percent: number;
     type: string;
     description?: string | null;
-    status?: 'active' | 'inactive';
+    status?: RetentionStatus;
+};
+
+export type RetentionListQuery = {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    type?: string;
+    status?: RetentionStatus;
 };

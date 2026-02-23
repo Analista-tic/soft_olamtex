@@ -20,6 +20,7 @@ return new class extends Migration
             $table->decimal('iva', 15, 2)->default(0);
             $table->decimal('total', 15, 2)->default(0);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

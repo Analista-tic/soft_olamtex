@@ -5,7 +5,8 @@ import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Contact, PurchaseInvoice } from '@/domain/Expenses';
+import type { PurchaseInvoice } from '@/domain/Expenses';
+import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -28,7 +29,8 @@ const emit = defineEmits<{
 }>();
 
 const dialogOpen = ref(props.isOpen);
-const localForm = ref<Partial<PurchaseInvoice>>(createDefaultForm());
+type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_name?: string | null };
+const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const isLoading = ref(false);
 const isSendingMail = ref(false);
@@ -104,7 +106,7 @@ const id = computed(() => {
     return nextInvoiceId.value.toString();
 });
 
-function createDefaultForm(): Partial<PurchaseInvoice> {
+function createDefaultForm(): PurchaseInvoiceWithProviderName {
     return {
         contact_id: null,
         date: '',
@@ -115,6 +117,7 @@ function createDefaultForm(): Partial<PurchaseInvoice> {
         id: undefined,
         purchase_order_id: null,
         withholdings: [],
+        provider_name: '',
     };
 }
 
@@ -332,7 +335,7 @@ async function handleSubmit(sendMail = false) {
     }
     isLoading.value = true;
     isSendingMail.value = sendMail;
-    const formToSend = { ...localForm.value };
+    const formToSend: PurchaseInvoiceWithProviderName = { ...localForm.value };
     const selectedContact = contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id));
     formToSend.provider_name = selectedContact?.full_name ?? '';
     const orderId = selectedPurchaseOrderId.value ?? localForm.value.purchase_order_id ?? localForm.value.parent_document_id ?? null;
@@ -721,4 +724,3 @@ watch(dialogOpen, (isOpen) => {
         </DialogContent>
     </Dialog>
 </template>
-

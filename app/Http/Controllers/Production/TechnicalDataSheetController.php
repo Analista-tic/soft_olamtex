@@ -189,17 +189,7 @@ class TechnicalDataSheetController extends Controller
             : $season;
 
         $priority = $this->nullableText($programmer->priority);
-        $flatDrawingPath = $productSheet?->flat_sketch_path;
-        $flatDrawingUrl = null;
-
-        if (is_string($flatDrawingPath) && trim($flatDrawingPath) !== '') {
-            $path = trim($flatDrawingPath);
-            if (preg_match('/^https?:\/\//i', $path)) {
-                $flatDrawingUrl = $path;
-            } else {
-                $flatDrawingUrl = Storage::url(ltrim($path, '/'));
-            }
-        }
+        $flatDrawingUrl = $this->resolveFlatDrawingUrl($productSheet?->flat_sketch_path);
 
         return response()->json([
             'id' => $programmer->id,
@@ -219,6 +209,40 @@ class TechnicalDataSheetController extends Controller
             'season' => $seasonDisplay,
             'sizes' => $this->normalizeSizes($productSheet?->sizes),
         ]);
+    }
+
+    /**
+     * Resuelve una URL pública de dibujo plano solo si el archivo existe.
+     * Evita exponer rutas rotas que terminan en 403/404 en el frontend.
+     */
+    private function resolveFlatDrawingUrl(?string $rawPath): ?string
+    {
+        if (!is_string($rawPath) || trim($rawPath) === '') {
+            return null;
+        }
+
+        $path = str_replace('\\', '/', trim($rawPath));
+        if (preg_match('/^https?:\/\//i', $path)) {
+            return $path;
+        }
+
+        $normalized = ltrim($path, '/');
+        if (Str::startsWith($normalized, 'storage/')) {
+            $normalized = Str::after($normalized, 'storage/');
+        }
+
+        $candidates = [$normalized];
+        if (Str::startsWith($normalized, 'product-sheets/flat-sketches/')) {
+            $candidates[] = Str::replaceFirst('product-sheets/flat-sketches/', 'product_sheets/', $normalized);
+        }
+
+        foreach ($candidates as $candidate) {
+            if ($candidate !== '' && Storage::disk('public')->exists($candidate)) {
+                return Storage::disk('public')->url($candidate);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -949,4 +973,3 @@ class TechnicalDataSheetController extends Controller
         return count($state['lines'] ?? []) > 0;
     }
 }
-

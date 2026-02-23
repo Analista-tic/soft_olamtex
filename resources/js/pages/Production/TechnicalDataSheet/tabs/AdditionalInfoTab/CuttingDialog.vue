@@ -688,7 +688,7 @@ watch(
                                 <div class="flex items-center gap-1">
                                     <p class="text-sm font-semibold text-foreground">Unidades por talla</p>
                                     <HelpTooltip
-                                        text="Distribuci�n editable de unidades para corte/trazo."
+                                        text="Distribución editable de unidades para corte/trazo."
                                         aria-label="Ayuda sobre Unidades por talla"
                                     />
                                 </div>
@@ -916,20 +916,20 @@ watch(
                         </div>
 
                         <div v-if="loadingPieceOptions" class="mb-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                            Cargando par�metros de despiece...
+                            Cargando parámetros de despiece...
                         </div>
 
                         <div class="rounded-md border border-border bg-background p-2">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead class="text-left">N�</TableHead>
+                                        <TableHead class="text-left">N°</TableHead>
                                         <TableHead class="text-left">Pieza</TableHead>
                                         <TableHead class="text-left">Tela</TableHead>
                                         <TableHead class="text-left">Lateralidad</TableHead>
                                         <TableHead class="text-left">Cantidad</TableHead>
                                         <TableHead class="text-left">Hilo</TableHead>
-                                        <TableHead class="text-center">Acci�n</TableHead>
+                                        <TableHead class="text-center">Acción</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -1166,7 +1166,7 @@ watch(
                                 v-if="resolvedDrawingUrl"
                                 type="button"
                                 class="w-full overflow-hidden rounded-md bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                                aria-label="Abrir dibujo plano en tama�o grande"
+                                aria-label="Abrir dibujo plano en tamaño grande"
                                 @click="openDrawingPreview"
                             >
                                 <img
@@ -1185,7 +1185,7 @@ watch(
 
                             <div class="mb-3 mt-4 border-t border-border pt-4">
                                 <p class="text-sm font-semibold text-foreground">Materia prima</p>
-                                <p class="text-xs text-muted-foreground">Informaci�n de la materia prima utilizada</p>
+                                <p class="text-xs text-muted-foreground">Información de la materia prima utilizada</p>
                             </div>
 
                             <div v-if="rawMaterialsInfo.length === 0" class="rounded-md bg-background/70 px-3 py-5 text-sm text-muted-foreground">
@@ -1196,7 +1196,7 @@ watch(
                                 <Table class="w-full table-fixed text-center">
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead class="w-[14%]">N�</TableHead>
+                                            <TableHead class="w-[14%]">N°</TableHead>
                                             <TableHead class="w-[24%]">Tela</TableHead>
                                             <TableHead class="w-[13%]">Ancho</TableHead>
                                             <TableHead class="w-[17%]">Prom. trazo</TableHead>
@@ -1218,7 +1218,7 @@ watch(
                             </div>
                             <div class="mt-4 border-t border-border pt-4">
                                 <div class="mb-3">
-                                    <p class="text-sm font-semibold text-foreground">Colores - c�digos</p>
+                                    <p class="text-sm font-semibold text-foreground">Colores - códigos</p>
                                     <p class="text-xs text-muted-foreground">Referencia visual</p>
                                 </div>
                                 <div class="grid grid-cols-2 gap-2">

@@ -25,7 +25,9 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { InventoryMovement, Item, Warehouse } from '@/domain/Inventory';
+import type { InventoryMovement, Warehouse } from '@/domain/Inventory';
+import type { Item } from '@/domain/MasterData';
+import type { Option } from '@/domain/shared';
 import { useAlertStack } from '@/composables/useAlert';
 
 const breadcrumbs = [
@@ -37,8 +39,10 @@ const movements = ref<InventoryMovement[]>([]);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const typeFilter = ref('all');
-const itemFilter = ref<number | null>(null);
-const warehouseFilter = ref<number | null>(null);
+const ALL_ITEMS_FILTER = 'all-items';
+const ALL_WAREHOUSES_FILTER = 'all-warehouses';
+const itemFilter = ref<number | typeof ALL_ITEMS_FILTER>(ALL_ITEMS_FILTER);
+const warehouseFilter = ref<number | typeof ALL_WAREHOUSES_FILTER>(ALL_WAREHOUSES_FILTER);
 const dateFrom = ref('');
 const dateTo = ref('');
 const currentPage = ref(1);
@@ -54,8 +58,8 @@ const warehouses = ref<Warehouse[]>([]);
 const DEFAULT_TYPE_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_TYPE_FILTER);
-const isItemFilterActive = computed(() => itemFilter.value !== null);
-const isWarehouseFilterActive = computed(() => warehouseFilter.value !== null);
+const isItemFilterActive = computed(() => itemFilter.value !== ALL_ITEMS_FILTER);
+const isWarehouseFilterActive = computed(() => warehouseFilter.value !== ALL_WAREHOUSES_FILTER);
 const isDateFromActive = computed(() => Boolean(dateFrom.value));
 const isDateToActive = computed(() => Boolean(dateTo.value));
 
@@ -74,6 +78,18 @@ const typeOptions = [
     { id: 'salida', name: 'Salida' },
     { id: 'ajuste', name: 'Ajuste' },
 ];
+
+const itemOptions = computed<Option[]>(() => [
+    { id: ALL_ITEMS_FILTER, name: 'Todos los items' },
+    ...items.value.map((item) => ({ id: item.id, name: item.name })),
+]);
+
+const warehouseOptions = computed<Option[]>(() => [
+    { id: ALL_WAREHOUSES_FILTER, name: 'Todas las bodegas' },
+    ...warehouses.value
+        .filter((warehouse): warehouse is Warehouse & { id: number } => typeof warehouse.id === 'number')
+        .map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
+]);
 
 const typeLabelMap: Record<string, string> = {
     entrada: 'Entrada',
@@ -135,11 +151,11 @@ async function fetchMovements(page = 1, search = '') {
         params.type = typeFilter.value;
     }
     
-    if (itemFilter.value) {
+    if (typeof itemFilter.value === 'number') {
         params.item_id = itemFilter.value;
     }
     
-    if (warehouseFilter.value) {
+    if (typeof warehouseFilter.value === 'number') {
         params.warehouse_id = warehouseFilter.value;
     }
     
@@ -268,10 +284,7 @@ onMounted(() => {
                     <SelectField
                         v-model="itemFilter"
                         label=""
-                        :options="[
-                            { id: null, name: 'Todos los items' },
-                            ...items.map((item) => ({ id: item.id, name: item.name })),
-                        ]"
+                        :options="itemOptions"
                         :button-class="itemButtonClasses"
                     />
                 </FilterField>
@@ -280,10 +293,7 @@ onMounted(() => {
                     <SelectField
                         v-model="warehouseFilter"
                         label=""
-                        :options="[
-                            { id: null, name: 'Todas las bodegas' },
-                            ...warehouses.map((w) => ({ id: w.id, name: w.name })),
-                        ]"
+                        :options="warehouseOptions"
                         :button-class="warehouseButtonClasses"
                     />
                 </FilterField>
@@ -577,4 +587,3 @@ onMounted(() => {
         </Dialog>
     </AppLayout>
 </template>
-

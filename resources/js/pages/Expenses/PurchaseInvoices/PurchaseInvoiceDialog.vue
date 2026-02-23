@@ -6,7 +6,8 @@ import TextareaField from '@/components/TextareaField.vue';
 import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { Contact, PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/Expenses';
+import type { PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/Expenses';
+import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -29,7 +30,7 @@ const emit = defineEmits<{
 }>();
 
 const dialogOpen = ref(props.isOpen);
-type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_name?: string };
+type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_name?: string | null };
 const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const isLoading = ref(false);
@@ -417,7 +418,7 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     }
     isLoading.value = true;
     isSendingMail.value = sendMail;
-    const formToSend = { ...localForm.value };
+    const formToSend: PurchaseInvoiceWithProviderName = { ...localForm.value };
     // Asegurar que provider_name sea string y corresponda al proveedor seleccionado
     const selectedContact = contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id));
     formToSend.provider_name = selectedContact?.full_name || '';
@@ -825,4 +826,3 @@ watch(dialogOpen, (isOpen) => {
         @cancel="closeDifferenceDialog"
     />
 </template>
-

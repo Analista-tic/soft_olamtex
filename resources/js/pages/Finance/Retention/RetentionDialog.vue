@@ -4,22 +4,22 @@ import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogDescription } fr
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import type { Retention } from '@/domain/shared';
+import type { RetentionForm } from '@/domain/Finance';
 
 const props = defineProps<{
     open: boolean;
     dialogType: 'create' | 'edit';
-    form: Retention;
+    form: RetentionForm;
     loading: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:open', value: boolean): void;
-    (e: 'submit', value: Retention): void;
+    (e: 'submit', value: RetentionForm): void;
     (e: 'cancel'): void;
 }>();
 
-const localForm = ref<Retention>({ ...props.form });
+const localForm = ref<RetentionForm>({ ...props.form });
 
 watch(
     () => props.form,
@@ -34,7 +34,13 @@ function handleClose() {
 }
 
 function handleSubmit() {
-    emit('submit', { ...localForm.value });
+    emit('submit', {
+        ...localForm.value,
+        name: localForm.value.name.trim(),
+        type: localForm.value.type.trim(),
+        description: localForm.value.description.trim(),
+        percent: Number(localForm.value.percent) || 0,
+    });
 }
 
 // Opciones para el tipo de retención
@@ -60,7 +66,15 @@ const retentionTypeOptions = [
             </DialogHeader>
             <div class="space-y-4 pt-2">
                 <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre de la retención" required />
-                <InputField label="Porcentaje" v-model="localForm.percent" type="number" min="0" max="100" required />
+                <InputField
+                    label="Porcentaje"
+                    :model-value="localForm.percent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    required
+                    @update:modelValue="(value) => (localForm.percent = Number(value) || 0)"
+                />
                 <SelectField
                     v-model="localForm.type"
                     label="Tipo"
@@ -95,4 +109,3 @@ const retentionTypeOptions = [
         </FormDialogContent>
     </Dialog>
 </template>
-

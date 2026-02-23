@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Schema;
 class AuditLogService
 {
     /**
-     * Registra una acción en la tabla audit_logs.
+     * Registra una acciÃ³n en la tabla audit_logs.
      *
      * @param Model $model
      * @param string $action
@@ -24,7 +24,7 @@ class AuditLogService
             return;
         }
 
-        // Evitar recursión
+        // Evitar recursiÃ³n
         if ($model instanceof AuditLog) {
             return;
         }
@@ -63,6 +63,14 @@ class AuditLogService
 
     public function paginate(array $filters, int $perPage = 50): LengthAwarePaginator
     {
+        // Si la tabla de auditorÃ­a no existe (entorno local sin migraciones),
+        // devolver un paginador vacÃ­o para evitar consultas que lancen excepciones.
+        if (!Schema::hasTable('audit_logs')) {
+            return new \Illuminate\Pagination\LengthAwarePaginator(collect([]), 0, $perPage, 1, [
+                'path' => request()?->url() ?? '',
+                'query' => request()?->query() ?? [],
+            ]);
+        }
         $userFilter = $this->normalizeFilter($filters, 'user');
         $moduleFilter = $this->normalizeFilter($filters, 'module');
         $actionFilter = $this->normalizeFilter($filters, 'action');
@@ -89,19 +97,44 @@ class AuditLogService
             $log->user_area = null;
             $log->user_role = null;
 
-            // El usuario debería estar eager-loaded por with('user.roles') arriba; usar directamente
+            // El usuario deberÃ­a estar eager-loaded por with('user.roles') arriba; usar directamente
             $user = $log->user ?? null;
 
             if ($user) {
                 if (!empty($user->area_id)) {
-                    // Buscar área en settings (kind=parameter, key=areas)
-                    $param = Setting::parameters()->where('key', 'areas')->first();
-                    $areas = $param?->value ?? [];
-                    if (is_array($areas)) {
-                        $area = collect($areas)->firstWhere('id', $user->area_id);
-                        if ($area) {
-                            $log->user_area = $area['name'] ?? $area['nombre'] ?? null;
+                    $area = null;
+
+                    // Fuente principal: settings actuales.
+                    if (Schema::hasTable('settings')) {
+                        $setting = Setting::parameters()
+                            ->where(function ($q) {
+                                $q->where('key', 'parameter_areas')
+                                    ->orWhere('key', 'areas')
+                                    ->orWhere('label', 'like', '%Area%')
+                                    ->orWhere('label', 'like', '%Ãrea%');
+                            })
+                            ->first();
+
+                        $values = $setting?->value ?? $setting?->valor ?? null;
+                        if (is_array($values)) {
+                            $area = collect($values)->firstWhere('id', $user->area_id);
                         }
+                    }
+
+                    // Fallback legacy: tabla parameters.
+                    if (!$area && class_exists(\App\Models\Parameter::class) && Schema::hasTable('parameters')) {
+                        try {
+                            $param = \App\Models\Parameter::where('nombre', 'areas')->first();
+                            if ($param && is_array($param->valor)) {
+                                $area = collect($param->valor)->firstWhere('id', $user->area_id);
+                            }
+                        } catch (\Throwable $e) {
+                            $area = null;
+                        }
+                    }
+
+                    if ($area) {
+                        $log->user_area = $area['name'] ?? $area['nombre'] ?? null;
                     }
                 }
 
@@ -142,7 +175,7 @@ class AuditLogService
             'Expenses' => 'Gastos',
             'Inventory' => 'Inventario',
             'Contacts' => 'Contactos',
-            'Configuration' => 'Configuración',
+            'Configuration' => 'ConfiguraciÃ³n',
             default => $module,
         };
     }
@@ -172,21 +205,21 @@ class AuditLogService
             'PurchaseInvoice' => 'Factura de compra',
             'PurchaseRequest' => 'Solicitud de compra',
             'PurchaseDocument' => 'Documento de compra',
-            'PurchaseDocumentItem' => 'Línea de documento de compra',
-            'Item' => 'Artículo',
+            'PurchaseDocumentItem' => 'LÃ­nea de documento de compra',
+            'Item' => 'ArtÃ­culo',
             'Warehouse' => 'Bodega',
             'Contact' => 'Contacto',
             'User' => 'Usuario',
-            'CompanySetting' => 'Configuración de empresa',
-            'Retention' => 'Retención',
+            'CompanySetting' => 'ConfiguraciÃ³n de empresa',
+            'Retention' => 'RetenciÃ³n',
             'Tax' => 'Impuesto',
-            'CategoryGroup' => 'Grupo de categorías',
-            'CategorySubGroup' => 'Subgrupo de categorías',
+            'CategoryGroup' => 'Grupo de categorÃ­as',
+            'CategorySubGroup' => 'Subgrupo de categorÃ­as',
             default => $base,
         };
     }
 
-    // Se debe actualizar este método para incluir más modelos y módulos según sea necesario
+    // Se debe actualizar este mÃ©todo para incluir mÃ¡s modelos y mÃ³dulos segÃºn sea necesario
     protected function guessModule(Model $model): ?string
     {
         return match (true) {
@@ -215,7 +248,7 @@ class AuditLogService
     }
 
     /**
-     * Genera una descripción en español del cambio realizado.
+     * Genera una descripciÃ³n en espaÃ±ol del cambio realizado.
      */
     protected function buildDescription(Model $model, string $action, array $old = null, array $new = null): ?string
     {
@@ -268,7 +301,7 @@ class AuditLogService
 
         if ($action === 'updated') {
             $changes = [];
-            // Ignorar campos de marca de tiempo en la descripción
+            // Ignorar campos de marca de tiempo en la descripciÃ³n
             $ignoreDateKeys = ['created_at', 'updated_at', 'deleted_at'];
             $keys = array_unique(array_merge(array_keys($old), array_keys($new)));
             foreach ($keys as $k) {
@@ -292,7 +325,7 @@ class AuditLogService
     }
 
     /**
-     * Elimina patrones de fecha/hora comunes del texto de descripción.
+     * Elimina patrones de fecha/hora comunes del texto de descripciÃ³n.
      */
     protected function stripDatesFromText(string $text): string
     {

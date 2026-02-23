@@ -1,46 +1,55 @@
 <script setup lang="ts">
+
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import axios from 'axios';
+import { ExternalLink, Image, Plus, Trash2 } from 'lucide-vue-next';
+
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
 import SwitchField from '@/components/SwitchField.vue';
-import SubGroupDialog from '@/pages/MasterData/Category/SubGroupDialog.vue';
 import TextareaField from '@/components/TextareaField.vue';
-import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import FormHeader from '@/components/FormHeader.vue';
+import AlertBox from '@/components/AlertBox.vue';
+
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
+
+import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
+import SubGroupDialog from '@/pages/MasterData/Category/SubGroupDialog.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
-import { ITEM_FORM_DRAFT_KEY } from './constants';
-import type {
-    Item,
-    CategorySubGroup,
-    CategoryGroup,
-    ExtraFields,
-    Tax,
-    Warehouse,
-    AdditionalField,
-    AdditionalFieldType,
-    AdditionalFieldPayload,
-} from '@/domain/Inventory';
-import type { Option } from '@/domain/shared';
-import axios from 'axios';
-import { Image, Plus, Trash2, ExternalLink } from 'lucide-vue-next';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
-import FormHeader from '@/components/FormHeader.vue';
-import AlertBox from '@/components/AlertBox.vue';
+
+import { ITEM_FORM_DRAFT_KEY } from './constants';
+
+import type {
+    AdditionalField,
+    AdditionalFieldPayload,
+    AdditionalFieldType,
+    CategoryGroup,
+    CategorySubGroup,
+    ExtraFields,
+    Item,
+} from '@/domain/MasterData';
+import type { Tax } from '@/domain/Finance';
+import type { Warehouse } from '@/domain/Inventory';
+import type { Option } from '@/domain/shared/types';
+
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
+
 import unitMeasureData from '@/data/unitMeasures.json';
 
-// Props y eventos
+type DialogType = 'create' | 'edit' | 'view';
+
 const props = withDefaults(
     defineProps<{
         isOpen: boolean;
-        dialogType: 'create' | 'edit' | 'view';
+        dialogType: DialogType;
         form: Partial<Item>;
         showAdvancedLink?: boolean;
         showAdvancedSections?: boolean;
@@ -50,7 +59,15 @@ const props = withDefaults(
         showAdvancedSections: false,
     },
 );
-const emit = defineEmits(['close', 'refresh', 'saved', 'error', 'loading-state']);
+
+const emit = defineEmits<{
+    (e: 'close'): void;
+    (e: 'refresh'): void;
+    (e: 'saved', mode: DialogType): void;
+    (e: 'error', message: string): void;
+    (e: 'loading-state', value: boolean): void;
+}>();
+
 const loadingCounter = ref(0);
 const isLoadingState = ref(false);
 
@@ -65,12 +82,21 @@ function updateLoadingState(delta: number) {
 
 function trackLoading<T>(work: () => Promise<T>): Promise<T> {
     updateLoadingState(1);
-    const promise = Promise.resolve().then(() => work());
+    const promise = Promise.resolve().then(work);
     return promise.finally(() => updateLoadingState(-1));
 }
 
-// Estado reactivo principal
 type ItemType = 'product' | 'service';
+
+type ItemTaxRelation = {
+    id?: number | string | null;
+    percentage?: number | string | null;
+};
+
+type ItemFormSource = Partial<Item> & {
+    tax?: ItemTaxRelation | null; // compat backend
+};
+
 type ItemForm = Omit<Partial<Item>, 'tax_id'> & {
     tax_id?: Item['tax_id'] | 'none';
     income_account?: string;
@@ -80,20 +106,21 @@ type ItemForm = Omit<Partial<Item>, 'tax_id'> & {
     export_brand?: string;
     export_model?: string;
 };
+
+const normalizeItemType = (value?: string | null): ItemType =>
+    value === 'service' ? 'service' : 'product';
+
 const itemTypeOptions: { value: ItemType; label: string }[] = [
     { value: 'product', label: 'Producto' },
     { value: 'service', label: 'Servicio' },
 ];
-const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce(
-    (acc: Record<ItemType, string>, option: { value: ItemType; label: string }) => {
-        acc[option.value] = option.label;
-        return acc;
-    },
-    {} as Record<ItemType, string>,
-);
-const normalizeItemType = (value?: string | null): ItemType =>
-    value === 'service' ? 'service' : 'product';
-const prepareLocalForm = (source: Partial<Item>): ItemForm => {
+
+const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce((acc, o) => {
+    acc[o.value] = o.label;
+    return acc;
+}, {} as Record<ItemType, string>);
+
+function prepareLocalForm(source: ItemFormSource): ItemForm {
     const resolvedTaxId =
         source.tax_id ??
         (typeof source.tax === 'object' && source.tax !== null ? source.tax.id : undefined);
@@ -102,7 +129,6 @@ const prepareLocalForm = (source: Partial<Item>): ItemForm => {
         ...source,
         reference: source.reference || '',
         bar_code: source.bar_code ?? '',
-        tax: typeof source.tax === 'object' && source.tax !== null ? source.tax : null,
         tax_id: resolvedTaxId,
         item_type: normalizeItemType(source.item_type),
         income_account: source.income_account || '',
@@ -112,43 +138,49 @@ const prepareLocalForm = (source: Partial<Item>): ItemForm => {
         export_brand: source.export_brand || '',
         export_model: source.export_model || '',
     } as ItemForm;
+}
+
+const isTaxIdBlank = (value: unknown): boolean => {
+    if (value === undefined || value === null) return true;
+    const trimmed = String(value).trim();
+    return trimmed === '' || trimmed === 'none';
 };
 
 const localForm = ref<ItemForm>(prepareLocalForm(props.form));
+
 const warehouses = ref<Warehouse[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
 const categoryGroups = ref<CategoryGroup[]>([]);
-const selectedGroupId = ref<string | null>(null);
-const imageFile = ref<File | null>(null);
-const errors = ref<Record<string, string[]>>({});
-const extraFieldNames = ref<string[]>([]);
-const additionalFieldOptions = ref<Record<string, string[]>>({});
-const additionalFieldsMeta = ref<AdditionalField[]>([]);
-const requiredAdditionalFieldNames = computed(() =>
-    (additionalFieldsMeta.value ?? [])
-        .filter((field) => field?.name && field.is_required)
-        .map((field) => field.name),
-);
-const extraFields = ref<ExtraFields>({});
-const missingRequiredAdditionalFieldNames = computed(() => {
-    return requiredAdditionalFieldNames.value.filter((fieldName) => {
-        const value = extraFields.value[fieldName];
-        return value === undefined || String(value ?? '').trim() === '';
-    });
-});
 
-const additionalFieldOrder = computed(() => {
-    const map = new Map<string, number>();
-    (additionalFieldsMeta.value ?? []).forEach((field, index) => {
-        if (field.name) {
-            map.set(field.name, index);
-        }
-    });
-    return map;
-});
-const nameField = ref('');
+const selectedGroupId = ref<string | null>(null);
+
+const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+
+const errors = ref<Record<string, string[]>>({});
+const alertMessage = ref('');
+const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+
+const extraFieldNames = ref<string[]>([]);
+const extraFields = ref<ExtraFields>({});
+const additionalFieldOptions = ref<Record<string, string[]>>({});
+const additionalFieldsMeta = ref<AdditionalField[]>([]);
+
+const nameField = ref('');
+
+const dialogInnerRef = ref<HTMLElement | null>(null);
+
+const isImageZoomOpen = ref(false);
+
+const isGroupDialogOpen = ref(false);
+const isSubGroupDialogOpen = ref(false);
+
+const subGroupDialogForm = ref<Partial<CategorySubGroup>>({
+    name: '',
+    category_group_id: undefined,
+});
+
 type WarehouseStockEntry = {
     warehouse_id: number;
     name: string;
@@ -157,11 +189,85 @@ type WarehouseStockEntry = {
     stock_max: number;
 };
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
+
 const taxes = ref<Tax[]>([]);
-const defaultTaxEntry = computed(() => taxes.value.find(isDefaultTax));
-const nonDefaultTaxes = computed(() =>
-    taxes.value.filter((tax): tax is Tax => !isDefaultTax(tax)),
+const isTaxDialogOpen = ref(false);
+const taxDialogLoading = ref(false);
+type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
+type TaxDialogSubmitPayload = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
+const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
+
+const additionalFieldDialogOpen = ref(false);
+const additionalFieldDialogLoading = ref(false);
+
+const createAdditionalFieldForm = (): AdditionalField => ({
+    id: undefined,
+    name: '',
+    field_type: 'text',
+    options: [],
+    default_value: '',
+    description: '',
+    is_required: false,
+    status: true,
+});
+const additionalFieldDialogForm = ref<AdditionalField>(createAdditionalFieldForm());
+
+type UnitMeasureGroup = { label: string; options: Option[] };
+type UnitMeasureData = { unitMeasureGroups: UnitMeasureGroup[] };
+
+const unitMeasureGroups: UnitMeasureGroup[] =
+    (unitMeasureData as UnitMeasureData)?.unitMeasureGroups ?? [];
+
+const unitMeasures = unitMeasureGroups.flatMap((group) =>
+    group.options.map((option) => ({ ...option, groupLabel: group.label })),
 );
+
+const serviceUnitId = 'servicio';
+const defaultProductUnitValue = String(unitMeasures[0]?.id ?? 'unidad');
+
+const getInitialUnitMeasure = (form: Partial<Item>): string =>
+    form.unit_measure ??
+    (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
+
+const unitMeasure = ref(getInitialUnitMeasure(props.form));
+
+const isViewMode = computed(() => props.dialogType === 'view');
+const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
+
+const groupOptions = computed(() =>
+    categoryGroups.value.map((group) => ({
+        id: String(group.id ?? ''),
+        name: group.name,
+    })),
+);
+
+const filteredSubGroups = computed(() => {
+    if (!selectedGroupId.value) return [];
+    return categorySubGroups.value.filter((sg) => String(sg.category_group_id ?? '') === selectedGroupId.value);
+});
+
+const subGroupOptions = computed(() =>
+    filteredSubGroups.value.map((sg) => ({
+        id: String(sg.id ?? ''),
+        name: sg.name,
+    })),
+);
+
+const currentSubGroup = computed(() =>
+    categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id)),
+);
+
+const currentGroup = computed(() => {
+    if (currentSubGroup.value?.category_group) return currentSubGroup.value.category_group;
+    if (selectedGroupId.value) {
+        return categoryGroups.value.find((g) => String(g.id) === selectedGroupId.value) ?? null;
+    }
+    return null;
+});
+
+const defaultTaxEntry = computed(() => taxes.value.find(isDefaultTax));
+const nonDefaultTaxes = computed(() => taxes.value.filter((tax): tax is Tax => !isDefaultTax(tax)));
+
 const taxOptions = computed<Option[]>(() => {
     const defaultTax = defaultTaxEntry.value;
     const baseOption = { id: defaultTax?.id ?? 'none', name: DEFAULT_TAX_LABEL };
@@ -176,121 +282,37 @@ const taxOptions = computed<Option[]>(() => {
 });
 
 const displayedTaxLabel = computed(() => {
-    if (localForm.value.tax_id === undefined || localForm.value.tax_id === null || String(localForm.value.tax_id).trim() === '') {
-        return '-';
-    }
-    const selected = taxes.value.find((t) => String(t.id) === String(localForm.value.tax_id));
-    if (!selected) {
-        return '-';
-    }
+    const taxId = localForm.value.tax_id;
+    if (taxId === undefined || taxId === null || String(taxId).trim() === '') return '-';
+
+    const selected = taxes.value.find((t) => String(t.id) === String(taxId));
+    if (!selected) return '-';
+
     const percentage = Math.trunc(Number(selected.percentage ?? 0));
     return `${selected.name} (${percentage}%)`;
 });
 
-const isTaxIdBlank = (value: unknown): boolean => {
-    if (value === undefined || value === null) {
-        return true;
-    }
-    const trimmed = String(value).trim();
-    return trimmed === '' || trimmed === 'none';
-};
+const requiredAdditionalFieldNames = computed(() =>
+    (additionalFieldsMeta.value ?? [])
+        .filter((field) => field?.name && field.is_required)
+        .map((field) => field.name),
+);
 
-watch(
-    () => defaultTaxEntry.value?.id,
-    (defaultTaxId) => {
-        if (!defaultTaxId) {
-            return;
-        }
-        if (isTaxIdBlank(localForm.value.tax_id)) {
-            localForm.value.tax_id = defaultTaxId;
-        }
-    },
-    { immediate: true },
+const missingRequiredAdditionalFieldNames = computed(() =>
+    requiredAdditionalFieldNames.value.filter((fieldName) => {
+        const value = extraFields.value[fieldName];
+        return value === undefined || String(value ?? '').trim() === '';
+    }),
 );
-const isGroupDialogOpen = ref(false);
-const isSubGroupDialogOpen = ref(false);
-const subGroupDialogForm = ref<Partial<CategorySubGroup>>({
-    name: '',
-    category_group_id: undefined,
-});
-const groupOptions = computed(() => categoryGroups.value.map((group) => ({
-    id: String(group.id ?? ''),
-    name: group.name,
-})));
-const filteredSubGroups = computed(() => {
-    if (!selectedGroupId.value) {
-        return [];
-    }
-    return categorySubGroups.value.filter(
-        (sg) => String(sg.category_group_id ?? '') === selectedGroupId.value,
-    );
-});
-const subGroupOptions = computed(() => filteredSubGroups.value.map((sg) => ({
-    id: String(sg.id ?? ''),
-    name: sg.name,
-})));
-const currentSubGroup = computed(() =>
-    categorySubGroups.value.find(
-        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
-    )
-);
-const currentGroup = computed(() => {
-    if (currentSubGroup.value?.category_group) {
-        return currentSubGroup.value.category_group;
-    }
-    if (selectedGroupId.value) {
-        return categoryGroups.value.find(
-            (group) => String(group.id) === selectedGroupId.value,
-        ) ?? null;
-    }
-    return null;
+
+const additionalFieldOrder = computed(() => {
+    const map = new Map<string, number>();
+    (additionalFieldsMeta.value ?? []).forEach((field, index) => {
+        if (field.name) map.set(field.name, index);
+    });
+    return map;
 });
 
-const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
-type UnitMeasureGroup = {
-    label: string;
-    options: Option[];
-};
-type UnitMeasureData = {
-    unitMeasureGroups: UnitMeasureGroup[];
-};
-const unitMeasureGroups: UnitMeasureGroup[] =
-    (unitMeasureData as UnitMeasureData)?.unitMeasureGroups ?? [];
-const unitMeasures = unitMeasureGroups.flatMap((group) =>
-    group.options.map((option) => ({
-        ...option,
-        groupLabel: group.label,
-    })),
-);
-const serviceUnitId = 'servicio';
-const defaultProductUnitValue = String(unitMeasures[0]?.id ?? 'unidad');
-const getInitialUnitMeasure = (form: Partial<Item>): string =>
-    form.unit_measure ??
-    (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
-const unitMeasure = ref(getInitialUnitMeasure(props.form));
-const alertMessage = ref<string>('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
-const isViewMode = computed(() => props.dialogType === 'view');
-const dialogInnerRef = ref<HTMLElement | null>(null);
-const isImageZoomOpen = ref(false);
-const isTaxDialogOpen = ref(false);
-const taxDialogLoading = ref(false);
-type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
-type TaxDialogSubmitPayload = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
-const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
-const additionalFieldDialogOpen = ref(false);
-const additionalFieldDialogLoading = ref(false);
-const createAdditionalFieldForm = (): AdditionalField => ({
-    id: undefined,
-    name: '',
-    field_type: 'text',
-    options: [],
-    default_value: '',
-    description: '',
-    is_required: false,
-    status: true,
-});
-const additionalFieldDialogForm = ref<AdditionalField>(createAdditionalFieldForm());
 const accountingIncomeOptions = [
     { id: 'ventas', name: 'Ventas' },
     { id: 'servicios', name: 'Servicios' },
@@ -305,16 +327,124 @@ const accountingCostOptions = [
     { id: 'costo_venta', name: 'Costo de venta' },
 ];
 
-function applyFormData(source: Partial<Item>) {
+function resetErrors() {
+    errors.value = {};
+}
+
+function scrollDialogToTop() {
+    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
+        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+    }
+    const dialogEl = document.querySelector('[role="dialog"]') as HTMLElement | null;
+    dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function buildErrorMessage(err: any): string {
+    const resp = err?.response?.data;
+    const validation = resp?.errors;
+    if (validation && typeof validation === 'object') {
+        const joined = Object.values(validation).flat().filter(Boolean).join('. ');
+        if (joined.trim()) return joined;
+    }
+    return resp?.message || 'Ocurrió un error inesperado al guardar el ítem.';
+}
+
+function resolveImageUrl(rawImg?: string | null, rawUrl?: string | null): string | undefined {
+    const url = typeof rawUrl === 'string' ? rawUrl.trim() : '';
+    if (url) {
+        if (/^https?:\/\//i.test(url)) return url;
+        if (url.startsWith('/')) return url;
+        return `/storage/${url.replace(/^\/?storage\//, '')}`;
+    }
+
+    const img = typeof rawImg === 'string' ? rawImg.trim() : '';
+    if (!img) return undefined;
+    if (/^https?:\/\//i.test(img)) return img;
+    if (img.startsWith('/')) return img;
+    return `/storage/${img.replace(/^\/?storage\//, '')}`;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeExtraFieldsValue(value: unknown): Record<string, unknown> {
+    if (isPlainObject(value)) return value;
+
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            if (isPlainObject(parsed)) return parsed;
+        } catch {
+            return {};
+        }
+    }
+    return {};
+}
+
+function fillExtraFields(obj: unknown) {
+    extraFields.value = {};
+    const normalized = normalizeExtraFieldsValue(obj);
+
+    Object.entries(normalized).forEach(([key, value]) => {
+        const fieldName = String(key ?? '').trim();
+        if (!fieldName) return;
+        if (value === undefined || value === null) return;
+
+        const stringValue = (typeof value === 'string' ? value : String(value)).trim();
+        if (!stringValue) return;
+
+        extraFields.value[fieldName] = stringValue;
+    });
+}
+
+function updateNameField(orderedFields?: Record<string, string>): void {
+    const subGroup = categorySubGroups.value.find(
+        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
+    );
+
+    const extrasObj: Record<string, string> =
+        orderedFields ??
+        Object.fromEntries(
+            extraFieldNames.value
+                .filter((key) => extraFields.value[key] && String(extraFields.value[key]).trim() !== '')
+                .sort((a, b) => {
+                    const indexA = additionalFieldOrder.value.get(a) ?? Number.MAX_SAFE_INTEGER;
+                    const indexB = additionalFieldOrder.value.get(b) ?? Number.MAX_SAFE_INTEGER;
+                    if (indexA !== indexB) return indexA - indexB;
+                    return a.localeCompare(b);
+                })
+                .map((key) => [key, String(extraFields.value[key])]),
+        );
+
+    const extras = Object.values(extrasObj).join(' ');
+    nameField.value = [subGroup?.name ?? '', extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+    localForm.value.name = nameField.value;
+}
+
+function syncGroupFromSubgroup() {
+    const subGroup = categorySubGroups.value.find(
+        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
+    );
+
+    if (subGroup && subGroup.category_group_id) {
+        selectedGroupId.value = String(subGroup.category_group_id);
+    } else {
+        selectedGroupId.value = null;
+    }
+}
+
+function applyFormData(source: ItemFormSource) {
     localForm.value = prepareLocalForm(source);
     unitMeasure.value = getInitialUnitMeasure(source);
     fillExtraFields(source.extra_fields);
+
     imageFile.value = null;
-    // Limpiar el input file visualmente
-    if (fileInputRef.value) {
-        fileInputRef.value.value = '';
-    }
+    if (fileInputRef.value) fileInputRef.value.value = '';
+
     imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
+
     updateNameField();
     syncGroupFromSubgroup();
 }
@@ -328,40 +458,6 @@ async function loadItemDetails(itemId: number) {
     }
 }
 
-function openImageZoom() {
-    if (!imagePreview.value) return;
-    isImageZoomOpen.value = true;
-}
-
-function closeImageZoom() {
-    isImageZoomOpen.value = false;
-}
-
-function handleImageZoomKey(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-        closeImageZoom();
-    }
-}
-
-watch(isImageZoomOpen, (open) => {
-    if (typeof window === 'undefined') return;
-    if (open) {
-        window.addEventListener('keydown', handleImageZoomKey);
-    } else {
-        window.removeEventListener('keydown', handleImageZoomKey);
-    }
-});
-
-watch(
-    () => imagePreview.value,
-    (value) => {
-        if (!value) {
-            closeImageZoom();
-        }
-    }
-);
-
-// Carga de catálogos y datos iniciales
 async function fetchWarehouses() {
     try {
         const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
@@ -370,6 +466,16 @@ async function fetchWarehouses() {
         console.error('Error al obtener las bodegas:', error);
     }
 }
+
+async function fetchCategoryGroups() {
+    try {
+        const { data } = await axios.get('/categorias/grupos');
+        categoryGroups.value = Array.isArray(data) ? data : [];
+    } catch (error) {
+        console.error('Error al obtener los grupos:', error);
+    }
+}
+
 async function fetchCategorySubGroups() {
     try {
         const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
@@ -379,14 +485,96 @@ async function fetchCategorySubGroups() {
         console.error('Error al obtener los subgrupos:', error);
     }
 }
-async function fetchCategoryGroups() {
+
+async function fetchTaxes() {
+    const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
+    taxes.value = (data.data ?? []).filter((t: any) => t.status);
+}
+
+async function fetchAdditionalFields() {
     try {
-        const { data } = await axios.get('/categorias/grupos');
-        categoryGroups.value = Array.isArray(data) ? data : [];
+        const { data } = await axios.get('/campos-adicionales/options');
+        const payload: any[] = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : [];
+
+        const normalizedFields: AdditionalField[] = payload
+            .map((field: any) => {
+                const fieldType = (field?.field_type ?? 'text') as AdditionalFieldType;
+                return {
+                    id: field?.id,
+                    name: field?.name ? String(field.name) : '',
+                    field_type: fieldType,
+                    options: Array.isArray(field?.options) ? field.options.map((opt: any) => String(opt)) : [],
+                    default_value: field?.default_value ?? null,
+                    description: field?.description ?? '',
+                    is_required: Boolean(field?.is_required),
+                    status: field?.status ?? true,
+                    position: typeof field?.position === 'number' ? field.position : null,
+                    created_at: field?.created_at,
+                    updated_at: field?.updated_at,
+                } as AdditionalField;
+            })
+            .filter((field) => Boolean(field.name));
+
+        normalizedFields.sort((a, b) => {
+            const aPos = typeof a.position === 'number' ? a.position : 0;
+            const bPos = typeof b.position === 'number' ? b.position : 0;
+            return aPos - bPos;
+        });
+
+        extraFieldNames.value = normalizedFields.map((f) => f.name);
+        additionalFieldsMeta.value = normalizedFields;
+
+        additionalFieldOptions.value = normalizedFields.reduce((acc: Record<string, string[]>, field: any) => {
+            if (field?.name) {
+                acc[field.name] = Array.isArray(field.options) ? field.options.map((opt: any) => String(opt)) : [];
+            }
+            return acc;
+        }, {});
     } catch (error) {
-        console.error('Error al obtener los grupos:', error);
+        console.error('Error al cargar campos adicionales:', error);
+        extraFieldNames.value = [];
+        additionalFieldOptions.value = {};
+        additionalFieldsMeta.value = [];
     }
 }
+
+async function fetchWarehouseStocks(itemId: number) {
+    try {
+        const { data } = await axios.get(`/bodegas/${itemId}/warehouses`);
+        warehouseStocks.value = data.map((w: any) => ({
+            warehouse_id: w.id,
+            name: w.name,
+            quantity: w.pivot.quantity,
+            stock_min: w.pivot.stock_min,
+            stock_max: w.pivot.stock_max,
+        }));
+    } catch (e) {
+        console.log(e);
+        warehouseStocks.value = [];
+    }
+}
+
+async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
+    const resolvedItemId = Number(itemId ?? props.form.id);
+    if (!resolvedItemId) {
+        warehouseStocks.value = [];
+        return;
+    }
+    await fetchWarehouseStocks(resolvedItemId);
+}
+
+function openGroupDialog() {
+    isGroupDialogOpen.value = true;
+}
+
+function openSubGroupDialog() {
+    subGroupDialogForm.value = {
+        name: '',
+        category_group_id: selectedGroupId.value ? Number(selectedGroupId.value) : undefined,
+    };
+    isSubGroupDialogOpen.value = true;
+}
+
 async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
     try {
         const response = await axios.post<CategoryGroup>('/categorias/grupos', newGroup);
@@ -412,99 +600,6 @@ async function handleSubGroupSubmit(formData: Partial<CategorySubGroup>) {
     }
 }
 
-function openGroupDialog() {
-    isGroupDialogOpen.value = true;
-}
-
-function openSubGroupDialog() {
-    subGroupDialogForm.value = {
-        name: '',
-        category_group_id: selectedGroupId.value ? Number(selectedGroupId.value) : undefined,
-    };
-    isSubGroupDialogOpen.value = true;
-}
-async function fetchTaxes() {
-    const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
-    taxes.value = (data.data ?? []).filter((t: any) => t.status);
-}
-
-async function fetchAdditionalFields() {
-    try {
-        const { data } = await axios.get('/campos-adicionales/options');
-        const payload: any[] = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : [];
-        const normalizedFields: AdditionalField[] = payload
-            .map((field: any) => {
-                const fieldType = (field?.field_type ?? 'text') as AdditionalFieldType;
-                return {
-                    id: field?.id,
-                    name: field?.name ? String(field.name) : '',
-                    field_type: fieldType,
-                    options: Array.isArray(field?.options)
-                        ? field.options.map((opt: any) => String(opt))
-                        : [],
-                    default_value: field?.default_value ?? null,
-                    description: field?.description ?? '',
-                    is_required: Boolean(field?.is_required),
-                    status: field?.status ?? true,
-                    position: typeof field?.position === 'number' ? field.position : null,
-                    created_at: field?.created_at,
-                    updated_at: field?.updated_at,
-                } as AdditionalField;
-            })
-            .filter((field) => Boolean(field.name));
-        normalizedFields.sort((a, b) => {
-            const aPosition = typeof a.position === 'number' ? a.position : 0;
-            const bPosition = typeof b.position === 'number' ? b.position : 0;
-            return aPosition - bPosition;
-        });
-        const names = normalizedFields.map((field) => field.name);
-        // Si el backend no devuelve campos, dejamos el arreglo vacío.
-        extraFieldNames.value = names;
-        additionalFieldsMeta.value = normalizedFields;
-        additionalFieldOptions.value = normalizedFields.reduce((acc: Record<string, string[]>, field: any) => {
-            if (field?.name) {
-                acc[field.name] = Array.isArray(field.options)
-                    ? field.options.map((opt: any) => String(opt))
-                    : [];
-            }
-            return acc;
-        }, {} as Record<string, string[]>);
-    } catch (error) {
-        console.error('Error al cargar campos adicionales:', error);
-        // En caso de error no llenamos campos adicionales; el formulario los mostrará vacíos.
-        extraFieldNames.value = [];
-        additionalFieldOptions.value = {};
-        additionalFieldsMeta.value = [];
-    }
-}
-
-function openAdditionalFieldDialog() {
-    additionalFieldDialogForm.value = createAdditionalFieldForm();
-    additionalFieldDialogOpen.value = true;
-}
-
-function closeAdditionalFieldDialog() {
-    additionalFieldDialogOpen.value = false;
-}
-
-async function handleAdditionalFieldDialogSubmit(field: AdditionalFieldPayload) {
-    additionalFieldDialogLoading.value = true;
-    try {
-        const payload = {
-            ...field,
-            name: String(field.label ?? '').trim(),
-        };
-        delete payload.label;
-        await axios.post('/campos-adicionales', payload);
-        await fetchAdditionalFields();
-        additionalFieldDialogOpen.value = false;
-    } catch (error) {
-        console.error('Error creando campo adicional', error);
-    } finally {
-        additionalFieldDialogLoading.value = false;
-    }
-}
-
 function openTaxDialog() {
     taxForm.value = { name: '', percentage: 0, status: true };
     isTaxDialogOpen.value = true;
@@ -523,120 +618,44 @@ async function handleTaxDialogSubmit(formData: TaxDialogSubmitPayload) {
     }
 }
 
-// Rellena los campos extra desde el objeto recibido
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
+function openAdditionalFieldDialog() {
+    additionalFieldDialogForm.value = createAdditionalFieldForm();
+    additionalFieldDialogOpen.value = true;
 }
 
-function normalizeExtraFieldsValue(value: unknown): Record<string, unknown> {
-    if (isPlainObject(value)) {
-        return value;
-    }
-    if (typeof value === 'string') {
-        try {
-            const parsed = JSON.parse(value);
-            if (isPlainObject(parsed)) {
-                return parsed;
-            }
-        } catch {
-            return {};
-        }
-    }
-    return {};
+function closeAdditionalFieldDialog() {
+    additionalFieldDialogOpen.value = false;
 }
 
-function fillExtraFields(obj: unknown) {
-    extraFields.value = {};
-    const normalized = normalizeExtraFieldsValue(obj);
-    Object.entries(normalized).forEach(([key, value]) => {
-        if (typeof key !== 'string') {
-            return;
-        }
-        const fieldName = key.trim();
-        if (!fieldName) {
-            return;
-        }
-        if (value === undefined || value === null) {
-            return;
-        }
-        const stringValue = typeof value === 'string' ? value.trim() : String(value).trim();
-        if (!stringValue) {
-            return;
-        }
-        extraFields.value[fieldName] = stringValue;
-    });
-}
-
-function syncGroupFromSubgroup() {
-    const subGroup = categorySubGroups.value.find(
-        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
-    );
-    if (subGroup && subGroup.category_group_id) {
-        selectedGroupId.value = String(subGroup.category_group_id);
-    } else {
-        selectedGroupId.value = null;
-    }
-}
-
-// Carga inicial de datos al montar el componente
-onMounted(() => {
-    void trackLoading(async () => {
-        await Promise.all([
-            fetchWarehouses(),
-            fetchCategorySubGroups(),
-            fetchCategoryGroups(),
-            fetchTaxes(),
-            fetchAdditionalFields(),
-        ]);
-        fillExtraFields(props.form.extra_fields);
-        if (props.form.id) {
-            await fetchWarehouseStocks(props.form.id);
-        }
-    });
-});
-
-// Carga de stocks por bodega para el ítem
-async function fetchWarehouseStocks(itemId: number) {
+async function handleAdditionalFieldDialogSubmit(field: AdditionalFieldPayload) {
+    additionalFieldDialogLoading.value = true;
     try {
-        const { data } = await axios.get(`/bodegas/${itemId}/warehouses`);
-        warehouseStocks.value = data.map((w: any) => ({
-            warehouse_id: w.id,
-            name: w.name,
-            quantity: w.pivot.quantity,
-            stock_min: w.pivot.stock_min,
-            stock_max: w.pivot.stock_max,
-        }));
-    } catch (e) {
-        console.log(e);
-        warehouseStocks.value = [];
+        const payload: any = {
+            ...field,
+            name: String(field.label ?? '').trim(),
+        };
+        delete payload.label;
+        await axios.post('/campos-adicionales', payload);
+        await fetchAdditionalFields();
+        additionalFieldDialogOpen.value = false;
+    } catch (error) {
+        console.error('Error creando campo adicional', error);
+    } finally {
+        additionalFieldDialogLoading.value = false;
     }
 }
 
-async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
-    const resolvedItemId = Number(itemId ?? props.form.id);
-    if (!resolvedItemId) {
-        warehouseStocks.value = [];
-        return;
-    }
-
-    await fetchWarehouseStocks(resolvedItemId);
- }
-
-// Devuelve bodegas disponibles para seleccionar (evita duplicados)
 function availableWarehouses(idx?: number) {
     const usedIds = warehouseStocks.value
         .map((ws, i) => (i !== idx ? ws.warehouse_id : null))
         .map((id) => (typeof id === 'number' ? String(id) : typeof id === 'string' ? id : null))
         .filter((id): id is string => typeof id === 'string' && id !== '');
+
     return [...warehouses.value]
         .filter((w) => typeof w.id === 'number' && !usedIds.includes(String(w.id)))
-        .map((w) => ({
-            id: String(w.id),
-            name: w.name
-        }));
+        .map((w) => ({ id: String(w.id), name: w.name }));
 }
 
-// Agrega/quita bodegas al detalle de inventario
 function addWarehouseStock() {
     warehouseStocks.value.push({
         warehouse_id: 0,
@@ -646,6 +665,7 @@ function addWarehouseStock() {
         stock_max: 0,
     });
 }
+
 function handleAddWarehouseStock() {
     const available = availableWarehouses().length;
     if (available === 0) {
@@ -655,30 +675,43 @@ function handleAddWarehouseStock() {
     }
     addWarehouseStock();
 }
+
 function removeWarehouseStock(idx: number) {
     warehouseStocks.value.splice(idx, 1);
 }
+
 function updateWarehouseName(idx: number) {
     const warehouseId = warehouseStocks.value[idx].warehouse_id;
     const warehouse = warehouses.value.find((w) => w.id === warehouseId);
     warehouseStocks.value[idx].name = warehouse ? warehouse.name : '';
 }
 
-// Sincronización de props y estado local
+function openImageZoom() {
+    if (!imagePreview.value) return;
+    isImageZoomOpen.value = true;
+}
+
+function closeImageZoom() {
+    isImageZoomOpen.value = false;
+}
+
+function handleImageZoomKey(event: KeyboardEvent) {
+    if (event.key === 'Escape') closeImageZoom();
+}
+
+watch(isImageZoomOpen, (open) => {
+    if (typeof window === 'undefined') return;
+    if (open) window.addEventListener('keydown', handleImageZoomKey);
+    else window.removeEventListener('keydown', handleImageZoomKey);
+});
+
 watch(
-    () => props.form,
-    (newVal) => {
-        applyFormData(newVal);
+    () => imagePreview.value,
+    (value) => {
+        if (!value) closeImageZoom();
     },
-    { deep: true, immediate: true },
 );
-watch(
-    () => props.form.id,
-    async () => {
-        // handled elsewhere on open; noop watcher removed
-    },
-    { immediate: true }
-);
+
 watch(currentItemType, (type, prevType) => {
     if (type === 'service' && unitMeasure.value !== serviceUnitId) {
         unitMeasure.value = serviceUnitId;
@@ -689,40 +722,103 @@ watch(currentItemType, (type, prevType) => {
     }
 });
 
-watch(selectedGroupId, () => {
-    // mantenido para compatibilidad futura; la sincronización se hace en el watcher sobre category_sub_group_id
-});
+const NEGATIVE_STOCK_WARNING =
+    'Este ítem tiene cantidades negativas en una o más bodegas. ' +
+    'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
 
-watch(
-    () => localForm.value.category_sub_group_id,
-    (newVal) => {
-        if (!newVal) return;
-        const subGroup = categorySubGroups.value.find(
-            (sg) => String(sg.id) === String(newVal),
-        );
-        if (subGroup && subGroup.category_group_id) {
-            selectedGroupId.value = String(subGroup.category_group_id);
-        }
-    },
+const NEGATIVE_MOVEMENT_INVENTORY_WARNING =
+    'Asocia el ítem con al menos una bodega antes de habilitar movimientos negativos.';
+
+const hasInventoryDetails = computed(() => warehouseStocks.value.length > 0);
+
+const hasNegativeStock = computed(() => warehouseStocks.value.some((w) => Number(w.quantity) < 0));
+
+const negativeMovementBool = computed(() =>
+    localForm.value.negative_movement === 1 || localForm.value.negative_movement === true,
 );
 
-// Limpia errores de validación
-function resetErrors() {
-    errors.value = {};
+const negativeMovementToggleDisabled = computed(
+    () => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value),
+);
+
+function showNegativeMovementWarning() {
+    alertType.value = 'warning';
+    alertMessage.value = NEGATIVE_STOCK_WARNING;
+    scrollDialogToTop();
 }
 
-const buildErrorMessage = (err: any): string => {
-    const resp = err?.response?.data;
-    const validation = resp?.errors;
-    if (validation && typeof validation === 'object') {
-        const joined = Object.values(validation)
-            .flat()
-            .filter(Boolean)
-            .join('. ');
-        if (joined.trim()) return joined;
+function showNegativeMovementInventoryWarning() {
+    alertType.value = 'warning';
+    alertMessage.value = NEGATIVE_MOVEMENT_INVENTORY_WARNING;
+    scrollDialogToTop();
+}
+
+function handleNegativeMovementChange(val: boolean) {
+    if (val && !hasInventoryDetails.value) {
+        showNegativeMovementInventoryWarning();
+        return;
     }
-    return resp?.message || 'Ocurrió un error inesperado al guardar el ítem.';
+    if (hasNegativeStock.value && !val) {
+        showNegativeMovementWarning();
+        return;
+    }
+    localForm.value.negative_movement = val ? 1 : 0;
+}
+
+type AdvancedFormDraft = Partial<Item> & {
+    extra_fields?: ExtraFields;
+    unit_measure?: string;
+    warehouse_stocks?: WarehouseStockEntry[];
 };
+
+function buildAdvancedFormDraft(): AdvancedFormDraft {
+    const draftTaxId: unknown = localForm.value.tax_id;
+    const isDraftTaxIdBlank =
+        draftTaxId === undefined ||
+        draftTaxId === null ||
+        (typeof draftTaxId === 'string' && (draftTaxId.trim() === '' || draftTaxId === 'none'));
+
+    const normalizedTaxId = isDraftTaxIdBlank ? undefined : Number(draftTaxId);
+
+    const draft: AdvancedFormDraft = {
+        ...localForm.value,
+        tax_id: normalizedTaxId !== undefined && Number.isFinite(normalizedTaxId) ? normalizedTaxId : undefined,
+        extra_fields: extraFields.value ? { ...extraFields.value } : {},
+        unit_measure: unitMeasure.value,
+    };
+
+    if (warehouseStocks.value.length > 0) {
+        draft.warehouse_stocks = warehouseStocks.value.map((s) => ({ ...s }));
+    }
+    return draft;
+}
+
+function persistAdvancedFormDraft() {
+    if (typeof window === 'undefined') return;
+
+    try {
+        localStorage.setItem(ITEM_FORM_DRAFT_KEY, JSON.stringify(buildAdvancedFormDraft()));
+    } catch (error) {
+        console.warn('No se pudo guardar el borrador del formulario avanzado en el almacenamiento local.', error);
+    }
+}
+
+function handleClose() {
+    emit('close');
+}
+
+function redirectToAdvancedForm() {
+    if (!props.form.id) {
+        persistAdvancedFormDraft();
+        handleClose();
+        window.location.href = route('inventario.item.formulario-avanzado');
+        return;
+    }
+
+    handleClose();
+    const advancedUrl = route('inventario.item.formulario-avanzado', { item_id: props.form.id });
+    window.location.href = advancedUrl;
+}
 
 async function checkDuplicateName(): Promise<string | null> {
     const reference = (localForm.value.reference ?? '').trim();
@@ -738,6 +834,7 @@ async function checkDuplicateName(): Promise<string | null> {
                 item_id: props.form.id ?? null,
             },
         });
+
         if (response.data?.duplicate) {
             return response.data.message || 'Ya existe un ítem con ese nombre.';
         }
@@ -748,40 +845,30 @@ async function checkDuplicateName(): Promise<string | null> {
     return null;
 }
 
-function scrollDialogToTop() {
-    if (dialogInnerRef.value && typeof dialogInnerRef.value.scrollTo === 'function') {
-        dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-    }
-    const dialogEl = document.querySelector('[role="dialog"]') as HTMLElement | null;
-    dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// Maneja el envío del formulario
 async function handleSubmit() {
     resetErrors();
     alertMessage.value = '';
     alertType.value = 'error';
+
     const requiredErrors: string[] = [];
 
-    // Validaciones de campos obligatorios
-    if (!localForm.value.category_sub_group_id) {
-        requiredErrors.push('Subgrupo');
-    }
+    if (!localForm.value.category_sub_group_id) requiredErrors.push('Subgrupo');
+
     const taxIdValue = localForm.value.tax_id;
     if (taxIdValue === undefined || taxIdValue === null || String(taxIdValue).trim() === '') {
         requiredErrors.push('Impuesto');
     }
-    if (!unitMeasure.value) {
-        requiredErrors.push('Unidad de medida');
-    }
+
+    if (!unitMeasure.value) requiredErrors.push('Unidad de medida');
+
     if (!localForm.value.reference || String(localForm.value.reference).trim() === '') {
         requiredErrors.push('Referencia');
     }
-    const missingRequiredAdditionalFields = missingRequiredAdditionalFieldNames.value;
-    missingRequiredAdditionalFields.forEach((fieldName) => {
+
+    missingRequiredAdditionalFieldNames.value.forEach((fieldName) => {
         requiredErrors.push(`Campo adicional: ${fieldName}`);
     });
+
     if (requiredErrors.length > 0) {
         alertType.value = 'warning';
         alertMessage.value = formatRequiredFieldsMessage(
@@ -802,7 +889,7 @@ async function handleSubmit() {
 
     if (hasNegativeStock.value && !negativeMovementBool.value) {
         showNegativeMovementWarning();
-        return; // NO se envía el formulario ni se cierra el diálogo
+        return;
     }
 
     const extraFieldsToSend: Record<string, string> = {};
@@ -811,33 +898,30 @@ async function handleSubmit() {
             extraFieldsToSend[key] = String(extraFields.value[key]);
         }
     });
+
     const orderedExtraFields = Object.fromEntries(
         Object.entries(extraFieldsToSend).sort((a, b) => {
             const indexA = additionalFieldOrder.value.get(a[0]) ?? Number.MAX_SAFE_INTEGER;
             const indexB = additionalFieldOrder.value.get(b[0]) ?? Number.MAX_SAFE_INTEGER;
-            if (indexA !== indexB) {
-                return indexA - indexB;
-            }
+            if (indexA !== indexB) return indexA - indexB;
             return a[0].localeCompare(b[0]);
         }),
     );
+
     updateNameField(orderedExtraFields);
 
-    // Prepara el formulario para enviar
     const resolvedTaxId = localForm.value.tax_id === 'none' ? null : localForm.value.tax_id;
+    const selectedTax = taxes.value.find((tax) => String(tax.id) === String(resolvedTaxId));
+    const selectedTaxPercentage = selectedTax ? Number(selectedTax.percentage) : 0;
 
     const cleanForm: any = {
         ...localForm.value,
         category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
         tax_id:
-            resolvedTaxId !== undefined &&
-            resolvedTaxId !== null &&
-            String(resolvedTaxId) !== ''
+            resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== ''
                 ? Number(resolvedTaxId)
                 : undefined,
-        tax: localForm.value.tax && typeof localForm.value.tax === 'object'
-            ? Number(localForm.value.tax.percentage)
-            : 0,
+        tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
         negative_movement: localForm.value.negative_movement,
         bar_code: localForm.value.bar_code || '',
         description: (localForm.value.description || '').trim() || 'N/A',
@@ -846,40 +930,56 @@ async function handleSubmit() {
         name: nameField.value,
         unit_measure: unitMeasure.value,
         item_type: normalizeItemType(localForm.value.item_type),
-        status: typeof localForm.value.status === 'boolean'
-            ? (localForm.value.status ? 1 : 0)
-            : (localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true ? 1 : 0),
+        status:
+            typeof localForm.value.status === 'boolean'
+                ? localForm.value.status
+                    ? 1
+                    : 0
+                : localForm.value.status === 1 ||
+                  localForm.value.status === '1' ||
+                  localForm.value.status === true
+                ? 1
+                : 0,
     };
 
     const formData = new FormData();
     const optionalStringFields = new Set(['bar_code', 'description']);
+
     Object.entries(cleanForm).forEach(([key, value]) => {
         if (key === 'negative_movement' || key === 'status') {
             formData.append(key, String(value === true || value === 1 || value === '1' || value === 'true' ? 1 : 0));
             return;
         }
+
         if (typeof value === 'string' && optionalStringFields.has(key) && value.trim() === '') {
-            return; // no enviar strings vacíos en campos opcionales
+            return;
         }
+
         if (value !== undefined && value !== null) {
             formData.append(key, value as any);
         }
     });
-    if (imageFile.value) {
-        formData.append('image', imageFile.value);
-    }
-    formData.append('warehouses', JSON.stringify(warehouseStocks.value.filter((w) => Number(w.warehouse_id)).map((w) => ({
-        warehouse_id: Number(w.warehouse_id),
-        quantity: Number(w.quantity),
-        stock_min: Number(w.stock_min),
-        stock_max: Number(w.stock_max),
-    }))));
+
+    if (imageFile.value) formData.append('image', imageFile.value);
+
+    formData.append(
+        'warehouses',
+        JSON.stringify(
+            warehouseStocks.value
+                .filter((w) => Number(w.warehouse_id))
+                .map((w) => ({
+                    warehouse_id: Number(w.warehouse_id),
+                    quantity: Number(w.quantity),
+                    stock_min: Number(w.stock_min),
+                    stock_max: Number(w.stock_max),
+                })),
+        ),
+    );
 
     const url = props.dialogType === 'create' ? '/item' : `/item/${localForm.value.id}`;
-    const method = props.dialogType === 'create' ? 'POST' : 'POST';
-    if (props.dialogType === 'edit') {
-        formData.append('_method', 'PUT');
-    }
+    const method = 'POST';
+
+    if (props.dialogType === 'edit') formData.append('_method', 'PUT');
     if (props.dialogType === 'view') return;
 
     try {
@@ -889,6 +989,7 @@ async function handleSubmit() {
             data: formData,
             headers: { 'Content-Type': 'multipart/form-data' },
         });
+
         emit('refresh');
         emit('close');
         emit('saved', props.dialogType);
@@ -909,15 +1010,91 @@ function handleItemTypeSelect(type: ItemType) {
 
 function openCatalog(to: 'warehouse') {
     if (typeof window === 'undefined') return;
+
     const routes: Record<'warehouse', string> = {
         warehouse: '/bodegas',
     };
     const url = routes[to];
     if (!url) return;
+
     window.open(url, '_blank');
 }
 
-// Estado de apertura del diálogo
+watch(
+    () => defaultTaxEntry.value?.id,
+    (defaultTaxId) => {
+        if (!defaultTaxId) return;
+        if (isTaxIdBlank(localForm.value.tax_id)) {
+            localForm.value.tax_id = defaultTaxId;
+        }
+    },
+    { immediate: true },
+);
+
+watch(
+    () => props.form,
+    (newVal) => applyFormData(newVal),
+    { deep: true, immediate: true },
+);
+
+watch(
+    () => localForm.value.category_sub_group_id,
+    (newVal) => {
+        if (!newVal) return;
+        const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(newVal));
+        if (subGroup?.category_group_id) selectedGroupId.value = String(subGroup.category_group_id);
+    },
+);
+
+watch(
+    [
+        () => localForm.value.category_sub_group_id,
+        () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|'),
+    ],
+    () => updateNameField(),
+    { immediate: true },
+);
+
+function triggerFileInput() {
+    fileInputRef.value?.click();
+}
+
+function handleFileChange(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = input.files;
+    imageFile.value = files && files.length > 0 ? files.item(0) : null;
+}
+
+watch(imageFile, (file) => {
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imagePreview.value = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+        return;
+    }
+    imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
+});
+
+watch(
+    () => localForm.value.img,
+    (img) => {
+        if (!imageFile.value) {
+            imagePreview.value = resolveImageUrl(img, localForm.value.img_url);
+        }
+    },
+);
+
+watch(
+    () => localForm.value.img_url,
+    (imgUrl) => {
+        if (!imageFile.value) {
+            imagePreview.value = resolveImageUrl(localForm.value.img, imgUrl);
+        }
+    },
+);
+
 watch(
     () => props.isOpen,
     async (value) => {
@@ -936,264 +1113,73 @@ watch(
     },
 );
 
-watch(
-    () => props.form.id,
-    async (itemId) => {
-        if (!props.isOpen) {
-            return;
-        }
-
-        if (itemId) {
-            await trackLoading(() => refreshWarehouseStocksForCurrentItem(Number(itemId)));
-        } else {
-            warehouseStocks.value = [];
-        }
-    },
-);
-
 const INVENTORY_ADJUSTMENT_SAVED_EVENT = 'inventory-adjustment-saved';
+
 const handleInventoryAdjustmentSaved = (event: Event) => {
     const evt = event as CustomEvent<{ itemIds?: number[] }>;
     const itemIds = (evt?.detail?.itemIds ?? [])
-        .map(id => Number(id))
+        .map((id) => Number(id))
         .filter((id) => Number.isFinite(id) && id > 0);
+
     const currentItemId = Number(props.form.id);
     if (!currentItemId || !itemIds.includes(currentItemId)) return;
     if (!props.isOpen) return;
+
     void refreshWarehouseStocksForCurrentItem(currentItemId);
 };
 
 onMounted(() => {
-    if (typeof window === 'undefined') return;
-    window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
+    void trackLoading(async () => {
+        await Promise.all([
+            fetchWarehouses(),
+            fetchCategorySubGroups(),
+            fetchCategoryGroups(),
+            fetchTaxes(),
+            fetchAdditionalFields(),
+        ]);
+
+        fillExtraFields(props.form.extra_fields);
+
+        if (props.form.id) {
+            await fetchWarehouseStocks(props.form.id);
+        }
+
+        imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
+        updateNameField();
+        syncGroupFromSubgroup();
+    });
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
+    }
 });
+
 onBeforeUnmount(() => {
-    if (typeof window === 'undefined') return;
-    window.removeEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
-    window.removeEventListener('keydown', handleImageZoomKey);
-});
-
-// Cierre del diálogo
-function handleClose() {
-    emit('close');
-}
-
-type AdvancedFormDraft = Partial<Item> & {
-    extra_fields?: ExtraFields;
-    unit_measure?: string;
-    warehouse_stocks?: WarehouseStockEntry[];
-};
-
-function buildAdvancedFormDraft(): AdvancedFormDraft {
-    const draftTaxId: unknown = localForm.value.tax_id;
-    const isDraftTaxIdBlank =
-        draftTaxId === undefined ||
-        draftTaxId === null ||
-        (typeof draftTaxId === 'string' && (draftTaxId.trim() === '' || draftTaxId === 'none'));
-    const normalizedTaxId =
-        isDraftTaxIdBlank
-            ? undefined
-            : Number(draftTaxId);
-    const draft: AdvancedFormDraft = {
-        ...localForm.value,
-        tax_id: normalizedTaxId !== undefined && Number.isFinite(normalizedTaxId)
-            ? normalizedTaxId
-            : undefined,
-        extra_fields: extraFields.value ? { ...extraFields.value } : {},
-        unit_measure: unitMeasure.value,
-    };
-
-    if (warehouseStocks.value.length > 0) {
-        draft.warehouse_stocks = warehouseStocks.value.map((stock) => ({ ...stock }));
-    }
-
-    return draft;
-}
-
-function persistAdvancedFormDraft() {
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    try {
-        localStorage.setItem(ITEM_FORM_DRAFT_KEY, JSON.stringify(buildAdvancedFormDraft()));
-    } catch (error) {
-        console.warn(
-            'No se pudo guardar el borrador del formulario avanzado en el almacenamiento local.',
-            error,
-        );
-    }
-}
-
-function redirectToAdvancedForm() {
-    if (!props.form.id) {
-        persistAdvancedFormDraft();
-        handleClose();
-        window.location.href = route('inventario.item.formulario-avanzado');
-        return;
-    }
-
-    handleClose();
-    const advancedUrl = route('inventario.item.formulario-avanzado', { item_id: props.form.id });
-    window.location.href = advancedUrl;
-}
-
-const NEGATIVE_STOCK_WARNING =
-    'Este ítem tiene cantidades negativas en una o más bodegas. ' +
-    'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
-const NEGATIVE_MOVEMENT_INVENTORY_WARNING =
-    'Asocia el ítem con al menos una bodega antes de habilitar movimientos negativos.';
-
-function showNegativeMovementWarning() {
-  alertType.value = 'warning';
-  alertMessage.value = NEGATIVE_STOCK_WARNING;
-
-  scrollDialogToTop();
-}
-
-const hasInventoryDetails = computed(() => warehouseStocks.value.length > 0);
-
-const hasNegativeStock = computed(() =>
-  warehouseStocks.value.some((w) => Number(w.quantity) < 0)
-);
-
-const negativeMovementBool = computed(() =>
-  localForm.value.negative_movement === 1 ||
-  localForm.value.negative_movement === true
-);
-
-const negativeMovementToggleDisabled = computed(
-  () => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value),
-);
-
-function showNegativeMovementInventoryWarning() {
-  alertType.value = 'warning';
-  alertMessage.value = NEGATIVE_MOVEMENT_INVENTORY_WARNING;
-  scrollDialogToTop();
-}
-
-function handleNegativeMovementChange(val: boolean) {
-  if (val && !hasInventoryDetails.value) {
-    showNegativeMovementInventoryWarning();
-    return;
-  }
-
-  if (hasNegativeStock.value && !val) {
-    showNegativeMovementWarning();
-    return;
-  }
-
-  localForm.value.negative_movement = val ? 1 : 0;
-}
-
-function updateNameField(orderedFields?: Record<string, string>): void {
-    const subGroup = categorySubGroups.value.find(
-        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id)
-    );
-    const extrasObj: Record<string, string> =
-        orderedFields ??
-        Object.fromEntries(
-            extraFieldNames.value
-                .filter((key) => extraFields.value[key] && String(extraFields.value[key]).trim() !== '')
-                .sort((a, b) => {
-                    const indexA = additionalFieldOrder.value.get(a) ?? Number.MAX_SAFE_INTEGER;
-                    const indexB = additionalFieldOrder.value.get(b) ?? Number.MAX_SAFE_INTEGER;
-                    if (indexA !== indexB) {
-                        return indexA - indexB;
-                    }
-                    return a.localeCompare(b);
-                })
-                .map((key) => [key, String(extraFields.value[key])]),
-        );
-    const extras = Object.values(extrasObj).join(' ');
-    nameField.value = [subGroup?.name ?? '', extras].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-    localForm.value.name = nameField.value;
-}
-
-watch(imageFile, (file) => {
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            imagePreview.value = e.target?.result as string;
-        };
-        reader.readAsDataURL(file);
-    } else {
-        const resolved = resolveImageUrl(localForm.value.img, localForm.value.img_url);
-        imagePreview.value = resolved;
+    if (typeof window !== 'undefined') {
+        window.removeEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
+        window.removeEventListener('keydown', handleImageZoomKey);
     }
 });
-watch(
-    () => localForm.value.img,
-    (img) => {
-        if (!imageFile.value) {
-            imagePreview.value = resolveImageUrl(img, localForm.value.img_url);
-        }
-    },
-);
-watch(
-    () => localForm.value.img_url,
-    (imgUrl) => {
-        if (!imageFile.value) {
-            imagePreview.value = resolveImageUrl(localForm.value.img, imgUrl);
-        }
-    },
-);
-
-watch(
-    [
-        () => localForm.value.category_sub_group_id,
-        () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|'),
-    ],
-    () => updateNameField(),
-    { immediate: true }
-);
-
-function triggerFileInput() {
-    fileInputRef.value?.click();
-}
-
-function resolveImageUrl(rawImg?: string | null, rawUrl?: string | null): string | undefined {
-    const url = typeof rawUrl === 'string' ? rawUrl.trim() : '';
-    if (url) {
-        if (/^https?:\/\//i.test(url)) return url;
-        if (url.startsWith('/')) return url;
-        return `/storage/${url.replace(/^\/?storage\//, '')}`;
-    }
-    const img = typeof rawImg === 'string' ? rawImg.trim() : '';
-    if (!img) return undefined;
-    if (/^https?:\/\//i.test(img)) return img;
-    if (img.startsWith('/')) return img;
-    return `/storage/${img.replace(/^\/?storage\//, '')}`;
-}
-function handleFileChange(e: Event) {
-    const input = e.target as HTMLInputElement;
-    const files = input.files;
-    imageFile.value = files && files.length > 0 ? files.item(0) : null;
-}
-
-watch(
-    () => localForm.value.tax_id,
-    (taxId) => {
-        const taxObj = taxes.value.find(t => String(t.id) === String(taxId));
-        localForm.value.tax = taxObj || null;
-    }
-);
 </script>
 
 <template>
     <div class="flex min-h-0 flex-1 flex-col -mx-6 -my-10">
-            <transition name="fade">
-                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-20 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-6">
-                    <AlertBox
-                        :type="alertType"
-                        :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
-                        :message="alertMessage"
-                        class="pointer-events-auto w-full max-w-xl"
-                        @close="alertMessage = ''"
-                    />
-                </div>
-            </transition>
-            <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
+        <transition name="fade">
+            <div
+                v-if="alertMessage"
+                class="pointer-events-none absolute left-1/2 top-20 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-6"
+            >
+                <AlertBox
+                    :type="alertType"
+                    :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
+                    :message="alertMessage"
+                    class="pointer-events-auto w-full max-w-xl"
+                    @close="alertMessage = ''"
+                />
+            </div>
+        </transition>
+
+        <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
             <FormHeader
                 class="flex-shrink-0 px-6 pt-10"
                 headerClass="mb-4"
@@ -1205,39 +1191,42 @@ watch(
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
-                        <div>
-                            <div class="mb-2 flex items-center gap-1">
-                                <span class="text-sm font-semibold text-card-foreground">
-                                    Tipo de ítem
-                                </span>
-                                <HelpTooltip text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes." />
+                            <div>
+                                <div class="mb-2 flex items-center gap-1">
+                                    <span class="text-sm font-semibold text-card-foreground">
+                                        Tipo de ítem
+                                    </span>
+                                    <HelpTooltip text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes." />
+                                </div>
+
+                                <template v-if="isViewMode">
+                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                        {{ itemTypeLabelMap[currentItemType] }}
+                                    </div>
+                                </template>
+
+                                <template v-else>
+                                    <div class="mt-2 grid grid-cols-2 gap-2">
+                                        <button
+                                            v-for="option in itemTypeOptions"
+                                            :key="option.value"
+                                            type="button"
+                                            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
+                                            :class="[
+                                                option.value === currentItemType
+                                                    ? 'border-blue-500 bg-blue-500 text-white shadow'
+                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
+                                            ]"
+                                            :aria-pressed="option.value === currentItemType"
+                                            :disabled="isViewMode"
+                                            @click="handleItemTypeSelect(option.value)"
+                                        >
+                                            {{ option.label }}
+                                        </button>
+                                    </div>
+                                </template>
                             </div>
-                            <template v-if="isViewMode">
-                                <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                    {{ itemTypeLabelMap[currentItemType] }}
-                                </div>
-                            </template>
-                            <template v-else>
-                                <div class="mt-2 grid grid-cols-2 gap-2">
-                                    <button
-                                        v-for="option in itemTypeOptions"
-                                        :key="option.value"
-                                        type="button"
-                                        class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
-                                        :class="[
-                                            option.value === currentItemType
-                                                ? 'border-blue-500 bg-blue-500 text-white shadow'
-                                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
-                                        ]"
-                                        :aria-pressed="option.value === currentItemType"
-                                        :disabled="isViewMode"
-                                        @click="handleItemTypeSelect(option.value)"
-                                    >
-                                        {{ option.label }}
-                                    </button>
-                                </div>
-                            </template>
-                        </div>
+
                             <div>
                                 <Label>Nombre</Label>
                                 <Input
@@ -1250,114 +1239,117 @@ watch(
                             </div>
 
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            <template v-if="isViewMode">
-                                <div class="flex flex-col gap-1">
-                                    <Label>Grupo</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{ currentGroup?.name || '-' }}
+                                <template v-if="isViewMode">
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Grupo</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{ currentGroup?.name || '-' }}
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="flex flex-col gap-1">
-                                    <Label>Subgrupo</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{ currentSubGroup?.name || '-' }}
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Subgrupo</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{ currentSubGroup?.name || '-' }}
+                                        </div>
                                     </div>
-                                </div>
 
-                                <div class="flex flex-col gap-1">
-                                    <Label>Impuesto</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{ displayedTaxLabel }}
+                                    <div class="flex flex-col gap-1">
+                                        <Label>Impuesto</Label>
+                                        <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                            {{ displayedTaxLabel }}
+                                        </div>
                                     </div>
-                                </div>
-                            </template>
+                                </template>
 
-                            <template v-else>
-                                <SelectField
-                                    v-model="selectedGroupId"
-                                    label="Grupo"
-                                    :options="groupOptions"
-                                    required
-                                    placeholder="Selecciona un grupo"
-                                    searchable
-                                    search-placeholder="Buscar..."
-                                    :show-placeholder-option="false"
-                                >
-                                    <template #header>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                            @click.stop="openGroupDialog"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                            Nuevo grupo
-                                        </Button>
-                                    </template>
-                                </SelectField>
-                                <SelectField
-                                    v-model="localForm.category_sub_group_id"
-                                    label="Subgrupo"
-                                    :options="subGroupOptions"
-                                    :disabled="!selectedGroupId"
-                                    :placeholder="selectedGroupId ? 'Selecciona un subgrupo' : 'Selecciona un grupo primero'"
-                                    required
-                                    button-class="min-h-[34px] py-1"
-                                    searchable
-                                    search-placeholder="Buscar..."
-                                    :show-placeholder-option="false"
-                                >
-                                    <template #header>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                            @click.stop="openSubGroupDialog"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                            Nuevo subgrupo
-                                        </Button>
-                                    </template>
-                                </SelectField>
-                                <SelectField
-                                    v-model="localForm.tax_id"
-                                    label="Impuesto"
-                                    :options="taxOptions"
-                                    option-label="name"
-                                    option-value="id"
-                                    required
-                                    searchable
-                                    search-placeholder="Buscar..."
-                                    :show-placeholder-option="false"
-                                >
-                                    <template #header>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
-                                            @click.stop="openTaxDialog"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                            Nuevo impuesto
-                                        </Button>
-                                    </template>
-                                </SelectField>
-                            </template>
+                                <template v-else>
+                                    <SelectField
+                                        v-model="selectedGroupId"
+                                        label="Grupo"
+                                        :options="groupOptions"
+                                        required
+                                        placeholder="Selecciona un grupo"
+                                        searchable
+                                        search-placeholder="Buscar..."
+                                        :show-placeholder-option="false"
+                                    >
+                                        <template #header>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                                @click.stop="openGroupDialog"
+                                            >
+                                                <Plus class="h-4 w-4" />
+                                                Nuevo grupo
+                                            </Button>
+                                        </template>
+                                    </SelectField>
+
+                                    <SelectField
+                                        v-model="localForm.category_sub_group_id"
+                                        label="Subgrupo"
+                                        :options="subGroupOptions"
+                                        :disabled="!selectedGroupId"
+                                        :placeholder="selectedGroupId ? 'Selecciona un subgrupo' : 'Selecciona un grupo primero'"
+                                        required
+                                        button-class="min-h-[34px] py-1"
+                                        searchable
+                                        search-placeholder="Buscar..."
+                                        :show-placeholder-option="false"
+                                    >
+                                        <template #header>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                                @click.stop="openSubGroupDialog"
+                                            >
+                                                <Plus class="h-4 w-4" />
+                                                Nuevo subgrupo
+                                            </Button>
+                                        </template>
+                                    </SelectField>
+
+                                    <SelectField
+                                        v-model="localForm.tax_id"
+                                        label="Impuesto"
+                                        :options="taxOptions"
+                                        option-label="name"
+                                        option-value="id"
+                                        required
+                                        searchable
+                                        search-placeholder="Buscar..."
+                                        :show-placeholder-option="false"
+                                    >
+                                        <template #header>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                                @click.stop="openTaxDialog"
+                                            >
+                                                <Plus class="h-4 w-4" />
+                                                Nuevo impuesto
+                                            </Button>
+                                        </template>
+                                    </SelectField>
+                                </template>
                             </div>
 
-                        <div
-                            v-if="currentItemType !== 'service'"
-                            class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
-                        >
-                        <div class="mb-2 flex items-center justify-between">
-                            <p class="text-sm font-semibold flex items-center gap-1">
-                                <span>Detalle de Inventario</span>
-                                <HelpTooltip text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock." />
-                            </p>
+                            <div
+                                v-if="currentItemType !== 'service'"
+                                class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
+                            >
+                                <div class="mb-2 flex items-center justify-between">
+                                    <p class="text-sm font-semibold flex items-center gap-1">
+                                        <span>Detalle de Inventario</span>
+                                        <HelpTooltip text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock." />
+                                    </p>
+
                                     <button
                                         v-if="!isViewMode"
                                         type="button"
@@ -1404,6 +1396,7 @@ watch(
                                                 </template>
                                             </SelectField>
                                         </div>
+
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Cantidad</Label>
                                             <InputIntegerField
@@ -1412,9 +1405,10 @@ watch(
                                                 type="number"
                                                 class="w-full"
                                                 placeholder="Cantidad"
-                                                :allowNegative="true"  
+                                                :allowNegative="true"
                                             />
                                         </div>
+
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Cantidad Min</Label>
                                             <InputIntegerField
@@ -1425,6 +1419,7 @@ watch(
                                                 placeholder="Min"
                                             />
                                         </div>
+
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Cantidad Max</Label>
                                             <InputIntegerField
@@ -1435,6 +1430,7 @@ watch(
                                                 placeholder="Max"
                                             />
                                         </div>
+
                                         <div class="flex items-base justify-end">
                                             <button
                                                 v-if="!isViewMode"
@@ -1449,10 +1445,7 @@ watch(
                                     </div>
                                 </div>
 
-                                <div
-                                    v-if="warehouseStocks.length === 0"
-                                    class="px-2 py-1 text-xs text-gray-400"
-                                >
+                                <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">
                                     No hay bodegas asociadas.
                                 </div>
                             </div>
@@ -1462,7 +1455,6 @@ watch(
                             <div class="flex w-full flex-col items-start gap-2">
                                 <Label class="mb-1 block text-sm font-medium text-left">Imagen</Label>
                                 <div class="w-full">
-                                    <!-- input file (se deshabilita por el fieldset + prop) -->
                                     <input
                                         ref="fileInputRef"
                                         type="file"
@@ -1471,6 +1463,7 @@ watch(
                                         :disabled="isViewMode"
                                         @change="handleFileChange"
                                     />
+
                                     <div
                                         :class="[
                                             'group relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
@@ -1498,16 +1491,13 @@ watch(
                                                     Ver imagen
                                                 </button>
                                             </div>
-                                            <div
-                                                class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white"
-                                            >
+                                            <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
                                                 {{ isViewMode ? 'Imagen del ítem' : 'Cambiar imagen' }}
                                             </div>
                                         </template>
+
                                         <template v-else>
-                                            <div
-                                                class="z-10 flex h-full w-full flex-col items-center justify-center"
-                                            >
+                                            <div class="z-10 flex h-full w-full flex-col items-center justify-center">
                                                 <Image class="mb-2 h-12 w-12 text-gray-400" />
                                                 <span class="text-sm text-gray-500">
                                                     {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
@@ -1520,7 +1510,7 @@ watch(
                         </div>
                     </div>
 
-                    <!-- SEGUNDA SECCIÓN: unidad, código, referencia, movimiento -->
+                    <!-- SEGUNDA SECCIÓN -->
                     <div class="mb-3 grid grid-cols-1 gap-4 md:grid-cols-4">
                         <div class="md:col-span-1">
                             <template v-if="isViewMode">
@@ -1547,13 +1537,11 @@ watch(
                         <div class="md:col-span-1">
                             <InputField v-model="localForm.bar_code" label="Código de Barras" />
                         </div>
+
                         <div class="md:col-span-1">
-                            <InputField
-                                v-model="localForm.reference"
-                                label="Referencia"
-                                required
-                            />
+                            <InputField v-model="localForm.reference" label="Referencia" required />
                         </div>
+
                         <div class="flex items-center md:col-span-1">
                             <SwitchField
                                 :model-value="negativeMovementBool"
@@ -1567,7 +1555,6 @@ watch(
                         </div>
                     </div>
 
-                    <!-- Descripción -->
                     <div>
                         <TextareaField v-model="localForm.description" label="Descripción" />
                     </div>
@@ -1579,6 +1566,7 @@ watch(
                             <HelpTooltip text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo." />
                         </p>
                     </div>
+
                     <div class="space-y-2">
                         <ExtraFieldsForm
                             :extra-field-names="extraFieldNames"
@@ -1590,6 +1578,7 @@ watch(
                             :show-label="false"
                         />
                     </div>
+
                     <section
                         v-if="props.showAdvancedSections"
                         class="rounded-2xl border border-border bg-card p-4 shadow-sm"
@@ -1600,6 +1589,7 @@ watch(
                                 <HelpTooltip text="Indica las cuentas contables que deben usarse al vender o mover este ítem dentro del inventario." />
                             </p>
                         </div>
+
                         <div class="grid gap-4 md:grid-cols-2">
                             <SelectField
                                 v-model="localForm.income_account"
@@ -1627,6 +1617,7 @@ watch(
                             />
                         </div>
                     </section>
+
                     <section
                         v-if="props.showAdvancedSections"
                         class="rounded-2xl border border-border bg-card p-4 shadow-sm"
@@ -1637,67 +1628,62 @@ watch(
                                 <HelpTooltip text="Completa estos campos solo si este ítem se usa en operaciones de exportación para facilitar la factura." />
                             </p>
                         </div>
+
                         <div class="grid gap-4 md:grid-cols-3">
-                            <InputField
-                                v-model="localForm.export_tariff_code"
-                                label="Partida arancelaria"
-                            />
-                            <InputField
-                                v-model="localForm.export_brand"
-                                label="Marca"
-                            />
-                            <InputField
-                                v-model="localForm.export_model"
-                                label="Modelo"
-                            />
+                            <InputField v-model="localForm.export_tariff_code" label="Partida arancelaria" />
+                            <InputField v-model="localForm.export_brand" label="Marca" />
+                            <InputField v-model="localForm.export_model" label="Modelo" />
                         </div>
                     </section>
                 </fieldset>
             </div>
 
-                <!-- FOOTER -->
-                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 px-6 pb-10 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
-                    <div
-                        v-if="dialogType !== 'view' && showAdvancedLink"
-                        class="w-full md:w-auto"
+            <!-- FOOTER -->
+            <DialogFooter
+                class="flex-shrink-0 border-t pt-4 mt-4 px-6 pb-10 flex flex-col-reverse gap-2 md:flex-row md:justify-end"
+            >
+                <div v-if="dialogType !== 'view' && showAdvancedLink" class="w-full md:w-auto">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="redirectToAdvancedForm"
                     >
-                        <button
-                            type="button"
-                            class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                            @click="redirectToAdvancedForm"
-                        >
-                            <ExternalLink class="h-4 w-4" />
-                            Ir al formulario avanzado
-                        </button>
-                    </div>
-                    <div class="w-full md:w-auto">
-                        <button
-                            type="button"
-                            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                            @click="handleClose"
-                        >
-                            {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
-                        </button>
-                    </div>
-                    <div class="w-full md:w-auto">
-                        <Button
-                            v-if="dialogType !== 'view'"
-                            variant="default"
-                            type="submit"
-                            class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                            :disabled="isLoadingState"
-                        >
-                            {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                        </Button>
-                    </div>
-                </DialogFooter>
-            </form>
-        </div>
+                        <ExternalLink class="h-4 w-4" />
+                        Ir al formulario avanzado
+                    </button>
+                </div>
+
+                <div class="w-full md:w-auto">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="handleClose"
+                    >
+                        {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
+                    </button>
+                </div>
+
+                <div class="w-full md:w-auto">
+                    <Button
+                        v-if="dialogType !== 'view'"
+                        variant="default"
+                        type="submit"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                        :disabled="isLoadingState"
+                    >
+                        {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
+                    </Button>
+                </div>
+            </DialogFooter>
+        </form>
+    </div>
+
     <GroupDialog
         v-model:isOpen="isGroupDialogOpen"
         @created="handleGroupCreated"
         @close="isGroupDialogOpen = false"
     />
+
     <SubGroupDialog
         :isOpen="isSubGroupDialogOpen"
         dialog-type="create"
@@ -1706,6 +1692,7 @@ watch(
         @close="isSubGroupDialogOpen = false"
         @submit="handleSubGroupSubmit"
     />
+
     <TaxDialog
         v-model:open="isTaxDialogOpen"
         dialog-type="create"
@@ -1714,15 +1701,17 @@ watch(
         @submit="handleTaxDialogSubmit"
         @cancel="isTaxDialogOpen = false"
     />
+
     <AdditionalFieldDialog
         :open="additionalFieldDialogOpen"
         dialogType="create"
         :form="additionalFieldDialogForm"
         :loading="additionalFieldDialogLoading"
-        @update:open="(value) => additionalFieldDialogOpen = value"
+        @update:open="(value) => (additionalFieldDialogOpen = value)"
         @submit="handleAdditionalFieldDialogSubmit"
         @cancel="closeAdditionalFieldDialog"
     />
+
     <transition name="zoom">
         <div
             v-if="isImageZoomOpen"
@@ -1763,4 +1752,3 @@ watch(
     transform: scale(0.95);
 }
 </style>
-

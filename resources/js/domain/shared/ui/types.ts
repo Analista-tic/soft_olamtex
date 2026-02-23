@@ -1,4 +1,4 @@
-import type { AdditionalContact } from '@/domain/Expenses';
+import type { AdditionalContact } from '@/domain/MasterData';
 
 export interface DeleteButtonProps {
     disabled?: boolean;
@@ -25,4 +25,3 @@ export interface AdditionalContactsListProps {
     additionalContacts: AdditionalContact[];
     onUpdateAdditionalContacts: (updatedContacts: AdditionalContact[]) => void;
 }
-

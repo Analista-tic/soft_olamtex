@@ -1,21 +1,61 @@
-export function normalizeSizes(input: unknown): string[] {
-    if (!input) return [];
-    if (Array.isArray(input)) return input.map(String);
+export type NormalizedSizes = string | Record<string, boolean> | null;
+
+function toEnabledSizeRecord(input: unknown[]): Record<string, boolean> {
+    return Object.fromEntries(input.map((value) => [String(value), true]));
+}
+
+function toBooleanRecord(input: Record<string, unknown>): Record<string, boolean> {
+    return Object.fromEntries(
+        Object.entries(input).map(([key, value]) => [key, Boolean(value)]),
+    );
+}
+
+function extractSizeKeys(input: NormalizedSizes): string[] {
+    if (input == null) return [];
+
     if (typeof input === 'string') {
-        try {
-            const parsed = JSON.parse(input);
-            if (Array.isArray(parsed)) return parsed.map(String);
-            if (typeof parsed === 'object' && parsed !== null) return Object.keys(parsed).filter((k) => (parsed as Record<string, any>)[k]);
-        } catch {
-            return input.split(',').map((s) => s.trim()).filter(Boolean);
-        }
+        return input
+            .split(',')
+            .map((size) => size.trim())
+            .filter(Boolean);
     }
-    if (typeof input === 'object') return Object.keys(input as Record<string, any>).filter((k) => (input as Record<string, any>)[k]);
-    return [];
+
+    return Object.entries(input)
+        .filter(([, enabled]) => enabled)
+        .map(([size]) => size);
+}
+
+export function normalizeSizes(input: unknown): NormalizedSizes {
+    if (input == null) return null;
+
+    if (Array.isArray(input)) {
+        return toEnabledSizeRecord(input);
+    }
+
+    if (typeof input === 'string') {
+        const text = input.trim();
+        if (text === '') return null;
+
+        try {
+            const parsed = JSON.parse(text) as unknown;
+            if (Array.isArray(parsed)) return toEnabledSizeRecord(parsed);
+            if (parsed && typeof parsed === 'object') return toBooleanRecord(parsed as Record<string, unknown>);
+        } catch {
+            return text;
+        }
+
+        return text;
+    }
+
+    if (typeof input === 'object') {
+        return toBooleanRecord(input as Record<string, unknown>);
+    }
+
+    return null;
 }
 
 export function sizesToLabel(sizes: unknown): string {
     const normalized = normalizeSizes(sizes);
-    if (!normalized || normalized.length === 0) return '';
-    return normalized.join(', ');
+    const sizeKeys = extractSizeKeys(normalized);
+    return sizeKeys.join(', ');
 }

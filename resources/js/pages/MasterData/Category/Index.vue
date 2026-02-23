@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { BreadcrumbItem } from '@/domain/shared'; // Importar los tipos centralizados
-import type { CategoryGroup, CategorySubGroup } from '@/domain/Inventory';
+import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
 import EditButton from '@/components/common/EditButton.vue';
 import SubGroupDialog from './SubGroupDialog.vue';
 import { Button } from '@/components/ui/button';

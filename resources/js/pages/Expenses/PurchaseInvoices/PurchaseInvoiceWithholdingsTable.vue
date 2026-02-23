@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue';
-import axios from 'axios';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { CirclePlus } from 'lucide-vue-next';
@@ -8,6 +7,14 @@ import type { PurchaseInvoiceWithholding } from '@/domain/Expenses';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import RetentionDialog from '@/pages/Finance/Retention/RetentionDialog.vue';
 import AlertBox from '@/components/AlertBox.vue';
+import {
+    createRetention as createRetentionRequest,
+    createRetentionForm,
+    fetchRetentionsPage,
+    mapRetentionFormToPayload,
+    type Retention,
+    type RetentionForm,
+} from '@/domain/Finance';
 
 defineOptions({ name: 'WithholdingTable' });
 
@@ -20,40 +27,31 @@ const props = withDefaults(
     }>(),
     { invoiceSubtotal: 0 },
 );
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits<{
+    (e: 'update:modelValue', value: PurchaseInvoiceWithholding[]): void;
+}>();
 
 const localWithholdings = ref<PurchaseInvoiceWithholding[]>(
     Array.isArray(props.modelValue) ? props.modelValue.map((w) => ({ ...w })) : []
 );
 
-const retentions = ref<{ id: number; name: string; percentage: number }[]>([]);
+const retentions = ref<Retention[]>([]);
 const isReadOnly = computed(() => !!props.isReadOnly);
 const retentionOptions = computed(() =>
-    retentions.value.map((r) => ({ id: r.name, name: `${r.name} (${r.percentage}%)` })),
+    retentions.value.map((r) => ({ id: r.name, name: `${r.name} (${r.percent}%)` })),
 );
 
 const retentionDialogOpen = ref(false);
 const retentionDialogLoading = ref(false);
 const retentionDialogType = ref<'create' | 'edit'>('create');
-const retentionDialogForm = ref<any>({
-    name: '',
-    percent: '',
-    type: '',
-    description: '',
-    status: 'active',
-});
+const retentionDialogForm = ref<RetentionForm>(createRetentionForm());
 const successMessage = ref('');
 const retentionSelectKey = ref(0);
 
 async function fetchRetentions() {
     try {
-        const { data } = await axios.get('/retenciones/data');
-        const retentionsArray = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
-        retentions.value = retentionsArray.map((r: any) => ({
-            id: r.id,
-            name: r.name,
-            percentage: Number(r.percent ?? r.percentage ?? 0),
-        }));
+        const data = await fetchRetentionsPage({ per_page: 1000, status: 'active' });
+        retentions.value = data.data;
     } catch {
         retentions.value = [];
     }
@@ -80,11 +78,26 @@ function getWithholdingValue(w: PurchaseInvoiceWithholding): number {
     return (getEffectiveBase(w) * (Number(w.percentage) || 0)) / 100;
 }
 
+function getBaseAmountInputValue(w: PurchaseInvoiceWithholding): string | number | undefined {
+    return w.base_amount == null ? undefined : Number(w.base_amount);
+}
+
+function updateBaseAmount(w: PurchaseInvoiceWithholding, value: string | number | undefined) {
+    if (value === '' || value == null) {
+        w.base_amount = null;
+        emit('update:modelValue', [...localWithholdings.value]);
+        return;
+    }
+
+    const numericValue = Number(value);
+    w.base_amount = Number.isFinite(numericValue) ? numericValue : null;
+    emit('update:modelValue', [...localWithholdings.value]);
+}
+
 function addWithholding() {
     if (isReadOnly.value) return;
-    // La base por defecto es el subtotal de la factura; el usuario puede editarla
-    const defaultBase = Number(props.invoiceSubtotal) || 0;
-    emit('update:modelValue', [...localWithholdings.value, { name: '', percentage: 0, base_amount: defaultBase }]);
+    // Base null implica "usar subtotal" sin persistir un valor redundante.
+    emit('update:modelValue', [...localWithholdings.value, { name: '', percentage: 0, base_amount: null }]);
 }
 
 function removeWithholding(idx: number) {
@@ -96,13 +109,7 @@ function removeWithholding(idx: number) {
 
 function openRetentionDialog() {
     if (isReadOnly.value) return;
-    retentionDialogForm.value = {
-        name: '',
-        percent: '',
-        type: '',
-        description: '',
-        status: 'active',
-    };
+    retentionDialogForm.value = createRetentionForm();
     retentionDialogOpen.value = true;
 }
 
@@ -112,17 +119,11 @@ function openRetentionDialogFromDropdown() {
     retentionSelectKey.value += 1;
 }
 
-async function handleRetentionSubmit(formData: any) {
+async function handleRetentionSubmit(formData: RetentionForm) {
     if (isReadOnly.value) return;
     retentionDialogLoading.value = true;
     try {
-        await axios.post('/retenciones', {
-            name: formData.name,
-            percent: Number(formData.percent) || 0,
-            type: formData.type || null,
-            description: formData.description || null,
-            status: formData.status || 'active',
-        });
+        await createRetentionRequest(mapRetentionFormToPayload(formData));
         await fetchRetentions();
         retentionDialogOpen.value = false;
         successMessage.value = 'Retención guardada correctamente.';
@@ -189,22 +190,22 @@ async function handleRetentionSubmit(formData: any) {
                                 @action="openRetentionDialogFromDropdown"
                                 @update:modelValue="(val) => {
                                     const found = retentions.find(r => r.name === val);
-                                    if (found) withholding.percentage = found.percentage;
+                                    if (found) withholding.percentage = found.percent;
                                     emit('update:modelValue', localWithholdings);
                                 }"
                             />
                         </td>
                         <td class="px-1">
                             <InputField
-                                v-model="withholding.base_amount"
+                                :modelValue="getBaseAmountInputValue(withholding)"
                                 type="currency"
                                 label=""
                                 size="xs"
                                 class="text-xs"
-                                :placeholder="withholding.base_amount == null || withholding.base_amount === '' ? 'Subtotal' : undefined"
+                                :placeholder="withholding.base_amount == null ? 'Subtotal' : undefined"
                                 :readonly="isReadOnly"
                                 :disabled="isReadOnly"
-                                @update:modelValue="() => emit('update:modelValue', localWithholdings)"
+                                @update:modelValue="(val) => updateBaseAmount(withholding, val)"
                             />
                         </td>
                         <td class="px-1">
@@ -246,5 +247,3 @@ async function handleRetentionSubmit(formData: any) {
         />
     </div>
 </template>
-
-

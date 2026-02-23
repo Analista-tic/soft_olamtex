@@ -412,14 +412,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head title="�rdenes de producci�n" />
+    <Head title="Órdenes de producción" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :success-message="successMessage"
             :error-message="errorMessage"
             :error-type="errorType"
-            success-title="Operaci�n exitosa"
+            success-title="Operación exitosa"
             error-title="Aviso"
             @close-success="clearSuccess"
             @close-error="clearError"
@@ -427,8 +427,8 @@ onUnmounted(() => {
 
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl px-2 py-3">
             <div class="flex flex-col gap-1">
-                <h1 class="text-lg font-bold">�rdenes de producci�n</h1>
-                <p class="text-sm text-muted-foreground">Seguimiento y detalles de �rdenes de producci�n (muestras y productos)</p>
+                <h1 class="text-lg font-bold">Órdenes de producción</h1>
+                <p class="text-sm text-muted-foreground">Seguimiento y detalles de Órdenes de producción (muestras y productos)</p>
             </div>
 
             <div class="grid grid-cols-12 gap-4">

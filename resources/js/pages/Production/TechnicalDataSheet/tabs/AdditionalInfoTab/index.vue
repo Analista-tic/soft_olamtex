@@ -188,8 +188,8 @@ const stampingBasicInfoItems = computed<Array<{ label: string; value: string }>>
         '-';
     return [
         { label: 'Base', value: resolvedBase },
-        { label: 'Dise�ador', value: String(op?.designer ?? op?.designerName ?? '-') },
-        { label: 'Orden de producci�n (OP)', value: String(op?.opCode ?? '-') },
+        { label: 'Diseñador', value: String(op?.designer ?? op?.designerName ?? '-') },
+        { label: 'Orden de producción (OP)', value: String(op?.opCode ?? '-') },
         { label: 'Referencia cliente / almacenes', value: String(op?.reference ?? op?.destination ?? '-') },
     ];
 });

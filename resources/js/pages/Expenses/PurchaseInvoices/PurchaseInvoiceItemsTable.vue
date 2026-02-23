@@ -6,7 +6,7 @@ import SelectField from '@/components/SelectField.vue';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
-import type { Item } from '@/domain/Inventory';
+import type { Item } from '@/domain/MasterData';
 import type { Tax } from '@/domain/Finance';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -38,6 +38,7 @@ const itemDialogForm = ref<Partial<Item>>({
 const isReadOnly = computed(() => !!props.isReadOnly);
 
 const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
+const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
     { id: 0, name: DEFAULT_TAX_LABEL },
     ...taxes.value
@@ -223,7 +224,29 @@ function removeItem(idx: number) {
 function setTaxFromItem(invoiceItem: PurchaseInvoiceItem) {
     const itemId = Number(invoiceItem.item_id);
     const selectedItem = itemMap.value.get(itemId);
-    invoiceItem.tax = selectedItem?.tax?.percentage ?? 0;
+    if (!selectedItem) {
+        invoiceItem.tax = 0;
+        return;
+    }
+
+    const legacyTaxPercentage = Number((selectedItem as Item & { tax?: { percentage?: number | string } }).tax?.percentage);
+    if (Number.isFinite(legacyTaxPercentage)) {
+        invoiceItem.tax = legacyTaxPercentage;
+        return;
+    }
+
+    const itemTaxId = selectedItem.tax_id;
+    if (itemTaxId == null) {
+        invoiceItem.tax = 0;
+        return;
+    }
+
+    const taxPercentage = taxById.value.get(Number(itemTaxId))?.percentage;
+    if (taxPercentage == null) {
+        return;
+    }
+
+    invoiceItem.tax = Number(taxPercentage) || 0;
 }
 
 function getSuggestedPrice(item: PurchaseInvoiceItem): number | null {
@@ -289,13 +312,9 @@ function syncInvoiceItemsTaxWithCatalog() {
     });
 }
 
-watch(
-    catalogItems,
-    () => {
-        syncInvoiceItemsTaxWithCatalog();
-    },
-    { immediate: true },
-);
+watch([catalogItems, taxes], () => {
+    syncInvoiceItemsTaxWithCatalog();
+}, { immediate: true });
 
 function isPriceDifferent(item: PurchaseInvoiceItem): boolean {
     const suggested = getSuggestedPrice(item);
@@ -481,4 +500,3 @@ defineExpose({ addItem });
         />
     </div>
 </template>
-

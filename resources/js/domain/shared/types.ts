@@ -142,15 +142,3 @@ export interface BranchesListProps {
     branches: Branch[];
     onUpdateBranches: (updatedBranches: Branch[]) => void;
 }
-
-export interface Retention {
-    id?: number | null;
-    name: string;
-    percent: number;
-    type: string;
-    description?: string | null;
-    status: 'active' | 'inactive';
-    created_at?: string;
-    updated_at?: string;
-}
-

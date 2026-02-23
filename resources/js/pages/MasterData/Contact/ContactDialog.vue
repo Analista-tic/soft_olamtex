@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { AdditionalContact, Contact } from '@/domain/Expenses';
+import type { AdditionalContact, Contact } from '@/domain/MasterData';
 import type { Branch } from '@/domain/shared';
 import { computed, ref, watch } from 'vue';
 import AdditionalContactsList from './AdditionalContactsList.vue';
@@ -387,4 +387,3 @@ const updateBranches = (branches: any[]) => {
     font-size: 1.1rem;
 }
 </style>
-

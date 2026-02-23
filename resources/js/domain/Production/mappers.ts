@@ -219,3 +219,58 @@ export function mapDetailResponseToBasicInfo(response: ProductionOrderDetailResp
         estimatedDeliveryTime: null,
     };
 }
+
+// Product-sheet utilities (moved here to keep production domain together)
+export const PRODUCT_SHEET_TYPE_PRODUCT = 'producto';
+export const PRODUCT_SHEET_TYPE_SAMPLE = 'muestra';
+
+export function normalizeProductSheetType(value?: string | null): string {
+    if (!value) return PRODUCT_SHEET_TYPE_PRODUCT;
+    const v = String(value).toLowerCase();
+    if (v.includes('mues') || v === 'sample' || v === 'muestra') return PRODUCT_SHEET_TYPE_SAMPLE;
+    return PRODUCT_SHEET_TYPE_PRODUCT;
+}
+
+export function formatCopCurrency(value?: number | null): string {
+    const n = Number(value ?? 0);
+    try {
+        return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(n);
+    } catch {
+        return String(n);
+    }
+}
+
+export function resolveProductSheetReference(product: ProductSheet): string {
+    if (product.reference) return product.reference;
+    if (product.id) return `REF-${product.id}`;
+    return '-';
+}
+
+export function parseBooleanRecord(record: Record<string, any> | string | null): Record<string, boolean> {
+    if (!record) return {};
+    if (typeof record === 'string') {
+        try {
+            const parsed = JSON.parse(record);
+            return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, Boolean(v)]));
+        } catch {
+            return {};
+        }
+    }
+    return Object.fromEntries(Object.entries(record).map(([k, v]) => [k, Boolean(v)]));
+}
+
+export function stringifyJsonRecord(record: unknown, fallback: unknown = ''): string {
+    if (record == null) {
+        try {
+            return typeof fallback === 'string' ? fallback : JSON.stringify(fallback);
+        } catch {
+            return String(fallback ?? '');
+        }
+    }
+    if (typeof record === 'string') return record;
+    try {
+        return JSON.stringify(record);
+    } catch {
+        return String(record);
+    }
+}

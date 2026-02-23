@@ -1,29 +1,5 @@
 import type { Item } from '@/domain/MasterData';
-export interface AdditionalContactDto {
-    name: string;
-    phone: string;
-    email: string;
-}
-
-export interface ContactDto {
-    id: number;
-    contact_type: string;
-    id_type: string;
-    id_number: string;
-    dv?: string;
-    full_name: string;
-    person_type: string;
-    category: string;
-    municipality?: string;
-    department?: string;
-    address?: string;
-    email: string;
-    phone?: string;
-    additional_contacts?: AdditionalContactDto[];
-    groups?: string[];
-    created_at?: string;
-    updated_at?: string;
-}
+import type { ContactDto } from '@/domain/MasterData';
 
 export interface PurchaseOrderItemDto {
     id?: number;
@@ -59,7 +35,7 @@ export interface PurchaseOrderDto {
 export interface PurchaseInvoiceWithholdingDto {
     name: string;
     percentage: number;
-    base_amount: number;
+    base_amount: number | null;
 }
 
 export interface PurchaseInvoiceItemDto {
@@ -86,6 +62,7 @@ export interface PurchaseInvoiceDto {
     contact_id: number | null;
     contact?: ContactDto;
     supplier?: ContactDto;
+    provider_name?: string | null;
     date: string;
     delivery_date: string;
     document_number?: string | null;

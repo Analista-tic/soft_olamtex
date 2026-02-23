@@ -62,7 +62,7 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Cotizaciones', href: underConstructionHref('Cotizaciones') },
                     { title: 'Pedidos', href: underConstructionHref('Pedidos') },
                     { title: 'Facturas de venta', href: underConstructionHref('Facturas de venta') },
-                    { title: 'Notas CrÈdito / DÈbito', href: underConstructionHref('Notas CrÈdito / DÈbito') },
+                    { title: 'Notas Cr√©dito / D√©bito', href: underConstructionHref('Notas Cr√©dito / D√©bito') },
                     { title: 'Recaudos / Pagos recibidos', href: underConstructionHref('Recaudos / Pagos recibidos') },
                 ],
             },
@@ -86,7 +86,7 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Recepciones', href: underConstructionHref('Recepciones') },
                     { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver telas' },
                     { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver telas' },
-                    { title: 'Notas CrÈdito / DÈbito', href: underConstructionHref('Notas CrÈdito / DÈbito') },
+                    { title: 'Notas Cr√©dito / D√©bito', href: underConstructionHref('Notas Cr√©dito / D√©bito') },
                 ],
             },
             {
@@ -127,10 +127,10 @@ const moduleSections: ModuleSection[] = [
                 label: '',
                 items: [
                     { title: 'Contactos', href: '/contactos' },
-                    { title: 'CategorÌas', href: '/categorias/subgrupos' },
-                    { title: 'Cat·logo de Ìtems', href: '/item', permission: 'ver inventario telas' },
+                    { title: 'Categor√≠as', href: '/categorias/subgrupos' },
+                    { title: 'Cat√°logo de √≠tems', href: '/item', permission: 'ver inventario telas' },
                     { title: 'Campos adicionales', href: '/campos-adicionales' },
-                    { title: 'Parametros', href: '/parametros' },
+                    { title: 'Par√°metros', href: '/parametros' },
                     // { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },
                 ],
             },
@@ -145,11 +145,11 @@ const moduleSections: ModuleSection[] = [
                 items: [
                     { title: 'Solicitud de insumos', href: '/inventario/solicitudes-internas' },
                     { title: 'Bodegas', href: '/bodegas' },
-                    { title: 'Inventario de Ìtems', href: '/inventario-item' },
+                    { title: 'Inventario de √≠tems', href: '/inventario-item' },
                 ],
             },
             {
-                label: 'K·rdex',
+                label: 'K√°rdex',
                 items: [
                     { title: 'Movimientos de inventario', href: '/inventario/item', permission: 'ver inventario telas' },
                     { title: 'Ajustes', href: '/inventario/ajuste-inventario', permission: 'ver inventario telas' },
@@ -158,16 +158,16 @@ const moduleSections: ModuleSection[] = [
         ],
     },
     {
-        title: 'ProducciÛn',
+        title: 'Producci√≥n',
         icon: Factory,
         groups: [
             {
                 label: '',
                 items: [
-                    { title: 'S·bana de Productos', href: '/produccion/sabana-productos' },
-                    { title: 'ProgramaciÛn de producciÛn', href: '/comercial/programador' },
-                    { title: '”rdenes de producciÛn', href:'/produccion/ordenes-produccion' },
-                    { title: 'Ficha TÈcnica', href: '/produccion/ficha-tecnica' },
+                    { title: 'S√°bana de Productos', href: '/produccion/sabana-productos' },
+                    { title: 'Programaci√≥n de producci√≥n', href: '/comercial/programador' },
+                    { title: '√ìrdenes de producci√≥n', href:'/produccion/ordenes-produccion' },
+                    { title: 'Ficha T√©cnica', href: '/produccion/ficha-tecnica' },
                     { title: 'Control de lotes', href: underConstructionHref('Control de lotes'), },
                 ],
             },

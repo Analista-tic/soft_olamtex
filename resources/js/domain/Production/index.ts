@@ -4,3 +4,4 @@ export * from './mappers';
 export * from './sizes';
 export * from './service';
 export * from './rawMaterialSelection';
+// product-sheet utilities were folded into './mappers'

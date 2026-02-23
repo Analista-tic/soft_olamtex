@@ -78,7 +78,7 @@ type DialogTransferPayload = {
 // --- Estado reactivo principal ---
 const isTransferDialogOpen = ref(false);
 const warehouses = ref<Warehouse[]>([]);
-// Garantiza el tipo WarehouseOption[] para el di�logo
+// Garantiza el tipo WarehouseOption[] para el diálogo
 const warehouseOptions = computed<WarehouseOption[]>(() =>
 	warehouses.value
 		.filter((w): w is Warehouse & { id: number } => typeof w.id === 'number')
@@ -96,8 +96,8 @@ const isDeleteDialogOpen = ref(false);
 const isDeletingTransfer = ref(false);
 const deleteDialogDescription = computed(() =>
 	transferToDelete.value
-		? `Se eliminar� la transferencia ${transferToDelete.value.id}. Esta acci�n no se puede deshacer.`
-		: 'Se eliminar� la transferencia seleccionada. Esta acci�n no se puede deshacer.',
+		? `Se eliminará la transferencia ${transferToDelete.value.id}. Esta acción no se puede deshacer.`
+		: 'Se eliminará la transferencia seleccionada. Esta acción no se puede deshacer.',
 );
 
 const {
@@ -130,7 +130,7 @@ const transferDialogPayload = computed<DialogTransferPayload | null>(() => {
 	};
 });
 
-// --- Estado para paginaci�n y b�squeda ---
+// --- Estado para paginación y búsqueda ---
 const currentPage = ref(1);
 const ITEMS_PER_PAGE = 10;
 const searchQuery = ref('');
@@ -189,7 +189,7 @@ const breadcrumbs = [
 	{ title: 'Transferencias de bodegas', href: '/transferencias-bodegas' },
 ];
 
-// --- M�todos de UI ---
+// --- Métodos de UI ---
 function findTransferResponse(source: Transfer | TransferResponse | null): TransferResponse | null {
 	if (!source) return null;
 	if ('items' in source) {
@@ -295,7 +295,7 @@ async function handleTransferSave(data: TransferPayload) {
 
 	const items = buildTransferItems(data);
 	if (!items.length) {
-		dialogErrorMessage.value = 'Debes agregar al menos un �tem con cantidad a transferir.';
+		dialogErrorMessage.value = 'Debes agregar al menos un ítem con cantidad a transferir.';
 		return;
 	}
 
@@ -313,7 +313,7 @@ async function handleTransferSave(data: TransferPayload) {
 		let response;
 		if (dialogMode.value === 'edit') {
 			if (!selectedTransfer.value) {
-				throw new Error('No se encontr� la transferencia seleccionada.');
+				throw new Error('No se encontró la transferencia seleccionada.');
 			}
 			response = await axios.put(`/transferencias-bodegas/${selectedTransfer.value.id}`, payload);
 		} else {
@@ -397,8 +397,8 @@ onMounted(async () => {
 				<div class="flex flex-col gap-1">
 					<h1 class="text-lg font-bold">Transferencias de bodegas</h1>
 					<p class="text-sm text-muted-foreground">
-						Registra traslados entre bodegas, almacenes o dep�sitos. Selecciona origen y destino,
-						define la fecha y agrega los �tems con su cantidad.
+						Registra traslados entre bodegas, almacenes o depósitos. Selecciona origen y destino,
+						define la fecha y agrega los ítems con su cantidad.
 					</p>
 				</div>
 					<button
@@ -429,8 +429,8 @@ onMounted(async () => {
 				{{ warehouseLoadError }}
 			</div>
 			<div v-else-if="showNotEnoughMessage" class="text-sm text-red-600 font-semibold">
-				Debes tener al menos dos bodegas, almacenes o dep�sitos creados para poder realizar transferencias.
-			</div>
+				Debes tener al menos dos bodegas, almacenes o depósitos creados para poder realizar transferencias.
+			</div>	
 
 			<!-- FILTROS -->
 			<FilterBar align="start" gap="gap-4">
@@ -439,7 +439,7 @@ onMounted(async () => {
 						<Input
 							id="search_transfer"
 							v-model="searchQuery"
-							placeholder="Buscar por c�digo, fecha, origen o destino"
+							placeholder="Buscar por código, fecha, origen o destino"
 							class="h-10 w-full pl-12"
 						/>
 						<span class="absolute inset-y-0 start-3 flex items-center justify-center pointer-events-none">
@@ -462,7 +462,7 @@ onMounted(async () => {
 				<Table class="text-center">
 					<TableHeader>
 						<TableRow>
-							<TableHead>C�digo</TableHead>
+							<TableHead>Código</TableHead>
 							<TableHead>Fecha</TableHead>
 							<TableHead>Bodega origen</TableHead>
 							<TableHead>Bodega destino</TableHead>
@@ -553,7 +553,7 @@ onMounted(async () => {
 
 		<ConfirmDialog
 			v-model:open="isDeleteDialogOpen"
-			title="Confirmar eliminaci�n"
+			title="Confirmar eliminación"
 			:description="deleteDialogDescription"
 			:confirm-text="isDeletingTransfer ? 'Eliminando...' : 'Eliminar'"
 			cancel-text="Cancelar"

@@ -1,3 +1,29 @@
+export interface AdditionalContactDto {
+    name: string;
+    phone: string;
+    email: string;
+}
+
+export interface ContactDto {
+    id: number;
+    contact_type: string;
+    id_type: string;
+    id_number: string;
+    dv?: string;
+    full_name: string;
+    person_type: string;
+    category: string;
+    municipality?: string;
+    department?: string;
+    address?: string;
+    email: string;
+    phone?: string;
+    additional_contacts?: AdditionalContactDto[];
+    groups?: string[];
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface CategoryGroupDto {
     id: number;
     name: string;

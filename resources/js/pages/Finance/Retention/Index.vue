@@ -9,7 +9,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import RetentionDialog from './RetentionDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
@@ -25,14 +24,24 @@ const breadcrumbs = [
     { title: 'Retenciones', href: '/configuracion/retenciones' },
 ];
 
-import type { Retention } from '@/domain/shared';
+import {
+    createRetention as createRetentionRequest,
+    createRetentionForm,
+    deleteRetention as deleteRetentionRequest,
+    fetchRetentionsPage,
+    mapRetentionFormToPayload,
+    updateRetention as updateRetentionRequest,
+    type Retention,
+    type RetentionForm,
+    type RetentionStatus,
+} from '@/domain/Finance';
 
 const retentions = ref<Retention[]>([]);
 const retentionToDelete = ref<Retention | null>(null);
 const isDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
-const form = ref<Partial<Retention>>({ name: '', percent: 0, type: '', description: '', status: 'active' });
+const form = ref<RetentionForm>(createRetentionForm());
 const isSubmitting = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -42,9 +51,9 @@ const currentPage = ref(1);
 const itemsPerPage = 10;
 const totalItems = ref(0);
 const searchQuery = ref('');
-const DEFAULT_FILTER_VALUE = 'all';
-const typeFilter = ref('all');
-const statusFilter = ref('all');
+const DEFAULT_FILTER_VALUE = 'all' as const;
+const typeFilter = ref<string>(DEFAULT_FILTER_VALUE);
+const statusFilter = ref<RetentionStatus | typeof DEFAULT_FILTER_VALUE>(DEFAULT_FILTER_VALUE);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_FILTER_VALUE);
@@ -57,27 +66,31 @@ const typeOptions = computed(() => {
     return [{ id: 'all', name: 'Todos los tipos' }, ...types.map((type) => ({ id: type, name: type }))];
 });
 
-function openDialog(type: 'create' | 'edit', retention: any | null = null) {
+function openDialog(type: 'create' | 'edit', retention: Retention | null = null) {
     dialogType.value = type;
     isDialogOpen.value = true;
-    form.value = type === 'edit' && retention
-        ? { ...retention }
-        : { id: undefined, name: '', percent: 0, type: '', description: '', status: 'active' };
+    form.value = type === 'edit' && retention ? createRetentionForm(retention) : createRetentionForm();
 }
 
 function closeDialog() { isDialogOpen.value = false; }
 
-function confirmDeleteRetention(retention: any) {
+function confirmDeleteRetention(retention: Retention) {
     retentionToDelete.value = retention;
     isDeleteDialogOpen.value = true;
 }
 
 async function deleteRetention() {
     if (!retentionToDelete.value) return;
+    if (!retentionToDelete.value.id) {
+        errorType.value = 'error';
+        errorMessage.value = 'No se encontro el identificador de la retencion a eliminar.';
+        isDeleteDialogOpen.value = false;
+        return;
+    }
     try {
-        await axios.delete(`/retenciones/${retentionToDelete.value.id}`);
+        await deleteRetentionRequest(retentionToDelete.value.id);
         successMessage.value = 'Retención eliminada correctamente.';
-        fetchRetentions();
+        await fetchRetentions();
     } catch {
         errorType.value = 'error';
         errorMessage.value = 'Error al eliminar la retención.';
@@ -86,14 +99,24 @@ async function deleteRetention() {
     }
 }
 
-async function handleDialogSubmit(retentionData: any) {
+async function handleDialogSubmit(retentionData: RetentionForm) {
+    const payload = mapRetentionFormToPayload(retentionData);
+
+    if (dialogType.value === 'edit' && !retentionData.id) {
+        errorType.value = 'error';
+        errorMessage.value = 'No se encontro el identificador de la retencion a actualizar.';
+        return;
+    }
+
     isSubmitting.value = true;
-    const url = dialogType.value === 'create' ? '/retenciones' : `/retenciones/${retentionData.id}`;
-    const method = dialogType.value === 'create' ? 'POST' : 'PUT';
     try {
-        await axios({ method, url, data: retentionData });
+        if (dialogType.value === 'create') {
+            await createRetentionRequest(payload);
+        } else {
+            await updateRetentionRequest(retentionData.id as number, payload);
+        }
         successMessage.value = dialogType.value === 'create' ? 'Retención creada correctamente.' : 'Retención actualizada correctamente.';
-        fetchRetentions();
+        await fetchRetentions();
         closeDialog();
     } catch {
         errorType.value = 'warning';
@@ -107,18 +130,19 @@ async function handleDialogSubmit(retentionData: any) {
 }
 
 async function fetchRetentions(page = 1, search = '') {
-    const { data } = await axios.get('/retenciones/data', {
-        params: {
-            page,
-            per_page: itemsPerPage,
-            search,
-            type: typeFilter.value !== DEFAULT_FILTER_VALUE ? typeFilter.value : undefined,
-            status: statusFilter.value !== DEFAULT_FILTER_VALUE ? statusFilter.value : undefined,
-        },
+    const statusParam: RetentionStatus | undefined =
+        statusFilter.value === DEFAULT_FILTER_VALUE ? undefined : statusFilter.value;
+
+    const data = await fetchRetentionsPage({
+        page,
+        per_page: itemsPerPage,
+        search,
+        type: typeFilter.value !== DEFAULT_FILTER_VALUE ? typeFilter.value : undefined,
+        status: statusParam,
     });
     retentions.value = data.data;
-    totalItems.value = data.total ?? data.data.length;
-    currentPage.value = data.current_page ?? 1;
+    totalItems.value = typeof data.total === 'number' ? data.total : retentions.value.length;
+    currentPage.value = typeof data.current_page === 'number' ? data.current_page : 1;
 }
 
 function handlePageChange(newPage: number) {
@@ -206,7 +230,7 @@ onMounted(() => fetchRetentions());
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="retention in retentions" :key="retention.id">
+                        <TableRow v-for="(retention, index) in retentions" :key="retention.id ?? retention.name ?? index">
                             <TableCell class="font-medium">{{ retention.id }}</TableCell>
                             <TableCell class="font-medium">{{ retention.name }}</TableCell>
                             <TableCell>{{ Math.trunc(retention.percent) }}%</TableCell>
@@ -266,4 +290,3 @@ onMounted(() => fetchRetentions());
         />
     </AppLayout>
 </template>
-

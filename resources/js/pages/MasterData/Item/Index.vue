@@ -1,7 +1,31 @@
 <script setup lang="ts">
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { computed, onMounted, ref, watch } from 'vue';
+import {
+    Ban,
+    CheckCircle,
+    Download,
+    FileSpreadsheet,
+    PlusCircle,
+    Pencil,
+    Search,
+    Trash,
+    Upload,
+} from 'lucide-vue-next';
+
+import AppLayout from '@/layouts/AppLayout.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
+
 import Button from '@/components/ui/button/Button.vue';
+import Input from '@/components/ui/input/Input.vue';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     DropdownMenu,
@@ -10,16 +34,6 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import Input from '@/components/ui/input/Input.vue';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import AppLayout from '@/layouts/AppLayout.vue';
-import FilterBar from '@/components/FilterBar.vue';
-import FilterField from '@/components/FilterField.vue';
-import type { Item } from '@/domain/Inventory';
-import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import { Ban, CheckCircle, Download, FileSpreadsheet, PlusCircle, Pencil, Search, Trash, Upload } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch, reactive } from 'vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -30,174 +44,154 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+
+import type { Item } from '@/domain/MasterData';
 import ItemDialog from './ItemDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
-const breadcrumbs = [
-    { title: 'Catálogo de ítem', href: '/inventario/item' },
-];
+const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
-const items = ref<Item[]>([]);
-const isDialogOpen = ref(false);
-const dialogType = ref<'create' | 'edit'>('create');
-const form = ref<Partial<Item>>({});
-const isDialogLoading = ref(false);
-const itemToDelete = ref<Item | null>(null);
-const isDeleteDialogOpen = ref(false);
-const searchQuery = ref('');
-const currentPage = ref(1);
-const itemsPerPage = 10;
-const totalItems = ref(0);
+type DialogType = 'create' | 'edit';
+type StatusFilter = 'all' | boolean;
 
-const DEFAULT_STATUS_FILTER = 'all';
-const statusFilter = ref<string>(DEFAULT_STATUS_FILTER);
-const isStatusDialogOpen = ref(false);
-const itemToToggleStatus = ref<Item | null>(null);
-const isBulkDialogOpen = ref(false);
-const isTemplateDownloading = ref(false);
+const ITEMS_PER_PAGE = 10;
+const DEFAULT_STATUS_FILTER: StatusFilter = 'all';
 
-const statusOptions = ref([
-    reactive({ id: 'all', name: 'Todos' }),
-    // Usar booleanos para mantener un contrato claro con la API
-    reactive({ id: true, name: 'Habilitados' }),
-    reactive({ id: false, name: 'Deshabilitados' })
-]);
-
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
-const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
+const actionsMenuSideOffset = 1;
+const actionsMenuCollisionPadding = 0;
 
-// Variables reactivas para mensajes de éxito y error
-const successMessage = ref<string>('');
-const errorMessage = ref<string>('');
+const statusOptions = [
+    { id: 'all' as const, name: 'Todos' },
+    { id: true as const, name: 'Habilitados' },
+    { id: false as const, name: 'Deshabilitados' },
+];
 
-function openDialog(type: 'create' | 'edit', item: Item | null = null) {
-    dialogType.value = type;
-    isDialogOpen.value = true;
-    // if (item) {
-    //     console.log('ITEM PARA EDITAR:', item); // Depuración de campo img
-    // }
-    form.value = item
-        ? { ...item }
-        : {
-              warehouse_id: undefined,
-              category_sub_group_id: undefined,
-              img: '',
-              stock_min: 0,
-              stock_max: 0,
-              bar_code: '',
-              negative_movement: false,
-              description: '',
-              extra_fields: {},
-              status: true,
-          };
+/** =========================
+ *  State
+ *  ========================= */
+const items = ref<Item[]>([]);
+const totalItems = ref(0);
+const currentPage = ref(1);
+
+const searchQuery = ref('');
+const statusFilter = ref<StatusFilter>(DEFAULT_STATUS_FILTER);
+
+const isDialogOpen = ref(false);
+const dialogType = ref<DialogType>('create');
+const form = ref<Partial<Item>>({});
+const isDialogLoading = ref(false);
+
+const isDeleteDialogOpen = ref(false);
+const itemToDelete = ref<Item | null>(null);
+
+const isStatusDialogOpen = ref(false);
+const itemToToggleStatus = ref<Item | null>(null);
+
+const isBulkDialogOpen = ref(false);
+const isTemplateDownloading = ref(false);
+
+const successMessage = ref('');
+const errorMessage = ref('');
+
+/** =========================
+ *  Derived / UI helpers
+ *  ========================= */
+const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+
+/** =========================
+ *  Helpers
+ *  ========================= */
+function getEmptyForm(): Partial<Item> {
+    return {
+        warehouse_id: undefined,
+        category_sub_group_id: undefined,
+        img: '',
+        stock_min: 0,
+        stock_max: 0,
+        bar_code: '',
+        negative_movement: false,
+        description: '',
+        extra_fields: {},
+        status: true,
+    };
 }
 
-function closeDialog() {
-    isDialogOpen.value = false;
-    isDialogLoading.value = false;
+function setSuccess(message: string) {
+    successMessage.value = message;
+    errorMessage.value = '';
 }
 
-function confirmDeleteItem(item: Item) {
-    itemToDelete.value = item;
-    isDeleteDialogOpen.value = true;
+function setError(message: string) {
+    errorMessage.value = message;
+    successMessage.value = '';
 }
 
-async function deleteItem() {
-    if (!itemToDelete.value) return;
-    try {
-        await axios.delete(`/item/${itemToDelete.value.id}`);
-        fetchItems();
-        isDeleteDialogOpen.value = false;
-        successMessage.value = "El ítem se eliminó correctamente.";
-        errorMessage.value = "";
-    } catch (err: unknown) {
-        let message = "No se pudo eliminar el ítem.";
-        if (axios.isAxiosError(err)) {
-            // err.response puede ser undefined; usar any para acceder a data.message si es necesario
-            message = (err.response?.data as any)?.message ?? message;
-        } else if (err instanceof Error) {
-            message = err.message ?? message;
+function getErrorMessage(err: unknown, fallback: string) {
+    if (axios.isAxiosError(err)) {
+        const data = err.response?.data as unknown;
+
+        if (data && typeof data === 'object' && 'message' in (data as any)) {
+            const msg = (data as any).message;
+            if (typeof msg === 'string' && msg.trim()) return msg;
         }
-        errorMessage.value = message;
-        successMessage.value = "";
+        return fallback;
     }
+
+    if (err instanceof Error && err.message) return err.message;
+
+    return fallback;
 }
 
-function handleDialogRefresh() {
-  fetchItems(currentPage.value, searchQuery.value, statusFilter.value);
+async function fetchItems(page = 1) {
+    const params: Record<string, unknown> = {
+        page,
+        per_page: ITEMS_PER_PAGE,
+        search: searchQuery.value,
+    };
 
-  if (dialogType.value === 'create') {
-    successMessage.value = 'El ítem se creó correctamente.';
-  } else {
-    successMessage.value = 'El ítem se actualizó correctamente.';
-  }
-
-  errorMessage.value = '';
-}
-
-function handleDialogLoadingState(value: boolean) {
-    isDialogLoading.value = value;
-}
-
-function openStatusDialog(item: Item) {
-    itemToToggleStatus.value = item;
-    isStatusDialogOpen.value = true;
-}
-
-async function toggleStatus() {
-    if (!itemToToggleStatus.value) return;
-    await axios.post(`/item/${itemToToggleStatus.value.id}/toggle-status`);
-    fetchItems(currentPage.value, searchQuery.value, statusFilter.value);
-    isStatusDialogOpen.value = false;
-}
-
-function openBulkDialog() {
-    isBulkDialogOpen.value = true;
-}
-function closeBulkDialog() {
-    isBulkDialogOpen.value = false;
-}
-
-async function fetchItems(page = 1, search = '', status = 'all') {
-    const params: any = { page, per_page: itemsPerPage, search };
-    if (status !== 'all') {
-        params.status = status;
+    if (statusFilter.value !== 'all') {
+        params.status = statusFilter.value; // boolean
     }
+
     const response = await axios.get('/item/data', { params });
+
     items.value = response.data.data;
     totalItems.value = response.data.total;
     currentPage.value = response.data.current_page;
 }
 
-function handlePageChange(newPage: number) {
-    if (newPage === currentPage.value) return;
-    fetchItems(newPage, searchQuery.value, statusFilter.value);
+async function deleteItem() {
+    if (!itemToDelete.value) return;
+
+    try {
+        await axios.delete(`/item/${itemToDelete.value.id}`);
+        await fetchItems(currentPage.value);
+        isDeleteDialogOpen.value = false;
+        itemToDelete.value = null;
+        setSuccess('El ítem se eliminó correctamente.');
+    } catch (err) {
+        setError(getErrorMessage(err, 'No se pudo eliminar el ítem.'));
+    }
 }
 
-watch(searchQuery, (newQuery) => {
-    currentPage.value = 1;
-    fetchItems(1, newQuery, statusFilter.value);
-});
-watch(statusFilter, (newStatus) => {
-    currentPage.value = 1;
-    fetchItems(1, searchQuery.value, newStatus);
-});
+async function toggleStatus() {
+    if (!itemToToggleStatus.value) return;
 
-watch(isDialogOpen, (value) => {
-    if (!value) {
-        isDialogLoading.value = false;
+    try {
+        await axios.post(`/item/${itemToToggleStatus.value.id}/toggle-status`);
+        await fetchItems(currentPage.value);
+        isStatusDialogOpen.value = false;
+        itemToToggleStatus.value = null;
+    } catch (err) {
+        setError(getErrorMessage(err, 'No se pudo cambiar el estado del ítem.'));
     }
-});
-
-onMounted(() => {
-    fetchItems(currentPage.value, searchQuery.value, statusFilter.value);
-});
+}
 
 function exportItemsExcel() {
     window.open('/item/exportar-excel', '_blank');
@@ -205,9 +199,11 @@ function exportItemsExcel() {
 
 async function downloadTemplate() {
     if (isTemplateDownloading.value) return;
+
     isTemplateDownloading.value = true;
     successMessage.value = '';
     errorMessage.value = '';
+
     try {
         const response = await fetch('/item/descargar-plantilla', {
             method: 'GET',
@@ -223,6 +219,7 @@ async function downloadTemplate() {
 
         const blob = await response.blob();
         const objectUrl = window.URL.createObjectURL(blob);
+
         const link = document.createElement('a');
         link.href = objectUrl;
         link.download = 'plantilla_items.xlsx';
@@ -230,17 +227,86 @@ async function downloadTemplate() {
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(objectUrl);
-        successMessage.value = 'Plantilla descargada correctamente.';
-    } catch (err: unknown) {
-        let message = 'No se pudo descargar la plantilla Excel.';
-        if (err instanceof Error && err.message) {
-            message = err.message || message;
-        }
-        errorMessage.value = message;
+
+        setSuccess('Plantilla descargada correctamente.');
+    } catch (err) {
+        setError(getErrorMessage(err, 'No se pudo descargar la plantilla Excel.'));
     } finally {
         isTemplateDownloading.value = false;
     }
 }
+
+function openDialog(type: DialogType, item: Item | null = null) {
+    dialogType.value = type;
+    form.value = item ? { ...item } : getEmptyForm();
+    isDialogOpen.value = true;
+}
+
+function closeDialog() {
+    isDialogOpen.value = false;
+    isDialogLoading.value = false;
+}
+
+function handleDialogLoadingState(value: boolean) {
+    isDialogLoading.value = value;
+}
+
+async function handleDialogRefresh() {
+    await fetchItems(currentPage.value);
+
+    if (dialogType.value === 'create') {
+        setSuccess('El ítem se creó correctamente.');
+    } else {
+        setSuccess('El ítem se actualizó correctamente.');
+    }
+}
+
+function confirmDeleteItem(item: Item) {
+    itemToDelete.value = item;
+    isDeleteDialogOpen.value = true;
+}
+
+function openStatusDialog(item: Item) {
+    itemToToggleStatus.value = item;
+    isStatusDialogOpen.value = true;
+}
+
+function openBulkDialog() {
+    isBulkDialogOpen.value = true;
+}
+
+function closeBulkDialog() {
+    isBulkDialogOpen.value = false;
+}
+
+async function handlePageChange(newPage: number) {
+    if (newPage === currentPage.value) return;
+    await fetchItems(newPage);
+}
+
+// Debounce simple para búsqueda sin saturar el endpoint
+let searchDebounce: number | undefined;
+
+watch(searchQuery, () => {
+    window.clearTimeout(searchDebounce);
+    searchDebounce = window.setTimeout(async () => {
+        currentPage.value = 1;
+        await fetchItems(1);
+    }, 250);
+});
+
+watch(statusFilter, async () => {
+    currentPage.value = 1;
+    await fetchItems(1);
+});
+
+watch(isDialogOpen, (value) => {
+    if (!value) isDialogLoading.value = false;
+});
+
+onMounted(async () => {
+    await fetchItems(currentPage.value);
+});
 </script>
 
 <template>
@@ -255,6 +321,7 @@ async function downloadTemplate() {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
+
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Catálogo de ítem</h1>
@@ -262,6 +329,7 @@ async function downloadTemplate() {
                         Gestiona los ítems del inventario: categorías, stock y estado.
                     </p>
                 </div>
+
                 <div class="flex items-center gap-2">
                     <Button
                         @click="openDialog('create')"
@@ -271,6 +339,7 @@ async function downloadTemplate() {
                     >
                         <PlusCircle class="h-4 w-4" /> Crear nuevo ítem
                     </Button>
+
                     <DropdownMenu>
                         <DropdownMenuTrigger :as-child="true">
                             <Button
@@ -282,12 +351,13 @@ async function downloadTemplate() {
                                 <span>Otras acciones</span>
                             </Button>
                         </DropdownMenuTrigger>
+
                         <DropdownMenuContent
                             align="end"
                             side="bottom"
-                            side-offset="1"
+                            :side-offset="actionsMenuSideOffset"
                             :avoid-collisions="false"
-                            collision-padding="0"
+                            :collision-padding="actionsMenuCollisionPadding"
                             class="w-56"
                         >
                             <DropdownMenuItem
@@ -298,9 +368,11 @@ async function downloadTemplate() {
                             >
                                 <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla Excel
                             </DropdownMenuItem>
+
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="openBulkDialog">
                                 <Upload class="h-4 w-4" /> Importar ítems
                             </DropdownMenuItem>
+
                             <DropdownMenuItem class="cursor-pointer gap-2" @click="exportItemsExcel">
                                 <Download class="h-4 w-4" /> Exportar ítems
                             </DropdownMenuItem>
@@ -308,7 +380,8 @@ async function downloadTemplate() {
                     </DropdownMenu>
                 </div>
             </div>
-            <!-- FILTROS: UNA SOLA FILA -->
+
+            <!-- FILTROS -->
             <FilterBar>
                 <FilterField
                     label="Buscar ítem"
@@ -326,6 +399,7 @@ async function downloadTemplate() {
                         </span>
                     </div>
                 </FilterField>
+
                 <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[180px]">
                     <SelectField
                         v-model="statusFilter"
@@ -335,89 +409,99 @@ async function downloadTemplate() {
                         :button-class="statusButtonClasses"
                     />
                 </FilterField>
-                <!-- Puedes agregar más filtros aquí siguiendo el mismo patrón visual -->
             </FilterBar>
-            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+
+            <div
+                class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min"
+            >
                 <TooltipProvider>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>ID</TableHead>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Referencia</TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-for="item in items" :key="item.id" class="text-center">
-                            <TableCell>{{ item.id }}</TableCell>
-                            <TableCell>{{ item.name }}</TableCell>
-                            <TableCell>{{ item.reference }}</TableCell>
-                            <TableCell>{{ item.description }}</TableCell>
-                            <TableCell>
-                                <StatusBadge :text="item.status ? 'Habilitado' : 'Deshabilitado'" :type="item.status ? 'green' : 'red'" />
-                            </TableCell>
-                            <TableCell class="text-center">
-                                <div class="flex justify-center gap-2">
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Editar"
-                                                @click="openDialog('edit', item)"
-                                            >
-                                                <Pencil :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Editar</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Eliminar"
-                                                @click="confirmDeleteItem(item)"
-                                            >
-                                                <Trash :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Eliminar</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="[
-                                                    actionButtonClass,
-                                                    item.status
-                                                        ? 'text-red-600 hover:text-red-700'
-                                                        : 'text-emerald-600 hover:text-emerald-700',
-                                                ]"
-                                                aria-label="Habilitar o deshabilitar"
-                                                @click="openStatusDialog(item)"
-                                            >
-                                                <Ban v-if="item.status" :class="actionIconClass" />
-                                                <CheckCircle v-else :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Habilitar o deshabilitar</TooltipContent>
-                                    </Tooltip>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>ID</TableHead>
+                                <TableHead>Nombre</TableHead>
+                                <TableHead>Referencia</TableHead>
+                                <TableHead>Descripción</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead class="text-center">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+
+                        <TableBody>
+                            <TableRow v-for="item in items" :key="item.id" class="text-center">
+                                <TableCell>{{ item.id }}</TableCell>
+                                <TableCell>{{ item.name }}</TableCell>
+                                <TableCell>{{ item.reference }}</TableCell>
+                                <TableCell>{{ item.description }}</TableCell>
+                                <TableCell>
+                                    <StatusBadge
+                                        :text="item.status ? 'Habilitado' : 'Deshabilitado'"
+                                        :type="item.status ? 'green' : 'red'"
+                                    />
+                                </TableCell>
+
+                                <TableCell class="text-center">
+                                    <div class="flex justify-center gap-2">
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Editar"
+                                                    @click="openDialog('edit', item)"
+                                                >
+                                                    <Pencil :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Editar</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Eliminar"
+                                                    @click="confirmDeleteItem(item)"
+                                                >
+                                                    <Trash :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Eliminar</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="[
+                                                        actionButtonClass,
+                                                        item.status
+                                                            ? 'text-red-600 hover:text-red-700'
+                                                            : 'text-emerald-600 hover:text-emerald-700',
+                                                    ]"
+                                                    aria-label="Habilitar o deshabilitar"
+                                                    @click="openStatusDialog(item)"
+                                                >
+                                                    <Ban v-if="item.status" :class="actionIconClass" />
+                                                    <CheckCircle v-else :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Habilitar o deshabilitar</TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </TooltipProvider>
+
                 <Pagination
                     class="mt-5 flex justify-center"
-                    :items-per-page="itemsPerPage"
+                    :items-per-page="ITEMS_PER_PAGE"
                     :total="totalItems"
                     :sibling-count="1"
                     show-edges
@@ -432,11 +516,7 @@ async function downloadTemplate() {
                             v-for="(item, index) in items"
                             :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`"
                         >
-                            <PaginationListItem
-                                v-if="item.type === 'page'"
-                                :value="item.value"
-                                as-child
-                            >
+                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
                                 <Button
                                     class="h-6 w-6 p-0"
                                     :variant="item.value === currentPage ? 'default' : 'outline'"
@@ -454,6 +534,7 @@ async function downloadTemplate() {
                 </Pagination>
             </div>
         </div>
+
         <ItemDialog
             :isOpen="isDialogOpen"
             :dialogType="dialogType"
@@ -462,6 +543,7 @@ async function downloadTemplate() {
             @refresh="handleDialogRefresh"
             @loading-state="handleDialogLoadingState"
         />
+
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
             title="Confirmar eliminación"
@@ -471,17 +553,21 @@ async function downloadTemplate() {
             :destructive="true"
             @confirm="deleteItem"
         />
+
         <!-- Diálogo de confirmación para habilitar/deshabilitar -->
         <Dialog v-model:open="isStatusDialogOpen">
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle> {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} ítem </DialogTitle>
+                    <DialogTitle>
+                        {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} ítem
+                    </DialogTitle>
                     <DialogDescription>
                         ¿Estás seguro de que deseas
                         {{ itemToToggleStatus?.status ? 'deshabilitar' : 'habilitar' }}
                         este ítem?
                     </DialogDescription>
                 </DialogHeader>
+
                 <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                     <div class="w-full md:w-auto">
                         <button
@@ -492,6 +578,7 @@ async function downloadTemplate() {
                             Cancelar
                         </button>
                     </div>
+
                     <div class="w-full md:w-auto">
                         <button
                             type="button"
@@ -511,7 +598,9 @@ async function downloadTemplate() {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
+
         <transition name="fade">
             <div
                 v-if="isDialogOpen && isDialogLoading"
@@ -525,7 +614,3 @@ async function downloadTemplate() {
         </transition>
     </AppLayout>
 </template>
-
-
-
-

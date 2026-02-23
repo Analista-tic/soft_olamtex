@@ -1,3 +1,3 @@
-export type { Warehouse } from './types';
+export type { InventoryMovement, Warehouse, WarehouseOption } from './types';
 export type { WarehouseDto } from './dto';
 export { mapWarehouseDto } from './mappers';

@@ -50,6 +50,12 @@ const ENDPOINTS = {
     INVENTORY_ROLLS: '/kardex-telas/inventario-rollos/data',
     OP_THREADS: '/produccion/ficha-tecnica/:id/hilos',
     OP_ADDITIONAL_INFO: '/produccion/ficha-tecnica/:id/info-adicional',
+    PRODUCT_SHEETS: '/produccion/product-sheets',
+    PRODUCT_SHEETS_SHOW: '/produccion/sabana-productos/:id',
+    PRODUCT_SHEETS_STORE: '/produccion/sabana-productos',
+    PRODUCT_SHEETS_UPDATE: '/produccion/sabana-productos/:id',
+    PRODUCT_SHEETS_DELETE: '/produccion/sabana-productos/:id',
+    PRODUCT_SHEETS_CONVERT: '/produccion/sabana-productos/:id/convert',
 } as const;
 
 type ItemCatalogDto = {
@@ -231,6 +237,35 @@ export async function fetchSettingsParameters(keys: string[]): Promise<Record<st
     });
 
     return result;
+}
+
+// Product-sheets API (moved here to keep production domain together)
+export function listProductSheets(params: Record<string, any> = {}, signal?: AbortSignal) {
+    return axios.get(ENDPOINTS.PRODUCT_SHEETS, { params, signal });
+}
+
+export function showProductSheet(id: number) {
+    const url = ENDPOINTS.PRODUCT_SHEETS_SHOW.replace(':id', String(id));
+    return axios.get(url);
+}
+
+export function createProductSheet(payload: Record<string, any>) {
+    return axios.post(ENDPOINTS.PRODUCT_SHEETS_STORE, payload);
+}
+
+export function updateProductSheet(id: number, payload: Record<string, any>) {
+    const url = ENDPOINTS.PRODUCT_SHEETS_UPDATE.replace(':id', String(id));
+    return axios.put(url, payload);
+}
+
+export function deleteProductSheet(id: number) {
+    const url = ENDPOINTS.PRODUCT_SHEETS_DELETE.replace(':id', String(id));
+    return axios.delete(url);
+}
+
+export function convertSampleToProduct(id: number, productReference: string) {
+    const url = ENDPOINTS.PRODUCT_SHEETS_CONVERT.replace(':id', String(id));
+    return axios.post(url, { product_reference: productReference });
 }
 
 export async function fetchOpProcesses(opId: string | number): Promise<OpProcessesData> {

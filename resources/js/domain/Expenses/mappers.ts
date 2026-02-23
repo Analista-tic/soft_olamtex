@@ -1,6 +1,4 @@
 import type {
-    AdditionalContact,
-    Contact,
     PurchaseInvoice,
     PurchaseInvoiceItem,
     PurchaseInvoiceWithholding,
@@ -10,8 +8,6 @@ import type {
     PurchaseRequestItem,
 } from './types';
 import type {
-    AdditionalContactDto,
-    ContactDto,
     PurchaseInvoiceDto,
     PurchaseInvoiceItemDto,
     PurchaseInvoiceWithholdingDto,
@@ -21,37 +17,7 @@ import type {
     PurchaseRequestItemDto,
 } from './dto';
 
-import type { Item } from '@/domain/MasterData';
-
-function mapAdditionalContactDto(dto: AdditionalContactDto): AdditionalContact {
-    return {
-        name: dto.name,
-        phone: dto.phone,
-        email: dto.email,
-    };
-}
-
-export function mapContactDto(dto: ContactDto): Contact {
-    return {
-        id: dto.id,
-        contact_type: dto.contact_type,
-        id_type: dto.id_type,
-        id_number: dto.id_number,
-        dv: dto.dv,
-        full_name: dto.full_name,
-        person_type: dto.person_type,
-        category: dto.category,
-        municipality: dto.municipality,
-        department: dto.department,
-        address: dto.address,
-        email: dto.email,
-        phone: dto.phone,
-        additional_contacts: dto.additional_contacts?.map(mapAdditionalContactDto),
-        groups: dto.groups,
-        created_at: dto.created_at,
-        updated_at: dto.updated_at,
-    };
-}
+import { mapContactDto, type Item } from '@/domain/MasterData';
 
 export function mapPurchaseOrderItemDto(dto: PurchaseOrderItemDto): PurchaseOrderItem {
     const rawItem = (dto as any).item;

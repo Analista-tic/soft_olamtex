@@ -5,8 +5,8 @@ import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
-import type { PurchaseOrderItem } from '@/domain/Expenses/purchases';
-import type { Item } from '@/domain/Inventory';
+import type { PurchaseOrderItem } from '@/domain/Expenses';
+import type { Item } from '@/domain/MasterData';
 import type { Tax } from '@/domain/Finance';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -35,6 +35,7 @@ const itemDialogForm = ref<Partial<Item>>({
 });
 
 const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
+const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
     { id: 0, name: DEFAULT_TAX_LABEL },
     ...taxes.value
@@ -190,7 +191,29 @@ function calcTotals(item: PurchaseOrderItem) {
 function setTaxFromItem(item: PurchaseOrderItem) {
     const itemId = Number(item.item_id);
     const article = itemMap.value.get(itemId);
-    item.tax = article?.tax?.percentage ?? 0;
+    if (!article) {
+        item.tax = 0;
+        return;
+    }
+
+    const legacyTaxPercentage = Number((article as Item & { tax?: { percentage?: number | string } }).tax?.percentage);
+    if (Number.isFinite(legacyTaxPercentage)) {
+        item.tax = legacyTaxPercentage;
+        return;
+    }
+
+    const itemTaxId = article.tax_id;
+    if (itemTaxId == null) {
+        item.tax = 0;
+        return;
+    }
+
+    const taxPercentage = taxById.value.get(Number(itemTaxId))?.percentage;
+    if (taxPercentage == null) {
+        return;
+    }
+
+    item.tax = Number(taxPercentage) || 0;
 }
 
 function syncItemsTaxWithCatalog() {
@@ -201,13 +224,9 @@ function syncItemsTaxWithCatalog() {
     });
 }
 
-watch(
-    catalogItems,
-    () => {
-        syncItemsTaxWithCatalog();
-    },
-    { immediate: true },
-);
+watch([catalogItems, taxes], () => {
+    syncItemsTaxWithCatalog();
+}, { immediate: true });
 
 watch(
     localItems,
@@ -398,4 +417,3 @@ defineExpose({ addItem, validateFabricFields });
         />
     </div>
 </template>
-

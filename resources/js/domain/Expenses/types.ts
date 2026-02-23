@@ -1,29 +1,4 @@
-import type { Item } from '@/domain/MasterData';
-
-export interface Contact {
-    id: number;
-    contact_type: string;
-    id_type: string;
-    id_number: string;
-    dv?: string;
-    full_name: string;
-    person_type: string;
-    category: string;
-    municipality?: string;
-    department?: string;
-    address?: string;
-    email: string;
-    phone?: string;
-    additional_contacts?: AdditionalContact[]; // Contactos adicionales
-    groups?: string[]; // Cambiar subgroups a groups
-    created_at?: string;
-    updated_at?: string;
-}
-export interface AdditionalContact {
-    name: string;
-    phone: string;
-    email: string;
-}
+import type { Contact, Item } from '@/domain/MasterData';
 export interface PurchaseOrderItem {
     id?: number;
     item_id: number | null;
@@ -90,6 +65,7 @@ export interface PurchaseInvoice {
     contact_id?: number | null;
     contact?: Contact | null;
     supplier?: Contact | null;
+    provider_name?: string | null;
     date?: string;
     delivery_date?: string;
     document_number?: string | null;

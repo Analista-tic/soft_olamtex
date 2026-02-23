@@ -13,7 +13,7 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Trash } from 'lucide-vue-next';
 import type { Option } from '@/domain/shared';
-import type { Item } from '@/domain/Inventory';
+import type { Item } from '@/domain/MasterData';
 import axios from 'axios';
 
 function getTodayDate() {

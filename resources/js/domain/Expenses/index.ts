@@ -1,6 +1,4 @@
 export type {
-    AdditionalContact,
-    Contact,
     PurchaseInvoice,
     PurchaseInvoiceItem,
     PurchaseInvoiceWithholding,
@@ -12,8 +10,6 @@ export type {
 } from './types';
 
 export type {
-    AdditionalContactDto,
-    ContactDto,
     PurchaseInvoiceDto,
     PurchaseInvoiceItemDto,
     PurchaseInvoiceWithholdingDto,
@@ -25,7 +21,6 @@ export type {
 } from './dto';
 
 export {
-    mapContactDto,
     mapPurchaseInvoiceDto,
     mapPurchaseInvoiceItemDto,
     mapPurchaseOrderDto,

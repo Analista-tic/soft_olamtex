@@ -19,6 +19,30 @@ export interface ExtraFields {
     [key: string]: string;
 }
 
+export interface AdditionalContact {
+    name: string;
+    phone: string;
+    email: string;
+}
+
+export interface Contact extends Timestamps {
+    id: number;
+    contact_type: string;
+    id_type: string;
+    id_number: string;
+    dv?: string;
+    full_name: string;
+    person_type: string;
+    category: string;
+    municipality?: string;
+    department?: string;
+    address?: string;
+    email: string;
+    phone?: string;
+    additional_contacts?: AdditionalContact[];
+    groups?: string[];
+}
+
 export type AdditionalFieldType = 'text' | 'number' | 'decimal' | 'textarea' | 'date' | 'boolean' | 'select';
 
 export interface AdditionalField extends MaybeId {
@@ -82,3 +106,29 @@ export interface Item extends Timestamps {
     weighted_average_price?: number | null;
     cost_price?: number | null;
 }
+
+export interface Parameter extends Timestamps {
+    id: number;
+    key: string;
+    label: string;
+    description?: string | null;
+    value: unknown;
+    status: boolean;
+}
+
+export type ParameterStatusFilter = 'all' | 'active' | 'inactive';
+
+export type ParameterListQuery = {
+    search?: string;
+    status?: Exclude<ParameterStatusFilter, 'all'>;
+    sort_by?: 'label' | 'key';
+    sort_direction?: 'asc' | 'desc';
+};
+
+export type ParameterPayload = {
+    key?: string;
+    label: string;
+    description?: string;
+    value: unknown;
+    status?: boolean;
+};

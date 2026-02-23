@@ -6,7 +6,7 @@ import FormDialogContent from '@/components/FormDialogContent.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import type { CategoryGroup, CategorySubGroup } from '@/domain/Inventory';
+import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
 import GroupDialog from './GroupDialog.vue';
 import { X, Plus } from 'lucide-vue-next';
 import HelpTooltip from '@/components/HelpTooltip.vue';

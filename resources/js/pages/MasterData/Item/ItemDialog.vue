@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import ItemFormContent from './ItemFormContent.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import type { Item } from '@/domain/Inventory';
+import type { Item } from '@/domain/MasterData';
 import { Dialog } from '@/components/ui/dialog';
 import { ref, watch } from 'vue';
 

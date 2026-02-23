@@ -18,21 +18,21 @@ import type {
     OptionParams,
     ProductOperationPayload,
     ProductSheet,
-} from '@/domain/product-sheet';
+} from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
     PRODUCT_SHEET_TYPE_SAMPLE,
     normalizeProductSheetType,
     parseBooleanRecord,
     stringifyJsonRecord,
-} from '@/domain/product-sheet';
+} from '@/domain/Production';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
 import { computed, ref, watch } from 'vue';
 import { Eye, Image as ImageIcon, List, Trash } from 'lucide-vue-next';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import axios from 'axios';
-import { convertSampleToProduct, createProductSheet, updateProductSheet } from '@/services/productSheetService';
+import { convertSampleToProduct, createProductSheet, updateProductSheet } from '@/domain/Production';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -312,8 +312,8 @@ const allProcesses = ref([
     'Bodega',
 ]);
 
-function parseProcessesValue(value?: string): Record<string, boolean> {
-    return parseBooleanRecord(value);
+function parseProcessesValue(value?: string | null): Record<string, boolean> {
+    return parseBooleanRecord(value ?? null);
 }
 
 function applyDefaultSampleProcessOnce() {

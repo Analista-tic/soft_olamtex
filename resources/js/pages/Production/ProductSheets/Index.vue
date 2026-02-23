@@ -29,7 +29,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
-import { formatCopCurrency, resolveProductSheetReference, type OptionParams, type ProductSheet } from '@/domain/product-sheet';
+import { formatCopCurrency, resolveProductSheetReference, type OptionParams, type ProductSheet } from '@/domain/Production';
 import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import { Head } from '@inertiajs/vue3';
 import AlertBox from '@/components/AlertBox.vue';
@@ -43,7 +43,7 @@ import {
     deleteProductSheet as deleteProductSheetRequest,
     listProductSheets,
     showProductSheet,
-} from '@/services/productSheetService';
+} from '@/domain/Production';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {

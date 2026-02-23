@@ -169,6 +169,13 @@ function handleSaved(message?: string) {
     fetchRequests(currentPage.value, searchQuery.value);
 }
 
+type RequestSavedArgs = [message: string, requestId: number | null] | [message?: string];
+
+function handleRequestSaved(...args: RequestSavedArgs) {
+    const [message] = args;
+    handleSaved(message);
+}
+
 function canEdit(request: InventoryRequestRow) {
     return request.status === 'solicitado' && request.created_by_user_id === currentUserId.value;
 }
@@ -370,7 +377,7 @@ onMounted(() => {
             :dialog-type="dialogType"
             :request-id="selectedRequestId"
             @close="isRequestDialogOpen = false"
-            @saved="handleSaved"
+            @saved="handleRequestSaved"
         />
         <InventoryRequestDeliveryDialog
             :is-open="isDeliveryDialogOpen"
@@ -386,4 +393,3 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
-
