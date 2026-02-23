@@ -533,9 +533,9 @@ watch(
 
 <template>
     <div class="space-y-4">
-        <div class="rounded-lg border border-border bg-background p-4">
-            <p class="text-sm font-semibold text-foreground">Informacion adicional</p>
-            <p class="text-xs text-muted-foreground">Registro de corte, {{ stampingDisplayNameLower }} y lavanderia.</p>
+        <div class="p-2">
+            <h2 class="text-lg font-semibold text-foreground">Informacion adicional</h2>
+            <p class="text-sm text-muted-foreground">Registro de corte, {{ stampingDisplayNameLower }} y lavanderia.</p>
         </div>
 
         <div v-if="error" class="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -678,4 +678,3 @@ watch(
         />
     </div>
 </template>
-
