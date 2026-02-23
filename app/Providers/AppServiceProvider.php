@@ -2,21 +2,21 @@
 
 namespace App\Providers;
 
+use App\Models\Finance\Retention;
+use App\Models\Finance\Tax;
+use App\Models\Inventory\Warehouse;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Contact;
-use App\Models\Finance\Tax;
-use App\Models\Inventory\Warehouse;
+use App\Models\MasterData\Item;
+use App\Models\Production\Programmer;
+use App\Models\Settings\User;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
 use App\Models\Expenses\PurchaseRequest;
-use App\Models\MasterData\Item;
 use App\Models\Settings\CompanySetting;
-use App\Models\Finance\Retention;
-use App\Models\Settings\User;
-use App\Models\Production\Programmer;
 use App\Observers\AuditObserver;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;

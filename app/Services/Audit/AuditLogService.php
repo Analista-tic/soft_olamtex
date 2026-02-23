@@ -2,21 +2,34 @@
 
 namespace App\Services\Audit;
 
+use App\Models\Expenses\PurchaseDocument;
+use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\Expenses\PurchaseRequest;
+use App\Models\Finance\Retention;
+use App\Models\Finance\Tax;
+use App\Models\Inventory\Warehouse;
+use App\Models\MasterData\CategoryGroup;
+use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\Contact;
+use App\Models\MasterData\Item;
+use App\Models\MasterData\Parameter;
 use App\Models\Settings\AuditLog;
+use App\Models\Settings\CompanySetting;
 use App\Models\Settings\Setting;
+use App\Models\Settings\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class AuditLogService
 {
+    private const TIMESTAMP_KEYS = ['created_at', 'updated_at', 'deleted_at'];
+
     /**
-     * Registra una acciÃ³n en la tabla audit_logs.
-     *
-     * @param Model $model
-     * @param string $action
-     * @param array $context ['user' => ?\Illuminate\Contracts\Auth\Authenticatable, 'ip_address' => ?string, 'user_agent' => ?string]
+     * @param array{user?: mixed, ip_address?: ?string, user_agent?: ?string} $context
      */
     public function log(Model $model, string $action, array $context = []): void
     {
@@ -24,7 +37,7 @@ class AuditLogService
             return;
         }
 
-        // Evitar recursiÃ³n
+        // Avoid recursive audit logging.
         if ($model instanceof AuditLog) {
             return;
         }
@@ -33,44 +46,41 @@ class AuditLogService
         $ipAddress = $context['ip_address'] ?? null;
         $userAgent = $context['user_agent'] ?? null;
 
-        // Campos a ignorar definidos en el modelo
         $ignored = $model->auditIgnore ?? [];
 
         $old = array_diff_key($model->getOriginal(), array_flip($ignored));
         $new = array_diff_key($model->getAttributes(), array_flip($ignored));
 
         if ($action === 'updated' && $old == $new) {
-            // No hubo cambios reales
             return;
         }
 
         $description = $this->buildDescription($model, $action, $old, $new);
 
         AuditLog::create([
-            'user_id'        => $user?->id,
-            'user_name'      => $user?->name,
-            'action'         => $action,
+            'user_id' => $user?->id,
+            'user_name' => $user?->name,
+            'action' => $action,
             'auditable_type' => $model::class,
-            'auditable_id'   => $model->getKey(),
-            'module'         => $this->guessModule($model),
-            'old_values'     => $old ?: null,
-            'new_values'     => $new ?: null,
-            'description'    => $description,
-            'ip_address'     => $ipAddress,
-            'user_agent'     => $userAgent,
+            'auditable_id' => $model->getKey(),
+            'module' => $this->guessModule($model),
+            'old_values' => $old ?: null,
+            'new_values' => $new ?: null,
+            'description' => $description,
+            'ip_address' => $ipAddress,
+            'user_agent' => $userAgent,
         ]);
     }
 
     public function paginate(array $filters, int $perPage = 50): LengthAwarePaginator
     {
-        // Si la tabla de auditorÃ­a no existe (entorno local sin migraciones),
-        // devolver un paginador vacÃ­o para evitar consultas que lancen excepciones.
         if (!Schema::hasTable('audit_logs')) {
-            return new \Illuminate\Pagination\LengthAwarePaginator(collect([]), 0, $perPage, 1, [
+            return new Paginator(collect([]), 0, $perPage, 1, [
                 'path' => request()?->url() ?? '',
                 'query' => request()?->query() ?? [],
             ]);
         }
+
         $userFilter = $this->normalizeFilter($filters, 'user');
         $moduleFilter = $this->normalizeFilter($filters, 'module');
         $actionFilter = $this->normalizeFilter($filters, 'action');
@@ -80,56 +90,62 @@ class AuditLogService
 
         $logs = AuditLog::query()
             ->with('user.roles')
-            ->when($userFilter, fn($query) => $query->where('user_name', 'like', '%' . $userFilter . '%'))
-            ->when($moduleFilter, fn($query) => $query->where('module', $moduleFilter))
-            ->when($actionFilter, fn($query) => $query->where('action', $actionFilter))
-            ->when($startDate, fn($query) => $query->whereDate('created_at', '>=', Carbon::parse($startDate)))
-            ->when($endDate, fn($query) => $query->whereDate('created_at', '<=', Carbon::parse($endDate)))
-            ->when($areaId, fn($query) => $query->whereHas('user', fn($query) => $query->where('area_id', $areaId)))
+            ->when($userFilter, static fn (Builder $query) => $query->where('user_name', 'like', '%' . $userFilter . '%'))
+            ->when($moduleFilter, static fn (Builder $query) => $query->where('module', $moduleFilter))
+            ->when($actionFilter, static fn (Builder $query) => $query->where('action', $actionFilter))
+            ->when($startDate, static fn (Builder $query) => $query->whereDate('created_at', '>=', Carbon::parse($startDate)))
+            ->when($endDate, static fn (Builder $query) => $query->whereDate('created_at', '<=', Carbon::parse($endDate)))
+            ->when(
+                $areaId,
+                static fn (Builder $query) => $query->whereHas(
+                    'user',
+                    static fn (Builder $subQuery) => $subQuery->where('area_id', $areaId)
+                )
+            )
             ->latest()
             ->paginate($perPage);
 
         $logs->getCollection()->transform(function (AuditLog $log) {
             $log->module_label = $this->translateModuleName($log->module);
             $log->resource_label = $this->resolveResourceLabel($log);
-
-            // Inicializar valores
             $log->user_area = null;
             $log->user_role = null;
 
-            // El usuario deberÃ­a estar eager-loaded por with('user.roles') arriba; usar directamente
-            $user = $log->user ?? null;
+            $user = $log->user_id ? $log->user : null;
+            if (!$user && $log->user_id) {
+                $user = User::query()->find($log->user_id);
+            }
 
             if ($user) {
-                if (!empty($user->area_id)) {
+                if ($user->area_id) {
                     $area = null;
 
-                    // Fuente principal: settings actuales.
-                    if (Schema::hasTable('settings')) {
-                        $setting = Setting::parameters()
-                            ->where(function ($q) {
-                                $q->where('key', 'parameter_areas')
-                                    ->orWhere('key', 'areas')
-                                    ->orWhere('label', 'like', '%Area%')
-                                    ->orWhere('label', 'like', '%Ãrea%');
-                            })
-                            ->first();
-
-                        $values = $setting?->value ?? $setting?->valor ?? null;
-                        if (is_array($values)) {
-                            $area = collect($values)->firstWhere('id', $user->area_id);
-                        }
-                    }
-
-                    // Fallback legacy: tabla parameters.
-                    if (!$area && class_exists(\App\Models\Parameter::class) && Schema::hasTable('parameters')) {
+                    if (Schema::hasTable('parameters')) {
                         try {
-                            $param = \App\Models\Parameter::where('nombre', 'areas')->first();
+                            $param = Parameter::query()->where('nombre', 'areas')->first();
                             if ($param && is_array($param->valor)) {
                                 $area = collect($param->valor)->firstWhere('id', $user->area_id);
                             }
                         } catch (\Throwable $e) {
                             $area = null;
+                        }
+                    }
+
+                    if (!$area && Schema::hasTable('settings')) {
+                        $setting = Setting::parameters()
+                            ->where(static function (Builder $query) {
+                                $query->where('key', 'parameter_areas')
+                                    ->orWhere('key', 'areas')
+                                    ->orWhere('label', 'like', '%Area%')
+                                    ->orWhere('label', 'like', '%area%');
+                            })
+                            ->first();
+
+                        if ($setting) {
+                            $values = $setting->value ?? $setting->valor ?? null;
+                            if (is_array($values)) {
+                                $area = collect($values)->firstWhere('id', $user->area_id);
+                            }
                         }
                     }
 
@@ -143,6 +159,7 @@ class AuditLogService
                     $log->user_role = $roles->implode(', ');
                 }
             }
+
             return $log;
         });
 
@@ -159,6 +176,7 @@ class AuditLogService
 
         if (is_string($value)) {
             $value = trim($value);
+
             return $value === '' ? null : $value;
         }
 
@@ -174,8 +192,12 @@ class AuditLogService
         return match ($module) {
             'Expenses' => 'Gastos',
             'Inventory' => 'Inventario',
+            'MasterData' => 'Datos Maestros',
+            'Finance' => 'Financiero',
+            'Settings' => 'Configuracion',
+            // Legacy values
             'Contacts' => 'Contactos',
-            'Configuration' => 'ConfiguraciÃ³n',
+            'Configuration' => 'Configuracion',
             default => $module,
         };
     }
@@ -193,9 +215,9 @@ class AuditLogService
         }
 
         $segments = explode('\\', $modelClass);
-        $base = $segments ? $segments[count($segments) - 1] : $modelClass;
+        $base = $segments ? end($segments) : $modelClass;
 
-        return $this->translateResourceName($base);
+        return $this->translateResourceName((string) $base);
     }
 
     protected function translateResourceName(string $base): string
@@ -205,67 +227,69 @@ class AuditLogService
             'PurchaseInvoice' => 'Factura de compra',
             'PurchaseRequest' => 'Solicitud de compra',
             'PurchaseDocument' => 'Documento de compra',
-            'PurchaseDocumentItem' => 'LÃ­nea de documento de compra',
-            'Item' => 'ArtÃ­culo',
+            'PurchaseDocumentItem' => 'Linea de documento de compra',
+            'Item' => 'Articulo',
             'Warehouse' => 'Bodega',
             'Contact' => 'Contacto',
             'User' => 'Usuario',
-            'CompanySetting' => 'ConfiguraciÃ³n de empresa',
-            'Retention' => 'RetenciÃ³n',
+            'CompanySetting' => 'Configuracion de empresa',
+            'Retention' => 'Retencion',
             'Tax' => 'Impuesto',
-            'CategoryGroup' => 'Grupo de categorÃ­as',
-            'CategorySubGroup' => 'Subgrupo de categorÃ­as',
+            'CategoryGroup' => 'Grupo de categorias',
+            'CategorySubGroup' => 'Subgrupo de categorias',
             default => $base,
         };
     }
 
-    // Se debe actualizar este mÃ©todo para incluir mÃ¡s modelos y mÃ³dulos segÃºn sea necesario
     protected function guessModule(Model $model): ?string
     {
         return match (true) {
-            $model instanceof \App\Models\Expenses\PurchaseRequest,
-            $model instanceof \App\Models\Expenses\PurchaseDocument,
-            $model instanceof \App\Models\Expenses\PurchaseDocumentItem
+            $model instanceof PurchaseRequest,
+            $model instanceof PurchaseDocument,
+            $model instanceof PurchaseDocumentItem
                 => 'Expenses',
 
-            $model instanceof \App\Models\MasterData\Item,
-            $model instanceof \App\Models\Inventory\Warehouse
+            $model instanceof Item,
+            $model instanceof Warehouse
                 => 'Inventory',
 
-            $model instanceof \App\Models\MasterData\Contact,
-            $model instanceof \App\Models\Settings\User
-                => 'Contacts',
+            $model instanceof Contact,
+            $model instanceof CategoryGroup,
+            $model instanceof CategorySubGroup,
+            $model instanceof Parameter
+                => 'MasterData',
 
-            $model instanceof \App\Models\Settings\CompanySetting,
-            $model instanceof \App\Models\Finance\Retention,
-            $model instanceof \App\Models\Finance\Tax,
-            $model instanceof \App\Models\MasterData\CategoryGroup,
-            $model instanceof \App\Models\MasterData\CategorySubGroup
-                => 'Configuration',
+            $model instanceof Tax,
+            $model instanceof Retention
+                => 'Finance',
+
+            $model instanceof User,
+            $model instanceof CompanySetting,
+            $model instanceof Setting
+                => 'Settings',
 
             default => null,
         };
     }
 
-    /**
-     * Genera una descripciÃ³n en espaÃ±ol del cambio realizado.
-     */
-    protected function buildDescription(Model $model, string $action, array $old = null, array $new = null): ?string
+    protected function buildDescription(Model $model, string $action, ?array $old = null, ?array $new = null): ?string
     {
         $modelName = class_basename($model);
 
-        $formatValue = function ($v) {
-            if (is_array($v)) {
-                return json_encode($v, JSON_UNESCAPED_UNICODE);
+        $formatValue = function ($value): string {
+            if (is_array($value)) {
+                return (string) json_encode($value, JSON_UNESCAPED_UNICODE);
             }
-            if (is_null($v)) {
+
+            if ($value === null) {
                 return 'null';
             }
-            // Si es un Enum respaldado (BackedEnum), devolver su valor
-            if ($v instanceof \BackedEnum) {
-                return $v->value;
+
+            if ($value instanceof \BackedEnum) {
+                return (string) $value->value;
             }
-            return (string) $v;
+
+            return (string) $value;
         };
 
         $old = $old ?? [];
@@ -273,77 +297,75 @@ class AuditLogService
 
         if ($action === 'created') {
             $pairs = [];
-            $ignoreDateKeys = ['created_at', 'updated_at', 'deleted_at'];
-            foreach ($new as $k => $v) {
-                if (in_array($k, $ignoreDateKeys, true)) {
+            foreach ($new as $key => $value) {
+                if (in_array($key, self::TIMESTAMP_KEYS, true)) {
                     continue;
                 }
-                $pairs[] = "$k: {$formatValue($v)}";
+                $pairs[] = "$key: {$formatValue($value)}";
             }
+
             $values = $pairs ? implode('; ', $pairs) : 'sin valores';
-            $text = "Creado registro de {$modelName}. Valores: {$values}.";
-            return $this->stripDatesFromText($text);
+            return $this->stripDatesFromText("Creado registro de {$modelName}. Valores: {$values}.");
         }
 
         if ($action === 'deleted') {
             $pairs = [];
-            $ignoreDateKeys = ['created_at', 'updated_at', 'deleted_at'];
-            foreach ($old as $k => $v) {
-                if (in_array($k, $ignoreDateKeys, true)) {
+            foreach ($old as $key => $value) {
+                if (in_array($key, self::TIMESTAMP_KEYS, true)) {
                     continue;
                 }
-                $pairs[] = "$k: {$formatValue($v)}";
+                $pairs[] = "$key: {$formatValue($value)}";
             }
+
             $values = $pairs ? implode('; ', $pairs) : 'sin valores';
-            $text = "Eliminado registro de {$modelName}. Valores: {$values}.";
-            return $this->stripDatesFromText($text);
+            return $this->stripDatesFromText("Eliminado registro de {$modelName}. Valores: {$values}.");
         }
 
         if ($action === 'updated') {
             $changes = [];
-            // Ignorar campos de marca de tiempo en la descripciÃ³n
-            $ignoreDateKeys = ['created_at', 'updated_at', 'deleted_at'];
             $keys = array_unique(array_merge(array_keys($old), array_keys($new)));
-            foreach ($keys as $k) {
-                if (in_array($k, $ignoreDateKeys, true)) {
+
+            foreach ($keys as $key) {
+                if (in_array($key, self::TIMESTAMP_KEYS, true)) {
                     continue;
                 }
-                $o = $old[$k] ?? null;
-                $n = $new[$k] ?? null;
-                if ($o != $n) {
-                    $changes[] = "Campo '{$k}' cambiado de '{$formatValue($o)}' a '{$formatValue($n)}'";
+
+                $oldValue = $old[$key] ?? null;
+                $newValue = $new[$key] ?? null;
+
+                if ($oldValue != $newValue) {
+                    $changes[] = "Campo '{$key}' cambiado de '{$formatValue($oldValue)}' a '{$formatValue($newValue)}'";
                 }
             }
-            if (empty($changes)) {
+
+            if ($changes === []) {
                 return null;
             }
-            $text = "Actualizado registro de {$modelName}: " . implode('; ', $changes) . '.';
-            return $this->stripDatesFromText($text);
+
+            return $this->stripDatesFromText(
+                "Actualizado registro de {$modelName}: " . implode('; ', $changes) . '.'
+            );
         }
 
         return null;
     }
 
-    /**
-     * Elimina patrones de fecha/hora comunes del texto de descripciÃ³n.
-     */
     protected function stripDatesFromText(string $text): string
     {
         $patterns = [
-            '/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/', // ISO 8601
-            '/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/', // Y-m-d H:i:s
-            '/\d{4}-\d{2}-\d{2}/', // Y-m-d
-            '/\d{2}\/\d{2}\/\d{4}/', // dd/mm/YYYY
-            '/\d{1,2}:\d{2}:\d{2}/', // HH:MM:SS
-            '/\d{1,2}:\d{2}/', // HH:MM
-            '/\d{1,2}\s*(?:a\.m\.|p\.m\.|am|pm)/i', // 9:50 a.m.
+            '/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/',
+            '/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/',
+            '/\d{4}-\d{2}-\d{2}/',
+            '/\d{2}\/\d{2}\/\d{4}/',
+            '/\d{1,2}:\d{2}:\d{2}/',
+            '/\d{1,2}:\d{2}/',
+            '/\d{1,2}\s*(?:a\.m\.|p\.m\.|am|pm)/i',
         ];
 
         $clean = preg_replace($patterns, '', $text);
-        // Limpiar espacios dobles y puntos repetidos resultantes
-        $clean = preg_replace('/\s{2,}/', ' ', $clean);
-        $clean = preg_replace('/\s+\./', '.', $clean);
-        return trim($clean);
-    }
+        $clean = preg_replace('/\s{2,}/', ' ', (string) $clean);
+        $clean = preg_replace('/\s+\./', '.', (string) $clean);
 
+        return trim((string) $clean);
+    }
 }
