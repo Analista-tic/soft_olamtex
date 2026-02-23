@@ -4,7 +4,6 @@ namespace App\Models\Expenses;
 
 use App\Contracts\HasAuditLabel;
 use App\Models\MasterData\Contact;
-use App\Models\Expenses\PurchaseRequest;
 use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;

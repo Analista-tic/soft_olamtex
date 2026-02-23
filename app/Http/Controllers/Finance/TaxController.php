@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\Finance\Tax;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 
 class TaxController extends Controller
 {

@@ -2,8 +2,6 @@
 
 namespace App\Models\Production;
 
-use App\Models\Inventory\FabricProvider;
-use App\Models\Production\ProductSheet;
 use Illuminate\Database\Eloquent\Model;
 
 class Brand extends Model

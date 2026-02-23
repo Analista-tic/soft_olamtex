@@ -2,7 +2,6 @@
 
 namespace App\Models\Production;
 
-use App\Models\Textil\FabricOrderItem;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 

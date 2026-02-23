@@ -2,7 +2,6 @@
 
 namespace App\Models\MasterData;
 
-use App\Models\MasterData\CategorySubGroup;
 use App\Models\Finance\Tax;
 use App\Models\Inventory\Warehouse;
 use Illuminate\Database\Eloquent\Model;

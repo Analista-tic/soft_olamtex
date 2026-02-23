@@ -4,7 +4,6 @@ namespace App\Models\MasterData;
 
 use Illuminate\Database\Eloquent\Model;
 
-use App\Models\MasterData\Item;
 
 class CategorySubGroup extends Model implements \App\Contracts\HasAuditLabel
 {

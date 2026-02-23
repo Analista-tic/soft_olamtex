@@ -2,7 +2,6 @@
 
 namespace App\Models\Inventory;
 
-use App\Models\Inventory\Warehouse;
 use App\Models\Concerns\HasAuditLabel;
 use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
