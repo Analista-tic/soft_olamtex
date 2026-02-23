@@ -33,7 +33,7 @@ class MachineController extends Controller
         $machine = $this->service->create($validated);
 
         return response()->json([
-            'message' => 'MÃƒÂ¡quina creada correctamente.',
+            'message' => 'MÃƒÆ’Ã‚Â¡quina creada correctamente.',
             'data' => $machine,
         ], 201);
     }

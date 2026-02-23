@@ -3,32 +3,31 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
-use App\Models\Settings\AuditLog;
 use App\Services\Audit\AuditLogService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class AuditLogController extends Controller
 {
     public function __construct(protected AuditLogService $service) {}
 
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
+    public function index(Request $request): Response
     {
         $filters = $this->extractFilters($request);
         $logs = $this->service->paginate($filters);
 
-        return inertia('Audit/Index', [
+        return Inertia::render('Audit/Index', [
             'logs' => $logs,
             'filters' => $filters,
         ]);
     }
 
-    public function data(Request $request)
+    public function data(Request $request): JsonResponse
     {
         $filters = $this->extractFilters($request);
-        $perPage = (int) $request->input('per_page', 50);
+        $perPage = max(1, min((int) $request->input('per_page', 50), 200));
         $logs = $this->service->paginate($filters, $perPage);
 
         return response()->json([
@@ -42,54 +41,14 @@ class AuditLogController extends Controller
 
     protected function extractFilters(Request $request): array
     {
-        return $request->only(['user', 'module', 'action', 'start_date', 'end_date', 'area_id']);
-    }
+        $filters = $request->only(['user', 'module', 'action', 'start_date', 'end_date', 'area_id']);
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
+        foreach ($filters as $key => $value) {
+            if (is_string($value) && trim($value) === '') {
+                $filters[$key] = null;
+            }
+        }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(AuditLog $auditLog)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(AuditLog $auditLog)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, AuditLog $auditLog)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(AuditLog $auditLog)
-    {
-        //
+        return $filters;
     }
 }

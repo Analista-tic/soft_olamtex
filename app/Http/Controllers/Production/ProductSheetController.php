@@ -1,5 +1,5 @@
 <?php
-namespace App\Http\Controllers\ProductSheet;
+namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductSheet\ConvertProductSheetRequest;
@@ -27,7 +27,7 @@ class ProductSheetController extends Controller
     ) {
     }
     /**
-     * Carga datos relacionados y los envÃƒÂ­a a la vista.
+     * Carga datos relacionados y los envÃƒÆ’Ã‚Â­a a la vista.
      */
     public function index()
     {
@@ -109,13 +109,13 @@ class ProductSheetController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'SÃƒÂ¡bana convertida a producto correctamente.',
+            'message' => 'SÃƒÆ’Ã‚Â¡bana convertida a producto correctamente.',
             'data' => $sabana->fresh(),
         ]);
     }
 
     /**
-     * Obtiene un registro especÃƒÆ’Ã‚Â­fico con datos enriquecidos.
+     * Obtiene un registro especÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­fico con datos enriquecidos.
      */
     public function show(string $id)
     {
@@ -267,7 +267,7 @@ class ProductSheetController extends Controller
     {
         $key = $request->query('key');
         if (!$key) {
-            return response()->json(['success' => false, 'message' => 'El parÃƒÆ’Ã‚Â¡metro key es requerido.'], 422);
+            return response()->json(['success' => false, 'message' => 'El parÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡metro key es requerido.'], 422);
         }
 
         $options = $this->settingService->getCatalogOptions($key);

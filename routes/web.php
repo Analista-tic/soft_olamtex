@@ -40,7 +40,7 @@ use App\Http\Controllers\Inventory\InventoryRequestController;
 use App\Http\Controllers\Inventory\WarehouseTransferController;
 use App\Http\Controllers\MasterData\ParameterController;
 
-// Página principal
+// PÃ¡gina principal
 Route::get('/', fn() => redirect('login'))->name('home');
 
 // Dashboard
@@ -48,7 +48,7 @@ Route::get('dashboard', fn() => Inertia::render('Dashboard'))
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-// Rutas protegidas por autenticación y verificación
+// Rutas protegidas por autenticaciÃ³n y verificaciÃ³n
 Route::middleware(['auth', 'verified'])->group(function () {
     
     // Usuario autenticado
@@ -67,7 +67,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('settings/parameters', [TechnicalDataSheetController::class, 'settingsParameters'])
         ->name('settings.parameters');
 
-    // Módulos en desarrollo
+    // MÃ³dulos en desarrollo
     Route::get('en-desarrollo/{modulo?}', function (?string $modulo = null) {
         $title = request('titulo');
         if (!$title && $modulo) {
@@ -214,7 +214,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->name('store');
         });
 
-        // Máquinas
+        // MÃ¡quinas
         Route::prefix('maquinas')->name('maquinas.')->group(function () {
             Route::get('/data', [MachineController::class, 'data'])->name('data');
             Route::post('/', [MachineController::class, 'store'])
@@ -223,7 +223,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 
-    // === DISEÑO ===
+    // === DISEÃ‘O ===
     Route::get('produccion/ordenes-produccion', [ProductionOrderController::class, 'index'])
         ->middleware('permission:ver sabana productos')
         ->name('production.orders.index');
@@ -252,7 +252,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('programador.destroy');
     });
 
-    // ===CONFIGURACIÓN ===
+    // ===CONFIGURACIÃ“N ===
     Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')
         ->name('configuracion');
@@ -311,7 +311,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:eliminar roles')
         ->name('roles.destroy');
 
-    // === AUDITORÍA ===
+    // === AUDITORÃA ===
     Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('auditoria', [AuditLogController::class, 'index'])
             ->name('auditoria.index')
@@ -403,7 +403,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update');
             Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
             
-            // Acciones de transición de estados
+            // Acciones de transiciÃ³n de estados
             Route::post('/{purchaseRequest}/send-to-approval', [PurchaseRequestController::class, 'sendToApproval'])->name('send-to-approval');
             Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])->name('approve');
             Route::post('/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
@@ -432,7 +432,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update');
             Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
             Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify');
-            // Recepción de facturas NO tela
+            // RecepciÃ³n de facturas NO tela
             Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive');
             Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject');
         });
@@ -448,7 +448,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 
-    // === Catálogos para campos parametrizables ===
+    // === CatÃ¡logos para campos parametrizables ===
     Route::get('catalogos/sections', [SectionController::class, 'data']);
         // Rutas eliminadas: groups, brands, worlds, fabric-bases, yarn-bases (controllers no existen)
 

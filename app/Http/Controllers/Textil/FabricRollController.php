@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Inventory;
+namespace App\Http\Controllers\Textil;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StoreFabricRollRequest;

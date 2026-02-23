@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\ProductSheet;
+namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
 use App\Models\ProductSheet\ProductOperationList;
@@ -89,7 +89,7 @@ class ProductOperationListController extends Controller
     }
 
     /**
-     * Crea una nueva operaciÃƒÂ³n en el listado
+     * Crea una nueva operaciÃƒÆ’Ã‚Â³n en el listado
      * POST /diseno/listados-operacionales
      */
     public function store(StoreProductOperationListRequest $request): JsonResponse
@@ -100,13 +100,13 @@ class ProductOperationListController extends Controller
         $item = $this->service->create($validated);
 
         return response()->json([
-            'message' => 'OperaciÃƒÂ³n agregada correctamente.',
+            'message' => 'OperaciÃƒÆ’Ã‚Â³n agregada correctamente.',
             'data' => new ProductOperationListResource($item)
         ], 201);
     }
 
     /**
-     * Crea mÃƒÂºltiples operaciones en lote
+     * Crea mÃƒÆ’Ã‚Âºltiples operaciones en lote
      * POST /diseno/listados-operacionales/bulk
      */
     public function storeBulk(Request $request): JsonResponse
@@ -125,7 +125,7 @@ class ProductOperationListController extends Controller
             'operations.*.notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        // AÃƒÂ±adir created_by a cada operaciÃƒÂ³n
+        // AÃƒÆ’Ã‚Â±adir created_by a cada operaciÃƒÆ’Ã‚Â³n
         $operations = collect($validated['operations'])->map(function ($op) {
             $op['created_by'] = auth()->id();
             return $op;
@@ -140,7 +140,7 @@ class ProductOperationListController extends Controller
     }
 
     /**
-     * Actualiza una operaciÃƒÂ³n existente
+     * Actualiza una operaciÃƒÆ’Ã‚Â³n existente
      * PUT /diseno/listados-operacionales/{listItem}
      */
     public function update(UpdateProductOperationListRequest $request, ProductOperationList $listItem): JsonResponse
@@ -151,13 +151,13 @@ class ProductOperationListController extends Controller
         $item = $this->service->update($listItem, $validated);
 
         return response()->json([
-            'message' => 'OperaciÃƒÂ³n actualizada correctamente.',
+            'message' => 'OperaciÃƒÆ’Ã‚Â³n actualizada correctamente.',
             'data' => new ProductOperationListResource($item)
         ]);
     }
 
     /**
-     * Elimina una operaciÃƒÂ³n del listado
+     * Elimina una operaciÃƒÆ’Ã‚Â³n del listado
      * DELETE /diseno/listados-operacionales/{listItem}
      */
     public function destroy(ProductOperationList $listItem): JsonResponse
@@ -165,12 +165,12 @@ class ProductOperationListController extends Controller
         $this->service->delete($listItem);
 
         return response()->json([
-            'message' => 'OperaciÃƒÂ³n eliminada correctamente.'
+            'message' => 'OperaciÃƒÆ’Ã‚Â³n eliminada correctamente.'
         ]);
     }
 
     /**
-     * Elimina mÃƒÂºltiples operaciones en lote
+     * Elimina mÃƒÆ’Ã‚Âºltiples operaciones en lote
      * DELETE /diseno/listados-operacionales/bulk
      */
     public function destroyBulk(Request $request): JsonResponse
