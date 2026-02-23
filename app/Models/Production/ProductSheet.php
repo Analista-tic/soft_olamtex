@@ -2,6 +2,7 @@
 
 namespace App\Models\Production;
 
+use App\Models\Textil\FabricOrderItem;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -39,7 +40,7 @@ class ProductSheet extends Model
     protected $casts = [
         'sizes' => 'array',
         'processes' => 'array',
-        'woven_product' => 'boolean',
+		'woven_product' => 'boolean',
         'operational_list_id' => 'integer',
         'type' => 'string',
         'flat_sketch_path' => 'string',

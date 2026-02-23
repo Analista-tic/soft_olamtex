@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProductSheet\ProductOperationList;
+use App\Models\Production\ProductOperationList;
 use App\Services\Production\ProductOperationListService;
 use App\Services\Production\OperationService;
 use App\Services\Production\MachineService;

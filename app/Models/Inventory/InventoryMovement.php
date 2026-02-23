@@ -5,7 +5,6 @@ namespace App\Models\Inventory;
 use App\Contracts\HasAuditLabel;
 use App\Models\Inventory\Warehouse;
 use App\Models\Settings\User;
-use App\Models\MasterData\Item;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

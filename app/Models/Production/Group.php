@@ -2,6 +2,7 @@
 
 namespace App\Models\Production;
 
+use App\Models\Inventory\FabricColor;
 use App\Models\Production\ProductSheet;
 use Illuminate\Database\Eloquent\Model;
 

@@ -6,7 +6,7 @@ use App\Models\Settings\Role;
 use Spatie\Permission\Models\Permission;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use App\Models\Settings\Setting;
+use App\Models\MasterData\Parameter;
 
 class RoleService
 {
@@ -97,8 +97,8 @@ class RoleService
             throw new \InvalidArgumentException('area_name is required when area_id is missing.');
         }
 
-        $parameter = Setting::firstOrNew(['kind' => Setting::KIND_PARAMETER, 'key' => 'areas']);
-        $current = $parameter->value ?? [];
+        $parameter = Parameter::firstOrNew(['nombre' => 'areas']);
+        $current = $parameter->valor ?? [];
 
         if (is_string($current)) {
             $decoded = json_decode($current, true);
@@ -146,7 +146,7 @@ class RoleService
             $current[] = ['id' => $newId, 'name' => $name];
         }
 
-        $parameter->value = $current;
+        $parameter->valor = $current;
         $parameter->save();
 
         return $newId;

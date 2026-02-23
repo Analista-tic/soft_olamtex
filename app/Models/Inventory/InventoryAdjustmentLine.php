@@ -37,7 +37,7 @@ class InventoryAdjustmentLine extends Model
 
     public function warehouse()
     {
-        return $this->belongsTo(\App\Models\Common\Warehouse::class);
+        return $this->belongsTo(\App\Models\Inventory\Warehouse::class);
     }
 
     public function item()

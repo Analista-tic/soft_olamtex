@@ -4,7 +4,7 @@ namespace App\Services\Inventory;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\MasterData\Item;
-use App\Models\Inventory\ItemInventory;
+use App\Models\MasterData\ItemInventory;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 

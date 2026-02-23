@@ -2,6 +2,7 @@
 
 namespace App\Models\Production;
 
+use App\Models\Textil\FabricOrder;
 use Illuminate\Database\Eloquent\Model;
 
 class Destination extends Model

@@ -7,7 +7,6 @@ use App\Services\Settings\RoleService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Permission;
-use App\Models\Settings\Setting;
 
 class RoleController extends Controller
 {
@@ -44,14 +43,27 @@ class RoleController extends Controller
                 'nullable',
                 'integer',
                 'required_without:area_name',
-                $this->areaIdRule(),
+                function ($attribute, $value, $fail) {
+                    if ($value === null) {
+                        return;
+                    }
+                    $areas = \App\Models\MasterData\Parameter::where('nombre', 'areas')->first();
+                    $ids = collect($areas ? $areas->valor : [])->pluck('id')->toArray();
+                    if (!in_array($value, $ids)) {
+                        $fail('El área seleccionada no es válida.');
+                    }
+                }
             ],
             'area_name' => [
                 'nullable',
                 'string',
                 'max:255',
                 'required_without:area_id',
-                $this->areaNameRule(),
+                function ($attribute, $value, $fail) {
+                    if ($value !== null && trim((string) $value) === '') {
+                        $fail('El nombre del área es obligatorio.');
+                    }
+                }
             ],
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name',
@@ -90,14 +102,27 @@ class RoleController extends Controller
                 'nullable',
                 'integer',
                 'required_without:area_name',
-                $this->areaIdRule(),
+                function ($attribute, $value, $fail) {
+                    if ($value === null) {
+                        return;
+                    }
+                    $areas = \App\Models\MasterData\Parameter::where('nombre', 'areas')->first();
+                    $ids = collect($areas ? $areas->valor : [])->pluck('id')->toArray();
+                    if (!in_array($value, $ids)) {
+                        $fail('El área seleccionada no es válida.');
+                    }
+                }
             ],
             'area_name' => [
                 'nullable',
                 'string',
                 'max:255',
                 'required_without:area_id',
-                $this->areaNameRule(),
+                function ($attribute, $value, $fail) {
+                    if ($value !== null && trim((string) $value) === '') {
+                        $fail('El nombre del área es obligatorio.');
+                    }
+                }
             ],
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name',
@@ -106,36 +131,6 @@ class RoleController extends Controller
         $role = $this->service->update($role, $validated);
 
         return response()->json($role);
-    }
-
-    /**
-     * Devuelve una closure reutilizable para validar `area_id`.
-     */
-    private function areaIdRule(): \Closure
-    {
-        return function ($attribute, $value, $fail) {
-            if ($value === null) {
-                return;
-            }
-
-            $param = Setting::parameters()->where('key', 'areas')->first();
-            $ids = collect($param ? $param->value : [])->pluck('id')->toArray();
-            if (!in_array($value, $ids)) {
-                $fail('El área seleccionada no es válida.');
-            }
-        };
-    }
-
-    /**
-     * Devuelve una closure reutilizable para validar `area_name`.
-     */
-    private function areaNameRule(): \Closure
-    {
-        return function ($attribute, $value, $fail) {
-            if ($value !== null && trim((string) $value) === '') {
-                $fail('El nombre del área es obligatorio.');
-            }
-        };
     }
 
     /**

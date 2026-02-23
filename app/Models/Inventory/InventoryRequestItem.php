@@ -3,7 +3,6 @@
 namespace App\Models\Inventory;
 
 use App\Models\Inventory\Warehouse;
-use App\Models\MasterData\Item;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 

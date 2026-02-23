@@ -5,7 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductSheet\ConvertProductSheetRequest;
 use App\Http\Requests\ProductSheet\StoreProductSheetRequest;
 use App\Http\Requests\ProductSheet\UpdateProductSheetRequest;
-use App\Models\ProductSheet\ProductSheet;
+use App\Models\Production\ProductSheet;
 use App\Services\Production\ProductSheetCreationService;
 use App\Services\Production\ProductSheetPersistenceService;
 use App\Services\Settings\SettingService;

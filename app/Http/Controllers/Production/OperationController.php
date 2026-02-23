@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProductSheet\Operation;
+use App\Models\Production\Operation;
 use App\Services\Production\OperationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

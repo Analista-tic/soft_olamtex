@@ -42,7 +42,7 @@ class PurchaseDocumentItem extends Model
 
     public function item()
     {
-        return $this->belongsTo(\App\Models\Inventory\Item::class, 'item_id');
+        return $this->belongsTo(\App\Models\MasterData\Item::class, 'item_id');
     }
 
     // Alias para compatibilidad con vistas que usaban `article`
