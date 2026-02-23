@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Services\ProductSheet;
+namespace App\Services\Production;
 
 use App\Models\Production\Machine;
 use Illuminate\Support\Collection;
 
 class MachineService
 {
-    // Suplementos por defecto según tipo de máquina (valores de ejemplo)
+    // Suplementos por defecto segÃƒÂºn tipo de mÃƒÂ¡quina (valores de ejemplo)
     protected const MACHINE_SUPPLEMENTS = [
         'RECTA' => 1.05,
         'OVERLOCK' => 1.08,
@@ -24,7 +24,7 @@ class MachineService
     public function __construct(protected Machine $model) {}
 
     /**
-     * Obtiene opciones de máquinas activas
+     * Obtiene opciones de mÃƒÂ¡quinas activas
      */
     public function options(): Collection
     {
@@ -35,11 +35,11 @@ class MachineService
     }
 
     /**
-     * Crea una nueva máquina
+     * Crea una nueva mÃƒÂ¡quina
      */
     public function create(array $data): Machine
     {
-        // Normalizar código a mayúsculas
+        // Normalizar cÃƒÂ³digo a mayÃƒÂºsculas
         if (isset($data['code'])) {
             $data['code'] = strtoupper(trim($data['code']));
         }
@@ -48,11 +48,11 @@ class MachineService
     }
 
     /**
-     * Actualiza una máquina existente
+     * Actualiza una mÃƒÂ¡quina existente
      */
     public function update(Machine $machine, array $data): Machine
     {
-        // Normalizar código si viene
+        // Normalizar cÃƒÂ³digo si viene
         if (isset($data['code'])) {
             $data['code'] = strtoupper(trim($data['code']));
         }
@@ -62,8 +62,8 @@ class MachineService
     }
 
     /**
-     * Obtiene el factor de suplemento de una máquina según su código/nombre
-     * El suplemento se calcula basado en el tipo de máquina
+     * Obtiene el factor de suplemento de una mÃƒÂ¡quina segÃƒÂºn su cÃƒÂ³digo/nombre
+     * El suplemento se calcula basado en el tipo de mÃƒÂ¡quina
      * Ahora utiliza el accessor del modelo
      */
     public function getMachineSupplement(Machine $machine): float
@@ -72,7 +72,7 @@ class MachineService
     }
 
     /**
-     * Obtiene información completa de una máquina incluyendo su suplemento
+     * Obtiene informaciÃƒÂ³n completa de una mÃƒÂ¡quina incluyendo su suplemento
      */
     public function getWithSupplement(int $machineId): array
     {
@@ -88,7 +88,7 @@ class MachineService
     }
 
     /**
-     * Lista todas las máquinas con sus suplementos
+     * Lista todas las mÃƒÂ¡quinas con sus suplementos
      */
     public function listWithSupplements(): Collection
     {
@@ -106,7 +106,7 @@ class MachineService
     }
 
     /**
-     * Busca una máquina por código y retorna su suplemento
+     * Busca una mÃƒÂ¡quina por cÃƒÂ³digo y retorna su suplemento
      */
     public function getSupplementByCode(string $code): float
     {

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\ProductSheet;
+namespace App\Services\Production;
 
 use App\Models\Production\ProductSheet;
 use Illuminate\Support\Collection;
@@ -10,7 +10,7 @@ class ProductSheetService
     public function __construct(protected ProductSheet $model) {}
 
     /**
-     * Obtiene las últimas fichas de producto para opciones
+     * Obtiene las ÃƒÂºltimas fichas de producto para opciones
      */
     public function recentOptions(int $limit = 50): Collection
     {

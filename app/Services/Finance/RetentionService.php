@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Settings;
+namespace App\Services\Finance;
 
 use App\Models\Finance\Retention;
 use Illuminate\Pagination\LengthAwarePaginator;

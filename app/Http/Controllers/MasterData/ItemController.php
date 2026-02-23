@@ -1,10 +1,14 @@
 <?php
 
-namespace App\Http\Controllers\MasterData;
+namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Models\Finance\Tax;
+use App\Models\Inventory\Warehouse;
+use App\Models\MasterData\CategoryGroup;
+use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
-use App\Services\Inventory\ItemService;
+use App\Services\MasterData\ItemService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
@@ -12,10 +16,6 @@ use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use App\Models\MasterData\CategoryGroup;
-use App\Models\MasterData\CategorySubGroup;
-use App\Models\Finance\Tax;
-use App\Models\Inventory\Warehouse;
 use Illuminate\Support\Facades\Log;
 
 class ItemController extends Controller

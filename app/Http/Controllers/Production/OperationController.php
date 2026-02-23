@@ -1,13 +1,12 @@
 <?php
 
-namespace App\Http\Controllers\Production;
+namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
-use App\Models\Production\Operation;
-use App\Services\ProductSheet\OperationService;
+use App\Models\ProductSheet\Operation;
+use App\Services\Production\OperationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class OperationController extends Controller
 {
@@ -25,7 +24,7 @@ class OperationController extends Controller
     }
 
     /**
-     * Obtiene valores únicos de acciones y partes de prenda
+     * Obtiene valores ÃƒÂºnicos de acciones y partes de prenda
      * GET /diseno/operaciones/metadata
      */
     public function metadata(): JsonResponse
@@ -39,7 +38,7 @@ class OperationController extends Controller
     }
 
     /**
-     * Crea una nueva operación (con validación de duplicados)
+     * Crea una nueva operaciÃƒÂ³n (con validaciÃƒÂ³n de duplicados)
      * POST /diseno/operaciones
      */
     public function store(Request $request): JsonResponse
@@ -50,14 +49,14 @@ class OperationController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        $validated['created_by'] = Auth::id();
+        $validated['created_by'] = auth()->id();
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         try {
             $operation = $this->service->create($validated);
 
             return response()->json([
-                'message' => 'Operación registrada correctamente.',
+                'message' => 'OperaciÃƒÂ³n registrada correctamente.',
                 'data' => $operation
             ], 201);
         } catch (\InvalidArgumentException $e) {
@@ -69,7 +68,7 @@ class OperationController extends Controller
     }
 
     /**
-     * Actualiza una operación existente
+     * Actualiza una operaciÃƒÂ³n existente
      * PUT /diseno/operaciones/{operation}
      */
     public function update(Request $request, Operation $operation): JsonResponse
@@ -83,13 +82,13 @@ class OperationController extends Controller
         $operation = $this->service->update($operation, $validated);
 
         return response()->json([
-            'message' => 'Operación actualizada correctamente.',
+            'message' => 'OperaciÃƒÂ³n actualizada correctamente.',
             'data' => $operation
         ]);
     }
 
     /**
-     * Actualiza el tiempo estándar de una operación
+     * Actualiza el tiempo estÃƒÂ¡ndar de una operaciÃƒÂ³n
      * POST /diseno/operaciones/{operation}/update-standard-time
      */
     public function updateStandardTime(Request $request, Operation $operation): JsonResponse
@@ -104,7 +103,7 @@ class OperationController extends Controller
         );
 
         return response()->json([
-            'message' => 'Tiempo estándar actualizado y recalculado en todas las listas.',
+            'message' => 'Tiempo estÃƒÂ¡ndar actualizado y recalculado en todas las listas.',
             'data' => $operation
         ]);
     }

@@ -1,13 +1,13 @@
 <?php
-namespace App\Http\Controllers\Production;
+namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Production\ConvertProductSheetRequest;
-use App\Http\Requests\Production\StoreProductSheetRequest;
-use App\Http\Requests\Production\UpdateProductSheetRequest;
-use App\Models\Production\ProductSheet;
-use App\Services\ProductSheet\ProductSheetCreationService;
-use App\Services\ProductSheet\ProductSheetPersistenceService;
+use App\Http\Requests\ProductSheet\ConvertProductSheetRequest;
+use App\Http\Requests\ProductSheet\StoreProductSheetRequest;
+use App\Http\Requests\ProductSheet\UpdateProductSheetRequest;
+use App\Models\ProductSheet\ProductSheet;
+use App\Services\Production\ProductSheetCreationService;
+use App\Services\Production\ProductSheetPersistenceService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,7 +27,7 @@ class ProductSheetController extends Controller
     ) {
     }
     /**
-     * Carga datos relacionados y los envía a la vista.
+     * Carga datos relacionados y los envÃƒÂ­a a la vista.
      */
     public function index()
     {
@@ -109,13 +109,13 @@ class ProductSheetController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Sábana convertida a producto correctamente.',
+            'message' => 'SÃƒÂ¡bana convertida a producto correctamente.',
             'data' => $sabana->fresh(),
         ]);
     }
 
     /**
-     * Obtiene un registro específico con datos enriquecidos.
+     * Obtiene un registro especÃƒÆ’Ã‚Â­fico con datos enriquecidos.
      */
     public function show(string $id)
     {
@@ -267,7 +267,7 @@ class ProductSheetController extends Controller
     {
         $key = $request->query('key');
         if (!$key) {
-            return response()->json(['success' => false, 'message' => 'El parámetro key es requerido.'], 422);
+            return response()->json(['success' => false, 'message' => 'El parÃƒÆ’Ã‚Â¡metro key es requerido.'], 422);
         }
 
         $options = $this->settingService->getCatalogOptions($key);
@@ -300,3 +300,4 @@ class ProductSheetController extends Controller
     }
 
 }
+

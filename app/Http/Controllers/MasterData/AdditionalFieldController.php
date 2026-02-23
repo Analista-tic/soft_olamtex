@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Controllers\MasterData;
+namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\MasterData\AdditionalFieldRequest;
+use App\Http\Requests\Inventory\AdditionalFieldRequest;
 use App\Models\Settings\Setting;
-use App\Services\Inventory\AdditionalFieldService;
+use App\Services\MasterData\AdditionalFieldService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 

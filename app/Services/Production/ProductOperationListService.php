@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\ProductSheet;
+namespace App\Services\Production;
 
 use App\Models\Production\ProductOperationList;
 use Illuminate\Support\Collection;
@@ -26,7 +26,7 @@ class ProductOperationListService
     }
 
     /**
-     * Lista operaciones filtradas por sección
+     * Lista operaciones filtradas por secciÃƒÂ³n
      */
     public function listBySection(int $productSheetId, int $sectionId): Collection
     {
@@ -48,7 +48,7 @@ class ProductOperationListService
         $totalSam = $operations->sum('sam');
         $totalProductionTime = $operations->sum('production_time');
         
-        // Totales por tipo de sección
+        // Totales por tipo de secciÃƒÂ³n
         $samConfeccion = $operations
             ->where('operationSection.type', 'confeccion')
             ->sum('sam');
@@ -68,8 +68,8 @@ class ProductOperationListService
     }
 
     /**
-     * Crea una nueva operación en el listado
-     * Calcula automáticamente production_time y sam
+     * Crea una nueva operaciÃƒÂ³n en el listado
+     * Calcula automÃƒÂ¡ticamente production_time y sam
      */
     public function create(array $data): ProductOperationList
     {
@@ -97,7 +97,7 @@ class ProductOperationListService
     }
 
     /**
-     * Crea múltiples operaciones en lote (bulk insert optimizado)
+     * Crea mÃƒÂºltiples operaciones en lote (bulk insert optimizado)
      */
     public function createBulk(array $operations): Collection
     {
@@ -105,7 +105,7 @@ class ProductOperationListService
             $created = collect();
 
             foreach ($operations as $data) {
-                // Calcular campos automáticos
+                // Calcular campos automÃƒÂ¡ticos
                 $data['production_time'] = $this->calculateProductionTime(
                     $data['optimal_time'],
                     $data['operator_efficiency_factor'] ?? 1.25,
@@ -129,7 +129,7 @@ class ProductOperationListService
     }
 
     /**
-     * Actualiza una operación existente
+     * Actualiza una operaciÃƒÂ³n existente
      * Recalcula production_time y variance si es necesario
      */
     public function update(ProductOperationList $item, array $data): ProductOperationList
@@ -143,7 +143,7 @@ class ProductOperationListService
                     $data['machine_supplement_factor'] ?? $item->machine_supplement_factor,
                 );
 
-                // Actualizar SAM si cambió optimal_time
+                // Actualizar SAM si cambiÃƒÂ³ optimal_time
                 if (isset($data['optimal_time'])) {
                     $data['sam'] = $data['optimal_time'];
                 }
@@ -166,7 +166,7 @@ class ProductOperationListService
     }
 
     /**
-     * Elimina una operación del listado (soft delete)
+     * Elimina una operaciÃƒÂ³n del listado (soft delete)
      */
     public function delete(ProductOperationList $item): void
     {
@@ -174,7 +174,7 @@ class ProductOperationListService
     }
 
     /**
-     * Elimina múltiples operaciones en lote
+     * Elimina mÃƒÂºltiples operaciones en lote
      */
     public function deleteBulk(array $operationIds, int $productSheetId): int
     {
@@ -186,7 +186,7 @@ class ProductOperationListService
 
     /**
      * Copia todas las operaciones de una ficha a otra
-     * Útil para copiar de muestra a productivo
+     * ÃƒÅ¡til para copiar de muestra a productivo
      */
     public function copyFromProduct(int $sourceSheetId, int $targetSheetId, array $overrides = []): Collection
     {
@@ -205,7 +205,7 @@ class ProductOperationListService
                 $attributes = array_merge($attributes, [
                     'product_sheet_id' => $targetSheetId,
                     'sequence_order' => $index + 1,
-                    'sam' => $attributes['optimal_time'], // Asegurar que SAM esté sincronizado
+                    'sam' => $attributes['optimal_time'], // Asegurar que SAM estÃƒÂ© sincronizado
                 ], $overrides);
 
                 return $this->model->create($attributes);
@@ -230,7 +230,7 @@ class ProductOperationListService
 
     /**
      * Calcula el tiempo productivo (SAM 100%)
-     * production_time = optimal × operator_efficiency × machine_supplement
+     * production_time = optimal Ãƒâ€” operator_efficiency Ãƒâ€” machine_supplement
      */
     public function calculateProductionTime(
         float $optimalTime,
@@ -241,8 +241,8 @@ class ProductOperationListService
     }
 
     /**
-     * Calcula la variación porcentual entre tiempo real y tiempo productivo
-     * variance = ((actual - production) / production) × 100
+     * Calcula la variaciÃƒÂ³n porcentual entre tiempo real y tiempo productivo
+     * variance = ((actual - production) / production) Ãƒâ€” 100
      */
     public function calculateVariance(float $actualTime, float $productionTime): float
     {
@@ -254,8 +254,8 @@ class ProductOperationListService
     }
 
     /**
-     * Calcula el costo unitario por operación
-     * unit_cost = production_time × labor_cost_per_minute
+     * Calcula el costo unitario por operaciÃƒÂ³n
+     * unit_cost = production_time Ãƒâ€” labor_cost_per_minute
      */
     public function calculateUnitCost(float $productionTime, float $laborCostPerMinute): float
     {

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\ProductSheet;
+namespace App\Services\Production;
 
 use App\Models\Production\OperationSection;
 use Illuminate\Support\Collection;
@@ -22,7 +22,7 @@ class SectionService
     }
 
     /**
-     * Crea una nueva sección
+     * Crea una nueva secciÃƒÂ³n
      */
     public function create(array $data): OperationSection
     {

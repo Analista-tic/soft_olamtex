@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
-use App\Services\ProductSheet\MachineService;
+use App\Services\Production\MachineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -33,7 +33,7 @@ class MachineController extends Controller
         $machine = $this->service->create($validated);
 
         return response()->json([
-            'message' => 'Máquina creada correctamente.',
+            'message' => 'MÃƒÂ¡quina creada correctamente.',
             'data' => $machine,
         ], 201);
     }

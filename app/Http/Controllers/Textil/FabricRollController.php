@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Http\Controllers\Textil;
+namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Textil\StoreFabricRollRequest;
-use App\Http\Requests\Textil\UpdateFabricRollOutputRequest;
-use App\Http\Requests\Textil\UpdateFabricRollRequest;
+use App\Http\Requests\Inventory\StoreFabricRollRequest;
+use App\Http\Requests\Inventory\UpdateFabricRollOutputRequest;
+use App\Http\Requests\Inventory\UpdateFabricRollRequest;
 use App\Http\Resources\Inventory\FabricRollResource;
-use App\Models\Textil\FabricRoll;
 use App\Models\Production\Programmer;
-use App\Services\Inventory\FabricRollService;
+use App\Models\Textil\FabricRoll;
+use App\Services\Textil\FabricRollService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\Eloquent\ModelNotFoundException;

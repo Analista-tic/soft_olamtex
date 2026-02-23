@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\ProductSheet;
+namespace App\Services\Production;
 
 use App\Models\Production\Operation;
 use Illuminate\Support\Collection;
@@ -30,28 +30,28 @@ class OperationService
     }
 
     /**
-     * Crea una nueva operación con validación de duplicados
-     * Si ya existe una operación con el mismo action + garment_part, lanza excepción
+     * Crea una nueva operaciÃƒÂ³n con validaciÃƒÂ³n de duplicados
+     * Si ya existe una operaciÃƒÂ³n con el mismo action + garment_part, lanza excepciÃƒÂ³n
      */
     public function create(array $data): Operation
     {
         $action = strtoupper(trim($data['action']));
         $garmentPart = strtoupper(trim($data['garment_part']));
 
-        // Buscar operación existente
+        // Buscar operaciÃƒÂ³n existente
         $existing = $this->model
             ->byNormalizedName($action, $garmentPart)
             ->first();
 
         if ($existing) {
-            // Si existe, lanzar excepción con el nombre completo
+            // Si existe, lanzar excepciÃƒÂ³n con el nombre completo
             $operationName = "{$action} {$garmentPart}";
             throw new \InvalidArgumentException(
-                "La operación '{$operationName}' ya existe en el sistema."
+                "La operaciÃƒÂ³n '{$operationName}' ya existe en el sistema."
             );
         }
 
-        // Crear nueva operación normalizada
+        // Crear nueva operaciÃƒÂ³n normalizada
         $data['action'] = $action;
         $data['garment_part'] = $garmentPart;
         
@@ -59,7 +59,7 @@ class OperationService
     }
 
     /**
-     * Actualiza una operación existente
+     * Actualiza una operaciÃƒÂ³n existente
      */
     public function update(Operation $operation, array $data): Operation
     {
@@ -76,7 +76,7 @@ class OperationService
     }
 
     /**
-     * Actualiza el tiempo estándar de una operación y recalcula todas sus listas asociadas
+     * Actualiza el tiempo estÃƒÂ¡ndar de una operaciÃƒÂ³n y recalcula todas sus listas asociadas
      */
     public function updateStandardTime(Operation $operation, float $newOptimalTime): Operation
     {
@@ -104,7 +104,7 @@ class OperationService
     }
 
     /**
-     * Obtiene valores únicos de acciones
+     * Obtiene valores ÃƒÂºnicos de acciones
      */
     public function getUniqueActions(): Collection
     {
@@ -118,7 +118,7 @@ class OperationService
     }
 
     /**
-     * Obtiene valores únicos de partes de prenda
+     * Obtiene valores ÃƒÂºnicos de partes de prenda
      */
     public function getUniqueGarmentParts(): Collection
     {
@@ -132,7 +132,7 @@ class OperationService
     }
 
     /**
-     * Busca o crea una operación (deduplicación)
+     * Busca o crea una operaciÃƒÂ³n (deduplicaciÃƒÂ³n)
      */
     public function findOrCreate(string $action, string $garmentPart, ?int $createdBy = null): Operation
     {

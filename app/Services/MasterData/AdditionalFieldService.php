@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Inventory;
+namespace App\Services\MasterData;
 
 use App\Models\Settings\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;

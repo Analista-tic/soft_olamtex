@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Controllers\Finance;
+namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Finance\RetentionRequest;
-use App\Services\Settings\RetentionService;
-use App\Models\Finance\Retention;
+use App\Http\Requests\Settings\RetentionRequest;
+use App\Services\Finance\RetentionService;
+use App\Models\Settings\Retention;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 

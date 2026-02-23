@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Services\Inventory;
+namespace App\Services\Textil;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
-use App\Models\Textil\FabricRoll;
 use App\Models\MasterData\Item;
+use App\Models\Textil\FabricRoll;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;

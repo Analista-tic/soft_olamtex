@@ -1,14 +1,13 @@
 <?php
 
-namespace App\Services\Inventory;
+namespace App\Services\MasterData;
 
-use App\Services\Inventory\AdditionalFieldService;
-use App\Models\MasterData\CategorySubGroup;
 use App\Models\Finance\Tax;
-use App\Models\Inventory\Warehouse;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Inventory\InventoryAdjustmentLine;
+use App\Models\Inventory\Warehouse;
+use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
 use App\Models\Settings\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;

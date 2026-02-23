@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\ProductSheet;
+namespace App\Services\Production;
 
 use App\Models\Production\ProductSheet;
 use App\Models\Production\Programmer;
@@ -73,7 +73,7 @@ class ProgrammerService
             });
 
         if (!$destination || !array_key_exists('id', $destination)) {
-            throw new RuntimeException('No se encontró el destino OLAMTEX en parámetros.');
+            throw new RuntimeException('No se encontrÃƒÂ³ el destino OLAMTEX en parÃƒÂ¡metros.');
         }
 
         return $destination['id'];
@@ -95,8 +95,8 @@ class ProgrammerService
     }
 
     /**
-     * Fallback: retorna el número del mes como string (1-12).
-     * Preferimos el id numérico para consistencia con el catálogo.
+     * Fallback: retorna el nÃƒÂºmero del mes como string (1-12).
+     * Preferimos el id numÃƒÂ©rico para consistencia con el catÃƒÂ¡logo.
      */
     private function fallbackSeasonName(int $monthNumber): string
     {
@@ -104,7 +104,7 @@ class ProgrammerService
     }
 
     /**
-     * Convierte un número de mes (1-12) a su nombre en español.
+     * Convierte un nÃƒÂºmero de mes (1-12) a su nombre en espaÃƒÂ±ol.
      */
     public function getMonthName(int|string $monthNumber): string
     {
@@ -133,12 +133,12 @@ class ProgrammerService
     ];
 
     /**
-     * Genera el siguiente op_code según el tipo de ficha y si es tejido.
+     * Genera el siguiente op_code segÃƒÂºn el tipo de ficha y si es tejido.
      * Reglas:
-     * - Muestra + NO tejido  → MU
-     * - Muestra + Tejido     → MUT
-     * - Producto + NO tejido → MF
-     * - Producto + Tejido    → MFT
+     * - Muestra + NO tejido  Ã¢â€ â€™ MU
+     * - Muestra + Tejido     Ã¢â€ â€™ MUT
+     * - Producto + NO tejido Ã¢â€ â€™ MF
+     * - Producto + Tejido    Ã¢â€ â€™ MFT
      */
     public function nextOpCode(string $type, bool $wovenProduct): string
     {
