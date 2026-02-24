@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { Label } from '@/components/ui/label';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 interface Option {
     id: number | string;
@@ -23,7 +23,7 @@ const isOpen = ref(false);
 const allowFocusOpen = ref(false);
 
 onMounted(() => {
-    const selectedOption = props.options.find(option => option.id === props.modelValue);
+    const selectedOption = props.options.find((option) => option.id === props.modelValue);
     if (selectedOption) {
         searchQuery.value = selectedOption.name;
     }
@@ -33,9 +33,7 @@ const filteredOptions = computed(() => {
     if (!searchQuery.value) {
         return props.options;
     }
-    return props.options.filter(option =>
-        option.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    );
+    return props.options.filter((option) => option.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
 });
 
 function selectOption(option: Option) {
@@ -51,11 +49,11 @@ function closeDropdown() {
 watch(
     () => props.modelValue,
     (newValue) => {
-        const selectedOption = props.options.find(option => option.id === newValue);
+        const selectedOption = props.options.find((option) => option.id === newValue);
         if (selectedOption) {
             searchQuery.value = selectedOption.name;
         }
-    }
+    },
 );
 
 function useClickOutside(el: HTMLElement, callback: () => void) {
@@ -76,7 +74,7 @@ function useClickOutside(el: HTMLElement, callback: () => void) {
 const vClickOutside = {
     mounted(el: HTMLElement, binding: any) {
         useClickOutside(el, binding.value);
-    }
+    },
 };
 
 function handleInputFocus() {
@@ -92,24 +90,23 @@ function handleInputClick() {
     allowFocusOpen.value = true;
     isOpen.value = true;
 }
-
 </script>
 
 <template>
     <div class="relative w-full" v-click-outside="closeDropdown">
         <Label class="mb-1">{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
-            <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="Buscar y seleccionar..."
-                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
-                @focus="handleInputFocus"
-                @click="handleInputClick"
-                :disabled="props.disabled"
-            />
+        <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Buscar y seleccionar..."
+            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+            @focus="handleInputFocus"
+            @click="handleInputClick"
+            :disabled="props.disabled"
+        />
         <div
             v-if="isOpen"
-            class="absolute top-full left-0 z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-md border border-border bg-card shadow-lg"
+            class="absolute left-0 top-full z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-card shadow-lg"
         >
             <div v-if="$slots.header" class="border-b border-border/70 bg-muted px-2 py-2">
                 <slot name="header" />
@@ -117,7 +114,7 @@ function handleInputClick() {
             <div
                 v-for="option in filteredOptions"
                 :key="option.id"
-                class="px-3 py-2 text-sm text-card-foreground/90 hover:bg-muted/70 cursor-pointer transition-colors"
+                class="cursor-pointer px-3 py-2 text-sm text-card-foreground/90 transition-colors hover:bg-muted/70"
                 @click="selectOption(option)"
             >
                 {{ option.name }}

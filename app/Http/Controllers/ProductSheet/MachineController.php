@@ -26,14 +26,18 @@ class MachineController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        $validated['created_by'] = auth()->id();
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         $machine = $this->service->create($validated);
 
         return response()->json([
             'message' => 'Máquina creada correctamente.',
-            'data' => $machine,
+            'data' => [
+                'id' => $machine->id,
+                'code' => $machine->code,
+                'name' => $machine->name,
+                'supplement_factor' => $machine->supplement_factor,
+            ],
         ], 201);
     }
 }

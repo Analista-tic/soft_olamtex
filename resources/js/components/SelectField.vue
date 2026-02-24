@@ -9,10 +9,7 @@ import { computePosition, offset, flip, shift, autoUpdate } from '@floating-ui/d
 
 type LocalModelValue = Option['id'] | Option['id'][] | null;
 
-const normalizeModelValue = (
-    value: Option['id'] | Option['id'][] | undefined | null,
-    multiple: boolean,
-): LocalModelValue => {
+const normalizeModelValue = (value: Option['id'] | Option['id'][] | undefined | null, multiple: boolean): LocalModelValue => {
     if (multiple) {
         return Array.isArray(value) ? value : [];
     }
@@ -24,36 +21,39 @@ const normalizeModelValue = (
 
 const isLocalModelArray = (value: LocalModelValue): value is Option['id'][] => Array.isArray(value);
 
-const props = withDefaults(defineProps<{
-    label?: string;
-    options: Option[];
-    required?: boolean;
-    modelValue: Option['id'] | Option['id'][] | undefined | null;
-    multiple?: boolean;
-    placeholder?: string;
-    disabled?: boolean;
-    searchable?: boolean;
-    searchPlaceholder?: string;
-    showPlaceholderOption?: boolean;
-    searchThreshold?: number;
-    buttonClass?: string;
-    allowCustom?: boolean;
-    customOptionLabel?: string;
-    tooltipText?: string;
-}>(), {
-    required: false,
-    multiple: false,
-    placeholder: '',
-    disabled: false,
-    searchable: false,
-    searchPlaceholder: 'Buscar y seleccionar...',
-    showPlaceholderOption: true,
-    searchThreshold: 5,
-    buttonClass: '',
-    allowCustom: false,
-    customOptionLabel: '',
-    tooltipText: '',
-});
+const props = withDefaults(
+    defineProps<{
+        label?: string;
+        options: Option[];
+        required?: boolean;
+        modelValue: Option['id'] | Option['id'][] | undefined | null;
+        multiple?: boolean;
+        placeholder?: string;
+        disabled?: boolean;
+        searchable?: boolean;
+        searchPlaceholder?: string;
+        showPlaceholderOption?: boolean;
+        searchThreshold?: number;
+        buttonClass?: string;
+        allowCustom?: boolean;
+        customOptionLabel?: string;
+        tooltipText?: string;
+    }>(),
+    {
+        required: false,
+        multiple: false,
+        placeholder: '',
+        disabled: false,
+        searchable: false,
+        searchPlaceholder: 'Buscar y seleccionar...',
+        showPlaceholderOption: true,
+        searchThreshold: 5,
+        buttonClass: '',
+        allowCustom: false,
+        customOptionLabel: '',
+        tooltipText: '',
+    },
+);
 
 const emit = defineEmits<{
     (e: 'update:modelValue', value: Option['id'] | Option['id'][] | undefined | null): void;
@@ -66,7 +66,7 @@ watch(
     () => props.modelValue,
     (newVal) => {
         localModelValue.value = normalizeModelValue(newVal, props.multiple);
-    }
+    },
 );
 
 watch(
@@ -106,7 +106,6 @@ onBeforeUnmount(() => {
     stopFloatingUpdates();
 });
 
-
 const normalizedSearchTerm = computed(() => searchTerm.value.trim());
 const hasExactMatch = computed(() => {
     if (!normalizedSearchTerm.value) return false;
@@ -143,9 +142,7 @@ const filteredOptions = computed(() => {
     if (!term) {
         return props.options;
     }
-    return props.options.filter(option =>
-        option.name.toLowerCase().includes(term)
-    );
+    return props.options.filter((option) => option.name.toLowerCase().includes(term));
 });
 
 const groupedOptions = computed(() => {
@@ -170,9 +167,7 @@ const comboboxValue = computed<Option | Option[] | null>(() => {
         if (!isLocalModelArray(modelValue)) {
             return [];
         }
-        return props.options.filter((option) =>
-            modelValue.some((selectedId) => selectedId == option.id),
-        );
+        return props.options.filter((option) => modelValue.some((selectedId) => selectedId == option.id));
     }
     const modelValue = localModelValue.value;
     if (modelValue === null || isLocalModelArray(modelValue)) {
@@ -204,7 +199,7 @@ function displayValue(item: Option | Option[] | null): string {
         if (!Array.isArray(item) || item.length === 0) {
             return '';
         }
-        return item.map(opt => opt.name).join(', ');
+        return item.map((opt) => opt.name).join(', ');
     }
     return (item as Option | null)?.name ?? '';
 }
@@ -236,7 +231,7 @@ function isOptionSelected(option: Option) {
 function handleComboboxChange(value: Option | Option[] | null) {
     if (props.multiple) {
         const selected = Array.isArray(value) ? value : [];
-        localModelValue.value = selected.map(option => option.id);
+        localModelValue.value = selected.map((option) => option.id);
     } else {
         const selected = value as Option | null;
         localModelValue.value = selected?.id ?? null;
@@ -291,17 +286,12 @@ async function updateFloatingPosition() {
 
 function startFloatingUpdates() {
     if (floatingCleanup || !triggerRef.value || !floatingRef.value) return;
-    floatingCleanup = autoUpdate(
-        triggerRef.value,
-        floatingRef.value,
-        updateFloatingPosition,
-        {
-            ancestorScroll: true,
-            ancestorResize: true,
-            elementResize: true,
-            animationFrame: true,
-        },
-    );
+    floatingCleanup = autoUpdate(triggerRef.value, floatingRef.value, updateFloatingPosition, {
+        ancestorScroll: true,
+        ancestorResize: true,
+        elementResize: true,
+        animationFrame: true,
+    });
     void updateFloatingPosition();
 }
 
@@ -351,11 +341,18 @@ watch(
                 <template #default="{ open }">
                     <div ref="triggerRef" class="relative">
                         <!-- Selected chips (only for multiple) -->
-                        <div v-if="multiple && selectedOptions.length" class="absolute left-3 top-2 z-0 flex max-w-[70%] flex-wrap items-center gap-2">
+                        <div
+                            v-if="multiple && selectedOptions.length"
+                            class="absolute left-3 top-2 z-0 flex max-w-[70%] flex-wrap items-center gap-2"
+                        >
                             <template v-for="opt in selectedOptions" :key="String(opt.id)">
                                 <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 shadow-sm">
-                                    <span class="truncate max-w-[10rem]">{{ opt.name }}</span>
-                                    <button type="button" @click.stop.prevent="removeSelected(opt.id)" class="inline-flex items-center justify-center rounded-full p-0.5 text-blue-700 hover:bg-blue-100">
+                                    <span class="max-w-[10rem] truncate">{{ opt.name }}</span>
+                                    <button
+                                        type="button"
+                                        @click.stop.prevent="removeSelected(opt.id)"
+                                        class="inline-flex items-center justify-center rounded-full p-0.5 text-blue-700 hover:bg-blue-100"
+                                    >
                                         <X class="h-3 w-3" />
                                     </button>
                                 </span>
@@ -363,7 +360,7 @@ watch(
                         </div>
 
                         <ComboboxInput
-                            class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                            class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
                             :class="[!isSearchEnabled ? 'cursor-default' : '', buttonClass, multiple ? 'pl-28' : '']"
                             :placeholder="placeholderText"
                             :display-value="displayValue as (item: unknown) => string"
@@ -378,29 +375,19 @@ watch(
                             <ChevronDown class="h-4 w-4" />
                         </ComboboxButton>
                         <Teleport to="body">
-                            <div
-                                v-if="open"
-                                ref="floatingRef"
-                                :style="floatingStyles"
-                                class="z-50"
-                                @pointerdown.stop
-                                @click.stop
-                            >
+                            <div v-if="open" ref="floatingRef" :style="floatingStyles" class="z-50" @pointerdown.stop @click.stop>
                                 <ComboboxOptions
                                     class="max-h-52 overflow-y-auto rounded-md border border-border bg-card shadow-2xl focus:outline-none"
                                 >
                                     <div v-if="$slots.header" class="border-b border-border/70 bg-muted px-2 py-2">
                                         <slot name="header" />
                                     </div>
-                                    <ComboboxOption
-                                        v-if="customOption"
-                                        :value="customOption"
-                                    >
+                                    <ComboboxOption v-if="customOption" :value="customOption">
                                         <template #default="{ active }">
                                             <div
                                                 :class="[
-                                                    'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
-                                                    active ? 'bg-primary text-primary-foreground' : ''
+                                                    'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
+                                                    active ? 'bg-primary text-primary-foreground' : '',
                                                 ]"
                                             >
                                                 <span>
@@ -410,7 +397,7 @@ watch(
                                                     v-if="customOption && isOptionSelected(customOption)"
                                                     :class="[
                                                         'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
-                                                        active ? 'text-white' : 'text-blue-600'
+                                                        active ? 'text-white' : 'text-blue-600',
                                                     ]"
                                                 >
                                                     <Check class="h-4 w-4" />
@@ -422,32 +409,21 @@ watch(
                                         v-if="!multiple && showPlaceholderOption"
                                         :value="null"
                                         disabled
-                                        class="text-muted-foreground/60 bg-card cursor-default select-none relative py-2 pl-3 pr-9"
+                                        class="relative cursor-default select-none bg-card py-2 pl-3 pr-9 text-muted-foreground/60"
                                     >
                                         {{ placeholderText }}
                                     </ComboboxOption>
                                     <template v-if="groupedOptions.length">
-                                        <template
-                                            v-for="(group, groupIndex) in groupedOptions"
-                                            :key="group.label || groupIndex"
-                                        >
+                                        <template v-for="(group, groupIndex) in groupedOptions" :key="group.label || groupIndex">
                                             <div
                                                 v-if="group.label"
                                                 class="rounded-t-md bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70"
                                             >
                                                 {{ group.label }}
                                             </div>
-                                            <ComboboxOption
-                                                v-for="option in group.options"
-                                                :key="String(option.id)"
-                                                :value="option"
-                                            >
+                                            <ComboboxOption v-for="option in group.options" :key="String(option.id)" :value="option">
                                                 <template #default="{ active }">
-                                                    <div
-                                                        :class="[
-                                                            'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors'
-                                                        ]"
-                                                    >
+                                                    <div :class="['relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors']">
                                                         <span>
                                                             {{ option.name }}
                                                         </span>
@@ -455,7 +431,7 @@ watch(
                                                             v-if="isOptionSelected(option)"
                                                             :class="[
                                                                 'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
-                                                                active ? 'text-white' : 'text-blue-600'
+                                                                active ? 'text-white' : 'text-blue-600',
                                                             ]"
                                                         >
                                                             <Check class="h-4 w-4" />
@@ -465,10 +441,7 @@ watch(
                                             </ComboboxOption>
                                         </template>
                                     </template>
-                                    <div
-                                        v-if="filteredOptions.length === 0 && !customOption"
-                                        class="px-3 py-2 text-sm text-muted-foreground/70"
-                                    >
+                                    <div v-if="filteredOptions.length === 0 && !customOption" class="px-3 py-2 text-sm text-muted-foreground/70">
                                         No se encontraron opciones.
                                     </div>
                                     <div v-if="$slots.footer" class="border-t border-border/70 bg-muted px-2 pb-2 pt-2">

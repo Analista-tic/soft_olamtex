@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
-import { computed, ref, watch } from 'vue';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 interface Props {
     open: boolean;
@@ -70,12 +70,10 @@ function confirmDialog() {
 
 <template>
     <Dialog v-model:open="internalOpen" @close="closeDialog">
-        <FormDialogContent class="flex flex-col gap-4 max-w-md p-4">
+        <FormDialogContent class="flex max-w-md flex-col gap-4 p-4">
             <DialogHeader>
                 <DialogTitle>Convertir muestra a producto</DialogTitle>
-                <DialogDescription class="pb-2">
-                    Ingresa la nueva referencia de producto.
-                </DialogDescription>
+                <DialogDescription class="pb-2"> Ingresa la nueva referencia de producto. </DialogDescription>
             </DialogHeader>
 
             <InputField

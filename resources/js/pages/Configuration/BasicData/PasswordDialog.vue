@@ -1,22 +1,18 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import axios from 'axios';
 import { reactive, ref, watch } from 'vue';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 
-const props = withDefaults(defineProps<{
-    modelValue?: boolean;
-}>(), {
-    modelValue: false,
-});
+const props = withDefaults(
+    defineProps<{
+        modelValue?: boolean;
+    }>(),
+    {
+        modelValue: false,
+    },
+);
 
 const emit = defineEmits<{
     (e: 'update:modelValue', value: boolean): void;
@@ -96,43 +92,22 @@ const handleSubmit = async () => {
                 <fieldset class="space-y-4">
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-700">Contraseña actual</label>
-                        <Input
-                            v-model="form.current_password"
-                            type="password"
-                            placeholder="Contraseña actual"
-                            required
-                        />
+                        <Input v-model="form.current_password" type="password" placeholder="Contraseña actual" required />
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-700">Nueva contraseña</label>
-                        <Input
-                            v-model="form.new_password"
-                            type="password"
-                            placeholder="Nueva contraseña"
-                            required
-                        />
+                        <Input v-model="form.new_password" type="password" placeholder="Nueva contraseña" required />
                     </div>
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-700">Confirmar contraseña</label>
-                        <Input
-                            v-model="form.confirm_password"
-                            type="password"
-                            placeholder="Repite la contraseña"
-                            required
-                        />
+                        <Input v-model="form.confirm_password" type="password" placeholder="Repite la contraseña" required />
                     </div>
-                    <p
-                        v-if="message"
-                        :class="messageType === 'success' ? 'text-emerald-600' : 'text-red-600'"
-                        class="text-sm font-medium"
-                    >
+                    <p v-if="message" :class="messageType === 'success' ? 'text-emerald-600' : 'text-red-600'" class="text-sm font-medium">
                         {{ message }}
                     </p>
                 </fieldset>
                 <DialogFooter class="space-x-3">
-                    <Button type="button" variant="outline" @click="close" :disabled="saving">
-                        Cancelar
-                    </Button>
+                    <Button type="button" variant="outline" @click="close" :disabled="saving"> Cancelar </Button>
                     <Button type="submit" variant="default" :disabled="saving">
                         {{ saving ? 'Guardando...' : 'Guardar contraseña' }}
                     </Button>

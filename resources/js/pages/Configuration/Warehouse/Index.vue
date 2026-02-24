@@ -1,15 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import type { BreadcrumbItem } from '@/domain/shared';
-import type { Warehouse } from '@/domain/inventory';
-import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import { PlusCircle, Pencil, Search, Trash } from 'lucide-vue-next';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -22,15 +16,19 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import type { Warehouse } from '@/domain/inventory';
+import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import WarehouseDialog from './WarehouseDialog.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { Inertia } from '@inertiajs/inertia';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Pencil, PlusCircle, Search, Trash } from 'lucide-vue-next';
+import { onMounted, ref, watch } from 'vue';
+import WarehouseDialog from './WarehouseDialog.vue';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Bodegas', href: '/bodegas' },
-];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'Bodegas', href: '/bodegas' }];
 
 const warehouses = ref<Warehouse[]>([]);
 const warehouseToDelete = ref<Warehouse | null>(null);
@@ -72,9 +70,7 @@ function openDialog(type: 'create' | 'edit', warehouse: Warehouse | null = null)
     dialogType.value = type;
     isDialogOpen.value = true;
     clearMessages();
-    form.value = type === 'edit' && warehouse
-        ? { ...warehouse }
-        : { id: undefined, name: '', observation: '' };
+    form.value = type === 'edit' && warehouse ? { ...warehouse } : { id: undefined, name: '', observation: '' };
 }
 
 function closeDialog() {
@@ -115,9 +111,7 @@ async function handleDialogSubmit(warehouseData: Warehouse) {
         setError(formatRequiredFieldsMessage('Completa los campos obligatorios', missingFields), 'warning');
         return;
     }
-    const alreadyExists = warehouses.value.some(
-        (w) => w.name?.trim().toLowerCase() === trimmedName.toLowerCase() && w.id !== warehouseData.id,
-    );
+    const alreadyExists = warehouses.value.some((w) => w.name?.trim().toLowerCase() === trimmedName.toLowerCase() && w.id !== warehouseData.id);
     if (alreadyExists) {
         setError('Ya existe una bodega con ese nombre.', 'warning');
         return;
@@ -205,19 +199,15 @@ onMounted(() => {
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <Button
-                        variant="outline"
-                        class="rounded-full px-4 py-2 text-sm font-semibold"
-                        @click="navigateToWarehouseTransfers"
-                    >
+                    <Button variant="outline" class="rounded-full px-4 py-2 text-sm font-semibold" @click="navigateToWarehouseTransfers">
                         Transferencia de bodegas
                     </Button>
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="openDialog('create')"
                     >
-                        <PlusCircle class="w-4 h-4" />
+                        <PlusCircle class="h-4 w-4" />
                         Crear Nueva Bodega
                     </button>
                 </div>
@@ -226,7 +216,12 @@ onMounted(() => {
                 <FilterBar>
                     <FilterField label="Buscar bodega" :active="searchQuery.trim().length > 0" class="flex-1 p-0">
                         <div class="relative w-full max-w-sm">
-                            <Input id="search_warehouse" v-model="searchQuery" placeholder="Buscar por nombre u observación" class="h-10 w-full pl-10" />
+                            <Input
+                                id="search_warehouse"
+                                v-model="searchQuery"
+                                placeholder="Buscar por nombre u observación"
+                                class="h-10 w-full pl-10"
+                            />
                             <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                                 <Search :size="20" class="text-muted-foreground" />
                             </span>
@@ -236,55 +231,55 @@ onMounted(() => {
             </div>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
-                <Table class="text-center">
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Id</TableHead>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Observación</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-for="(warehouse, index) in warehouses" :key="warehouse.id ?? `warehouse-${index}`">
-                            <TableCell class="font-medium">{{ warehouse.id }}</TableCell>
-                            <TableCell class="font-medium">{{ warehouse.name }}</TableCell>
-                            <TableCell>{{ warehouse.observation }}</TableCell>
-                            <TableCell class="text-center">
-                                <div class="flex justify-center gap-2">
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Editar"
-                                                @click="openDialog('edit', warehouse)"
-                                            >
-                                                <Pencil :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Editar</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Eliminar"
-                                                @click="confirmDeleteWarehouse(warehouse)"
-                                            >
-                                                <Trash :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Eliminar</TooltipContent>
-                                    </Tooltip>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                    <Table class="text-center">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Id</TableHead>
+                                <TableHead>Nombre</TableHead>
+                                <TableHead>Observación</TableHead>
+                                <TableHead class="text-center">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow v-for="(warehouse, index) in warehouses" :key="warehouse.id ?? `warehouse-${index}`">
+                                <TableCell class="font-medium">{{ warehouse.id }}</TableCell>
+                                <TableCell class="font-medium">{{ warehouse.name }}</TableCell>
+                                <TableCell>{{ warehouse.observation }}</TableCell>
+                                <TableCell class="text-center">
+                                    <div class="flex justify-center gap-2">
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Editar"
+                                                    @click="openDialog('edit', warehouse)"
+                                                >
+                                                    <Pencil :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Editar</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Eliminar"
+                                                    @click="confirmDeleteWarehouse(warehouse)"
+                                                >
+                                                    <Trash :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Eliminar</TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </TooltipProvider>
                 <Pagination
                     class="mt-5 flex justify-center"
@@ -300,7 +295,11 @@ onMounted(() => {
                         <PaginationPrev />
                         <template v-for="(item, index) in items">
                             <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button class="h-6 w-6 p-0" :variant="item.value === currentPage ? 'default' : 'outline'" @click="handlePageChange(item.value)">
+                                <Button
+                                    class="h-6 w-6 p-0"
+                                    :variant="item.value === currentPage ? 'default' : 'outline'"
+                                    @click="handlePageChange(item.value)"
+                                >
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>

@@ -1,6 +1,6 @@
-import { computed } from 'vue';
+import type { CompanyInfo, SharedData } from '@/domain/shared/types';
 import { usePage } from '@inertiajs/vue3';
-import type { SharedData, CompanyInfo } from '@/domain/shared/types';
+import { computed } from 'vue';
 
 export function useCompanyInfo() {
     const page = usePage<SharedData>();

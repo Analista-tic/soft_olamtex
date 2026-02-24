@@ -13,10 +13,9 @@ use App\Http\Controllers\AuditLogController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
-
-use App\Http\Controllers\ProductSheet\MachineController;
 use App\Http\Controllers\ProductSheet\ProductOperationListController;
 use App\Http\Controllers\ProductSheet\ProductSheetController;
+use App\Http\Controllers\ProductSheet\BatchControlController;
 use App\Http\Controllers\ProductSheet\ProgrammerController;
 use App\Http\Controllers\Production\ProductionOrderController;
 use App\Http\Controllers\Settings\UserController;
@@ -148,10 +147,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Operaciones
         Route::prefix('operaciones')->name('operaciones.')->group(function () {
             Route::get('/data', [OperationController::class, 'data'])->name('data');
+            Route::get('/metadata', [OperationController::class, 'metadata'])->name('metadata');
             Route::post('/', [OperationController::class, 'store'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('store');
+            Route::put('/{operation}', [OperationController::class, 'update'])
+                ->middleware('permission:editar listados operacionales|editar sabana productos')
+                ->name('update');
+            Route::delete('/{operation}', [OperationController::class, 'destroy'])
+                ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
+                ->name('destroy');
+            Route::post('/{operation}/update-sam', [OperationController::class, 'updateStandardTime'])
+                ->middleware('permission:editar listados operacionales|editar sabana productos')
+                ->name('update-sam');
+            Route::get('/{operation}/audit-log', [OperationController::class, 'auditLog'])
+                ->middleware('permission:ver listados operacionales|ver sabana productos')
+                ->name('audit-log');
         });
+
+        // Base de datos de operaciones (vista Inertia)
+        Route::get('base-operaciones', [OperationController::class, 'indexView'])
+            ->middleware('permission:ver listados operacionales|ver sabana productos')
+            ->name('base-operaciones.index');
+        Route::get('operaciones/paginated', [OperationController::class, 'paginated'])
+            ->middleware('permission:ver listados operacionales|ver sabana productos')
+            ->name('operaciones.paginated');
 
         // Máquinas
         Route::prefix('maquinas')->name('maquinas.')->group(function () {
@@ -160,6 +180,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('store');
         });
+    });
+
+    // === CONTROL DE LOTES ===
+    Route::prefix('control-de-lotes')->name('control-de-lotes.')->group(function () {
+        Route::get('/', [BatchControlController::class, 'index'])->name('index');
+        Route::get('/data', [BatchControlController::class, 'getData'])->name('data');
+        Route::patch('/{programmer}/proceso', [BatchControlController::class, 'updateProcess'])->name('update-process');
     });
 
     // === DISEÑO ===
@@ -189,6 +216,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('programador/{programador}', [ProgrammerController::class, 'destroy'])
             ->middleware('permission:eliminar programador')
             ->name('programador.destroy');
+
+        Route::get('programador/{programador}/operaciones', [ProgrammerController::class, 'getOperacionesOrden'])
+            ->middleware('permission:ver programador')
+            ->name('programador.operaciones');
+        Route::patch('programador/{programador}/operaciones/{operacion}/progreso', [ProgrammerController::class, 'updateProgresoOperacion'])
+            ->middleware('permission:editar programador')
+            ->name('programador.operaciones.progreso');
     });
 
     // ===CONFIGURACIÓN ===
@@ -389,7 +423,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === Catálogos para campos parametrizables ===
     Route::get('catalogos/sections', [SectionController::class, 'data']);
-    Route::get('catalogos/groups', [GroupController::class, 'data']);
+    // Route::get('catalogos/groups', [GroupController::class, 'data']); // GroupController pendiente de crear
         // Rutas eliminadas: brands, worlds, fabric-bases, yarn-bases (controllers no existen)
 
     // === RETENCIONES ===

@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\ProductSheet;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProductSheet\ProductOperationList;
+use App\Models\ProductSheet\ProductSheetOperation;
 use App\Models\ProductSheet\ProductSheetOperationHistory;
 use App\Services\ProductSheet\ProductOperationListService;
 use App\Services\ProductSheet\OperationService;
 use App\Services\ProductSheet\MachineService;
 use App\Services\ProductSheet\OperationSectionService;
 use App\Services\ProductSheet\ProductSheetService;
+use App\Services\Settings\SettingService;
 use App\Http\Requests\ProductSheet\StoreProductOperationListRequest;
 use App\Http\Requests\ProductSheet\UpdateProductOperationListRequest;
 use App\Http\Resources\ProductSheet\ProductOperationListResource;
@@ -25,7 +26,8 @@ class ProductOperationListController extends Controller
         protected OperationService $operationService,
         protected MachineService $machineService,
         protected OperationSectionService $sectionService,
-        protected ProductSheetService $sheetService
+        protected ProductSheetService $sheetService,
+        protected SettingService $settingService,
     ) {
     }
 
@@ -36,8 +38,10 @@ class ProductOperationListController extends Controller
             'operations' => $this->operationService->options(),
             'machines' => $this->machineService->options(),
             'productSheets' => $this->sheetService->recentOptions(50),
+            'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
             'actions' => $this->operationService->getUniqueActions(),
             'garmentParts' => $this->operationService->getUniqueGarmentParts(),
+            'locations' => $this->operationService->getUniqueLocations(),
         ]);
     }
 
@@ -52,8 +56,10 @@ class ProductOperationListController extends Controller
             'operations' => $this->operationService->options(),
             'machines' => $this->machineService->options(),
             'productSheets' => $this->sheetService->recentOptions(50),
+            'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
             'actions' => $this->operationService->getUniqueActions(),
             'garmentParts' => $this->operationService->getUniqueGarmentParts(),
+            'locations' => $this->operationService->getUniqueLocations(),
         ]);
     }
 
@@ -96,7 +102,6 @@ class ProductOperationListController extends Controller
     public function store(StoreProductOperationListRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $validated['created_by'] = auth()->id();
 
         $item = $this->service->create($validated);
 
@@ -122,17 +127,13 @@ class ProductOperationListController extends Controller
             'operations.*.optimal_time' => ['required', 'numeric', 'min:0'],
             'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:1,2'],
             'operations.*.machine_supplement_factor' => ['required', 'numeric', 'min:1'],
+            'operations.*.fabric_base_id' => ['nullable', 'integer'],
+            'operations.*.quantity' => ['nullable', 'integer', 'min:1'],
             'operations.*.actual_time' => ['nullable', 'numeric', 'min:0'],
             'operations.*.notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        // Añadir created_by a cada operación
-        $operations = collect($validated['operations'])->map(function ($op) {
-            $op['created_by'] = auth()->id();
-            return $op;
-        })->toArray();
-
-        $items = $this->service->createBulk($operations);
+        $items = $this->service->createBulk($validated['operations']);
 
         return response()->json([
             'message' => count($items) . ' operaciones agregadas correctamente.',
@@ -144,12 +145,13 @@ class ProductOperationListController extends Controller
      * Actualiza una operación existente
      * PUT /diseno/listados-operacionales/{listItem}
      */
-    public function update(UpdateProductOperationListRequest $request, ProductOperationList $listItem): JsonResponse
+    public function update(UpdateProductOperationListRequest $request, ProductSheetOperation $listItem): JsonResponse
     {
         $validated = $request->validated();
-        $validated['updated_by'] = auth()->id();
+        $motivo = $validated['motivo'] ?? '';
+        unset($validated['motivo']);
 
-        $item = $this->service->update($listItem, $validated);
+        $item = $this->service->update($listItem, $validated, $motivo);
 
         return response()->json([
             'message' => 'Operación actualizada correctamente.',
@@ -161,7 +163,7 @@ class ProductOperationListController extends Controller
      * Elimina una operación del listado
      * DELETE /diseno/listados-operacionales/{listItem}
      */
-    public function destroy(ProductOperationList $listItem): JsonResponse
+    public function destroy(ProductSheetOperation $listItem): JsonResponse
     {
         $this->service->delete($listItem);
 
@@ -179,7 +181,7 @@ class ProductOperationListController extends Controller
         $validated = $request->validate([
             'product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
             'operation_ids' => ['required', 'array', 'min:1'],
-            'operation_ids.*' => ['integer', 'exists:product_operation_lists,id'],
+            'operation_ids.*' => ['integer', 'exists:product_sheet_operations,id'],
         ]);
 
         $count = $this->service->deleteBulk(
@@ -223,7 +225,7 @@ class ProductOperationListController extends Controller
         $validated = $request->validate([
             'product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
             'operation_ids' => ['required', 'array', 'min:1'],
-            'operation_ids.*' => ['integer', 'exists:product_operation_lists,id'],
+            'operation_ids.*' => ['integer', 'exists:product_sheet_operations,id'],
         ]);
 
         $this->service->reorder(
@@ -240,7 +242,7 @@ class ProductOperationListController extends Controller
      * Obtiene el historial de cambios de una operación
      * GET /produccion/listados-operacionales/{listItem}/history
      */
-    public function history(ProductOperationList $listItem): JsonResponse
+    public function history(ProductSheetOperation $listItem): JsonResponse
     {
         $history = ProductSheetOperationHistory::where('product_sheet_operation_id', $listItem->id)
             ->with('usuario:id,name')

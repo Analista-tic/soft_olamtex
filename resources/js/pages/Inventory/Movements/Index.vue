@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -19,6 +18,7 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { InventoryMovement, Item, Warehouse } from '@/domain/inventory/types';
@@ -283,94 +283,92 @@ onMounted(() => {
                 </FilterField>
             </FilterBar>
 
-            <div
-                class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min"
-            >
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
-                <Table class="text-center">
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead># Documento</TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Item</TableHead>
-                            <TableHead>Bodega</TableHead>
-                            <TableHead>Tipo</TableHead>
-                            <TableHead>Origen</TableHead>
-                            <TableHead>Cantidad</TableHead>
-                            <TableHead>Precio Unit.</TableHead>
-                            <TableHead>Stock Anterior</TableHead>
-                            <TableHead>Stock Nuevo</TableHead>
-                            <TableHead>Precio Ponderado</TableHead>
-                            <TableHead class="w-[100px] text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-if="isLoading">
-                            <TableCell colspan="12" class="py-8 text-muted-foreground"> Cargando movimientos... </TableCell>
-                        </TableRow>
-                        <TableRow v-else-if="movements.length === 0">
-                            <TableCell colspan="12" class="py-8 text-muted-foreground"> No se encontraron movimientos. </TableCell>
-                        </TableRow>
-                        <TableRow v-else v-for="movement in movements" :key="movement.id">
-                            <TableCell class="font-medium">
-                                {{ movement.document_number || '-' }}
-                            </TableCell>
-                            <TableCell>{{ formatDate(movement.date) }}</TableCell>
-                            <TableCell class="max-w-[200px] truncate text-left">
-                                {{ movement.item?.name || '-' }}
-                            </TableCell>
-                            <TableCell class="text-left">
-                                {{ movement.warehouse?.name || '-' }}
-                            </TableCell>
-                            <TableCell>
-                                <span
-                                    :class="[
-                                        'rounded-full px-2 py-1 text-xs font-semibold',
-                                        typeBadgeStyles[movement.type] || 'bg-gray-100 text-gray-800',
-                                    ]"
-                                >
-                                    {{ typeLabelMap[movement.type] || movement.type }}
-                                </span>
-                            </TableCell>
-                            <TableCell class="text-xs text-muted-foreground">
-                                {{ getSourceLabel(movement) }}
-                            </TableCell>
-                            <TableCell>
-                                <span :class="movement.type === 'entrada' ? 'text-green-600' : 'text-red-600'">
-                                    {{ movement.type === 'entrada' ? '+' : '-' }}{{ formatNumber(movement.quantity, 2) }}
-                                </span>
-                            </TableCell>
-                            <TableCell>
-                                {{
-                                    movement.type === 'salida' && !movement.unit_price
-                                        ? formatCurrency(movement.previous_weighted_price) + ' (promedio)'
-                                        : formatCurrency(movement.unit_price)
-                                }}
-                            </TableCell>
-                            <TableCell>{{ formatNumber(movement.previous_stock, 2) }}</TableCell>
-                            <TableCell class="font-medium">{{ formatNumber(movement.new_stock, 2) }}</TableCell>
-                            <TableCell class="font-medium">{{ formatCurrency(movement.new_weighted_price) }}</TableCell>
-                            <TableCell class="text-center">
-                                <div class="flex justify-center gap-2">
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Ver detalle"
-                                                @click="openDetailDialog(movement)"
-                                            >
-                                                <Eye :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Ver detalle</TooltipContent>
-                                    </Tooltip>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                    <Table class="text-center">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead># Documento</TableHead>
+                                <TableHead>Fecha</TableHead>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Bodega</TableHead>
+                                <TableHead>Tipo</TableHead>
+                                <TableHead>Origen</TableHead>
+                                <TableHead>Cantidad</TableHead>
+                                <TableHead>Precio Unit.</TableHead>
+                                <TableHead>Stock Anterior</TableHead>
+                                <TableHead>Stock Nuevo</TableHead>
+                                <TableHead>Precio Ponderado</TableHead>
+                                <TableHead class="w-[100px] text-center">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow v-if="isLoading">
+                                <TableCell colspan="12" class="py-8 text-muted-foreground"> Cargando movimientos... </TableCell>
+                            </TableRow>
+                            <TableRow v-else-if="movements.length === 0">
+                                <TableCell colspan="12" class="py-8 text-muted-foreground"> No se encontraron movimientos. </TableCell>
+                            </TableRow>
+                            <TableRow v-else v-for="movement in movements" :key="movement.id">
+                                <TableCell class="font-medium">
+                                    {{ movement.document_number || '-' }}
+                                </TableCell>
+                                <TableCell>{{ formatDate(movement.date) }}</TableCell>
+                                <TableCell class="max-w-[200px] truncate text-left">
+                                    {{ movement.item?.name || '-' }}
+                                </TableCell>
+                                <TableCell class="text-left">
+                                    {{ movement.warehouse?.name || '-' }}
+                                </TableCell>
+                                <TableCell>
+                                    <span
+                                        :class="[
+                                            'rounded-full px-2 py-1 text-xs font-semibold',
+                                            typeBadgeStyles[movement.type] || 'bg-gray-100 text-gray-800',
+                                        ]"
+                                    >
+                                        {{ typeLabelMap[movement.type] || movement.type }}
+                                    </span>
+                                </TableCell>
+                                <TableCell class="text-xs text-muted-foreground">
+                                    {{ getSourceLabel(movement) }}
+                                </TableCell>
+                                <TableCell>
+                                    <span :class="movement.type === 'entrada' ? 'text-green-600' : 'text-red-600'">
+                                        {{ movement.type === 'entrada' ? '+' : '-' }}{{ formatNumber(movement.quantity, 2) }}
+                                    </span>
+                                </TableCell>
+                                <TableCell>
+                                    {{
+                                        movement.type === 'salida' && !movement.unit_price
+                                            ? formatCurrency(movement.previous_weighted_price) + ' (promedio)'
+                                            : formatCurrency(movement.unit_price)
+                                    }}
+                                </TableCell>
+                                <TableCell>{{ formatNumber(movement.previous_stock, 2) }}</TableCell>
+                                <TableCell class="font-medium">{{ formatNumber(movement.new_stock, 2) }}</TableCell>
+                                <TableCell class="font-medium">{{ formatCurrency(movement.new_weighted_price) }}</TableCell>
+                                <TableCell class="text-center">
+                                    <div class="flex justify-center gap-2">
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Ver detalle"
+                                                    @click="openDetailDialog(movement)"
+                                                >
+                                                    <Eye :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Ver detalle</TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </TooltipProvider>
 
                 <Pagination

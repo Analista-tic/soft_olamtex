@@ -19,6 +19,12 @@ use App\Models\User;
 use App\Observers\AuditObserver;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\ProductSheet\Machine;
+use App\Models\ProductSheet\Operation;
+use App\Models\ProductSheet\OperationSection;
+use App\Models\ProductSheet\ProductionOrderOperation;
+use App\Models\ProductSheet\ProductSheetOperation;
+use App\Models\ProductSheet\Programmer;
 use App\Observers\PurchaseDocumentInventoryObserver;
 
 class AppServiceProvider extends ServiceProvider
@@ -54,6 +60,13 @@ class AppServiceProvider extends ServiceProvider
         PurchaseDocument::observe(AuditObserver::class);
         PurchaseDocument::observe(PurchaseDocumentInventoryObserver::class);
         PurchaseDocumentItem::observe(AuditObserver::class);
+
+        Operation::observe(AuditObserver::class);
+        ProductSheetOperation::observe(AuditObserver::class);
+        ProductionOrderOperation::observe(AuditObserver::class);
+        Programmer::observe(AuditObserver::class);
+        Machine::observe(AuditObserver::class);
+        OperationSection::observe(AuditObserver::class);
     }
 
 }

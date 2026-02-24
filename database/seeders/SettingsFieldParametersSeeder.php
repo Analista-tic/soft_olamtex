@@ -156,8 +156,13 @@ class SettingsFieldParametersSeeder extends Seeder
                 'key' => 'fabric_bases',
                 'data' => [
                     'label' => 'Bases de tela',
-                    'value' => $this->mapNames([
-                        'ALGODÓN', 'POLIÉSTER', 'LINO', 'SEDA', 'LANA',
+                    'description' => 'Cada base tiene un factor que afecta el SAM (ej: 1.0 = neutro, 1.05 = +5%)',
+                    'value' => $this->mapFabricBases([
+                        ['name' => 'ALGODÓN', 'factor' => 1.0],
+                        ['name' => 'POLIÉSTER', 'factor' => 1.0],
+                        ['name' => 'LINO', 'factor' => 1.05],
+                        ['name' => 'SEDA', 'factor' => 1.1],
+                        ['name' => 'LANA', 'factor' => 1.05],
                     ]),
                     'status' => true,
                 ],
@@ -396,6 +401,20 @@ class SettingsFieldParametersSeeder extends Seeder
             $mapped[] = [
                 'id' => $start + $index,
                 'name' => $name,
+            ];
+        }
+        return $mapped;
+    }
+
+    /** Bases de tela con factor que afecta el SAM (×1.0 = neutro) */
+    private function mapFabricBases(array $items, int $start = 1): array
+    {
+        $mapped = [];
+        foreach ($items as $index => $item) {
+            $mapped[] = [
+                'id' => $start + $index,
+                'name' => is_array($item) ? ($item['name'] ?? $item) : (string) $item,
+                'factor' => is_array($item) ? (float) ($item['factor'] ?? 1.0) : 1.0,
             ];
         }
         return $mapped;

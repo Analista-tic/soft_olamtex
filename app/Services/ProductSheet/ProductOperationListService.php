@@ -2,15 +2,48 @@
 
 namespace App\Services\ProductSheet;
 
-use App\Models\ProductSheet\ProductOperationList;
+use App\Models\ProductSheet\Operation;
+use App\Models\ProductSheet\ProductSheetOperation;
+use App\Models\ProductSheet\ProductSheetOperationHistory;
+use App\Services\Settings\SettingService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ProductOperationListService
 {
+    private const HISTORY_FIELDS = [
+        'sam_base',
+        'machine_supplement_factor',
+        'fabric_base_factor',
+        'operator_efficiency_factor',
+        'sam_total_unitario',
+        'sam_total_operacion',
+    ];
+
     public function __construct(
-        protected ProductOperationList $model,
+        protected ProductSheetOperation $model,
+        protected SettingService $settingService,
     ) {
+    }
+
+    /**
+     * Factor de base tela desde el catálogo (ligado al tipo de tela, no editable por usuario).
+     */
+    private function resolveFabricBaseFactor(int|string|null $fabricBaseId): float
+    {
+        if ($fabricBaseId === null || $fabricBaseId === '') {
+            return 1.0;
+        }
+
+        $option = $this->settingService->getCatalogOptionById('fabric_bases', $fabricBaseId);
+        if (!$option) {
+            return 1.0;
+        }
+
+        $factor = $option['factor'] ?? $option['factor_base'] ?? $option['factor_base_tela'] ?? null;
+        $value = is_numeric($factor) ? (float) $factor : 1.0;
+
+        return $value > 0 ? $value : 1.0;
     }
 
     /**
@@ -68,31 +101,44 @@ class ProductOperationListService
     }
 
     /**
-     * Crea una nueva operación en el listado
-     * Calcula automáticamente production_time y sam
+     * Crea una nueva operación en el listado con snapshot de factores.
+     * Calcula sam_base, sam_total_unitario, sam_total_operacion y production_time.
      */
-    public function create(array $data): ProductOperationList
+    public function create(array $data): ProductSheetOperation
     {
         return DB::transaction(function () use ($data) {
-            // Calcular production_time
+            $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
+            $data['sam_base'] = $samBase;
+            $data['sam'] = $data['optimal_time'] ?? $samBase;
+            $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($data['fabric_base_id'] ?? null);
+            $data['operator_efficiency_factor'] = (float) ($data['operator_efficiency_factor'] ?? 1.25);
+            $data['machine_supplement_factor'] = (float) ($data['machine_supplement_factor'] ?? 1.0);
+            $quantity = (int) ($data['quantity'] ?? 1);
+            $data['quantity'] = $quantity;
+
+            $data['sam_total_unitario'] = round(
+                $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
+                4
+            );
+            $data['sam_total_operacion'] = round($data['sam_total_unitario'] * $quantity, 4);
+
             $data['production_time'] = $this->calculateProductionTime(
-                $data['optimal_time'],
-                $data['operator_efficiency_factor'] ?? 1.25,
-                $data['machine_supplement_factor'] ?? 1.0,
+                (float) ($data['optimal_time'] ?? $samBase),
+                $data['operator_efficiency_factor'],
+                $data['machine_supplement_factor'],
             );
 
-            // SAM es igual a optimal_time
-            $data['sam'] = $data['optimal_time'];
-
-            // Calcular variance si existe actual_time
             if (isset($data['actual_time']) && $data['actual_time'] > 0) {
                 $data['variance'] = $this->calculateVariance(
-                    $data['actual_time'],
+                    (float) $data['actual_time'],
                     $data['production_time']
                 );
             }
 
-            return $this->model->create($data);
+            $item = $this->model->create($data);
+            $this->syncOperationBase($item);
+
+            return $item;
         });
     }
 
@@ -105,23 +151,37 @@ class ProductOperationListService
             $created = collect();
 
             foreach ($operations as $data) {
-                // Calcular campos automáticos
-                $data['production_time'] = $this->calculateProductionTime(
-                    $data['optimal_time'],
-                    $data['operator_efficiency_factor'] ?? 1.25,
-                    $data['machine_supplement_factor'] ?? 1.0,
-                );
+                $samBase = (float) ($data['sam_base'] ?? $data['optimal_time'] ?? 0);
+                $data['sam_base'] = $samBase;
+                $data['sam'] = $data['optimal_time'] ?? $samBase;
+                $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($data['fabric_base_id'] ?? null);
+                $data['operator_efficiency_factor'] = (float) ($data['operator_efficiency_factor'] ?? 1.25);
+                $data['machine_supplement_factor'] = (float) ($data['machine_supplement_factor'] ?? 1.0);
+                $quantity = (int) ($data['quantity'] ?? 1);
+                $data['quantity'] = $quantity;
 
-                $data['sam'] = $data['optimal_time'];
+                $data['sam_total_unitario'] = round(
+                    $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
+                    4
+                );
+                $data['sam_total_operacion'] = round($data['sam_total_unitario'] * $quantity, 4);
+
+                $data['production_time'] = $this->calculateProductionTime(
+                    (float) ($data['optimal_time'] ?? $samBase),
+                    $data['operator_efficiency_factor'],
+                    $data['machine_supplement_factor'],
+                );
 
                 if (isset($data['actual_time']) && $data['actual_time'] > 0) {
                     $data['variance'] = $this->calculateVariance(
-                        $data['actual_time'],
+                        (float) $data['actual_time'],
                         $data['production_time']
                     );
                 }
 
-                $created->push($this->model->create($data));
+                $item = $this->model->create($data);
+                $this->syncOperationBase($item);
+                $created->push($item);
             }
 
             return $created;
@@ -129,46 +189,129 @@ class ProductOperationListService
     }
 
     /**
-     * Actualiza una operación existente
-     * Recalcula production_time y variance si es necesario
+     * Actualiza una operación existente.
+     * Recalcula sam_total_unitario, sam_total_operacion y production_time.
+     * Registra en ProductSheetOperationHistory si cambian factores o SAM.
      */
-    public function update(ProductOperationList $item, array $data): ProductOperationList
+    public function update(ProductSheetOperation $item, array $data, string $motivo = ''): ProductSheetOperation
     {
-        return DB::transaction(function () use ($item, $data) {
-            // Si cambian los tiempos o factores, recalcular production_time
-            if (isset($data['optimal_time']) || isset($data['operator_efficiency_factor']) || isset($data['machine_supplement_factor'])) {
-                $data['production_time'] = $this->calculateProductionTime(
-                    $data['optimal_time'] ?? $item->optimal_time,
-                    $data['operator_efficiency_factor'] ?? $item->operator_efficiency_factor,
-                    $data['machine_supplement_factor'] ?? $item->machine_supplement_factor,
-                );
+        return DB::transaction(function () use ($item, $data, $motivo) {
+            $before = $item->getAttributes();
 
-                // Actualizar SAM si cambió optimal_time
-                if (isset($data['optimal_time'])) {
-                    $data['sam'] = $data['optimal_time'];
-                }
+            if (isset($data['optimal_time'])) {
+                $data['sam'] = $data['optimal_time'];
+                $data['sam_base'] = $data['optimal_time'];
             }
-
-            // Recalcular variance si existe actual_time
-            if (isset($data['actual_time']) || isset($data['production_time'])) {
-                $actualTime = $data['actual_time'] ?? $item->actual_time;
-                $productionTime = $data['production_time'] ?? $item->production_time;
-
-                if ($actualTime && $actualTime > 0) {
-                    $data['variance'] = $this->calculateVariance($actualTime, $productionTime);
-                }
+            if (array_key_exists('fabric_base_id', $data)) {
+                $data['fabric_base_factor'] = $this->resolveFabricBaseFactor($data['fabric_base_id']);
             }
 
             $item->update($data);
+
+            $item->sam_total_unitario = $item->calculateSamTotalUnitario();
+            $item->sam_total_operacion = $item->calculateSamTotalOperacion();
+            $item->production_time = $this->calculateProductionTime(
+                (float) ($item->optimal_time ?? $item->sam_base ?? 0),
+                (float) $item->operator_efficiency_factor,
+                (float) $item->machine_supplement_factor,
+            );
+            $item->save();
+
+            if (isset($data['actual_time']) || isset($data['production_time'])) {
+                $actualTime = $data['actual_time'] ?? $item->actual_time;
+                $productionTime = $item->production_time;
+                if ($actualTime && $actualTime > 0) {
+                    $item->variance = $this->calculateVariance((float) $actualTime, (float) $productionTime);
+                    $item->save();
+                }
+            }
+
+            $this->recordChangeIfNeeded($item, $before, $motivo);
+            $this->syncOperationBase($item);
 
             return $item->fresh(['operation', 'machine', 'operationSection']);
         });
     }
 
     /**
+     * Registra en ProductSheetOperationHistory solo si hubo cambios en factores o SAM.
+     */
+    private function recordChangeIfNeeded(ProductSheetOperation $item, array $before, string $motivo): void
+    {
+        $after = $item->fresh()->getAttributes();
+        $hasChange = false;
+        foreach (self::HISTORY_FIELDS as $field) {
+            $b = $before[$field] ?? null;
+            $a = $after[$field] ?? null;
+            if ($b != $a && ($b === null || $a === null || abs((float) $b - (float) $a) > 0.0001)) {
+                $hasChange = true;
+                break;
+            }
+        }
+
+        if (!$hasChange) {
+            return;
+        }
+
+        ProductSheetOperationHistory::create([
+            'product_sheet_operation_id' => $item->id,
+            'sam_base_anterior' => $before['sam_base'] ?? null,
+            'sam_base_nuevo' => $after['sam_base'] ?? null,
+            'machine_supplement_factor_anterior' => $before['machine_supplement_factor'] ?? null,
+            'machine_supplement_factor_nuevo' => $after['machine_supplement_factor'] ?? null,
+            'fabric_base_factor_anterior' => $before['fabric_base_factor'] ?? null,
+            'fabric_base_factor_nuevo' => $after['fabric_base_factor'] ?? null,
+            'operator_efficiency_factor_anterior' => $before['operator_efficiency_factor'] ?? null,
+            'operator_efficiency_factor_nuevo' => $after['operator_efficiency_factor'] ?? null,
+            'sam_total_unitario_anterior' => $before['sam_total_unitario'] ?? null,
+            'sam_total_unitario_nuevo' => $after['sam_total_unitario'] ?? null,
+            'sam_total_operacion_anterior' => $before['sam_total_operacion'] ?? null,
+            'sam_total_operacion_nuevo' => $after['sam_total_operacion'] ?? null,
+            'motivo' => $motivo,
+            'usuario_id' => auth()->id(),
+        ]);
+    }
+
+    /**
+     * Actualiza la Operation (catálogo) como base reutilizable con datos del listado:
+     * sam_base, section_id, referencias a ficha y máquina donde se definió.
+     */
+    private function syncOperationBase(ProductSheetOperation $item): void
+    {
+        $operationId = $item->operation_id ?? null;
+        if (!$operationId) {
+            return;
+        }
+
+        $operation = Operation::find($operationId);
+        if (!$operation) {
+            return;
+        }
+
+        $updates = [];
+
+        if ($item->sam_base !== null && $item->sam_base !== '') {
+            $updates['sam_base'] = (float) $item->sam_base;
+        }
+        if ($item->operation_section_id !== null) {
+            $updates['section_id'] = $item->operation_section_id;
+        }
+        if ($item->product_sheet_id !== null) {
+            $updates['product_sheet_id_reference'] = $item->product_sheet_id;
+        }
+        if ($item->machine_id !== null) {
+            $updates['machine_id_reference'] = $item->machine_id;
+        }
+
+        if ($updates !== []) {
+            $operation->update($updates);
+        }
+    }
+
+    /**
      * Elimina una operación del listado (soft delete)
      */
-    public function delete(ProductOperationList $item): void
+    public function delete(ProductSheetOperation $item): void
     {
         $item->delete();
     }
@@ -193,13 +336,11 @@ class ProductOperationListService
         $source = $this->listBySheet($sourceSheetId);
 
         return DB::transaction(function () use ($source, $targetSheetId, $overrides) {
-            return collect($source)->map(function (ProductOperationList $operation, $index) use ($targetSheetId, $overrides) {
+            return collect($source)->map(function (ProductSheetOperation $operation, $index) use ($targetSheetId, $overrides) {
                 $attributes = $operation->replicate([
                     'product_sheet_id',
                     'sequence',
                     'is_active',
-                    'created_by',
-                    'updated_by',
                 ])->toArray();
 
                 $attributes = array_merge($attributes, [

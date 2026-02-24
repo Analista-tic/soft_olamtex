@@ -1,4 +1,4 @@
-import { ref, computed, type Ref } from 'vue';
+import { computed, ref, type Ref } from 'vue';
 
 export type AlertType = 'success' | 'error' | 'info' | 'warning';
 
@@ -25,20 +25,15 @@ export function useAlert() {
      * @param title - Título opcional de la alerta
      * @param autoCloseMs - Tiempo en ms para cerrar automáticamente (default: 4000, 0 = no auto-cerrar)
      */
-    function showAlert(
-        message: string,
-        type: AlertType = 'info',
-        title?: string,
-        autoCloseMs: number = 4000
-    ): number {
+    function showAlert(message: string, type: AlertType = 'info', title?: string, autoCloseMs: number = 4000): number {
         const id = ++alertIdCounter;
-        
+
         alerts.value.push({
             id,
             type,
             title,
             message,
-            autoCloseMs
+            autoCloseMs,
         });
 
         // Auto-scroll al inicio de la página
@@ -62,7 +57,7 @@ export function useAlert() {
      * Remueve una alerta por ID
      */
     function removeAlert(id: number) {
-        const index = alerts.value.findIndex(a => a.id === id);
+        const index = alerts.value.findIndex((a) => a.id === id);
         if (index !== -1) {
             alerts.value.splice(index, 1);
         }
@@ -96,28 +91,28 @@ export function useAlert() {
         // Estado
         alerts,
         pageContentRef,
-        
+
         // Métodos
         showAlert,
         removeAlert,
         clearAllAlerts,
-        
+
         // Métodos de conveniencia
         success,
         error,
         info,
-        warning
+        warning,
     };
 }
 
 /**
  * Composable simplificado para usar con AlertStack.vue
  * Compatible con el patrón successMessage/errorMessage usado en formularios
- * 
+ *
  * @example
  * ```typescript
  * const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts } = useAlertStack();
- * 
+ *
  * // En el template
  * <AlertStack
  *   :success-message="successMessage"
@@ -197,13 +192,13 @@ export function useAlertStack() {
         errorMessage,
         errorType,
         hasAlerts,
-        
+
         // Métodos para mostrar mensajes
         showSuccess,
         showError,
         showInfo,
         showWarning,
-        
+
         // Métodos para limpiar mensajes
         clearAlerts,
         clearSuccess,

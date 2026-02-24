@@ -551,7 +551,7 @@ async function handleSubmit() {
                                     <TableRow class="border-b border-border/60">
                                         <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
                                         <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
-                                        <TableHead class="min-w-[160px] text-left"> Descripcion <span class="text-destructive">*</span> </TableHead>
+                                        <TableHead class="min-w-[160px] text-left"> Descripción <span class="text-destructive">*</span> </TableHead>
                                         <TableHead class="min-w-[120px] text-left"
                                             >Precio SIN Impuesto <span class="text-destructive">*</span></TableHead
                                         >
@@ -586,7 +586,7 @@ async function handleSubmit() {
                                         </TableCell>
 
                                         <TableCell class="p-1">
-                                            <Input v-model="line.description" placeholder="Descripcion" required class="h-10 w-full" />
+                                            <Input v-model="line.description" placeholder="Descripción" required class="h-10 w-full" />
                                         </TableCell>
 
                                         <TableCell class="p-1">

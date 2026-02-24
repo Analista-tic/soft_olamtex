@@ -10,6 +10,7 @@ import SelectField from '@/components/SelectField.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/purchases';
@@ -20,7 +21,6 @@ import { Eye, Mail, MoreVertical, Package, PlusCircle, Printer, Search } from 'l
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const breadcrumbs = [{ title: 'Facturas de Compra', href: '/facturas-compra' }];
 
@@ -392,115 +392,115 @@ function handleDialogError(message?: string) {
             </FilterBar>
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>#Factura</TableHead>
-                            <TableHead>Fecha de creación</TableHead>
-                            <TableHead>Fecha de entrega</TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead>Item</TableHead>
-                            <TableHead>Total</TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                            <TableCell class="font-medium">
-                                {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
-                            </TableCell>
-                            <TableCell>{{ formatDate(invoice.date) }}</TableCell>
-                            <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
-                            <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
-                            <TableCell class="text-start">{{ getInvoiceItemsPreview(invoice) }}</TableCell>
-                            <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
-                            <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
-                            <TableCell>
-                                <span
-                                    v-if="invoice.status"
-                                    :class="[
-                                        'rounded-full px-2 py-1 text-xs font-medium',
-                                        invoice.status === 'pending_receipt'
-                                            ? 'bg-yellow-100 text-yellow-800'
-                                            : invoice.status === 'received'
-                                              ? 'bg-green-100 text-green-800'
-                                              : invoice.status === 'rejected'
-                                                ? 'bg-red-100 text-red-800'
-                                                : 'bg-gray-100 text-gray-800',
-                                    ]"
-                                >
-                                    {{
-                                        invoice.status === 'pending_receipt'
-                                            ? 'Pendiente'
-                                            : invoice.status === 'received'
-                                              ? 'Recibida'
-                                              : invoice.status === 'rejected'
-                                                ? 'Rechazada'
-                                                : 'Sin estado'
-                                    }}
-                                </span>
-                                <span v-else class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800"> Pendiente </span>
-                            </TableCell>
-                            <TableCell>
-                                <div class="flex flex-wrap justify-center gap-1">
-                                    <button
-                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-blue-600"
-                                        @click="viewInvoiceDetails(invoice)"
-                                        title="Ver detalles"
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>#Factura</TableHead>
+                                <TableHead>Fecha de creación</TableHead>
+                                <TableHead>Fecha de entrega</TableHead>
+                                <TableHead>Proveedor</TableHead>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Total</TableHead>
+                                <TableHead>Descripción</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead class="text-center">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
+                                <TableCell class="font-medium">
+                                    {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
+                                </TableCell>
+                                <TableCell>{{ formatDate(invoice.date) }}</TableCell>
+                                <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
+                                <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
+                                <TableCell class="text-start">{{ getInvoiceItemsPreview(invoice) }}</TableCell>
+                                <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
+                                <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
+                                <TableCell>
+                                    <span
+                                        v-if="invoice.status"
+                                        :class="[
+                                            'rounded-full px-2 py-1 text-xs font-medium',
+                                            invoice.status === 'pending_receipt'
+                                                ? 'bg-yellow-100 text-yellow-800'
+                                                : invoice.status === 'received'
+                                                  ? 'bg-green-100 text-green-800'
+                                                  : invoice.status === 'rejected'
+                                                    ? 'bg-red-100 text-red-800'
+                                                    : 'bg-gray-100 text-gray-800',
+                                        ]"
                                     >
-                                        <Eye class="h-4 w-4" />
-                                    </button>
-                                    <EditButton :onClick="() => openDialog('edit', invoice)" />
-                                    <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
+                                        {{
+                                            invoice.status === 'pending_receipt'
+                                                ? 'Pendiente'
+                                                : invoice.status === 'received'
+                                                  ? 'Recibida'
+                                                  : invoice.status === 'rejected'
+                                                    ? 'Rechazada'
+                                                    : 'Sin estado'
+                                        }}
+                                    </span>
+                                    <span v-else class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800"> Pendiente </span>
+                                </TableCell>
+                                <TableCell>
+                                    <div class="flex flex-wrap justify-center gap-1">
+                                        <button
+                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-blue-600"
+                                            @click="viewInvoiceDetails(invoice)"
+                                            title="Ver detalles"
+                                        >
+                                            <Eye class="h-4 w-4" />
+                                        </button>
+                                        <EditButton :onClick="() => openDialog('edit', invoice)" />
+                                        <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
-                                    <DeleteButton
-                                        :onClick="
-                                            () => {
-                                                if (invoice.status === 'received') {
-                                                    showError('No se puede eliminar una factura que ya fue recibida.');
-                                                } else {
-                                                    confirmDeleteInvoice(invoice);
+                                        <DeleteButton
+                                            :onClick="
+                                                () => {
+                                                    if (invoice.status === 'received') {
+                                                        showError('No se puede eliminar una factura que ya fue recibida.');
+                                                    } else {
+                                                        confirmDeleteInvoice(invoice);
+                                                    }
                                                 }
-                                            }
-                                        "
-                                        :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
-                                    />
-                                    <DropdownMenu>
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <DropdownMenuTrigger as-child>
-                                                    <Button variant="ghost" size="icon" :class="actionButtonClass">
-                                                        <MoreVertical :class="actionIconClass" />
-                                                        <span class="sr-only">Acciones</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Acciones</TooltipContent>
-                                        </Tooltip>
-                                        <DropdownMenuContent align="end" class="w-48">
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(invoice)">
-                                                <Printer class="h-4 w-4" /> Imprimir
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception(invoice)">
-                                                <Package class="h-4 w-4" /> Ir a recepción
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                class="cursor-pointer gap-2"
-                                                :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
-                                                :disabled="isSendingMail"
-                                                @click="sendInvoiceByEmail(invoice)"
-                                            >
-                                                <Mail class="h-4 w-4" /> Enviar al correo
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                                            "
+                                            :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
+                                        />
+                                        <DropdownMenu>
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <DropdownMenuTrigger as-child>
+                                                        <Button variant="ghost" size="icon" :class="actionButtonClass">
+                                                            <MoreVertical :class="actionIconClass" />
+                                                            <span class="sr-only">Acciones</span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Acciones</TooltipContent>
+                                            </Tooltip>
+                                            <DropdownMenuContent align="end" class="w-48">
+                                                <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(invoice)">
+                                                    <Printer class="h-4 w-4" /> Imprimir
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception(invoice)">
+                                                    <Package class="h-4 w-4" /> Ir a recepción
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    class="cursor-pointer gap-2"
+                                                    :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
+                                                    :disabled="isSendingMail"
+                                                    @click="sendInvoiceByEmail(invoice)"
+                                                >
+                                                    <Mail class="h-4 w-4" /> Enviar al correo
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </TooltipProvider>
             </div>
         </div>

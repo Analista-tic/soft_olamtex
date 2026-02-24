@@ -1,6 +1,7 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     Sidebar,
     SidebarContent,
@@ -11,15 +12,13 @@ import {
     SidebarMenuItem,
     useSidebar,
 } from '@/components/ui/sidebar';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { useAuthStore } from '@/stores/auth';
-import type { LucideIcon } from 'lucide-vue-next';
 import type { NavItem } from '@/domain/shared';
-import { Link } from '@inertiajs/vue3';
-import { ChartColumn, ChevronDown, Factory, LayoutGrid, Package, Shirt, SquareArrowDown, SquareArrowUp, SquarePen } from 'lucide-vue-next';
+import { useAuthStore } from '@/stores/auth';
+import { Link, usePage } from '@inertiajs/vue3';
+import type { LucideIcon } from 'lucide-vue-next';
+import { ChartColumn, ChevronDown, Factory, Layers, LayoutGrid, Package, Shirt, SquareArrowDown, SquareArrowUp, SquarePen } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import AppLogo from './AppLogo.vue';
-import { usePage } from '@inertiajs/vue3';
 
 const auth = useAuthStore();
 
@@ -68,9 +67,7 @@ const moduleSections: ModuleSection[] = [
             },
             {
                 label: 'Cartera clientes',
-                items: [
-                    { title: 'Cuentas por cobrar', href: underConstructionHref('Cuentas por cobrar') },
-                ],
+                items: [{ title: 'Cuentas por cobrar', href: underConstructionHref('Cuentas por cobrar') }],
             },
         ],
     },
@@ -154,7 +151,7 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Movimientos de inventario', href: '/inventario/item', permission: 'ver inventario telas' },
                     { title: 'Ajustes', href: '/inventario/ajuste-inventario', permission: 'ver inventario telas' },
                 ],
-            }
+            },
         ],
     },
     {
@@ -166,9 +163,9 @@ const moduleSections: ModuleSection[] = [
                 items: [
                     { title: 'Sábana de Productos', href: '/produccion/sabana-productos' },
                     { title: 'Programación de producción', href: '/comercial/programador' },
-                    { title: 'Órdenes de producción', href:'/produccion/ordenes-produccion' },
-                    { title: 'Control de lotes', href: underConstructionHref('Control de lotes'), },
-                    { title: 'Ficha Técnica', href: underConstructionHref('Ficha Técnica'), },
+                    { title: 'Órdenes de producción', href: '/produccion/ordenes-produccion' },
+                    { title: 'Control de lotes', href: '/control-de-lotes' },
+                    { title: 'Ficha Técnica', href: underConstructionHref('Ficha Técnica') },
                 ],
             },
         ],
@@ -182,7 +179,11 @@ const moduleSections: ModuleSection[] = [
                 items: [
                     { title: 'Inventario tela por rollos', href: route('kardex-telas.inventario-rollos'), permission: 'ver sabana productos' },
                     { title: 'Descargue de telas por orden', href: route('kardex-telas.descargue-orden'), permission: 'ver sabana productos' },
-                    { title: 'Salida de telas por orden', href: underConstructionHref('Salida de telas por orden'), permission: 'ver sabana productos' },
+                    {
+                        title: 'Salida de telas por orden',
+                        href: underConstructionHref('Salida de telas por orden'),
+                        permission: 'ver sabana productos',
+                    },
                 ],
             },
         ],
@@ -234,18 +235,17 @@ const isRouteActive = (href: string) => {
 };
 
 const getActiveSectionTitle = () => {
-    return moduleSections.find((section) =>
-        section.groups.some((group) =>
-            group.items.some((item) => isRouteActive(item.href)),
-        ),
-    )?.title;
+    return moduleSections.find((section) => section.groups.some((group) => group.items.some((item) => isRouteActive(item.href))))?.title;
 };
 
 const buildSectionStates = (openTitle?: string) =>
-    moduleSections.reduce((acc, section) => {
-        acc[section.title] = Boolean(openTitle && section.title === openTitle);
-        return acc;
-    }, {} as Record<string, boolean>);
+    moduleSections.reduce(
+        (acc, section) => {
+            acc[section.title] = Boolean(openTitle && section.title === openTitle);
+            return acc;
+        },
+        {} as Record<string, boolean>,
+    );
 
 const sectionStates = ref<Record<string, boolean>>(buildSectionStates(getActiveSectionTitle()));
 
@@ -319,7 +319,10 @@ watch(
         </SidebarHeader>
 
         <SidebarContent>
-            <NavMain :items="filteredMainNavItems" class="mt-2 px-2 flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground" />
+            <NavMain
+                :items="filteredMainNavItems"
+                class="mt-2 flex w-full items-center gap-2 rounded-md p-1 px-2 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground"
+            />
             <template v-for="section in moduleSections" :key="section.title">
                 <Collapsible
                     :open="sectionStates[section.title] ?? true"
@@ -327,8 +330,11 @@ watch(
                     @update:open="(open) => toggleSection(section.title, open)"
                 >
                     <div class="module-label mt-2 px-2">
-                            <CollapsibleTrigger as-child>
-                            <button @click="ensureSidebarExpanded" class="flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground">
+                        <CollapsibleTrigger as-child>
+                            <button
+                                @click="ensureSidebarExpanded"
+                                class="flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground"
+                            >
                                 <component :is="section.icon" class="size-4 text-sidebar-foreground/60" />
                                 <span v-if="!isSidebarCollapsed">{{ section.title }}</span>
                                 <ChevronDown
@@ -343,25 +349,14 @@ watch(
                         <div
                             v-for="(group, groupIndex) in section.groups"
                             :key="group.label ?? `${section.title}-${groupIndex}`"
-                            class="px-2 pb-2 module-group"
+                            class="module-group px-2 pb-2"
                         >
-                            <div
-                                v-if="group.label"
-                                class="module-group-label"
-                            >
+                            <div v-if="group.label" class="module-group-label">
                                 {{ group.label }}
                             </div>
-                            <SidebarMenu class="px-0 module-submodules">
-                                <SidebarMenuItem
-                                    v-for="item in group.items"
-                                    :key="item.title"
-                                    class="module-submodule-item"
-                                >
-                                    <SidebarMenuButton
-                                        as-child
-                                        :tooltip="item.title"
-                                        :class="{ active: isRouteActive(item.href) }"
-                                    >
+                            <SidebarMenu class="module-submodules px-0">
+                                <SidebarMenuItem v-for="item in group.items" :key="item.title" class="module-submodule-item">
+                                    <SidebarMenuButton as-child :tooltip="item.title" :class="{ active: isRouteActive(item.href) }">
                                         <Link :href="item.href">
                                             <span>{{ item.title }}</span>
                                         </Link>
@@ -380,7 +375,7 @@ watch(
             </div>
         </SidebarFooter>
     </Sidebar>
-<slot />
+    <slot />
 </template>
 
 <style scoped>

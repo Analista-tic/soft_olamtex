@@ -8,6 +8,6 @@ defineProps<{
 
 <template>
     <button class="flex items-center text-gray-500 transition-colors duration-200 hover:text-red-500" @click="onClick">
-        <CirclePlus class="h-6 w-6 text-gray-500 mt-5" />
+        <CirclePlus class="mt-5 h-6 w-6 text-gray-500" />
     </button>
 </template>

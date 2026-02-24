@@ -6,8 +6,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
 import { Label } from '@/components/ui/label';
+import { ref, watch } from 'vue';
 
 interface Props {
     label: string;

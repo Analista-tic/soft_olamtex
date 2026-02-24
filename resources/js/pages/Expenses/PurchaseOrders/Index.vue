@@ -339,128 +339,128 @@ function handleDialogError(message?: string) {
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>#Orden</TableHead>
-                            <TableHead>Fecha de creación</TableHead>
-                            <TableHead>Fecha de entrega</TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead>Item</TableHead>
-                            <TableHead>Total</TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-for="order in orders" :key="order.id" class="text-center">
-                            <TableCell class="font-medium">
-                                {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
-                            </TableCell>
-                            <TableCell>{{ formatDate(order.date) }}</TableCell>
-                            <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
-                            <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
-                            <TableCell class="text-start">{{ getOrderItemsPreview(order) }}</TableCell>
-                            <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
-                            <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
-                            <TableCell>
-                                <span
-                                    :class="[
-                                        'rounded-full px-2 py-1 text-xs font-semibold',
-                                        order.status === 'approved'
-                                            ? 'bg-green-100 text-green-800'
-                                            : order.status === 'sent'
-                                              ? 'bg-blue-100 text-blue-800'
-                                              : order.status === 'invoiced'
-                                                ? 'bg-indigo-100 text-indigo-800'
-                                                : order.status === 'rejected'
-                                                  ? 'bg-red-100 text-red-800'
-                                                  : 'bg-yellow-100 text-yellow-800',
-                                    ]"
-                                >
-                                    {{
-                                        order.status === 'approved'
-                                            ? 'Aprobada'
-                                            : order.status === 'sent'
-                                              ? 'Enviada'
-                                              : order.status === 'invoiced'
-                                                ? 'Facturada'
-                                                : order.status === 'rejected'
-                                                  ? 'Rechazada'
-                                                  : 'Pendiente'
-                                    }}
-                                </span>
-                            </TableCell>
-                            <TableCell class="flex justify-center gap-1">
-                                <EditButton
-                                    :onClick="() => openDialog('edit', order)"
-                                    title="Editar orden"
-                                    :customClass="
-                                        order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'
-                                            ? 'opacity-60 cursor-not-allowed'
-                                            : ''
-                                    "
-                                    :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
-                                />
-                                <DeleteButton
-                                    :onClick="() => confirmDeleteOrder(order)"
-                                    title="Eliminar orden"
-                                    :customClass="
-                                        order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'
-                                            ? 'opacity-60 cursor-not-allowed'
-                                            : ''
-                                    "
-                                    :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
-                                />
-                                <DropdownMenu>
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <DropdownMenuTrigger as-child>
-                                                <Button variant="ghost" size="icon" :class="actionButtonClass">
-                                                    <MoreVertical :class="actionIconClass" />
-                                                    <span class="sr-only">Acciones</span>
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Acciones</TooltipContent>
-                                    </Tooltip>
-                                    <DropdownMenuContent align="end" class="w-48">
-                                        <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(order)">
-                                            <Printer class="h-4 w-4" /> Imprimir
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            class="cursor-pointer gap-2"
-                                            :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
-                                            :disabled="isSendingMail"
-                                            @click="sendOrderByEmail(order)"
-                                        >
-                                            <Mail class="h-4 w-4" /> Enviar al correo
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            v-if="canApproveOrder(order)"
-                                            class="cursor-pointer gap-2 text-green-600"
-                                            :class="isApproving === order.id ? 'cursor-not-allowed opacity-60' : ''"
-                                            :disabled="isApproving === order.id || !canApproveOrder(order)"
-                                            @click="approveOrder(order)"
-                                        >
-                                            <CheckCircle class="h-4 w-4" /> Aprobar orden
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            v-if="order.status === 'approved'"
-                                            class="cursor-pointer gap-2"
-                                            :class="isConverting === order.id ? 'cursor-not-allowed opacity-60' : ''"
-                                            :disabled="isConverting === order.id || order.status !== 'approved'"
-                                            @click="convertToInvoice(order)"
-                                        >
-                                            <ReceiptText class="h-4 w-4" /> Convertir en factura
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>#Orden</TableHead>
+                                <TableHead>Fecha de creación</TableHead>
+                                <TableHead>Fecha de entrega</TableHead>
+                                <TableHead>Proveedor</TableHead>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Total</TableHead>
+                                <TableHead>Descripción</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead class="text-center">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow v-for="order in orders" :key="order.id" class="text-center">
+                                <TableCell class="font-medium">
+                                    {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
+                                </TableCell>
+                                <TableCell>{{ formatDate(order.date) }}</TableCell>
+                                <TableCell>{{ formatDate(order.delivery_date) }}</TableCell>
+                                <TableCell>{{ order.supplier?.full_name || order.contact?.full_name || '-' }}</TableCell>
+                                <TableCell class="text-start">{{ getOrderItemsPreview(order) }}</TableCell>
+                                <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
+                                <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
+                                <TableCell>
+                                    <span
+                                        :class="[
+                                            'rounded-full px-2 py-1 text-xs font-semibold',
+                                            order.status === 'approved'
+                                                ? 'bg-green-100 text-green-800'
+                                                : order.status === 'sent'
+                                                  ? 'bg-blue-100 text-blue-800'
+                                                  : order.status === 'invoiced'
+                                                    ? 'bg-indigo-100 text-indigo-800'
+                                                    : order.status === 'rejected'
+                                                      ? 'bg-red-100 text-red-800'
+                                                      : 'bg-yellow-100 text-yellow-800',
+                                        ]"
+                                    >
+                                        {{
+                                            order.status === 'approved'
+                                                ? 'Aprobada'
+                                                : order.status === 'sent'
+                                                  ? 'Enviada'
+                                                  : order.status === 'invoiced'
+                                                    ? 'Facturada'
+                                                    : order.status === 'rejected'
+                                                      ? 'Rechazada'
+                                                      : 'Pendiente'
+                                        }}
+                                    </span>
+                                </TableCell>
+                                <TableCell class="flex justify-center gap-1">
+                                    <EditButton
+                                        :onClick="() => openDialog('edit', order)"
+                                        title="Editar orden"
+                                        :customClass="
+                                            order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'
+                                                ? 'opacity-60 cursor-not-allowed'
+                                                : ''
+                                        "
+                                        :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
+                                    />
+                                    <DeleteButton
+                                        :onClick="() => confirmDeleteOrder(order)"
+                                        title="Eliminar orden"
+                                        :customClass="
+                                            order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'
+                                                ? 'opacity-60 cursor-not-allowed'
+                                                : ''
+                                        "
+                                        :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
+                                    />
+                                    <DropdownMenu>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <DropdownMenuTrigger as-child>
+                                                    <Button variant="ghost" size="icon" :class="actionButtonClass">
+                                                        <MoreVertical :class="actionIconClass" />
+                                                        <span class="sr-only">Acciones</span>
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Acciones</TooltipContent>
+                                        </Tooltip>
+                                        <DropdownMenuContent align="end" class="w-48">
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(order)">
+                                                <Printer class="h-4 w-4" /> Imprimir
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                class="cursor-pointer gap-2"
+                                                :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
+                                                :disabled="isSendingMail"
+                                                @click="sendOrderByEmail(order)"
+                                            >
+                                                <Mail class="h-4 w-4" /> Enviar al correo
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canApproveOrder(order)"
+                                                class="cursor-pointer gap-2 text-green-600"
+                                                :class="isApproving === order.id ? 'cursor-not-allowed opacity-60' : ''"
+                                                :disabled="isApproving === order.id || !canApproveOrder(order)"
+                                                @click="approveOrder(order)"
+                                            >
+                                                <CheckCircle class="h-4 w-4" /> Aprobar orden
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="order.status === 'approved'"
+                                                class="cursor-pointer gap-2"
+                                                :class="isConverting === order.id ? 'cursor-not-allowed opacity-60' : ''"
+                                                :disabled="isConverting === order.id || order.status !== 'approved'"
+                                                @click="convertToInvoice(order)"
+                                            >
+                                                <ReceiptText class="h-4 w-4" /> Convertir en factura
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </TooltipProvider>
             </div>
         </div>

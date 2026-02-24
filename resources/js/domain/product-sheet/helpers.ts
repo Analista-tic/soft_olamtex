@@ -4,7 +4,9 @@ export const PRODUCT_SHEET_TYPE_PRODUCT = 'producto';
 export const PRODUCT_SHEET_TYPE_SAMPLE = 'muestra';
 
 export function normalizeProductSheetType(value?: string | null): 'producto' | 'muestra' {
-    const normalized = String(value ?? '').trim().toLowerCase();
+    const normalized = String(value ?? '')
+        .trim()
+        .toLowerCase();
 
     if (normalized === 'sample' || normalized === 'muestra') {
         return PRODUCT_SHEET_TYPE_SAMPLE;
@@ -20,8 +22,7 @@ export function normalizeProductSheetType(value?: string | null): 'producto' | '
 export function parseBooleanRecord(value: unknown): Record<string, boolean> {
     if (!value) return {};
 
-    const mapArrayToRecord = (input: unknown[]): Record<string, boolean> =>
-        Object.fromEntries(input.map((size) => [String(size), true]));
+    const mapArrayToRecord = (input: unknown[]): Record<string, boolean> => Object.fromEntries(input.map((size) => [String(size), true]));
 
     if (typeof value === 'string') {
         try {

@@ -15,11 +15,11 @@ import { FileText, Upload, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
 
-// Tipo local que extiende PurchaseRequestForm para el formulario del di?logo
+// Tipo local que extiende PurchaseRequestForm para el formulario del diálogo
 type PurchaseRequestDialogForm = Omit<PurchaseRequestForm, 'items' | 'estimated_amount'> & {
     items?: PurchaseRequestForm['items'];
     estimated_amount?: number | null;
-    // destination ya est? en PurchaseRequestForm como string | null, no necesitamos sobrescribirlo
+    // destination ya está en PurchaseRequestForm como string | null, no necesitamos sobrescribirlo
     document_path?: string | null;
 };
 
@@ -57,7 +57,7 @@ const PURCHASE_REQUESTS_BASE_URL = '/gastos/solicitudes-compra';
 const canEdit = computed(() => {
     if (props.readonly) return false;
     if (props.dialogType === 'create') return true;
-    // Verificar si el formulario tiene m?todo canEdit o si el status permite edici?n
+    // Verificar si el formulario tiene método canEdit o si el status permite edición
     const status = localForm.value.status;
     return status === 'draft' || status === 'pending' || !status;
 });
@@ -247,13 +247,13 @@ function handleFileSelect(event: Event) {
     // Validar tipo de archivo
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
     if (!allowedTypes.includes(file.type)) {
-        setErrorMessage('Tipo de archivo no permitido. Solo se permiten im?genes (JPEG, PNG, WebP) y PDF.', 'warning');
+        setErrorMessage('Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, WebP) y PDF.', 'warning');
         return;
     }
 
-    // Validar tama?o (10MB)
+    // Validar tamaño (10MB)
     if (file.size > 10 * 1024 * 1024) {
-        setErrorMessage('El archivo es demasiado grande. El tama?o m?ximo es 10MB.', 'warning');
+        setErrorMessage('El archivo es demasiado grande. El tamaño máximo es 10MB.', 'warning');
         return;
     }
 
@@ -292,7 +292,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
 
     if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value && !documentFile.value) {
         if (sendToApproval) {
-            // Si no hay cambios pero quiere enviar a aprobaci?n, solo enviar
+            // Si no hay cambios pero quiere enviar a aprobación, solo enviar
             await handleSendToApproval();
         }
         return;
@@ -303,7 +303,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
     try {
         const formData = new FormData();
 
-        // A?adir datos del formulario
+        // Añadir datos del formulario
         const payload: any = {
             ...localForm.value,
         };
@@ -315,11 +315,11 @@ async function handleSubmit(sendToApproval: boolean = false) {
             delete payload.id;
         }
 
-        // A?adir items como JSON string
+        // Añadir items como JSON string
         if (localForm.value.items && Array.isArray(localForm.value.items) && localForm.value.items.length > 0) {
             formData.append('items', JSON.stringify(localForm.value.items));
         } else {
-            // Asegurar que siempre haya al menos un item vac?o
+            // Asegurar que siempre haya al menos un item vacío
             formData.append(
                 'items',
                 JSON.stringify([
@@ -335,18 +335,18 @@ async function handleSubmit(sendToApproval: boolean = false) {
             );
         }
 
-        // A?adir archivo si existe
+        // Añadir archivo si existe
         if (documentFile.value) {
             formData.append('document', documentFile.value);
         } else if (props.dialogType === 'edit') {
             // Si estamos editando, verificar si se debe eliminar el documento
-            // Solo eliminar si hab?a un documento anterior y ahora no hay
+            // Solo eliminar si había un documento anterior y ahora no hay
             try {
                 const originalSnapshot = originalFormSnapshot.value ? JSON.parse(originalFormSnapshot.value) : null;
                 const hadDocument = originalSnapshot?.document_path;
                 const currentHasDocument = localForm.value.document_path;
 
-                // Si hab?a documento y ahora no hay (ni nuevo archivo ni existente), eliminar
+                // Si había documento y ahora no hay (ni nuevo archivo ni existente), eliminar
                 if (hadDocument && !currentHasDocument && !documentFile.value) {
                     // Enviar como '1' para que Laravel lo interprete como true con $request->boolean()
                     formData.append('remove_document', '1');
@@ -357,16 +357,16 @@ async function handleSubmit(sendToApproval: boolean = false) {
             }
         }
 
-        // A?adir resto de datos
+        // Añadir resto de datos
         Object.keys(payload).forEach((key) => {
-            // No incluir remove_document aqu?, ya se maneja arriba
+            // No incluir remove_document aquí, ya se maneja arriba
             if (key !== 'items' && key !== 'remove_document' && payload[key] !== null && payload[key] !== undefined) {
                 const value = payload[key];
                 formData.append(key, typeof value === 'number' ? value.toString() : (value as string));
             }
         });
 
-        // Para FormData, siempre usar POST, pero a?adir _method=PUT para actualizaciones
+        // Para FormData, siempre usar POST, pero añadir _method=PUT para actualizaciones
         if (props.dialogType === 'edit') {
             formData.append('_method', 'PUT');
         }
@@ -382,24 +382,24 @@ async function handleSubmit(sendToApproval: boolean = false) {
             },
         });
 
-        // Si se guard? correctamente y se debe enviar a aprobaci?n, hacerlo
+        // Si se guardó correctamente y se debe enviar a aprobación, hacerlo
         if (sendToApproval && response.data?.data?.id) {
             try {
                 await axios.post(`${PURCHASE_REQUESTS_BASE_URL}/${response.data.data.id}/send-to-approval`);
                 const msg =
                     props.dialogType === 'create'
-                        ? 'Solicitud creada y enviada a aprobaci?n correctamente.'
-                        : 'Solicitud actualizada y enviada a aprobaci?n correctamente.';
+                        ? 'Solicitud creada y enviada a aprobación correctamente.'
+                        : 'Solicitud actualizada y enviada a aprobación correctamente.';
                 emit('refresh', msg);
                 showSuccess(msg);
                 dialogOpen.value = false;
                 return;
             } catch (approvalError) {
-                // Si falla el env?o a aprobaci?n, al menos se guard?
+                // Si falla el envío a aprobación, al menos se guardó
                 const msg =
                     props.dialogType === 'create'
-                        ? 'Solicitud creada correctamente, pero no se pudo enviar a aprobaci?n.'
-                        : 'Solicitud actualizada correctamente, pero no se pudo enviar a aprobaci?n.';
+                        ? 'Solicitud creada correctamente, pero no se pudo enviar a aprobación.'
+                        : 'Solicitud actualizada correctamente, pero no se pudo enviar a aprobación.';
                 showError(msg);
                 emit('refresh', msg);
                 dialogOpen.value = false;
@@ -426,32 +426,32 @@ async function handleSubmit(sendToApproval: boolean = false) {
 
 async function handleSendToApproval() {
     if (!localForm.value.id) {
-        setErrorMessage('Debes guardar la solicitud antes de enviarla a aprobaci?n.', 'warning');
+        setErrorMessage('Debes guardar la solicitud antes de enviarla a aprobación.', 'warning');
         return;
     }
 
     const status = localForm.value.status;
     if (status !== 'draft') {
-        setErrorMessage('Solo las solicitudes en borrador pueden enviarse a aprobaci?n.', 'warning');
+        setErrorMessage('Solo las solicitudes en borrador pueden enviarse a aprobación.', 'warning');
         return;
     }
 
-    if (!confirm('?Est?s seguro de enviar esta solicitud a aprobaci?n?')) {
+    if (!confirm('¿Estás seguro de enviar esta solicitud a aprobación?')) {
         return;
     }
 
     isLoading.value = true;
     try {
         await axios.post(`${PURCHASE_REQUESTS_BASE_URL}/${localForm.value.id}/send-to-approval`);
-        const msg = 'Solicitud enviada a aprobaci?n correctamente.';
+        const msg = 'Solicitud enviada a aprobación correctamente.';
         emit('refresh', msg);
         showSuccess(msg);
         dialogOpen.value = false;
     } catch (e) {
-        const serverMessage = (e as any)?.response?.data?.message || 'Error al enviar la solicitud a aprobaci?n. Por favor intenta nuevamente.';
+        const serverMessage = (e as any)?.response?.data?.message || 'Error al enviar la solicitud a aprobación. Por favor intenta nuevamente.';
         setErrorMessage(serverMessage);
         emit('error', serverMessage);
-        console.error('Error enviando a aprobaci?n:', e);
+        console.error('Error enviando a aprobación:', e);
     } finally {
         isLoading.value = false;
     }
@@ -465,13 +465,13 @@ const canSendToApproval = computed(() => {
 
 function validateForm() {
     if (!localForm.value.description || !String(localForm.value.description).trim()) {
-        setErrorMessage('La descripci?n es obligatoria.', 'warning');
+        setErrorMessage('La descripción es obligatoria.', 'warning');
         return false;
     }
 
     const itemsCheck = (localForm.value.items || []).filter((it) => Number(it.quantity) > 0);
     if (!itemsCheck.length) {
-        setErrorMessage('Debe agregar al menos un ?tem con cantidad mayor a cero a la solicitud.', 'warning');
+        setErrorMessage('Debe agregar al menos un ítem con cantidad mayor a cero a la solicitud.', 'warning');
         return false;
     }
 
@@ -522,7 +522,7 @@ watch(
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
-                success-title="?xito"
+                success-title="Éxito"
                 error-title="Error"
                 :error-type="errorType"
                 @close-success="clearSuccess"
@@ -541,7 +541,7 @@ watch(
                                 <div class="flex flex-col gap-1.5">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium"># Solicitud</Label>
-                                        <HelpTooltip text="N?mero ?nico de la solicitud de compra." aria-label="Ayuda sobre n?mero de solicitud" />
+                                        <HelpTooltip text="Número único de la solicitud de compra." aria-label="Ayuda sobre número de solicitud" />
                                     </div>
                                     <InputField
                                         label=""
@@ -550,7 +550,7 @@ watch(
                                         :readonly="true"
                                     />
                                     <span v-if="dialogType === 'create' && isLoadingRequestId" class="text-xs text-muted-foreground">
-                                        Generando n?mero...
+                                        Generando número...
                                     </span>
                                 </div>
 
@@ -587,7 +587,7 @@ watch(
                                         label=""
                                         :model-value="localForm.destination ?? ''"
                                         @update:model-value="localForm.destination = $event || null"
-                                        placeholder="Ej: Almac?n, Producci?n, etc."
+                                        placeholder="Ej: Almacén, Producción, etc."
                                         :readonly="isReadOnly"
                                     />
                                 </div>
@@ -595,17 +595,17 @@ watch(
 
                             <div class="flex flex-col gap-1.5">
                                 <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium"> Descripci?n <span class="text-red-500">*</span> </Label>
+                                    <Label class="text-sm font-medium"> Descripción <span class="text-red-500">*</span> </Label>
                                     <HelpTooltip
-                                        text="Describe brevemente la solicitud de compra y su prop?sito."
-                                        aria-label="Ayuda sobre descripci?n"
+                                        text="Describe brevemente la solicitud de compra y su propósito."
+                                        aria-label="Ayuda sobre descripción"
                                     />
                                 </div>
                                 <TextareaField
                                     label=""
                                     :model-value="localForm.description || ''"
                                     @update:model-value="localForm.description = $event"
-                                    placeholder="Agrega la descripci?n y observaciones de la solicitud"
+                                    placeholder="Agrega la descripción y observaciones de la solicitud"
                                     :readonly="isReadOnly"
                                     :rows="3"
                                 />
@@ -650,11 +650,11 @@ watch(
                                 class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30 p-4"
                             >
                                 <Upload class="mb-2 h-8 w-8 text-muted-foreground" />
-                                <p class="mb-2 text-center text-xs text-muted-foreground">Arrastra un archivo aqu? o haz clic para seleccionar</p>
+                                <p class="mb-2 text-center text-xs text-muted-foreground">Arrastra un archivo aquí o haz clic para seleccionar</p>
                                 <Button type="button" variant="outline" size="sm" @click="triggerFileInput" :disabled="isReadOnly">
                                     Seleccionar Archivo
                                 </Button>
-                                <p class="mt-1 text-center text-xs text-muted-foreground">Formatos: JPEG, PNG, WebP, PDF (m?x. 10MB)</p>
+                                <p class="mt-1 text-center text-xs text-muted-foreground">Formatos: JPEG, PNG, WebP, PDF (máx. 10MB)</p>
                             </div>
 
                             <div v-else class="space-y-2">
@@ -696,7 +696,7 @@ watch(
                     {{ isLoading ? 'Guardando...' : 'Guardar' }}
                 </Button>
                 <Button v-if="!props.readonly && !isReadOnly && canSendToApproval" type="button" :disabled="isLoading" @click="handleSubmit(true)">
-                    {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobaci?n' }}
+                    {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobación' }}
                 </Button>
             </DialogFooter>
         </DialogContent>

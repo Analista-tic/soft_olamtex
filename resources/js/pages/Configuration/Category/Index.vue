@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import type { BreadcrumbItem } from '@/domain/shared'; // Importar los tipos centralizados
-import type { CategoryGroup, CategorySubGroup } from '@/domain/inventory';
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
-import SubGroupDialog from './SubGroupDialog.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import {
@@ -16,19 +19,15 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { CategoryGroup, CategorySubGroup } from '@/domain/inventory';
+import type { BreadcrumbItem, Option } from '@/domain/shared'; // Importar los tipos centralizados
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { ref, onMounted, watch, computed } from 'vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import FilterBar from '@/components/FilterBar.vue';
-import FilterField from '@/components/FilterField.vue';
-import SelectField from '@/components/SelectField.vue';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { Option } from '@/domain/shared';
+import { computed, onMounted, ref, watch } from 'vue';
+import SubGroupDialog from './SubGroupDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -73,9 +72,7 @@ const groupOptions = computed<Option[]>(() => [
     ...props.groups.map((group) => ({ id: group.id, name: group.name })),
 ]);
 
-const normalizedGroupId = computed<Option['id'] | null>(() =>
-    selectedGroup.value === '' ? null : selectedGroup.value,
-);
+const normalizedGroupId = computed<Option['id'] | null>(() => (selectedGroup.value === '' ? null : selectedGroup.value));
 
 // Funciones con tipado explícito
 function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
@@ -95,7 +92,7 @@ function closeDialog(): void {
 function confirmDeleteSubGroup(subGroup: CategorySubGroup): void {
     subGroupToDelete.value = subGroup;
     console.log(subGroupToDelete.value);
-    
+
     isDeleteDialogOpen.value = true;
 }
 
@@ -123,9 +120,7 @@ async function submitForm(subGroupData: Partial<CategorySubGroup>): Promise<void
         await axios({ method, url, data: subGroupData });
         fetchSubGroups();
         closeDialog();
-        successMessage.value = dialogType.value === 'create'
-            ? 'El subgrupo se creó correctamente.'
-            : 'El subgrupo se actualizó correctamente.';
+        successMessage.value = dialogType.value === 'create' ? 'El subgrupo se creó correctamente.' : 'El subgrupo se actualizó correctamente.';
         errorMessage.value = '';
     } catch (error) {
         console.error('Error al guardar el subgrupo:', error);
@@ -183,10 +178,10 @@ onMounted(() => {
                 </div>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openDialog('create')"
                 >
-                    <PlusCircle class="w-4 h-4" />
+                    <PlusCircle class="h-4 w-4" />
                     Crear Nuevo Subgrupo
                 </button>
             </div>
@@ -199,11 +194,7 @@ onMounted(() => {
                 @close-error="errorMessage = ''"
             />
             <FilterBar align="start" gap="gap-4">
-                <FilterField
-                    label="Buscar subgrupo"
-                    :active="isSearchActive"
-                    class="flex-1 min-w-[240px] p-0"
-                >
+                <FilterField label="Buscar subgrupo" :active="isSearchActive" class="min-w-[240px] flex-1 p-0">
                     <div class="relative w-full">
                         <Input id="search_subgroup" v-model="searchQuery" placeholder="Buscar por nombre" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -258,7 +249,11 @@ onMounted(() => {
 
                         <template v-for="(item, index) in items">
                             <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button class="h-6 w-6 p-0" :variant="item.value === currentPage ? 'default' : 'outline'" @click="handlePageChange(item.value)">
+                                <Button
+                                    class="h-6 w-6 p-0"
+                                    :variant="item.value === currentPage ? 'default' : 'outline'"
+                                    @click="handlePageChange(item.value)"
+                                >
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>
@@ -281,7 +276,17 @@ onMounted(() => {
         :groups="props.groups"
         @close="closeDialog"
         @submit="submitForm"
-        @notify="(payload) => { if (payload.type === 'success') { successMessage = payload.message; errorMessage = ''; } else { errorMessage = payload.message; successMessage = ''; } }"
+        @notify="
+            (payload) => {
+                if (payload.type === 'success') {
+                    successMessage = payload.message;
+                    errorMessage = '';
+                } else {
+                    errorMessage = payload.message;
+                    successMessage = '';
+                }
+            }
+        "
     />
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"

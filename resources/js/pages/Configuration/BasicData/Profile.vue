@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import Input from '@/components/ui/input/Input.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import PasswordDialog from './PasswordDialog.vue';
+import Input from '@/components/ui/input/Input.vue';
+import type { User } from '@/domain/shared/types';
+import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Pencil } from 'lucide-vue-next';
-import { router } from '@inertiajs/vue3';
 import { reactive, ref, watch } from 'vue';
-import type { User } from '@/domain/shared/types';
+import PasswordDialog from './PasswordDialog.vue';
 
 const props = defineProps<{
     user?: User;
@@ -32,11 +32,7 @@ const syncProfileInfo = () => {
     profileInfo.username = props.user?.name ?? '';
     profileInfo.email = props.user?.email ?? '';
 };
-watch(
-    () => props.user,
-    syncProfileInfo,
-    { immediate: true },
-);
+watch(() => props.user, syncProfileInfo, { immediate: true });
 
 const enterEditMode = () => {
     isEditingProfile.value = true;
@@ -98,9 +94,7 @@ const handlePasswordError = (message: string) => {
                 <h2 class="text-2xl font-semibold text-slate-900">
                     {{ isEditingProfile ? 'Editar perfil del usuario' : 'Perfil del usuario' }}
                 </h2>
-                <p class="text-sm text-slate-500">
-                    Edita el nombre de usuario, el correo y la contraseña que están en la tabla users.
-                </p>
+                <p class="text-sm text-slate-500">Edita el nombre de usuario, el correo y la contraseña que están en la tabla users.</p>
             </div>
             <button
                 v-if="!isEditingProfile"
@@ -123,11 +117,11 @@ const handlePasswordError = (message: string) => {
             <Input v-model="profileInfo.email" placeholder="correo@dominio.com" :readonly="!isEditingProfile" />
         </div>
 
-        <div class="flex flex-wrap gap-3 border-t pt-4 items-center">
+        <div class="flex flex-wrap items-center gap-3 border-t pt-4">
             <button
                 v-if="isEditingProfile"
                 type="submit"
-                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="profileSaving"
             >
                 {{ profileSaving ? 'Guardando...' : 'Actualizar perfil' }}
@@ -135,7 +129,7 @@ const handlePasswordError = (message: string) => {
             <button
                 v-if="isEditingProfile"
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 @click="handleCancelEdit"
             >
                 Cancelar
@@ -143,7 +137,7 @@ const handlePasswordError = (message: string) => {
             <button
                 v-if="!isEditingProfile"
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 @click="openPasswordModal"
             >
                 Actualizar contraseña
@@ -151,26 +145,19 @@ const handlePasswordError = (message: string) => {
             <button
                 v-if="!isEditingProfile"
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground shadow-sm transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-destructive disabled:opacity-50 disabled:cursor-not-allowed"
+                class="inline-flex items-center justify-center gap-2 rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground shadow-sm transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 @click="openDeleteDialog"
                 :disabled="isDeletingProfile"
             >
                 {{ isDeletingProfile ? 'Eliminando...' : 'Eliminar perfil' }}
             </button>
         </div>
-        <div
-            v-if="!isEditingProfile"
-            class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
-        >
-            <p class="font-semibold text-red-600 mb-1">Advertencia</p>
+        <div v-if="!isEditingProfile" class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p class="mb-1 font-semibold text-red-600">Advertencia</p>
             <p>Eliminar el perfil también elimina completamente la cuenta y no puede deshacerse.</p>
         </div>
 
-        <PasswordDialog
-            v-model="isPasswordModalOpen"
-            @saved="handlePasswordSaved"
-            @error="handlePasswordError"
-        />
+        <PasswordDialog v-model="isPasswordModalOpen" @saved="handlePasswordSaved" @error="handlePasswordError" />
 
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"

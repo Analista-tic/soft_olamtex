@@ -86,12 +86,6 @@ class ProductOperationListResource extends JsonResource
                 ];
             }),
             
-            'created_by' => $this->whenLoaded('createdBy', function () {
-                return [
-                    'id' => $this->createdBy->id,
-                    'name' => $this->createdBy->name,
-                ];
-            }),
         ];
     }
 }

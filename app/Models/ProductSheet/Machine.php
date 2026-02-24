@@ -3,7 +3,6 @@
 namespace App\Models\ProductSheet;
 
 use App\Models\Concerns\HasAuditLabel;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -20,8 +19,9 @@ class Machine extends Model
         'name',
         'supplement_factor',
         'is_active',
-        'created_by',
     ];
+
+    public array $auditIgnore = ['created_at', 'updated_at', 'deleted_at'];
 
     protected $casts = [
         'supplement_factor' => 'float',
@@ -75,11 +75,6 @@ class Machine extends Model
     public function productOperationLists()
     {
         return $this->hasMany(ProductOperationList::class);
-    }
-
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by');
     }
 
     // Scopes

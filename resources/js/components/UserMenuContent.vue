@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import UserInfo from '@/components/UserInfo.vue';
 import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import type { NavItem } from '@/domain/shared';
 import type { User } from '@/domain/auth';
+import type { NavItem } from '@/domain/shared';
 import { Link } from '@inertiajs/vue3';
 import { LogOut, Pencil } from 'lucide-vue-next';
 

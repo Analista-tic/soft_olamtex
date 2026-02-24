@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { Label } from '@/components/ui/label';
-import { Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/vue';
-import { ChevronDown, Check, X } from 'lucide-vue-next';
 import type { Option } from '@/domain/shared';
+import { Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/vue';
+import { Check, ChevronDown, X } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 const props = withDefaults(
     defineProps<{
@@ -87,9 +87,7 @@ const filteredOptions = computed(() => {
     return props.options.filter((option) => option.name.toLowerCase().includes(term));
 });
 
-const selectedOptions = computed(() =>
-    props.options.filter((option) => localValue.value.includes(option.id)),
-);
+const selectedOptions = computed(() => props.options.filter((option) => localValue.value.includes(option.id)));
 
 function handleChange(next: Option['id'][] | Option['id']) {
     if (props.disabled) return;
@@ -120,9 +118,7 @@ function removeOption(optionId: Option['id']) {
 const buttonClasses = computed(() => [
     'w-full rounded-md border px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors flex items-center justify-between gap-2',
     props.disabled ? 'pointer-events-none opacity-60 bg-gray-50' : 'bg-white',
-    props.error
-        ? 'border-red-400 focus:ring-red-500 focus:border-red-500'
-        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500',
+    props.error ? 'border-red-400 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500',
 ]);
 
 const pillClasses =
@@ -136,27 +132,17 @@ const pillClasses =
             <span v-if="required" class="text-red-500">*</span>
         </Label>
         <div class="relative w-full">
-            <Listbox
-                class="w-full"
-                :modelValue="localValue"
-                :multiple="true"
-                :disabled="disabled"
-                @update:modelValue="handleChange"
-            >
+            <Listbox class="w-full" :modelValue="localValue" :multiple="true" :disabled="disabled" @update:modelValue="handleChange">
                 <div class="relative">
                     <ListboxButton :class="buttonClasses" type="button">
-                        <div class="flex-1 min-w-0 whitespace-normal">
+                        <div class="min-w-0 flex-1 whitespace-normal">
                             <template v-if="selectedOptions.length === 0">
                                 <span class="text-sm text-muted-foreground">{{ placeholderText }}</span>
                             </template>
                             <template v-else>
                                 <div class="flex flex-wrap gap-1">
-                                    <span
-                                        v-for="option in selectedOptions"
-                                        :key="String(option.id)"
-                                        :class="pillClasses"
-                                    >
-                                        <span class="truncate max-w-[8rem]">{{ option.name }}</span>
+                                    <span v-for="option in selectedOptions" :key="String(option.id)" :class="pillClasses">
+                                        <span class="max-w-[8rem] truncate">{{ option.name }}</span>
                                         <button
                                             type="button"
                                             class="flex items-center justify-center rounded-full p-0.5 text-blue-600 hover:bg-blue-100"
@@ -178,34 +164,25 @@ const pillClasses =
                                 v-model="searchTerm"
                                 type="text"
                                 :placeholder="searchPlaceholder"
-                                class="w-full rounded-md border border-input px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                class="w-full rounded-md border border-input px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 @keydown.stop
                                 @keyup.stop
                                 @click.stop
                             />
                         </div>
-                        <div v-if="filteredOptions.length === 0" class="px-3 py-2 text-sm text-gray-500">
-                            No se encontraron opciones.
-                        </div>
-                        <ListboxOption
-                            v-for="option in filteredOptions"
-                            :key="String(option.id)"
-                            :value="option.id"
-                        >
+                        <div v-if="filteredOptions.length === 0" class="px-3 py-2 text-sm text-gray-500">No se encontraron opciones.</div>
+                        <ListboxOption v-for="option in filteredOptions" :key="String(option.id)" :value="option.id">
                             <template #default="{ active, selected }">
                                 <div
                                     :class="[
-                                        'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
-                                        active ? 'text-white bg-blue-600' : 'text-gray-900',
+                                        'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
+                                        active ? 'bg-blue-600 text-white' : 'text-gray-900',
                                     ]"
                                 >
                                     <span :class="selected ? 'font-semibold' : 'font-normal'">
                                         {{ option.name }}
                                     </span>
-                                    <span
-                                        v-if="selected"
-                                        class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600"
-                                    >
+                                    <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
                                         <Check class="h-4 w-4" />
                                     </span>
                                 </div>

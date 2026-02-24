@@ -3,7 +3,6 @@
 namespace App\Models\ProductSheet;
 
 use App\Models\Concerns\HasAuditLabel;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -13,7 +12,7 @@ class ProductSheetOperation extends Model
 {
     use HasFactory, SoftDeletes, HasAuditLabel;
 
-    protected $table = 'product_operation_lists';
+    protected $table = 'product_sheet_operations';
 
     protected $fillable = [
         'product_sheet_id',
@@ -36,9 +35,9 @@ class ProductSheetOperation extends Model
         'variance',
         'notes',
         'is_active',
-        'created_by',
-        'updated_by',
     ];
+
+    public array $auditIgnore = ['created_at', 'updated_at', 'deleted_at'];
 
     protected $casts = [
         'product_sheet_id' => 'integer',
@@ -86,22 +85,14 @@ class ProductSheetOperation extends Model
         return $this->belongsTo(OperationSection::class);
     }
 
-    /**
-     * fabric_base_id referencia el catálogo de parámetros (fabric_bases), no una tabla dedicada.
-     */
+    public function fabricBase()
+    {
+        return $this->belongsTo(FabricBase::class, 'fabric_base_id');
+    }
+
     public function history()
     {
         return $this->hasMany(ProductSheetOperationHistory::class, 'product_sheet_operation_id');
-    }
-
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function updatedBy()
-    {
-        return $this->belongsTo(User::class, 'updated_by');
     }
 
     public function calculateSamTotalUnitario(): float

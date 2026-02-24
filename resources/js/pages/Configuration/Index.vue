@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/domain/shared';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -65,7 +65,6 @@ const modules = [
             { name: 'Inventario de Ítems', href: '/inventario-item' },
             { name: 'Movimientos de inventario', href: '/inventario/item' },
             { name: 'Ajustes', href: '/inventario/ajuste-inventario' },
-            
         ],
     },
     {
@@ -74,7 +73,7 @@ const modules = [
         options: [
             { name: 'Sábana de productos', href: route('produccion.sabana-productos.index') },
             { name: 'Listado operacional', href: route('produccion.listados-operacionales.index') },
-            { name: 'Base de datos de operaciones', href: underConstructionHref('Base de datos de operaciones') },
+            { name: 'Base de datos de operaciones', href: route('produccion.base-operaciones.index') },
             { name: 'Programación de producción', href: '/comercial/programador' },
             { name: 'Control de lotes', href: underConstructionHref('Control de lotes') },
             { name: 'Ficha técnica', href: underConstructionHref('Ficha técnica') },
@@ -92,7 +91,6 @@ const modules = [
             { name: 'Bodegas', href: '/bodegas' },
             { name: 'Campos adicionales', href: '/campos-adicionales' },
             { name: 'Parametros', href: '/parametros' },
-
         ],
     },
     {
@@ -153,9 +151,7 @@ const modules = [
             <div class="flex items-center justify-between">
                 <div class="space-y-1">
                     <h1 class="text-xl font-bold">Configuración</h1>
-                    <p class="text-sm text-muted-foreground">
-                        Centraliza los parámetros clave de la empresa y define cómo funciona el sistema.
-                    </p>
+                    <p class="text-sm text-muted-foreground">Centraliza los parámetros clave de la empresa y define cómo funciona el sistema.</p>
                 </div>
             </div>
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -171,19 +167,13 @@ const modules = [
                         {{ module.description }}
                     </p>
                     <ul class="mt-3 space-y-1 text-sm text-muted-foreground">
-                        <li
-                            v-for="option in module.options"
-                            :key="option.name"
-                            class="transition-colors hover:text-blue-500"
-                        >
+                        <li v-for="option in module.options" :key="option.name" class="transition-colors hover:text-blue-500">
                             <Link :href="option.href" class="relative z-10 block text-current">
                                 {{ option.name }}
                             </Link>
                         </li>
                     </ul>
-                    <div
-                        class="pointer-events-none absolute inset-0 rounded-lg ring-2 ring-transparent group-hover:ring-blue-500"
-                    ></div>
+                    <div class="pointer-events-none absolute inset-0 rounded-lg ring-2 ring-transparent group-hover:ring-blue-500"></div>
                 </div>
             </div>
         </div>

@@ -1,5 +1,5 @@
-import axios from 'axios';
 import type { ProductSheet } from '@/domain/product-sheet';
+import axios from 'axios';
 
 export interface ProductSheetListParams {
     page?: number;
@@ -33,17 +33,14 @@ export interface ConvertSampleToProductResponse {
 export const listProductSheets = (params: ProductSheetListParams = {}, signal?: AbortSignal) =>
     axios.get<ProductSheetListResponse>('/produccion/product-sheets', { params, signal });
 
-export const showProductSheet = (id: number | string) =>
-    axios.get<ProductSheetApiResponse>(`/produccion/sabana-productos/${id}`);
+export const showProductSheet = (id: number | string) => axios.get<ProductSheetApiResponse>(`/produccion/sabana-productos/${id}`);
 
-export const createProductSheet = (payload: FormData) =>
-    axios.post<ProductSheetApiResponse>('/produccion/sabana-productos', payload);
+export const createProductSheet = (payload: FormData) => axios.post<ProductSheetApiResponse>('/produccion/sabana-productos', payload);
 
 export const updateProductSheet = (id: number | string, payload: FormData) =>
     axios.post<ProductSheetApiResponse>(`/produccion/sabana-productos/${id}`, payload);
 
-export const deleteProductSheet = (id: number | string) =>
-    axios.delete(`/produccion/sabana-productos/${id}`);
+export const deleteProductSheet = (id: number | string) => axios.delete(`/produccion/sabana-productos/${id}`);
 
 export const convertSampleToProduct = (id: number | string, product_reference: string) =>
     axios.post<ConvertSampleToProductResponse>(`/produccion/sabana-productos/${id}/convert`, { product_reference });

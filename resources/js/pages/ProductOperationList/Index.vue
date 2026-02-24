@@ -1,35 +1,25 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import SamSummaryCard from './SamSummaryCard.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Input from '@/components/ui/input/Input.vue';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useAlertStack } from '@/composables/useAlert';
+import type { ProductOperationListPageProps, ProductOperationPayload } from '@/domain/product-sheet';
 import AppLayout from '@/layouts/AppLayout.vue';
-import ProductOperationListDialog from './ProductOperationListDialog.vue';
-import ProductOperationListView from './ProductOperationListView.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
+import { Eye, Pencil, PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import { Search, Eye, PlusCircle, Pencil } from 'lucide-vue-next';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type {
-    ProductOperationListPageProps,
-    ProductOperationPayload,
-} from '@/domain/product-sheet';
-import { useAlertStack } from '@/composables/useAlert';
+import ProductOperationListDialog from './ProductOperationListDialog.vue';
+import ProductOperationListView from './ProductOperationListView.vue';
+import SamSummaryCard from './SamSummaryCard.vue';
 
 const page = usePage<ProductOperationListPageProps>();
 
@@ -44,9 +34,11 @@ const machines = computed(() => page.props.machines || []);
 const productSheets = computed(() => page.props.productSheets || []);
 const actions = computed(() => page.props.actions || []);
 const garmentParts = computed(() => page.props.garmentParts || []);
+const locations = computed(() => page.props.locations || []);
+const fabricBases = computed(() => (page.props as any).fabric_bases || []);
 const productSheetOptions = computed(() => [
     { id: 'all', name: 'Todos' },
-    ...productSheets.value.map(sheet => ({
+    ...productSheets.value.map((sheet) => ({
         id: sheet.id,
         name: `${sheet.reference} (${sheet.type})`,
     })),
@@ -70,13 +62,15 @@ type OperationRowInput = {
     operation_id: number | null;
     machine_id: number | null;
     optimal_time: string;
+    quantity?: number;
+    fabric_base_id?: number | string | null;
+    operator_efficiency_factor?: number;
 };
 
 type DialogInitialData = {
     productSheetId: number | null;
     operations: OperationRowInput[];
     operatorEfficiencyFactor: number;
-    machineSupplementFactor: number;
     notes: string;
 };
 
@@ -94,7 +88,10 @@ const actionButtonClass =
 const actionIconClass = 'h-4 w-4';
 
 function normalizeText(value: string): string {
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    return value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
 }
 
 function toNumberOrNull(value: unknown): number | null {
@@ -118,7 +115,7 @@ function resolveSectionName(entry: any): string {
     if (!sectionId) {
         return '';
     }
-    return sections.value.find(section => section.id === sectionId)?.name ?? '';
+    return sections.value.find((section) => section.id === sectionId)?.name ?? '';
 }
 
 function isConfeccionSection(sectionName: string): boolean {
@@ -180,12 +177,12 @@ async function fetchOperationSummaries() {
                     params: { product_sheet_id: sheet.id },
                 });
                 const rows = Array.isArray(data?.data) ? data.data : [];
-                
+
                 // Solo incluir lotes que tienen operaciones registradas
                 if (rows.length === 0) {
                     return null;
                 }
-                
+
                 const totals = calculateTotals(rows);
                 const searchText = normalizeText(`${sheet.reference} ${totals.searchText}`.trim());
                 return {
@@ -212,19 +209,13 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
         return;
     }
 
-    const validPayloads = payloads
-        .filter((payload) => (
-            payload.product_sheet_id &&
-            payload.section_id &&
-            payload.operation_id &&
-            payload.machine_id
-        ));
+    const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.section_id && payload.operation_id && payload.machine_id);
 
     if (validPayloads.length === 0) {
         return;
     }
 
-    const targetSheetId = validPayloads.find(payload => payload.product_sheet_id)?.product_sheet_id ?? null;
+    const targetSheetId = validPayloads.find((payload) => payload.product_sheet_id)?.product_sheet_id ?? null;
 
     // Solo eliminar operaciones existentes en modo EDIT
     // En modo CREATE solo agregamos nuevas operaciones
@@ -234,49 +225,57 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
         } catch (error) {
             console.error('Error al limpiar operaciones existentes:', error);
             showError('Error al preparar la edición. Por favor intenta nuevamente.');
-            setTimeout(() => { clearError(); }, 8000);
+            setTimeout(() => {
+                clearError();
+            }, 8000);
             return;
         }
     }
 
     try {
-        const requests = validPayloads.map((payload) => axios.post('/produccion/listados-operacionales', {
-            product_sheet_id: payload.product_sheet_id,
-            operation_id: payload.operation_id,
-            machine_id: payload.machine_id,
-            operation_section_id: payload.section_id,
-            sequence: payload.sequence,
-            optimal_time: Number(payload.optimal_time),
-            operator_efficiency_factor: payload.operator_efficiency_factor,
-            machine_supplement_factor: payload.machine_supplement_factor,
-            notes: payload.notes,
-        }));
+        const requests = validPayloads.map((payload) =>
+            axios.post('/produccion/listados-operacionales', {
+                product_sheet_id: payload.product_sheet_id,
+                operation_id: payload.operation_id,
+                machine_id: payload.machine_id,
+                operation_section_id: payload.section_id,
+                sequence: payload.sequence,
+                optimal_time: Number(payload.optimal_time),
+                operator_efficiency_factor: payload.operator_efficiency_factor,
+                machine_supplement_factor: payload.machine_supplement_factor,
+                notes: payload.notes,
+                quantity: payload.quantity ?? 1,
+                fabric_base_id: payload.fabric_base_id ?? null,
+            }),
+        );
 
         await Promise.all(requests);
-        showSuccess(dialogMode.value === 'edit'
-            ? 'Operaciones actualizadas correctamente.'
-            : `${requests.length} operación(es) guardada(s) correctamente.`);
-        
+        showSuccess(
+            dialogMode.value === 'edit' ? 'Operaciones actualizadas correctamente.' : `${requests.length} operación(es) guardada(s) correctamente.`,
+        );
+
         // Cambiar el filtro primero al lote que acabamos de guardar
         if (targetSheetId) {
             selectedProductSheetId.value = targetSheetId;
         }
-        
+
         // Luego recargar los datos para que aparezca en la lista
         await fetchOperationSummaries();
-        
-        setTimeout(() => { clearSuccess(); }, 5000);
+
+        setTimeout(() => {
+            clearSuccess();
+        }, 5000);
     } catch (error: any) {
         console.error('Error al guardar operaciones:', error);
-        
+
         // Aunque haya error, recargar los datos porque algunas operaciones podrían haberse guardado
         await fetchOperationSummaries();
-        
+
         // Si el lote tiene operaciones guardadas, cambiar el filtro para mostrarlo
         if (targetSheetId) {
             selectedProductSheetId.value = targetSheetId;
         }
-        
+
         // Manejar errores de validación del backend
         if (error.response?.status === 422) {
             const errors = error.response?.data?.errors;
@@ -289,8 +288,10 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
         } else {
             showError('Algunas operaciones no se pudieron guardar correctamente.');
         }
-        
-        setTimeout(() => { clearError(); }, 8000);
+
+        setTimeout(() => {
+            clearError();
+        }, 8000);
     }
 }
 
@@ -299,9 +300,7 @@ async function deleteOperationsBySheetId(productSheetId: number) {
         params: { product_sheet_id: productSheetId },
     });
     const rows = Array.isArray(data?.data) ? data.data : [];
-    const deleteRequests = rows.map((row: { id: number }) =>
-        axios.delete(`/produccion/listados-operacionales/${row.id}`),
-    );
+    const deleteRequests = rows.map((row: { id: number }) => axios.delete(`/produccion/listados-operacionales/${row.id}`));
 
     if (deleteRequests.length > 0) {
         await Promise.all(deleteRequests);
@@ -356,16 +355,18 @@ async function openEditDialog(summary: OperationSummary) {
                 optimal_time: formatOptimalTime(row.optimal_time ?? row.sam ?? row.sam_base ?? 0),
                 quantity: row.quantity ?? 1,
                 fabric_base_id: row.fabric_base_id ?? null,
+                operator_efficiency_factor: Number(row.operator_efficiency_factor ?? 1.25) || 1.25,
             })),
             operatorEfficiencyFactor: Number(firstRow.operator_efficiency_factor ?? 1.25) || 1.25,
-            machineSupplementFactor: Number(firstRow.machine_supplement_factor ?? 1.0) || 1.0,
             notes: firstRow.notes ?? '',
         };
         isDialogOpen.value = true;
     } catch (error) {
         console.error('Error al cargar operaciones para editar:', error);
         showError('Error al cargar las operaciones para editar.');
-        setTimeout(() => { clearError(); }, 8000);
+        setTimeout(() => {
+            clearError();
+        }, 8000);
     }
 }
 
@@ -393,7 +394,7 @@ async function deleteSummaryOperations() {
 const filteredSummaries = computed(() => {
     const term = normalizeText(searchQuery.value.trim());
 
-    return operationSummaries.value.filter(summary => {
+    return operationSummaries.value.filter((summary) => {
         const matchesSearch = term === '' || summary.search_text.includes(term);
         const matchesSheet = selectedProductSheetId.value === 'all' || summary.product_sheet_id === selectedProductSheetId.value;
 
@@ -417,60 +418,35 @@ watch(productSheets, () => {
 <template>
     <Head title="Listados operacionales" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <AlertStack
-            :success-message="successMessage"
-            :error-message="errorMessage"
-            @close-success="clearSuccess"
-            @close-error="clearError"
-        />
-        
+        <AlertStack :success-message="successMessage" :error-message="errorMessage" @close-success="clearSuccess" @close-error="clearError" />
+
         <div class="relative flex h-full flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="space-y-1">
                     <h1 class="text-lg font-bold text-foreground">Listados operacionales</h1>
                     <p class="text-sm text-muted-foreground">
-                        Registra operaciones, máquinas y tiempos en una sola tabla para Lotes de muestra y productivas.
+                        Registra operaciones, máquinas y tiempos en una sola tabla para referencias de muestra y productivas.
                     </p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <Button
-                        class="rounded-full px-5 py-2 text-sm font-semibold"
-                        @click="openCreateDialog"
-                    >
-                        <PlusCircle class="w-4 h-4" />
+                    <Button class="rounded-full px-5 py-2 text-sm font-semibold" @click="openCreateDialog">
+                        <PlusCircle class="h-4 w-4" />
                         Nueva operación
                     </Button>
                 </div>
             </div>
 
             <FilterBar align="start" gap="gap-4">
-                <FilterField 
-                    label="Buscar operación" 
-                    :active="searchQuery.trim().length > 0" 
-                    class="flex-1 min-w-[220px] p-0"
-                >
+                <FilterField label="Buscar operación" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input
-                            v-model="searchQuery"
-                            type="text"
-                            placeholder="Buscar sección, operación o máquina"
-                            class="h-10 w-full pl-10"
-                        />
+                        <Input v-model="searchQuery" type="text" placeholder="Buscar sección, operación o máquina" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
-                <FilterField
-                    label="Lote"
-                    :active="selectedProductSheetId !== 'all'"
-                    class="min-w-[240px]"
-                >
-                    <SelectField
-                        v-model="selectedProductSheetId"
-                        placeholder="Selecciona Lote"
-                        :options="productSheetOptions"
-                    />
+                <FilterField label="Referencia" :active="selectedProductSheetId !== 'all'" class="min-w-[240px]">
+                    <SelectField v-model="selectedProductSheetId" placeholder="Selecciona referencia" :options="productSheetOptions" />
                 </FilterField>
             </FilterBar>
 
@@ -478,12 +454,12 @@ watch(productSheets, () => {
                 <SamSummaryCard
                     :total-sam="filteredSummaries.reduce((s, r) => s + r.total_sam_confeccion, 0)"
                     :total-operations="0"
-                    label="SAM total (todos los lotes)"
+                    label="SAM total (todas las referencias)"
                     :compact="true"
                 />
                 <Card>
                     <CardHeader class="pb-1">
-                        <CardTitle class="text-sm font-medium text-muted-foreground">Lotes con operaciones</CardTitle>
+                        <CardTitle class="text-sm font-medium text-muted-foreground">Referencias con operaciones</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <p class="text-2xl font-bold">{{ filteredSummaries.length }}</p>
@@ -494,66 +470,65 @@ watch(productSheets, () => {
             <Card class="relative mt-4 min-h-0 flex-1 overflow-hidden md:min-h-min">
                 <div class="overflow-x-auto">
                     <TooltipProvider>
-                    <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Lote</TableHead>
-                            <TableHead class="text-center">Total SAM Confección</TableHead>
-                            <TableHead class="text-center">Costo Total Producto</TableHead>
-                            <TableHead class="text-center">Accion</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-if="isLoading">
-                            <TableCell colspan="4" class="text-center text-sm text-muted-foreground">Cargando totales...</TableCell>
-                        </TableRow>
-                        <TableRow v-else-if="filteredSummaries.length === 0">
-                            <TableCell colspan="4" class="text-center text-sm text-muted-foreground">Aun no se han guardado operaciones.</TableCell>
-                        </TableRow>
-                        <TableRow v-for="summary in filteredSummaries" :key="summary.product_sheet_id" class="text-sm">
-                            <TableCell>{{ summary.reference }}</TableCell>
-                            <TableCell class="text-center">{{ formatTotal(summary.total_sam_confeccion) }}</TableCell>
-                            <TableCell class="text-center">{{ formatTotal(summary.total_cost_product) }}</TableCell>
-                            <TableCell class="text-center">
-                                <div class="flex items-center justify-center gap-2">
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Ver detalle"
-                                                @click="openSummaryView(summary)"
-                                            >
-                                                <Eye :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Ver detalle</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Editar"
-                                                @click="openEditDialog(summary)"
-                                            >
-                                                <Pencil :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Editar</TooltipContent>
-                                    </Tooltip>
-                                    <DeleteButton
-                                        :onClick="() => confirmDeleteSummary(summary)"
-                                        customClass="h-4 w-4"
-                                    />
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
-                </TooltipProvider>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Referencia</TableHead>
+                                    <TableHead class="text-center">Total SAM Confección</TableHead>
+                                    <TableHead class="text-center">Costo Total Producto</TableHead>
+                                    <TableHead class="text-center">Acciones</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow v-if="isLoading">
+                                    <TableCell colspan="4" class="text-center text-sm text-muted-foreground">Cargando totales...</TableCell>
+                                </TableRow>
+                                <TableRow v-else-if="filteredSummaries.length === 0">
+                                    <TableCell colspan="4" class="text-center text-sm text-muted-foreground"
+                                        >Aun no se han guardado operaciones.</TableCell
+                                    >
+                                </TableRow>
+                                <TableRow v-for="summary in filteredSummaries" :key="summary.product_sheet_id" class="text-sm">
+                                    <TableCell>{{ summary.reference }}</TableCell>
+                                    <TableCell class="text-center">{{ formatTotal(summary.total_sam_confeccion) }}</TableCell>
+                                    <TableCell class="text-center">{{ formatTotal(summary.total_cost_product) }}</TableCell>
+                                    <TableCell class="text-center">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="actionButtonClass"
+                                                        aria-label="Ver detalle"
+                                                        @click="openSummaryView(summary)"
+                                                    >
+                                                        <Eye :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Ver detalle</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger as-child>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        :class="actionButtonClass"
+                                                        aria-label="Editar"
+                                                        @click="openEditDialog(summary)"
+                                                    >
+                                                        <Pencil :class="actionIconClass" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Editar</TooltipContent>
+                                            </Tooltip>
+                                            <DeleteButton :onClick="() => confirmDeleteSummary(summary)" customClass="h-4 w-4" />
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </TooltipProvider>
                 </div>
             </Card>
 
@@ -562,13 +537,16 @@ watch(productSheets, () => {
                 :mode="dialogMode"
                 :initial-data="dialogInitialData"
                 :productSheets="productSheets"
+                :excluded-product-sheet-ids="operationSummaries.map((s) => s.product_sheet_id)"
                 :sections="sections"
                 :operations="operations"
                 :machines="machines"
                 :actions="actions"
                 :garmentParts="garmentParts"
+                :fabricBases="fabricBases"
                 @save="handleDialogSave"
                 @close="closeDialog"
+                @validation-error="showError"
             />
 
             <ProductOperationListView
@@ -582,8 +560,8 @@ watch(productSheets, () => {
 
             <ConfirmDialog
                 v-model:open="isDeleteDialogOpen"
-                title="Confirmar eliminacion"
-                :description="`Estas seguro de que deseas eliminar todas las operaciones del lote ${summaryToDelete?.reference ?? ''}? Esta accion no se puede deshacer.`"
+                title="Confirmar eliminación"
+                :description="`¿Estás seguro de que deseas eliminar todas las operaciones de la referencia ${summaryToDelete?.reference ?? ''}? Esta acción no se puede deshacer.`"
                 confirm-text="Eliminar"
                 cancel-text="Cancelar"
                 :destructive="true"

@@ -3,10 +3,12 @@
 namespace App\Models\ProductSheet;
 
 /**
- * Alias de ProductSheetOperation para compatibilidad durante la transición.
- * @deprecated Usar ProductSheetOperation en código nuevo.
+ * @deprecated Use ProductSheetOperation directly
+ * Este es un alias para mantener compatibilidad hacia atrás.
+ * Todos los código nuevo debe usar ProductSheetOperation en lugar de ProductOperationList.
  */
 class ProductOperationList extends ProductSheetOperation
 {
-    //
+    // Ya no usamos este alias. Véase ProductSheetOperation.
 }
+

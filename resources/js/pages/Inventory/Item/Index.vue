@@ -2,7 +2,6 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -21,6 +20,7 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { Item } from '@/domain/inventory/types';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -313,81 +313,79 @@ async function downloadTemplate() {
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>ID</TableHead>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Referencia</TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-for="item in items" :key="item.id" class="text-center">
-                            <TableCell>{{ item.id }}</TableCell>
-                            <TableCell>{{ item.name }}</TableCell>
-                            <TableCell>{{ item.reference }}</TableCell>
-                            <TableCell>{{ item.description }}</TableCell>
-                            <TableCell>
-                                <StatusBadge :text="item.status ? 'Habilitado' : 'Deshabilitado'" :type="item.status ? 'green' : 'red'" />
-                            </TableCell>
-                            <TableCell class="text-center">
-                                <div class="flex justify-center gap-2">
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Editar"
-                                                @click="openDialog('edit', item)"
-                                            >
-                                                <Pencil :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Editar</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Eliminar"
-                                                @click="confirmDeleteItem(item)"
-                                            >
-                                                <Trash :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Eliminar</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="[
-                                                    actionButtonClass,
-                                                    item.status
-                                                        ? 'text-red-600 hover:text-red-700'
-                                                        : 'text-emerald-600 hover:text-emerald-700',
-                                                ]"
-                                                aria-label="Habilitar o deshabilitar"
-                                                @click="openStatusDialog(item)"
-                                            >
-                                                <Ban v-if="item.status" :class="actionIconClass" />
-                                                <CheckCircle v-else :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Habilitar o deshabilitar</TooltipContent>
-                                    </Tooltip>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>ID</TableHead>
+                                <TableHead>Nombre</TableHead>
+                                <TableHead>Referencia</TableHead>
+                                <TableHead>Descripción</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead class="text-center">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow v-for="item in items" :key="item.id" class="text-center">
+                                <TableCell>{{ item.id }}</TableCell>
+                                <TableCell>{{ item.name }}</TableCell>
+                                <TableCell>{{ item.reference }}</TableCell>
+                                <TableCell>{{ item.description }}</TableCell>
+                                <TableCell>
+                                    <StatusBadge :text="item.status ? 'Habilitado' : 'Deshabilitado'" :type="item.status ? 'green' : 'red'" />
+                                </TableCell>
+                                <TableCell class="text-center">
+                                    <div class="flex justify-center gap-2">
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Editar"
+                                                    @click="openDialog('edit', item)"
+                                                >
+                                                    <Pencil :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Editar</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Eliminar"
+                                                    @click="confirmDeleteItem(item)"
+                                                >
+                                                    <Trash :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Eliminar</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="[
+                                                        actionButtonClass,
+                                                        item.status ? 'text-red-600 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-700',
+                                                    ]"
+                                                    aria-label="Habilitar o deshabilitar"
+                                                    @click="openStatusDialog(item)"
+                                                >
+                                                    <Ban v-if="item.status" :class="actionIconClass" />
+                                                    <CheckCircle v-else :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Habilitar o deshabilitar</TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </TooltipProvider>
                 <Pagination
                     class="mt-5 flex justify-center"

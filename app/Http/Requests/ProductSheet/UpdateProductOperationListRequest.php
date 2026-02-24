@@ -30,7 +30,7 @@ class UpdateProductOperationListRequest extends FormRequest
                 'integer',
                 'exists:operations,id',
                 // Validar que la operación no esté duplicada (excepto el registro actual)
-                Rule::unique('product_operation_lists')
+                Rule::unique('product_sheet_operations')
                     ->where('product_sheet_id', $listItem->product_sheet_id)
                     ->ignore($listItem->id)
                     ->whereNull('deleted_at'),
@@ -42,7 +42,7 @@ class UpdateProductOperationListRequest extends FormRequest
                 'integer',
                 'min:1',
                 // Validar que la secuencia sea única (excepto el registro actual)
-                Rule::unique('product_operation_lists')
+                Rule::unique('product_sheet_operations')
                     ->where('product_sheet_id', $listItem->product_sheet_id)
                     ->ignore($listItem->id)
                     ->whereNull('deleted_at'),
@@ -60,8 +60,12 @@ class UpdateProductOperationListRequest extends FormRequest
                 'min:1.0',
                 'max:5.0',
             ],
+            'fabric_base_factor' => ['sometimes', 'numeric', 'min:0.1', 'max:5.0'],
+            'fabric_base_id' => ['nullable', 'integer'],
+            'quantity' => ['nullable', 'integer', 'min:1'],
             'actual_time' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'motivo' => ['nullable', 'string', 'max:500'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

@@ -1,28 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
-import axios from 'axios';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ScrollArea from '@/components/ui/scroll-area/ScrollArea.vue';
-import SamSummaryCard from './SamSummaryCard.vue';
-import HistoryDialog from './HistoryDialog.vue';
-import { History, Pencil, Trash2 } from 'lucide-vue-next';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { OperationSection } from '@/domain/product-sheet';
+import axios from 'axios';
+import { ChevronDown, ChevronRight, History, Pencil, Trash2 } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
+import HistoryDialog from './HistoryDialog.vue';
 
 type OperationEntry = {
     id: number;
@@ -44,17 +33,20 @@ type OperationEntry = {
     fabric_base_factor?: number;
 };
 
-const props = withDefaults(defineProps<{
-    open: boolean;
-    productSheetId: number | null;
-    productSheetReference: string;
-    sections: OperationSection[];
-}>(), {
-    open: false,
-    productSheetId: null,
-    productSheetReference: '',
-    sections: () => [],
-});
+const props = withDefaults(
+    defineProps<{
+        open: boolean;
+        productSheetId: number | null;
+        productSheetReference: string;
+        sections: OperationSection[];
+    }>(),
+    {
+        open: false,
+        productSheetId: null,
+        productSheetReference: '',
+        sections: () => [],
+    },
+);
 
 const emit = defineEmits<{
     (event: 'close'): void;
@@ -62,13 +54,14 @@ const emit = defineEmits<{
 }>();
 
 const localOpen = ref(props.open);
-watch(() => props.open, (value) => {
-    localOpen.value = value;
-});
-watch(localOpen, (value) => {
-    if (!value) {
-        emit('close');
-    }
+watch(
+    () => props.open,
+    (v) => {
+        localOpen.value = v;
+    },
+);
+watch(localOpen, (v) => {
+    if (!v) emit('close');
 });
 
 const operations = ref<OperationEntry[]>([]);
@@ -77,50 +70,47 @@ const parameters = ref<Record<string, unknown>>({});
 const isHistoryOpen = ref(false);
 const historyOperationId = ref<number | null>(null);
 const historyOperationLabel = ref('');
+const viewMode = ref<'grouped' | 'flat'>('grouped');
+const collapsedSections = ref<Set<string>>(new Set());
+
+function normalize(s: string) {
+    return s
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
 
 function resolveSectionName(entry: OperationEntry): string {
-    const relationName = entry.operation_section?.name ?? entry.operationSection?.name ?? '';
-    if (relationName) {
-        return relationName;
-    }
-    const sectionId = entry.operation_section_id ?? null;
-    if (!sectionId) {
-        return '';
-    }
-    return props.sections.find(section => section.id === sectionId)?.name ?? '';
+    const r = entry.operation_section?.name ?? entry.operationSection?.name ?? '';
+    if (r) return r;
+    const id = entry.operation_section_id ?? null;
+    return id ? (props.sections.find((s) => s.id === id)?.name ?? '') : '';
 }
-
 function resolveSectionType(entry: OperationEntry): string {
-    const relationType = entry.operation_section?.type ?? entry.operationSection?.type ?? '';
-    if (relationType) {
-        return relationType;
-    }
-    const sectionId = entry.operation_section_id ?? null;
-    if (!sectionId) {
-        return '';
-    }
-    return props.sections.find(section => section.id === sectionId)?.type ?? '';
+    const r = entry.operation_section?.type ?? entry.operationSection?.type ?? '';
+    if (r) return r;
+    const id = entry.operation_section_id ?? null;
+    return id ? (props.sections.find((s) => s.id === id)?.type ?? '') : '';
 }
-
 function getSamValue(entry: OperationEntry): number {
-    const samValue = entry.sam_total_operacion ?? entry.sam ?? entry.optimal_time ?? 0;
-    const parsed = typeof samValue === 'string' ? Number(samValue) : samValue;
-    return Number.isFinite(parsed) ? parsed : 0;
+    const v = entry.sam_total_operacion ?? entry.sam ?? entry.optimal_time ?? 0;
+    const p = typeof v === 'string' ? Number(v) : v;
+    return Number.isFinite(p) ? p : 0;
 }
-
 function getSamBaseValue(entry: OperationEntry): number {
     const v = entry.sam_base ?? entry.sam ?? entry.optimal_time ?? 0;
     return Number.isFinite(Number(v)) ? Number(v) : 0;
 }
-
+function fmt(v: number): string {
+    return v.toFixed(4);
+}
 function openHistory(entry: OperationEntry) {
     historyOperationId.value = entry.id;
     historyOperationLabel.value = entry.operation?.name ?? `Operación #${entry.sequence ?? entry.id}`;
     isHistoryOpen.value = true;
 }
-
 async function deleteOperation(entry: OperationEntry) {
-    if (!confirm(`¿Eliminar esta operación del lote?`)) return;
+    if (!confirm('¿Eliminar esta operación del lote?')) return;
     try {
         await axios.delete(`/produccion/listados-operacionales/${entry.id}`);
         await fetchOperations();
@@ -128,133 +118,71 @@ async function deleteOperation(entry: OperationEntry) {
         console.error('Error al eliminar operación:', e);
     }
 }
-
-function editOperation(_entry: OperationEntry) {
+function editOperation() {
     emit('edit');
 }
-
-function getUnits100(value: number): number {
-    if (value <= 0) {
-        return 0;
-    }
-    return Number((60 / value).toFixed(2));
+function toggleSection(name: string) {
+    if (collapsedSections.value.has(name)) collapsedSections.value.delete(name);
+    else collapsedSections.value.add(name);
 }
-
-
 
 async function fetchOperations() {
     if (!props.productSheetId) {
         operations.value = [];
         return;
     }
-
     isLoading.value = true;
-
     try {
-        const { data } = await axios.get('/produccion/listados-operacionales/data', {
-            params: { product_sheet_id: props.productSheetId },
-        });
+        const { data } = await axios.get('/produccion/listados-operacionales/data', { params: { product_sheet_id: props.productSheetId } });
         operations.value = Array.isArray(data?.data) ? data.data : [];
-    } catch (error) {
-        console.error('Error al cargar operaciones del lote:', error);
+    } catch (e) {
+        console.error('Error al cargar operaciones:', e);
         operations.value = [];
     } finally {
         isLoading.value = false;
     }
 }
-
 async function fetchParameters() {
     try {
         const { data } = await axios.get('/produccion/parametros/data');
         parameters.value = data?.data ?? {};
-    } catch (error) {
-        console.error('Error al cargar parametros:', error);
+    } catch (e) {
         parameters.value = {};
     }
 }
 
-const groupedOperations = computed(() => {
-    const groups = new Map<string, OperationEntry[]>();
+type GroupedSection = { sectionName: string; sectionType: string; items: OperationEntry[]; totalSam: number };
 
+const groupedOperations = computed<GroupedSection[]>(() => {
+    const map = new Map<string, GroupedSection>();
     operations.value.forEach((entry) => {
-        const sectionType = resolveSectionType(entry).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const groupKey = sectionType === 'confeccion' ? 'Confección' : 
-                        sectionType === 'presentacion' ? 'Presentación' : 
-                        'Otros';
-        const items = groups.get(groupKey) ?? [];
-        items.push(entry);
-        groups.set(groupKey, items);
+        const st = normalize(resolveSectionType(entry));
+        const key = st === 'confeccion' ? 'Confección' : st === 'presentacion' ? 'Presentación' : 'Otros';
+        if (!map.has(key)) map.set(key, { sectionName: key, sectionType: st, items: [], totalSam: 0 });
+        const g = map.get(key)!;
+        g.items.push(entry);
+        g.totalSam += getSamValue(entry);
     });
-
-    // Orden específico: Confección primero, luego Presentación, luego Otros
-    const order = ['Confección', 'Presentación', 'Otros'];
-
-    return order
-        .filter(key => groups.has(key))
-        .map(groupName => ({
-            sectionName: groupName,
-            items: groups.get(groupName) ?? [],
-        }));
+    return ['Confección', 'Presentación', 'Otros'].filter((k) => map.has(k)).map((k) => map.get(k)!);
 });
 
-const totalSamConfeccion = computed(() => {
-    return operations.value.reduce((total, entry) => {
-        const sectionType = resolveSectionType(entry).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        return sectionType === 'confeccion'
-            ? total + getSamValue(entry)
-            : total;
-    }, 0);
-});
-
-const totalSam = computed(() => {
-    return operations.value.reduce((total, entry) => total + getSamValue(entry), 0);
-});
-
-const totalSamPresentacion = computed(() => {
-    return operations.value.reduce((total, entry) => {
-        const sectionType = resolveSectionType(entry).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        return sectionType === 'presentacion'
-            ? total + getSamValue(entry)
-            : total;
-    }, 0);
-});
-
-const costTotalPresentacion = computed(() => {
-    return totalSamPresentacion.value * costOperaciones.value;
-});
-
-const costOperaciones = computed(() => {
-    const value = parameters.value['costo operaciones'];
-    return Number(value ?? 0) || 0;
-});
-
-const costHilo = computed(() => {
-    const value = parameters.value['costo hilo'];
-    return Number(value ?? 0) || 0;
-});
-
-const costConfeccionOlamtex = computed(() => {
-    return totalSamConfeccion.value * costOperaciones.value;
-});
-
+const totalSam = computed(() => operations.value.reduce((s, e) => s + getSamValue(e), 0));
+const totalSamConfeccion = computed(() =>
+    operations.value.reduce((s, e) => (normalize(resolveSectionType(e)) === 'confeccion' ? s + getSamValue(e) : s), 0),
+);
+const totalSamPresentacion = computed(() =>
+    operations.value.reduce((s, e) => (normalize(resolveSectionType(e)) === 'presentacion' ? s + getSamValue(e) : s), 0),
+);
+const costOperaciones = computed(() => Number(parameters.value['costo operaciones'] ?? 0) || 0);
+const costHilo = computed(() => Number(parameters.value['costo hilo'] ?? 0) || 0);
+const costConfeccionOlamtex = computed(() => totalSamConfeccion.value * costOperaciones.value);
 const costTotalConfeccion = computed(() => costConfeccionOlamtex.value + costHilo.value);
-
+const costTotalPresentacion = computed(() => totalSamPresentacion.value * costOperaciones.value);
 const costTotalProducto = computed(() => costTotalConfeccion.value + costTotalPresentacion.value);
 
-const currencyFormatter = new Intl.NumberFormat('es-CO', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-});
-
-function formatNumber(value: number): string {
-    return value.toFixed(4);
-}
-
-function formatCurrency(value: number): string {
-    if (!Number.isFinite(value)) {
-        return '0';
-    }
-    return currencyFormatter.format(value);
+const currencyFormatter = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+function formatCurrency(v: number): string {
+    return Number.isFinite(v) ? currencyFormatter.format(v) : '0';
 }
 
 onMounted(() => {
@@ -263,177 +191,260 @@ onMounted(() => {
         fetchParameters();
     }
 });
-
-watch(() => [props.productSheetId, props.open], ([sheetId, isOpen]) => {
-    if (isOpen && sheetId) {
-        fetchOperations();
-        fetchParameters();
-    }
-});
+watch(
+    () => [props.productSheetId, props.open],
+    ([id, open]) => {
+        if (open && id) {
+            fetchOperations();
+            fetchParameters();
+            collapsedSections.value.clear();
+        }
+    },
+);
 </script>
 
 <template>
     <Dialog v-model:open="localOpen">
-        <DialogContent class="max-w-7xl max-h-[90vh] flex flex-col">
-            <DialogHeader class="flex-shrink-0">
-                <DialogTitle>Detalle del lote</DialogTitle>
-                <DialogDescription class="pb-3">
-                    Resumen de operaciones y tiempos del lote {{ productSheetReference || 'seleccionado' }}.
-                </DialogDescription>
+        <DialogContent class="flex max-h-[90vh] max-w-[1300px] flex-col p-0">
+            <!-- Header -->
+            <DialogHeader class="flex-shrink-0 space-y-0 border-b px-6 pb-4 pt-5">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <DialogTitle>Detalle del lote</DialogTitle>
+                        <DialogDescription class="mt-0.5">
+                            Operaciones y tiempos del lote
+                            <span class="font-medium text-foreground">{{ productSheetReference || 'seleccionado' }}</span>
+                        </DialogDescription>
+                    </div>
+                    <!-- Cards resumen -->
+                    <div v-if="operations.length > 0" class="flex items-center gap-3">
+                        <Card class="border-primary/20 bg-primary/5 px-4 py-2 shadow-none">
+                            <div class="text-[11px] text-muted-foreground">SAM total</div>
+                            <div class="font-mono text-lg font-bold text-primary">{{ fmt(totalSam) }}</div>
+                        </Card>
+                        <Card class="px-4 py-2 shadow-none">
+                            <div class="text-[11px] text-muted-foreground">Operaciones</div>
+                            <div class="font-mono text-lg font-bold">{{ operations.length }}</div>
+                        </Card>
+                        <Card class="px-4 py-2 shadow-none">
+                            <div class="text-[11px] text-muted-foreground">Costo producto</div>
+                            <div class="font-mono text-lg font-bold text-primary">$ {{ formatCurrency(costTotalProducto) }}</div>
+                        </Card>
+                    </div>
+                </div>
             </DialogHeader>
 
-            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
-                <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
-                    <div class="space-y-4">
-                        <div class="grid gap-4 sm:grid-cols-2">
-                            <SamSummaryCard
-                                :total-sam="totalSam"
-                                :total-operations="operations.length"
-                                label="SAM total ruta"
-                                :compact="true"
-                            />
-                            <div class="rounded-lg border bg-card p-4">
-                                <p class="text-sm font-medium text-muted-foreground">Costo Total Producto</p>
-                                <p class="mt-1 text-2xl font-bold text-primary">
-                                    $ {{ formatCurrency(costTotalProducto) }}
-                                </p>
-                            </div>
-                        </div>
+            <!-- Body -->
+            <div class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-4" style="scrollbar-width: thin">
+                <!-- Skeleton loading -->
+                <div v-if="isLoading" class="space-y-3">
+                    <Skeleton class="h-10 w-full" />
+                    <Skeleton class="h-10 w-full" />
+                    <Skeleton class="h-10 w-full" />
+                    <Skeleton class="h-10 w-full" />
+                </div>
 
-                        <div class="overflow-hidden rounded-lg border">
-                            <div class="bg-muted/70 px-4 py-2 text-center text-sm font-semibold uppercase tracking-wide">
-                                {{ productSheetReference || 'Lote sin referencia' }}
-                            </div>
-                            <ScrollArea class="h-[min(400px,60vh)]">
+                <div v-else-if="operations.length === 0" class="rounded-lg border border-dashed py-16 text-center">
+                    <p class="text-sm text-muted-foreground">No hay operaciones registradas en este lote.</p>
+                </div>
+
+                <template v-else>
+                    <!-- Tabs -->
+                    <div class="mb-4 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-foreground">
+                            {{ productSheetReference }}
+                            <Badge variant="secondary" class="ml-2">{{ operations.length }} op.</Badge>
+                        </h3>
+                        <Tabs v-model="viewMode" class="w-auto">
+                            <TabsList class="h-8">
+                                <TabsTrigger value="grouped" class="h-7 px-3 text-xs">Por sección</TabsTrigger>
+                                <TabsTrigger value="flat" class="h-7 px-3 text-xs">Individual</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                    </div>
+
+                    <!-- === VISTA AGRUPADA === -->
+                    <div v-if="viewMode === 'grouped'" class="space-y-3">
+                        <div v-for="group in groupedOperations" :key="group.sectionName" class="overflow-hidden rounded-lg border">
+                            <button
+                                type="button"
+                                class="flex w-full items-center justify-between bg-muted/60 px-4 py-2.5 text-left transition hover:bg-muted/80"
+                                @click="toggleSection(group.sectionName)"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <ChevronDown v-if="!collapsedSections.has(group.sectionName)" class="h-4 w-4 text-muted-foreground" />
+                                    <ChevronRight v-else class="h-4 w-4 text-muted-foreground" />
+                                    <span class="text-sm font-semibold">{{ group.sectionName }}</span>
+                                    <Badge variant="outline" class="text-[10px]">{{ group.items.length }} op.</Badge>
+                                </div>
+                                <span class="font-mono text-sm font-semibold text-primary">SAM {{ fmt(group.totalSam) }}</span>
+                            </button>
+                            <div v-if="!collapsedSections.has(group.sectionName)">
                                 <Table>
                                     <TableHeader>
-                                        <TableRow>
-                                            <TableHead class="w-12">Sec</TableHead>
-                                            <TableHead>Sección</TableHead>
+                                        <TableRow class="text-[11px]">
+                                            <TableHead class="w-10 pl-4">#</TableHead>
                                             <TableHead>Operación</TableHead>
                                             <TableHead class="text-center">Máquina</TableHead>
-                                            <TableHead class="text-center">Base tela</TableHead>
-                                            <TableHead class="text-right w-14">Cant</TableHead>
+                                            <TableHead class="w-14 text-right">Cant.</TableHead>
                                             <TableHead class="text-right">SAM base</TableHead>
                                             <TableHead class="text-right">Supl.</TableHead>
-                                            <TableHead class="text-right">Factor tela</TableHead>
-                                            <TableHead class="text-right">Factor op.</TableHead>
+                                            <TableHead class="text-right">F. tela</TableHead>
+                                            <TableHead class="text-right">F. op.</TableHead>
                                             <TableHead class="text-right">SAM unit.</TableHead>
                                             <TableHead class="text-right">SAM op.</TableHead>
-                                            <TableHead class="w-28"></TableHead>
+                                            <TableHead class="w-24"></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        <TableRow v-if="isLoading">
-                                            <TableCell colspan="13" class="py-8 text-center text-sm text-muted-foreground">
-                                                Cargando operaciones...
+                                        <TableRow v-for="entry in group.items" :key="entry.id" class="text-sm">
+                                            <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
+                                            <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
+                                            <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
+                                            <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
+                                            <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
+                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                entry.machine_supplement_factor ?? '-'
+                                            }}</TableCell>
+                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                entry.fabric_base_factor != null ? fmt(entry.fabric_base_factor) : '-'
+                                            }}</TableCell>
+                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                entry.operator_efficiency_factor ?? '-'
+                                            }}</TableCell>
+                                            <TableCell class="text-right font-mono text-xs">{{
+                                                entry.sam_total_unitario != null ? fmt(Number(entry.sam_total_unitario)) : '-'
+                                            }}</TableCell>
+                                            <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
+                                            <TableCell class="py-1">
+                                                <div class="flex items-center justify-end gap-0.5">
+                                                    <Button variant="ghost" size="icon" class="h-7 w-7" title="Editar" @click="editOperation()"
+                                                        ><Pencil class="h-3.5 w-3.5"
+                                                    /></Button>
+                                                    <Button variant="ghost" size="icon" class="h-7 w-7" title="Historial" @click="openHistory(entry)"
+                                                        ><History class="h-3.5 w-3.5"
+                                                    /></Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        class="h-7 w-7"
+                                                        title="Eliminar"
+                                                        @click="deleteOperation(entry)"
+                                                        ><Trash2 class="h-3.5 w-3.5"
+                                                    /></Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
-                                        <TableRow v-else-if="operations.length === 0">
-                                            <TableCell colspan="13" class="py-8 text-center text-sm text-muted-foreground">
-                                                No hay operaciones registradas.
-                                            </TableCell>
+                                        <TableRow class="border-t bg-muted/30">
+                                            <TableCell colspan="9" class="py-1.5 text-right text-xs font-bold"
+                                                >Total {{ group.sectionName }}</TableCell
+                                            >
+                                            <TableCell class="py-1.5 text-right font-mono text-xs font-bold">{{ fmt(group.totalSam) }}</TableCell>
+                                            <TableCell></TableCell>
                                         </TableRow>
-                                        <template v-else>
-                                            <template v-for="group in groupedOperations" :key="group.sectionName">
-                                                <TableRow class="bg-muted/50">
-                                                    <TableCell colspan="13" class="py-2 text-center text-xs font-bold uppercase tracking-wider">
-                                                        {{ group.sectionName }}
-                                                    </TableCell>
-                                                </TableRow>
-                                                <TableRow
-                                                    v-for="entry in group.items"
-                                                    :key="entry.id"
-                                                    class="text-sm"
-                                                >
-                                                    <TableCell class="font-mono text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
-                                                    <TableCell class="text-xs">{{ resolveSectionName(entry) || '-' }}</TableCell>
-                                                    <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
-                                                    <TableCell class="text-center text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
-                                                    <TableCell class="text-center text-muted-foreground">{{ entry.fabric_base_id ?? '-' }}</TableCell>
-                                                    <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
-                                                    <TableCell class="text-right font-mono">{{ formatNumber(getSamBaseValue(entry)) }}</TableCell>
-                                                    <TableCell class="text-right font-mono">{{ entry.machine_supplement_factor ?? '-' }}</TableCell>
-                                                    <TableCell class="text-right font-mono">{{ entry.fabric_base_factor != null ? formatNumber(entry.fabric_base_factor) : '-' }}</TableCell>
-                                                    <TableCell class="text-right font-mono">{{ entry.operator_efficiency_factor ?? '-' }}</TableCell>
-                                                    <TableCell class="text-right font-mono">{{ entry.sam_total_unitario != null ? formatNumber(Number(entry.sam_total_unitario)) : '-' }}</TableCell>
-                                                    <TableCell class="text-right font-mono">{{ formatNumber(getSamValue(entry)) }}</TableCell>
-                                                    <TableCell class="py-2">
-                                                        <div class="flex items-center justify-end gap-0.5">
-                                                            <Button variant="ghost" size="icon" class="h-8 w-8" title="Editar" @click="editOperation(entry)">
-                                                                <Pencil class="h-4 w-4" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" class="h-8 w-8" title="Ver historial" @click="openHistory(entry)">
-                                                                <History class="h-4 w-4" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" class="h-8 w-8" title="Eliminar" @click="deleteOperation(entry)">
-                                                                <Trash2 class="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                                <TableRow class="border-t-2 border-muted bg-muted/30">
-                                                    <TableCell colspan="11" class="py-2 text-right text-xs font-bold">Total SAM {{ group.sectionName }}</TableCell>
-                                                    <TableCell class="py-2 text-center font-mono text-xs font-bold">
-                                                        {{ formatNumber(group.sectionName === 'Confección' ? totalSamConfeccion : totalSamPresentacion) }}
-                                                    </TableCell>
-                                                    <TableCell></TableCell>
-                                                </TableRow>
-                                                <template v-if="group.sectionName === 'Confección'">
-                                                    <TableRow class="bg-amber-50 dark:bg-amber-950/20">
-                                                        <TableCell colspan="11" class="py-1.5 text-right text-xs font-semibold">Costo Confección Olamtex</TableCell>
-                                                        <TableCell class="py-1.5 text-center font-mono text-xs font-semibold">$ {{ formatCurrency(costConfeccionOlamtex) }}</TableCell>
-                                                        <TableCell></TableCell>
-                                                    </TableRow>
-                                                    <TableRow class="bg-amber-50 dark:bg-amber-950/20">
-                                                        <TableCell colspan="11" class="py-1.5 text-right text-xs font-semibold">Costo Hilo</TableCell>
-                                                        <TableCell class="py-1.5 text-center font-mono text-xs font-semibold">$ {{ formatCurrency(costHilo) }}</TableCell>
-                                                        <TableCell></TableCell>
-                                                    </TableRow>
-                                                    <TableRow class="border-b-2 border-muted bg-amber-100 dark:bg-amber-900/30">
-                                                        <TableCell colspan="11" class="py-2 text-right text-xs font-bold">Costo Total Confección</TableCell>
-                                                        <TableCell class="py-2 text-center font-mono text-xs font-bold">$ {{ formatCurrency(costTotalConfeccion) }}</TableCell>
-                                                        <TableCell></TableCell>
-                                                    </TableRow>
-                                                </template>
-                                                <template v-if="group.sectionName === 'Presentación'">
-                                                    <TableRow class="border-b-2 border-muted bg-amber-100 dark:bg-amber-900/30">
-                                                        <TableCell colspan="11" class="py-2 text-right text-xs font-bold">Costo Total Presentación</TableCell>
-                                                        <TableCell class="py-2 text-center font-mono text-xs font-bold">$ {{ formatCurrency(costTotalPresentacion) }}</TableCell>
-                                                        <TableCell></TableCell>
-                                                    </TableRow>
-                                                </template>
-                                            </template>
-                                        </template>
                                     </TableBody>
                                 </Table>
-                            </ScrollArea>
+                                <!-- Costos de sección -->
+                                <template v-if="group.sectionName === 'Confección'">
+                                    <div class="grid grid-cols-2 border-t bg-amber-50 text-xs dark:bg-amber-950/20">
+                                        <div class="px-4 py-1.5 text-right font-semibold">Costo Confección Olamtex</div>
+                                        <div class="px-4 py-1.5 font-mono font-semibold">$ {{ formatCurrency(costConfeccionOlamtex) }}</div>
+                                        <div class="px-4 py-1.5 text-right font-semibold">Costo Hilo</div>
+                                        <div class="px-4 py-1.5 font-mono font-semibold">$ {{ formatCurrency(costHilo) }}</div>
+                                    </div>
+                                    <div class="grid grid-cols-2 border-t bg-amber-100 text-xs dark:bg-amber-900/30">
+                                        <div class="px-4 py-2 text-right font-bold">Costo Total Confección</div>
+                                        <div class="px-4 py-2 font-mono font-bold">$ {{ formatCurrency(costTotalConfeccion) }}</div>
+                                    </div>
+                                </template>
+                                <template v-if="group.sectionName === 'Presentación'">
+                                    <div class="grid grid-cols-2 border-t bg-amber-100 text-xs dark:bg-amber-900/30">
+                                        <div class="px-4 py-2 text-right font-bold">Costo Total Presentación</div>
+                                        <div class="px-4 py-2 font-mono font-bold">$ {{ formatCurrency(costTotalPresentacion) }}</div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        <!-- Total general -->
+                        <div class="flex items-center justify-end gap-6 rounded-lg border bg-primary/5 px-4 py-3">
+                            <span class="text-sm font-bold">SAM total ruta</span>
+                            <span class="font-mono text-lg font-bold text-primary">{{ fmt(totalSam) }} min</span>
                         </div>
                     </div>
 
-                    <div class="space-y-4">
-                        <div class="flex h-full flex-col items-center justify-center rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                            <div class="text-sm font-semibold text-foreground">Vista del producto</div>
-                            <p class="mt-2 text-xs text-muted-foreground">
-                                Aquí puedes mostrar la ilustración o imagen técnica del lote.
-                            </p>
+                    <!-- === VISTA INDIVIDUAL === -->
+                    <div v-else class="overflow-hidden rounded-lg border">
+                        <ScrollArea class="h-[min(450px,55vh)]">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow class="text-[11px]">
+                                        <TableHead class="w-12 pl-4">Sec</TableHead>
+                                        <TableHead>Sección</TableHead>
+                                        <TableHead>Operación</TableHead>
+                                        <TableHead class="text-center">Máquina</TableHead>
+                                        <TableHead class="w-14 text-right">Cant.</TableHead>
+                                        <TableHead class="text-right">SAM base</TableHead>
+                                        <TableHead class="text-right">Supl.</TableHead>
+                                        <TableHead class="text-right">F. tela</TableHead>
+                                        <TableHead class="text-right">F. op.</TableHead>
+                                        <TableHead class="text-right">SAM unit.</TableHead>
+                                        <TableHead class="text-right">SAM op.</TableHead>
+                                        <TableHead class="w-24"></TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow v-for="entry in operations" :key="entry.id" class="text-sm">
+                                        <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
+                                        <TableCell class="text-xs">{{ resolveSectionName(entry) || '-' }}</TableCell>
+                                        <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
+                                        <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
+                                        <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
+                                        <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
+                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                            entry.machine_supplement_factor ?? '-'
+                                        }}</TableCell>
+                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                            entry.fabric_base_factor != null ? fmt(entry.fabric_base_factor) : '-'
+                                        }}</TableCell>
+                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                            entry.operator_efficiency_factor ?? '-'
+                                        }}</TableCell>
+                                        <TableCell class="text-right font-mono text-xs">{{
+                                            entry.sam_total_unitario != null ? fmt(Number(entry.sam_total_unitario)) : '-'
+                                        }}</TableCell>
+                                        <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
+                                        <TableCell class="py-1">
+                                            <div class="flex items-center justify-end gap-0.5">
+                                                <Button variant="ghost" size="icon" class="h-7 w-7" title="Editar" @click="editOperation()"
+                                                    ><Pencil class="h-3.5 w-3.5"
+                                                /></Button>
+                                                <Button variant="ghost" size="icon" class="h-7 w-7" title="Historial" @click="openHistory(entry)"
+                                                    ><History class="h-3.5 w-3.5"
+                                                /></Button>
+                                                <Button variant="ghost" size="icon" class="h-7 w-7" title="Eliminar" @click="deleteOperation(entry)"
+                                                    ><Trash2 class="h-3.5 w-3.5"
+                                                /></Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </ScrollArea>
+                        <div class="flex items-center justify-end gap-6 border-t bg-primary/5 px-4 py-3">
+                            <span class="text-sm font-bold">SAM total</span>
+                            <span class="font-mono text-lg font-bold text-primary">{{ fmt(totalSam) }} min</span>
                         </div>
                     </div>
-                </div>
+                </template>
             </div>
 
-            <DialogFooter class="mt-6 flex justify-end flex-shrink-0 border-t pt-4">
-                <Button variant="outline" class="rounded-full px-5 py-2 text-sm font-semibold" @click="localOpen = false">
-                    Cerrar
-                </Button>
+            <!-- Footer -->
+            <DialogFooter class="flex flex-shrink-0 items-center justify-between border-t px-6 py-4">
+                <Button variant="outline" size="sm" @click="editOperation"> <Pencil class="mr-1 h-4 w-4" /> Editar listado </Button>
+                <Button variant="outline" class="rounded-full px-5 py-2 text-sm font-semibold" @click="localOpen = false">Cerrar</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
 
-    <HistoryDialog
-        :open="isHistoryOpen"
-        :operation-id="historyOperationId"
-        :operation-label="historyOperationLabel"
-        @close="isHistoryOpen = false"
-    />
+    <HistoryDialog :open="isHistoryOpen" :operation-id="historyOperationId" :operation-label="historyOperationLabel" @close="isHistoryOpen = false" />
 </template>

@@ -1,23 +1,22 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { HelpCircle } from 'lucide-vue-next';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { computed, ref } from 'vue';
 
-const props = withDefaults(defineProps<{
-    text?: string;
-    ariaLabel?: string;
-    side?: 'top' | 'right' | 'bottom' | 'left';
-    align?: 'start' | 'center' | 'end';
-    delayDuration?: number;
-}>(), {
-    side: 'top',
-    align: 'center',
-    delayDuration: 200,
-});
+const props = withDefaults(
+    defineProps<{
+        text?: string;
+        ariaLabel?: string;
+        side?: 'top' | 'right' | 'bottom' | 'left';
+        align?: 'start' | 'center' | 'end';
+        delayDuration?: number;
+    }>(),
+    {
+        side: 'top',
+        align: 'center',
+        delayDuration: 200,
+    },
+);
 
 const isOpen = ref(false);
 
@@ -45,16 +44,12 @@ function handleFocus() {
 </script>
 
 <template>
-    <Tooltip 
-        v-model:open="isOpen"
-        :delayDuration="delayDuration"
-        :disableHoverableContent="false"
-    >
+    <Tooltip v-model:open="isOpen" :delayDuration="delayDuration" :disableHoverableContent="false">
         <TooltipTrigger asChild>
-            <span 
-                class="help-tooltip-trigger" 
-                :aria-label="computedAriaLabel" 
-                role="button" 
+            <span
+                class="help-tooltip-trigger"
+                :aria-label="computedAriaLabel"
+                role="button"
                 tabindex="0"
                 @mouseenter="handleMouseEnter"
                 @mouseleave="handleMouseLeave"
@@ -99,7 +94,9 @@ function handleFocus() {
     padding: 0.4rem 0.85rem;
     font-size: 0.85rem;
     border-radius: 0.75rem;
-    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.2), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+    box-shadow:
+        0 20px 25px -5px rgba(15, 23, 42, 0.2),
+        0 8px 10px -6px rgba(15, 23, 42, 0.1);
     position: relative;
     z-index: 50;
 }

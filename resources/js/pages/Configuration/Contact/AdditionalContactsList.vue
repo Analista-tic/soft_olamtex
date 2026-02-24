@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import AlertBox from '@/components/AlertBox.vue';
 import InputField from '@/components/InputField.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import AlertBox from '@/components/AlertBox.vue';
 import { PlusCircle } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 
@@ -34,9 +34,7 @@ const validateContact = (contact: { name: string; email: string; phone: string }
 const contactErrors = ref(internalContacts.value.map((contact) => validateContact(contact)));
 
 // Función para detectar duplicados (nombre + correo + teléfono)
-const hasDuplicateContact = (
-    contacts: { name: string; email: string; phone: string }[],
-): boolean => {
+const hasDuplicateContact = (contacts: { name: string; email: string; phone: string }[]): boolean => {
     const seen = new Set<string>();
     for (const c of contacts) {
         const key = `${c.name.trim().toLowerCase()}|${c.email.trim().toLowerCase()}|${c.phone.trim()}`;
@@ -54,9 +52,7 @@ watch(
         if (hasDuplicateContact(newContacts)) {
             alertType.value = 'error';
             alertMessage.value = 'Ya existe un contacto adicional con el mismo nombre, correo y teléfono.';
-        } else if (
-            alertMessage.value === 'Ya existe un contacto adicional con el mismo nombre, correo y teléfono.'
-        ) {
+        } else if (alertMessage.value === 'Ya existe un contacto adicional con el mismo nombre, correo y teléfono.') {
             alertMessage.value = '';
         }
 
@@ -67,9 +63,7 @@ watch(
 
 // Validar que todos los campos de los contactos estén llenos
 const areContactsValid = () => {
-    return internalContacts.value.every(
-        (contact) => contact.name.trim() && contact.email.trim() && contact.phone.trim(),
-    );
+    return internalContacts.value.every((contact) => contact.name.trim() && contact.email.trim() && contact.phone.trim());
 };
 
 // Agregar un contacto adicional
@@ -110,9 +104,9 @@ defineExpose({
 </script>
 
 <template>
-    <div class="mt-2 relative">
+    <div class="relative mt-2">
         <transition name="fade">
-            <div v-if="alertMessage" class="absolute -top-26 left-1/2 z-20 w-full max-w-xl -translate-x-1/2">
+            <div v-if="alertMessage" class="-top-26 absolute left-1/2 z-20 w-full max-w-xl -translate-x-1/2">
                 <AlertBox
                     :type="alertType"
                     :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
@@ -122,10 +116,10 @@ defineExpose({
             </div>
         </transition>
 
-        <div class="flex justify-end mb-2">
+        <div class="mb-2 flex justify-end">
             <button
                 type="button"
-                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-70 disabled:cursor-not-allowed"
+                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
                 @click="addContact"
             >
                 <PlusCircle class="h-4 w-4" />
@@ -135,13 +129,7 @@ defineExpose({
 
         <div v-for="(contact, index) in internalContacts" :key="index" class="p-2">
             <div class="flex items-center gap-4">
-                <InputField
-                    v-model="contact.name"
-                    label="Nombre del contacto"
-                    placeholder="Nombre"
-                    required
-                    :error="contactErrors[index]?.name"
-                />
+                <InputField v-model="contact.name" label="Nombre del contacto" placeholder="Nombre" required :error="contactErrors[index]?.name" />
                 <InputField
                     v-model="contact.email"
                     label="Correo electrónico"
@@ -150,13 +138,7 @@ defineExpose({
                     required
                     :error="contactErrors[index]?.email"
                 />
-                <InputField
-                    v-model="contact.phone"
-                    label="Teléfono"
-                    placeholder="Teléfono"
-                    required
-                    :error="contactErrors[index]?.phone"
-                />
+                <InputField v-model="contact.phone" label="Teléfono" placeholder="Teléfono" required :error="contactErrors[index]?.phone" />
                 <div class="text-right">
                     <DeleteButton @click="removeContact(index)">Eliminar contacto</DeleteButton>
                 </div>

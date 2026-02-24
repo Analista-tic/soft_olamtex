@@ -3,6 +3,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -15,7 +16,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import Badge from '@/components/ui/badge/Badge.vue';
 import { Button } from '@/components/ui/button';
-import SelectField from '@/components/SelectField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -27,24 +27,23 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCopCurrency, resolveProductSheetReference, type OptionParams, type ProductSheet } from '@/domain/product-sheet';
 import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { ACTION_LABELS } from '@/lib/actionLabels';
-import { useAuthStore } from '@/stores/auth';
-import { Head } from '@inertiajs/vue3';
-import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
-import { Eye, Pencil, PlusCircle, Repeat2, Search, Trash } from 'lucide-vue-next';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import axios from 'axios';
 import {
     convertSampleToProduct,
     deleteProductSheet as deleteProductSheetRequest,
     listProductSheets,
     showProductSheet,
 } from '@/services/productSheetService';
+import { useAuthStore } from '@/stores/auth';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Eye, Pencil, PlusCircle, Repeat2, Search, Trash } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -202,7 +201,9 @@ async function submitRowConvertDialog(productReference: string) {
     } catch (error: unknown) {
         const message = axios.isAxiosError(error)
             ? (error.response?.data?.message ?? 'Error al convertir la sábana.')
-            : (error instanceof Error ? error.message : 'Error al convertir la sábana.');
+            : error instanceof Error
+              ? error.message
+              : 'Error al convertir la sábana.';
         setAlert(message, 'error');
     } finally {
         convertRowLoading.value = false;
@@ -223,13 +224,7 @@ function scheduleProductSheetsFetch(page = 1) {
     }, fetchDebounceMs);
 }
 
-async function fetchProductSheets(
-    page = 1,
-    search = '',
-    status = 'all',
-    section = 'all',
-    world = 'all',
-) {
+async function fetchProductSheets(page = 1, search = '', status = 'all', section = 'all', world = 'all') {
     if (activeFetchController) {
         activeFetchController.abort();
     }
@@ -242,14 +237,17 @@ async function fetchProductSheets(
         const sectionId = section === 'all' ? null : Number(section);
         const worldId = world === 'all' ? null : Number(world);
 
-        const response = await listProductSheets({
-            page,
-            per_page: itemsPerPage,
-            search: normalizedSearch === '' ? undefined : normalizedSearch,
-            status: status === 'all' ? null : status,
-            section_id: Number.isFinite(sectionId) ? sectionId : null,
-            world_id: Number.isFinite(worldId) ? worldId : null,
-        }, controller.signal);
+        const response = await listProductSheets(
+            {
+                page,
+                per_page: itemsPerPage,
+                search: normalizedSearch === '' ? undefined : normalizedSearch,
+                status: status === 'all' ? null : status,
+                section_id: Number.isFinite(sectionId) ? sectionId : null,
+                world_id: Number.isFinite(worldId) ? worldId : null,
+            },
+            controller.signal,
+        );
 
         if (response && response.data && response.data.products_sheets) {
             productSheets.value = response.data.products_sheets.data;
@@ -380,8 +378,8 @@ onUnmounted(() => {
                     <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
                         <SelectField v-model="statusFilter" :options="statusOptions" placeholder="Todos" />
                     </FilterField>
-                    <FilterField label="Seccion" :active="sectionFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
-                        <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por seccion" />
+                    <FilterField label="Sección" :active="sectionFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por sección" />
                     </FilterField>
                     <FilterField label="Mundo" :active="worldFilter !== 'all'" class="min-w-[220px] max-w-[220px]">
                         <SelectField v-model="worldFilter" :options="worldOptions" placeholder="Filtrar por mundo" />
@@ -391,109 +389,109 @@ onUnmounted(() => {
 
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Ref. Muestra</TableHead>
-                            <TableHead>Ref. Producto</TableHead>
-                            <TableHead>Seccion</TableHead>
-                            <TableHead>Grupo</TableHead>
-                            <TableHead>Marca</TableHead>
-                            <TableHead>Mundo</TableHead>
-                            <TableHead>Base</TableHead>
-                            <TableHead>Precio Fact</TableHead>
-                            <TableHead>Precio Venta</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-for="product in productSheets" :key="product.id" class="text-center">
-                            <TableCell class="font-medium">
-                                {{ product.sample_reference ?? (product.type === 'muestra' ? resolveProductSheetReference(product) : '-') }}
-                            </TableCell>
-                            <TableCell class="font-medium">
-                                {{ product.product_reference ?? (product.type === 'producto' ? resolveProductSheetReference(product) : '-') }}
-                            </TableCell>
-                            <TableCell>{{ product.section?.name ?? '' }}</TableCell>
-                            <TableCell>{{ product.group?.name ?? '' }}</TableCell>
-                            <TableCell>{{ product.brand?.name ?? '' }}</TableCell>
-                            <TableCell>{{ product.world?.name ?? '' }}</TableCell>
-                            <TableCell>{{ product.fabric_base?.name ?? '' }}</TableCell>
-                            <TableCell>{{ formatCopCurrency(product.billing_price) }}</TableCell>
-                            <TableCell>{{ formatCopCurrency(product.selling_price) }}</TableCell>
-                            <TableCell>
-                                <Badge
-                                    :variant="'outline'"
-                                    :class="product.status === 'complete' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'"
-                                >
-                                    {{ product.status === 'complete' ? 'Completo' : 'Incompleto' }}
-                                </Badge>
-                            </TableCell>
-                            <TableCell class="text-center">
-                                <div class="flex items-center justify-center gap-2">
-                                    <Tooltip v-if="canEdit && product.type === 'muestra' && !product.product_reference">
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Copiar"
-                                                :disabled="convertRowLoading"
-                                                @click="openRowConvertDialog(product)"
-                                            >
-                                                <Repeat2 :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Copiar</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip v-if="canView">
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Ver detalle"
-                                                @click="viewProductSheet(product)"
-                                            >
-                                                <Eye :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Ver detalle</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip v-if="canEdit">
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Editar"
-                                                @click="openEditDialog(product)"
-                                            >
-                                                <Pencil :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Editar</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip v-if="canDelete">
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
-                                                aria-label="Eliminar"
-                                                @click="confirmDeleteProductSheet(product)"
-                                            >
-                                                <Trash :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Eliminar</TooltipContent>
-                                    </Tooltip>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Ref. Muestra</TableHead>
+                                <TableHead>Ref. Producto</TableHead>
+                                <TableHead>Sección</TableHead>
+                                <TableHead>Grupo</TableHead>
+                                <TableHead>Marca</TableHead>
+                                <TableHead>Mundo</TableHead>
+                                <TableHead>Base</TableHead>
+                                <TableHead>Precio Fact</TableHead>
+                                <TableHead>Precio Venta</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead class="text-center">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow v-for="product in productSheets" :key="product.id" class="text-center">
+                                <TableCell class="font-medium">
+                                    {{ product.sample_reference ?? (product.type === 'muestra' ? resolveProductSheetReference(product) : '-') }}
+                                </TableCell>
+                                <TableCell class="font-medium">
+                                    {{ product.product_reference ?? (product.type === 'producto' ? resolveProductSheetReference(product) : '-') }}
+                                </TableCell>
+                                <TableCell>{{ product.section?.name ?? '' }}</TableCell>
+                                <TableCell>{{ product.group?.name ?? '' }}</TableCell>
+                                <TableCell>{{ product.brand?.name ?? '' }}</TableCell>
+                                <TableCell>{{ product.world?.name ?? '' }}</TableCell>
+                                <TableCell>{{ product.fabric_base?.name ?? '' }}</TableCell>
+                                <TableCell>{{ formatCopCurrency(product.billing_price) }}</TableCell>
+                                <TableCell>{{ formatCopCurrency(product.selling_price) }}</TableCell>
+                                <TableCell>
+                                    <Badge
+                                        :variant="'outline'"
+                                        :class="product.status === 'complete' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'"
+                                    >
+                                        {{ product.status === 'complete' ? 'Completo' : 'Incompleto' }}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell class="text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <Tooltip v-if="canEdit && product.type === 'muestra' && !product.product_reference">
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Copiar"
+                                                    :disabled="convertRowLoading"
+                                                    @click="openRowConvertDialog(product)"
+                                                >
+                                                    <Repeat2 :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Copiar</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip v-if="canView">
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Ver detalle"
+                                                    @click="viewProductSheet(product)"
+                                                >
+                                                    <Eye :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Ver detalle</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip v-if="canEdit">
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Editar"
+                                                    @click="openEditDialog(product)"
+                                                >
+                                                    <Pencil :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Editar</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip v-if="canDelete">
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
+                                                    aria-label="Eliminar"
+                                                    @click="confirmDeleteProductSheet(product)"
+                                                >
+                                                    <Trash :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Eliminar</TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </TooltipProvider>
                 <Pagination
                     class="mt-5 flex justify-center"

@@ -12,16 +12,11 @@ import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
-import {
-    createParameter,
-    deleteParameter,
-    getParameters,
-    updateParameter,
-} from '@/services/settingsService';
+import { createParameter, deleteParameter, getParameters, updateParameter } from '@/services/settingsService';
 import { Head } from '@inertiajs/vue3';
 import { Eye, PlusCircle, Search } from 'lucide-vue-next';
 import type { ParameterDialogModel } from './ParameterDialog.vue';
@@ -342,57 +337,59 @@ function isObjectWithName(item: unknown): item is { name: string } {
 
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
-                <Table class="text-center">
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Valor</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-if="isLoading">
-                            <TableCell colspan="5" class="text-center text-sm text-muted-foreground"> Cargando parámetros... </TableCell>
-                        </TableRow>
-                        <TableRow v-else-if="parameters.length === 0">
-                            <TableCell colspan="5" class="px-4 py-2 text-center text-sm text-gray-400"> No hay parámetros registrados. </TableCell>
-                        </TableRow>
-                        <TableRow v-else v-for="param in parameters" :key="param.id">
-                            <TableCell class="font-medium">{{ param.label }}</TableCell>
-                            <TableCell class="break-words text-left text-sm text-slate-600">
-                                {{ param.description || 'Sin descripción' }}
-                            </TableCell>
-                            <TableCell class="text-left text-sm text-slate-700">
-                                {{ formatValuePreview(param.value) }}
-                            </TableCell>
-                            <TableCell>
-                                <StatusBadge :status="param.status" />
-                            </TableCell>
-                            <TableCell class="text-center">
-                                <div class="flex flex-wrap justify-center gap-2">
-                                    <Tooltip>
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Ver detalle"
-                                                @click="openViewDialog(param)"
-                                            >
-                                                <Eye :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Ver detalle</TooltipContent>
-                                    </Tooltip>
-                                <EditButton :onClick="() => openDialog('edit', param)" />
-                                <DeleteButton :onClick="() => confirmDeleteParameter(param)" />
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                    <Table class="text-center">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Nombre</TableHead>
+                                <TableHead>Descripción</TableHead>
+                                <TableHead>Valor</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead class="text-center">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow v-if="isLoading">
+                                <TableCell colspan="5" class="text-center text-sm text-muted-foreground"> Cargando parámetros... </TableCell>
+                            </TableRow>
+                            <TableRow v-else-if="parameters.length === 0">
+                                <TableCell colspan="5" class="px-4 py-2 text-center text-sm text-gray-400">
+                                    No hay parámetros registrados.
+                                </TableCell>
+                            </TableRow>
+                            <TableRow v-else v-for="param in parameters" :key="param.id">
+                                <TableCell class="font-medium">{{ param.label }}</TableCell>
+                                <TableCell class="break-words text-left text-sm text-slate-600">
+                                    {{ param.description || 'Sin descripción' }}
+                                </TableCell>
+                                <TableCell class="text-left text-sm text-slate-700">
+                                    {{ formatValuePreview(param.value) }}
+                                </TableCell>
+                                <TableCell>
+                                    <StatusBadge :status="param.status" />
+                                </TableCell>
+                                <TableCell class="text-center">
+                                    <div class="flex flex-wrap justify-center gap-2">
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Ver detalle"
+                                                    @click="openViewDialog(param)"
+                                                >
+                                                    <Eye :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Ver detalle</TooltipContent>
+                                        </Tooltip>
+                                        <EditButton :onClick="() => openDialog('edit', param)" />
+                                        <DeleteButton :onClick="() => confirmDeleteParameter(param)" />
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </TooltipProvider>
             </div>
         </div>

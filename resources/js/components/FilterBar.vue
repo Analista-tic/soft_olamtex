@@ -12,16 +12,9 @@ const props = withDefaults(
 );
 
 const classes = computed(() => {
-    const alignment =
-        props.align === 'start'
-            ? 'items-start'
-            : props.align === 'center'
-            ? 'items-center'
-            : 'items-end';
+    const alignment = props.align === 'start' ? 'items-start' : props.align === 'center' ? 'items-center' : 'items-end';
 
-    return ['flex flex-wrap', alignment, props.gap, props.noMargin ? '' : 'mb-2', props.class]
-        .filter(Boolean)
-        .join(' ');
+    return ['flex flex-wrap', alignment, props.gap, props.noMargin ? '' : 'mb-2', props.class].filter(Boolean).join(' ');
 });
 </script>
 

@@ -1,12 +1,7 @@
 <script setup lang="ts">
-import { computed, type Component } from 'vue';
 import { Button } from '@/components/ui/button';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { computed, type Component } from 'vue';
 
 type ButtonVariant = 'ghost' | 'destructive' | 'default';
 type ButtonSize = 'sm' | 'md';

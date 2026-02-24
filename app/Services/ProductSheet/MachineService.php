@@ -24,14 +24,20 @@ class MachineService
     public function __construct(protected Machine $model) {}
 
     /**
-     * Obtiene opciones de máquinas activas
+     * Obtiene opciones de máquinas activas (id, code, name, supplement_factor).
+     * El suplemento viene de la máquina para usarlo en el snapshot del listado operacional.
      */
     public function options(): Collection
     {
         return $this->model
             ->active()
-            ->select(['id', 'code', 'name'])
-            ->get();
+            ->get()
+            ->map(fn (Machine $m) => [
+                'id' => $m->id,
+                'code' => $m->code,
+                'name' => $m->name,
+                'supplement_factor' => $m->supplement_factor,
+            ]);
     }
 
     /**

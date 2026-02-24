@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
-import { Dialog, DialogFooter } from '@/components/ui/dialog';
-import FormHeader from '@/components/FormHeader.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormHeader from '@/components/FormHeader.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import TextareaField from '@/components/TextareaField.vue';
 import SwitchField from '@/components/SwitchField.vue';
+import TextareaField from '@/components/TextareaField.vue';
+import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { AdditionalField, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/inventory';
 import { Plus } from 'lucide-vue-next';
-import HelpTooltip from '@/components/HelpTooltip.vue';
+import { computed, ref, watch } from 'vue';
 
 type AdditionalFieldForm = Omit<AdditionalField, 'default_value'> & {
     default_value: string;
@@ -52,14 +52,16 @@ const defaultForm: AdditionalFieldForm = {
 // Inicializar localForm de forma segura convirtiendo `default_value` a string
 const localForm = ref<AdditionalFieldForm>({
     ...defaultForm,
-    ...(props.form ?? {} as Partial<AdditionalFieldForm>),
+    ...(props.form ?? ({} as Partial<AdditionalFieldForm>)),
     default_value: String((props.form as Partial<AdditionalField>)?.default_value ?? ''),
 });
 const localOptions = ref<string[]>([]);
 const newOptionInput = ref('');
 
 function normalizeOptionEntry(value: unknown): string {
-    return String(value ?? '').trim().toUpperCase();
+    return String(value ?? '')
+        .trim()
+        .toUpperCase();
 }
 
 const hasOptionValues = computed(() => {
@@ -67,9 +69,7 @@ const hasOptionValues = computed(() => {
 });
 
 const hasDuplicateOptions = computed(() => {
-    const normalized = localOptions.value
-        .map((value) => normalizeOptionEntry(value))
-        .filter(Boolean);
+    const normalized = localOptions.value.map((value) => normalizeOptionEntry(value)).filter(Boolean);
     return new Set(normalized).size !== normalized.length;
 });
 
@@ -101,9 +101,7 @@ watch(
             default_value: value?.default_value ?? '',
         };
         const optionsFromProps = Array.isArray(value?.options) ? (value?.options ?? []) : [];
-        localOptions.value = optionsFromProps
-            .map((option) => normalizeOptionEntry(option))
-            .filter((option) => option !== '');
+        localOptions.value = optionsFromProps.map((option) => normalizeOptionEntry(option)).filter((option) => option !== '');
         newOptionInput.value = '';
     },
     { immediate: true },
@@ -122,11 +120,8 @@ watch(
 watch(
     localOptions,
     (options) => {
-        const normalizedOptions = options
-            .map((value) => normalizeOptionEntry(value))
-            .filter((value) => value !== '');
-        const hasDiff = normalizedOptions.length !== options.length
-            || normalizedOptions.some((value, index) => value !== options[index]);
+        const normalizedOptions = options.map((value) => normalizeOptionEntry(value)).filter((value) => value !== '');
+        const hasDiff = normalizedOptions.length !== options.length || normalizedOptions.some((value, index) => value !== options[index]);
         if (hasDiff) {
             localOptions.value = normalizedOptions;
         }
@@ -197,8 +192,12 @@ function buildPayload(preparedOptions: string[]): AdditionalFieldPayload {
 function handleSubmit() {
     const preparedOptions = isSelectField.value
         ? localOptions.value
-            .map((value) => String(value ?? '').trim().toUpperCase())
-            .filter((value) => value)
+              .map((value) =>
+                  String(value ?? '')
+                      .trim()
+                      .toUpperCase(),
+              )
+              .filter((value) => value)
         : [];
 
     emit('submit', buildPayload(preparedOptions));
@@ -207,27 +206,26 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex flex-col max-h-[85vh] max-w-[550px] px-2 py-2">
+        <FormDialogContent class="flex max-h-[85vh] max-w-[550px] flex-col px-2 py-2">
             <TooltipProvider>
                 <FormHeader
                     :title="dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional'"
-                    :description="dialogType === 'create' ? 'Configura un campo adicional para capturar atributos específicos del ítem en el flujo de registro de productos.' : 'Actualiza las propiedades del campo adicional seleccionado para adaptarlo a los requerimientos del negocio.'"
+                    :description="
+                        dialogType === 'create'
+                            ? 'Configura un campo adicional para capturar atributos específicos del ítem en el flujo de registro de productos.'
+                            : 'Actualiza las propiedades del campo adicional seleccionado para adaptarlo a los requerimientos del negocio.'
+                    "
                 />
-                <div class="flex-1 min-h-0 overflow-y-auto space-y-6 pr-1 pt-4">
+                <div class="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1 pt-4">
                     <div class="space-y-6">
                         <!-- Row: Name | Type -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
                             <div class="flex flex-col gap-1">
                                 <Label class="text-sm font-medium">
                                     Nombre
                                     <span class="text-red-500">*</span>
                                 </Label>
-                                <InputField
-                                    v-model="localForm.name"
-                                    label=""
-                                    placeholder="Nombre del campo"
-                                    required
-                                />
+                                <InputField v-model="localForm.name" label="" placeholder="Nombre del campo" required />
                             </div>
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
@@ -254,7 +252,7 @@ function handleSubmit() {
                         <!-- Row: Default value -->
                         <div class="flex flex-col gap-2">
                             <div class="flex items-center gap-2">
-                                <p class="text-sm font-medium ">Valor por defecto</p>
+                                <p class="text-sm font-medium">Valor por defecto</p>
                                 <HelpTooltip
                                     text="Indica un valor que pueda usarse automáticamente si es el mismo para la mayoría de ítems."
                                     aria-label="Ayuda sobre el valor por defecto"
@@ -326,27 +324,20 @@ function handleSubmit() {
                                 </span>
                             </div>
                             <p v-else class="text-xs text-slate-500">Sin valores registrados.</p>
-                            <p v-if="hasDuplicateOptions" class="text-xs text-red-600">
-                                Cada opción debe ser única.
-                            </p>
+                            <p v-if="hasDuplicateOptions" class="text-xs text-red-600">Cada opción debe ser única.</p>
                         </div>
 
                         <!-- Separator -->
-                        <div class="h-px bg-slate-100 my-2" />
+                        <div class="my-2 h-px bg-slate-100" />
 
                         <!-- Row: Description -->
-                        <TextareaField
-                            label="Descripcion"
-                            placeholder="Opcional"
-                            :rows="3"
-                            v-model="localForm.description"
-                        />
+                        <TextareaField label="Descripción" placeholder="Opcional" :rows="3" v-model="localForm.description" />
 
                         <!-- Row: Switches -->
                         <div class="grid grid-cols-2 gap-5 pt-2">
                             <div class="flex flex-col gap-2">
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm font-medium ">Obligatorio</span>
+                                    <span class="text-sm font-medium">Obligatorio</span>
                                     <HelpTooltip
                                         text="Forzar la captura de este dato antes de guardar el ítem."
                                         aria-label="Ayuda sobre obligatorio"
@@ -358,11 +349,8 @@ function handleSubmit() {
                             </div>
                             <div class="flex flex-col gap-2">
                                 <div class="flex items-center gap-2">
-                                    <span class="text-sm font-medium ">Activo</span>
-                                    <HelpTooltip
-                                        text="Habilita o pausa el campo sin eliminar su configuración."
-                                        aria-label="Ayuda sobre activo"
-                                    />
+                                    <span class="text-sm font-medium">Activo</span>
+                                    <HelpTooltip text="Habilita o pausa el campo sin eliminar su configuración." aria-label="Ayuda sobre activo" />
                                 </div>
                                 <div class="switch-inline">
                                     <SwitchField v-model="localForm.status" />
@@ -371,10 +359,10 @@ function handleSubmit() {
                         </div>
                     </div>
                 </div>
-                <DialogFooter class="justify-end gap-2 mt-6">
+                <DialogFooter class="mt-6 justify-end gap-2">
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="handleClose"
                     >
                         Cancelar
@@ -382,7 +370,7 @@ function handleSubmit() {
                     <button
                         type="button"
                         :disabled="loading || hasDuplicateOptions"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         @click="handleSubmit"
                     >
                         {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
@@ -390,7 +378,7 @@ function handleSubmit() {
                 </DialogFooter>
             </TooltipProvider>
         </FormDialogContent>
-</Dialog>
+    </Dialog>
 </template>
 
 <style scoped>
@@ -401,7 +389,9 @@ function handleSubmit() {
     padding: 0.4rem 0.85rem;
     font-size: 0.85rem;
     border-radius: 0.75rem;
-    box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.2), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+    box-shadow:
+        0 20px 25px -5px rgba(15, 23, 42, 0.2),
+        0 8px 10px -6px rgba(15, 23, 42, 0.1);
     position: relative;
 }
 

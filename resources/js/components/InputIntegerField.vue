@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ref, watch, computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 interface Props {
     label: string;
@@ -69,9 +69,7 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
 
 <template>
     <div class="grid w-full items-center gap-1.5">
-        <Label>
-            {{ label }}<span v-if="required" class="text-red-500">*</span>
-        </Label>
+        <Label> {{ label }}<span v-if="required" class="text-red-500">*</span> </Label>
         <div class="relative">
             <Input
                 :id="label"

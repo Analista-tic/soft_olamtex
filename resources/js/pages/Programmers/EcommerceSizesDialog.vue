@@ -6,16 +6,19 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog';
 import { computed, ref } from 'vue';
 
 // Props recibidos desde el componente padre
-const props = withDefaults(defineProps<{
-    productSheet: { sizes: string | Record<string, boolean> | null; reference: string };
-    existingValues?: Record<string, number> | null;
-    readonly?: boolean;
-    triggerLabel?: string;
-}>(), {
-    existingValues: null,
-    readonly: false,
-    triggerLabel: '',
-});
+const props = withDefaults(
+    defineProps<{
+        productSheet: { sizes: string | Record<string, boolean> | null; reference: string };
+        existingValues?: Record<string, number> | null;
+        readonly?: boolean;
+        triggerLabel?: string;
+    }>(),
+    {
+        existingValues: null,
+        readonly: false,
+        triggerLabel: '',
+    },
+);
 
 // Eventos emitidos hacia el componente padre
 const emit = defineEmits(['sizesUpdated']);
@@ -54,10 +57,7 @@ const parsedSizes = computed(() => {
         }
 
         const sizes =
-            !Array.isArray(sizesData) &&
-            sizesData &&
-            typeof sizesData === 'object' &&
-            'sizes' in sizesData
+            !Array.isArray(sizesData) && sizesData && typeof sizesData === 'object' && 'sizes' in sizesData
                 ? ((sizesData as { sizes?: unknown }).sizes ?? sizesData)
                 : sizesData;
 

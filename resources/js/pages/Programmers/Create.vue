@@ -9,6 +9,8 @@ import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } f
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
+import { useProgrammerForm } from '@/composables/useProgrammerForm';
+import { useProgrammerNormalization } from '@/composables/useProgrammerNormalization';
 import { normalizeSizes, sizesToLabel, type ProductSheet, type Programmer } from '@/domain/product-sheet';
 import type { Option } from '@/domain/shared/types';
 import axios from 'axios';
@@ -19,31 +21,33 @@ import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
 const emit = defineEmits(['programmerCreated']);
 
-const props = withDefaults(defineProps<{
-    productSheets?: ProductSheet[];
-    destinations?: Option[];
-    sections?: Option[];
-    groups?: Option[];
-    brands?: Option[];
-    worlds?: Option[];
-    fabricBases?: Option[];
-    yarnBases?: Option[];
-    months?: Option[];
-    priorities?: Option[];
-}>(), {
-    productSheets: () => [],
-    destinations: () => [],
-    sections: () => [],
-    groups: () => [],
-    brands: () => [],
-    worlds: () => [],
-    fabricBases: () => [],
-    yarnBases: () => [],
-    months: () => [],
-    priorities: () => [],
-});
+const props = withDefaults(
+    defineProps<{
+        productSheets?: ProductSheet[];
+        destinations?: Option[];
+        sections?: Option[];
+        groups?: Option[];
+        brands?: Option[];
+        worlds?: Option[];
+        fabricBases?: Option[];
+        yarnBases?: Option[];
+        months?: Option[];
+        priorities?: Option[];
+    }>(),
+    {
+        productSheets: () => [],
+        destinations: () => [],
+        sections: () => [],
+        groups: () => [],
+        brands: () => [],
+        worlds: () => [],
+        fabricBases: () => [],
+        yarnBases: () => [],
+        months: () => [],
+        priorities: () => [],
+    },
+);
 
-// Constants
 type AlertType = 'success' | 'error' | 'info' | 'warning';
 
 const MONTHS: Option[] = [
@@ -75,47 +79,13 @@ const ALERT_TITLES: Record<AlertType, string> = {
     error: 'Error',
 };
 
-const monthOptions = computed<Option[]>(() => {
-    return Array.isArray(props.months) && props.months.length > 0 ? props.months : MONTHS;
-});
+const monthOptions = computed<Option[]>(() => (Array.isArray(props.months) && props.months.length > 0 ? props.months : MONTHS));
 
-const priorityOptions = computed<Option[]>(() => {
-    return Array.isArray(props.priorities) && props.priorities.length > 0 ? props.priorities : PRIORITIES;
-});
+const priorityOptions = computed<Option[]>(() => (Array.isArray(props.priorities) && props.priorities.length > 0 ? props.priorities : PRIORITIES));
 
-/**
- * Normaliza un valor de option a su name string.
- * Busca primero por id, luego verifica si ya es el name.
- */
-function normalizeOptionToName(
-    value: string | number | null | undefined,
-    options: Option[]
-): string | null {
-    if (value === null || value === undefined || value === '') return null;
+const { normalizeSeason, normalizePriority } = useProgrammerNormalization(monthOptions);
+const { getProductSheetValue, getProductSheetLabel, resolveEcommerceValues, parseUnitsInput } = useProgrammerForm();
 
-    // Buscar por id
-    const byId = options.find((opt) => opt.id === value || String(opt.id) === String(value));
-    if (byId) return String(byId.name).toUpperCase();
-
-    // Si el value ya es un name válido
-    const byName = options.find((opt) =>
-        String(opt.name).toUpperCase() === String(value).toUpperCase()
-    );
-    if (byName) return String(byName.name).toUpperCase();
-
-    // Fallback: devolver el valor como string en mayúscula si no se encuentra
-    return String(value).toUpperCase();
-}
-
-function normalizeSeason(value: string | number | null | undefined): string | null {
-    return normalizeOptionToName(value, monthOptions.value);
-}
-
-function normalizePriority(value: string | number | null | undefined): string | null {
-    return normalizeOptionToName(value, priorityOptions.value);
-}
-
-// State
 const isDialogOpen = ref(false);
 const productSheetDialogOpen = ref(false);
 type ProgrammerLotForm = Partial<Programmer> & { unitsInput?: string };
@@ -125,22 +95,19 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 const saveDisabled = computed(() => formErrors.value.length > 0);
 const missingFieldsSummary = computed(() => {
     if (formErrors.value.length === 0) return '';
-    return formErrors.value.map((error) => `Lote ${error.lotIndex + 1}: ${error.fields.join(', ')}`).join(' • ');
+    return formErrors.value.map((e) => `Lote ${e.lotIndex + 1}: ${e.fields.join(', ')}`).join(' • ');
 });
 const isSubmitting = ref(false);
 
-// Alert state
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
 
-// Alert functions
 function setAlert(message: string, type: AlertType = 'info'): void {
     if (type === 'success') {
         showSuccess(message);
     } else {
         showError(message, type);
     }
-
     if (dialogInnerRef.value?.scrollTo) {
         dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -152,11 +119,7 @@ function clearAlert(): void {
     clearAlerts();
 }
 
-// Form state
-const form = ref<{
-    lotsCount: number | null | undefined;
-    productSheetId: number | null; // Asegurar que sea del tipo correcto
-}>({
+const form = ref<{ lotsCount: number | null | undefined; productSheetId: number | null }>({
     lotsCount: null,
     productSheetId: null,
 });
@@ -170,24 +133,11 @@ const lotsCountModel = computed<string | number>({
             form.value.lotsCount = null;
             return;
         }
-
         const normalized = typeof value === 'number' ? value : Number(value.toString().replace(',', '.'));
-
-        // Redondear al entero más cercano y asegurar que sea positivo
         const integerValue = Math.max(0, Math.floor(normalized));
         form.value.lotsCount = Number.isNaN(integerValue) ? null : integerValue;
     },
 });
-
-function getProductSheetValue(sheet: ProductSheet): number {
-    const candidate = (sheet as ProductSheet & { value?: number | string }).value ?? sheet.id;
-    return Number(candidate);
-}
-
-function getProductSheetLabel(sheet: ProductSheet): string {
-    const typedSheet = sheet as ProductSheet & { label?: string; display_reference?: string };
-    return String(typedSheet.label ?? typedSheet.display_reference ?? sheet.reference ?? '').trim();
-}
 
 function getProductReference(sheet: ProductSheet): string {
     return String(sheet.product_reference ?? '').trim();
@@ -198,20 +148,14 @@ function hasProductReference(sheet: ProductSheet): boolean {
 }
 
 const productSheetOptions = computed(() =>
-    productSheetList.value
-        .map((sheet) => ({
-            id: getProductSheetValue(sheet),
-            name: getProductReference(sheet),
-        }))
-        .filter((option) => option.name !== ''),
+    productSheetList.value.map((s) => ({ id: getProductSheetValue(s), name: getProductReference(s) })).filter((o) => o.name !== ''),
 );
 
 const selectedProductSheet = computed<ProductSheet | null>(() => {
     if (!form.value.productSheetId) return null;
-    return productSheetList.value.find((sheet) => getProductSheetValue(sheet) === Number(form.value.productSheetId)) || null;
+    return productSheetList.value.find((s) => getProductSheetValue(s) === Number(form.value.productSheetId)) || null;
 });
 
-// Mapa de productSheets por ID para búsqueda rápida
 const productSheetsById = computed(() => {
     const map = new Map<number, ProductSheet>();
     for (const sheet of productSheetList.value) {
@@ -220,46 +164,41 @@ const productSheetsById = computed(() => {
     return map;
 });
 
-// Helper para obtener la referencia humana (sample_reference o product_reference) dado un ID
 function getDisplayReference(productSheetId: number | null | undefined): string {
     if (!productSheetId) return 'Sin referencia';
     const sheet = productSheetsById.value.get(Number(productSheetId));
     if (!sheet) return 'Sin referencia';
 
-    // Si es muestra, usar sample_reference; si es producto, usar product_reference
-    // Fallback al label o display_reference existente
-    if (sheet.type === 'muestra' && sheet.sample_reference) {
-        return sheet.sample_reference;
-    }
-    if (sheet.type === 'producto' && sheet.product_reference) {
-        return sheet.product_reference;
-    }
-    // Fallback a cualquier referencia disponible
-    return sheet.sample_reference || sheet.product_reference || sheet.display_reference || sheet.reference || getProductSheetLabel(sheet) || 'Sin referencia';
+    if (sheet.type === 'muestra' && sheet.sample_reference) return sheet.sample_reference;
+    if (sheet.type === 'producto' && sheet.product_reference) return sheet.product_reference;
+    return (
+        sheet.sample_reference ||
+        sheet.product_reference ||
+        sheet.display_reference ||
+        sheet.reference ||
+        getProductSheetLabel(sheet) ||
+        'Sin referencia'
+    );
 }
 
 const destinationOptions = computed<Option[]>(() => props.destinations);
 
 function generateLots(): void {
-    // Validar cantidad de lotes
     if (!form.value.lotsCount || form.value.lotsCount <= 0) {
         setAlert('Por favor, ingresa una cantidad válida de lotes.', 'warning');
         lotsForm.value = [];
         return;
     }
 
-    // Validar que exista una ficha de producto seleccionada
     if (!form.value.productSheetId) {
         setAlert('Por favor, selecciona una referencia de ficha de producto.', 'warning');
         lotsForm.value = [];
         return;
     }
 
-    // Limpiar errores previos al regenerar lotes
     formErrors.value = [];
     clearAlert();
 
-    // Generar los lotes con valores iniciales
     lotsForm.value = Array.from({ length: form.value.lotsCount }, () => ({
         product_sheet_id: form.value.productSheetId,
         season: '',
@@ -275,10 +214,8 @@ function generateLots(): void {
 
 const errorSummary = computed(() => {
     if (formErrors.value.length === 0) return null;
-
     const totalLots = formErrors.value.length;
     const totalErrors = formErrors.value.reduce((sum, lot) => sum + lot.fields.length, 0);
-
     return {
         totalLots,
         totalErrors,
@@ -292,21 +229,17 @@ function validateForm(): void {
             const fields = getLotErrors(lot);
             return fields.length > 0 ? { lotIndex: index, fields } : null;
         })
-        .filter((error): error is { lotIndex: number; fields: string[] } => Boolean(error));
+        .filter((e): e is { lotIndex: number; fields: string[] } => Boolean(e));
 }
 
 function createProgrammer(): void {
-    if (isSubmitting.value) {
-        return;
-    }
+    if (isSubmitting.value) return;
 
-    // Validar que existan lotes
     if (lotsForm.value.length === 0) {
         setAlert('Debes generar al menos un lote antes de guardar.', 'warning');
         return;
     }
 
-    // Validar todos los campos
     validateForm();
 
     if (formErrors.value.length > 0) {
@@ -315,16 +248,12 @@ function createProgrammer(): void {
     }
 
     const lotsToSend = lotsForm.value.map((lot) => {
-        // Determinar el valor de ecommerce_units
         let ecommerceUnitsValue = null;
-
         if (lot.isEcommerce && lot.ecommerce_units) {
-            // Solo enviar si hay tallas configuradas
             const hasValidSizes = Object.keys(lot.ecommerce_units).length > 0;
             ecommerceUnitsValue = hasValidSizes ? lot.ecommerce_units : null;
         }
 
-        // Asegurar que units sea un número válido
         const unitsValue = lot.units ? Number(lot.units) : null;
 
         return {
@@ -339,9 +268,7 @@ function createProgrammer(): void {
     });
 
     const requestId =
-        typeof globalThis.crypto?.randomUUID === 'function'
-            ? globalThis.crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        typeof globalThis.crypto?.randomUUID === 'function' ? globalThis.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
     isSubmitting.value = true;
 
@@ -355,12 +282,10 @@ function createProgrammer(): void {
         })
         .catch((error: unknown) => {
             console.error('Error al crear los programadores:', error);
-
             let errorText = 'Hubo un error al crear los programadores.';
             if (axios.isAxiosError(error) && error.response?.data?.message) {
                 errorText = error.response.data.message;
             }
-
             setAlert(errorText, 'error');
         })
         .finally(() => {
@@ -369,10 +294,7 @@ function createProgrammer(): void {
 }
 
 function resetForm(): void {
-    form.value = {
-        lotsCount: null,
-        productSheetId: null,
-    };
+    form.value = { lotsCount: null, productSheetId: null };
     lotsForm.value = [];
     formErrors.value = [];
     productSheetDialogOpen.value = false;
@@ -380,102 +302,63 @@ function resetForm(): void {
     clearAlert();
 }
 
-function parseUnitsInput(value: string | number | null | undefined): number | null {
-    if (value === null || value === undefined) return null;
-    const raw = typeof value === 'string' ? value.trim() : String(value);
-    if (raw === '') return null;
-    const numeric = Number(raw.replace(/[^0-9.]/g, ''));
-    if (!Number.isFinite(numeric)) return null;
-    const positive = Math.max(1, Math.floor(numeric));
-    return Number.isFinite(positive) ? positive : null;
-}
-
 function closeDialog(): void {
     resetForm();
     isDialogOpen.value = false;
 }
 
-const allProductSheets = ref<ProductSheet[]>(
-    Array.isArray(props.productSheets) ? [...props.productSheets] : [],
-);
+const allProductSheets = ref<ProductSheet[]>(Array.isArray(props.productSheets) ? [...props.productSheets] : []);
 
 const productSheetList = computed(() => allProductSheets.value.filter(hasProductReference));
 
 watch(
     () => form.value.productSheetId,
-    (newProductSheetId) => {
-        if (!newProductSheetId) {
+    (newId) => {
+        if (!newId) {
             lotsForm.value = [];
             formErrors.value = [];
             return;
         }
         if (lotsForm.value.length > 0) {
-            lotsForm.value = lotsForm.value.map((lot) => ({
-                ...lot,
-                product_sheet_id: newProductSheetId,
-            }));
+            lotsForm.value = lotsForm.value.map((lot) => ({ ...lot, product_sheet_id: newId }));
         }
     },
 );
 
 function getLotErrors(lot: Partial<Programmer>): string[] {
-    const lotErrors: string[] = [];
-    if (!lot.product_sheet_id) lotErrors.push('Referencia');
-    if (!lot.season) lotErrors.push('Temporada');
-    if (!lot.destination_id) lotErrors.push('Destino');
-    if (!lot.priority) lotErrors.push('Prioridad');
-
-    // Validación robusta de unidades
+    const errors: string[] = [];
+    if (!lot.product_sheet_id) errors.push('Referencia');
+    if (!lot.season) errors.push('Temporada');
+    if (!lot.destination_id) errors.push('Destino');
+    if (!lot.priority) errors.push('Prioridad');
     const units = lot.units;
     const isValidUnits = units !== null && units !== undefined && !isNaN(Number(units)) && Number(units) > 0;
-    if (!isValidUnits) lotErrors.push('Unidades');
-
-    return lotErrors;
+    if (!isValidUnits) errors.push('Unidades');
+    return errors;
 }
 
-// Validación en tiempo real al cambiar valores de los lotes
 function validateLotField(lotIndex: number): void {
     const lot = lotsForm.value[lotIndex];
     if (!lot) return;
-
-    const existingErrorIndex = formErrors.value.findIndex((e) => e.lotIndex === lotIndex);
+    const existingIdx = formErrors.value.findIndex((e) => e.lotIndex === lotIndex);
     const lotErrors = getLotErrors(lot);
 
     if (lotErrors.length > 0) {
-        if (existingErrorIndex >= 0) {
-            formErrors.value[existingErrorIndex].fields = lotErrors;
+        if (existingIdx >= 0) {
+            formErrors.value[existingIdx].fields = lotErrors;
         } else {
             formErrors.value.push({ lotIndex, fields: lotErrors });
         }
-    } else if (existingErrorIndex >= 0) {
-        formErrors.value.splice(existingErrorIndex, 1);
+    } else if (existingIdx >= 0) {
+        formErrors.value.splice(existingIdx, 1);
     }
 }
 
-function resolveEcommerceValues(value?: string | Record<string, number> | null): Record<string, number> | null {
-    if (!value) {
-        return null;
-    }
-
-    if (typeof value === 'string') {
-        try {
-            const parsed = JSON.parse(value);
-            if (parsed && typeof parsed === 'object') {
-                return parsed as Record<string, number>;
-            }
-        } catch {
-            return null;
-        }
-    }
-
-    if (typeof value === 'object') {
-        return value as Record<string, number>;
-    }
-
-    return null;
+function getTrueSizes(sizes?: string | Record<string, boolean> | string[] | null): string {
+    const normalized = normalizeSizes(sizes);
+    return sizesToLabel(normalized);
 }
 
-/** Payload recibido del ProductSheetDialog al guardar */
 interface ProductSheetSavedPayload {
     success?: boolean;
     message?: string;
@@ -484,13 +367,11 @@ interface ProductSheetSavedPayload {
 
 function addProductSheet(response: ProductSheetSavedPayload): void {
     if (!response?.success || !response?.data?.id) {
-        console.error('El ProductSheet creado no es válido:', response);
         setAlert('Hubo un problema al crear la ficha de producto. Intenta nuevamente.', 'error');
         return;
     }
 
     const newProductSheet = response.data;
-
     if (!hasProductReference(newProductSheet)) {
         setAlert('La sábana fue creada sin referencia de producto. No aparece en este selector.', 'info');
         return;
@@ -507,10 +388,8 @@ function getDialogProductSheet(sheet: ProductSheet | null): { sizes: string | Re
     };
 }
 
-// Función para filtrar solo números enteros en el campo de lotes
 function handleLotsCountInput(event: Event): void {
     const input = event.target as HTMLInputElement;
-    // Eliminar cualquier carácter que no sea un dígito
     input.value = input.value.replace(/[^0-9]/g, '');
 }
 </script>
@@ -542,7 +421,6 @@ function handleLotsCountInput(event: Event): void {
                 <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
                     <div class="grid grid-cols-1 gap-4 pt-4">
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-                            <!-- Campo para la referencia seleccionada -->
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium"> Referencia Seleccionada<span class="text-red-500">*</span> </Label>
@@ -553,7 +431,6 @@ function handleLotsCountInput(event: Event): void {
                                 </div>
                                 <SelectField v-model="form.productSheetId" label="" :options="productSheetOptions" required />
                             </div>
-                            <!-- Campo para la cantidad de lotes -->
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium"> Cantidad de Lotes<span class="text-red-500">*</span> </Label>
@@ -565,7 +442,7 @@ function handleLotsCountInput(event: Event): void {
                                 <InputField
                                     v-model="lotsCountModel"
                                     label=""
-                                    placeholder="Numero de lotes"
+                                    placeholder="Número de lotes"
                                     type="number"
                                     min="1"
                                     step="1"
@@ -575,14 +452,14 @@ function handleLotsCountInput(event: Event): void {
                                 />
                             </div>
                             <div class="flex flex-col gap-2">
-                                <span class="text-sm font-medium leading-tight text-foreground">Accion</span>
+                                <span class="text-sm font-medium leading-tight text-foreground">Acción</span>
                                 <Button
                                     variant="outline"
                                     class="h-10 rounded-full px-4 text-sm font-semibold"
                                     type="button"
                                     @click="productSheetDialogOpen = true"
                                 >
-                                    Crear Sabana de Productos
+                                    Crear Sábana de Productos
                                 </Button>
                                 <CreateProductSheetDialog
                                     mode="create"
@@ -598,7 +475,6 @@ function handleLotsCountInput(event: Event): void {
                                 />
                             </div>
                         </div>
-                        <!-- Tabla informativa para mostrar detalles del ProductSheet seleccionado -->
                         <div v-if="selectedProductSheet" class="mb-4">
                             <h3 class="mb-2 text-lg font-bold">Detalles de la Ficha de Producto</h3>
                             <table class="w-full overflow-hidden rounded-lg border border-gray-300 text-left text-sm">
@@ -633,34 +509,6 @@ function handleLotsCountInput(event: Event): void {
                                     </tr>
                                 </tbody>
                             </table>
-                        </div>
-                    </div>
-
-                    <div v-if="hasAttemptedSave && formErrors.length > 0" class="mb-4 mt-4 rounded border-l-4 border-amber-400 bg-amber-50 p-4">
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path
-                                        fill-rule="evenodd"
-                                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                                        clip-rule="evenodd"
-                                    />
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <h3 class="text-sm font-medium text-amber-800">Campos incompletos</h3>
-                                <div class="mt-2 text-sm text-amber-700">
-                                    <p>{{ errorSummary?.message }}</p>
-                                    <details class="mt-2">
-                                        <summary class="cursor-pointer font-medium hover:text-amber-900">Ver detalles</summary>
-                                        <ul class="mt-2 list-inside list-disc space-y-1">
-                                            <li v-for="(error, index) in formErrors" :key="index">
-                                                Lote {{ error.lotIndex + 1 }}: {{ error.fields.join(', ') }}
-                                            </li>
-                                        </ul>
-                                    </details>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -721,10 +569,7 @@ function handleLotsCountInput(event: Event): void {
                                             class="form-checkbox h-5 w-5 cursor-pointer text-blue-600"
                                             @change="
                                                 () => {
-                                                    // Si se desmarca e-commerce, limpiar los datos
-                                                    if (!lot.isEcommerce) {
-                                                        lot.ecommerce_units = null;
-                                                    }
+                                                    if (!lot.isEcommerce) lot.ecommerce_units = null;
                                                 }
                                             "
                                         />
@@ -735,9 +580,9 @@ function handleLotsCountInput(event: Event): void {
                                             inputmode="numeric"
                                             @update:modelValue="
                                                 (value) => {
-                                                    const normalizedRaw = typeof value === 'string' ? value : String(value);
-                                                    lot.unitsInput = normalizedRaw;
-                                                    lot.units = parseUnitsInput(normalizedRaw);
+                                                    const raw = typeof value === 'string' ? value : String(value);
+                                                    lot.unitsInput = raw;
+                                                    lot.units = parseUnitsInput(raw);
                                                     validateLotField(index);
                                                 }
                                             "
@@ -757,13 +602,13 @@ function handleLotsCountInput(event: Event): void {
                                             @sizesUpdated="
                                                 (data) => {
                                                     if (data?.sizes && Object.keys(data.sizes).length > 0) {
-                                                        const sanitizedSizes = Object.fromEntries(
+                                                        const sanitized = Object.fromEntries(
                                                             Object.entries(data.sizes).map(([size, value]) => [
                                                                 size,
                                                                 typeof value === 'number' ? Math.max(0, value) : 0,
                                                             ]),
                                                         );
-                                                        lot.ecommerce_units = sanitizedSizes;
+                                                        lot.ecommerce_units = sanitized;
                                                     } else {
                                                         lot.ecommerce_units = {};
                                                     }
@@ -778,7 +623,6 @@ function handleLotsCountInput(event: Event): void {
                 </div>
             </TooltipProvider>
 
-            <!-- Botones flotantes en la esquina inferior derecha -->
             <div class="absolute bottom-0 left-0 right-0 flex flex-col items-end gap-2 rounded-b-[24px] border-t bg-white px-6 py-4 shadow-lg">
                 <div class="flex w-full max-w-lg items-center justify-end gap-3">
                     <button

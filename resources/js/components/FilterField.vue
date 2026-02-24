@@ -11,12 +11,7 @@ const props = withDefaults(
 );
 
 const fieldClasses = computed(() => {
-    const base = [
-        'filter-field',
-        'flex flex-col gap-1.5',
-        props.active ? 'filter-field--active' : '',
-        props.class,
-    ];
+    const base = ['filter-field', 'flex flex-col gap-1.5', props.active ? 'filter-field--active' : '', props.class];
     return base.filter(Boolean).join(' ');
 });
 

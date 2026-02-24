@@ -133,7 +133,7 @@ onMounted(fetchProgrammers);
                                 <TableHead>Lote</TableHead>
                                 <TableHead>Referencia</TableHead>
                                 <TableHead>Temporada</TableHead>
-                                <TableHead>Seccion</TableHead>
+                                <TableHead>Sección</TableHead>
                                 <TableHead>Grupo</TableHead>
                                 <TableHead>Prioridad</TableHead>
                                 <TableHead>Unidades programadas</TableHead>

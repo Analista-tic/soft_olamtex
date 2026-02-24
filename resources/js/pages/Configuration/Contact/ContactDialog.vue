@@ -1,16 +1,16 @@
 <script setup lang="ts">
+import AlertBox from '@/components/AlertBox.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'; // Importar tabs de shadcn
 import type { AdditionalContact, Contact } from '@/domain/purchases';
 import type { Branch } from '@/domain/shared';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { computed, ref, watch } from 'vue';
 import AdditionalContactsList from './AdditionalContactsList.vue';
-import ContactForm from './ContactForm.vue';
-import AlertBox from '@/components/AlertBox.vue';
-import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
-import FormDialogContent from '@/components/FormDialogContent.vue';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'; // Importar tabs de shadcn
 import BranchesList from './BranchesList.vue'; // Componente para manejar sucursales
-import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import ContactForm from './ContactForm.vue';
 
 // Extender el tipo Contact para incluir las propiedades adicionales
 interface ExtendedContact extends Contact {
@@ -107,10 +107,7 @@ const requiredFieldKeys: (keyof Partial<Contact>)[] = [
     'email',
 ];
 const requiredFieldLabels = requiredFieldKeys.map((key) => fieldLabels[key as string] || String(key));
-const emptyFieldsMessage = formatRequiredFieldsMessage(
-    'Se debe completar todos los campos obligatorios',
-    requiredFieldLabels,
-);
+const emptyFieldsMessage = formatRequiredFieldsMessage('Se debe completar todos los campos obligatorios', requiredFieldLabels);
 
 const translateValidationMessage = (field: string, msg: string): string => {
     const lower = msg.toLowerCase();
@@ -182,9 +179,7 @@ const submitForm = async () => {
         }
 
         // Validar contactos adicionales
-        const invalidAdditionalContacts = form.value.additional_contacts?.some(
-            (contact) => !contact.name?.trim() || !contact.email?.trim(),
-        );
+        const invalidAdditionalContacts = form.value.additional_contacts?.some((contact) => !contact.name?.trim() || !contact.email?.trim());
         if (invalidAdditionalContacts) {
             errors.value.additional_contacts = ['Todos los contactos adicionales deben tener nombre y correo válidos.'];
             return;
@@ -286,20 +281,17 @@ const updateBranches = (branches: any[]) => {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[150vh] px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[150vh] flex-col px-2 py-2">
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription class="pb-4">
-                    Completa los campos para {{ dialogType === 'create' ? 'crear' : 'editar' }} un contacto. Haz
-                    clic en {{ dialogType === 'create' ? 'crear' : 'actualizar' }} cuando termines.
+                    Completa los campos para {{ dialogType === 'create' ? 'crear' : 'editar' }} un contacto. Haz clic en
+                    {{ dialogType === 'create' ? 'crear' : 'actualizar' }} cuando termines.
                 </DialogDescription>
             </DialogHeader>
 
             <transition name="fade">
-                <div
-                    v-if="alertMessage"
-                    class="pointer-events-none absolute left-1/2 top-4 z-20 w-full max-w-xl -translate-x-1/2"
-                >
+                <div v-if="alertMessage" class="pointer-events-none absolute left-1/2 top-4 z-20 w-full max-w-xl -translate-x-1/2">
                     <AlertBox
                         :type="alertType"
                         :title="alertType === 'warning' ? 'Advertencia' : 'Error'"
@@ -310,59 +302,49 @@ const updateBranches = (branches: any[]) => {
                 </div>
             </transition>
 
-            <div v-if="showEmptyAlert" class="absolute -top-26 left-1/2 z-20 w-full max-w-xl -translate-x-1/2">
-                <AlertBox
-                    type="warning"
-                    title="Campos obligatorios"
-                    :message="emptyFieldsMessage"
-                    @close="showEmptyAlert = false"
-                />
+            <div v-if="showEmptyAlert" class="-top-26 absolute left-1/2 z-20 w-full max-w-xl -translate-x-1/2">
+                <AlertBox type="warning" title="Campos obligatorios" :message="emptyFieldsMessage" @close="showEmptyAlert = false" />
             </div>
-            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
-            <!-- Pestañas -->
-            <Tabs defaultValue="basic-info" class="px-2 pt-1">
-                <TabsList class="flex justify-center space-x-4">
-                    <TabsTrigger value="basic-info" class="flex-1 text-center py-2">Información básica</TabsTrigger>
-                    <TabsTrigger value="additional-info" class="flex-1 text-center py-2">Contactos adicionales</TabsTrigger>
-                    <TabsTrigger value="branches" class="flex-1 text-center py-2">Sucursales</TabsTrigger>
-                </TabsList>
+            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+                <!-- Pestañas -->
+                <Tabs defaultValue="basic-info" class="px-2 pt-1">
+                    <TabsList class="flex justify-center space-x-4">
+                        <TabsTrigger value="basic-info" class="flex-1 py-2 text-center">Información básica</TabsTrigger>
+                        <TabsTrigger value="additional-info" class="flex-1 py-2 text-center">Contactos adicionales</TabsTrigger>
+                        <TabsTrigger value="branches" class="flex-1 py-2 text-center">Sucursales</TabsTrigger>
+                    </TabsList>
 
-                <TabsContent value="basic-info">
-                    <ContactForm v-model:form="form" :errors="errors" class="border-b pb-6" />
-                </TabsContent>
+                    <TabsContent value="basic-info">
+                        <ContactForm v-model:form="form" :errors="errors" class="border-b pb-6" />
+                    </TabsContent>
 
-                <TabsContent value="additional-info">
-                    <AdditionalContactsList
-                        ref="additionalContactsListRef"
-                        :additionalContacts="form.additional_contacts ?? []"
-                        @update:additionalContacts="updateAdditionalContacts"
-                    />
-                    <p v-if="errors.additional_contacts" class="text-red-500 text-sm mt-2">
-                        {{ errors.additional_contacts[0] }}
-                    </p>
-                </TabsContent>
+                    <TabsContent value="additional-info">
+                        <AdditionalContactsList
+                            ref="additionalContactsListRef"
+                            :additionalContacts="form.additional_contacts ?? []"
+                            @update:additionalContacts="updateAdditionalContacts"
+                        />
+                        <p v-if="errors.additional_contacts" class="mt-2 text-sm text-red-500">
+                            {{ errors.additional_contacts[0] }}
+                        </p>
+                    </TabsContent>
 
-                <TabsContent value="branches">
-                    <BranchesList
-                        ref="branchesListRef"
-                        :branches="form.branches ?? []"
-                        @update:branches="updateBranches"
-                    />
-                </TabsContent>
-            </Tabs>
-
+                    <TabsContent value="branches">
+                        <BranchesList ref="branchesListRef" :branches="form.branches ?? []" @update:branches="updateBranches" />
+                    </TabsContent>
+                </Tabs>
             </div>
             <DialogFooter class="mt-4 flex justify-end gap-2">
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="closeDialog"
                 >
                     Cancelar
                 </button>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="submitForm"
                 >
                     {{ dialogType === 'create' ? 'Crear' : 'Actualizar' }}

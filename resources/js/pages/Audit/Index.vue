@@ -1,20 +1,11 @@
 <script setup lang="ts">
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -25,13 +16,14 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
-import AppLayout from '@/layouts/AppLayout.vue';
-import axios from 'axios';
-import { Head } from '@inertiajs/vue3';
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import type { BreadcrumbItem, PaginatedData, SharedData } from '@/domain/shared';
-import { Eye } from 'lucide-vue-next';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { BreadcrumbItem, PaginatedData, SharedData } from '@/domain/shared';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Eye } from 'lucide-vue-next';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 
 interface AuditLog {
     id: number;
@@ -73,7 +65,7 @@ const props = defineProps<AuditPageProps>();
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Auditoría',
-        href: route('auditoria.index')
+        href: route('auditoria.index'),
     },
 ];
 
@@ -89,10 +81,7 @@ const filters = reactive({
 type AreaOption = { id: number | string; name: string };
 type NumericAreaOption = { id: number; name: string };
 const areaOptions = ref<AreaOption[]>([]);
-const areaSelectOptions = computed(() => [
-    { id: '', name: 'Todas las áreas' },
-    ...areaOptions.value,
-]);
+const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las áreas' }, ...areaOptions.value]);
 const selectedAreaId = ref(filters.area ?? '');
 const isAreaFilterActive = computed(() => selectedAreaId.value !== '' && selectedAreaId.value !== null);
 const areaFilterButtonClasses = useFilterButtonClasses(isAreaFilterActive);
@@ -357,9 +346,7 @@ const fieldLabelTranslations: Record<string, string> = {
 
 function humanizeFieldKey(key: string): string {
     if (!key) return '';
-    const spaced = key
-        .replace(/([a-z])([A-Z])/g, '$1 $2')
-        .replace(/_/g, ' ');
+    const spaced = key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ');
     return spaced
         .split(/\s+/)
         .filter(Boolean)
@@ -371,8 +358,7 @@ function translateDiffLabel(key: string): string {
     return fieldLabelTranslations[key] ?? humanizeFieldKey(key);
 }
 
-const defaultActionGradientClass =
-    'bg-gradient-to-r from-gray-100 via-white to-gray-100 border-gray-200 text-gray-700';
+const defaultActionGradientClass = 'bg-gradient-to-r from-gray-100 via-white to-gray-100 border-gray-200 text-gray-700';
 
 function getActionGradient(action: string | null) {
     return actionGradientClasses[action ?? ''] ?? defaultActionGradientClass;
@@ -435,13 +421,11 @@ function singularFromModuleLabel(moduleLabel: string | null | undefined): string
 function buildDetailHeader(log: AuditLog | null): string {
     if (!log) return '';
     const user = log.user_name ?? 'Sistema';
-    const verb = actionVerbMap[log.action ?? ''] ?? (actionLabel(log.action).toLowerCase());
+    const verb = actionVerbMap[log.action ?? ''] ?? actionLabel(log.action).toLowerCase();
     const moduleLabel = formatModuleLabel(log);
     const resourceDisplay = formatResource(log);
     const resourceType = singularFromModuleLabel(moduleLabel) ?? 'recurso';
-    return `${user} ${verb} el ${resourceType} “${resourceDisplay}” en el módulo ${moduleLabel} el ${formatTimestamp(
-        log.created_at,
-    )}`;
+    return `${user} ${verb} el ${resourceType} “${resourceDisplay}” en el módulo ${moduleLabel} el ${formatTimestamp(log.created_at)}`;
 }
 
 function normalizeValues(values: Record<string, unknown> | null | undefined): Record<string, unknown> {
@@ -498,9 +482,7 @@ function formatStructuredObject(value: Record<string, unknown>): string {
     if (entries.length === 0) {
         return 'Vacío';
     }
-    return entries
-        .map(([key, nested]) => `${translateDiffLabel(key)}: ${formatValue(nested)}`)
-        .join('\n');
+    return entries.map(([key, nested]) => `${translateDiffLabel(key)}: ${formatValue(nested)}`).join('\n');
 }
 
 function tryParseJsonString(value: string): Record<string, unknown> | unknown[] | null {
@@ -585,31 +567,19 @@ watch(detailDialogOpen, (value) => {
             <!-- Encabezado -->
             <div class="mb-2 flex flex-col gap-1">
                 <h1 class="text-lg font-bold">Auditoría</h1>
-                <p class=" text-sm text-muted-foreground">
-                    El módulo de auditoría documenta de forma detallada cada cambio realizado en el sistema: registra quién lo hizo, desde qué módulo y qué recursos fueron impactados, facilitando la trazabilidad y el monitoreo operativo para la empresa.
+                <p class="text-sm text-muted-foreground">
+                    El módulo de auditoría documenta de forma detallada cada cambio realizado en el sistema: registra quién lo hizo, desde qué módulo
+                    y qué recursos fueron impactados, facilitando la trazabilidad y el monitoreo operativo para la empresa.
                 </p>
             </div>
 
             <!-- FILTROS: UNA SOLA FILA (mismo estilo que Items) -->
             <div class="mb-2">
                 <FilterBar align="start" gap="gap-4" noMargin>
-                    <FilterField
-                        label="Usuario"
-                        :active="filters.user.trim().length > 0"
-                        class="min-w-[220px]"
-                    >
-                        <Input
-                            id="audit-filter-user"
-                            v-model="filters.user"
-                            placeholder="Nombre del usuario"
-                            class="h-10 w-full"
-                        />
+                    <FilterField label="Usuario" :active="filters.user.trim().length > 0" class="min-w-[220px]">
+                        <Input id="audit-filter-user" v-model="filters.user" placeholder="Nombre del usuario" class="h-10 w-full" />
                     </FilterField>
-                    <FilterField
-                        label="Área"
-                        :active="isAreaFilterActive"
-                        class="min-w-[200px]"
-                    >
+                    <FilterField label="Área" :active="isAreaFilterActive" class="min-w-[200px]">
                         <SelectField
                             v-model="selectedAreaId"
                             :options="areaSelectOptions"
@@ -617,11 +587,7 @@ watch(detailDialogOpen, (value) => {
                             :button-class="areaFilterButtonClasses"
                         />
                     </FilterField>
-                    <FilterField
-                        label="Módulo"
-                        :active="Boolean(selectModule?.trim())"
-                        class="min-w-[220px]"
-                    >
+                    <FilterField label="Módulo" :active="Boolean(selectModule?.trim())" class="min-w-[220px]">
                         <SelectField
                             :options="moduleOptions"
                             v-model="selectModule"
@@ -630,11 +596,7 @@ watch(detailDialogOpen, (value) => {
                             :button-class="moduleButtonClasses"
                         />
                     </FilterField>
-                    <FilterField
-                        label="Acción"
-                        :active="Boolean(selectAction)"
-                        class="min-w-[200px]"
-                    >
+                    <FilterField label="Acción" :active="Boolean(selectAction)" class="min-w-[200px]">
                         <SelectField
                             :options="actionOptionsForSelect"
                             v-model="selectAction"
@@ -643,55 +605,39 @@ watch(detailDialogOpen, (value) => {
                             :button-class="actionButtonClasses"
                         />
                     </FilterField>
-                    <FilterField
-                        label="Fecha"
-                        :active="dateFilterActive"
-                        class="min-w-[220px]"
-                    >
-                        <Input
-                            id="audit-filter-date"
-                            v-model="filters.date"
-                            type="date"
-                            placeholder="Fecha"
-                            class="h-10 w-full"
-                        />
+                    <FilterField label="Fecha" :active="dateFilterActive" class="min-w-[220px]">
+                        <Input id="audit-filter-date" v-model="filters.date" type="date" placeholder="Fecha" class="h-10 w-full" />
                     </FilterField>
                 </FilterBar>
             </div>
 
             <!-- TARJETA / TABLA: mismo “card” que en Gestión de Ítems -->
-            <div
-                class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border md:min-h-min"
-            >
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 bg-card dark:border-sidebar-border md:min-h-min">
                 <Table class="text-sm">
                     <TableHeader>
                         <TableRow>
                             <TableHead class="px-4 py-2 text-left">Fecha</TableHead>
-                            <TableHead class="px-4 py-2 text-left w-[150px]">Área</TableHead>
-                            <TableHead class="px-4 py-2 text-left w-[180px]">Rol</TableHead>
-                            <TableHead class="px-4 py-2 text-left w-[220px]">Usuario</TableHead>
+                            <TableHead class="w-[150px] px-4 py-2 text-left">Área</TableHead>
+                            <TableHead class="w-[180px] px-4 py-2 text-left">Rol</TableHead>
+                            <TableHead class="w-[220px] px-4 py-2 text-left">Usuario</TableHead>
                             <TableHead class="px-4 py-2 text-left">Acción</TableHead>
                             <TableHead class="px-4 py-2 text-left">Módulo</TableHead>
                             <TableHead class="px-4 py-2 text-left">Recurso</TableHead>
                             <TableHead class="px-4 py-2 text-left">Descripción</TableHead>
-                            <TableHead class="px-4 py-2 pr-6 text-right w-[70px]"></TableHead>
+                            <TableHead class="w-[70px] px-4 py-2 pr-6 text-right"></TableHead>
                         </TableRow>
                     </TableHeader>
 
                     <TableBody>
-                        <TableRow
-                            v-for="log in logs"
-                            :key="log.id"
-                            class="align-middle"
-                        >
+                        <TableRow v-for="log in logs" :key="log.id" class="align-middle">
                             <!-- FECHA -->
-                            <TableCell class="px-4 py-3 text-left text-muted-foreground whitespace-nowrap text-xs">
+                            <TableCell class="whitespace-nowrap px-4 py-3 text-left text-xs text-muted-foreground">
                                 {{ formatTimestamp(log.created_at) }}
                             </TableCell>
 
                             <!-- ÁREA -->
                             <TableCell class="px-4 py-3 text-left">
-                                <span v-if="log.user_area" class="font-semibold text-xs">
+                                <span v-if="log.user_area" class="text-xs font-semibold">
                                     {{ log.user_area }}
                                 </span>
                                 <span v-else class="text-xs text-muted-foreground">-</span>
@@ -699,7 +645,7 @@ watch(detailDialogOpen, (value) => {
 
                             <!-- ROL -->
                             <TableCell class="px-4 py-3 text-left">
-                                <span v-if="log.user_role" class="font-semibold text-xs">
+                                <span v-if="log.user_role" class="text-xs font-semibold">
                                     {{ log.user_role }}
                                 </span>
                                 <span v-else class="text-xs text-muted-foreground">-</span>
@@ -742,7 +688,7 @@ watch(detailDialogOpen, (value) => {
                             <TableCell class="px-4 py-3 pr-6 text-right">
                                 <button
                                     type="button"
-                                    class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-sky-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-50"
                                     :disabled="!getDiffEntries(log).length"
                                     @click="openDiffDialog(log)"
                                 >
@@ -754,12 +700,9 @@ watch(detailDialogOpen, (value) => {
                 </Table>
 
                 <!-- Pie de tabla / paginación, mismo estilo de card -->
-                <div
-                    class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between"
-                >
+                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
                     <p class="text-xs text-muted-foreground">
-                        Página {{ currentPage }} de {{ lastPage }} · Mostrando
-                        {{ logs.length }} de {{ totalItems }} registros
+                        Página {{ currentPage }} de {{ lastPage }} · Mostrando {{ logs.length }} de {{ totalItems }} registros
                     </p>
 
                     <Pagination
@@ -771,37 +714,17 @@ watch(detailDialogOpen, (value) => {
                         :page="currentPage"
                         @update:page="handlePageChange"
                     >
-                        <PaginationList
-                            v-slot="{ items }"
-                            class="flex items-center gap-1"
-                        >
+                        <PaginationList v-slot="{ items }" class="flex items-center gap-1">
                             <PaginationFirst />
                             <PaginationPrev />
 
-                            <template
-                                v-for="(item, index) in items"
-                                :key="index"
-                            >
-                                <PaginationListItem
-                                    v-if="item.type === 'page'"
-                                    :value="item.value"
-                                    as-child
-                                >
-                                    <Button
-                                        class="h-6 w-6 p-0 text-xs"
-                                        :variant="
-                                            item.value === currentPage
-                                                ? 'default'
-                                                : 'outline'
-                                        "
-                                    >
+                            <template v-for="(item, index) in items" :key="index">
+                                <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
+                                    <Button class="h-6 w-6 p-0 text-xs" :variant="item.value === currentPage ? 'default' : 'outline'">
                                         {{ item.value }}
                                     </Button>
                                 </PaginationListItem>
-                                <PaginationEllipsis
-                                    v-else
-                                    :index="index"
-                                />
+                                <PaginationEllipsis v-else :index="index" />
                             </template>
 
                             <PaginationNext />
@@ -814,14 +737,14 @@ watch(detailDialogOpen, (value) => {
 
         <!-- Diálogo de detalle de cambios (igual que ya tenías) -->
         <Dialog v-model:open="detailDialogOpen">
-            <DialogContent class="max-w-3xl max-h-[90vh] flex flex-col rounded-2xl p-0">
-                <DialogHeader class="space-y-1 border-b border-border px-6 py-4 flex-shrink-0">
+            <DialogContent class="flex max-h-[90vh] max-w-3xl flex-col rounded-2xl p-0">
+                <DialogHeader class="flex-shrink-0 space-y-1 border-b border-border px-6 py-4">
                     <DialogTitle>Detalle de cambios</DialogTitle>
                     <DialogDescription v-if="detailLog">
                         {{ buildDetailHeader(detailLog) }}
                     </DialogDescription>
                 </DialogHeader>
-                <div class="overflow-y-auto flex-1 px-6 py-4 scroll-smooth" style="scrollbar-width: thin;">
+                <div class="flex-1 overflow-y-auto scroll-smooth px-6 py-4" style="scrollbar-width: thin">
                     <div v-if="detailDiffEntries.length">
                         <Table class="text-xs">
                             <TableHeader>
@@ -832,32 +755,27 @@ watch(detailDialogOpen, (value) => {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow
-                                    v-for="entry in detailDiffEntries"
-                                    :key="`${entry.key}-${entry.oldValue}-${entry.newValue}`"
-                                >
+                                <TableRow v-for="entry in detailDiffEntries" :key="`${entry.key}-${entry.oldValue}-${entry.newValue}`">
                                     <TableCell class="font-semibold text-muted-foreground">
                                         {{ translateDiffLabel(entry.key) }}
                                     </TableCell>
-                                    <TableCell class="max-w-[220px] break-words text-xs text-center whitespace-pre-line">
+                                    <TableCell class="max-w-[220px] whitespace-pre-line break-words text-center text-xs">
                                         {{ entry.oldValue }}
                                     </TableCell>
-                                    <TableCell class="max-w-[220px] break-words text-xs text-center whitespace-pre-line">
+                                    <TableCell class="max-w-[220px] whitespace-pre-line break-words text-center text-xs">
                                         {{ entry.newValue }}
                                     </TableCell>
                                 </TableRow>
                             </TableBody>
                         </Table>
                     </div>
-                    <p v-else class="text-sm text-muted-foreground">
-                        No se encontraron campos modificados.
-                    </p>
+                    <p v-else class="text-sm text-muted-foreground">No se encontraron campos modificados.</p>
                 </div>
-                <DialogFooter class="flex-shrink-0 flex justify-end gap-2 border-t border-border px-6 py-3">
+                <DialogFooter class="flex flex-shrink-0 justify-end gap-2 border-t border-border px-6 py-3">
                     <DialogClose as-child>
                         <button
                             type="button"
-                            class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                            class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         >
                             Cerrar
                         </button>

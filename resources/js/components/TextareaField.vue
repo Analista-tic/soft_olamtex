@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { Label } from '@/components/ui/label';
 import HelpTooltip from '@/components/HelpTooltip.vue';
+import { Label } from '@/components/ui/label';
+import { ref, watch } from 'vue';
 
 interface Props {
     label: string;
@@ -20,9 +20,12 @@ const emit = defineEmits(['update:modelValue']);
 
 const localModelValue = ref<string | undefined>(props.modelValue);
 
-watch(() => props.modelValue, (val) => {
-    localModelValue.value = val;
-});
+watch(
+    () => props.modelValue,
+    (val) => {
+        localModelValue.value = val;
+    },
+);
 
 watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
 </script>
@@ -42,7 +45,7 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
             :disabled="disabled"
             :required="required"
             :rows="rows || 4"
-            class="block w-full rounded border border-border bg-card px-3 py-2 text-sm text-card-foreground placeholder:text-muted-foreground transition duration-150 focus:border-blue-500 focus:outline-none focus:ring focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+            class="block w-full rounded border border-border bg-card px-3 py-2 text-sm text-card-foreground transition duration-150 placeholder:text-muted-foreground focus:border-blue-500 focus:outline-none focus:ring focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
         ></textarea>
     </div>
 </template>

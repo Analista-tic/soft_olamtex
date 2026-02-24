@@ -15,8 +15,10 @@ class ProgrammerService
     private const STATUS_COMPLETE = 'complete';
     private const STATUS_INCOMPLETE = 'incomplete';
 
-    public function __construct(private SettingService $settingService)
-    {
+    public function __construct(
+        private SettingService $settingService,
+        private ProductionOrderService $productionOrderService,
+    ) {
     }
 
     public function createFromSample(ProductSheet $productSheet): Programmer
@@ -40,11 +42,15 @@ class ProgrammerService
             'estimated_delivery_date' => null,
             'ecommerce_units' => null,
             'status' => self::STATUS_INCOMPLETE,
+            'current_process' => $this->defaultCurrentProcess(),
             'source' => 'auto',
         ]);
 
         $programmer->op_code = $this->nextOpCode($productSheet->type, (bool) $productSheet->woven_product);
         $programmer->save();
+
+        // Snapshot del listado operacional en la orden (no varía con el tiempo)
+        $this->productionOrderService->createSnapshotForProgrammer($programmer);
 
         Log::info('programmer.auto_create.completed', [
             'endpoint' => 'product_sheet.create',
@@ -101,6 +107,16 @@ class ProgrammerService
     private function fallbackSeasonName(int $monthNumber): string
     {
         return (string) $monthNumber;
+    }
+
+    /**
+     * Proceso por defecto para Control de lotes (primer proceso del flujo).
+     */
+    public function defaultCurrentProcess(): string
+    {
+        $processes = config('product-sheet.batch_control_processes', []);
+
+        return $processes[0] ?? 'I&D';
     }
 
     /**

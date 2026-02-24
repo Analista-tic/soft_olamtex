@@ -75,12 +75,27 @@ export interface OperationOption {
     name: string;
     action?: string;
     garment_part?: string;
+    section_id?: number | null;
+    sam_base?: number | null;
 }
 
 export interface MachineOption {
     id: number;
     code: string;
     name: string;
+    /** Suplemento de la máquina (snapshot para listado operacional). */
+    supplement_factor?: number;
+}
+
+export interface FabricBaseOption {
+    id: number | string;
+    name: string;
+    nombre?: string;
+    codigo?: string;
+    code?: string;
+    factor?: number;
+    factor_base?: number;
+    factor_base_tela?: number;
 }
 
 export interface ProductOperationListRow {
@@ -100,11 +115,13 @@ export interface ProductOperationListRow {
 
 export interface ProductOperationListPageProps extends SharedData {
     sections: OperationSection[];
-    operations: Array<{ id: number; name: string; action: string; garment_part: string }>;
-    machines: Array<{ id: number; code: string; name: string }>;
+    operations: Array<{ id: number; name: string; action: string; garment_part: string; section_id?: number | null; sam_base?: number | null }>;
+    machines: Array<{ id: number; code: string; name: string; supplement_factor?: number }>;
     productSheets: Array<{ id: number; reference: string; type: string }>;
+    fabric_bases?: Array<{ id: number | string; name: string }>;
     actions: string[];
     garmentParts: string[];
+    locations: string[];
 }
 
 export interface ProductOperationPayload {
@@ -118,4 +135,5 @@ export interface ProductOperationPayload {
     machine_supplement_factor: number;
     notes?: string;
     quantity?: number;
+    fabric_base_id?: number | null;
 }

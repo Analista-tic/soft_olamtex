@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import type { BreadcrumbItem } from '@/domain/shared/types';
-import type { Contact } from '@/domain/purchases';
-import EditButton from '@/components/common/EditButton.vue';
-import ContactDialog from './ContactDialog.vue';
-import { Button } from '@/components/ui/button';
+import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import EditButton from '@/components/common/EditButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
+import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -17,21 +19,17 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { Contact } from '@/domain/purchases';
+import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios, { type AxiosError } from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { ref, onMounted, watch, computed } from 'vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import SelectField from '@/components/SelectField.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import FilterBar from '@/components/FilterBar.vue';
-import FilterField from '@/components/FilterField.vue';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { computed, onMounted, ref, watch } from 'vue';
+import ContactDialog from './ContactDialog.vue';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Contactos', href: '/contactos' },
-];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'Contactos', href: '/contactos' }];
 
 const contacts = ref<Contact[]>([]);
 const contactToDelete = ref<Contact | null>(null);
@@ -147,11 +145,7 @@ async function deleteContact(): Promise<void> {
             const responseMessage = axiosError.response?.data?.message;
 
             if (axiosError.response?.status === 409) {
-                setError(
-                    responseMessage ||
-                        'No se puede eliminar el contacto porque tiene relaciones con otros registros.',
-                    'warning',
-                );
+                setError(responseMessage || 'No se puede eliminar el contacto porque tiene relaciones con otros registros.', 'warning');
                 return;
             }
             setError(responseMessage || 'Ocurrió un error al eliminar el contacto.', 'error');
@@ -171,10 +165,7 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
         await axios({ method, url, data: contactData });
         await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value || null);
         closeDialog();
-        successMessage.value =
-            dialogType.value === 'create'
-                ? 'El contacto se guardó correctamente.'
-                : 'El contacto se actualizó correctamente.';
+        successMessage.value = dialogType.value === 'create' ? 'El contacto se guardó correctamente.' : 'El contacto se actualizó correctamente.';
         setError('', 'error');
     } catch (err) {
         const error = err as AxiosError;
@@ -192,11 +183,7 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
     }
 }
 
-async function fetchContacts(
-    page: number = 1,
-    search: string = '',
-    contactType: string | null = null,
-): Promise<void> {
+async function fetchContacts(page: number = 1, search: string = '', contactType: string | null = null): Promise<void> {
     try {
         const response = await axios.get('/contactos/data', {
             params: { page, per_page: itemsPerPage, search, contact_type: contactType },
@@ -244,34 +231,24 @@ onMounted(() => {
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Gestión de Contactos</h1>
                     <p class="text-sm text-muted-foreground">
-                        Administra contactos de proveedores y clientes, controla su información de contacto
-                        y el tipo asignado.
+                        Administra contactos de proveedores y clientes, controla su información de contacto y el tipo asignado.
                     </p>
                 </div>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openDialog('create')"
                 >
-                    <PlusCircle class="w-4 h-4" />
+                    <PlusCircle class="h-4 w-4" />
                     Nuevo Contacto
                 </button>
             </div>
 
             <!-- Filtros -->
             <FilterBar align="start">
-                <FilterField
-                    label="Buscar contacto"
-                    :active="isSearchActive"
-                    class="flex-1 min-w-[220px] p-0"
-                >
+                <FilterField label="Buscar contacto" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input
-                            id="search_contact"
-                            v-model="searchQuery"
-                            placeholder="Buscar por nombre o email"
-                            class="h-10 w-full pl-10"
-                        />
+                        <Input id="search_contact" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>

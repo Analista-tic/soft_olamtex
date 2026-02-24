@@ -32,7 +32,7 @@ function onInput(event: Event) {
                 :placeholder="props.placeholder"
                 :disabled="props.disabled"
                 :required="props.required"
-                class="h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                class="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-5 text-sm shadow-sm transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
             />
         </div>
     </div>

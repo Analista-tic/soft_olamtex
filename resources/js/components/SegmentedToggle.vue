@@ -52,7 +52,7 @@ function navigate(event: KeyboardEvent, currentIndex: number) {
             :aria-checked="option.value === selectedValue"
             :aria-label="option.label"
             :disabled="disabled"
-            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
+            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
             :class="[
                 option.value === selectedValue
                     ? 'border-blue-500 bg-blue-500 text-white shadow'

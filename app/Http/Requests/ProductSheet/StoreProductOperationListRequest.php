@@ -2,9 +2,7 @@
 
 namespace App\Http\Requests\ProductSheet;
 
-use App\Models\ProductSheet\ProductOperationList;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreProductOperationListRequest extends FormRequest
 {
@@ -29,10 +27,6 @@ class StoreProductOperationListRequest extends FormRequest
                 'required',
                 'integer',
                 'exists:operations,id',
-                // Validar que la operación no esté duplicada en esta ficha
-                Rule::unique('product_operation_lists')
-                    ->where('product_sheet_id', $this->input('product_sheet_id'))
-                    ->whereNull('deleted_at'),
             ],
             'machine_id' => ['required', 'integer', 'exists:machines,id'],
             'operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
@@ -40,10 +34,6 @@ class StoreProductOperationListRequest extends FormRequest
                 'required',
                 'integer',
                 'min:1',
-                // Validar que la secuencia sea única en esta ficha
-                Rule::unique('product_operation_lists')
-                    ->where('product_sheet_id', $this->input('product_sheet_id'))
-                    ->whereNull('deleted_at'),
             ],
             'optimal_time' => ['required', 'numeric', 'min:0.01', 'max:999.99'],
             'operator_efficiency_factor' => [
@@ -58,6 +48,8 @@ class StoreProductOperationListRequest extends FormRequest
                 'min:1.0',
                 'max:5.0',
             ],
+            'fabric_base_id' => ['nullable', 'integer'],
+            'quantity' => ['nullable', 'integer', 'min:1'],
             'actual_time' => ['nullable', 'numeric', 'min:0', 'max:999.99'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['sometimes', 'boolean'],
@@ -70,8 +62,6 @@ class StoreProductOperationListRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'operation_id.unique' => 'Esta operación ya está agregada en este lote. No se pueden duplicar operaciones.',
-            'sequence.unique' => 'Ya existe una operación con esta secuencia en el lote.',
             'operator_efficiency_factor.min' => 'El factor de eficiencia del operario debe ser al menos 1.0 (100%).',
             'operator_efficiency_factor.max' => 'El factor de eficiencia del operario no puede superar 2.0 (200%).',
             'operator_efficiency_factor.between' => 'El factor de eficiencia debe estar entre 1.0 y 2.0.',
@@ -96,6 +86,8 @@ class StoreProductOperationListRequest extends FormRequest
             'optimal_time' => 'tiempo óptimo',
             'operator_efficiency_factor' => 'factor de eficiencia del operario',
             'machine_supplement_factor' => 'suplemento de máquina',
+            'fabric_base_id' => 'base tela',
+            'quantity' => 'cantidad',
             'actual_time' => 'tiempo real',
         ];
     }

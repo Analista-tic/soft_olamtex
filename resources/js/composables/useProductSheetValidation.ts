@@ -1,5 +1,5 @@
-import { computed } from 'vue';
 import type { Ref } from 'vue';
+import { computed } from 'vue';
 
 export interface ProductSheetValidationSource {
     section_id: number | null;
@@ -19,7 +19,7 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
         const errors: string[] = [];
         const form = params.form.value;
 
-        if (!form.section_id) errors.push('Seccion es requerida.');
+        if (!form.section_id) errors.push('Sección es requerida.');
         if (!form.group_id) errors.push('Grupo es requerido.');
         if (!form.brand_id) errors.push('Marca es requerida.');
         if (!form.world_id) errors.push('Mundo es requerido.');

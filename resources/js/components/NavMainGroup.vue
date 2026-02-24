@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { watch, computed, ref } from 'vue';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     SidebarGroup,
@@ -12,6 +11,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { ChevronRight } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     items: {
@@ -132,32 +132,18 @@ const handleGroupButtonClick = (item: { title: string; href: string }) => {
                     class="group/collapsible"
                 >
                     <SidebarMenuItem>
-                        <SidebarMenuButton
-                            :tooltip="item.title"
-                            :class="{ active: isGroupActive(item) }"
-                            @click="handleGroupButtonClick(item)"
-                        >
+                        <SidebarMenuButton :tooltip="item.title" :class="{ active: isGroupActive(item) }" @click="handleGroupButtonClick(item)">
                             <component v-if="item.icon" :is="item.icon" />
                             <span>{{ item.title }}</span>
                             <CollapsibleTrigger as-child>
-                                <button
-                                    type="button"
-                                    class="ml-auto inline-flex items-center"
-                                    aria-label="Desplegar submenú"
-                                    @click.stop
-                                >
-                                    <ChevronRight
-                                        class="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
-                                    />
+                                <button type="button" class="ml-auto inline-flex items-center" aria-label="Desplegar submenú" @click.stop>
+                                    <ChevronRight class="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                 </button>
                             </CollapsibleTrigger>
                         </SidebarMenuButton>
                         <CollapsibleContent>
                             <SidebarMenuSub>
-                                <SidebarMenuSubItem
-                                    v-for="subItem in item.items"
-                                    :key="subItem.title"
-                                >
+                                <SidebarMenuSubItem v-for="subItem in item.items" :key="subItem.title">
                                     <SidebarMenuSubButton as-child size="md" :class="{ active: isRouteActive(subItem.href) }">
                                         <Link :href="subItem.href">
                                             <span>{{ subItem.title }}</span>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Tax } from '@/domain/inventory';
+import { ref, watch } from 'vue';
 
 const props = defineProps<{
     open: boolean;
@@ -56,7 +56,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
             <DialogHeader>
                 <DialogTitle>
                     {{ props.dialogType === 'create' ? 'Crear Impuesto' : 'Editar Impuesto' }}
@@ -71,7 +71,10 @@ function handleSubmit() {
                 <SelectField
                     v-model="localForm.status"
                     label="Estado"
-                    :options="[{id:'true',name:'Activo'},{id:'false',name:'Inactivo'}]"
+                    :options="[
+                        { id: 'true', name: 'Activo' },
+                        { id: 'false', name: 'Inactivo' },
+                    ]"
                     required
                     placeholder="Estado del impuesto"
                 />
@@ -79,7 +82,7 @@ function handleSubmit() {
             <DialogFooter class="flex justify-end gap-2">
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="handleClose"
                 >
                     Cancelar
@@ -87,12 +90,12 @@ function handleSubmit() {
                 <button
                     type="button"
                     :disabled="props.loading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     @click="handleSubmit"
                 >
                     {{ props.dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                 </button>
             </DialogFooter>
-    </FormDialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

@@ -3,7 +3,6 @@
 namespace App\Models\ProductSheet;
 
 use App\Models\Concerns\HasAuditLabel;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -19,22 +18,18 @@ class OperationSection extends Model
         'name',
         'type',
         'is_active',
-        'created_by',
     ];
+
+    public array $auditIgnore = ['created_at', 'updated_at', 'deleted_at'];
 
     protected $casts = [
         'is_active' => 'boolean',
     ];
 
     // Relaciones
-    public function productOperationLists()
+    public function productSheetOperations()
     {
-        return $this->hasMany(ProductOperationList::class);
-    }
-
-    public function createdBy()
-    {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->hasMany(ProductSheetOperation::class, 'operation_section_id');
     }
 
     // Scopes

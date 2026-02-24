@@ -1,24 +1,21 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import ProcessSelector from '@/components/ProcessSelector.vue';
+import SegmentedToggle from '@/components/SegmentedToggle.vue';
 import SelectField from '@/components/SelectField.vue';
 import SizeSelector from '@/components/SizeSelector.vue';
 import SwitchField from '@/components/SwitchField.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
-import SegmentedToggle from '@/components/SegmentedToggle.vue';
-import ProductOperationListDialog from '@/pages/ProductOperationList/ProductOperationListDialog.vue';
-import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import FormDialogContent from '@/components/FormDialogContent.vue';
-import type {
-    MachineOption,
-    OperationOption,
-    OperationSection,
-    OptionParams,
-    ProductOperationPayload,
-    ProductSheet,
-} from '@/domain/product-sheet';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { useAlertStack } from '@/composables/useAlert';
+import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
+import type { MachineOption, OperationOption, OperationSection, OptionParams, ProductOperationPayload, ProductSheet } from '@/domain/product-sheet';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
     PRODUCT_SHEET_TYPE_SAMPLE,
@@ -26,15 +23,11 @@ import {
     parseBooleanRecord,
     stringifyJsonRecord,
 } from '@/domain/product-sheet';
-import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
-import { computed, ref, watch } from 'vue';
-import { Eye, Image as ImageIcon, List, Trash } from 'lucide-vue-next';
-import AlertStack from '@/components/common/AlertStack.vue';
-import { useAlertStack } from '@/composables/useAlert';
-import axios from 'axios';
+import ProductOperationListDialog from '@/pages/ProductOperationList/ProductOperationListDialog.vue';
 import { convertSampleToProduct, createProductSheet, updateProductSheet } from '@/services/productSheetService';
-import Label from '@/components/ui/label/Label.vue';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import axios from 'axios';
+import { Eye, Image as ImageIcon, List, Trash } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 interface Props {
     mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
@@ -87,7 +80,7 @@ function setAlert(message: string, type: AlertType = 'info'): void {
     } else {
         showError(message, type);
     }
-    
+
     if (dialogInnerRef.value?.scrollTo) {
         dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -120,7 +113,7 @@ const tooltips = {
     wovenProduct: 'Indica si la prenda se fabrica a partir de tejido.',
     base: 'Material base principal de la prenda.',
     yarnBase: 'Define la hilaza base usada cuando la prenda se fabrica en tejido.',
-    operationalList: 'Define las operaciones detalladas necesarias para el desarrollo o fabricacion de esta referencia.',
+    operationalList: 'Define las operaciones detalladas necesarias para el desarrollo o fabricación de esta referencia.',
     processes: 'Etapas que seguira la referencia para el control y seguimiento de los lotes.',
     flatSketch: 'Boceto tecnico de la referencia con medidas, detalles y observaciones para produccion.',
 } as const;
@@ -228,6 +221,7 @@ const operationListMeta = ref({
     productSheets: [] as ProductSheetDialogOption[],
     actions: [] as string[],
     garmentParts: [] as string[],
+    locations: [] as string[],
 });
 
 const TEMP_SAMPLE_PRODUCT_SHEET_ID = '__temp_sample__';
@@ -290,12 +284,7 @@ const parsedSizes = computed<Record<string, boolean>>(() => parseBooleanRecord(f
 
 const overallStatus = computed<boolean>(() => {
     const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
-    return (
-        Boolean(form.value.reference) &&
-        Boolean(form.value.billing_price) &&
-        Boolean(form.value.selling_price) &&
-        hasSelectedSize
-    );
+    return Boolean(form.value.reference) && Boolean(form.value.billing_price) && Boolean(form.value.selling_price) && hasSelectedSize;
 });
 
 const allProcesses = ref([
@@ -348,7 +337,7 @@ const showConvertButton = computed(
 );
 const mainReferenceLabel = computed(() => (form.value.type === TYPE_SAMPLE ? 'Referencia (Muestra)' : 'Referencia (Producto)'));
 const displayedReferenceForInput = computed<string>(() =>
-    form.value.type === TYPE_SAMPLE ? form.value.sample_reference ?? '' : form.value.product_reference ?? '',
+    form.value.type === TYPE_SAMPLE ? (form.value.sample_reference ?? '') : (form.value.product_reference ?? ''),
 );
 const hasBothReferences = computed(() => Boolean(form.value.sample_reference && form.value.product_reference));
 
@@ -356,9 +345,7 @@ const isConvertDialogOpen = ref(false);
 const convertLoading = ref(false);
 const activeReference = computed<string>({
     get() {
-        return form.value.type === TYPE_SAMPLE
-            ? form.value.sample_reference
-            : form.value.product_reference;
+        return form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
     },
     set(value: string) {
         const normalized = (value ?? '').trim();
@@ -379,9 +366,7 @@ const { validationErrors, isValid } = useProductSheetValidation({
 watch(
     () => form.value.type,
     (type) => {
-        form.value.reference = type === TYPE_SAMPLE
-            ? form.value.sample_reference ?? ''
-            : form.value.product_reference ?? '';
+        form.value.reference = type === TYPE_SAMPLE ? (form.value.sample_reference ?? '') : (form.value.product_reference ?? '');
 
         if (type === TYPE_PRODUCT && autoAddedSampleProcess.value) {
             const currentProcesses = parseProcessesValue(form.value.processes);
@@ -442,13 +427,11 @@ watch(
                 processes: stringifyJsonRecord(newProductSheet.processes, {}),
                 status: newProductSheet.status === 'complete' ? 'complete' : 'incomplete',
             };
-            form.value.reference = form.value.type === TYPE_SAMPLE
-                ? form.value.sample_reference
-                : form.value.product_reference;
+            form.value.reference = form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
             isConvertDialogOpen.value = false;
         }
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 watch(
@@ -463,16 +446,17 @@ watch(
             }
         }
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 watch(
     () => localDialogOpen.value,
     (newValue) => {
-        if (props.open !== newValue) { // Evitar actualizaciones redundantes
+        if (props.open !== newValue) {
+            // Evitar actualizaciones redundantes
             emit('update:open', newValue);
         }
-    }
+    },
 );
 
 watch(requiresOperationalList, (needs) => {
@@ -495,6 +479,7 @@ async function loadOperationListOptions() {
             productSheets: payload?.productSheets ?? [],
             actions: payload?.actions ?? [],
             garmentParts: payload?.garmentParts ?? [],
+            locations: payload?.locations ?? [],
         };
         operationListOptionsLoaded.value = true;
     } catch (error) {
@@ -821,13 +806,15 @@ function handleClose() {
 
 <template>
     <Dialog v-model:open="localDialogOpen" @close="handleClose">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[190vh] px-2 py-2">
-            <DialogHeader class="flex-shrink-0 px-6 pt-6 pb-4">
-                <DialogTitle>
-                    {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos
-                </DialogTitle>
+        <FormDialogContent class="flex max-h-[95vh] max-w-[190vh] flex-col px-2 py-2">
+            <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
+                <DialogTitle> {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos </DialogTitle>
                 <DialogDescription>
-                    {{ isViewMode ? 'Visualiza los detalles del producto.' : `Completa los campos para ${isEditMode ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.` }}
+                    {{
+                        isViewMode
+                            ? 'Visualiza los detalles del producto.'
+                            : `Completa los campos para ${isEditMode ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.`
+                    }}
                 </DialogDescription>
             </DialogHeader>
             <AlertStack
@@ -842,50 +829,44 @@ function handleClose() {
             />
 
             <TooltipProvider>
-                <div ref="dialogInnerRef" class="overflow-y-auto flex-1 px-6 pb-24 scroll-smooth" style="scrollbar-width: thin;">
+                <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
                     <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
                             <div class="grid gap-2">
                                 <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium">
-                                        Tipo<span class="text-red-500">*</span>
-                                    </Label>
-                                    <HelpTooltip
-                                        :text="tooltips.type"
-                                        aria-label="Ayuda sobre Tipo"
-                                    />
+                                    <Label class="text-sm font-medium"> Tipo<span class="text-red-500">*</span> </Label>
+                                    <HelpTooltip :text="tooltips.type" aria-label="Ayuda sobre Tipo" />
                                 </div>
                                 <SegmentedToggle v-model="typeModel" :options="typeOptions" :disabled="isReadonly" />
                             </div>
 
-                            <!-- Primera seccion: Identificacion del producto -->
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <!-- Primera sección: Identificación del producto -->
+                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                                 <div class="md:col-span-1">
                                     <div v-if="!isReadonly" class="space-y-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">
-                                                {{ mainReferenceLabel }}<span class="text-red-500">*</span>
-                                            </Label>
+                                            <Label class="text-sm font-medium"> {{ mainReferenceLabel }}<span class="text-red-500">*</span> </Label>
                                         </div>
-                                        <InputField
-                                            v-model="activeReference"
-                                            label=""
-                                            placeholder="ejemplo: 901010"
-                                            :disabled="isReadonly"
-                                        />
+                                        <InputField v-model="activeReference" label="" placeholder="ejemplo: 901010" :disabled="isReadonly" />
                                     </div>
                                     <div v-else-if="hasBothReferences" class="space-y-1.5">
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">Referencias</Label>
                                         </div>
                                         <div class="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-3">
-                                            <span class="inline-flex h-5 items-center gap-0.5 rounded-full bg-blue-100 px-2 text-[11px] font-medium text-blue-800 whitespace-nowrap">
+                                            <span
+                                                class="inline-flex h-5 items-center gap-0.5 whitespace-nowrap rounded-full bg-blue-100 px-2 text-[11px] font-medium text-blue-800"
+                                            >
                                                 <span class="text-blue-500">M:</span>
-                                                <span class="truncate max-w-[80px]" :title="form.sample_reference">{{ form.sample_reference }}</span>
+                                                <span class="max-w-[80px] truncate" :title="form.sample_reference">{{ form.sample_reference }}</span>
                                             </span>
-                                            <span class="inline-flex h-5 items-center gap-0.5 rounded-full bg-green-100 px-2 text-[11px] font-medium text-green-800 whitespace-nowrap">
+                                            <span
+                                                class="inline-flex h-5 items-center gap-0.5 whitespace-nowrap rounded-full bg-green-100 px-2 text-[11px] font-medium text-green-800"
+                                            >
                                                 <span class="text-green-600">P:</span>
-                                                <span class="truncate max-w-[80px]" :title="form.product_reference">{{ form.product_reference }}</span>
+                                                <span class="max-w-[80px] truncate" :title="form.product_reference">{{
+                                                    form.product_reference
+                                                }}</span>
                                             </span>
                                         </div>
                                     </div>
@@ -912,11 +893,11 @@ function handleClose() {
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-4 gap-4 mb-4">
+                            <div class="mb-4 grid grid-cols-4 gap-4">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Seccion<span class="text-red-500">*</span></Label>
-                                        <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Seccion" />
+                                        <Label class="text-sm font-medium">Sección<span class="text-red-500">*</span></Label>
+                                        <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Sección" />
                                     </div>
                                     <SelectField v-model="form.section_id" label="" :options="props.sections" required :disabled="isReadonly" />
                                 </div>
@@ -938,18 +919,22 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Mundo<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.world" aria-label="Ayuda sobre Mundo" />
                                     </div>
-                                    <SelectField class="w-full" v-model="form.world_id" label="" :options="props.worlds" required :disabled="isReadonly" />
+                                    <SelectField
+                                        class="w-full"
+                                        v-model="form.world_id"
+                                        label=""
+                                        :options="props.worlds"
+                                        required
+                                        :disabled="isReadonly"
+                                    />
                                 </div>
                             </div>
 
-                            <div :class="`grid gap-4 mb-4 ${form.woven_product ? 'grid-cols-4' : 'grid-cols-3'}`">
-                                <div class="flex flex-col gap-1 w-auto">
+                            <div :class="`mb-4 grid gap-4 ${form.woven_product ? 'grid-cols-4' : 'grid-cols-3'}`">
+                                <div class="flex w-auto flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Producto tejido</Label>
-                                        <HelpTooltip
-                                            :text="tooltips.wovenProduct"
-                                            aria-label="Ayuda sobre Producto tejido"
-                                        />
+                                        <HelpTooltip :text="tooltips.wovenProduct" aria-label="Ayuda sobre Producto tejido" />
                                     </div>
                                     <SwitchField v-model="form.woven_product" label="" id="woven_product" :disabled="isReadonly" />
                                 </div>
@@ -958,15 +943,19 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Base<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.base" aria-label="Ayuda sobre Base" />
                                     </div>
-                                    <SelectField class="w-full" v-model="form.fabric_base_id" label="" :options="props.fabricBases" required :disabled="isReadonly" />
+                                    <SelectField
+                                        class="w-full"
+                                        v-model="form.fabric_base_id"
+                                        label=""
+                                        :options="props.fabricBases"
+                                        required
+                                        :disabled="isReadonly"
+                                    />
                                 </div>
                                 <div v-if="form.woven_product" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Base hilaza<span class="text-red-500">*</span></Label>
-                                        <HelpTooltip
-                                            :text="tooltips.yarnBase"
-                                            aria-label="Ayuda sobre Base hilaza"
-                                        />
+                                        <HelpTooltip :text="tooltips.yarnBase" aria-label="Ayuda sobre Base hilaza" />
                                     </div>
                                     <SelectField
                                         class="w-full"
@@ -987,16 +976,16 @@ function handleClose() {
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-1 gap-4 mb-4">
+                            <div class="mb-4 grid grid-cols-1 gap-4">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Descripcion</Label>
+                                        <Label class="text-sm font-medium">Descripción</Label>
                                     </div>
                                     <InputField
                                         v-model="form.description"
                                         label=""
                                         type="text"
-                                        placeholder="Anade descripcion o observaciones del producto"
+                                        placeholder="Añade descripción o observaciones del producto"
                                         :disabled="isReadonly"
                                     />
                                 </div>
@@ -1011,10 +1000,7 @@ function handleClose() {
                                         <div class="flex items-center gap-2">
                                             <List class="h-4 w-4 text-emerald-700" />
                                             <Label class="text-sm font-semibold text-emerald-900">Listado operacional</Label>
-                                            <HelpTooltip
-                                                :text="tooltips.operationalList"
-                                                aria-label="Ayuda sobre Listado operacional"
-                                            />
+                                            <HelpTooltip :text="tooltips.operationalList" aria-label="Ayuda sobre Listado operacional" />
                                         </div>
                                         <p class="text-xs leading-relaxed text-emerald-800/80">
                                             Configura las operaciones detalladas para el proceso de desarrollo de muestras.
@@ -1027,12 +1013,8 @@ function handleClose() {
                                         :disabled="isReadonly || operationListOptionsLoading"
                                         @click="openOperationListDialog"
                                     >
-                                        <template v-if="operationListOptionsLoading">
-                                            Cargando...
-                                        </template>
-                                        <template v-else>
-                                            Configurar procesos
-                                        </template>
+                                        <template v-if="operationListOptionsLoading"> Cargando... </template>
+                                        <template v-else> Configurar procesos </template>
                                     </Button>
                                 </div>
                             </div>
@@ -1040,10 +1022,7 @@ function handleClose() {
                             <div class="space-y-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">Procesos<span class="text-red-500">*</span></Label>
-                                    <HelpTooltip
-                                        :text="tooltips.processes"
-                                        aria-label="Ayuda sobre Procesos"
-                                    />
+                                    <HelpTooltip :text="tooltips.processes" aria-label="Ayuda sobre Procesos" />
                                 </div>
                                 <div class="tooltip-managed-process-selector">
                                     <ProcessSelector
@@ -1055,14 +1034,11 @@ function handleClose() {
                                 </div>
                             </div>
                         </div>
-                        <div class="min-w-0 w-full md:w-[320px]">
+                        <div class="w-full min-w-0 md:w-[320px]">
                             <div class="sticky top-3 space-y-4">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">Dibujo plano</Label>
-                                    <HelpTooltip
-                                        :text="tooltips.flatSketch"
-                                        aria-label="Ayuda sobre Dibujo plano"
-                                    />
+                                    <HelpTooltip :text="tooltips.flatSketch" aria-label="Ayuda sobre Dibujo plano" />
                                 </div>
                                 <div class="flex w-full flex-col items-start gap-2">
                                     <div class="relative w-full overflow-hidden">
@@ -1080,10 +1056,10 @@ function handleClose() {
                                                 'group relative flex min-h-[320px] w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
                                                 isReadonly ? 'cursor-default opacity-100' : 'hover:border-blue-400 hover:shadow-lg',
                                             ]"
-                                            style="min-width: 0;"
+                                            style="min-width: 0"
                                         >
                                             <template v-if="flatSketchVisualUrl">
-                                                <div class="relative h-52 w-full overflow-hidden">
+                                                <div class="relative w-full flex-1 overflow-hidden">
                                                     <img
                                                         :src="flatSketchVisualUrl"
                                                         alt="Previsualización dibujo plano"
@@ -1093,7 +1069,7 @@ function handleClose() {
                                                 </div>
                                             </template>
                                             <template v-else>
-                                                <div class="z-10 flex h-full w-full flex-col items-center justify-center pointer-events-none">
+                                                <div class="pointer-events-none z-10 flex h-full w-full flex-col items-center justify-center">
                                                     <ImageIcon class="mb-2 h-12 w-12 text-gray-400" />
                                                     <span class="text-sm text-gray-500">
                                                         {{ isReadonly ? 'Sin imagen' : 'Haz clic para subir imagen' }}
@@ -1128,11 +1104,11 @@ function handleClose() {
                 </div>
             </TooltipProvider>
 
-            <DialogFooter class="flex-shrink-0 border-t bg-background pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end md:items-center">
+            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t bg-background pt-4 md:flex-row md:items-center md:justify-end">
                 <div class="w-full md:w-auto">
                     <button
                         type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="handleClose"
                     >
                         {{ isViewMode ? 'Cerrar' : 'Cancelar' }}
@@ -1194,4 +1170,3 @@ function handleClose() {
     display: none;
 }
 </style>
-

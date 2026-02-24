@@ -5,10 +5,13 @@ namespace App\Http\Controllers\ProductSheet;
 use App\Helpers\MonthLabel;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductSheet\StoreProgrammerRequest;
+use App\Http\Requests\ProductSheet\UpdateOperacionProgresoRequest;
 use App\Http\Requests\ProductSheet\UpdateProgrammerRequest;
+use App\Models\ProductSheet\ProductionOrderOperation;
 use App\Models\ProductSheet\ProductSheet;
 use App\Models\ProductSheet\Programmer;
 use App\Services\ProductSheet\ProgrammerService;
+use App\Services\ProductSheet\ProductionOrderService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -34,6 +37,7 @@ class ProgrammerController extends Controller
     public function __construct(
         private SettingService $settingService,
         private ProgrammerService $programmerService,
+        private ProductionOrderService $productionOrderService,
     ) {
     }
 
@@ -196,6 +200,7 @@ class ProgrammerController extends Controller
                         'estimated_delivery_date' => null,
                         'ecommerce_units' => $ecommerceUnits,
                         'status' => $status,
+                        'current_process' => $this->programmerService->defaultCurrentProcess(),
                         'source' => 'manual',
                     ]);
 
@@ -326,6 +331,9 @@ class ProgrammerController extends Controller
         try {
             $programador->update($validatedData);
             $programador->refresh();
+
+            // Recalcular snapshot de operaciones (sam_total_lote depende de units)
+            $this->productionOrderService->createSnapshotForProgrammer($programador);
 
             Log::info('programmer.update.completed', [
                 'request_id' => $requestId,
@@ -575,6 +583,46 @@ class ProgrammerController extends Controller
     private function idempotencyLockKey(string $action, int|string $userId, string $requestId): string
     {
         return sprintf('programmer:idempotency:lock:%s:%s:%s', $action, (string) $userId, $requestId);
+    }
+
+    /**
+     * Obtiene el listado operacional (snapshot read-only) de un Programmer.
+     */
+    public function getOperacionesOrden(Programmer $programador)
+    {
+        $operaciones = $this->productionOrderService->getOperationsByProgrammer($programador->id);
+
+        return response()->json([
+            'data' => $operaciones,
+            'programmer_id' => $programador->id,
+            'total_sam_lote' => $this->productionOrderService->getTotalSamLote($programador->id),
+        ]);
+    }
+
+    /**
+     * Actualiza SOLO el progreso de una operación del snapshot.
+     */
+    public function updateProgresoOperacion(
+        UpdateOperacionProgresoRequest $request,
+        Programmer $programador,
+        ProductionOrderOperation $operacion,
+    ) {
+        if ($operacion->programmer_id !== $programador->id) {
+            return response()->json(['message' => 'La operación no pertenece a este programador.'], 403);
+        }
+
+        $validated = $request->validated();
+
+        $operacion = $this->productionOrderService->updateProgressOnly(
+            $operacion,
+            $validated['quantity_progressed'],
+            $validated['motivo'],
+        );
+
+        return response()->json([
+            'message' => 'Progreso actualizado correctamente.',
+            'data' => $operacion,
+        ]);
     }
 
     private function summarizeLot(?array $lot): array

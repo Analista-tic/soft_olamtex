@@ -26,7 +26,6 @@ class SectionController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        $validated['created_by'] = auth()->id();
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         $section = $this->service->create($validated);

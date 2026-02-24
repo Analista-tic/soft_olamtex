@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
 import AlertBox from '@/components/AlertBox.vue';
-import Input from '@/components/ui/input/Input.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import SelectField from '@/components/SelectField.vue';
+import Input from '@/components/ui/input/Input.vue';
 import Textarea from '@/components/ui/textarea/Textarea.vue';
+import colombiaData from '@/data/colombia.json';
 import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Image } from 'lucide-vue-next';
-import colombiaData from '@/data/colombia.json';
-import ProfileSection from './Profile.vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import AppearanceSection from './Appearance.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
+import ProfileSection from './Profile.vue';
 
 interface CompanyData {
     name: string;
@@ -72,7 +72,6 @@ const navSections: NavSection[] = [
         description: 'Tema y apariencia de la plataforma',
         href: '/configuracion/personalizacion',
     },
-
 ];
 
 const selectedSection = ref<SectionKey>(props.activeSection ?? 'empresa');
@@ -88,8 +87,7 @@ const goToSection = (key: SectionKey) => {
 
 const navSectionBaseClasses =
     'flex w-full items-start justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition-colors min-h-[58px] shadow-sm bg-card border-border dark:border-border';
-const navSectionActiveClasses =
-    'border-blue-100 bg-blue-50 text-blue-600 dark:border-blue-700 dark:bg-blue-600/10 dark:text-blue-300';
+const navSectionActiveClasses = 'border-blue-100 bg-blue-50 text-blue-600 dark:border-blue-700 dark:bg-blue-600/10 dark:text-blue-300';
 const navSectionDefaultClasses =
     'text-muted-foreground/80 hover:border-slate-300 hover:bg-slate-50 hover:text-card-foreground dark:text-muted-foreground/60 dark:hover:border-slate-600 dark:hover:bg-slate-900 dark:hover:text-white';
 
@@ -117,28 +115,9 @@ if (props.company) {
 
 const savedCompanyState = ref<CompanyData>({ ...companyInfo });
 
-const fieldKeys = [
-    'name',
-    'nit',
-    'phone',
-    'email',
-    'accounting_email',
-    'website',
-    'address',
-    'municipality',
-    'department',
-    'description',
-] as const;
+const fieldKeys = ['name', 'nit', 'phone', 'email', 'accounting_email', 'website', 'address', 'municipality', 'department', 'description'] as const;
 
-const requiredFieldKeys = [
-    'name',
-    'nit',
-    'email',
-    'phone',
-    'address',
-    'municipality',
-    'department',
-] as const;
+const requiredFieldKeys = ['name', 'nit', 'email', 'phone', 'address', 'municipality', 'department'] as const;
 
 const missingRequiredFields = ref<string[]>([]);
 
@@ -185,13 +164,12 @@ type LocationOption = {
     searchText: string;
 };
 
-const allLocationOptions: LocationOption[] = (colombiaData as Record<string, any>[]).flatMap(
-    (department) =>
-        (department.ciudades || []).map((municipality: string) => ({
-            id: `${municipality}||${department.departamento}`,
-            name: `${municipality}, ${department.departamento}`,
-            searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
-        })),
+const allLocationOptions: LocationOption[] = (colombiaData as Record<string, any>[]).flatMap((department) =>
+    (department.ciudades || []).map((municipality: string) => ({
+        id: `${municipality}||${department.departamento}`,
+        name: `${municipality}, ${department.departamento}`,
+        searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
+    })),
 );
 
 const locationOptions = ref<LocationOption[]>(allLocationOptions.slice(0, 60));
@@ -227,9 +205,7 @@ const updateLocationOptions = (searchQuery: string = '') => {
     }
     isLoadingLocationOptions.value = true;
     setTimeout(() => {
-        locationOptions.value = allLocationOptions
-            .filter((option) => option.searchText.includes(query))
-            .slice(0, 100);
+        locationOptions.value = allLocationOptions.filter((option) => option.searchText.includes(query)).slice(0, 100);
         isLoadingLocationOptions.value = false;
     }, 0);
 };
@@ -423,12 +399,8 @@ async function syncCompanyInfo(options: SyncOptions = {}): Promise<void> {
         if (axios.isAxiosError(error) && error.response?.status === 422) {
             const validationErrors = error.response?.data?.errors as Record<string, string[]> | undefined;
             const errorFields = validationErrors ? Object.keys(validationErrors) : [];
-            const labelList = errorFields
-                .map((field) => requiredFieldLabels[field] ?? field)
-                .join(', ');
-            const friendlyMessage = labelList
-                ? `Corrige los campos obligatorios: ${labelList}.`
-                : 'Revisa los campos obligatorios marcados.';
+            const labelList = errorFields.map((field) => requiredFieldLabels[field] ?? field).join(', ');
+            const friendlyMessage = labelList ? `Corrige los campos obligatorios: ${labelList}.` : 'Revisa los campos obligatorios marcados.';
             setError(friendlyMessage, 'warning');
         } else {
             setError('No se pudo guardar la información. Intenta nuevamente.', 'error');
@@ -465,9 +437,7 @@ async function saveBasicData(): Promise<void> {
     missingRequiredFields.value = [];
 
     if (!validateRequiredFields()) {
-        const labels = missingRequiredFields.value
-            .map((field) => requiredFieldLabels[field] ?? field)
-            .join(', ');
+        const labels = missingRequiredFields.value.map((field) => requiredFieldLabels[field] ?? field).join(', ');
         setError(`Completa los campos obligatorios: ${labels}.`, 'warning');
         return;
     }
@@ -512,10 +482,7 @@ onBeforeUnmount(() => {
     <Head title="Datos Básicos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <transition name="fade">
-            <div
-                v-if="activeAlert"
-                class="pointer-events-none fixed left-1/2 top-4 z-[9999] flex w-full max-w-xl -translate-x-1/2 px-3"
-            >
+            <div v-if="activeAlert" class="pointer-events-none fixed left-1/2 top-4 z-[9999] flex w-full max-w-xl -translate-x-1/2 px-3">
                 <AlertBox
                     class="pointer-events-auto w-full"
                     :type="activeAlert.type"
@@ -530,42 +497,40 @@ onBeforeUnmount(() => {
             <div class="space-y-1">
                 <h1 class="text-2xl font-semibold text-card-foreground">Datos Básicos</h1>
                 <p class="max-w-2xl text-sm text-muted-foreground/70">
-                    Centraliza la información corporativa que utiliza el sistema para identificar la empresa, comunicar con contactos y contextualizar los reportes operativos.
+                    Centraliza la información corporativa que utiliza el sistema para identificar la empresa, comunicar con contactos y contextualizar
+                    los reportes operativos.
                 </p>
             </div>
 
-            <div class="grid gap-6 lg:grid-cols-[420px_minmax(0,1fr)] items-start">
+            <div class="grid items-start gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
                 <aside class="rounded-2xl border border-border bg-card p-5 shadow-sm">
                     <div class="space-y-3">
                         <div class="relative h-28 w-full overflow-hidden rounded-2xl bg-slate-100">
-                            <img
-                                :src="companyLogo"
-                                alt="Logotipo de la empresa"
-                                class="h-full w-full object-cover"
-                            />
+                            <img :src="companyLogo" alt="Logotipo de la empresa" class="h-full w-full object-cover" />
                         </div>
                         <div class="relative space-y-1">
                             <p class="text-xs font-semibold uppercase text-muted-foreground/70">Empresa</p>
                             <h2 class="text-s font-semibold text-card-foreground">{{ companyInfo.name || 'Sin nombre' }}</h2>
                             <p class="text-xs text-muted-foreground/70">NIT: {{ companyInfo.nit || '-' }}</p>
                             <p class="text-xs text-muted-foreground/70">
-                                Ubicación: {{ companyInfo.address || '-' }}. {{ companyInfo.municipality || '-' }}, {{ companyInfo.department || '-' }}.
+                                Ubicación: {{ companyInfo.address || '-' }}. {{ companyInfo.municipality || '-' }},
+                                {{ companyInfo.department || '-' }}.
                             </p>
                             <p class="text-xs text-muted-foreground/70">Correo: {{ companyInfo.email || '-' }}</p>
-
                         </div>
                     </div>
 
                     <div class="mt-6 space-y-3">
-                            <div class="text-xs font-semibold uppercase text-muted-foreground/70">
-                                Secciones
-                            </div>
-                            <div class="space-y-2">
+                        <div class="text-xs font-semibold uppercase text-muted-foreground/70">Secciones</div>
+                        <div class="space-y-2">
                             <template v-for="section in navSections" :key="section.key">
                                 <button
                                     type="button"
                                     class="group w-full"
-                                    :class="[navSectionBaseClasses, selectedSection === section.key ? navSectionActiveClasses : navSectionDefaultClasses]"
+                                    :class="[
+                                        navSectionBaseClasses,
+                                        selectedSection === section.key ? navSectionActiveClasses : navSectionDefaultClasses,
+                                    ]"
                                     @click="goToSection(section.key)"
                                     :aria-current="selectedSection === section.key ? 'page' : undefined"
                                 >
@@ -573,9 +538,7 @@ onBeforeUnmount(() => {
                                         <p class="font-semibold text-card-foreground">{{ section.label }}</p>
                                         <p class="text-xs text-muted-foreground/70">{{ section.description }}</p>
                                     </div>
-                                    <span
-                                        class="text-[10px] font-semibold uppercase tracking-wide text-blue-600"
-                                    >
+                                    <span class="text-[10px] font-semibold uppercase tracking-wide text-blue-600">
                                         {{ selectedSection === section.key ? 'Activo' : 'Disponible' }}
                                     </span>
                                 </button>
@@ -587,177 +550,158 @@ onBeforeUnmount(() => {
                 <section class="rounded-2xl border border-border bg-card p-5 shadow-sm">
                     <div v-if="selectedSection === 'empresa'">
                         <form class="space-y-6" @submit.prevent="saveBasicData">
-                        <div class="grid gap-4 md:grid-cols-2">
-                            <div class="space-y-2">
-                                <label for="legal-name" class="text-sm font-medium text-card-foreground">
-                                    Nombre <span class="text-red-500">*</span>
-                                </label>
-                                <Input
-                                    id="legal-name"
-                                    v-model="companyInfo.name"
-                                    :class="isFieldMissing('name') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                />
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div class="space-y-2">
+                                    <label for="legal-name" class="text-sm font-medium text-card-foreground">
+                                        Nombre <span class="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        id="legal-name"
+                                        v-model="companyInfo.name"
+                                        :class="isFieldMissing('name') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                    />
+                                </div>
+                                <div class="space-y-2">
+                                    <label for="nit" class="text-sm font-medium text-card-foreground">
+                                        NIT <span class="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        id="nit"
+                                        v-model="companyInfo.nit"
+                                        :class="isFieldMissing('nit') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                    />
+                                </div>
                             </div>
-                            <div class="space-y-2">
-                                <label for="nit" class="text-sm font-medium text-card-foreground">
-                                    NIT <span class="text-red-500">*</span>
-                                </label>
-                                <Input
-                                    id="nit"
-                                    v-model="companyInfo.nit"
-                                    :class="isFieldMissing('nit') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                />
-                                                    </div>
-                                                </div>
-                        
-                                                <div class="grid gap-4 md:grid-cols-2">
-                            <div class="space-y-2">
-                                <label for="email" class="text-sm font-medium text-card-foreground">
-                                    Correo corporativo <span class="text-red-500">*</span>
-                                </label>
-                                <Input
-                                    id="email"
-                                    v-model="companyInfo.email"
-                                    :class="isFieldMissing('email') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                />
-                            </div>
-                            <div class="space-y-2">
-                                <label for="accounting-email" class="text-sm font-medium text-card-foreground">Correo contable</label>
-                                <Input id="accounting-email" v-model="companyInfo.accounting_email" />
-                            </div>
-                            <div class="space-y-2">
-                                <label for="phone" class="text-sm font-medium text-card-foreground">
-                                    Teléfono principal <span class="text-red-500">*</span>
-                                </label>
-                                <Input
-                                    id="phone"
-                                    v-model="companyInfo.phone"
-                                    :class="isFieldMissing('phone') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                />
-                            </div>
-                            <div class="space-y-2">
-                                <label for="website" class="text-sm font-medium text-card-foreground">Sitio web</label>
-                                <Input id="website" v-model="companyInfo.website" />
-                            </div>
-                                                </div>
-                        
-                                                <div class="grid gap-4 md:grid-cols-2">
-                            <div class="space-y-2 flex flex-col h-full justify-end">
-                                <label for="address" class="text-sm font-medium text-card-foreground">
-                                    Dirección <span class="text-red-500">*</span>
-                                </label>
-                                <Input
-                                    id="address"
-                                    v-model="companyInfo.address"
-                                    :class="isFieldMissing('address') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                />
-                            </div>
-                            <div class="space-y-2 flex flex-col h-full justify-end">
-                                                        <SelectField
-                                                            v-model="locationValue"
-                                                            label="Municipio y departamento"
-                                                            required
-                                                            :options="locationOptions"
-                                                            placeholder="Selecciona un municipio o departamento"
-                                                            :searchable="true"
-                                                            :searchThreshold="0"
-                                                            @search="updateLocationOptions"
-                                                        />
-                                                    </div>
-                                                </div>
-                        
-                        <div class="space-y-2">
-                            <label for="description" class="text-sm font-medium text-card-foreground">Descripción</label>
-                            <Textarea id="description" rows="4" v-model="companyInfo.description" />
-                        </div>
 
-                        <div class="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
-                            <div class="flex items-center gap-2">
-                                <p class="text-sm font-semibold text-card-foreground">Logotipo corporativo</p>
-                                <HelpTooltip
-                                    text="Sube un logotipo que represente a tu marca."
-                                    aria-label="Ayuda sobre el logotipo corporativo"
-                                />
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div class="space-y-2">
+                                    <label for="email" class="text-sm font-medium text-card-foreground">
+                                        Correo corporativo <span class="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        id="email"
+                                        v-model="companyInfo.email"
+                                        :class="isFieldMissing('email') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                    />
+                                </div>
+                                <div class="space-y-2">
+                                    <label for="accounting-email" class="text-sm font-medium text-card-foreground">Correo contable</label>
+                                    <Input id="accounting-email" v-model="companyInfo.accounting_email" />
+                                </div>
+                                <div class="space-y-2">
+                                    <label for="phone" class="text-sm font-medium text-card-foreground">
+                                        Teléfono principal <span class="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        id="phone"
+                                        v-model="companyInfo.phone"
+                                        :class="isFieldMissing('phone') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                    />
+                                </div>
+                                <div class="space-y-2">
+                                    <label for="website" class="text-sm font-medium text-card-foreground">Sitio web</label>
+                                    <Input id="website" v-model="companyInfo.website" />
+                                </div>
                             </div>
-                            <p class="text-xs text-muted-foreground/70 m-2">
-                                Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
-                            </p>
-                            <div class="flex flex-col gap-3">
-                        <div
-                            class="relative w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted transition hover:border-blue-400 dark:border-border dark:bg-slate-900"
-                                                            style="min-height: 9rem;"
-                                                            @click="triggerLogoUpload"
-                                                            @drop.prevent="handleLogoDrop"
-                                                            @dragover.prevent
-                                                        >
-                                                            <template v-if="logoPreviewUrl">
-                                                                <img
-                                                                    :src="companyLogo"
-                                                                    alt="Logotipo de la empresa"
-                                                                    class="h-full w-full object-cover"
-                                                                />
-                                                                <div class="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-[10px] uppercase text-white">
-                                                                    {{ hasCustomLogo ? 'Listo para subir' : 'Sin cambios' }}
-                                                                </div>
-                                                            </template>
-                                                            <template v-else>
-                                <div class="flex h-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground/60">
-                                    <Image class="h-20 w-6" />
-                                    <span class="text-xs text-center leading-tight">
-                                                                        Haz clic o arrastra una imagen.
-                                                                    </span>
-                                                                </div>
-                                                            </template>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            class="self-start inline-flex items-center justify-center gap-1 rounded-full border border-border/80 bg-white px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            :disabled="!hasCustomLogo"
-                                                            @click="resetLogoPreview"
-                                                        >
-                                                            Restablecer
-                                                        </button>
-                                                    </div>
-                                                    <input
-                                                        ref="iconInputRef"
-                                                        type="file"
-                                                        accept="image/*"
-                                                        class="hidden"
-                                                        @change="handleLogoChange"
-                                                    />
-                                                </div>
-                        
-                                                <div class="flex flex-wrap gap-3 border-t pt-4">
-                                                    <button
-                                                        type="submit"
-                                                        :disabled="isSaving"
-                                                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    >
-                                                        {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        :disabled="isSaving"
-                                                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                                        @click="resetForm"
-                                                    >
-                                                        Restablecer valores
-                                                    </button>
-                                                </div>
-                                            </form>
+
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div class="flex h-full flex-col justify-end space-y-2">
+                                    <label for="address" class="text-sm font-medium text-card-foreground">
+                                        Dirección <span class="text-red-500">*</span>
+                                    </label>
+                                    <Input
+                                        id="address"
+                                        v-model="companyInfo.address"
+                                        :class="isFieldMissing('address') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                    />
+                                </div>
+                                <div class="flex h-full flex-col justify-end space-y-2">
+                                    <SelectField
+                                        v-model="locationValue"
+                                        label="Municipio y departamento"
+                                        required
+                                        :options="locationOptions"
+                                        placeholder="Selecciona un municipio o departamento"
+                                        :searchable="true"
+                                        :searchThreshold="0"
+                                        @search="updateLocationOptions"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label for="description" class="text-sm font-medium text-card-foreground">Descripción</label>
+                                <Textarea id="description" rows="4" v-model="companyInfo.description" />
+                            </div>
+
+                            <div class="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
+                                <div class="flex items-center gap-2">
+                                    <p class="text-sm font-semibold text-card-foreground">Logotipo corporativo</p>
+                                    <HelpTooltip
+                                        text="Sube un logotipo que represente a tu marca."
+                                        aria-label="Ayuda sobre el logotipo corporativo"
+                                    />
+                                </div>
+                                <p class="m-2 text-xs text-muted-foreground/70">
+                                    Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
+                                </p>
+                                <div class="flex flex-col gap-3">
+                                    <div
+                                        class="relative w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted transition hover:border-blue-400 dark:border-border dark:bg-slate-900"
+                                        style="min-height: 9rem"
+                                        @click="triggerLogoUpload"
+                                        @drop.prevent="handleLogoDrop"
+                                        @dragover.prevent
+                                    >
+                                        <template v-if="logoPreviewUrl">
+                                            <img :src="companyLogo" alt="Logotipo de la empresa" class="h-full w-full object-cover" />
+                                            <div class="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-[10px] uppercase text-white">
+                                                {{ hasCustomLogo ? 'Listo para subir' : 'Sin cambios' }}
+                                            </div>
+                                        </template>
+                                        <template v-else>
+                                            <div class="flex h-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground/60">
+                                                <Image class="h-20 w-6" />
+                                                <span class="text-center text-xs leading-tight"> Haz clic o arrastra una imagen. </span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center justify-center gap-1 self-start rounded-full border border-border/80 bg-white px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        :disabled="!hasCustomLogo"
+                                        @click="resetLogoPreview"
+                                    >
+                                        Restablecer
+                                    </button>
+                                </div>
+                                <input ref="iconInputRef" type="file" accept="image/*" class="hidden" @change="handleLogoChange" />
+                            </div>
+
+                            <div class="flex flex-wrap gap-3 border-t pt-4">
+                                <button
+                                    type="submit"
+                                    :disabled="isSaving"
+                                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    :disabled="isSaving"
+                                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    @click="resetForm"
+                                >
+                                    Restablecer valores
+                                </button>
+                            </div>
+                        </form>
                     </div>
                     <div v-else-if="selectedSection === 'perfil'">
-                        <ProfileSection
-                            :user="user"
-                            @success="handleProfileSuccess"
-                            @error="handleProfileError"
-                        />
+                        <ProfileSection :user="user" @success="handleProfileSuccess" @error="handleProfileError" />
                     </div>
                     <div v-else>
-                        <AppearanceSection
-                            @success="handleAppearanceSuccess"
-                            @error="handleAppearanceError"
-                        />
+                        <AppearanceSection @success="handleAppearanceSuccess" @error="handleAppearanceError" />
                     </div>
                 </section>
             </div>

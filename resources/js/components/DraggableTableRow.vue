@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue';
 import { GripVertical } from 'lucide-vue-next';
+import { onUnmounted, ref } from 'vue';
 
 interface DraggableRowProps {
     index: number;
@@ -41,31 +41,31 @@ function handleDragEnd() {
 // Auto-scroll cuando se arrastra cerca de los bordes
 function startAutoScroll() {
     stopAutoScroll();
-    
+
     autoScrollInterval.value = window.setInterval(() => {
         if (!isDragging.value) return;
-        
+
         const scrollContainer = findScrollContainer();
         if (!scrollContainer) return;
-        
+
         const rect = scrollContainer.getBoundingClientRect();
         const mouseY = window.event ? (window.event as MouseEvent).clientY : 0;
-        
+
         const scrollThreshold = 80; // px desde el borde
         const scrollSpeed = 10; // px por intervalo
-        
+
         // Scroll hacia arriba
         if (mouseY < rect.top + scrollThreshold) {
             scrollContainer.scrollBy({
                 top: -scrollSpeed,
-                behavior: 'smooth'
+                behavior: 'smooth',
             });
         }
         // Scroll hacia abajo
         else if (mouseY > rect.bottom - scrollThreshold) {
             scrollContainer.scrollBy({
                 top: scrollSpeed,
-                behavior: 'smooth'
+                behavior: 'smooth',
             });
         }
     }, 50);
@@ -111,7 +111,7 @@ onUnmounted(() => {
     <tr
         :draggable="isDraggable"
         :class="{
-            'opacity-50 scale-95': isDragging,
+            'scale-95 opacity-50': isDragging,
             'cursor-move': isDraggable,
             'border-t hover:bg-muted/30': true,
             'transition-all duration-200 ease-in-out': true,
