@@ -4,7 +4,7 @@ import { Head } from '@inertiajs/vue3';
 import ItemFormContent from './ItemFormContent.vue';
 import type { Item } from '@/domain/MasterData';
 import { computed, ref, watch, onMounted } from 'vue';
-import { ITEM_FORM_DRAFT_KEY } from './constants';
+import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 
 const breadcrumbs = [
   { title: 'Catálogo de ítem', href: route('listado') },
@@ -104,4 +104,3 @@ function handleLoadingState(value: boolean) {
     </section>
   </AppLayout>
 </template>
-

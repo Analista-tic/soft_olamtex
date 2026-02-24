@@ -5,10 +5,13 @@ import type { Item } from '@/domain/MasterData';
 import { Dialog } from '@/components/ui/dialog';
 import { ref, watch } from 'vue';
 
+type DialogType = 'create' | 'edit' | 'view';
+type SaveMode = Exclude<DialogType, 'view'>;
+
 const props = withDefaults(
     defineProps<{
         isOpen: boolean;
-        dialogType: 'create' | 'edit' | 'view';
+        dialogType: DialogType;
         form: Partial<Item>;
         showAdvancedLink?: boolean;
     }>(),
@@ -16,7 +19,13 @@ const props = withDefaults(
         showAdvancedLink: true,
     },
 );
-const emit = defineEmits(['close', 'refresh', 'saved', 'error', 'loading-state']);
+const emit = defineEmits<{
+    (e: 'close'): void;
+    (e: 'refresh'): void;
+    (e: 'saved', mode: SaveMode): void;
+    (e: 'error', message: string): void;
+    (e: 'loading-state', value: boolean): void;
+}>();
 
 const dialogOpen = ref(props.isOpen);
 watch(
@@ -42,8 +51,8 @@ function handleFormRefresh() {
     emit('refresh');
 }
 
-function handleFormSaved(useCase: 'create' | 'edit') {
-    emit('saved', useCase);
+function handleFormSaved(mode: SaveMode) {
+    emit('saved', mode);
 }
 
 function handleFormError(message: string) {
@@ -72,4 +81,3 @@ function handleFormLoadingState(value: boolean) {
         </FormDialogContent>
     </Dialog>
 </template>
-

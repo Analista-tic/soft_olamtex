@@ -21,7 +21,7 @@ class ExampleDataSeeder extends Seeder
         $warehouse = DB::table('warehouses')->where('name', 'Principal')->first();
         $warehouseId = $warehouse ? $warehouse->id : DB::table('warehouses')->insertGetId([
             'name' => 'Principal',
-            'observation' => 'AlmacÃƒÂ©n principal',
+            'observation' => 'Almacén principal',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -89,7 +89,7 @@ class ExampleDataSeeder extends Seeder
             'id_number' => '900000001',
             'dv' => null,
             'full_name' => 'Proveedor Ejemplo',
-            'person_type' => 'jurÃƒÂ­dica',
+            'person_type' => 'jurídica',
             'groups' => null,
             'municipality' => null,
             'department' => null,
@@ -141,17 +141,17 @@ class ExampleDataSeeder extends Seeder
             ]
         );
 
-        // Insertar artÃƒÂ­culo de ejemplo (ajustado a los campos reales)
+        // Insertar artículo de ejemplo (ajustado a los campos reales)
         $item = DB::table('items')->where('bar_code', 'ART-001')->first();
         $itemId = $item ? $item->id : DB::table('items')->insertGetId([
             'category_sub_group_id' => $categorySubGroupId,
-            'tax_id' => $tax19Id, // RelaciÃƒÂ³n con tabla taxes
-            'name' => 'ArtÃƒÂ­culo de prueba',
+            'tax_id' => $tax19Id, // Relación con tabla taxes
+            'name' => 'Artículo de prueba',
             'reference' => 'ART-001',
             'img' => null,
             'bar_code' => 'ART-001',
             'negative_movement' => false,
-            'description' => 'DescripciÃƒÂ³n de artÃƒÂ­culo de prueba',
+            'description' => 'Descripción de artículo de prueba',
             'extra_fields' => null,
             'status' => true,
             // 'unit_measure' => 'm', // Descomenta solo si existe la columna en la BD
@@ -159,7 +159,7 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Crear items de TELA especÃƒÂ­ficos
+        // Crear items de TELA específicos
         $lanaBeige = DB::table('items')->where('bar_code', 'TELA-LANA-001')->first();
         $lanaId = $lanaBeige ? $lanaBeige->id : DB::table('items')->insertGetId([
             'category_sub_group_id' => $telaSubGroupId,
@@ -169,7 +169,7 @@ class ExampleDataSeeder extends Seeder
             'img' => null,
             'bar_code' => 'TELA-LANA-001',
             'negative_movement' => false,
-            'description' => 'Tela LANA Beige GenÃƒÂ©rica QuÃƒÂ­micos LÃƒÂNEA 3',
+            'description' => 'Tela LANA Beige Genérica Químicos LÍNEA 3',
             'extra_fields' => null,
             'status' => true,
             'created_at' => now(),
@@ -180,19 +180,19 @@ class ExampleDataSeeder extends Seeder
         $algodonId = $algodon ? $algodon->id : DB::table('items')->insertGetId([
             'category_sub_group_id' => $telaSubGroupId,
             'tax_id' => $tax19Id,
-            'name' => 'Tela ALGODÃƒâ€œN 100%',
+            'name' => 'Tela ALGODÓN 100%',
             'reference' => 'ALGODON-100',
             'img' => null,
             'bar_code' => 'TELA-ALGODON-001',
             'negative_movement' => false,
-            'description' => 'Tela ALGODÃƒâ€œN 100% Premium LÃƒÂNEA 1',
+            'description' => 'Tela ALGODÓN 100% Premium LÍNEA 1',
             'extra_fields' => null,
             'status' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        // Stock inicial vÃƒÂ­a movimientos de entrada (para tener precio ponderado y permitir transferencias)
+        // Stock inicial vía movimientos de entrada (para tener precio ponderado y permitir transferencias)
         if (Schema::hasTable('inventory_movements')) {
             $seedUser = User::find($userId);
             if ($seedUser) {
@@ -269,7 +269,7 @@ class ExampleDataSeeder extends Seeder
                     'date' => now()->subDays(3)->toDateString(),
                     'origin_warehouse_id' => $warehouseId,
                     'destination_warehouse_id' => $warehouseTertiaryId,
-                    'observation' => 'ReposiciÃƒÂ³n punto de venta',
+                    'observation' => 'Reposición punto de venta',
                     'items' => [
                         ['item_id' => $algodonId, 'quantity' => 8],
                     ],
@@ -283,7 +283,7 @@ class ExampleDataSeeder extends Seeder
             'document_type' => 'purchase_request',
             'contact_id' => $providerId,
             'date' => now()->subDays(5)->toDateString(),
-            'description' => 'Solicitud de compra generada por el seeder de ejemplo. Destino: ProducciÃƒÂ³n.',
+            'description' => 'Solicitud de compra generada por el seeder de ejemplo. Destino: Producción.',
             'status' => 'approved',
             'approved_by_user_id' => $userId,
             'approved_at' => now()->subDays(4),
@@ -294,14 +294,14 @@ class ExampleDataSeeder extends Seeder
         $orderDocumentId = DB::table('purchase_documents')->insertGetId([
             'document_number' => 'ORD-001',
             'document_type' => 'purchase_order',
-            'parent_document_id' => null, // Se puede vincular a purchase_request mediante lÃƒÂ³gica de negocio
+            'parent_document_id' => null, // Se puede vincular a purchase_request mediante lógica de negocio
             'contact_id' => $providerId,
             'date' => now()->subDays(3)->toDateString(),
             'delivery_date' => now()->addDays(7)->toDateString(),
             'description' => 'Orden de compra vinculada a la solicitud de ejemplo',
             'created_by_user_id' => $userId,
             'executed_by_user_id' => $userId,
-            'status' => 'approved', // Estados vÃƒÂ¡lidos: pending, approved, sent, invoiced, rejected
+            'status' => 'approved', // Estados válidos: pending, approved, sent, invoiced, rejected
             'approved_by_user_id' => $userId,
             'approved_at' => now()->subDays(2),
             'supplier_order_number' => 'ORD-2025-001',
@@ -321,7 +321,7 @@ class ExampleDataSeeder extends Seeder
             'supplier_code' => 'PRV-ART-001',
             'supplier_color' => 'Rojo',
             'order_width' => 1.5,
-            'description' => 'LÃƒÂ­nea de documento de ejemplo',
+            'description' => 'Línea de documento de ejemplo',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -336,14 +336,14 @@ class ExampleDataSeeder extends Seeder
         //     'updated_at' => now(),
         // ]);
 
-        // // Insertar ÃƒÂ­tem de orden de compra de ejemplo
+        // // Insertar ítem de orden de compra de ejemplo
         // DB::table('purchase_order_items')->insert([
         //     'purchase_order_id' => $purchaseOrderId,
         //     'item_id' => $itemId,
         //     'price' => 1000.00,
         //     'tax' => 0,
         //     'quantity' => 1,
-        //     'description' => 'ÃƒÂtem de prueba',
+        //     'description' => 'Ítem de prueba',
         //     'total' => 1000.00,
         //     'created_at' => now(),
         //     'updated_at' => now(),
@@ -359,12 +359,12 @@ class ExampleDataSeeder extends Seeder
             'description' => 'Factura de compra vinculada a la orden de ejemplo',
             'created_by_user_id' => $userId,
             'executed_by_user_id' => $userId,
-            'status' => 'pending_receipt', // Estados vÃƒÂ¡lidos para invoices: pending_receipt, received, rejected
+            'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
             'supplier_invoice_number' => 'FAC-2025-001',
             'withholdings' => json_encode([
                 ['name' => 'Retefuente', 'percentage' => 2.5, 'base_amount' => 12000.00],
             ]),
-            'reason' => 'Diferencia minima verificada',
+            'reason' => 'Diferencia mínima verificada',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -411,7 +411,7 @@ class ExampleDataSeeder extends Seeder
                 'price' => 1250.00,
                 'tax' => 19,
                 'quantity' => 4,
-                'description' => 'Ajuste por recepciÃƒÂ³n inicial',
+                'description' => 'Ajuste por recepción inicial',
                 'line_total' => 1250.00 * 4,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -420,12 +420,12 @@ class ExampleDataSeeder extends Seeder
 
         // Secciones para listados operacionales
         $operationSections = [
-            ['name' => 'Delantero', 'type' => 'confecciÃƒÂ³n'],
-            ['name' => 'Trasero', 'type' => 'confecciÃƒÂ³n'],
-            ['name' => 'Pretina', 'type' => 'confecciÃƒÂ³n'],
-            ['name' => 'Ensamble', 'type' => 'confecciÃƒÂ³n'],
-            ['name' => 'Terminacion', 'type' => 'presentaciÃƒÂ³n'],
-            ['name' => 'Presentacion', 'type' => 'presentaciÃƒÂ³n'],
+            ['name' => 'Delantero', 'type' => 'confección'],
+            ['name' => 'Trasero', 'type' => 'confección'],
+            ['name' => 'Pretina', 'type' => 'confección'],
+            ['name' => 'Ensamble', 'type' => 'confección'],
+            ['name' => 'Terminacion', 'type' => 'presentación'],
+            ['name' => 'Presentacion', 'type' => 'presentación'],
         ];
         foreach ($operationSections as $section) {
             DB::table('operation_sections')->updateOrInsert(
@@ -434,14 +434,14 @@ class ExampleDataSeeder extends Seeder
             );
         }
 
-        // MÃƒÂ¡quinas
+        // Máquinas
         $machines = [
             ['code' => 'MF5H', 'name' => 'Fileteadora 5 hilos'],
             ['code' => 'MF3H', 'name' => 'Fileteadora 3 hilos'],
-            ['code' => 'MPP', 'name' => 'MÃƒÂ¡quina plana pespunte'],
+            ['code' => 'MPP', 'name' => 'Máquina plana pespunte'],
             ['code' => 'PLANC', 'name' => 'Plancha'],
             ['code' => 'OFM', 'name' => 'Ojaladora de franela manual'],
-            ['code' => 'MASH', 'name' => 'MÃƒÂ¡quina atracadora semiautomÃƒÂ¡tica horizontal'],
+            ['code' => 'MASH', 'name' => 'Máquina atracadora semiautomática horizontal'],
             ['code' => 'COLL', 'name' => 'Collaretera'],
         ];
         foreach ($machines as $machine) {
@@ -489,13 +489,13 @@ class ExampleDataSeeder extends Seeder
         $fabricBaseId = $this->getParameterFirstId('fabric_bases');
 
         // ========== PRODUCT SHEETS Y PROGRAMMERS ==========
-        // Se crean escenarios consistentes con la lÃƒÂ³gica del ERP:
+        // Se crean escenarios consistentes con la lógica del ERP:
         // - Muestras (type=muestra) generan Programmers AUTO con OP MU-xxxx o MUT-xxxx
         // - Productos (type=producto) pueden tener Programmers MANUALES con OP MF-xxxx o MFT-xxxx
         
         $programmerService = app(ProgrammerService::class);
 
-        // Escenario A: ProductSheet tipo 'muestra', woven_product=false Ã¢â€ â€™ OP MU-xxxx (auto)
+        // Escenario A: ProductSheet tipo 'muestra', woven_product=false OP MU-xxxx (auto)
         DB::table('product_sheets')->updateOrInsert(
             ['sample_reference' => 'MUESTRA001'],
             [
@@ -505,7 +505,7 @@ class ExampleDataSeeder extends Seeder
                 'world_id' => $worldId,
                 'fabric_base_id' => $fabricBaseId,
                 'yarn_base_id' => null,
-                'description' => 'PantalÃƒÂ³n jean bÃƒÂ¡sico - Muestra NO tejida',
+                'description' => 'Pantalón jean básico - Muestra NO tejida',
                 'flat_sketch_path' => null,
                 'billing_price' => null,
                 'selling_price' => null,
@@ -519,7 +519,7 @@ class ExampleDataSeeder extends Seeder
             ]
         );
 
-        // Escenario B: ProductSheet tipo 'producto', woven_product=true Ã¢â€ â€™ OP MFT-xxxx (manual)
+        // Escenario B: ProductSheet tipo 'producto', woven_product=true OP MFT-xxxx (manual)
         DB::table('product_sheets')->updateOrInsert(
             ['product_reference' => 'PRODUCTO02'],
             [
@@ -529,7 +529,7 @@ class ExampleDataSeeder extends Seeder
                 'world_id' => $worldId,
                 'fabric_base_id' => $fabricBaseId,
                 'yarn_base_id' => null,
-                'description' => 'PantalÃƒÂ³n jean clÃƒÂ¡sico - Producto TEJIDO',
+                'description' => 'Pantalón jean clásico - Producto TEJIDO',
                 'flat_sketch_path' => null,
                 'billing_price' => 45000.00,
                 'selling_price' => 89000.00,
@@ -543,7 +543,7 @@ class ExampleDataSeeder extends Seeder
             ]
         );
 
-        // Escenario C: ProductSheet tipo 'producto', woven_product=false ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ OP MF-0001 (manual)
+        // Escenario C: ProductSheet tipo 'producto', woven_product=false OP MF-0001 (manual)
         DB::table('product_sheets')->updateOrInsert(
             ['product_reference' => 'PRODUCTO01'],
             [
@@ -553,7 +553,7 @@ class ExampleDataSeeder extends Seeder
                 'world_id' => $worldId,
                 'fabric_base_id' => $fabricBaseId,
                 'yarn_base_id' => null,
-                'description' => 'Pantalon drill clasico - Producto NO tejido',
+                'description' => 'Pantalón drill clásico - Producto NO tejido',
                 'flat_sketch_path' => null,
                 'billing_price' => 40000.00,
                 'selling_price' => 76000.00,
@@ -578,8 +578,8 @@ class ExampleDataSeeder extends Seeder
         // Obtener mes actual para temporada (ej: FEBRERO)
         $seasonLabel = strtoupper(now()->locale('es')->monthName);
 
-        // Programmer AUTO para muestra (MU-xxxx) - simula creaciÃƒÂ³n desde SÃƒÂ¡bana de Productos
-        // type=muestra, woven_product=false Ã¢â€ â€™ MU
+        // Programmer AUTO para muestra (MU-xxxx) - simula creación desde Sábana de Productos
+        // type=muestra, woven_product=false → MU
         $opCodeMuestra = $programmerService->nextOpCode('muestra', false); // MU-0001
         
         DB::table('programmers')->updateOrInsert(
@@ -600,7 +600,7 @@ class ExampleDataSeeder extends Seeder
         );
 
         // Programmer MANUAL para producto (MFT-xxxx) - creado desde formulario Programador
-        // type=producto, woven_product=true Ã¢â€ â€™ MFT
+        // type=producto, woven_product=true → MFT
         $opCodeProducto = $programmerService->nextOpCode('producto', true); // MFT-0001
         
         DB::table('programmers')->updateOrInsert(
@@ -609,7 +609,7 @@ class ExampleDataSeeder extends Seeder
                 'op_code' => $opCodeProducto,
                 'season' => $seasonLabel,
                 'destination_id' => $destinationId,
-                'priority' => 'A', // Manuales SÃƒÂ usan prioridad
+                'priority' => 'A', // Manuales SÍ usan prioridad
                 'units' => 500, // Unidades programadas
                 'estimated_delivery_date' => null, // Manuales NO usan fecha entrega
                 'ecommerce_units' => json_encode(['S' => 100, 'M' => 150, 'L' => 150, 'XL' => 100]),
@@ -620,7 +620,7 @@ class ExampleDataSeeder extends Seeder
             ]
         );
 
-        // Fixture explicito para Ficha Tecnica: MF-0001 con prioridad A
+        // Fixture explícito para Ficha técnica: MF-0001 con prioridad A
         DB::table('programmers')->updateOrInsert(
             ['op_code' => 'MF-0001'],
             [
@@ -649,9 +649,9 @@ class ExampleDataSeeder extends Seeder
             'id_number' => '900000002',
             'dv' => '5',
             'full_name' => 'Textiles del Valle S.A.S',
-            'person_type' => 'jurÃƒÂ­dica',
+            'person_type' => 'jurídica',
             'groups' => null,
-            'municipality' => 'MedellÃƒÂ­n',
+            'municipality' => 'Medellín',
             'department' => 'Antioquia',
             'address' => 'Calle 50 # 45-67',
             'email' => 'ventas@texvalle.com',
@@ -675,9 +675,9 @@ class ExampleDataSeeder extends Seeder
                 'contact_id' => $fabricProviderId,
                 'date' => now()->subDays(15)->toDateString(),
                 'delivery_date' => now()->subDays(15)->toDateString(),
-                'description' => '[KARDEX-TELA] Factura de tela LANA Beige para producciÃƒÂ³n de enero',
+                'description' => '[KARDEX-TELA] Factura de tela LANA Beige para producción de enero',
                 'created_by_user_id' => $userId,
-                'status' => 'pending_receipt', // Estados vÃƒÂ¡lidos para invoices: pending_receipt, received, rejected
+                'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
                 'supplier_invoice_number' => 'FT-2026-001',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -695,7 +695,7 @@ class ExampleDataSeeder extends Seeder
                 'supplier_code' => 'LANA-BEIGE-001',
                 'supplier_color' => 'VERDE',
                 'order_width' => 2.00,
-                'description' => 'Tela LANA Beige GenÃƒÂ©rica QuÃƒÂ­micos LÃƒÂNEA 3',
+                'description' => 'Tela LANA Beige Genérica Químicos LÍNEA 3',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -737,15 +737,15 @@ class ExampleDataSeeder extends Seeder
                 'contact_id' => $fabricProviderId,
                 'date' => now()->subDays(10)->toDateString(),
                 'delivery_date' => now()->subDays(10)->toDateString(),
-                'description' => '[KARDEX-TELA] Factura de tela ALGODÃƒâ€œN para lÃƒÂ­nea premium',
+                'description' => '[KARDEX-TELA] Factura de tela ALGODÓN para línea premium',
                 'created_by_user_id' => $userId,
-                'status' => 'pending_receipt', // Estados vÃƒÂ¡lidos para invoices: pending_receipt, received, rejected
+                'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
                 'supplier_invoice_number' => 'FT-2026-002',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            // Crear item de documento para la tela ALGODÃƒâ€œN
+            // Crear item de documento para la tela ALGODÓN
             $docItem2 = DB::table('purchase_document_items')->insertGetId([
                 'purchase_document_id' => $fabricInvoice2Id,
                 'item_id' => $algodonId,
@@ -757,15 +757,15 @@ class ExampleDataSeeder extends Seeder
                 'supplier_code' => 'ALGODON-001',
                 'supplier_color' => 'AZUL',
                 'order_width' => 1.50,
-                'description' => 'Tela ALGODÃƒâ€œN 100% Premium LÃƒÂNEA 1',
+                'description' => 'Tela ALGODÓN 100% Premium LÍNEA 1',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            // Crear rollos para la factura 2 (ALGODÃƒâ€œN)
+            // Crear rollos para la factura 2 (ALGODÓN)
             $rolls2 = [
-                ['roll_number' => 'RL04', 'width' => 1.50, 'quantity' => 250.00, 'location' => 'BODEGA 2', 'description' => 'Tela ALGODÃƒâ€œN Premium - Rollo 4'],
-                ['roll_number' => 'RL05', 'width' => 1.50, 'quantity' => 180.00, 'location' => 'BODEGA 2', 'description' => 'Tela ALGODÃƒâ€œN Premium - Rollo 5'],
+                ['roll_number' => 'RL04', 'width' => 1.50, 'quantity' => 250.00, 'location' => 'BODEGA 2', 'description' => 'Tela ALGODÓN Premium - Rollo 4'],
+                ['roll_number' => 'RL05', 'width' => 1.50, 'quantity' => 180.00, 'location' => 'BODEGA 2', 'description' => 'Tela ALGODÓN Premium - Rollo 5'],
             ];
 
             foreach ($rolls2 as $rollData) {

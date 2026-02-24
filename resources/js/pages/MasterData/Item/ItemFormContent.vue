@@ -24,7 +24,7 @@ import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 
-import { ITEM_FORM_DRAFT_KEY } from './constants';
+import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 
 import type {
     AdditionalField,
@@ -45,6 +45,7 @@ import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/tax
 import unitMeasureData from '@/data/unitMeasures.json';
 
 type DialogType = 'create' | 'edit' | 'view';
+type SaveMode = Exclude<DialogType, 'view'>;
 
 const props = withDefaults(
     defineProps<{
@@ -63,7 +64,7 @@ const props = withDefaults(
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh'): void;
-    (e: 'saved', mode: DialogType): void;
+    (e: 'saved', mode: SaveMode): void;
     (e: 'error', message: string): void;
     (e: 'loading-state', value: boolean): void;
 }>();

@@ -71,9 +71,6 @@ const statusOptions = [
     { id: false as const, name: 'Deshabilitados' },
 ];
 
-/** =========================
- *  State
- *  ========================= */
 const items = ref<Item[]>([]);
 const totalItems = ref(0);
 const currentPage = ref(1);
@@ -98,15 +95,9 @@ const isTemplateDownloading = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 
-/** =========================
- *  Derived / UI helpers
- *  ========================= */
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
-/** =========================
- *  Helpers
- *  ========================= */
 function getEmptyForm(): Partial<Item> {
     return {
         warehouse_id: undefined,
