@@ -13,6 +13,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class ProductSheetController extends Controller
@@ -148,6 +150,7 @@ class ProductSheetController extends Controller
             $data['world'] = $productSheet->world;
             $data['fabric_base'] = $productSheet->fabric_base;
             $data['yarn_base'] = $productSheet->yarn_base;
+            $data['flat_sketch_path'] = $this->resolveExistingFlatSketchPath($productSheet->flat_sketch_path);
 
             return response()->json([
                 'success' => true,
@@ -234,6 +237,7 @@ class ProductSheetController extends Controller
             $product->world = $worlds->get($product->world_id, ['id' => $product->world_id, 'name' => 'N/A']);
             $product->fabric_base = $fabricBases->get($product->fabric_base_id, ['id' => $product->fabric_base_id, 'name' => 'N/A']);
             $product->yarn_base = $product->yarn_base_id ? $yarnBases->get($product->yarn_base_id, ['id' => $product->yarn_base_id, 'name' => 'N/A']) : null;
+            $product->flat_sketch_path = $this->resolveExistingFlatSketchPath($product->flat_sketch_path);
             return $product;
         });
 
@@ -297,6 +301,43 @@ class ProductSheetController extends Controller
         }
 
         return $candidate;
+    }
+
+    /**
+     * Retorna la ruta solo si existe físicamente en disco público.
+     * Evita exponer rutas huérfanas que disparan 403/404 en frontend.
+     */
+    private function resolveExistingFlatSketchPath(?string $rawPath): ?string
+    {
+        if (!is_string($rawPath) || trim($rawPath) === '') {
+            return null;
+        }
+
+        $path = str_replace('\\', '/', trim($rawPath));
+        if (preg_match('/^https?:\/\//i', $path)) {
+            return $path;
+        }
+
+        $normalized = ltrim($path, '/');
+        if (Str::startsWith($normalized, 'storage/')) {
+            $normalized = Str::after($normalized, 'storage/');
+        }
+
+        $candidates = [$normalized];
+        if (Str::startsWith($normalized, 'product-sheets/flat-sketches/')) {
+            $candidates[] = Str::replaceFirst('product-sheets/flat-sketches/', 'product_sheets/', $normalized);
+        }
+        if (Str::startsWith($normalized, 'product_sheets/')) {
+            $candidates[] = Str::replaceFirst('product_sheets/', 'product-sheets/flat-sketches/', $normalized);
+        }
+
+        foreach ($candidates as $candidate) {
+            if ($candidate !== '' && Storage::disk('public')->exists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
 }

@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { ArrowDownToLine, Search } from 'lucide-vue-next';
-import { Inertia } from '@inertiajs/inertia';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import type { Programmer } from '@/domain/Production';
@@ -69,7 +68,7 @@ const getScheduledUnitsLabel = (programmer: Programmer) =>
 function openDownloadWindow(programmer: Programmer) {
   if (!programmer?.id) return;
   const url = route('kardex-telas.descargue-orden.descarga', { programmer: programmer.id });
-  Inertia.visit(url);
+  router.visit(url);
 }
 
 async function fetchProgrammers() {
@@ -195,7 +194,6 @@ onMounted(fetchProgrammers);
     </div>
   </AppLayout>
 </template>
-
 
 
 

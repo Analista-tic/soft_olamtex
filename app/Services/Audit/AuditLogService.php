@@ -2,19 +2,8 @@
 
 namespace App\Services\Audit;
 
-use App\Models\Expenses\PurchaseDocument;
-use App\Models\Expenses\PurchaseDocumentItem;
-use App\Models\Expenses\PurchaseRequest;
-use App\Models\Finance\Retention;
-use App\Models\Finance\Tax;
-use App\Models\Inventory\Warehouse;
-use App\Models\MasterData\CategoryGroup;
-use App\Models\MasterData\CategorySubGroup;
-use App\Models\MasterData\Contact;
-use App\Models\MasterData\Item;
 use App\Models\MasterData\Parameter;
 use App\Models\Settings\AuditLog;
-use App\Models\Settings\CompanySetting;
 use App\Models\Settings\Setting;
 use App\Models\Settings\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -194,6 +183,8 @@ class AuditLogService
             'Inventory' => 'Inventario',
             'MasterData' => 'Datos Maestros',
             'Finance' => 'Financiero',
+            'Production' => 'Produccion',
+            'Textil' => 'Textil',
             'Settings' => 'Configuracion',
             // Legacy values
             'Contacts' => 'Contactos',
@@ -230,6 +221,13 @@ class AuditLogService
             'PurchaseDocumentItem' => 'Linea de documento de compra',
             'Item' => 'Articulo',
             'Warehouse' => 'Bodega',
+            'WarehouseTransfer' => 'Transferencia de bodega',
+            'WarehouseTransferItem' => 'Item de transferencia de bodega',
+            'InventoryRequest' => 'Solicitud de insumos',
+            'InventoryRequestItem' => 'Item de solicitud de insumos',
+            'InventoryAdjustment' => 'Ajuste de inventario',
+            'InventoryAdjustmentLine' => 'Linea de ajuste de inventario',
+            'InventoryMovement' => 'Movimiento de inventario',
             'Contact' => 'Contacto',
             'User' => 'Usuario',
             'CompanySetting' => 'Configuracion de empresa',
@@ -237,39 +235,32 @@ class AuditLogService
             'Tax' => 'Impuesto',
             'CategoryGroup' => 'Grupo de categorias',
             'CategorySubGroup' => 'Subgrupo de categorias',
+            'ProductSheet' => 'Sabana de productos',
+            'Programmer' => 'Programador',
+            'ProductOperationList' => 'Listado operacional',
+            'Operation' => 'Operacion',
+            'OperationSection' => 'Seccion operacional',
+            'Machine' => 'Maquina',
+            'FabricRoll' => 'Rollo de tela',
+            'FabricOrder' => 'Orden de tela',
+            'FabricOrderItem' => 'Item de orden de tela',
+            'FabricProvider' => 'Proveedor de tela',
             default => $base,
         };
     }
 
     protected function guessModule(Model $model): ?string
     {
-        return match (true) {
-            $model instanceof PurchaseRequest,
-            $model instanceof PurchaseDocument,
-            $model instanceof PurchaseDocumentItem
-                => 'Expenses',
+        $class = $model::class;
+        $prefix = 'App\\Models\\';
 
-            $model instanceof Item,
-            $model instanceof Warehouse
-                => 'Inventory',
+        if (!str_starts_with($class, $prefix)) {
+            return null;
+        }
 
-            $model instanceof Contact,
-            $model instanceof CategoryGroup,
-            $model instanceof CategorySubGroup,
-            $model instanceof Parameter
-                => 'MasterData',
+        $segments = explode('\\', $class);
 
-            $model instanceof Tax,
-            $model instanceof Retention
-                => 'Finance',
-
-            $model instanceof User,
-            $model instanceof CompanySetting,
-            $model instanceof Setting
-                => 'Settings',
-
-            default => null,
-        };
+        return $segments[2] ?? null;
     }
 
     protected function buildDescription(Model $model, string $action, ?array $old = null, ?array $new = null): ?string

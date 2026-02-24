@@ -2,7 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import type { BreadcrumbItem } from '@/domain/shared';
 import type { Warehouse } from '@/domain/Inventory';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Pencil, Search, Trash } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,6 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import WarehouseDialog from './WarehouseDialog.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
-import { Inertia } from '@inertiajs/inertia';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Bodegas', href: '/bodegas' },
@@ -102,7 +101,7 @@ async function deleteWarehouse() {
 }
 
 function navigateToWarehouseTransfers() {
-    Inertia.visit('/transferencias-bodegas');
+    router.visit('/transferencias-bodegas');
 }
 
 async function handleDialogSubmit(warehouseData: Warehouse) {
@@ -334,4 +333,3 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
-
