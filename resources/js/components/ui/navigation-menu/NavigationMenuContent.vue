@@ -32,3 +32,4 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     <slot />
   </NavigationMenuContent>
 </template>
+

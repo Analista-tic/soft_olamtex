@@ -18,7 +18,7 @@ class RoleController extends Controller
     {
         $roles = $this->service->listAll();
         $permissions = $this->service->allPermissions();
-        return Inertia::render('Roles/Index', [
+        return Inertia::render('Configuration/Roles/Index', [
             'roles' => $roles,
             'permissions' => $permissions
         ]);
@@ -47,7 +47,7 @@ class RoleController extends Controller
                     if ($value === null) {
                         return;
                     }
-                    $areas = \App\Models\Parameter::where('nombre', 'areas')->first();
+                    $areas = \App\Models\MasterData\Parameter::where('nombre', 'areas')->first();
                     $ids = collect($areas ? $areas->valor : [])->pluck('id')->toArray();
                     if (!in_array($value, $ids)) {
                         $fail('El área seleccionada no es válida.');
@@ -106,7 +106,7 @@ class RoleController extends Controller
                     if ($value === null) {
                         return;
                     }
-                    $areas = \App\Models\Parameter::where('nombre', 'areas')->first();
+                    $areas = \App\Models\MasterData\Parameter::where('nombre', 'areas')->first();
                     $ids = collect($areas ? $areas->valor : [])->pluck('id')->toArray();
                     if (!in_array($value, $ids)) {
                         $fail('El área seleccionada no es válida.');

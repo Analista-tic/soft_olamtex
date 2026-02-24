@@ -2,12 +2,13 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
+use App\Models\Settings\Setting;
+use App\Models\Settings\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
-use App\Models\Setting;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -86,38 +87,94 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver financiero',
         ]);
 
-        // Buscar áreas en settings (kind=parameter)
-        // Obtener catálogo de áreas desde el parámetro 'areas'
-        $areasSetting = Setting::where('kind', 'parameter')->where('key', 'areas')->first();
-        $areas = $areasSetting ? ($areasSetting->value ?? []) : [];
-        $areaIds = collect($areas)->mapWithKeys(fn($a) => [$a['name'] => $a['id']])->all();
+        // Obtener catalogo de areas desde settings (kind=parameter, key=areas)
+        $areasSetting = Setting::query()
+            ->where('kind', 'parameter')
+            ->where('key', 'areas')
+            ->first();
 
-        // Crear usuarios de ejemplo con área asignada
-        $adminUser = User::firstOrCreate([
-            'email' => 'admin@gmail.com'
-        ], [
+        $areas = is_array($areasSetting?->value) ? $areasSetting->value : [];
+
+        $adminAreaId = $this->resolveAreaId($areas, ['TICs', 'Tecnologia', 'Administracion', 'Administraci�n']);
+        $generalAreaId = $this->resolveAreaId($areas, ['Produccion', 'Producci�n']);
+        $contabilidadAreaId = $this->resolveAreaId($areas, ['Contabilidad']);
+
+        // Crear usuarios de ejemplo con area asignada
+        $adminUser = User::firstOrCreate(
+            ['email' => 'admin@gmail.com'],
+            [
+                'name' => 'Admin',
+                'password' => Hash::make('12345'),
+            ]
+        );
+        $adminUser->forceFill([
             'name' => 'Admin',
-            'password' => Hash::make('12345'),
-            'area_id' => $areaIds['TICs'] ?? null,
-        ]);
+            'area_id' => $adminAreaId,
+        ])->save();
         $adminUser->assignRole($admin);
 
-        $generalUser = User::firstOrCreate([
-            'email' => 'general@gmail.com'
-        ], [
+        $generalUser = User::firstOrCreate(
+            ['email' => 'general@gmail.com'],
+            [
+                'name' => 'General',
+                'password' => Hash::make('12345678'),
+            ]
+        );
+        $generalUser->forceFill([
             'name' => 'General',
-            'password' => Hash::make('12345678'),
-            'area_id' => $areaIds['Producción'] ?? null,
-        ]);
+            'area_id' => $generalAreaId,
+        ])->save();
         $generalUser->assignRole($general);
 
-        $contabilidadUser = User::firstOrCreate([
-            'email' => 'contabilidad@gmail.com'
-        ], [
+        $contabilidadUser = User::firstOrCreate(
+            ['email' => 'contabilidad@gmail.com'],
+            [
+                'name' => 'Name Contabilidad',
+                'password' => Hash::make('123456789'),
+            ]
+        );
+        $contabilidadUser->forceFill([
             'name' => 'Name Contabilidad',
-            'password' => Hash::make('123456789'),
-            'area_id' => $areaIds['Contabilidad'] ?? null,
-        ]);
+            'area_id' => $contabilidadAreaId,
+        ])->save();
         $contabilidadUser->assignRole($contabilidad);
+    }
+
+    /**
+     * @param array<int, mixed> $areas
+     * @param array<int, string> $preferredNames
+     */
+    private function resolveAreaId(array $areas, array $preferredNames): ?int
+    {
+        $byName = collect($areas)
+            ->filter(static fn ($area) => is_array($area))
+            ->mapWithKeys(function (array $area): array {
+                $name = $this->normalizeText((string) ($area['name'] ?? ''));
+                $id = isset($area['id']) && is_numeric($area['id']) ? (int) $area['id'] : null;
+
+                if ($name === '' || $id === null) {
+                    return [];
+                }
+
+                return [$name => $id];
+            });
+
+        foreach ($preferredNames as $preferredName) {
+            $candidate = $this->normalizeText($preferredName);
+            if ($candidate !== '' && $byName->has($candidate)) {
+                return (int) $byName->get($candidate);
+            }
+        }
+
+        $first = collect($areas)->first(
+            static fn ($area) => is_array($area) && isset($area['id']) && is_numeric($area['id'])
+        );
+
+        return is_array($first) ? (int) $first['id'] : null;
+    }
+
+    private function normalizeText(string $value): string
+    {
+        return Str::of($value)->ascii()->lower()->trim()->value();
     }
 }

@@ -58,3 +58,4 @@ onBeforeUnmount(() => {
         <button type="button" class="ml-2 text-xs font-bold opacity-70 hover:opacity-100" @click="emit('close')" aria-label="Cerrar alerta">X</button>
     </div>
 </template>
+

@@ -2,13 +2,13 @@
 import UserInfo from '@/components/UserInfo.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
-import type { User } from '@/domain/auth/types';
 import type { NavItem, SharedData } from '@/domain/shared';
-import { useAuthStore } from '@/stores/auth';
+import type { User } from '@/domain/Settings/types';
+import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { BarChart3, ChevronsUpDown, Settings, ShieldCheck } from 'lucide-vue-next';
-import { computed } from 'vue';
 import UserMenuContent from './UserMenuContent.vue';
+import { useAuthStore } from '@/stores/auth';
 
 const page = usePage<SharedData>();
 const user = page.props.auth.user as User;
@@ -49,7 +49,9 @@ const footerNavItems: NavItem[] = [
     },
 ];
 
-const filteredUserNavItems = computed<NavItem[]>(() => footerNavItems.filter((item) => (item.permission ? auth.can(item.permission) : true)));
+const filteredUserNavItems = computed<NavItem[]>(() =>
+    footerNavItems.filter((item) => (item.permission ? auth.can(item.permission) : true)),
+);
 </script>
 
 <template>
@@ -62,10 +64,10 @@ const filteredUserNavItems = computed<NavItem[]>(() => footerNavItems.filter((it
                         <ChevronsUpDown class="ml-auto size-4" />
                     </SidebarMenuButton>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                    class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                <DropdownMenuContent 
+                    class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg" 
                     :side="isMobile ? 'bottom' : state === 'collapsed' ? 'left' : 'bottom'"
-                    align="end"
+                    align="end" 
                     :side-offset="4"
                 >
                     <UserMenuContent :user="user" :items="filteredUserNavItems" />
@@ -74,3 +76,4 @@ const filteredUserNavItems = computed<NavItem[]>(() => footerNavItems.filter((it
         </SidebarMenuItem>
     </SidebarMenu>
 </template>
+

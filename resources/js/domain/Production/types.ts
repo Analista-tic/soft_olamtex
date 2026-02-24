@@ -1,0 +1,246 @@
+import type { SharedData } from '@/domain/shared/types';
+
+export interface OptionParams {
+    id: string | number | boolean;
+    name: string;
+    created_at?: string | null;
+    updated_at?: string | null;
+}
+
+export interface ProductSheet {
+    id: number;
+    type?: 'muestra' | 'producto' | string;
+    derived_from_product_sheet_id?: number | null;
+    has_derived_product?: boolean;
+    reference: string;
+    sample_reference?: string | null;
+    product_reference?: string | null;
+    display_reference?: string | null;
+    value?: number;
+    label?: string;
+    section_id: number;
+    group_id: number;
+    brand_id: number;
+    world_id: number;
+    base_id?: number;
+    fabric_base_id?: number;
+    yarn_base_id?: number | null;
+    billing_price?: number;
+    selling_price?: number;
+    sizes?: string | Record<string, boolean> | string[];
+    processes?: string | Record<string, boolean>;
+    description?: string;
+    section?: { id: number; name: string } | null;
+    group?: { id: number; name: string } | null;
+    [key: string]: any;
+}
+
+export interface Programmer {
+    id: number;
+    op_code?: string | null;
+    product_sheet_id: number | null;
+    product_sheet?: ProductSheet | null;
+    season: string | null;
+    season_display?: string | null;
+    destination?: { id: number; name: string } | null;
+    destination_id: number | null;
+    priority: string | null;
+    isEcommerce: boolean;
+    ecommerce_units: Record<string, number> | string | null;
+    units: number | null;
+    estimated_delivery_date?: string | null;
+    status: 'complete' | 'incomplete';
+    source?: 'auto' | 'manual';
+    is_auto_from_product_sheet?: boolean;
+    is_pending_completion?: boolean;
+    pending_fields?: string[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ProductSheetOption {
+    id: number | string;
+    reference: string;
+    type: 'muestra' | 'producto' | string;
+    isTemporary?: boolean;
+}
+
+// Product Operation List Types
+export interface OperationSection {
+    id: number;
+    name: string;
+    type: string;
+}
+
+export interface OperationOption {
+    id: number;
+    name: string;
+    action?: string;
+    garment_part?: string;
+}
+
+export interface MachineOption {
+    id: number;
+    code: string;
+    name: string;
+}
+
+export interface ProductOperationListRow {
+    id: number;
+    product_sheet_id: number;
+    section_id: number;
+    operation: OperationOption;
+    machine: MachineOption;
+    sequence_order: number;
+    optimal_time: number;
+    operator_efficiency_factor: number;
+    machine_supplement_factor: number;
+    production_time: number;
+    notes?: string;
+    is_active: boolean;
+}
+
+export interface ProductOperationListPageProps extends SharedData {
+    sections: OperationSection[];
+    operations: Array<{ id: number; name: string; action: string; garment_part: string }>;
+    machines: Array<{ id: number; code: string; name: string }>;
+    productSheets: Array<{ id: number; reference: string; type: string }>;
+    actions: string[];
+    garmentParts: string[];
+}
+
+export interface ProductOperationPayload {
+    product_sheet_id: number | null;
+    section_id: number | null;
+    operation_id: number | null;
+    machine_id: number | null;
+    sequence_order: number;
+    optimal_time: string;
+    operator_efficiency_factor: number;
+    machine_supplement_factor: number;
+    notes?: string;
+}
+
+// Operational / Op types (from TechnicalDataSheet)
+export type OpType = 'MU' | 'MF' | 'MUT' | 'MFT';
+
+export type OpOption = {
+    id: string | number;
+    opCode: string;
+    reference: string;
+    type: OpType;
+    groupLabel?: string;
+    name: string;
+    searchText: string;
+};
+
+export interface OpBasicInfo {
+    id: string | number;
+    opCode: string;
+    reference: string;
+    type: OpType;
+    status: string;
+    season: string | null;
+    destination: string | null;
+    units: number | null;
+    deliveryDate: string | null;
+    flatDrawingUrl: string | null;
+    section: string | null;
+    group: string | null;
+    world: string | null;
+    base: string | null;
+    brand: string | null;
+    sizes: string[];
+    priceBilling: number | null;
+    priceSale: number | null;
+    ecommerce: boolean;
+    source?: string | null;
+    priority?: string | null;
+    baseYarn?: string | null;
+    estimatedDeliveryTime?: number | null;
+}
+
+export interface OperationalListItem {
+    order: number | null;
+    process: string | null;
+    description: string | null;
+    minutes: number | null;
+    type: string | null;
+}
+
+export interface OperationalList {
+    id: number | string;
+    name: string | null;
+    reference: string | null;
+    items: OperationalListItem[];
+}
+
+export interface OperationalListResponse {
+    hasList: boolean;
+    list: OperationalList | null;
+}
+
+export type ProcessSummary = {
+    hasOperationalList: boolean;
+    parameters: { costCut: number; costMinute: number };
+    minutes: { confection: number; finishing: number };
+    costs: { cut: number; confection: number; finishing: number; total: number };
+    operationalList?: { id: number | string; name: string | null } | null;
+};
+
+export type OpProcessType =
+    | 'CORTE'
+    | 'CONFECCION'
+    | 'TERMINACION'
+    | 'ESTAMPADO'
+    | 'BORDADO'
+    | 'LAVANDERIA'
+    | 'OTRO'
+    | (string & {});
+
+export type OpProcessRow = {
+    id?: string;
+    order: number;
+    type: OpProcessType;
+    supplier: string | null;
+    manualPrice: number | null;
+};
+
+export type OpProcessesData = { hasOperationalList: boolean; params: { cuttingCost: number; minuteCost: number }; minutes: { confeccion: number; terminacion: number }; processes: OpProcessRow[] };
+
+export type CostsSummary = { prices: { invoicing: number | null; fixedCost: number | null; sale: number | null; historicInvoicing: number | null }; units: number | null; costs: { rawMaterial: number; supplies: number; processes: number; cut: number; confection: number; finishing: number; total: number }; profitability: { olamtex: { value: number | null; percent: number | null }; client: { value: number | null; percent: number | null } }; breakdownAvailable: { rawMaterial: boolean; supplies: boolean; processes: boolean } };
+
+export type SupplyStage = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'GENERAL' | 'OTRO';
+export type SupplyModaLinea = 'MODA' | 'LINEA' | 'NA';
+
+export type SupplyItem = { id: string; name: string; stage: SupplyStage; sequence?: number | null; displayLabel?: string | null; itemId?: number | null; requestedName?: string | null; supplier?: string | null; description?: string | null; modaLinea?: SupplyModaLinea; uom?: string | null; qtyPerUnit: number; unitCost: number; internalRequestId?: number | null; notes?: string | null; createdAt?: string; updatedAt?: string };
+
+export type SupplyCatalogItem = { id: number; label: string; name?: string | null; reference?: string | null; unit?: string | null; code?: string | null; supplier?: string | null; description?: string | null; suggestedPrice?: number | null };
+
+export type FabricType = 'PRINCIPAL' | 'SECUNDARIA';
+
+export type RollLine = { id: string; consecutive?: string | null; type: FabricType; fabricName: string; averageTrace?: number | null; factor?: number | null; programmedMeters?: number | null; colors?: string | null; availableMeters?: number | null; color?: string | null; colorCode?: string | null; widthCm?: number | null; supplier?: string | null; pricePerMeter: number; consumptionBase: number; extraMeters: number; unitCost?: number | null; totalCost?: number | null; balanceMeters?: number | null; notes?: string | null; fabricItemId?: string | number | null; rollId?: string | number | null; createdAt?: string; updatedAt?: string };
+
+export type RollParams = { trazo: number; defaultExtra: number };
+
+export type RollState = { params: RollParams; lines: RollLine[] };
+
+export type RollSavePayload = { rolls: RollLine[]; deletedIds: string[] };
+
+export type ThreadLine = { id: string; threadName: string; gauge?: number | null; brand?: string | null; color?: string | null; colorCode?: string | null; stitchesPerInch?: number | null; createdAt?: string; updatedAt?: string };
+
+export type ThreadState = { lines: ThreadLine[] };
+
+export type ThreadSavePayload = { threads: ThreadLine[]; deletedIds: string[] };
+
+export type CuttingParams = { cutCostCop: number | null };
+
+export type SizeUnit = { uid?: string; size: string; units: number; curve?: string | null };
+
+export type PieceType = 'PRINCIPAL' | 'SECUNDARIO';
+export type Side = 'IZQUIERDA' | 'DERECHA' | 'AMBOS' | 'NO_APLICA';
+export type Grain = '90' | '180' | 'SESGO';
+
+export type CuttingPiece = { id: string; uid?: string; name: string; type: PieceType; side: Side; grain: Grain; notes?: string | null };
+
+export type AdditionalInfo = { cutting: { params: CuttingParams; sizes: SizeUnit[]; espigaLength?: number | null; espigaCurve?: string | null; liqLength?: number | null; liqCurve?: string | null; pieces: CuttingPiece[]; generalNotes?: string | null }; stamping: { designNotes?: string | null; attachments?: { id: string; name: string; url: string }[] }; laundry: { type?: string | null; instructions?: string | null } };

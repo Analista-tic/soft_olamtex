@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ClipboardPen, Eye, ImageIcon } from 'lucide-vue-next';
+import { ClipboardPen } from 'lucide-vue-next';
 import { computed, onUnmounted, ref, watch } from 'vue';
 
 type CatalogEntity = {
@@ -87,6 +95,7 @@ const isLoading = ref(false);
 const fetchError = ref('');
 const payload = ref<ProductionOrderDetailResponse | null>(null);
 const flatSketchLoadFailed = ref(false);
+const isDrawingOpen = ref(false);
 let activeController: AbortController | null = null;
 
 const openModel = computed({
@@ -113,7 +122,7 @@ function resolveImageUrl(rawPath?: string | null): string | null {
     return `/storage/${path.replace(/^\/?storage\//, '')}`;
 }
 
-const flatSketchUrl = computed(() => {
+const drawingUrl = computed(() => {
     if (flatSketchLoadFailed.value) return null;
     return resolveImageUrl(productSheet.value?.flat_sketch_path);
 });
@@ -122,10 +131,9 @@ function handleFlatSketchError() {
     flatSketchLoadFailed.value = true;
 }
 
-function openFlatSketchPreview() {
-    const url = flatSketchUrl.value;
-    if (!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer');
+function openDrawing() {
+    if (!drawingUrl.value) return;
+    isDrawingOpen.value = true;
 }
 
 function closeDialog() {
@@ -135,7 +143,7 @@ function closeDialog() {
 function handleCreateTechSheet() {
     const id = productionOrder.value?.id ?? props.productionOrderId;
     if (!id) return;
-    emit('createTechSheet', id);
+    router.visit(`/produccion/ficha-tecnica?op_id=${id}`);
     closeDialog();
 }
 
@@ -147,13 +155,13 @@ const statusLabel = computed(() => {
 });
 
 const statusBadgeClass = computed(() =>
-    statusLabel.value === 'Completo' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-amber-500 bg-amber-50 text-amber-700',
+    statusLabel.value === 'Completo'
+        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+        : 'border-amber-500 bg-amber-50 text-amber-700',
 );
 
 const orderKind = computed<'sample' | 'product' | 'unknown'>(() => {
-    const opCode = String(productionOrder.value?.op_code ?? programmer.value?.op_code ?? '')
-        .trim()
-        .toUpperCase();
+    const opCode = String(productionOrder.value?.op_code ?? programmer.value?.op_code ?? '').trim().toUpperCase();
     if (opCode.startsWith('MU') || opCode.startsWith('MUT')) return 'sample';
     if (opCode.startsWith('MF') || opCode.startsWith('MFT')) return 'product';
     return 'unknown';
@@ -169,32 +177,30 @@ const infoRows = computed<InfoRow[]>(() => {
     const isProduct = orderKind.value === 'product';
 
     const rows: Array<InfoRow | null> = [
-        {
-            label: 'Temporada',
-            value: normalizeText(productionOrder.value?.season_display || productionOrder.value?.season || programmer.value?.season),
-        },
+        { label: 'Temporada', value: normalizeText(productionOrder.value?.season_display || productionOrder.value?.season || programmer.value?.season) },
         { label: 'Destino', value: normalizeText(productionOrder.value?.destination?.name) },
         { label: 'Unidades', value: normalizeText(productionOrder.value?.units ?? programmer.value?.units) },
         !isProduct
-            ? {
-                  label: 'Tiempo de entrega estimado',
-                  value: formatDate(productionOrder.value?.estimated_delivery_date ?? programmer.value?.estimated_delivery_date),
-              }
+            ? { label: 'Tiempo de entrega estimado', value: formatDate(productionOrder.value?.estimated_delivery_date ?? programmer.value?.estimated_delivery_date) }
             : null,
-        !isSample ? { label: 'Prioridad', value: normalizeText(productionOrder.value?.priority ?? programmer.value?.priority) } : null,
-        { label: 'SecciÃ³n', value: normalizeText(productSheet.value?.section?.name) },
+        !isSample
+            ? { label: 'Prioridad', value: normalizeText(productionOrder.value?.priority ?? programmer.value?.priority) }
+            : null,
+        { label: 'Sección', value: normalizeText(productSheet.value?.section?.name) },
         { label: 'Grupo', value: normalizeText(productSheet.value?.group?.name) },
         { label: 'Marca', value: normalizeText(productSheet.value?.brand?.name) },
         { label: 'Mundo', value: normalizeText(productSheet.value?.world?.name) },
         { label: 'Base', value: normalizeText(productSheet.value?.fabric_base?.name) },
         !isProduct ? { label: 'Base hilaza', value: normalizeText(productSheet.value?.yarn_base?.name) } : null,
-        { label: 'Precio facturaciÃ³n', value: normalizeText(productSheet.value?.billing_price) },
+        { label: 'Precio facturación', value: normalizeText(productSheet.value?.billing_price) },
         { label: 'Precio venta', value: normalizeText(productSheet.value?.selling_price) },
         { label: 'Tallas', value: formatSizes(productSheet.value?.sizes) },
-        { label: 'E-commerce', value: programmer.value?.ecommerce_units ? 'SÃ­' : '-' },
+        { label: 'E-commerce', value: programmer.value?.ecommerce_units ? 'Sí' : '-' },
     ];
 
-    return rows.filter((row): row is InfoRow => row !== null).filter((row) => row.value !== '-' && row.value !== '');
+    return rows
+        .filter((row): row is InfoRow => row !== null)
+        .filter((row) => row.value !== '-' && row.value !== '');
 });
 
 function normalizeText(value: unknown, fallback = '-'): string {
@@ -237,12 +243,7 @@ function formatSizes(value: unknown): string {
     if (value === null || value === undefined || value === '') return '-';
 
     if (Array.isArray(value)) {
-        return (
-            value
-                .map((item) => String(item))
-                .filter(Boolean)
-                .join(', ') || '-'
-        );
+        return value.map((item) => String(item)).filter(Boolean).join(', ') || '-';
     }
 
     if (typeof value === 'string') {
@@ -281,6 +282,7 @@ function clearState() {
     fetchError.value = '';
     payload.value = null;
     flatSketchLoadFailed.value = false;
+    isDrawingOpen.value = false;
 }
 
 async function fetchDetail(id: number) {
@@ -304,7 +306,7 @@ async function fetchDetail(id: number) {
         if (axios.isCancel(error)) return;
 
         payload.value = null;
-        fetchError.value = 'No se pudo cargar la informaciÃ³n de la orden de producciÃ³n.';
+        fetchError.value = 'No se pudo cargar la información de la orden de producción.';
     } finally {
         if (activeController === controller) {
             activeController = null;
@@ -323,7 +325,7 @@ watch(
 
         if (!id) {
             payload.value = null;
-            fetchError.value = 'No se recibiÃ³ un identificador vÃ¡lido para consultar el detalle.';
+            fetchError.value = 'No se recibió un identificador válido para consultar el detalle.';
             return;
         }
 
@@ -343,9 +345,9 @@ onUnmounted(() => {
     <Dialog v-model:open="openModel">
         <FormDialogContent class="flex max-h-[95vh] max-w-[1050px] flex-col px-2 py-2">
             <DialogHeader class="space-y-1 px-6 pb-2 pt-6">
-                <DialogTitle class="text-xl font-semibold tracking-tight text-foreground">Detalle de orden de producciÃ³n</DialogTitle>
+                <DialogTitle class="text-xl font-semibold tracking-tight text-foreground">Detalle de orden de producción</DialogTitle>
                 <DialogDescription class="text-sm font-normal text-muted-foreground">
-                    Visualiza la informaciÃ³n consolidada de la OP seleccionada.
+                    Visualiza la información consolidada de la OP seleccionada.
                 </DialogDescription>
             </DialogHeader>
 
@@ -376,7 +378,7 @@ onUnmounted(() => {
 
                 <template v-else-if="!hasData">
                     <div class="rounded-lg border border-border px-4 py-3 text-sm text-muted-foreground">
-                        No hay informaciÃ³n disponible para esta orden de producciÃ³n.
+                        No hay información disponible para esta orden de producción.
                     </div>
                 </template>
 
@@ -412,7 +414,7 @@ onUnmounted(() => {
                             </div>
 
                             <div v-if="normalizeText(productSheet?.description, '') !== ''" class="mt-4 border-t pt-4">
-                                <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">DescripciÃ³n</p>
+                                <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripción</p>
                                 <p class="mt-1 text-sm text-foreground">
                                     {{ normalizeText(productSheet?.description) }}
                                 </p>
@@ -421,42 +423,46 @@ onUnmounted(() => {
 
                         <!-- Dibujo plano / imagen -->
                         <div class="w-full shrink-0 lg:w-[280px]">
-                            <p class="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Dibujo plano</p>
-                            <div
-                                class="relative flex min-h-[220px] w-full flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-gray-50"
-                            >
-                                <template v-if="flatSketchUrl">
-                                    <img
-                                        :src="flatSketchUrl"
-                                        alt="Dibujo plano"
-                                        class="absolute inset-0 h-full w-full object-contain p-2"
-                                        @error="handleFlatSketchError"
-                                    />
-                                </template>
-                                <template v-else>
-                                    <ImageIcon class="mb-2 h-12 w-12 text-gray-400" />
-                                    <span class="text-sm text-gray-500">Sin imagen</span>
-                                </template>
-                            </div>
+                            <p class="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                Dibujo plano
+                            </p>
                             <button
-                                v-if="flatSketchUrl"
+                                v-if="drawingUrl"
                                 type="button"
-                                class="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-muted/60 hover:text-foreground"
-                                @click="openFlatSketchPreview"
+                                class="mt-2 flex h-[140px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10 transition hover:border-muted-foreground/40 hover:bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                @click="openDrawing"
+                                :disabled="!drawingUrl"
                             >
-                                <Eye class="h-4 w-4" />
-                                Ver imagen
+                                <img
+                                    :src="drawingUrl"
+                                    alt="Dibujo plano"
+                                    class="h-full w-auto max-w-full object-contain"
+                                    @error="handleFlatSketchError"
+                                />
                             </button>
+                            <div
+                                v-else
+                                class="mt-2 flex h-[140px] items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10"
+                            >
+                                <p class="text-sm text-muted-foreground">Sin dibujo</p>
+                            </div>
+
+                            <ImagePreviewDialog
+                                v-model:open="isDrawingOpen"
+                                title="Dibujo plano"
+                                :src="drawingUrl"
+                                alt="Dibujo plano"
+                            />
                         </div>
                     </div>
                 </template>
             </div>
 
-            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t bg-background px-6 pt-4 md:flex-row md:items-center md:justify-end">
+            <DialogFooter class="flex-shrink-0 border-t bg-background pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end md:items-center px-6">
                 <div class="w-full md:w-auto">
                     <button
                         type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="closeDialog"
                     >
                         Cerrar
@@ -471,10 +477,11 @@ onUnmounted(() => {
                         @click="handleCreateTechSheet"
                     >
                         <ClipboardPen class="h-4 w-4" />
-                        Crear ficha tÃ©cnica
+                        Crear ficha técnica
                     </Button>
                 </div>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>
 </template>
+

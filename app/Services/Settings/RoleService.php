@@ -2,11 +2,11 @@
 
 namespace App\Services\Settings;
 
-use App\Models\Role;
+use App\Models\Settings\Role;
 use Spatie\Permission\Models\Permission;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use App\Models\Parameter;
+use App\Models\MasterData\Parameter;
 
 class RoleService
 {

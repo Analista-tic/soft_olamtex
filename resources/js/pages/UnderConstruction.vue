@@ -50,3 +50,4 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => {
         </div>
     </AppLayout>
 </template>
+

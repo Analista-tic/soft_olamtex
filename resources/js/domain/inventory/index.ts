@@ -1,15 +1,3 @@
-export type {
-    AdditionalField,
-    AdditionalFieldPayload,
-    AdditionalFieldType,
-    CategoryGroup,
-    CategorySubGroup,
-    ExtraFields,
-    Item,
-    Tax,
-    Warehouse,
-} from './types';
-
-export type { CategorySubGroupDto, ItemDto, TaxDto, WarehouseDto } from './dto';
-
-export { mapCategorySubGroupDto, mapItemDto, mapItemsDto, mapTaxDto, mapWarehouseDto } from './mappers';
+export type { InventoryMovement, Warehouse, WarehouseOption } from './types';
+export type { WarehouseDto } from './dto';
+export { mapWarehouseDto } from './mappers';

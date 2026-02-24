@@ -3,8 +3,8 @@
 namespace App\Services\Inventory;
 
 use App\Models\Expenses\PurchaseDocument;
-use App\Models\Inventory\Item;
 use App\Models\Inventory\ItemInventory;
+use App\Models\MasterData\Item;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 

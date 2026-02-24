@@ -1,0 +1,871 @@
+<?php
+
+namespace App\Http\Controllers\MasterData;
+
+use App\Http\Controllers\Controller;
+use App\Models\Finance\Tax;
+use App\Models\Inventory\Warehouse;
+use App\Models\MasterData\CategoryGroup;
+use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\Item;
+use App\Services\MasterData\ItemService;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Illuminate\Support\Facades\Log;
+
+class ItemController extends Controller
+{
+    public function __construct(protected ItemService $service) {}
+
+    public function index()
+    {
+        return Inertia::render('MasterData/Item/Index', [
+            'items' => Item::with(['warehouses', 'categorySubGroup', 'tax'])->get(),
+        ]);
+    }
+
+    public function show($id)
+    {
+        return $this->service->findWithRelations($id);
+    }
+
+    public function store(Request $request)
+    {
+        try {
+            $data = $request->validate($this->itemValidationRules());
+        } catch (ValidationException $e) {
+            return $this->validationErrorResponse($e);
+        } catch (\Throwable $e) {
+            return $this->unexpectedErrorResponse();
+        }
+
+        $payload = $this->prepareItemPayload($request, $data);
+
+        return $this->service->create($payload['data'], $payload['warehouses']);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $item = $this->service->find($id);
+
+        try {
+            $data = $request->validate($this->itemValidationRules(true, $item));
+        } catch (ValidationException $e) {
+            return $this->validationErrorResponse($e);
+        } catch (\Throwable $e) {
+            return $this->unexpectedErrorResponse();
+        }
+
+        $payload = $this->prepareItemPayload($request, $data, $item);
+
+        $updated = $this->service->update($item, $payload['data'], $payload['warehouses']);
+
+        return $updated;
+    }
+
+    public function destroy($id)
+    {
+        $item = $this->service->find($id);
+
+        try {
+            $this->service->delete($item);
+            return response()->noContent();
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 409);
+        }
+    }
+
+    public function getData(Request $request)
+    {
+        $filters = $request->only(['search', 'status', 'item_type', 'warehouse_id']);
+        $perPage = $request->input('per_page', 10);
+        $items = $this->service->paginate($filters, $perPage);
+
+        return response()->json($items);
+    }
+
+    public function togglestatus($id)
+    {
+        $item = $this->service->find($id);
+        $status = $this->service->toggleStatus($item);
+
+        return response()->json([
+            'status' => $status,
+            'message' => $status ? 'item habilitado' : 'item deshabilitado',
+        ]);
+    }
+
+    public function checkDuplicate(Request $request)
+    {
+        $data = $request->validate([
+            'reference' => 'required|string',
+            'category_sub_group_id' => 'required|integer',
+            'extra_fields' => 'nullable',
+            'item_id' => 'nullable|integer',
+        ]);
+
+        $extraFields = $this->service->normalizeExtraFields($request->input('extra_fields') ?? []);
+        $subGroupId = (int) $data['category_sub_group_id'];
+        $name = $this->service->computeName($subGroupId, $extraFields);
+        $excludeId = $data['item_id'] ?? null;
+
+        $status = $this->service->duplicateStatus($data['reference'], $name, $excludeId);
+
+        return response()->json($status);
+    }
+
+    public function downloadTemplate()
+    {
+        $fileName = 'plantilla_items.xlsx';
+        $filePath = storage_path('app/public/' . $fileName);
+
+        $spreadsheet = new Spreadsheet();
+
+        // Encabezados de la hoja principal
+        $headers = $this->templateHeaders();
+
+        $groups = CategoryGroup::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $subGroups = CategorySubGroup::with('categoryGroup')->get()->map(function ($sg) {
+            return [
+                'id' => $sg->id,
+                'name' => $sg->name,
+                'group' => optional($sg->categoryGroup)->name ?? '',
+            ];
+        })->toArray();
+
+        $exampleGroup = $subGroups[0]['group'] ?? ($groups->first()?->name ?? 'Suministros');
+        $exampleSubGroup = $subGroups[0]['name'] ?? 'Papel';
+
+        // Hoja principal: items (solo encabezados + fila de ejemplo)
+        $mainSheet = $spreadsheet->getActiveSheet();
+        $mainSheet->setTitle('items');
+        // Fila de ejemplo alineada con el orden oficial y los nuevos campos (bodega/stock)
+        $exampleRow = [
+            'Producto', // TIPO DE ITEM
+            'Ejemplo articulo', // NOMBRE
+            $exampleGroup, // GRUPO
+            $exampleSubGroup, // SUBGRUPO
+            '19', // IMPUESTO (%)
+            'Principal', // BODEGA
+            '100', // CANTIDAD
+            '10', // CANTIDAD MIN
+            '200', // CANTIDAD MAX
+            'Kilogramo', // UNIDAD DE MEDIDA
+            'ART-001', // CODIGO DE BARRAS
+            'ART-001', // REFERENCIA
+            'Descripcion de articulo de prueba', // DESCRIPCION
+            'NO', // MOVIMIENTO NEGATIVO
+            'COLOR', // CAMPOS ADICIONALES
+            'Rojo', // VALORES ADICIONALES
+            'Activo', // ESTADO
+        ];
+
+        $mainSheet->fromArray([
+            $headers,
+            $exampleRow,
+        ], '', 'A1');
+
+        // Presentación básica de cabecera
+        $lastCol = $mainSheet->getHighestColumn();
+        $mainSheet->getStyle("A1:{$lastCol}1")->getFont()->setBold(true);
+        foreach (range('A', $lastCol) as $col) {
+            $mainSheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $subGroupSheet = $spreadsheet->createSheet();
+        $subGroupSheet->setTitle('Subgrupos');
+        $subGroupSheet->fromArray(['ID', 'Nombre', 'Grupo'], null, 'A1');
+        if (!empty($subGroups)) {
+            $rows = array_map(fn($s) => [$s['id'], $s['name'], $s['group']], $subGroups);
+            $subGroupSheet->fromArray($rows, null, 'A2');
+        }
+        $rowS = count($subGroups) + 1;
+
+        $groupSheet = $spreadsheet->createSheet();
+        $groupSheet->setTitle('Grupos');
+        $groupSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if ($groups->isNotEmpty()) {
+            $groupSheet->fromArray(
+                $groups->map(fn($group) => [$group->id, $group->name])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $groupLastRow = $groups->count() + 1;
+
+        $unitMeasures = $this->loadUnitMeasureOptionsForTemplate();
+        $unitSheet = $spreadsheet->createSheet();
+        $unitSheet->setTitle('Unidades');
+        $unitSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if (!empty($unitMeasures)) {
+            $unitSheet->fromArray(
+                array_map(fn($unit) => [$unit['id'], $unit['name']], $unitMeasures),
+                null,
+                'A2'
+            );
+        }
+        $unitLastRow = max(1, count($unitMeasures)) + 1;
+
+        $taxes = Tax::query()
+            ->where('status', true)
+            ->orderBy('percentage')
+            ->get(['id', 'name', 'percentage']);
+        $taxSheet = $spreadsheet->createSheet();
+        $taxSheet->setTitle('Impuestos');
+        $taxSheet->fromArray(['ID', 'Nombre', 'Porcentaje'], null, 'A1');
+        if ($taxes->isNotEmpty()) {
+            $taxSheet->fromArray(
+                $taxes->map(fn($tax) => [
+                    $tax->id,
+                    $tax->name,
+                    number_format((float) $tax->percentage, 2, '.', ''),
+                ])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $taxLastRow = $taxes->count() + 1;
+
+        $warehouses = Warehouse::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $warehouseSheet = $spreadsheet->createSheet();
+        $warehouseSheet->setTitle('Bodegas');
+        $warehouseSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if ($warehouses->isNotEmpty()) {
+            $warehouseSheet->fromArray(
+                $warehouses->map(fn($warehouse) => [
+                    $warehouse->id,
+                    $warehouse->name,
+                ])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $warehouseLastRow = $warehouses->count() + 1;
+
+        $listRows = [
+            ['Activo', 'NO'],
+            ['Inactivo', 'SI'],
+        ];
+        $listSheet = $spreadsheet->createSheet();
+        $listSheet->setTitle('Listas');
+        $listSheet->fromArray(['ESTADO', 'MOVIMIENTO NEGATIVO'], null, 'A1');
+        $listSheet->fromArray($listRows, null, 'A2');
+        $listLastRow = count($listRows) + 1;
+
+        $mainSheet = $spreadsheet->setActiveSheetIndex(0);
+        $subGroupLastRow = $rowS;
+
+        $maxValidationRow = 1000;
+        if ($subGroupLastRow >= 2) {
+            $validationSubGroup = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
+            $validationSubGroup->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+                ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
+                ->setAllowBlank(false)
+                ->setShowInputMessage(true)
+                ->setShowErrorMessage(true)
+                ->setShowDropDown(true)
+                ->setFormula1("'Subgrupos'!B2:B{$subGroupLastRow}");
+
+            // Apply validation to the column where 'SUBGRUPO' header is located
+            $colLetters = range('A', 'Z');
+            $subGroupColIdx = array_search('SUBGRUPO', $headers);
+            if ($subGroupColIdx !== false && isset($colLetters[$subGroupColIdx])) {
+                $subGroupCol = $colLetters[$subGroupColIdx];
+                for ($row = 2; $row <= $maxValidationRow; $row++) {
+                    $mainSheet->getCell($subGroupCol . $row)->setDataValidation(clone $validationSubGroup);
+                }
+            }
+        }
+
+        $this->applyUnitValidationToSheet($mainSheet, $headers, $unitLastRow, $maxValidationRow);
+        if ($groups->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'GRUPO',
+                "'Grupos'!B2:B{$groupLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        if ($taxes->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'IMPUESTO (%)',
+                "'Impuestos'!C2:C{$taxLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        if ($warehouses->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'BODEGA',
+                "'Bodegas'!B2:B{$warehouseLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        $this->applyListValidationToSheet(
+            $mainSheet,
+            $headers,
+            'ESTADO',
+            "'Listas'!A2:A{$listLastRow}",
+            $maxValidationRow,
+            true
+        );
+        $this->applyListValidationToSheet(
+            $mainSheet,
+            $headers,
+            'MOVIMIENTO NEGATIVO',
+            "'Listas'!B2:B{$listLastRow}",
+            $maxValidationRow,
+            true
+        );
+
+        $spreadsheet->setActiveSheetIndex(0);
+
+        try {
+            $this->saveSpreadsheetToPath($spreadsheet, $filePath);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'No se pudo guardar la plantilla Excel. Intente cerrar el archivo si est\u00e1 abierto y vuelva a intentarlo.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+
+        return response()->download($filePath, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            'Pragma' => 'public',
+            'Expires' => '0',
+        ]);
+    }
+
+    public function bulkUpload(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls'
+        ]);
+
+        $file = $request->file('file');
+        $spreadsheet = IOFactory::load($file->getPathname());
+        $sheet = $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray(null, true, true, true);
+
+        $result = $this->service->processBulkUploadArray($rows);
+
+        if ($result['inserted'] === 0 && !empty($result['errors'])) {
+            return response()->json([
+                'message' => 'No se pudo insertar ningun item. Errores: ' . implode('; ', $result['errors'])
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => "Carga masiva completada. items insertados: {$result['inserted']}",
+            'errors' => $result['errors'] ?? [],
+            'inserted' => $result['inserted'] ?? 0
+        ]);
+    }
+
+    public function getWarehouses($id)
+    {
+        $item = Item::findOrFail($id);
+        return response()->json($item->getWarehouseStocks());
+    }
+
+    // Nueva función para exportar todos los items a Excel
+    public function exportExcel()
+    {
+        $items = Item::with(['categorySubGroup.categoryGroup', 'tax', 'warehouses'])->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('items');
+
+        // Headers aligned with the import template
+        $headers = $this->templateHeaders();
+        $sheet->fromArray($headers, null, 'A1');
+
+        $rowNum = 2;
+        foreach ($items as $item) {
+            $rowData = $this->exportRowForItem($item);
+
+            $sheet->fromArray($rowData, null, "A{$rowNum}");
+            $rowNum++;
+        }
+
+        $groups = CategoryGroup::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $subGroups = CategorySubGroup::with('categoryGroup')->get()->map(function ($sg) {
+            return [
+                'id' => $sg->id,
+                'name' => $sg->name,
+                'group' => optional($sg->categoryGroup)->name ?? '',
+            ];
+        })->toArray();
+
+        $subGroupSheet = $spreadsheet->createSheet();
+        $subGroupSheet->setTitle('Subgrupos');
+        $subGroupSheet->fromArray(['ID', 'Nombre', 'Grupo'], null, 'A1');
+        if (!empty($subGroups)) {
+            $rows = array_map(fn($s) => [$s['id'], $s['name'], $s['group']], $subGroups);
+            $subGroupSheet->fromArray($rows, null, 'A2');
+        }
+        $subGroupLastRow = count($subGroups) + 1;
+
+        $groupSheet = $spreadsheet->createSheet();
+        $groupSheet->setTitle('Grupos');
+        $groupSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if ($groups->isNotEmpty()) {
+            $groupSheet->fromArray(
+                $groups->map(fn($group) => [$group->id, $group->name])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $groupLastRow = $groups->count() + 1;
+
+        $unitMeasures = $this->loadUnitMeasureOptionsForTemplate();
+        $unitSheet = $spreadsheet->createSheet();
+        $unitSheet->setTitle('Unidades');
+        $unitSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if (!empty($unitMeasures)) {
+            $unitSheet->fromArray(
+                array_map(fn($unit) => [$unit['id'], $unit['name']], $unitMeasures),
+                null,
+                'A2'
+            );
+        }
+        $unitLastRow = max(1, count($unitMeasures)) + 1;
+
+        $taxes = Tax::query()
+            ->where('status', true)
+            ->orderBy('percentage')
+            ->get(['id', 'name', 'percentage']);
+        $taxSheet = $spreadsheet->createSheet();
+        $taxSheet->setTitle('Impuestos');
+        $taxSheet->fromArray(['ID', 'Nombre', 'Porcentaje'], null, 'A1');
+        if ($taxes->isNotEmpty()) {
+            $taxSheet->fromArray(
+                $taxes->map(fn($tax) => [
+                    $tax->id,
+                    $tax->name,
+                    number_format((float) $tax->percentage, 2, '.', ''),
+                ])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $taxLastRow = $taxes->count() + 1;
+
+        $warehouses = Warehouse::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $warehouseSheet = $spreadsheet->createSheet();
+        $warehouseSheet->setTitle('Bodegas');
+        $warehouseSheet->fromArray(['ID', 'Nombre'], null, 'A1');
+        if ($warehouses->isNotEmpty()) {
+            $warehouseSheet->fromArray(
+                $warehouses->map(fn($warehouse) => [
+                    $warehouse->id,
+                    $warehouse->name,
+                ])->toArray(),
+                null,
+                'A2'
+            );
+        }
+        $warehouseLastRow = $warehouses->count() + 1;
+
+        $listRows = [
+            ['Activo', 'NO'],
+            ['Inactivo', 'SI'],
+        ];
+        $listSheet = $spreadsheet->createSheet();
+        $listSheet->setTitle('Listas');
+        $listSheet->fromArray(['ESTADO', 'MOVIMIENTO NEGATIVO'], null, 'A1');
+        $listSheet->fromArray($listRows, null, 'A2');
+        $listLastRow = count($listRows) + 1;
+
+        $mainSheet = $spreadsheet->setActiveSheetIndex(0);
+        $maxValidationRow = max(1000, $rowNum);
+
+        if ($subGroupLastRow >= 2) {
+            $validationSubGroup = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
+            $validationSubGroup->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+                ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
+                ->setAllowBlank(true)
+                ->setShowInputMessage(true)
+                ->setShowErrorMessage(true)
+                ->setShowDropDown(true)
+                ->setFormula1("'Subgrupos'!B2:B{$subGroupLastRow}");
+
+            $colLetters = range('A', 'Z');
+            $subGroupColIdx = array_search('SUBGRUPO', $headers);
+            if ($subGroupColIdx !== false && isset($colLetters[$subGroupColIdx])) {
+                $subGroupCol = $colLetters[$subGroupColIdx];
+                for ($row = 2; $row <= $maxValidationRow; $row++) {
+                    $mainSheet->getCell($subGroupCol . $row)->setDataValidation(clone $validationSubGroup);
+                }
+            }
+        }
+
+        $this->applyUnitValidationToSheet($mainSheet, $headers, $unitLastRow, $maxValidationRow);
+        if ($groups->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'GRUPO',
+                "'Grupos'!B2:B{$groupLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        if ($taxes->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'IMPUESTO (%)',
+                "'Impuestos'!C2:C{$taxLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        if ($warehouses->isNotEmpty()) {
+            $this->applyListValidationToSheet(
+                $mainSheet,
+                $headers,
+                'BODEGA',
+                "'Bodegas'!B2:B{$warehouseLastRow}",
+                $maxValidationRow,
+                true
+            );
+        }
+        $this->applyListValidationToSheet(
+            $mainSheet,
+            $headers,
+            'ESTADO',
+            "'Listas'!A2:A{$listLastRow}",
+            $maxValidationRow,
+            true
+        );
+        $this->applyListValidationToSheet(
+            $mainSheet,
+            $headers,
+            'MOVIMIENTO NEGATIVO',
+            "'Listas'!B2:B{$listLastRow}",
+            $maxValidationRow,
+            true
+        );
+
+        // Ajustar ancho de columnas
+        foreach (range('A', $sheet->getHighestColumn()) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // Descargar archivo
+        $fileName = 'items_exportados.xlsx';
+        $tempFile = tempnam(sys_get_temp_dir(), 'items_') . '.xlsx';
+        $writer = new Xlsx($spreadsheet);
+        $writer->save($tempFile);
+
+        return response()->download($tempFile, $fileName)->deleteFileAfterSend(true);
+    }
+
+    public function listView()
+    {
+        return Inertia::render('MasterData/Item/Index', [
+            'items' => Item::with(['categorySubGroup', 'tax'])->get(),
+        ]);
+    }
+
+    public function advancedForm(Request $request)
+    {
+        $payload = [];
+        $itemId = $request->query('item_id');
+        if ($itemId) {
+            $item = $this->service->findWithRelations(
+                (int) $itemId,
+                ['categorySubGroup', 'tax'],
+            );
+            $payload['initialForm'] = $item->toArray();
+        }
+
+        return Inertia::render('MasterData/Item/AdvancedForm', $payload);
+    }
+
+    public function adjustmentView()
+    {
+        return Inertia::render('Inventory/InventoryAdjustment/Index');
+    }
+
+    private function resolveWarehouses(Request $request): array
+    {
+        // Delegar la resolución de payloads de bodegas al servicio
+        return $this->service->resolveWarehousePayload($request->input('warehouses'));
+    }
+    
+    private function prepareItemPayload(Request $request, array $data, Item $item = null): array
+    {
+        $extraFields = $this->service->normalizeExtraFields(
+            $request->input('extra_fields') ?? ($item?->extra_fields ?? [])
+        );
+        $data['extra_fields'] = $extraFields;
+
+        $subGroupId = $request->has('category_sub_group_id')
+            ? (int) $request->input('category_sub_group_id')
+            : ($item?->category_sub_group_id ?? null);
+
+        $reference = trim($data['reference'] ?? '');
+        $data['reference'] = $reference;
+
+        $itemName = $this->service->computeName((int) ($subGroupId ?? 0), $extraFields);
+        $this->service->assertUniqueReferenceAndName($reference, $itemName, $item?->id);
+
+        $this->handleImageUploadIfPresent($request, $data, 'items');
+        $warehouses = $this->resolveWarehouses($request);
+
+        return [
+            'data' => $data,
+            'warehouses' => $warehouses,
+        ];
+    }
+    
+    private function itemValidationRules(bool $isUpdate = false, $item = null): array
+    {
+        $rules = [
+            'category_sub_group_id' => ($isUpdate ? 'sometimes' : 'required') . '|integer',
+            'img' => 'nullable|string',
+            'image' => 'nullable|file|image',
+            'tax_id' => 'nullable|integer',
+            'tax' => ($isUpdate ? 'sometimes' : 'required') . '|numeric',
+            'bar_code' => 'nullable|string',
+            'negative_movement' => $isUpdate ? 'sometimes' : 'required',
+            'description' => ($isUpdate ? 'sometimes' : 'required') . '|string',
+            'extra_fields' => 'nullable',
+            'reference' => ['required', 'string'],
+            'status' => 'sometimes|boolean',
+            'item_type' => 'required|string|in:product,service',
+            'unit_measure' => 'nullable|string',
+        ];
+
+        // Reference unique rule: ignore current item on update
+        $uniqueRule = Rule::unique('items', 'reference');
+        if ($isUpdate && $item) {
+            $uniqueRule = $uniqueRule->ignore($item->id);
+        }
+        $rules['reference'] = [$uniqueRule];
+
+        return $rules;
+    }
+
+    private function handleImageUploadIfPresent(Request $request, array &$data, string $folder = 'articles')
+    {
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store($folder, 'public');
+            $data['img'] = $path;
+        }
+    }
+
+    private function templateHeaders(): array
+    {
+        // Order optimized for clarity and matches the download/upload layout
+        return [
+            'TIPO DE ITEM',
+            'NOMBRE',
+            'GRUPO',
+            'SUBGRUPO',
+            'IMPUESTO (%)',
+            'BODEGA',
+            'CANTIDAD',
+            'CANTIDAD MIN',
+            'CANTIDAD MAX',
+            'UNIDAD DE MEDIDA',
+            'CODIGO DE BARRAS',
+            'REFERENCIA',
+            'DESCRIPCION',
+            'MOVIMIENTO NEGATIVO',
+            'CAMPOS ADICIONALES',
+            'VALORES ADICIONALES',
+            'ESTADO',
+        ];
+    }
+
+    private function applyUnitValidationToSheet($sheet, array $headers, int $unitLastRow, int $maxValidationRow = 1000)
+    {
+        $colLetters = range('A', 'Z');
+        $unitColIdx = array_search('UNIDAD DE MEDIDA', $headers);
+        if ($unitColIdx !== false && isset($colLetters[$unitColIdx])) {
+            $unitCol = $colLetters[$unitColIdx];
+            $validationUnit = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
+            $validationUnit->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+                ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
+                ->setAllowBlank(true)
+                ->setShowInputMessage(true)
+                ->setShowErrorMessage(true)
+                ->setShowDropDown(true)
+                ->setFormula1("'Unidades'!A2:A{$unitLastRow}");
+            for ($row = 2; $row <= $maxValidationRow; $row++) {
+                $sheet->getCell($unitCol . $row)->setDataValidation(clone $validationUnit);
+            }
+            $sheet->getColumnDimension($unitCol)->setAutoSize(true);
+        }
+    }
+
+    private function applyListValidationToSheet(
+        $sheet,
+        array $headers,
+        string $headerName,
+        string $formula,
+        int $maxValidationRow = 1000,
+        bool $allowBlank = true
+    ) {
+        $colLetters = range('A', 'Z');
+        $colIdx = array_search($headerName, $headers);
+        if ($colIdx === false || !isset($colLetters[$colIdx])) {
+            return;
+        }
+        $col = $colLetters[$colIdx];
+        $validation = new \PhpOffice\PhpSpreadsheet\Cell\DataValidation();
+        $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+            ->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP)
+            ->setAllowBlank($allowBlank)
+            ->setShowInputMessage(true)
+            ->setShowErrorMessage(true)
+            ->setShowDropDown(true)
+            ->setFormula1($formula);
+        for ($row = 2; $row <= $maxValidationRow; $row++) {
+            $sheet->getCell($col . $row)->setDataValidation(clone $validation);
+        }
+        $sheet->getColumnDimension($col)->setAutoSize(true);
+    }
+
+    private function loadUnitMeasureOptionsForTemplate(): array
+    {
+        $path = resource_path('js/data/unitMeasures.json');
+        if (!file_exists($path)) {
+            return [];
+        }
+
+        $content = file_get_contents($path);
+        $data = json_decode($content, true);
+        if (!is_array($data)) {
+            return [];
+        }
+
+        $groups = $data['unitMeasureGroups'] ?? [];
+        $options = [];
+        foreach ($groups as $group) {
+            if (!empty($group['options']) && is_array($group['options'])) {
+                foreach ($group['options'] as $opt) {
+                    if (isset($opt['id']) && isset($opt['name'])) {
+                        $options[] = [
+                            'id' => (string) $opt['id'],
+                            'name' => (string) $opt['name'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $options;
+    }
+    private function saveSpreadsheetToPath(Spreadsheet $spreadsheet, string $filePath)
+    {
+        $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
+
+        $maxAttempts = 5;
+        $attempt = 0;
+        $waitMs = 200;
+        while (file_exists($filePath) && !is_writable($filePath) && $attempt < $maxAttempts) {
+            usleep($waitMs * 1000);
+            $attempt++;
+        }
+
+        try {
+            $writer->save($filePath);
+            Log::info('Hoja Excel guardada', ['path' => $filePath, 'size' => filesize($filePath)]);
+        } catch (\Exception $e) {
+            Log::error('Error guardando Excel', ['error' => $e->getMessage(), 'path' => $filePath]);
+            throw $e;
+        }
+    }
+
+    private function exportRowForItem($item): array
+    {
+        $extra = is_array($item->extra_fields) ? $item->extra_fields : (json_decode($item->extra_fields, true) ?: []);
+
+        $tax = $item->tax;
+        $statusLabel = $item->status ? 'Activo' : 'Inactivo';
+        $typeLabel = $item->item_type === 'service' ? 'Servicio' : 'Producto';
+
+        $extraKeys = array_map(fn($k) => mb_strtoupper((string) $k, 'UTF-8'), array_keys($extra));
+        $extraVals = array_map(fn($v) => (string) $v, array_values($extra));
+        $fieldsCol = implode('; ', $extraKeys);
+        $valuesCol = implode('; ', $extraVals);
+
+        $groupName = optional(optional($item->categorySubGroup)->categoryGroup)->name ?? '';
+        $subGroupName = optional($item->categorySubGroup)->name;
+        $warehouse = $item->warehouses->first();
+        $warehouseName = optional($warehouse)->name ?? '';
+        $warehousePivot = $warehouse ? $warehouse->pivot : null;
+        $quantityValue = $warehousePivot && isset($warehousePivot->quantity) ? $warehousePivot->quantity : '';
+        $stockMinValue = $warehousePivot && isset($warehousePivot->stock_min) ? $warehousePivot->stock_min : '';
+        $stockMaxValue = $warehousePivot && isset($warehousePivot->stock_max) ? $warehousePivot->stock_max : '';
+
+        return [
+            // Orden: TIPO, NOMBRE, GRUPO, SUBGRUPO, IMPUESTO, BODEGA, CANTIDAD, CANTIDAD MIN, CANTIDAD MAX, UNIDAD, CODIGO, REFERENCIA, DESCRIPCION, MOVIMIENTO NEGATIVO, CAMPOS, VALORES, ESTADO
+            $typeLabel,
+            $item->name,
+            $groupName,
+            $subGroupName,
+            $tax ? number_format((float) $tax->percentage, 2, '.', '') : '',
+            $warehouseName,
+            $quantityValue,
+            $stockMinValue,
+            $stockMaxValue,
+            $item->unit_measure,
+            $item->bar_code,
+            $item->reference,
+            $item->description,
+            $item->negative_movement ? 'SI' : 'NO',
+            $fieldsCol,
+            $valuesCol,
+            $statusLabel,
+        ];
+    }
+    
+
+    private function validationErrorResponse(ValidationException $exception)
+    {
+        return response()->json([
+            'message' => 'Errores de validacion',
+            'errors' => $exception->errors(),
+        ], 422);
+    }
+
+    private function unexpectedErrorResponse()
+    {
+        return response()->json([
+            'message' => 'Ocurrio un error inesperado al procesar la solicitud.',
+            'errors' => [],
+        ], 500);
+    }
+
+}

@@ -10,3 +10,4 @@ declare module '@vue/runtime-core' {
         route: typeof route;
     }
 }
+

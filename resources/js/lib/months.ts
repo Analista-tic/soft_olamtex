@@ -55,3 +55,4 @@ export function monthLabel(value: number | string | null | undefined): string {
 
     return MONTH_LABELS[monthNumber] ?? '—';
 }
+

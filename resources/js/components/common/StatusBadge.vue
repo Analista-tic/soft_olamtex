@@ -54,3 +54,4 @@ const badgeClass = computed(() => colorMap[autoColor.value] ?? colorMap.gray);
         <slot>{{ autoText }}</slot>
     </span>
 </template>
+

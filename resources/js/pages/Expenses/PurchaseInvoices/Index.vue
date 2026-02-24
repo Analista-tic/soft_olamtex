@@ -1,28 +1,36 @@
 <script setup lang="ts">
-import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import InputDate from '@/components/InputDate.vue';
-import SelectField from '@/components/SelectField.vue';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useAlertStack } from '@/composables/useAlert';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { PurchaseInvoice } from '@/domain/purchases';
 import AppLayout from '@/layouts/AppLayout.vue';
+import type { PurchaseInvoice } from '@/domain/Expenses';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Mail, MoreVertical, Package, PlusCircle, Printer, Search } from 'lucide-vue-next';
+import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
+import SelectField from '@/components/SelectField.vue';
+import InputDate from '@/components/InputDate.vue';
+import { Button } from '@/components/ui/button';
+import AlertStack from '@/components/common/AlertStack.vue';
+import { useAlertStack } from '@/composables/useAlert';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
-const breadcrumbs = [{ title: 'Facturas de Compra', href: '/facturas-compra' }];
+const breadcrumbs = [
+    { title: 'Facturas de Compra', href: '/facturas-compra' },
+];
 
 const invoices = ref<PurchaseInvoice[]>([]);
 const isDialogOpen = ref(false);
@@ -38,7 +46,16 @@ const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const invoiceToPrint = ref<PurchaseInvoice | null>(null);
 const isSendingMail = ref(false);
-const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
+const {
+    successMessage,
+    errorMessage,
+    errorType,
+    showSuccess,
+    showError,
+    clearSuccess,
+    clearError,
+    clearAlerts,
+} = useAlertStack();
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
@@ -153,7 +170,7 @@ function openDialog(type: 'create' | 'edit', invoice: PurchaseInvoice | null = n
     isDialogReadOnly.value = readOnly;
     isDialogOpen.value = true;
     // Asegura el tipado correcto y evita referencias reactivas no deseadas
-    form.value = invoice ? (JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice>) : {};
+    form.value = invoice ? JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice> : {};
     clearAlerts();
 }
 
@@ -194,6 +211,7 @@ async function deleteInvoice(): Promise<void> {
     }
 }
 
+
 async function fetchInvoices(page = 1, search = ''): Promise<void> {
     const params: Record<string, any> = {
         page,
@@ -211,7 +229,11 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     }
     try {
         const response = await axios.get('/gastos/facturas-compra/data', { params });
-        invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+        invoices.value = Array.isArray(response.data.data)
+            ? response.data.data
+            : Array.isArray(response.data)
+                ? response.data
+                : [];
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
     } catch (e) {
         console.log('Error al cargar facturas:', e);
@@ -239,7 +261,7 @@ watch(
                 fetchInvoices(1, newSearch);
             }
         }
-    },
+    }
 );
 
 // Watcher para paginación
@@ -305,28 +327,31 @@ function handleDialogError(message?: string) {
     showError(message || 'Error al guardar la factura.');
     clearSuccess();
 }
+
 </script>
 
 <template>
     <Head title="Facturas de Compras y Servicios" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <AlertStack
-            :successMessage="successMessage"
-            :errorMessage="errorMessage"
-            :errorType="errorType"
-            @close-success="clearSuccess"
-            @close-error="clearError"
-        />
+            <AlertStack
+                :successMessage="successMessage"
+                :errorMessage="errorMessage"
+                :errorType="errorType"
+                @close-success="clearSuccess"
+                @close-error="clearError"
+            />
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Facturas de Compras y Servicios</h1>
-                    <p class="text-sm text-muted-foreground">Registra facturas para llevar la trazabilidad de la recepción y la aprobación.</p>
+                    <p class="text-sm text-muted-foreground">
+                        Registra facturas para llevar la trazabilidad de la recepción y la aprobación.
+                    </p>
                 </div>
                 <div class="flex gap-2">
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="router.visit(buildReceptionUrl())"
                     >
                         <Package class="h-4 w-4" />
@@ -334,7 +359,7 @@ function handleDialogError(message?: string) {
                     </button>
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="openDialog('create')"
                     >
                         <PlusCircle class="h-4 w-4" />
@@ -343,7 +368,7 @@ function handleDialogError(message?: string) {
                 </div>
             </div>
             <FilterBar align="start">
-                <FilterField label="Buscar factura" :active="isSearchActive" class="min-w-[220px] flex-1">
+                <FilterField label="Buscar factura" :active="isSearchActive" class="flex-1 min-w-[220px]">
                     <div class="relative">
                         <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -359,7 +384,7 @@ function handleDialogError(message?: string) {
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobado' },
-                            { id: 'rejected', name: 'Rechazado' },
+                            { id: 'rejected', name: 'Rechazado' }
                         ]"
                         :button-class="statusButtonClasses"
                     />
@@ -368,10 +393,7 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="providerFilter"
                         label=""
-                        :options="[
-                            { id: 'all', name: 'Todos los proveedores' },
-                            ...providers.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
-                        ]"
+                        :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map(prov => ({ id: String(prov.id), name: prov.full_name }))]"
                         :button-class="providerButtonClasses"
                     />
                 </FilterField>
@@ -379,7 +401,7 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="subgroupFilter"
                         label=""
-                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map((sub) => ({ id: String(sub.id), name: sub.name }))]"
+                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map(sub => ({ id: String(sub.id), name: sub.name }))]"
                         :button-class="subgroupButtonClasses"
                     />
                 </FilterField>
@@ -390,117 +412,113 @@ function handleDialogError(message?: string) {
                     <InputDate v-model="dateTo" placeholder="Hasta" />
                 </FilterField>
             </FilterBar>
-            <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">
                 <TooltipProvider>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>#Factura</TableHead>
-                                <TableHead>Fecha de creación</TableHead>
-                                <TableHead>Fecha de entrega</TableHead>
-                                <TableHead>Proveedor</TableHead>
-                                <TableHead>Item</TableHead>
-                                <TableHead>Total</TableHead>
-                                <TableHead>Descripción</TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead class="text-center">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                                <TableCell class="font-medium">
-                                    {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
-                                </TableCell>
-                                <TableCell>{{ formatDate(invoice.date) }}</TableCell>
-                                <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
-                                <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
-                                <TableCell class="text-start">{{ getInvoiceItemsPreview(invoice) }}</TableCell>
-                                <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
-                                <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
-                                <TableCell>
-                                    <span
-                                        v-if="invoice.status"
-                                        :class="[
-                                            'rounded-full px-2 py-1 text-xs font-medium',
-                                            invoice.status === 'pending_receipt'
-                                                ? 'bg-yellow-100 text-yellow-800'
-                                                : invoice.status === 'received'
-                                                  ? 'bg-green-100 text-green-800'
-                                                  : invoice.status === 'rejected'
-                                                    ? 'bg-red-100 text-red-800'
-                                                    : 'bg-gray-100 text-gray-800',
-                                        ]"
-                                    >
-                                        {{
-                                            invoice.status === 'pending_receipt'
-                                                ? 'Pendiente'
-                                                : invoice.status === 'received'
-                                                  ? 'Recibida'
-                                                  : invoice.status === 'rejected'
-                                                    ? 'Rechazada'
-                                                    : 'Sin estado'
-                                        }}
-                                    </span>
-                                    <span v-else class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800"> Pendiente </span>
-                                </TableCell>
-                                <TableCell>
-                                    <div class="flex flex-wrap justify-center gap-1">
-                                        <button
-                                            class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-blue-600"
-                                            @click="viewInvoiceDetails(invoice)"
-                                            title="Ver detalles"
-                                        >
-                                            <Eye class="h-4 w-4" />
-                                        </button>
-                                        <EditButton :onClick="() => openDialog('edit', invoice)" />
-                                        <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>#Factura</TableHead>
+                            <TableHead>Fecha de creación</TableHead>
+                            <TableHead>Fecha de entrega</TableHead>
+                            <TableHead>Proveedor</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Total</TableHead>
+                            <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
+                            <TableCell class="font-medium">
+                                {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
+                            </TableCell>
+                            <TableCell>{{ formatDate(invoice.date) }}</TableCell>
+                            <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
+                            <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
+                            <TableCell class="text-start">{{ getInvoiceItemsPreview(invoice) }}</TableCell>
+                            <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
+                            <TableCell class="text-start max-w-32 truncate">{{ invoice.description || '-' }}</TableCell>
+                            <TableCell>
+                                <span 
+                                    v-if="invoice.status"
+                                    :class="[
+                                        'px-2 py-1 rounded-full text-xs font-medium',
+                                        invoice.status === 'pending_receipt' ? 'bg-yellow-100 text-yellow-800' :
+                                        invoice.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                        invoice.status === 'received' ? 'bg-green-100 text-green-800' :
+                                        invoice.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                        'bg-gray-100 text-gray-800'
+                                    ]"
+                                >
+                                    {{ 
+                                        invoice.status === 'pending_receipt' ? 'Pendiente' :
+                                        invoice.status === 'approved' ? 'Aprobado' :
+                                        invoice.status === 'received' ? 'Recibida' :
+                                        invoice.status === 'rejected' ? 'Rechazada' :
+                                        'Sin estado'
+                                    }}
+                                </span>
+                                <span v-else class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    Pendiente
+                                </span>
+                            </TableCell>
+                            <TableCell>
+                                <div class="flex justify-center gap-1 flex-wrap">
+                                      <button
+                                          class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-blue-600"
+                                          @click="viewInvoiceDetails(invoice)"
+                                          title="Ver detalles"
+                                      >
+                                        <Eye class="h-4 w-4" />
+                                      </button>
+                                    <EditButton :onClick="() => openDialog('edit', invoice)" />
+                                    <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
-                                        <DeleteButton
-                                            :onClick="
-                                                () => {
-                                                    if (invoice.status === 'received') {
-                                                        showError('No se puede eliminar una factura que ya fue recibida.');
-                                                    } else {
-                                                        confirmDeleteInvoice(invoice);
-                                                    }
-                                                }
-                                            "
-                                            :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
-                                        />
-                                        <DropdownMenu>
-                                            <Tooltip>
-                                                <TooltipTrigger as-child>
-                                                    <DropdownMenuTrigger as-child>
-                                                        <Button variant="ghost" size="icon" :class="actionButtonClass">
-                                                            <MoreVertical :class="actionIconClass" />
-                                                            <span class="sr-only">Acciones</span>
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Acciones</TooltipContent>
-                                            </Tooltip>
-                                            <DropdownMenuContent align="end" class="w-48">
-                                                <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(invoice)">
-                                                    <Printer class="h-4 w-4" /> Imprimir
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception(invoice)">
-                                                    <Package class="h-4 w-4" /> Ir a recepción
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    class="cursor-pointer gap-2"
-                                                    :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
-                                                    :disabled="isSendingMail"
-                                                    @click="sendInvoiceByEmail(invoice)"
-                                                >
-                                                    <Mail class="h-4 w-4" /> Enviar al correo
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
+                                    <DeleteButton
+                                        :onClick="() => {
+                                            if (invoice.status === 'received') {
+                                                showError('No se puede eliminar una factura que ya fue recibida.');
+                                            } else {
+                                                confirmDeleteInvoice(invoice);
+                                            }
+                                        }"
+                                        :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
+                                    />
+                                    <DropdownMenu>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <DropdownMenuTrigger as-child>
+                                                    <Button variant="ghost" size="icon" :class="actionButtonClass">
+                                                        <MoreVertical :class="actionIconClass" />
+                                                        <span class="sr-only">Acciones</span>
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Acciones</TooltipContent>
+                                        </Tooltip>
+                                        <DropdownMenuContent align="end" class="w-48">
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(invoice)">
+                                                <Printer class="h-4 w-4" /> Imprimir
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception(invoice)">
+                                                <Package class="h-4 w-4" /> Ir a recepción
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                class="cursor-pointer gap-2"
+                                                :class="isSendingMail ? 'opacity-60 cursor-not-allowed' : ''"
+                                                :disabled="isSendingMail"
+                                                @click="sendInvoiceByEmail(invoice)"
+                                            >
+                                                <Mail class="h-4 w-4" /> Enviar al correo
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
                 </TooltipProvider>
             </div>
         </div>
@@ -521,13 +539,14 @@ function handleDialogError(message?: string) {
             @close="isPrintDialogOpen = false"
         />
         <ConfirmDialog
-            v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminación"
-            description="¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer."
-            confirm-text="Eliminar"
-            cancel-text="Cancelar"
-            :destructive="true"
-            @confirm="deleteInvoice"
-        />
+        v-model:open="isDeleteDialogOpen"
+        title="Confirmar eliminación"
+        description="¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer."
+        confirm-text="Eliminar"
+        cancel-text="Cancelar"
+        :destructive="true"
+        @confirm="deleteInvoice"
+    />
     </AppLayout>
 </template>
+

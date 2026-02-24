@@ -1,22 +1,23 @@
 <script setup lang="ts">
-import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
-import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
-import TextareaField from '@/components/TextareaField.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import Label from '@/components/ui/label/Label.vue';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { useAlertStack } from '@/composables/useAlert';
-import { useCompanyInfo } from '@/composables/useCompanyInfo';
-import type { Contact, PurchaseOrder } from '@/domain/purchases';
+import type { PurchaseOrder } from '@/domain/Expenses';
+import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
-import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
 import { computed, ref, watch } from 'vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable.vue';
+import TextareaField from '@/components/TextareaField.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useAlertStack } from '@/composables/useAlert';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -55,8 +56,12 @@ const canEdit = computed(() => {
 
 const isReadOnly = computed(() => props.readonly || !canEdit.value);
 
-const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total) || 0, 0), 0));
-const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total_tax) || 0, 0), 0));
+const subtotal = computed(() =>
+    (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total) || 0, 0), 0),
+);
+const iva = computed(() =>
+    (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total_tax) || 0, 0), 0),
+);
 const total = computed(() => Math.max(subtotal.value, 0) + Math.max(iva.value, 0));
 
 const pendingPurchaseRequestOptions = computed<Option[]>(() => {
@@ -144,7 +149,7 @@ function createDefaultForm(): Partial<PurchaseOrder> {
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     const currentDate = `${year}-${month}-${day}`;
-
+    
     return {
         contact_id: null,
         date: currentDate, // Fecha actual por defecto
@@ -219,13 +224,13 @@ async function fetchPendingPurchaseRequests() {
     try {
         // Obtener solo las solicitudes aprobadas que NO tienen órdenes generadas y NO están procesadas
         const response = await axios.get('/gastos/solicitudes-compra/data', {
-            params: {
+            params: { 
                 per_page: 1000,
                 status: 'approved', // Filtrar solo solicitudes aprobadas
                 exclude_with_orders: true, // Excluir solicitudes que ya tienen órdenes (backend también filtra processed)
             },
         });
-
+        
         // Manejar diferentes formatos de respuesta
         let allRequests: any[] = [];
         if (Array.isArray(response.data?.data)) {
@@ -233,7 +238,7 @@ async function fetchPendingPurchaseRequests() {
         } else if (Array.isArray(response.data)) {
             allRequests = response.data;
         }
-
+        
         // Filtrar solo las que están aprobadas y NO procesadas
         // Solo solicitudes aprobadas (no procesadas) pueden usarse para crear órdenes
         purchaseRequests.value = allRequests.filter((req: any) => {
@@ -241,7 +246,7 @@ async function fetchPendingPurchaseRequests() {
             // Asegurar que solo sean 'approved' y no 'processed'
             return status === 'approved' && status !== 'processed';
         });
-
+        
         console.log('Total solicitudes recibidas:', allRequests.length);
         console.log('Solicitudes filtradas (approved, no processed):', purchaseRequests.value.length);
     } catch (e) {
@@ -256,42 +261,44 @@ async function fetchPendingPurchaseRequests() {
 async function loadRequestToOrder(requestId: number) {
     const request = purchaseRequests.value.find((req) => Number(req?.id) === Number(requestId));
     if (!request) return;
-
+    
     // Guardar la solicitud completa para mostrar como sugerencia
     selectedPurchaseRequest.value = request;
-
+    
     // Cargar contactos si no están cargados
     if (!contacts.value.length) await fetchContacts();
-
+    
     // Aplicar automáticamente los datos de la solicitud
     applyRequestSuggestion();
-
+    
     selectedPurchaseRequestId.value = Number(requestId);
 }
 
 function applyRequestSuggestion() {
     if (!selectedPurchaseRequest.value) return;
-
+    
     const request = selectedPurchaseRequest.value;
-
+    
     // Buscar contacto por nombre del proveedor
     const providerName = request.provider_name || '';
     let foundContact = null;
     if (providerName) {
-        foundContact = contacts.value.find((c) => c.full_name?.toLowerCase().trim() === providerName.toLowerCase().trim());
+        foundContact = contacts.value.find((c) => 
+            c.full_name?.toLowerCase().trim() === providerName.toLowerCase().trim()
+        );
     }
-
+    
     // Aplicar datos de la solicitud al formulario
     if (foundContact) {
         localForm.value.contact_id = Number(foundContact.id);
     }
-
+    
     localForm.value.description = request.description || '';
     // NO sobrescribir la fecha de creación - siempre debe ser la fecha actual
     // localForm.value.date se mantiene con la fecha actual establecida en createDefaultForm
     localForm.value.delivery_date = request.delivery_date || '';
     localForm.value.supplier_order_number = request.request_number || '';
-
+    
     // Mapear items de la solicitud a items de la orden
     let requestItems: any[] = [];
     if (Array.isArray(request.items)) {
@@ -303,7 +310,7 @@ function applyRequestSuggestion() {
             requestItems = [];
         }
     }
-
+    
     if (requestItems.length > 0) {
         localForm.value.items = requestItems.map((item: any) => ({
             item_id: item.item_id || null,
@@ -318,7 +325,7 @@ function applyRequestSuggestion() {
             order_width: Number(item.order_width) || 0,
         }));
     }
-
+    
     originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
@@ -338,10 +345,10 @@ function getRequestItems() {
 }
 
 function formatCurrency(value: number) {
-    return Number(value || 0).toLocaleString('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
+    return Number(value || 0).toLocaleString('es-CO', { 
+        style: 'currency', 
+        currency: 'COP', 
+        minimumFractionDigits: 0 
     });
 }
 
@@ -367,13 +374,10 @@ const stableStringify = (value: any): string => {
         if (val && typeof val === 'object') {
             return Object.keys(val)
                 .sort()
-                .reduce(
-                    (acc: any, key) => {
-                        acc[key] = normalize(val[key]);
-                        return acc;
-                    },
-                    {} as Record<string, unknown>,
-                );
+                .reduce((acc: any, key) => {
+                    acc[key] = normalize(val[key]);
+                    return acc;
+                }, {} as Record<string, unknown>);
         }
         return val;
     };
@@ -407,12 +411,17 @@ async function handleSubmit(sendMail = false) {
               price: Number(item.price) || 0,
               quantity: Number(item.quantity) || 0,
               tax: Number(item.tax) || 0,
-              order_width: item.order_width === undefined || item.order_width === null || item.order_width === '' ? '' : String(item.order_width),
+              order_width:
+                  item.order_width === undefined || item.order_width === null || item.order_width === ''
+                      ? ''
+                      : String(item.order_width),
           }))
         : [];
     if ('status' in formToSend) delete formToSend.status;
     if (props.dialogType === 'create') delete formToSend.id;
-    const url = props.dialogType === 'create' ? '/gastos/ordenes-compra' : `/gastos/ordenes-compra/${localForm.value.id}`;
+    const url = props.dialogType === 'create'
+        ? '/gastos/ordenes-compra'
+        : `/gastos/ordenes-compra/${localForm.value.id}`;
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
         const { data } = await axios({ method, url, data: formToSend });
@@ -460,7 +469,10 @@ function validateForm(): boolean {
     }
 
     if (missingFields.length) {
-        setErrorMessage(formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields), 'warning');
+        setErrorMessage(
+            formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields),
+            'warning',
+        );
         return false;
     }
 
@@ -483,7 +495,10 @@ function validateForm(): boolean {
         if (!invalidItem.price || Number(invalidItem.price) <= 0) missingItemFields.push('Precio SIN Impuesto');
         if (!invalidItem.quantity || Number(invalidItem.quantity) <= 0) missingItemFields.push('Cantidad');
 
-        setErrorMessage(formatRequiredFieldsMessage('Cada ítem debe tener los siguientes campos', missingItemFields), 'warning');
+        setErrorMessage(
+            formatRequiredFieldsMessage('Cada ítem debe tener los siguientes campos', missingItemFields),
+            'warning',
+        );
         return false;
     }
 
@@ -532,10 +547,10 @@ watch(selectedPurchaseRequestId, async (requestId, oldVal) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
+        <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
             <AlertStack
                 v-show="successMessage || errorMessage"
-                class="fixed left-1/2 top-4 z-50 w-full max-w-lg -translate-x-1/2"
+                class="z-50 fixed top-4 left-1/2 -translate-x-1/2 w-full max-w-lg"
                 :success-message="successMessage"
                 :error-message="errorMessage"
                 success-title="Éxito"
@@ -545,10 +560,12 @@ watch(selectedPurchaseRequestId, async (requestId, oldVal) => {
                 @close-error="clearError"
             />
             <TooltipProvider>
-                <DialogHeader class="relative flex-shrink-0 px-4 pb-7 pt-4">
+            <DialogHeader class="relative flex-shrink-0 px-4 pt-4 pb-7">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
-                        <DialogDescription> Completa los campos y añade los ítems de la orden. </DialogDescription>
+                        <DialogDescription>
+                            Completa los campos y añade los ítems de la orden.
+                        </DialogDescription>
                     </div>
                     <div class="absolute right-12 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
                         <div class="w-[280px]">
@@ -564,225 +581,257 @@ watch(selectedPurchaseRequestId, async (requestId, oldVal) => {
                         </div>
                     </div>
                 </DialogHeader>
-                <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
-                    <form
-                        @submit.prevent="handleSubmit()"
-                        :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingOrderId }"
-                        class="space-y-6"
-                    >
-                        <!-- Información de solicitud seleccionada -->
-                        <div v-if="selectedPurchaseRequest" class="rounded-lg border border-border bg-muted/30 p-4">
-                            <div class="mb-3 flex items-center justify-between">
-                                <h3 class="text-sm font-medium text-foreground">
-                                    Datos desde Solicitud: {{ selectedPurchaseRequest.request_number || selectedPurchaseRequest.id }}
-                                </h3>
+                <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
+                <form
+                    @submit.prevent="handleSubmit()"
+                    :class="{'pointer-events-none opacity-50':dialogType === 'create' && isLoadingOrderId}"
+                    class="space-y-6"
+                >
+                    <!-- Información de solicitud seleccionada -->
+                    <div v-if="selectedPurchaseRequest" class="rounded-lg border border-border bg-muted/30 p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-sm font-medium text-foreground">
+                                Datos desde Solicitud: {{ selectedPurchaseRequest.request_number || selectedPurchaseRequest.id }}
+                            </h3>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <span class="text-muted-foreground">Proveedor:</span>
+                                <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.provider_name || 'No especificado' }}</span>
                             </div>
-                            <div class="grid grid-cols-2 gap-3 text-sm">
-                                <div>
-                                    <span class="text-muted-foreground">Proveedor:</span>
-                                    <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.provider_name || 'No especificado' }}</span>
-                                </div>
-                                <div>
-                                    <span class="text-muted-foreground">Fecha:</span>
-                                    <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.date || 'No especificada' }}</span>
-                                </div>
-                                <div class="col-span-2">
-                                    <span class="text-muted-foreground">Descripción:</span>
-                                    <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.description || 'Sin descripción' }}</span>
-                                </div>
+                            <div>
+                                <span class="text-muted-foreground">Fecha:</span>
+                                <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.date || 'No especificada' }}</span>
+                            </div>
+                            <div class="col-span-2">
+                                <span class="text-muted-foreground">Descripción:</span>
+                                <span class="ml-2 text-foreground">{{ selectedPurchaseRequest.description || 'Sin descripción' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+                        <div class="grid grid-cols-3 items-start gap-4">
+                            <div>
+                                <InputField
+                                    label="# Orden de Compra"
+                                    :modelValue="orderDocumentNumber"
+                                    readonly
+                                    v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && orderDocumentNumber)"
+                                />
+                                <span v-else-if="dialogType === 'create' && isLoadingOrderId" class="text-gray-400">Cargando...</span>
+                            </div>
+                            <div class="relative flex h-full items-center justify-center rounded p-4">
+                                <img
+                                    :src="logoUrl"
+                                    alt="Logotipo de la empresa"
+                                    class="max-h-24 max-w-[160px] w-auto object-contain"
+                                />
+                            </div>
+                            <div>
+                                <div class="text-sm font-semibold">Datos empresa</div>
+                                <p class="text-xs">
+                                    Razón Social:
+                                    <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
+                                </p>
+                                <p class="text-xs">
+                                    NIT:
+                                    <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
+                                </p>
+                                <p class="text-xs">
+                                    Correo:
+                                    <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
+                                </p>
                             </div>
                         </div>
 
-                        <div class="space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
-                            <div class="grid grid-cols-3 items-start gap-4">
-                                <div>
-                                    <InputField
-                                        label="# Orden de Compra"
-                                        :modelValue="orderDocumentNumber"
-                                        readonly
-                                        v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && orderDocumentNumber)"
-                                    />
-                                    <span v-else-if="dialogType === 'create' && isLoadingOrderId" class="text-gray-400">Cargando...</span>
-                                </div>
-                                <div class="relative flex h-full items-center justify-center rounded p-4">
-                                    <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
-                                </div>
-                                <div>
-                                    <div class="text-sm font-semibold">Datos empresa</div>
-                                    <p class="text-xs">
-                                        Razón Social:
-                                        <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
-                                    </p>
-                                    <p class="text-xs">
-                                        NIT:
-                                        <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span>
-                                    </p>
-                                    <p class="text-xs">
-                                        Correo:
-                                        <span class="font-normal">{{ company?.email || 'Sin correo' }}</span>
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- Proveedor -->
-                            <div class="grid grid-cols-3 gap-4">
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium"> Proveedor<span class="text-red-500">*</span> </Label>
-                                        <HelpTooltip
-                                            text="Selecciona el proveedor que suministrará los productos de esta orden de compra."
-                                            aria-label="Ayuda sobre proveedor"
-                                        />
-                                    </div>
-                                    <SelectField
-                                        v-model="localForm.contact_id"
-                                        label=""
-                                        :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
-                                        :readonly="!canEdit || isReadOnly"
-                                        required
-                                    />
-                                </div>
-                                <InputField
-                                    :key="String(localForm.contact_id ?? '')"
-                                    label="Numero de identificacion"
-                                    :modelValue="contactIdNumber"
-                                    readonly
-                                />
-                                <InputField
-                                    :key="String(localForm.contact_id ?? '') + '-phone'"
-                                    label="Numero de contacto"
-                                    :modelValue="contactPhone"
-                                    readonly
-                                />
-                            </div>
-
-                            <!-- Fechas -->
-                            <div class="grid grid-cols-3 gap-4">
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium"> Fecha de creación<span class="text-red-500">*</span> </Label>
-                                        <HelpTooltip text="Fecha en la que se crea la orden de compra." aria-label="Ayuda sobre fecha de creación" />
-                                    </div>
-                                    <InputDate v-model="localForm.date" label="" readonly required />
-                                </div>
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium"> Fecha de entrega<span class="text-red-500">*</span> </Label>
-                                        <HelpTooltip
-                                            text="Fecha estimada en la que el proveedor debe entregar los productos."
-                                            aria-label="Ayuda sobre fecha de entrega"
-                                        />
-                                    </div>
-                                    <InputDate v-model="localForm.delivery_date" label="" :readonly="!canEdit || isReadOnly" required />
-                                </div>
-                                <div class="flex flex-col gap-1">
-                                    <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium"> # orden de compra proveedor<span class="text-red-500">*</span> </Label>
-                                        <HelpTooltip
-                                            text="Número de orden de compra asignado por el proveedor para seguimiento."
-                                            aria-label="Ayuda sobre orden proveedor"
-                                        />
-                                    </div>
-                                    <InputField v-model="localForm.supplier_order_number" label="" :readonly="isReadOnly" required />
-                                </div>
-                            </div>
-
-                            <!-- Items -->
-                            <InventoryDetailTableLayout @create-line="handleAddLine">
-                                <PurchaseOrderItemsTable
-                                    ref="itemsTableRef"
-                                    :items="localForm.items || []"
-                                    :suggested-items="getRequestItems()"
-                                    :readonly="isReadOnly"
-                                    @update:items="(items) => (localForm.items = items)"
-                                />
-                            </InventoryDetailTableLayout>
-
-                            <!-- Totales -->
-                            <div class="space-y-4 pt-6">
-                                <div class="flex w-full flex-col items-end space-y-0 text-sm">
-                                    <div class="w-full max-w-xs space-y-1 rounded bg-card p-2 text-card-foreground shadow-sm">
-                                        <div class="flex items-center justify-between">
-                                            <span class="font-semibold text-card-foreground/70">Subtotal</span>
-                                            <span>{{
-                                                Number(subtotal || 0).toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                            }}</span>
-                                        </div>
-                                        <div class="flex items-center justify-between">
-                                            <span class="font-semibold text-card-foreground/70">IVA</span>
-                                            <span>{{
-                                                Number(iva || 0).toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                            }}</span>
-                                        </div>
-                                        <div class="flex items-center justify-between pt-1">
-                                            <span class="font-bold text-card-foreground">Total orden de compra</span>
-                                            <span class="font-bold text-card-foreground">{{
-                                                Number(total || 0).toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                            }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Observaciones -->
+                        <!-- Proveedor -->
+                        <div class="grid grid-cols-3 gap-4">
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium"> Observación </Label>
+                                    <Label class="text-sm font-medium">
+                                        Proveedor<span class="text-red-500">*</span>
+                                    </Label>
                                     <HelpTooltip
-                                        text="Notas o comentarios adicionales sobre esta orden de compra que consideres importantes."
-                                        aria-label="Ayuda sobre observación"
+                                        text="Selecciona el proveedor que suministrará los productos de esta orden de compra."
+                                        aria-label="Ayuda sobre proveedor"
                                     />
                                 </div>
-                                <TextareaField
-                                    v-model="localForm.description"
+                                <SelectField
+                                    v-model="localForm.contact_id"
                                     label=""
-                                    placeholder="Agrega aqui observaciones adicionales para la orden de compra"
+                                    :options="contacts.map((c) => ({ id: c.id, name: c.full_name }))"
+                                    :readonly="!canEdit || isReadOnly"
+                                    required
+                                />
+                            </div>
+                            <InputField
+                                :key="String(localForm.contact_id ?? '')"
+                                label="Numero de identificacion"
+                                :modelValue="contactIdNumber"
+                                readonly
+                            />
+                            <InputField
+                                :key="String(localForm.contact_id ?? '') + '-phone'"
+                                label="Numero de contacto"
+                                :modelValue="contactPhone"
+                                readonly
+                            />
+                        </div>
+
+                        <!-- Fechas -->
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        Fecha de creación<span class="text-red-500">*</span>
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Fecha en la que se crea la orden de compra."
+                                        aria-label="Ayuda sobre fecha de creación"
+                                    />
+                                </div>
+                                <InputDate 
+                                    v-model="localForm.date" 
+                                    label="" 
+                                    readonly
+                                    required 
+                                />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        Fecha de entrega<span class="text-red-500">*</span>
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Fecha estimada en la que el proveedor debe entregar los productos."
+                                        aria-label="Ayuda sobre fecha de entrega"
+                                    />
+                                </div>
+                                <InputDate 
+                                    v-model="localForm.delivery_date" 
+                                    label="" 
+                                    :readonly="!canEdit || isReadOnly"
+                                    required 
+                                />
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex items-center gap-2">
+                                    <Label class="text-sm font-medium">
+                                        # orden de compra proveedor<span class="text-red-500">*</span>
+                                    </Label>
+                                    <HelpTooltip
+                                        text="Número de orden de compra asignado por el proveedor para seguimiento."
+                                        aria-label="Ayuda sobre orden proveedor"
+                                    />
+                                </div>
+                                <InputField 
+                                    v-model="localForm.supplier_order_number" 
+                                    label="" 
+                                    :readonly="isReadOnly"
+                                    required 
                                 />
                             </div>
                         </div>
 
-                        <!-- Botones -->
-                        <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-4 border-t px-4 pb-4 pt-4">
-                            <button
-                                type="button"
-                                class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                                @click="dialogOpen = false"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="button"
-                                :disabled="isLoading || isSendingMail"
-                                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                @click.prevent="handleSubmit(false)"
-                            >
-                                {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                            </button>
-                            <button
-                                type="button"
-                                :disabled="isLoading || isSendingMail"
-                                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                @click.prevent="handleSubmit(true)"
-                            >
-                                {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                            </button>
-                        </DialogFooter>
-                    </form>
+                        <!-- Items -->
+                        <InventoryDetailTableLayout @create-line="handleAddLine">
+                            <PurchaseOrderItemsTable
+                                ref="itemsTableRef"
+                                :items="localForm.items || []"
+                                :suggested-items="getRequestItems()"
+                                :readonly="isReadOnly"
+                                @update:items="(items) => (localForm.items = items)"
+                            />
+                        </InventoryDetailTableLayout>
+
+                        <!-- Totales -->
+                        <div class="space-y-4 pt-6">
+                            <div class="w-full flex flex-col items-end space-y-0 text-sm">
+                                <div class="w-full max-w-xs rounded p-2 space-y-1 bg-card text-card-foreground shadow-sm">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold text-card-foreground/70">Subtotal</span>
+                                        <span>{{
+                                            Number(subtotal || 0).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold text-card-foreground/70">IVA</span>
+                                        <span>{{
+                                            Number(iva || 0).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center pt-1">
+                                        <span class="font-bold text-card-foreground">Total orden de compra</span>
+                                        <span class="font-bold text-card-foreground">{{
+                                            Number(total || 0).toLocaleString('es-CO', {
+                                                style: 'currency',
+                                                currency: 'COP',
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 0,
+                                            })
+                                        }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Observaciones -->
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <Label class="text-sm font-medium">
+                                    Observación
+                                </Label>
+                                <HelpTooltip
+                                    text="Notas o comentarios adicionales sobre esta orden de compra que consideres importantes."
+                                    aria-label="Ayuda sobre observación"
+                                />
+                            </div>
+                            <TextareaField
+                                v-model="localForm.description"
+                                label=""
+                                placeholder="Agrega aqui observaciones adicionales para la orden de compra"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- Botones -->
+                    <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4 px-4 pb-4">
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        @click="dialogOpen = false"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="isLoading || isSendingMail"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        @click.prevent="handleSubmit(false)"
+                    >
+                        {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="isLoading || isSendingMail"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        @click.prevent="handleSubmit(true)"
+                    >
+                        {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
+                    </button>
+                    </DialogFooter>
+                </form>
                 </div>
             </TooltipProvider>
         </DialogContent>

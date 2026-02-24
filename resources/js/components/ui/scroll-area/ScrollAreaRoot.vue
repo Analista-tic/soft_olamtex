@@ -17,3 +17,4 @@ const delegatedProps = computed(() => {
     <slot />
   </RekaScrollAreaRoot>
 </template>
+

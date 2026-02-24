@@ -34,3 +34,4 @@ export const footerNavItems: NavItem[] = [
         permission: 'ver usuarios',
     },
 ];
+

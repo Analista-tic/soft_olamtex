@@ -3,9 +3,8 @@
 namespace App\Models\Expenses;
 
 use App\Contracts\HasAuditLabel;
-use App\Models\Common\Contact;
-use App\Models\Expenses\PurchaseRequest;
-use App\Models\User;
+use App\Models\MasterData\Contact;
+use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;

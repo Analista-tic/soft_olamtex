@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Production;
 
 use App\Helpers\MonthLabel;
 use App\Http\Controllers\Controller;
-use App\Models\ProductSheet\Programmer;
+use App\Models\Production\Programmer;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;

@@ -1,33 +1,38 @@
 <?php
 
-use App\Http\Controllers\Common\ContactController;
+use App\Http\Controllers\MasterData\ContactController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceTelaController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
 use App\Http\Controllers\Expenses\PurchaseRequestController;
-use App\Http\Controllers\ProductSheet\GroupController;
-use App\Http\Controllers\ProductSheet\MachineController;
-use App\Http\Controllers\ProductSheet\OperationController;
-use App\Http\Controllers\ProductSheet\SectionController;
-use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\Production\MachineController;
+use App\Http\Controllers\Production\OperationController;
+use App\Http\Controllers\Production\SectionController;
+use App\Http\Controllers\Settings\AuditLogController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
-use App\Http\Controllers\ProductSheet\ProductOperationListController;
-use App\Http\Controllers\ProductSheet\ProductSheetController;
-use App\Http\Controllers\ProductSheet\BatchControlController;
-use App\Http\Controllers\ProductSheet\ProgrammerController;
+
+use App\Http\Controllers\Production\ProductOperationListController;
+use App\Http\Controllers\Production\ProductSheetController;
+use App\Http\Controllers\Production\ProgrammerController;
 use App\Http\Controllers\Production\ProductionOrderController;
+use App\Http\Controllers\Production\BatchControlController;
+use App\Http\Controllers\Production\TechnicalDataSheetAdditionalInfoController;
+use App\Http\Controllers\Production\TechnicalDataSheetRollsController;
+use App\Http\Controllers\Production\TechnicalDataSheetSuppliesController;
+use App\Http\Controllers\Production\TechnicalDataSheetThreadsController;
+use App\Http\Controllers\Production\TechnicalDataSheetController;
 use App\Http\Controllers\Settings\UserController;
 use App\Http\Controllers\Settings\RoleController;
 use App\Http\Controllers\Settings\CompanySettingsController;
-use App\Http\Controllers\Common\CategoryGroupController;
-use App\Http\Controllers\Common\CategorySubGroupController;
-use App\Http\Controllers\Common\WarehouseController;
-use App\Http\Controllers\Inventory\ItemController;
-use App\Http\Controllers\Inventory\AdditionalFieldController;
-use App\Http\Controllers\Settings\RetentionController;
-use App\Http\Controllers\Common\TaxController;
+use App\Http\Controllers\MasterData\CategoryGroupController;
+use App\Http\Controllers\MasterData\CategorySubGroupController;
+use App\Http\Controllers\Inventory\WarehouseController;
+use App\Http\Controllers\MasterData\ItemController;
+use App\Http\Controllers\MasterData\AdditionalFieldController;
+use App\Http\Controllers\Finance\RetentionController;
+use App\Http\Controllers\Finance\TaxController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\InventoryMovementController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
@@ -36,7 +41,7 @@ use App\Http\Controllers\Inventory\InventoryRequestController;
 use App\Http\Controllers\Inventory\WarehouseTransferController;
 use App\Http\Controllers\MasterData\ParameterController;
 
-// Página principal
+// PÃ¡gina principal
 Route::get('/', fn() => redirect('login'))->name('home');
 
 // Dashboard
@@ -44,7 +49,7 @@ Route::get('dashboard', fn() => Inertia::render('Dashboard'))
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-// Rutas protegidas por autenticación y verificación
+// Rutas protegidas por autenticaciÃ³n y verificaciÃ³n
 Route::middleware(['auth', 'verified'])->group(function () {
     
     // Usuario autenticado
@@ -60,8 +65,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Perfil
     Route::get('profile', fn() => Inertia::render('Profile'))->name('profile');
+    Route::get('settings/parameters', [TechnicalDataSheetController::class, 'settingsParameters'])
+        ->name('settings.parameters');
 
-    // Módulos en desarrollo
+    // MÃ³dulos en desarrollo
     Route::get('en-desarrollo/{modulo?}', function (?string $modulo = null) {
         $title = request('titulo');
         if (!$title && $modulo) {
@@ -75,6 +82,65 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === COMERCIAL ===
     Route::prefix('produccion')->name('produccion.')->group(function () {
+        Route::get('ficha-tecnica', [TechnicalDataSheetController::class, 'index'])
+            ->name('ficha-tecnica.index');
+        Route::get('ficha-tecnica/opciones', [TechnicalDataSheetController::class, 'options'])
+            ->name('ficha-tecnica.options');
+        Route::get('ficha-tecnica/{opId}/basica', [TechnicalDataSheetController::class, 'basicInfo'])
+            ->name('ficha-tecnica.basicInfo');
+        Route::get('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'operationalList'])
+            ->name('ficha-tecnica.operational-list');
+        Route::get('ficha-tecnica/listados-operacionales/opciones', [TechnicalDataSheetController::class, 'operationalListOptions'])
+            ->name('ficha-tecnica.operational-list-options');
+        Route::post('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'assignOperationalList'])
+            ->name('ficha-tecnica.assign-operational-list');
+        Route::get('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'processesSummary'])
+            ->name('ficha-tecnica.processes-summary');
+        Route::post('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'saveProcesses'])
+            ->name('ficha-tecnica.processes.save');
+        Route::get('ficha-tecnica/{opId}/costos', [TechnicalDataSheetController::class, 'costsSummary'])
+            ->name('ficha-tecnica.costs-summary');
+        Route::get('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'index'])
+            ->name('ficha-tecnica.supplies.index');
+        Route::get('ficha-tecnica/insumos/opciones', [TechnicalDataSheetSuppliesController::class, 'itemOptions'])
+            ->name('ficha-tecnica.supplies.item-options');
+        Route::get('insumos/items/{itemId}/last-purchase', [TechnicalDataSheetSuppliesController::class, 'lastPurchaseForItem'])
+            ->middleware('permission:ver gastos|ver sabana productos|ver programador')
+            ->name('ficha-tecnica.supplies.last-purchase');
+        Route::get('insumos/items/{itemId}/meta', [TechnicalDataSheetSuppliesController::class, 'itemMeta'])
+            ->middleware('permission:ver gastos|ver sabana productos|ver programador')
+            ->name('ficha-tecnica.supplies.item-meta');
+        Route::post('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'upsert'])
+            ->name('ficha-tecnica.supplies.upsert');
+        Route::put('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'saveAll'])
+            ->name('ficha-tecnica.supplies.save-all');
+        Route::delete('ficha-tecnica/{opId}/insumos/{supplyId}', [TechnicalDataSheetSuppliesController::class, 'destroy'])
+            ->name('ficha-tecnica.supplies.destroy');
+        Route::get('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'index'])
+            ->name('ficha-tecnica.rolls.index');
+        Route::put('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'saveAll'])
+            ->name('ficha-tecnica.rolls.save-all');
+        Route::post('ficha-tecnica/{opId}/rollos/params', [TechnicalDataSheetRollsController::class, 'saveParams'])
+            ->name('ficha-tecnica.rolls.params');
+        Route::post('ficha-tecnica/{opId}/rollos/lines', [TechnicalDataSheetRollsController::class, 'upsertLine'])
+            ->name('ficha-tecnica.rolls.lines.upsert');
+        Route::delete('ficha-tecnica/{opId}/rollos/lines/{lineId}', [TechnicalDataSheetRollsController::class, 'destroyLine'])
+            ->name('ficha-tecnica.rolls.lines.destroy');
+        Route::get('ficha-tecnica/{opId}/hilos', [TechnicalDataSheetThreadsController::class, 'index'])
+            ->name('ficha-tecnica.threads.index');
+        Route::put('ficha-tecnica/{opId}/hilos', [TechnicalDataSheetThreadsController::class, 'saveAll'])
+            ->name('ficha-tecnica.threads.save-all');
+        Route::post('ficha-tecnica/{opId}/hilos/params', [TechnicalDataSheetThreadsController::class, 'saveParams'])
+            ->name('ficha-tecnica.threads.params');
+        Route::post('ficha-tecnica/{opId}/hilos/lines', [TechnicalDataSheetThreadsController::class, 'upsertLine'])
+            ->name('ficha-tecnica.threads.lines.upsert');
+        Route::delete('ficha-tecnica/{opId}/hilos/lines/{lineId}', [TechnicalDataSheetThreadsController::class, 'destroyLine'])
+            ->name('ficha-tecnica.threads.lines.destroy');
+        Route::get('ficha-tecnica/{opId}/info-adicional', [TechnicalDataSheetAdditionalInfoController::class, 'show'])
+            ->name('ficha-tecnica.additional-info.show');
+        Route::post('ficha-tecnica/{opId}/info-adicional', [TechnicalDataSheetAdditionalInfoController::class, 'store'])
+            ->name('ficha-tecnica.additional-info.store');
+
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])
             ->middleware('permission:ver sabana productos')
             ->name('product-sheets.getData');
@@ -124,9 +190,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/copiar-desde-producto', [ProductOperationListController::class, 'copyFromProduct'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('copy-from-product');
-            Route::get('/{listItem}/history', [ProductOperationListController::class, 'history'])
-                ->middleware('permission:ver listados operacionales|ver sabana productos')
-                ->name('history');
         });
 
         // Parametros
@@ -147,33 +210,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Operaciones
         Route::prefix('operaciones')->name('operaciones.')->group(function () {
             Route::get('/data', [OperationController::class, 'data'])->name('data');
-            Route::get('/metadata', [OperationController::class, 'metadata'])->name('metadata');
             Route::post('/', [OperationController::class, 'store'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('store');
-            Route::put('/{operation}', [OperationController::class, 'update'])
-                ->middleware('permission:editar listados operacionales|editar sabana productos')
-                ->name('update');
-            Route::delete('/{operation}', [OperationController::class, 'destroy'])
-                ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
-                ->name('destroy');
-            Route::post('/{operation}/update-sam', [OperationController::class, 'updateStandardTime'])
-                ->middleware('permission:editar listados operacionales|editar sabana productos')
-                ->name('update-sam');
-            Route::get('/{operation}/audit-log', [OperationController::class, 'auditLog'])
-                ->middleware('permission:ver listados operacionales|ver sabana productos')
-                ->name('audit-log');
         });
 
-        // Base de datos de operaciones (vista Inertia)
-        Route::get('base-operaciones', [OperationController::class, 'indexView'])
-            ->middleware('permission:ver listados operacionales|ver sabana productos')
-            ->name('base-operaciones.index');
-        Route::get('operaciones/paginated', [OperationController::class, 'paginated'])
-            ->middleware('permission:ver listados operacionales|ver sabana productos')
-            ->name('operaciones.paginated');
-
-        // Máquinas
+        // MÃ¡quinas
         Route::prefix('maquinas')->name('maquinas.')->group(function () {
             Route::get('/data', [MachineController::class, 'data'])->name('data');
             Route::post('/', [MachineController::class, 'store'])
@@ -182,14 +224,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 
-    // === CONTROL DE LOTES ===
-    Route::prefix('control-de-lotes')->name('control-de-lotes.')->group(function () {
-        Route::get('/', [BatchControlController::class, 'index'])->name('index');
-        Route::get('/data', [BatchControlController::class, 'getData'])->name('data');
-        Route::patch('/{programmer}/proceso', [BatchControlController::class, 'updateProcess'])->name('update-process');
-    });
-
-    // === DISEÑO ===
+    // === DISEÃ‘O ===
     Route::get('produccion/ordenes-produccion', [ProductionOrderController::class, 'index'])
         ->middleware('permission:ver sabana productos')
         ->name('production.orders.index');
@@ -216,16 +251,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('programador/{programador}', [ProgrammerController::class, 'destroy'])
             ->middleware('permission:eliminar programador')
             ->name('programador.destroy');
-
-        Route::get('programador/{programador}/operaciones', [ProgrammerController::class, 'getOperacionesOrden'])
-            ->middleware('permission:ver programador')
-            ->name('programador.operaciones');
-        Route::patch('programador/{programador}/operaciones/{operacion}/progreso', [ProgrammerController::class, 'updateProgresoOperacion'])
-            ->middleware('permission:editar programador')
-            ->name('programador.operaciones.progreso');
+    });
+    Route::prefix('control-de-lotes')->name('control-de-lotes.')->group(function () {
+        Route::get('/', [BatchControlController::class, 'index'])->name('index');
+        Route::get('/data', [BatchControlController::class, 'getData'])->name('data');
+        Route::patch('/{programmer}/proceso', [BatchControlController::class, 'updateProcess'])->name('update-process');
     });
 
-    // ===CONFIGURACIÓN ===
+
+    // ===CONFIGURACIÃ“N ===
     Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')
         ->name('configuracion');
@@ -284,7 +318,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:eliminar roles')
         ->name('roles.destroy');
 
-    // === AUDITORÍA ===
+    // === AUDITORÃA ===
     Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('auditoria', [AuditLogController::class, 'index'])
             ->name('auditoria.index')
@@ -354,15 +388,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === FABRIC ROLLS ===
     Route::prefix('rollos-tela')->name('fabric-rolls.')->group(function () {
-        Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'index'])->name('index');
-        Route::get('/crear', [App\Http\Controllers\Inventory\FabricRollController::class, 'create'])->name('create');
-        Route::get('/data', [App\Http\Controllers\Inventory\FabricRollController::class, 'getData'])->name('getData');
-        Route::post('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'store'])->name('store');
-        Route::get('/{fabricRoll}', [App\Http\Controllers\Inventory\FabricRollController::class, 'show'])->name('show');
-        Route::get('/{fabricRoll}/editar', [App\Http\Controllers\Inventory\FabricRollController::class, 'edit'])->name('edit');
-        Route::put('/{fabricRoll}', [App\Http\Controllers\Inventory\FabricRollController::class, 'update'])->name('update');
-        Route::delete('/{fabricRoll}', [App\Http\Controllers\Inventory\FabricRollController::class, 'destroy'])->name('destroy');
-        Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Inventory\FabricRollController::class, 'updateOutput'])->name('update-output');
+        Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'index'])->name('index');
+        Route::get('/crear', [App\Http\Controllers\Textil\FabricRollController::class, 'create'])->name('create');
+        Route::get('/data', [App\Http\Controllers\Textil\FabricRollController::class, 'getData'])->name('getData');
+        Route::post('/', [App\Http\Controllers\Textil\FabricRollController::class, 'store'])->name('store');
+        Route::get('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'show'])->name('show');
+        Route::get('/{fabricRoll}/editar', [App\Http\Controllers\Textil\FabricRollController::class, 'edit'])->name('edit');
+        Route::put('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'update'])->name('update');
+        Route::delete('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'destroy'])->name('destroy');
+        Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Textil\FabricRollController::class, 'updateOutput'])->name('update-output');
     });
 
     // === GASTOS (AGRUPADO) ===
@@ -376,7 +410,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update');
             Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
             
-            // Acciones de transición de estados
+            // Acciones de transiciÃ³n de estados
             Route::post('/{purchaseRequest}/send-to-approval', [PurchaseRequestController::class, 'sendToApproval'])->name('send-to-approval');
             Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])->name('approve');
             Route::post('/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
@@ -405,7 +439,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update');
             Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
             Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify');
-            // Recepción de facturas NO tela
+            // RecepciÃ³n de facturas NO tela
             Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive');
             Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject');
         });
@@ -421,10 +455,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 
-    // === Catálogos para campos parametrizables ===
+    // === CatÃ¡logos para campos parametrizables ===
     Route::get('catalogos/sections', [SectionController::class, 'data']);
-    // Route::get('catalogos/groups', [GroupController::class, 'data']); // GroupController pendiente de crear
-        // Rutas eliminadas: brands, worlds, fabric-bases, yarn-bases (controllers no existen)
+        // Rutas eliminadas: groups, brands, worlds, fabric-bases, yarn-bases (controllers no existen)
 
     // === RETENCIONES ===
     Route::prefix('retenciones')->name('retenciones.')->group(function () {
@@ -449,20 +482,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // === KARDEX TELAS ===
     Route::prefix('kardex-telas')->name('kardex-telas.')->group(function () {
-          Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'kardex'])->name('index');
-          Route::get('/inventario-rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'inventoryRolls'])->name('inventario-rollos');
-          Route::get('/inventario-rollos/data', [App\Http\Controllers\Inventory\FabricRollController::class, 'inventoryRollsData'])->name('inventario-rollos.data');
-          Route::get('/descargue-orden', [App\Http\Controllers\Inventory\FabricRollController::class, 'downloadOrders'])->name('descargue-orden');
-          Route::get('/descargue-orden/descarga', [App\Http\Controllers\Inventory\FabricRollController::class, 'downloadWindow'])->name('descargue-orden.descarga');
-          Route::get('/exportar-rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'exportRolls'])->name('exportar-rollos');
+          Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'kardex'])->name('index');
+          Route::get('/inventario-rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRolls'])->name('inventario-rollos');
+          Route::get('/inventario-rollos/data', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRollsData'])->name('inventario-rollos.data');
+          Route::get('/descargue-orden', [App\Http\Controllers\Textil\FabricRollController::class, 'downloadOrders'])->name('descargue-orden');
+          Route::get('/descargue-orden/descarga', [App\Http\Controllers\Textil\FabricRollController::class, 'downloadWindow'])->name('descargue-orden.descarga');
+          Route::get('/exportar-rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'exportRolls'])->name('exportar-rollos');
         Route::prefix('recepcion')->name('reception.')->group(function () {
-            Route::get('/', [App\Http\Controllers\Inventory\FabricRollController::class, 'reception'])->name('index');
-            Route::get('/{invoice}', [App\Http\Controllers\Inventory\FabricRollController::class, 'receptionShow'])->name('show');
-            Route::patch('/{invoice}/aprobar', [App\Http\Controllers\Inventory\FabricRollController::class, 'approveReception'])->name('approve');
-            Route::patch('/{invoice}/rechazar', [App\Http\Controllers\Inventory\FabricRollController::class, 'rejectReception'])->name('reject');
+            Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'reception'])->name('index');
+            Route::get('/{invoice}', [App\Http\Controllers\Textil\FabricRollController::class, 'receptionShow'])->name('show');
+            Route::patch('/{invoice}/aprobar', [App\Http\Controllers\Textil\FabricRollController::class, 'approveReception'])->name('approve');
+            Route::patch('/{invoice}/rechazar', [App\Http\Controllers\Textil\FabricRollController::class, 'rejectReception'])->name('reject');
         });
-        Route::post('/rollos', [App\Http\Controllers\Inventory\FabricRollController::class, 'storeFromReception'])->name('rollos.store');
-        Route::get('/rollos/item/{itemId}', [App\Http\Controllers\Inventory\FabricRollController::class, 'getByInvoiceItem'])->name('rollos.by-item');
+        Route::post('/rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'storeFromReception'])->name('rollos.store');
+        Route::get('/rollos/item/{itemId}', [App\Http\Controllers\Textil\FabricRollController::class, 'getByInvoiceItem'])->name('rollos.by-item');
     });
 
     // === INVENTARIO ===

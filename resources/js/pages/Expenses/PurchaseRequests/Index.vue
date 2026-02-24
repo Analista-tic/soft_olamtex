@@ -1,27 +1,41 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import EditButton from '@/components/common/EditButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
+import Input from '@/components/ui/input/Input.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import Input from '@/components/ui/input/Input.vue';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useAlertStack } from '@/composables/useAlert';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { PurchaseRequest } from '@/domain/purchases';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { CheckCircle, Eye, MoreVertical, PlusCircle, Search, Send, X, XCircle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import { Eye, PlusCircle, Search, MoreVertical, CheckCircle, XCircle, Send, X } from 'lucide-vue-next';
+import EditButton from '@/components/common/EditButton.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useAlertStack } from '@/composables/useAlert';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { PurchaseRequest } from '@/domain/Expenses';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
 
-const breadcrumbs = [{ title: 'Solicitud de compra', href: '/solicitudes-compra' }];
+const breadcrumbs = [
+    { title: 'Solicitud de compra', href: '/solicitudes-compra' },
+];
 
 const requests = ref<PurchaseRequest[]>([]);
 const searchQuery = ref('');
@@ -41,7 +55,14 @@ const isDateToActive = computed(() => Boolean(dateTo.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
-const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError } = useAlertStack();
+const {
+    successMessage,
+    errorMessage,
+    errorType,
+    clearSuccess,
+    clearError,
+    showError,
+} = useAlertStack();
 
 const statusOptions = [
     { id: 'all', name: 'Todos los estados' },
@@ -70,6 +91,7 @@ const statusBadgeStyles: Record<string, string> = {
     rejected: 'bg-red-100 text-red-800',
     cancelled: 'bg-slate-100 text-slate-800',
 };
+
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
@@ -114,7 +136,7 @@ const getRequestItemsPreview = (request: PurchaseRequest) => {
             items = [];
         }
     }
-
+    
     const names = items
         .map((item) => {
             const rawName = item.name || item.item?.name || item.item_name || item.description;
@@ -336,8 +358,12 @@ async function fetchRequests() {
     }
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
-        const rows = Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
-
+        const rows = Array.isArray(response.data?.data)
+            ? response.data.data
+            : Array.isArray(response.data)
+                ? response.data
+                : [];
+        
         // Asegurar que items sea un array en cada solicitud
         requests.value = rows.map((request: any) => {
             if (request.items && typeof request.items === 'string') {
@@ -351,7 +377,7 @@ async function fetchRequests() {
             }
             return request;
         });
-
+        
         clearError();
     } catch (error) {
         requests.value = [];
@@ -389,11 +415,13 @@ onMounted(() => {
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="space-y-1">
                     <h1 class="text-lg font-bold">Solicitud de Compra y Servicios</h1>
-                    <p class="text-sm text-muted-foreground">Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.</p>
+                    <p class="text-sm text-muted-foreground">
+                        Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.
+                    </p>
                 </div>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="openCreateRequest"
                 >
                     <PlusCircle class="h-4 w-4" />
@@ -402,10 +430,10 @@ onMounted(() => {
             </div>
 
             <FilterBar align="start">
-                <FilterField label="Buscar solicitud" :active="isSearchActive" class="min-w-[220px] flex-1">
+                <FilterField label="Buscar solicitud" :active="isSearchActive" class="flex-1 min-w-[220px]">
                     <div class="relative">
                         <Input v-model="searchQuery" placeholder="Buscar solicitud" class="h-10 w-full pl-10" />
-                        <span class="pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2 pointer-events-none">
                             <Search class="h-4 w-4 text-muted-foreground" />
                         </span>
                     </div>
@@ -468,22 +496,31 @@ onMounted(() => {
                                 <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
                                 <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
                                 <TableCell>
-                                    <span :class="['inline-flex rounded-full px-2 py-1 text-xs font-semibold', getStatusClasses(request.status)]">
+                                    <span
+                                        :class="[
+                                            'inline-flex rounded-full px-2 py-1 text-xs font-semibold',
+                                            getStatusClasses(request.status),
+                                        ]"
+                                    >
                                         {{ getStatusLabel(request.status) }}
                                     </span>
                                 </TableCell>
-                                <TableCell class="flex items-center justify-center gap-2">
+                                <TableCell class="flex justify-center items-center gap-2">
                                     <button
-                                        class="flex items-center text-gray-500 transition-colors duration-200 hover:text-blue-500"
+                                        class="flex items-center text-gray-500 hover:text-blue-500 transition-colors duration-200"
                                         @click="viewRequest(request)"
                                         title="Ver detalles"
                                     >
-                                        <Eye class="h-4 w-4" />
+                                        <Eye class="w-4 h-4" />
                                     </button>
-                                    <EditButton v-if="canEditRequest(request)" :onClick="() => editRequest(request)" title="Editar solicitud" />
-                                    <DeleteButton
+                                    <EditButton 
+                                        v-if="canEditRequest(request)"
+                                        :onClick="() => editRequest(request)" 
+                                        title="Editar solicitud"
+                                    />
+                                    <DeleteButton 
                                         v-if="canEditRequest(request) || request.status === 'cancelled'"
-                                        :onClick="() => confirmDeleteRequest(request)"
+                                        :onClick="() => confirmDeleteRequest(request)" 
                                         title="Eliminar solicitud"
                                     />
                                     <DropdownMenu
@@ -491,10 +528,10 @@ onMounted(() => {
                                     >
                                         <DropdownMenuTrigger as-child>
                                             <button
-                                                class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700"
+                                                class="flex items-center text-gray-500 hover:text-gray-700 transition-colors duration-200"
                                                 title="Más acciones"
                                             >
-                                                <MoreVertical class="h-4 w-4" />
+                                                <MoreVertical class="w-4 h-4" />
                                             </button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" class="w-48">
@@ -568,3 +605,4 @@ onMounted(() => {
         @confirm="handleReject"
     />
 </template>
+

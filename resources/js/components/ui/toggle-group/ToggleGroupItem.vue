@@ -25,3 +25,4 @@ const forwarded = useForwardProps(delegatedProps)
         <slot />
     </ToggleGroupItem>
 </template>
+

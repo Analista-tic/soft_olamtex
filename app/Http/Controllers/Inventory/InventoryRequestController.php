@@ -7,6 +7,7 @@ use App\Models\Inventory\InventoryRequest;
 use App\Services\Inventory\InventoryRequestService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -22,11 +23,11 @@ class InventoryRequestController extends Controller
     public function getData(Request $request)
     {
         $user = Auth::user();
-        $isLogistics = $this->isLogisticsUser($user);
+        $canManageRequests = $this->canManageRequests($user);
         $filters = $request->only(['search', 'status', 'date_from', 'date_to']);
         $perPage = $request->input('per_page', 10);
 
-        $requests = $this->service->paginate($filters, $perPage, $user, $isLogistics);
+        $requests = $this->service->paginate($filters, $perPage, $user, $canManageRequests);
         $rows = array_map(function (InventoryRequest $req) {
             $hasMissing = $req->relationLoaded('items')
                 ? $req->items->contains(fn ($item) => $item->item_id === null)
@@ -50,7 +51,8 @@ class InventoryRequestController extends Controller
             'data' => $rows,
             'total' => $requests->total(),
             'current_page' => $requests->currentPage(),
-            'is_logistics' => $isLogistics,
+            'can_manage_requests' => $canManageRequests,
+            'is_logistics' => $canManageRequests,
             'current_user_id' => $user?->id,
         ]);
     }
@@ -165,7 +167,7 @@ class InventoryRequestController extends Controller
     private function ensureCanView(InventoryRequest $inventoryRequest): void
     {
         $user = $this->requireUser();
-        if ($this->isLogisticsUser($user)) {
+        if ($this->canManageRequests($user)) {
             return;
         }
 
@@ -184,27 +186,48 @@ class InventoryRequestController extends Controller
 
     private function ensureCanManage(InventoryRequest $inventoryRequest): void
     {
-        if (!$this->isLogisticsUser($this->requireUser())) {
-            abort(403, 'Solo logistica puede aprobar o rechazar solicitudes.');
+        if (!$this->canManageRequests($this->requireUser())) {
+            abort(403, 'No tiene permiso para gestionar solicitudes internas.');
         }
     }
 
-    private function isLogisticsUser($user): bool
+    private function canManageRequests($user): bool
     {
         if (!$user) {
             return false;
         }
 
-        if ($user->hasRole('admin')) {
+        if (
+            $user->can('gestionar solicitudes internas')
+            || $user->can('aprobar solicitudes internas')
+            || $user->can('inventory.requests.manage')
+        ) {
             return true;
         }
 
-        if ($user->can('gestionar solicitudes internas') || $user->can('aprobar solicitudes internas')) {
+        if (!$user->relationLoaded('roles')) {
+            $user->loadMissing('roles');
+        }
+
+        $normalizedRoleNames = collect($user->roles ?? [])
+            ->pluck('name')
+            ->filter()
+            ->map(fn ($name) => (string) Str::of(trim((string) $name))->ascii()->lower())
+            ->values()
+            ->all();
+
+        if (in_array('admin', $normalizedRoleNames, true)) {
             return true;
         }
 
-        $roles = ['logistica', 'logistics', 'inventario'];
-        return method_exists($user, 'hasAnyRole') ? $user->hasAnyRole($roles) : false;
+        $logisticsRoles = ['logistica', 'logistics'];
+        foreach ($logisticsRoles as $role) {
+            if (in_array($role, $normalizedRoleNames, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function requireUser()

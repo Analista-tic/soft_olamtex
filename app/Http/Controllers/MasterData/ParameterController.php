@@ -5,7 +5,9 @@ namespace App\Http\Controllers\MasterData;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MasterData\StoreParameterRequest;
 use App\Http\Requests\MasterData\UpdateParameterRequest;
+use App\Models\Settings\Setting;
 use App\Services\MasterData\ParameterService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -52,5 +54,11 @@ class ParameterController extends Controller
         $this->service->delete((int) $id);
 
         return response()->noContent();
+    }
+
+    public function areas(): JsonResponse
+    {
+        $setting = Setting::parameters()->where('key', 'areas')->first();
+        return response()->json($setting ? $setting->value : []);
     }
 }

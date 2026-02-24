@@ -31,3 +31,4 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
     <NavigationMenuViewport />
   </NavigationMenuRoot>
 </template>
+

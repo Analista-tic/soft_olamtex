@@ -8,8 +8,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import type { PurchaseOrder } from '@/domain/purchases';
-import type { Item } from '@/domain/inventory';
+import type { PurchaseOrder } from '@/domain/Expenses';
+import type { Item } from '@/domain/MasterData';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText, CheckCircle } from 'lucide-vue-next';
@@ -484,3 +484,4 @@ function handleDialogError(message?: string) {
         />
     </AppLayout>
 </template>
+

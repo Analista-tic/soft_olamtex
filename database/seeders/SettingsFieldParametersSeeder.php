@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Setting;
+use App\Models\Settings\Setting;
 use App\Services\Settings\SettingService;
 use Illuminate\Database\Seeder;
 
@@ -210,6 +210,24 @@ class SettingsFieldParametersSeeder extends Seeder
             ],
             [
                 'kind' => 'parameter',
+                'key' => 'cutting_cost',
+                'data' => [
+                    'label' => 'Costo corte',
+                    'value' => 350,
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'minute_cost',
+                'data' => [
+                    'label' => 'Costo minuto',
+                    'value' => 120,
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
                 'key' => 'lines',
                 'data' => [
                     'label' => 'Líneas',
@@ -295,6 +313,96 @@ class SettingsFieldParametersSeeder extends Seeder
                     'status' => true,
                 ],
             ],
+            [
+                'kind' => 'parameter',
+                'key' => 'process_types',
+                'data' => [
+                    'label' => 'Tipos de proceso',
+                    'value' => $this->mapNames([
+                        'CORTE',
+                        'CONFECCION',
+                        'TERMINACION',
+                        'ESTAMPADO',
+                        'BORDADO',
+                        'LAVANDERIA',
+                        'OTRO',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'calibre',
+                'data' => [
+                    'label' => 'Calibre',
+                    'value' => $this->mapNames([
+                        '120', '75', '40', '0',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'puntada_por_pulgada',
+                'data' => [
+                    'label' => 'Puntada por pulgada',
+                    'value' => $this->mapNames([
+                        '8', '10', '11', '12', '0',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'piezas',
+                'data' => [
+                    'label' => 'Piezas',
+                    'value' => $this->mapNames([
+                        'DELANTERO',
+                        'TRASERO',
+                        'FRENTE',
+                        'ESPALDA',
+                        'MANGAS',
+                        'CUELLO',
+                        'PRETINA',
+                        'CAPOTA',
+                        'PUÑO',
+                        'SESGO',
+                        'TIRA',
+                        'BOLSILLO',
+                        'TAPA',
+                        'FALSO',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'lateral',
+                'data' => [
+                    'label' => 'Lateral',
+                    'value' => $this->mapNames([
+                        'IZQUIERDA',
+                        'DERECHA',
+                        'AMBOS',
+                        'NO APLICA',
+                    ]),
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'hilo',
+                'data' => [
+                    'label' => 'Hilo',
+                    'value' => $this->mapNames([
+                        '90',
+                        '180',
+                        'SESGO',
+                    ]),
+                    'status' => true,
+                ],
+            ],
         ];
 
         // Definiciones de campos
@@ -344,7 +452,11 @@ class SettingsFieldParametersSeeder extends Seeder
         $existing = $this->existingAliasFor($canonicalKey);
 
         if ($existing) {
-            $payload['value'] = $existing->value ?? $payload['value'] ?? [];
+            $payload['value'] = $this->mergeParameterOptions(
+                $canonicalKey,
+                $existing->value ?? [],
+                $payload['value'] ?? []
+            );
             $payload['label'] = $existing->label ?? $payload['label'] ?? null;
             if ($existing->description !== null) {
                 $payload['description'] = $existing->description;
@@ -391,6 +503,82 @@ class SettingsFieldParametersSeeder extends Seeder
             'destinations' => ['destinations', 'destinos', 'destino'],
             'months' => ['months', 'meses', 'mes'],
             'priorities' => ['priorities', 'prioridades', 'prioridad'],
+            'process_types' => ['process_types', 'tipos_proceso', 'tipos_de_proceso', 'tipo_proceso', 'process_type', 'processes'],
+            'calibre' => ['calibre', 'calibres', 'gauge'],
+            'puntada_por_pulgada' => ['puntada_por_pulgada', 'puntadas_por_pulgada', 'stitches_per_inch'],
+        ];
+    }
+
+    private function mergeParameterOptions(string $canonicalKey, mixed $existingValue, mixed $seedValue): mixed
+    {
+        $orderedDefaults = $this->orderedOptionNames()[$canonicalKey] ?? null;
+        if ($orderedDefaults === null) {
+            return $existingValue ?: $seedValue;
+        }
+
+        $existingRows = is_array($existingValue) ? $existingValue : [];
+        $seedRows = is_array($seedValue) ? $seedValue : [];
+        $byName = [];
+
+        $capture = static function (mixed $row) use (&$byName): void {
+            if (is_array($row)) {
+                $name = trim((string) ($row['name'] ?? ''));
+                if ($name === '' && isset($row['value'])) {
+                    $name = trim((string) $row['value']);
+                }
+                if ($name !== '') {
+                    $row['name'] = $name;
+                    $byName[$name] = $row;
+                }
+                return;
+            }
+
+            if (is_scalar($row)) {
+                $name = trim((string) $row);
+                if ($name !== '') {
+                    $byName[$name] = ['name' => $name];
+                }
+            }
+        };
+
+        foreach ($seedRows as $row) {
+            $capture($row);
+        }
+        foreach ($existingRows as $row) {
+            $capture($row);
+        }
+
+        $merged = [];
+        $id = 1;
+
+        foreach ($orderedDefaults as $name) {
+            $name = (string) $name;
+            $row = $byName[$name] ?? ['name' => $name];
+            $row['id'] = $id++;
+            $row['name'] = $name;
+            $merged[] = $row;
+            unset($byName[$name]);
+        }
+
+        foreach ($byName as $row) {
+            $name = trim((string) ($row['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $row['id'] = $id++;
+            $row['name'] = $name;
+            $merged[] = $row;
+        }
+
+        return $merged;
+    }
+
+    private function orderedOptionNames(): array
+    {
+        return [
+            'calibre' => ['120', '75', '40', '0'],
+            'puntada_por_pulgada' => ['8', '10', '11', '12', '0'],
         ];
     }
 

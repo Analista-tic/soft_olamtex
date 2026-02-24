@@ -20,3 +20,4 @@ const delegatedProps = computed(() => {
     </slot>
   </PaginationEllipsis>
 </template>
+

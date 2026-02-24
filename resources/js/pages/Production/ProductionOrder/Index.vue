@@ -3,10 +3,33 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Badge } from '@/components/ui/badge';
+import { useAlertStack } from '@/composables/useAlert';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { ProductSheet, Programmer } from '@/domain/Production';
+import type { BreadcrumbItem, Option } from '@/domain/shared/types';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head, router } from '@inertiajs/vue3';
+import axios from 'axios';
+import { ClipboardPen, Eye, PackageCheck, PackageSearch, Search } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import Input from '@/components/ui/input/Input.vue';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import ProductionOrderDialog from '@/pages/Production/ProductionOrder/ProductionOrderDialog.vue';
+import {
+    Card,
+    CardContent,
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     Pagination,
     PaginationEllipsis,
@@ -17,20 +40,12 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useAlertStack } from '@/composables/useAlert';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { ProductSheet, Programmer } from '@/domain/product-sheet';
-import type { BreadcrumbItem, Option } from '@/domain/shared/types';
-import AppLayout from '@/layouts/AppLayout.vue';
-import ProductionOrderDialog from '@/pages/Production/ProductionOrder/ProductionOrderDialog.vue';
-import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import { ClipboardPen, Eye, PackageCheck, PackageSearch, Search } from 'lucide-vue-next';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 // -----------------------------------------------------------------------------
 // Imports / props / breadcrumbs
@@ -129,7 +144,14 @@ const statusOptions: Option[] = [
 // -----------------------------------------------------------------------------
 // State & filters
 // -----------------------------------------------------------------------------
-const { successMessage, errorMessage, errorType, showError, clearSuccess, clearError } = useAlertStack();
+const {
+    successMessage,
+    errorMessage,
+    errorType,
+    showError,
+    clearSuccess,
+    clearError,
+} = useAlertStack();
 
 const scope = ref<SectionScope>('samples');
 const isLoading = ref(false);
@@ -154,9 +176,7 @@ let activeFetchController: AbortController | null = null;
 // Pure helpers (op/type/reference/badges)
 // -----------------------------------------------------------------------------
 function getOpCode(row: Programmer): string {
-    return String(row.op_code ?? '')
-        .trim()
-        .toUpperCase();
+    return String(row.op_code ?? '').trim().toUpperCase();
 }
 
 function getTypeCode(row: Programmer): TypeCode {
@@ -264,8 +284,12 @@ const searchQuery = computed<string | undefined>(() => {
     const value = filters.value.search.trim();
     return value === '' ? undefined : value;
 });
-const statusQuery = computed<StatusFilter | undefined>(() => (filters.value.status === DEFAULT_STATUS_VALUE ? undefined : filters.value.status));
-const destinationQuery = computed<string | undefined>(() => (filters.value.destination_id === 'all' ? undefined : filters.value.destination_id));
+const statusQuery = computed<StatusFilter | undefined>(() =>
+    filters.value.status === DEFAULT_STATUS_VALUE ? undefined : filters.value.status,
+);
+const destinationQuery = computed<string | undefined>(() =>
+    filters.value.destination_id === 'all' ? undefined : filters.value.destination_id,
+);
 
 const statusButtonClasses = useFilterButtonClasses(isStatusActive);
 const typeButtonClasses = useFilterButtonClasses(isTypeActive);
@@ -320,13 +344,16 @@ const emptyStateText = computed(() =>
 // -----------------------------------------------------------------------------
 // Watchers
 // -----------------------------------------------------------------------------
-watch([() => scope.value, () => filters.value.search, () => filters.value.status, () => filters.value.destination_id], ([nextScope], [prevScope]) => {
-    const scopeChanged = nextScope !== prevScope;
-    if (scopeChanged) {
-        filters.value.type = 'all';
-    }
-    scheduleFetch(scopeChanged);
-});
+watch(
+    [() => scope.value, () => filters.value.search, () => filters.value.status, () => filters.value.destination_id],
+    ([nextScope], [prevScope]) => {
+        const scopeChanged = nextScope !== prevScope;
+        if (scopeChanged) {
+            filters.value.type = 'all';
+        }
+        scheduleFetch(scopeChanged);
+    },
+);
 
 watch(
     () => filters.value.type,
@@ -361,8 +388,8 @@ function viewRow(row: Programmer) {
 }
 
 function openTechSheet(row: Programmer) {
-    console.log('Ficha técnica OP', row);
-    // TODO: Implementar navegación a ficha técnica
+    if (!row.id) return;
+    router.visit(`/produccion/ficha-tecnica?op_id=${row.id}`);
 }
 
 function handleCreateTechSheetFromDialog(productionOrderId: number) {
@@ -385,14 +412,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head title="Ordenes de produccion" />
+    <Head title="Órdenes de producción" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <AlertStack
             :success-message="successMessage"
             :error-message="errorMessage"
             :error-type="errorType"
-            success-title="Operacion exitosa"
+            success-title="Operación exitosa"
             error-title="Aviso"
             @close-success="clearSuccess"
             @close-error="clearError"
@@ -401,17 +428,22 @@ onUnmounted(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl px-2 py-3">
             <div class="flex flex-col gap-1">
                 <h1 class="text-lg font-bold">Órdenes de producción</h1>
-                <p class="text-sm text-muted-foreground">Seguimiento y detalles de órdenes de producción (muestras y productos)</p>
+                <p class="text-sm text-muted-foreground">Seguimiento y detalles de Órdenes de producción (muestras y productos)</p>
             </div>
 
             <div class="grid grid-cols-12 gap-4">
                 <div class="col-span-12">
-                    <Card class="border-0 bg-transparent shadow-none">
+                    <Card class="border-0 shadow-none bg-transparent">
                         <CardContent class="space-y-5 px-3">
                             <div class="flex flex-col gap-2">
                                 <div class="min-w-0">
                                     <div class="overflow-x-auto">
-                                        <ToggleGroup v-model="scope" type="single" variant="outline" :class="toggleGroupBaseClass">
+                                        <ToggleGroup
+                                            v-model="scope"
+                                            type="single"
+                                            variant="outline"
+                                            :class="toggleGroupBaseClass"
+                                        >
                                             <ToggleGroupItem
                                                 v-for="option in scopeOptions"
                                                 :key="option.value"
@@ -428,7 +460,7 @@ onUnmounted(() => {
                             </div>
 
                             <FilterBar align="start" gap="gap-3">
-                                <FilterField label="Buscar referencia" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
+                                <FilterField label="Buscar referencia" :active="isSearchActive" class="flex-1 min-w-[220px] p-0">
                                     <div class="relative w-full">
                                         <Input
                                             v-model="filters.search"
@@ -443,11 +475,19 @@ onUnmounted(() => {
                                 </FilterField>
 
                                 <FilterField label="Estado" :active="isStatusActive" class="min-w-[160px]">
-                                    <SelectField v-model="filters.status" :options="statusOptions" :button-class="statusButtonClasses" />
+                                    <SelectField
+                                        v-model="filters.status"
+                                        :options="statusOptions"
+                                        :button-class="statusButtonClasses"
+                                    />
                                 </FilterField>
 
                                 <FilterField label="Tipo" :active="isTypeActive" class="min-w-[160px]">
-                                    <SelectField v-model="filters.type" :options="typeOptions" :button-class="typeButtonClasses" />
+                                    <SelectField
+                                        v-model="filters.type"
+                                        :options="typeOptions"
+                                        :button-class="typeButtonClasses"
+                                    />
                                 </FilterField>
 
                                 <FilterField label="Destino" :active="isDestinationActive" class="min-w-[180px]">
@@ -461,92 +501,94 @@ onUnmounted(() => {
 
                             <div class="mt-2 overflow-hidden rounded-xl border border-sidebar-border/70">
                                 <TooltipProvider>
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead class="text-center">OP</TableHead>
-                                                <TableHead class="text-center">Tipo</TableHead>
-                                                <TableHead class="text-center">Referencia</TableHead>
-                                                <TableHead class="text-center">Temporada</TableHead>
-                                                <TableHead class="text-center">Destino</TableHead>
-                                                <TableHead class="text-center">Unidades</TableHead>
-                                                <TableHead class="text-center">Estado</TableHead>
-                                                <TableHead class="w-[120px] text-center">Acciones</TableHead>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead class="text-center">OP</TableHead>
+                                            <TableHead class="text-center">Tipo</TableHead>
+                                            <TableHead class="text-center">Referencia</TableHead>
+                                            <TableHead class="text-center">Temporada</TableHead>
+                                            <TableHead class="text-center">Destino</TableHead>
+                                            <TableHead class="text-center">Unidades</TableHead>
+                                            <TableHead class="text-center">Estado</TableHead>
+                                            <TableHead class="text-center w-[120px]">Acciones</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+
+                                    <TableBody>
+                                        <template v-if="isLoading">
+                                            <TableRow v-for="row in 6" :key="`sk-${row}`">
+                                                <TableCell v-for="col in 8" :key="`sk-${row}-${col}`" class="text-center">
+                                                    <Skeleton class="h-4 w-full" />
+                                                </TableCell>
                                             </TableRow>
-                                        </TableHeader>
+                                        </template>
 
-                                        <TableBody>
-                                            <template v-if="isLoading">
-                                                <TableRow v-for="row in 6" :key="`sk-${row}`">
-                                                    <TableCell v-for="col in 8" :key="`sk-${row}-${col}`" class="text-center">
-                                                        <Skeleton class="h-4 w-full" />
-                                                    </TableCell>
-                                                </TableRow>
-                                            </template>
+                                        <template v-else-if="rows.length === 0">
+                                            <TableRow>
+                                                <TableCell colspan="8" class="py-8 text-center text-sm text-muted-foreground">
+                                                    {{ emptyStateText }}
+                                                </TableCell>
+                                            </TableRow>
+                                        </template>
 
-                                            <template v-else-if="rows.length === 0">
-                                                <TableRow>
-                                                    <TableCell colspan="8" class="py-8 text-center text-sm text-muted-foreground">
-                                                        {{ emptyStateText }}
-                                                    </TableCell>
-                                                </TableRow>
-                                            </template>
-
-                                            <template v-else>
-                                                <TableRow
-                                                    v-for="row in rows"
-                                                    :key="row.id"
-                                                    class="cursor-pointer transition-colors hover:bg-muted/40"
-                                                    :class="selectedProgrammerId === row.id ? 'bg-primary/5' : ''"
-                                                    @click="selectRow(row)"
-                                                >
-                                                    <TableCell class="text-center font-medium">{{ getOpCode(row) || `MF${row.id}` }}</TableCell>
-                                                    <TableCell class="text-center">
-                                                        <span class="text-sm font-medium">{{ getTypeCode(row) }}</span>
-                                                    </TableCell>
-                                                    <TableCell class="text-center font-medium">{{ getReference(row) }}</TableCell>
-                                                    <TableCell class="text-center">{{ row.season_display || row.season || '-' }}</TableCell>
-                                                    <TableCell class="text-center">{{ row.destination?.name || '-' }}</TableCell>
-                                                    <TableCell class="text-center">{{ row.units ?? '-' }}</TableCell>
-                                                    <TableCell class="text-center">
-                                                        <Badge :class="getStatusBadgeClass(row)" variant="outline">
-                                                            {{ getStatusText(row) }}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell class="text-center">
-                                                        <div class="flex items-center justify-center gap-2">
-                                                            <Tooltip>
-                                                                <TooltipTrigger as-child>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        :class="actionButtonClass"
-                                                                        @click.stop="viewRow(row)"
-                                                                    >
-                                                                        <Eye :class="actionIconClass" />
-                                                                    </Button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>Ver detalle</TooltipContent>
-                                                            </Tooltip>
-                                                            <Tooltip>
-                                                                <TooltipTrigger as-child>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        :class="actionButtonClass"
-                                                                        @click.stop="openTechSheet(row)"
-                                                                    >
-                                                                        <ClipboardPen :class="actionIconClass" />
-                                                                    </Button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>Ficha técnica</TooltipContent>
-                                                            </Tooltip>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            </template>
-                                        </TableBody>
-                                    </Table>
+                                        <template v-else>
+                                            <TableRow
+                                                v-for="row in rows"
+                                                :key="row.id"
+                                                class="cursor-pointer transition-colors hover:bg-muted/40"
+                                                :class="selectedProgrammerId === row.id ? 'bg-primary/5' : ''"
+                                                @click="selectRow(row)"
+                                            >
+                                                <TableCell class="text-center font-medium">{{ getOpCode(row) || `MF${row.id}` }}</TableCell>
+                                                <TableCell class="text-center">
+                                                    <span class="text-sm font-medium">{{ getTypeCode(row) }}</span>
+                                                </TableCell>
+                                                <TableCell class="text-center font-medium">{{ getReference(row) }}</TableCell>
+                                                <TableCell class="text-center">{{ row.season_display || row.season || '-' }}</TableCell>
+                                                <TableCell class="text-center">{{ row.destination?.name || '-' }}</TableCell>
+                                                <TableCell class="text-center">{{ row.units ?? '-' }}</TableCell>
+                                                <TableCell class="text-center">
+                                                    <Badge :class="getStatusBadgeClass(row)" variant="outline">
+                                                        {{ getStatusText(row) }}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell class="text-center">
+                                                    <div class="flex items-center justify-center gap-2">
+                                                        <Tooltip>
+                                                            <TooltipTrigger as-child>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    type="button"
+                                                                    :class="actionButtonClass"
+                                                                    @click.stop.prevent="viewRow(row)"
+                                                                >
+                                                                    <Eye :class="actionIconClass" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Ver detalle</TooltipContent>
+                                                        </Tooltip>
+                                                        <Tooltip>
+                                                            <TooltipTrigger as-child>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    type="button"
+                                                                    :class="actionButtonClass"
+                                                                    @click.stop.prevent="openTechSheet(row)"
+                                                                >
+                                                                    <ClipboardPen :class="actionIconClass" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Ficha técnica</TooltipContent>
+                                                        </Tooltip>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        </template>
+                                    </TableBody>
+                                </Table>
                                 </TooltipProvider>
 
                                 <Pagination
@@ -563,7 +605,12 @@ onUnmounted(() => {
                                         <PaginationPrev />
 
                                         <template v-for="(item, index) in items">
-                                            <PaginationListItem v-if="item.type === 'page'" :key="`page-${item.value}`" :value="item.value" as-child>
+                                            <PaginationListItem
+                                                v-if="item.type === 'page'"
+                                                :key="`page-${item.value}`"
+                                                :value="item.value"
+                                                as-child
+                                            >
                                                 <Button
                                                     class="h-7 w-7 p-0"
                                                     :variant="item.value === currentPage ? 'default' : 'outline'"
@@ -593,3 +640,6 @@ onUnmounted(() => {
         @create-tech-sheet="handleCreateTechSheetFromDialog"
     />
 </template>
+
+
+

@@ -11,3 +11,4 @@ const props = defineProps<{
         <slot />
     </nav>
 </template>
+

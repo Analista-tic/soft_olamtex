@@ -66,3 +66,4 @@ function navigate(event: KeyboardEvent, currentIndex: number) {
         </button>
     </div>
 </template>
+

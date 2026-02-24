@@ -2,9 +2,10 @@
 
 namespace App\Models\Inventory;
 
-use App\Models\Common\Warehouse;
+use App\Models\MasterData\Item;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class InventoryRequestItem extends Model
 {
@@ -24,17 +25,17 @@ class InventoryRequestItem extends Model
         'delivered_quantity' => 'decimal:4',
     ];
 
-    public function request()
+    public function request(): BelongsTo
     {
         return $this->belongsTo(InventoryRequest::class, 'inventory_request_id');
     }
 
-    public function item()
+    public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
     }
 
-    public function warehouse()
+    public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
     }

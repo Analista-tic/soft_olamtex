@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Expenses;
 
 use App\Http\Controllers\Expenses\Concerns\ValidatesPurchaseInvoiceRequest;
-use App\Http\Controllers\Expenses\PurchaseDocumentController;
 use App\Models\Expenses\PurchaseDocument;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use Illuminate\Http\Request;

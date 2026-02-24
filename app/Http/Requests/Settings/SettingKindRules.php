@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\Settings;
 
-use App\Models\Setting;
+use App\Models\Settings\Setting;
 use Illuminate\Validation\Rule;
 
 final class SettingKindRules

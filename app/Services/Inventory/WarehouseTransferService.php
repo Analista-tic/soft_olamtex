@@ -3,10 +3,10 @@
 namespace App\Services\Inventory;
 
 use App\Models\Inventory\InventoryMovement;
-use App\Models\Inventory\Item;
+use App\Models\MasterData\Item;
 use App\Models\Inventory\WarehouseTransfer;
 use App\Models\Inventory\WarehouseTransferItem;
-use App\Models\User;
+use App\Models\Settings\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;

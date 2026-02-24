@@ -40,3 +40,4 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits);
         <slot />
     </DropdownMenuCheckboxItem>
 </template>
+

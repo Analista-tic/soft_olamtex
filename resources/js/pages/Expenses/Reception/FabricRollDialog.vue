@@ -5,7 +5,7 @@ import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { PurchaseInvoiceItem } from '@/domain/purchases';
+import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 import axios from 'axios';
 import { Pencil, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -550,3 +550,4 @@ onMounted(() => {
         </DialogContent>
     </Dialog>
 </template>
+

@@ -2,17 +2,15 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\Setting;
+use App\Models\Settings\User;
+use App\Models\Settings\Setting;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\WarehouseTransferService;
-use App\Services\ProductSheet\ProgrammerService;
+use App\Services\Production\ProgrammerService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ExampleDataSeeder extends Seeder
@@ -366,7 +364,7 @@ class ExampleDataSeeder extends Seeder
             'withholdings' => json_encode([
                 ['name' => 'Retefuente', 'percentage' => 2.5, 'base_amount' => 12000.00],
             ]),
-            'reason' => 'Diferencia minima verificada',
+            'reason' => 'Diferencia mínima verificada',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -420,14 +418,14 @@ class ExampleDataSeeder extends Seeder
             ]);
         }
 
-        // Secciones para listados operacionales (type debe coincidir con enum: confeccion | presentacion)
+        // Secciones para listados operacionales
         $operationSections = [
-            ['name' => 'Delantero', 'type' => 'confeccion'],
-            ['name' => 'Trasero', 'type' => 'confeccion'],
-            ['name' => 'Pretina', 'type' => 'confeccion'],
-            ['name' => 'Ensamble', 'type' => 'confeccion'],
-            ['name' => 'Terminacion', 'type' => 'presentacion'],
-            ['name' => 'Presentacion', 'type' => 'presentacion'],
+            ['name' => 'Delantero', 'type' => 'confección'],
+            ['name' => 'Trasero', 'type' => 'confección'],
+            ['name' => 'Pretina', 'type' => 'confección'],
+            ['name' => 'Ensamble', 'type' => 'confección'],
+            ['name' => 'Terminacion', 'type' => 'presentación'],
+            ['name' => 'Presentacion', 'type' => 'presentación'],
         ];
         foreach ($operationSections as $section) {
             DB::table('operation_sections')->updateOrInsert(
@@ -453,80 +451,33 @@ class ExampleDataSeeder extends Seeder
             );
         }
 
-        // Operaciones (datos completos: section_id, sam_base, measure, quantity, description, machine_id_reference)
-        $sectionIds = [
-            'Delantero' => DB::table('operation_sections')->where('name', 'Delantero')->value('id'),
-            'Trasero' => DB::table('operation_sections')->where('name', 'Trasero')->value('id'),
-            'Pretina' => DB::table('operation_sections')->where('name', 'Pretina')->value('id'),
-            'Ensamble' => DB::table('operation_sections')->where('name', 'Ensamble')->value('id'),
-            'Terminacion' => DB::table('operation_sections')->where('name', 'Terminacion')->value('id'),
-            'Presentacion' => DB::table('operation_sections')->where('name', 'Presentacion')->value('id'),
-        ];
-        $machineIds = [
-            'MF5H' => DB::table('machines')->where('code', 'MF5H')->value('id'),
-            'MPP' => DB::table('machines')->where('code', 'MPP')->value('id'),
-            'PLANC' => DB::table('machines')->where('code', 'PLANC')->value('id'),
-            'OFM' => DB::table('machines')->where('code', 'OFM')->value('id'),
-            'MASH' => DB::table('machines')->where('code', 'MASH')->value('id'),
-        ];
-        $defaultSectionId = $sectionIds['Ensamble'] ?? $sectionIds['Delantero'] ?? null;
-
+        // Operaciones
         $operations = [
-            ['action' => 'CERRAR', 'garment_part' => 'TIRO DELANTERO', 'section' => 'Delantero', 'measure' => null, 'quantity' => 1, 'sam_base' => 0.25, 'machine' => 'MF5H'],
-            ['action' => 'CERRAR', 'garment_part' => 'TIRO TRASERO', 'section' => 'Trasero', 'measure' => null, 'quantity' => 1, 'sam_base' => 0.25, 'machine' => 'MF5H'],
-            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO TRASERO', 'section' => 'Trasero', 'measure' => 15.0, 'quantity' => 2, 'sam_base' => 0.30, 'machine' => 'PLANC'],
-            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO PARCHE TRASERO', 'section' => 'Trasero', 'measure' => 12.0, 'quantity' => 1, 'sam_base' => 0.28, 'machine' => 'PLANC'],
-            ['action' => 'ARMAR', 'garment_part' => 'PRETINA', 'section' => 'Pretina', 'measure' => 4.0, 'quantity' => 1, 'sam_base' => 0.35, 'machine' => 'MPP'],
-            ['action' => 'COSER', 'garment_part' => 'BOLSILLO DELANTERO', 'section' => 'Delantero', 'measure' => 18.0, 'quantity' => 2, 'sam_base' => 0.40, 'machine' => 'MF5H'],
-            ['action' => 'FILETEAR', 'garment_part' => 'COSTADOS', 'section' => 'Ensamble', 'measure' => 45.0, 'quantity' => 2, 'sam_base' => 0.55, 'machine' => 'MF5H'],
-            ['action' => 'PEGAR', 'garment_part' => 'PRETINA', 'section' => 'Pretina', 'measure' => null, 'quantity' => 1, 'sam_base' => 0.22, 'machine' => 'MPP'],
-            ['action' => 'HACER', 'garment_part' => 'OJALES', 'section' => 'Terminacion', 'measure' => 2.0, 'quantity' => 5, 'sam_base' => 0.18, 'machine' => 'OFM'],
-            ['action' => 'PEGAR', 'garment_part' => 'BOTONES', 'section' => 'Terminacion', 'measure' => null, 'quantity' => 5, 'sam_base' => 0.15, 'machine' => null],
-            ['action' => 'ASENTAR', 'garment_part' => 'ELASTICO PRETINA INCORPORADA', 'section' => 'Pretina', 'measure' => 4.0, 'quantity' => 1, 'sam_base' => 0.32, 'machine' => 'MPP'],
-            ['action' => 'ASENTAR', 'garment_part' => 'LOMO BOLSILLO DELANTERO', 'section' => 'Delantero', 'measure' => 14.0, 'quantity' => 1, 'sam_base' => 0.26, 'machine' => 'MF5H'],
-            ['action' => 'ASENTAR', 'garment_part' => 'PRENDIDA DE TAPA', 'section' => 'Ensamble', 'measure' => null, 'quantity' => 1, 'sam_base' => 0.20, 'machine' => 'MF5H'],
-            ['action' => 'ASENTAR', 'garment_part' => 'PRETINA ANTIFLUIDA', 'section' => 'Pretina', 'measure' => 4.0, 'quantity' => 1, 'sam_base' => 0.28, 'machine' => 'MPP'],
-            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR BOTAS', 'section' => 'Terminacion', 'measure' => 6.0, 'quantity' => 2, 'sam_base' => 0.12, 'machine' => 'MASH'],
-            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR CINTURA', 'section' => 'Terminacion', 'measure' => 4.0, 'quantity' => 1, 'sam_base' => 0.10, 'machine' => 'MASH'],
-            ['action' => 'ATRACAR', 'garment_part' => 'HILADILLA', 'section' => 'Ensamble', 'measure' => 3.0, 'quantity' => 2, 'sam_base' => 0.08, 'machine' => 'MASH'],
-            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO BOCA OJAL', 'section' => 'Delantero', 'measure' => 12.0, 'quantity' => 1, 'sam_base' => 0.22, 'machine' => 'MF5H'],
-            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO DELANTERO CURVO CON MALLA', 'section' => 'Delantero', 'measure' => 16.0, 'quantity' => 2, 'sam_base' => 0.45, 'machine' => 'MF5H'],
+            ['action' => 'CERRAR', 'garment_part' => 'TIRO DELANTERO'],
+            ['action' => 'CERRAR', 'garment_part' => 'TIRO TRASERO'],
+            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO TRASERO'],
+            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO PARCHE TRASERO'],
+            ['action' => 'ARMAR', 'garment_part' => 'PRETINA'],
+            ['action' => 'COSER', 'garment_part' => 'BOLSILLO DELANTERO'],
+            ['action' => 'FILETEAR', 'garment_part' => 'COSTADOS'],
+            ['action' => 'PEGAR', 'garment_part' => 'PRETINA'],
+            ['action' => 'HACER', 'garment_part' => 'OJALES'],
+            ['action' => 'PEGAR', 'garment_part' => 'BOTONES'],
+            ['action' => 'ASENTAR', 'garment_part' => 'ELASTICO PRETINA INCORPORADA'],
+            ['action' => 'ASENTAR', 'garment_part' => 'LOMO BOLSILLO DELANTERO'],
+            ['action' => 'ASENTAR', 'garment_part' => 'PRENDIDA DE TAPA'],
+            ['action' => 'ASENTAR', 'garment_part' => 'PRETINA ANTIFLUIDA'],
+            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR BOTAS'],
+            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR CINTURA'],
+            ['action' => 'ATRACAR', 'garment_part' => 'HILADILLA'],
+            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO BOCA OJAL'],
+            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO DELANTERO CURVO CON MALLA'],
         ];
-
-        foreach ($operations as $i => $op) {
-            $sectionId = $sectionIds[$op['section']] ?? $defaultSectionId;
-            $machineId = isset($op['machine']) && $op['machine'] ? ($machineIds[$op['machine']] ?? null) : null;
-            $description = trim(implode(' ', array_filter([
-                $op['action'] . ' ' . $op['garment_part'],
-                $op['measure'] ? "{$op['measure']} cm" : null,
-                $op['quantity'] ? (string) $op['quantity'] : null,
-                $op['section'],
-            ])));
-            $payload = [
-                'section_id' => $sectionId,
-                'measure' => $op['measure'],
-                'quantity' => $op['quantity'],
-                'description' => $description,
-                'sam_base' => $op['sam_base'],
-                'machine_id_reference' => $machineId,
-                'location' => null,
-                'product_sheet_id_reference' => null,
-                'is_active' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
+        foreach ($operations as $operation) {
             DB::table('operations')->updateOrInsert(
-                ['action' => $op['action'], 'garment_part' => $op['garment_part']],
-                $payload
+                ['action' => $operation['action'], 'garment_part' => $operation['garment_part']],
+                ['is_active' => true, 'created_at' => now(), 'updated_at' => now()]
             );
-        }
-
-        // Generar códigos OP-0001, OP-0002, ... para operaciones que no los tienen
-        foreach (DB::table('operations')->whereNull('codigo')->get() as $op) {
-            DB::table('operations')->where('id', $op->id)->update([
-                'codigo' => 'OP-' . str_pad((string) $op->id, 4, '0', STR_PAD_LEFT),
-                'updated_at' => now(),
-            ]);
         }
 
         // Fichas de producto (ProductSheets)
@@ -544,10 +495,7 @@ class ExampleDataSeeder extends Seeder
         
         $programmerService = app(ProgrammerService::class);
 
-        // Asegurar que existan los archivos de boceto referenciados por las fichas de ejemplo
-        $this->ensureFlatSketchPlaceholders();
-
-        // Escenario A: ProductSheet tipo 'muestra', woven_product=false → OP MU-xxxx (auto)
+        // Escenario A: ProductSheet tipo 'muestra', woven_product=false OP MU-xxxx (auto)
         DB::table('product_sheets')->updateOrInsert(
             ['sample_reference' => 'MUESTRA001'],
             [
@@ -558,7 +506,7 @@ class ExampleDataSeeder extends Seeder
                 'fabric_base_id' => $fabricBaseId,
                 'yarn_base_id' => null,
                 'description' => 'Pantalón jean básico - Muestra NO tejida',
-                'flat_sketch_path' => 'product-sheets/flat-sketches/mock-muestra-001.jpg',
+                'flat_sketch_path' => null,
                 'billing_price' => null,
                 'selling_price' => null,
                 'sizes' => json_encode(['28' => true, '30' => true, '32' => true, '34' => true, '36' => true]),
@@ -571,7 +519,7 @@ class ExampleDataSeeder extends Seeder
             ]
         );
 
-        // Escenario B: ProductSheet tipo 'producto', woven_product=true → OP MFT-xxxx (manual)
+        // Escenario B: ProductSheet tipo 'producto', woven_product=true OP MFT-xxxx (manual)
         DB::table('product_sheets')->updateOrInsert(
             ['product_reference' => 'PRODUCTO02'],
             [
@@ -582,7 +530,7 @@ class ExampleDataSeeder extends Seeder
                 'fabric_base_id' => $fabricBaseId,
                 'yarn_base_id' => null,
                 'description' => 'Pantalón jean clásico - Producto TEJIDO',
-                'flat_sketch_path' => 'product-sheets/flat-sketches/mock-producto-001.jpg',
+                'flat_sketch_path' => null,
                 'billing_price' => 45000.00,
                 'selling_price' => 89000.00,
                 'sizes' => json_encode(['S' => true, 'M' => true, 'L' => true, 'XL' => true]),
@@ -595,9 +543,34 @@ class ExampleDataSeeder extends Seeder
             ]
         );
 
+        // Escenario C: ProductSheet tipo 'producto', woven_product=false OP MF-0001 (manual)
+        DB::table('product_sheets')->updateOrInsert(
+            ['product_reference' => 'PRODUCTO01'],
+            [
+                'section_id' => $sectionId,
+                'group_id' => $groupId,
+                'brand_id' => $brandId,
+                'world_id' => $worldId,
+                'fabric_base_id' => $fabricBaseId,
+                'yarn_base_id' => null,
+                'description' => 'Pantalón drill clásico - Producto NO tejido',
+                'flat_sketch_path' => null,
+                'billing_price' => 40000.00,
+                'selling_price' => 76000.00,
+                'sizes' => json_encode(['30' => true, '32' => true, '34' => true, '36' => true]),
+                'woven_product' => false,
+                'processes' => json_encode([]),
+                'status' => 'complete',
+                'type' => 'producto',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
         // Obtener IDs de las fichas creadas
         $muestraSheetId = DB::table('product_sheets')->where('sample_reference', 'MUESTRA001')->value('id');
         $productoSheetId = DB::table('product_sheets')->where('product_reference', 'PRODUCTO02')->value('id');
+        $productoMfSheetId = DB::table('product_sheets')->where('product_reference', 'PRODUCTO01')->value('id');
 
         // Obtener el ID del destino desde settings (kind=parameter)
         $destinationId = $this->getParameterFirstId('destinations');
@@ -641,6 +614,25 @@ class ExampleDataSeeder extends Seeder
                 'estimated_delivery_date' => null, // Manuales NO usan fecha entrega
                 'ecommerce_units' => json_encode(['S' => 100, 'M' => 150, 'L' => 150, 'XL' => 100]),
                 'status' => 'complete', // Manuales: completo si units > 0
+                'source' => 'manual',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        // Fixture explícito para Ficha técnica: MF-0001 con prioridad A
+        DB::table('programmers')->updateOrInsert(
+            ['op_code' => 'MF-0001'],
+            [
+                'product_sheet_id' => $productoMfSheetId,
+                'op_code' => 'MF-0001',
+                'season' => $seasonLabel,
+                'destination_id' => $destinationId,
+                'priority' => 'A',
+                'units' => 300,
+                'estimated_delivery_date' => null,
+                'ecommerce_units' => json_encode(['30' => 80, '32' => 90, '34' => 80, '36' => 50]),
+                'status' => 'complete',
                 'source' => 'manual',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -792,30 +784,6 @@ class ExampleDataSeeder extends Seeder
                 ]);
             }
 
-        }
-    }
-
-    /**
-     * Crea en storage/app/public los archivos de boceto referenciados por las fichas de ejemplo,
-     * copiando una imagen placeholder si no existen (evita 403/404 en /storage/product-sheets/...).
-     */
-    private function ensureFlatSketchPlaceholders(): void
-    {
-        $placeholder = public_path('images/empty-picture.jpg');
-        if (! File::isFile($placeholder)) {
-            return;
-        }
-
-        $paths = [
-            'product-sheets/flat-sketches/mock-muestra-001.jpg',
-            'product-sheets/flat-sketches/mock-producto-001.jpg',
-        ];
-
-        foreach ($paths as $path) {
-            if (Storage::disk('public')->exists($path)) {
-                continue;
-            }
-            Storage::disk('public')->put($path, File::get($placeholder));
         }
     }
 

@@ -2,7 +2,7 @@
 
 namespace App\Services\Settings;
 
-use App\Models\Setting;
+use App\Models\Settings\Setting;
 use Illuminate\Support\Collection;
 
 class SettingService
@@ -19,6 +19,7 @@ class SettingService
         'destinations' => ['destinations', 'destinos', 'destino'],
         'months' => ['months', 'meses', 'mes'],
         'priorities' => ['priorities', 'prioridades', 'prioridad'],
+        'process_types' => ['process_types', 'tipos_proceso', 'tipos_de_proceso', 'tipo_proceso', 'process_type', 'processes'],
         'operational_lists' => ['operational_lists', 'listados_operacionales', 'listado_operacional', 'listado_operacional'],
     ];
 

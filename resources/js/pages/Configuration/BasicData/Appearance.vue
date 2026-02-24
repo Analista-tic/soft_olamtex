@@ -11,3 +11,4 @@ import HeadingSmall from '@/components/HeadingSmall.vue';
         </div>
     </div>
 </template>
+

@@ -94,3 +94,4 @@ function handleClick(event: MouseEvent) {
         <component :is="icon" :class="iconSizeClasses" />
     </Button>
 </template>
+

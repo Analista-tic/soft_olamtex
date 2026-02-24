@@ -13,3 +13,4 @@ const props = withDefaults(defineProps<PrimitiveProps & { class?: HTMLAttributes
         <slot />
     </Primitive>
 </template>
+

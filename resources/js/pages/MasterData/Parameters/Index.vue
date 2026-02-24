@@ -1,28 +1,35 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
 
-import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import EditButton from '@/components/common/EditButton.vue';
-import StatusBadge from '@/components/common/StatusBadge.vue';
-import FilterBar from '@/components/FilterBar.vue';
-import FilterField from '@/components/FilterField.vue';
-import SelectField from '@/components/SelectField.vue';
-import { Button } from '@/components/ui/button';
-import Input from '@/components/ui/input/Input.vue';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { BreadcrumbItem } from '@/domain/shared';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { createParameter, deleteParameter, getParameters, updateParameter } from '@/services/settingsService';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import { Eye, PlusCircle, Search } from 'lucide-vue-next';
+
+import AppLayout from '@/layouts/AppLayout.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import EditButton from '@/components/common/EditButton.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import Input from '@/components/ui/input/Input.vue';
+import SelectField from '@/components/SelectField.vue';
+import StatusBadge from '@/components/common/StatusBadge.vue';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+import {
+    createParameter,
+    deleteParameter,
+    getParameters,
+    updateParameter,
+} from '@/domain/MasterData';
+import type { Parameter, ParameterListQuery, ParameterStatusFilter } from '@/domain/MasterData';
+import type { BreadcrumbItem } from '@/domain/shared';
 import type { ParameterDialogModel } from './ParameterDialog.vue';
 import ParameterDialog from './ParameterDialog.vue';
 
-export type ParameterStatusFilter = 'all' | 'active' | 'inactive';
+type DialogType = 'create' | 'edit' | 'view';
 
 type ParameterItem = ParameterDialogModel & {
     id: number;
@@ -34,21 +41,29 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Parámetros', href: '/parametros' },
 ];
 
-const parameters = ref<ParameterItem[]>([]);
-const searchQuery = ref('');
-const statusFilter = ref<ParameterStatusFilter>('all');
 const DEFAULT_STATUS_FILTER: ParameterStatusFilter = 'all';
-const statusOptions = [
+
+const statusOptions: { id: ParameterStatusFilter; name: string }[] = [
     { id: 'all', name: 'Todos los estados' },
     { id: 'active', name: 'Activo' },
     { id: 'inactive', name: 'Inactivo' },
 ];
 
-const dialogType = ref<'create' | 'edit' | 'view'>('create');
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
+
+const parameters = ref<ParameterItem[]>([]);
+const searchQuery = ref('');
+const statusFilter = ref<ParameterStatusFilter>(DEFAULT_STATUS_FILTER);
+
+const dialogType = ref<DialogType>('create');
 const isDialogOpen = ref(false);
 const activeParameter = ref<ParameterItem | null>(null);
+
 const isSubmitting = ref(false);
 const isLoading = ref(false);
+
 const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
@@ -58,10 +73,24 @@ const parameterToDelete = ref<ParameterItem | null>(null);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+
+/**
+ * Si tu SelectField espera button-class con clases,
+ * mantenemos el composable original (sin cambiar rutas ni componentes).
+ */
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
-const actionButtonClass =
-    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-const actionIconClass = 'h-4 w-4';
+
+function toParameterItem(parameter: Parameter): ParameterItem {
+    return {
+        id: Number(parameter.id),
+        key: parameter.key,
+        label: parameter.label,
+        description: parameter.description ?? undefined,
+        value: parameter.value,
+        status: Boolean(parameter.status),
+    };
+}
 
 function clearMessages() {
     successMessage.value = '';
@@ -80,17 +109,24 @@ function setError(message: string, type: 'success' | 'error' | 'info' | 'warning
     errorType.value = type;
 }
 
+function normalizeStatusFilter(value: ParameterStatusFilter): ParameterListQuery['status'] {
+    if (value === 'active' || value === 'inactive') return value;
+    return undefined;
+}
+
 async function fetchParameters() {
     isLoading.value = true;
+
     try {
-        const status: ParameterStatusFilter | undefined =
-            statusFilter.value === 'active' ? 'active' : statusFilter.value === 'inactive' ? 'inactive' : undefined;
+        const status = normalizeStatusFilter(statusFilter.value);
+
         const response = await getParameters({
             search: searchQuery.value.trim() || undefined,
             status,
         });
-        const data = response.data?.data ?? [];
-        parameters.value = Array.isArray(data) ? data : [];
+
+        const rows = Array.isArray(response.data?.data) ? response.data.data : [];
+        parameters.value = rows.map(toParameterItem);
     } catch (error: any) {
         setError(error?.response?.data?.message ?? 'No se pudieron cargar los parámetros.');
     } finally {
@@ -117,41 +153,16 @@ function closeDialog() {
     activeParameter.value = null;
 }
 
-function buildPayload(form: ParameterDialogModel) {
-    return {
-        key: (form as any).key ?? '',
-        label: form.label,
-        description: form.description,
-        value: normalizeDialogValue(form.value),
-        status: form.status,
-    };
-}
-
-function normalizeDialogValue(value: unknown) {
-    if (Array.isArray(value)) {
-        return value;
-    }
-
-    if (value === null || value === undefined) {
-        return '';
-    }
-
-    return parseValueInput(String(value));
+function handleDialogCancel() {
+    closeDialog();
 }
 
 function parseValueInput(rawValue: string) {
     const trimmed = rawValue.trim();
-    if (trimmed === '') {
-        return '';
-    }
+    if (trimmed === '') return '';
 
-    if (trimmed === 'true') {
-        return true;
-    }
-
-    if (trimmed === 'false') {
-        return false;
-    }
+    if (trimmed === 'true') return true;
+    if (trimmed === 'false') return false;
 
     if (['{', '['].includes(trimmed.charAt(0))) {
         try {
@@ -169,10 +180,28 @@ function parseValueInput(rawValue: string) {
     return trimmed;
 }
 
+function normalizeDialogValue(value: unknown) {
+    if (Array.isArray(value)) return value;
+    if (value === null || value === undefined) return '';
+    return parseValueInput(String(value));
+}
+
+function buildPayload(form: ParameterDialogModel) {
+    return {
+        key: (form as any).key ?? '',
+        label: form.label,
+        description: form.description,
+        value: normalizeDialogValue(form.value),
+        status: form.status,
+    };
+}
+
 async function handleDialogSubmit(form: ParameterDialogModel) {
     isSubmitting.value = true;
+
     try {
         const payload = buildPayload(form);
+
         if (dialogType.value === 'create') {
             await createParameter(payload);
             setSuccess('Parámetro creado correctamente.');
@@ -180,6 +209,7 @@ async function handleDialogSubmit(form: ParameterDialogModel) {
             await updateParameter(activeParameter.value.id, payload);
             setSuccess('Parámetro actualizado correctamente.');
         }
+
         closeDialog();
         await fetchParameters();
     } catch (error: any) {
@@ -189,10 +219,6 @@ async function handleDialogSubmit(form: ParameterDialogModel) {
     }
 }
 
-function handleDialogCancel() {
-    closeDialog();
-}
-
 function confirmDeleteParameter(parameter: ParameterItem) {
     parameterToDelete.value = parameter;
     isDeleteDialogOpen.value = true;
@@ -200,6 +226,7 @@ function confirmDeleteParameter(parameter: ParameterItem) {
 
 async function deleteParameterConfirmed() {
     if (!parameterToDelete.value) return;
+
     try {
         await deleteParameter(parameterToDelete.value.id);
         setSuccess('Parámetro eliminado correctamente.');
@@ -212,83 +239,74 @@ async function deleteParameterConfirmed() {
     }
 }
 
-onMounted(() => {
-    fetchParameters();
-});
-
-watch([searchQuery, statusFilter], () => {
-    fetchParameters();
-});
-
-function formatValuePreview(value: unknown) {
-    return getValuePreview(value);
-}
-
-function getValuePreview(value: unknown) {
-    if (value === null || value === undefined) {
-        return '-';
-    }
-
-    if (typeof value === 'number') {
-        return String(value);
-    }
-
-    if (typeof value === 'string') {
-        return truncateString(value);
-    }
-
-    if (Array.isArray(value)) {
-        if (value.every((item) => typeof item === 'string')) {
-            return summarizeStrings(value as string[]);
-        }
-
-        if (value.every((item) => isObjectWithName(item))) {
-            return summarizeNames(value as { name: string }[]);
-        }
-
-        return `Lista (${value.length} elementos)`;
-    }
-
-    if (typeof value === 'object') {
-        const objectValue = value as Record<string, unknown>;
-        if (Array.isArray(objectValue.unitMeasureGroups)) {
-            const groups = objectValue.unitMeasureGroups.length;
-            return `Estructura (${groups} grupos)`;
-        }
-
-        const keys = Object.keys(objectValue).length;
-        return `Objeto JSON (${keys} claves)`;
-    }
-
-    return String(value);
-}
-
 function truncateString(value: string, maxLength = 80) {
     const trimmed = value.trim();
-    if (trimmed.length <= maxLength) {
-        return trimmed;
-    }
-
+    if (trimmed.length <= maxLength) return trimmed;
     return `${trimmed.slice(0, maxLength)}…`;
+}
+
+function isObjectWithName(item: unknown): item is { name: string } {
+    return (
+        typeof item === 'object' &&
+        item !== null &&
+        'name' in item &&
+        typeof (item as Record<string, unknown>).name === 'string'
+    );
 }
 
 function summarizeStrings(items: string[]) {
     const previewItems = items.slice(0, 3);
     const suffix = items.length > previewItems.length ? ` (+${items.length - previewItems.length})` : '';
-
     return `${previewItems.join(', ')}${suffix}`;
 }
 
 function summarizeNames(items: { name: string }[]) {
     const previewItems = items.slice(0, 3).map((item) => item.name);
     const suffix = items.length > previewItems.length ? ` (+${items.length - previewItems.length})` : '';
-
     return `${previewItems.join(', ')}${suffix}`;
 }
 
-function isObjectWithName(item: unknown): item is { name: string } {
-    return typeof item === 'object' && item !== null && 'name' in item && typeof (item as Record<string, unknown>).name === 'string';
+function getValuePreview(value: unknown) {
+    if (value === null || value === undefined) return '-';
+
+    if (typeof value === 'number') return String(value);
+
+    if (typeof value === 'string') return truncateString(value);
+
+    if (Array.isArray(value)) {
+        if (value.every((item) => typeof item === 'string')) return summarizeStrings(value as string[]);
+        if (value.every((item) => isObjectWithName(item))) return summarizeNames(value as { name: string }[]);
+        return `Lista (${value.length} elementos)`;
+    }
+
+    if (typeof value === 'object') {
+        const objectValue = value as Record<string, unknown>;
+        if (Array.isArray(objectValue.unitMeasureGroups)) {
+            return `Estructura (${objectValue.unitMeasureGroups.length} grupos)`;
+        }
+        return `Objeto JSON (${Object.keys(objectValue).length} claves)`;
+    }
+
+    return String(value);
 }
+
+function formatValuePreview(value: unknown) {
+    return getValuePreview(value);
+}
+
+onMounted(() => {
+    void fetchParameters();
+});
+
+// Debounce para evitar spamear el endpoint al tipear
+let searchDebounce: number | undefined;
+
+watch([searchQuery, statusFilter], () => {
+    window.clearTimeout(searchDebounce);
+    searchDebounce = window.setTimeout(() => {
+        void fetchParameters();
+    }, 250);
+});
 </script>
 
 <template>
@@ -303,35 +321,50 @@ function isObjectWithName(item: unknown): item is { name: string } {
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
         />
+
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div class="flex max-w-3xl flex-col gap-1">
+                <div class="flex flex-col gap-1 max-w-3xl">
                     <h1 class="text-lg font-bold">Parámetros</h1>
-                    <p class="text-sm text-muted-foreground">Configura valores globales reutilizables por distintos módulos del sistema.</p>
+                    <p class="text-sm text-muted-foreground">
+                        Configura valores globales reutilizables por distintos módulos del sistema.
+                    </p>
                 </div>
+
                 <div class="flex items-center justify-end pt-2 lg:pt-0">
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="openDialog('create')"
                     >
-                        <PlusCircle class="h-4 w-4" />
+                        <PlusCircle class="w-4 h-4" />
                         Crear parámetro
                     </button>
                 </div>
             </div>
 
             <FilterBar align="start" gap="gap-4" noMargin>
-                <FilterField label="Buscar parámetro" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
+                <FilterField label="Buscar parámetro" :active="isSearchActive" class="flex-1 min-w-[220px] p-0">
                     <div class="relative w-full">
-                        <Input id="search_parameters" v-model="searchQuery" placeholder="Buscar por Nombre" class="h-10 w-full pl-11" />
-                        <span class="pointer-events-none absolute inset-y-0 start-2 flex items-center justify-center">
+                        <Input
+                            id="search_parameters"
+                            v-model="searchQuery"
+                            placeholder="Buscar por Nombre"
+                            class="h-10 w-full pl-11"
+                        />
+                        <span class="absolute inset-y-0 start-2 flex items-center justify-center pointer-events-none">
                             <Search class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
+
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[160px]">
-                    <SelectField v-model="statusFilter" label="" :options="statusOptions" :button-class="statusButtonClasses" />
+                    <SelectField
+                        v-model="statusFilter"
+                        label=""
+                        :options="statusOptions"
+                        :button-class="statusButtonClasses"
+                    />
                 </FilterField>
             </FilterBar>
 
@@ -347,15 +380,20 @@ function isObjectWithName(item: unknown): item is { name: string } {
                                 <TableHead class="text-center">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
+
                         <TableBody>
                             <TableRow v-if="isLoading">
-                                <TableCell colspan="5" class="text-center text-sm text-muted-foreground"> Cargando parámetros... </TableCell>
+                                <TableCell colspan="5" class="text-center text-sm text-muted-foreground">
+                                    Cargando parámetros...
+                                </TableCell>
                             </TableRow>
+
                             <TableRow v-else-if="parameters.length === 0">
                                 <TableCell colspan="5" class="px-4 py-2 text-center text-sm text-gray-400">
                                     No hay parámetros registrados.
                                 </TableCell>
                             </TableRow>
+
                             <TableRow v-else v-for="param in parameters" :key="param.id">
                                 <TableCell class="font-medium">{{ param.label }}</TableCell>
                                 <TableCell class="break-words text-left text-sm text-slate-600">
@@ -383,6 +421,7 @@ function isObjectWithName(item: unknown): item is { name: string } {
                                             </TooltipTrigger>
                                             <TooltipContent>Ver detalle</TooltipContent>
                                         </Tooltip>
+
                                         <EditButton :onClick="() => openDialog('edit', param)" />
                                         <DeleteButton :onClick="() => confirmDeleteParameter(param)" />
                                     </div>

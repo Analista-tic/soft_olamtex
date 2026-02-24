@@ -12,3 +12,4 @@ const forwarded = useForwardPropsEmits(props, emits)
     <slot />
   </AlertDialogRoot>
 </template>
+

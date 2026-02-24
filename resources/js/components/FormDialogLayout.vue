@@ -23,3 +23,4 @@ const props = defineProps({
 const maxWidth = toRef(props, 'maxWidth');
 const fullHeight = toRef(props, 'fullHeight');
 </script>
+

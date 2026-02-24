@@ -15,7 +15,7 @@ class WarehouseTransferController extends Controller
 
     public function index()
     {
-        return Inertia::render('Configuration/Warehouse/WarehouseTransfer/index');
+        return Inertia::render('Inventory/Warehouse/WarehouseTransfer/index');
     }
 
     public function getData(Request $request)

@@ -1,12 +1,19 @@
 <script setup lang="ts">
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import { computed, onMounted, ref, watch } from 'vue';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import Input from '@/components/ui/input/Input.vue';
+import { Button } from '@/components/ui/button';
+import { Search, Eye } from 'lucide-vue-next';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import axios from 'axios';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AlertStack from '@/components/common/AlertStack.vue';
+import SelectField from '@/components/SelectField.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
-import SelectField from '@/components/SelectField.vue';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -17,16 +24,11 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { InventoryMovement, Item, Warehouse } from '@/domain/inventory/types';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import { Eye, Search } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import type { InventoryMovement, Warehouse } from '@/domain/Inventory';
+import type { Item } from '@/domain/MasterData';
+import type { Option } from '@/domain/shared';
+import { useAlertStack } from '@/composables/useAlert';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
@@ -37,8 +39,10 @@ const movements = ref<InventoryMovement[]>([]);
 const totalItems = ref(0);
 const searchQuery = ref('');
 const typeFilter = ref('all');
-const itemFilter = ref<number | null>(null);
-const warehouseFilter = ref<number | null>(null);
+const ALL_ITEMS_FILTER = 'all-items';
+const ALL_WAREHOUSES_FILTER = 'all-warehouses';
+const itemFilter = ref<number | typeof ALL_ITEMS_FILTER>(ALL_ITEMS_FILTER);
+const warehouseFilter = ref<number | typeof ALL_WAREHOUSES_FILTER>(ALL_WAREHOUSES_FILTER);
 const dateFrom = ref('');
 const dateTo = ref('');
 const currentPage = ref(1);
@@ -54,8 +58,8 @@ const warehouses = ref<Warehouse[]>([]);
 const DEFAULT_TYPE_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_TYPE_FILTER);
-const isItemFilterActive = computed(() => itemFilter.value !== null);
-const isWarehouseFilterActive = computed(() => warehouseFilter.value !== null);
+const isItemFilterActive = computed(() => itemFilter.value !== ALL_ITEMS_FILTER);
+const isWarehouseFilterActive = computed(() => warehouseFilter.value !== ALL_WAREHOUSES_FILTER);
 const isDateFromActive = computed(() => Boolean(dateFrom.value));
 const isDateToActive = computed(() => Boolean(dateTo.value));
 
@@ -74,6 +78,18 @@ const typeOptions = [
     { id: 'salida', name: 'Salida' },
     { id: 'ajuste', name: 'Ajuste' },
 ];
+
+const itemOptions = computed<Option[]>(() => [
+    { id: ALL_ITEMS_FILTER, name: 'Todos los items' },
+    ...items.value.map((item) => ({ id: item.id, name: item.name })),
+]);
+
+const warehouseOptions = computed<Option[]>(() => [
+    { id: ALL_WAREHOUSES_FILTER, name: 'Todas las bodegas' },
+    ...warehouses.value
+        .filter((warehouse): warehouse is Warehouse & { id: number } => typeof warehouse.id === 'number')
+        .map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
+]);
 
 const typeLabelMap: Record<string, string> = {
     entrada: 'Entrada',
@@ -113,13 +129,13 @@ const formatNumber = (value: number | string | null | undefined, decimals = 4) =
 
 const getSourceLabel = (movement: InventoryMovement): string => {
     if (!movement.source_type) return 'Manual';
-
+    
     const sourceTypeMap: Record<string, string> = {
         'App\\Models\\Expenses\\PurchaseDocument': 'Factura de Compra',
         'App\\Models\\Inventory\\InventoryAdjustment': 'Ajuste de Inventario',
         'App\\Models\\Inventory\\FabricRoll': 'Descargue de Tela',
     };
-
+    
     return sourceTypeMap[movement.source_type] || movement.source_type;
 };
 
@@ -130,27 +146,27 @@ async function fetchMovements(page = 1, search = '') {
         per_page: itemsPerPage,
         search,
     };
-
+    
     if (typeFilter.value !== 'all') {
         params.type = typeFilter.value;
     }
-
-    if (itemFilter.value) {
+    
+    if (typeof itemFilter.value === 'number') {
         params.item_id = itemFilter.value;
     }
-
-    if (warehouseFilter.value) {
+    
+    if (typeof warehouseFilter.value === 'number') {
         params.warehouse_id = warehouseFilter.value;
     }
-
+    
     if (dateFrom.value) {
         params.date_from = dateFrom.value;
     }
-
+    
     if (dateTo.value) {
         params.date_to = dateTo.value;
     }
-
+    
     try {
         const { data } = await axios.get('/movimientos-inventario/data', { params });
         movements.value = data.data ?? [];
@@ -230,22 +246,25 @@ onMounted(() => {
             @close-success="clearSuccess"
             @close-error="clearError"
         />
-
+        
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Movimientos de Inventario</h1>
                     <p class="text-sm text-muted-foreground">
-                        Consulta el historial completo de movimientos de inventario generados por ajustes, facturas de compra, descargues y otros
-                        módulos.
+                        Consulta el historial completo de movimientos de inventario generados por ajustes, facturas de compra, descargues y otros módulos.
                     </p>
                 </div>
             </div>
 
             <FilterBar align="start">
-                <FilterField label="Buscar" :active="isSearchActive" class="min-w-[220px] flex-1">
+                <FilterField label="Buscar" :active="isSearchActive" class="flex-1 min-w-[220px]">
                     <div class="relative">
-                        <Input v-model="searchQuery" placeholder="Buscar por documento, notas..." class="h-10 w-full pl-10" />
+                        <Input
+                            v-model="searchQuery"
+                            placeholder="Buscar por documento, notas..."
+                            class="h-10 w-full pl-10"
+                        />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
@@ -253,14 +272,19 @@ onMounted(() => {
                 </FilterField>
 
                 <FilterField label="Tipo" :active="isTypeFilterActive" class="min-w-[180px]">
-                    <SelectField v-model="typeFilter" label="" :options="typeOptions" :button-class="typeButtonClasses" />
+                    <SelectField
+                        v-model="typeFilter"
+                        label=""
+                        :options="typeOptions"
+                        :button-class="typeButtonClasses"
+                    />
                 </FilterField>
 
                 <FilterField label="Item" :active="isItemFilterActive" class="min-w-[200px]">
                     <SelectField
                         v-model="itemFilter"
                         label=""
-                        :options="[{ id: null, name: 'Todos los items' }, ...items.map((item) => ({ id: item.id, name: item.name }))]"
+                        :options="itemOptions"
                         :button-class="itemButtonClasses"
                     />
                 </FilterField>
@@ -269,7 +293,7 @@ onMounted(() => {
                     <SelectField
                         v-model="warehouseFilter"
                         label=""
-                        :options="[{ id: null, name: 'Todas las bodegas' }, ...warehouses.map((w) => ({ id: w.id, name: w.name }))]"
+                        :options="warehouseOptions"
                         :button-class="warehouseButtonClasses"
                     />
                 </FilterField>
@@ -283,92 +307,97 @@ onMounted(() => {
                 </FilterField>
             </FilterBar>
 
-            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
+            <div
+                class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min"
+            >
                 <TooltipProvider>
-                    <Table class="text-center">
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead># Documento</TableHead>
-                                <TableHead>Fecha</TableHead>
-                                <TableHead>Item</TableHead>
-                                <TableHead>Bodega</TableHead>
-                                <TableHead>Tipo</TableHead>
-                                <TableHead>Origen</TableHead>
-                                <TableHead>Cantidad</TableHead>
-                                <TableHead>Precio Unit.</TableHead>
-                                <TableHead>Stock Anterior</TableHead>
-                                <TableHead>Stock Nuevo</TableHead>
-                                <TableHead>Precio Ponderado</TableHead>
-                                <TableHead class="w-[100px] text-center">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow v-if="isLoading">
-                                <TableCell colspan="12" class="py-8 text-muted-foreground"> Cargando movimientos... </TableCell>
-                            </TableRow>
-                            <TableRow v-else-if="movements.length === 0">
-                                <TableCell colspan="12" class="py-8 text-muted-foreground"> No se encontraron movimientos. </TableCell>
-                            </TableRow>
-                            <TableRow v-else v-for="movement in movements" :key="movement.id">
-                                <TableCell class="font-medium">
-                                    {{ movement.document_number || '-' }}
-                                </TableCell>
-                                <TableCell>{{ formatDate(movement.date) }}</TableCell>
-                                <TableCell class="max-w-[200px] truncate text-left">
-                                    {{ movement.item?.name || '-' }}
-                                </TableCell>
-                                <TableCell class="text-left">
-                                    {{ movement.warehouse?.name || '-' }}
-                                </TableCell>
-                                <TableCell>
-                                    <span
-                                        :class="[
-                                            'rounded-full px-2 py-1 text-xs font-semibold',
-                                            typeBadgeStyles[movement.type] || 'bg-gray-100 text-gray-800',
-                                        ]"
-                                    >
-                                        {{ typeLabelMap[movement.type] || movement.type }}
-                                    </span>
-                                </TableCell>
-                                <TableCell class="text-xs text-muted-foreground">
-                                    {{ getSourceLabel(movement) }}
-                                </TableCell>
-                                <TableCell>
-                                    <span :class="movement.type === 'entrada' ? 'text-green-600' : 'text-red-600'">
-                                        {{ movement.type === 'entrada' ? '+' : '-' }}{{ formatNumber(movement.quantity, 2) }}
-                                    </span>
-                                </TableCell>
-                                <TableCell>
-                                    {{
-                                        movement.type === 'salida' && !movement.unit_price
-                                            ? formatCurrency(movement.previous_weighted_price) + ' (promedio)'
-                                            : formatCurrency(movement.unit_price)
-                                    }}
-                                </TableCell>
-                                <TableCell>{{ formatNumber(movement.previous_stock, 2) }}</TableCell>
-                                <TableCell class="font-medium">{{ formatNumber(movement.new_stock, 2) }}</TableCell>
-                                <TableCell class="font-medium">{{ formatCurrency(movement.new_weighted_price) }}</TableCell>
-                                <TableCell class="text-center">
-                                    <div class="flex justify-center gap-2">
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Ver detalle"
-                                                    @click="openDetailDialog(movement)"
-                                                >
-                                                    <Eye :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Ver detalle</TooltipContent>
-                                        </Tooltip>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
+                <Table class="text-center">
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead># Documento</TableHead>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Bodega</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Origen</TableHead>
+                            <TableHead>Cantidad</TableHead>
+                            <TableHead>Precio Unit.</TableHead>
+                            <TableHead>Stock Anterior</TableHead>
+                            <TableHead>Stock Nuevo</TableHead>
+                            <TableHead>Precio Ponderado</TableHead>
+                            <TableHead class="w-[100px] text-center">Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow v-if="isLoading">
+                            <TableCell colspan="12" class="py-8 text-muted-foreground">
+                                Cargando movimientos...
+                            </TableCell>
+                        </TableRow>
+                        <TableRow v-else-if="movements.length === 0">
+                            <TableCell colspan="12" class="py-8 text-muted-foreground">
+                                No se encontraron movimientos.
+                            </TableCell>
+                        </TableRow>
+                        <TableRow v-else v-for="movement in movements" :key="movement.id">
+                            <TableCell class="font-medium">
+                                {{ movement.document_number || '-' }}
+                            </TableCell>
+                            <TableCell>{{ formatDate(movement.date) }}</TableCell>
+                            <TableCell class="text-left max-w-[200px] truncate">
+                                {{ movement.item?.name || '-' }}
+                            </TableCell>
+                            <TableCell class="text-left">
+                                {{ movement.warehouse?.name || '-' }}
+                            </TableCell>
+                            <TableCell>
+                                <span
+                                    :class="[
+                                        'px-2 py-1 rounded-full text-xs font-semibold',
+                                        typeBadgeStyles[movement.type] || 'bg-gray-100 text-gray-800',
+                                    ]"
+                                >
+                                    {{ typeLabelMap[movement.type] || movement.type }}
+                                </span>
+                            </TableCell>
+                            <TableCell class="text-xs text-muted-foreground">
+                                {{ getSourceLabel(movement) }}
+                            </TableCell>
+                            <TableCell>
+                                <span :class="movement.type === 'entrada' ? 'text-green-600' : 'text-red-600'">
+                                    {{ movement.type === 'entrada' ? '+' : '-' }}{{ formatNumber(movement.quantity, 2) }}
+                                </span>
+                            </TableCell>
+                            <TableCell>
+                                {{ movement.type === 'salida' && !movement.unit_price 
+                                    ? formatCurrency(movement.previous_weighted_price) + ' (promedio)'
+                                    : formatCurrency(movement.unit_price) 
+                                }}
+                            </TableCell>
+                            <TableCell>{{ formatNumber(movement.previous_stock, 2) }}</TableCell>
+                            <TableCell class="font-medium">{{ formatNumber(movement.new_stock, 2) }}</TableCell>
+                            <TableCell class="font-medium">{{ formatCurrency(movement.new_weighted_price) }}</TableCell>
+                            <TableCell class="text-center">
+                                <div class="flex justify-center gap-2">
+                                    <Tooltip>
+                                        <TooltipTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                aria-label="Ver detalle"
+                                                @click="openDetailDialog(movement)"
+                                            >
+                                                <Eye :class="actionIconClass" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Ver detalle</TooltipContent>
+                                    </Tooltip>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
                 </TooltipProvider>
 
                 <Pagination
@@ -384,8 +413,15 @@ onMounted(() => {
                     <PaginationList v-slot="{ items }" class="flex items-center gap-1">
                         <PaginationFirst />
                         <PaginationPrev />
-                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
+                        <template
+                            v-for="(item, index) in items"
+                            :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`"
+                        >
+                            <PaginationListItem
+                                v-if="item.type === 'page'"
+                                :value="item.value"
+                                as-child
+                            >
                                 <Button
                                     class="h-6 w-6 p-0"
                                     :variant="item.value === currentPage ? 'default' : 'outline'"
@@ -405,10 +441,12 @@ onMounted(() => {
 
         <!-- Dialog de detalles -->
         <Dialog v-model:open="isDetailDialogOpen">
-            <DialogContent class="max-h-[90vh] max-w-2xl overflow-y-auto">
+            <DialogContent class="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Detalles del Movimiento</DialogTitle>
-                    <DialogDescription> Información completa del movimiento de inventario </DialogDescription>
+                    <DialogDescription>
+                        Información completa del movimiento de inventario
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div v-if="selectedMovement" class="space-y-4">
@@ -434,7 +472,7 @@ onMounted(() => {
                             <p class="text-sm">
                                 <span
                                     :class="[
-                                        'rounded-full px-2 py-1 text-xs font-semibold',
+                                        'px-2 py-1 rounded-full text-xs font-semibold',
                                         typeBadgeStyles[selectedMovement.type] || 'bg-gray-100 text-gray-800',
                                     ]"
                                 >
@@ -449,7 +487,7 @@ onMounted(() => {
                     </div>
 
                     <div class="border-t pt-4">
-                        <h3 class="mb-3 text-sm font-semibold">Información del Movimiento</h3>
+                        <h3 class="text-sm font-semibold mb-3">Información del Movimiento</h3>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="text-sm font-medium text-muted-foreground">Cantidad</label>
@@ -471,7 +509,7 @@ onMounted(() => {
                     </div>
 
                     <div class="border-t pt-4">
-                        <h3 class="mb-3 text-sm font-semibold">Cálculo de Precio Ponderado</h3>
+                        <h3 class="text-sm font-semibold mb-3">Cálculo de Precio Ponderado</h3>
                         <div class="space-y-3">
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
@@ -483,51 +521,36 @@ onMounted(() => {
                                     <p class="text-sm font-semibold">{{ formatCurrency(selectedMovement.previous_weighted_price) }}</p>
                                 </div>
                             </div>
-
-                            <div v-if="selectedMovement.type === 'entrada'" class="rounded-lg border border-border bg-muted/30 p-3">
-                                <p class="mb-2 text-xs font-semibold">Cálculo del nuevo promedio ponderado:</p>
-                                <div class="space-y-1.5 text-xs">
+                            
+                            <div v-if="selectedMovement.type === 'entrada'" class="bg-muted/30 p-3 rounded-lg border border-border">
+                                <p class="text-xs font-semibold mb-2">Cálculo del nuevo promedio ponderado:</p>
+                                <div class="text-xs space-y-1.5">
                                     <p>
                                         <span class="font-medium">Paso 1 - Multiplicar cantidad comprada por costo unitario:</span>
                                         <br />
-                                        {{ formatNumber(selectedMovement.quantity, 4) }} unidades ×
-                                        {{ formatCurrency(selectedMovement.unit_price) }} =
+                                        {{ formatNumber(selectedMovement.quantity, 4) }} unidades × {{ formatCurrency(selectedMovement.unit_price) }} = 
                                         <span class="font-semibold">{{ formatCurrency(selectedMovement.total_cost) }}</span>
                                     </p>
                                     <p>
                                         <span class="font-medium">Paso 2 - Sumar costo total de todas las compras:</span>
                                         <br />
-                                        Costo acumulado anterior: {{ formatNumber(selectedMovement.previous_stock, 4) }} ×
-                                        {{ formatCurrency(selectedMovement.previous_weighted_price) }} =
+                                        Costo acumulado anterior: {{ formatNumber(selectedMovement.previous_stock, 4) }} × {{ formatCurrency(selectedMovement.previous_weighted_price) }} = 
                                         {{ formatCurrency(selectedMovement.previous_stock * selectedMovement.previous_weighted_price) }}
                                         <br />
                                         + Costo de esta compra: {{ formatCurrency(selectedMovement.total_cost) }}
                                         <br />
-                                        =
-                                        <span class="font-semibold">{{
-                                            formatCurrency(
-                                                selectedMovement.previous_stock * selectedMovement.previous_weighted_price +
-                                                    (selectedMovement.total_cost || 0),
-                                            )
-                                        }}</span>
+                                        = <span class="font-semibold">{{ formatCurrency((selectedMovement.previous_stock * selectedMovement.previous_weighted_price + (selectedMovement.total_cost || 0))) }}</span>
                                     </p>
-                                    <p class="mt-1.5 border-t pt-1.5 font-semibold">
+                                    <p class="border-t pt-1.5 mt-1.5 font-semibold">
                                         <span class="font-medium">Paso 3 - Dividir entre cantidad total:</span>
                                         <br />
-                                        {{
-                                            formatCurrency(
-                                                selectedMovement.previous_stock * selectedMovement.previous_weighted_price +
-                                                    (selectedMovement.total_cost || 0),
-                                            )
-                                        }}
-                                        ÷ {{ formatNumber(selectedMovement.new_stock, 4) }} unidades =
-                                        <span class="text-sm font-bold text-green-600">{{
-                                            formatCurrency(selectedMovement.new_weighted_price)
-                                        }}</span>
+                                        {{ formatCurrency((selectedMovement.previous_stock * selectedMovement.previous_weighted_price + (selectedMovement.total_cost || 0))) }} ÷ 
+                                        {{ formatNumber(selectedMovement.new_stock, 4) }} unidades = 
+                                        <span class="text-green-600 font-bold text-sm">{{ formatCurrency(selectedMovement.new_weighted_price) }}</span>
                                     </p>
                                 </div>
                             </div>
-
+                            
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <label class="text-sm font-medium text-muted-foreground">Stock Nuevo</label>
@@ -538,11 +561,8 @@ onMounted(() => {
                                     <p class="text-sm font-semibold text-green-600">{{ formatCurrency(selectedMovement.new_weighted_price) }}</p>
                                 </div>
                             </div>
-
-                            <div
-                                v-if="selectedMovement.type === 'salida'"
-                                class="rounded bg-blue-50 p-2 text-xs text-muted-foreground dark:bg-blue-950/20"
-                            >
+                            
+                            <div v-if="selectedMovement.type === 'salida'" class="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/20 p-2 rounded">
                                 <p class="font-medium">Nota:</p>
                                 <p>Las salidas (ventas) no modifican el precio ponderado. El costo promedio se mantiene igual.</p>
                             </div>

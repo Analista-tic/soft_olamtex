@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\ProductSheet;
 
-use App\Models\ProductSheet\Programmer;
+use App\Models\Production\Programmer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -33,7 +33,15 @@ class UpdateProgrammerRequest extends FormRequest
     protected function getProgrammer(): ?Programmer
     {
         if ($this->programmerModel === null) {
-            $this->programmerModel = $this->route('programador');
+            $routeParam = $this->route('programador');
+
+            if ($routeParam instanceof Programmer) {
+                $this->programmerModel = $routeParam;
+            } elseif (is_numeric($routeParam) || is_string($routeParam)) {
+                $this->programmerModel = Programmer::find($routeParam);
+            } else {
+                $this->programmerModel = null;
+            }
         }
 
         return $this->programmerModel;

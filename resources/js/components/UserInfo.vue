@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/composables/useInitials';
-import type { User } from '@/domain/auth';
+import type { User } from '@/domain/Settings';
 import { computed } from 'vue';
 
 interface Props {
@@ -32,3 +32,4 @@ const showAvatar = computed(() => avatarSrc.value !== '');
         <span v-if="showEmail" class="truncate text-xs text-muted-foreground">{{ user.email }}</span>
     </div>
 </template>
+
