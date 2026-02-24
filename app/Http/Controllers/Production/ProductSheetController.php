@@ -2,9 +2,9 @@
 namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\ProductSheet\ConvertProductSheetRequest;
-use App\Http\Requests\ProductSheet\StoreProductSheetRequest;
-use App\Http\Requests\ProductSheet\UpdateProductSheetRequest;
+use App\Http\Requests\Production\ConvertProductSheetRequest;
+use App\Http\Requests\Production\StoreProductSheetRequest;
+use App\Http\Requests\Production\UpdateProductSheetRequest;
 use App\Models\Production\ProductSheet;
 use App\Services\Production\ProductSheetCreationService;
 use App\Services\Production\ProductSheetPersistenceService;
@@ -300,4 +300,3 @@ class ProductSheetController extends Controller
     }
 
 }
-

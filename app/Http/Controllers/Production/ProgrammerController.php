@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Production;
 
 use App\Helpers\MonthLabel;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\ProductSheet\StoreProgrammerRequest;
-use App\Http\Requests\ProductSheet\UpdateProgrammerRequest;
+use App\Http\Requests\Production\StoreProgrammerRequest;
+use App\Http\Requests\Production\UpdateProgrammerRequest;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\Programmer;
 use App\Services\Production\ProgrammerService;

@@ -2,17 +2,30 @@
 
 namespace App\Http\Requests\Production;
 
+use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreProgrammerRequest extends BaseProductSheetRequest
+class StoreProgrammerRequest extends FormRequest
 {
+    private const PRIORITIES = ['A', 'B', 'C', 'D'];
+    private const STATUSES = ['complete', 'incomplete'];
+
+    public function authorize(): bool
+    {
+        return true;
+    }
+
     public function rules(): array
     {
         return [
-            'product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
-            'reference' => ['nullable', 'string', 'max:255'],
-            'sizes' => ['required', 'json'],
-            'status' => ['required', Rule::in(['scheduled', 'in_progress', 'completed'])],
+            'lots' => ['required', 'array', 'min:1'],
+            'lots.*.product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
+            'lots.*.season' => ['required', 'string', 'max:255'],
+            'lots.*.destination_id' => ['required', 'integer', 'min:1'],
+            'lots.*.priority' => ['nullable', 'string', Rule::in(self::PRIORITIES)],
+            'lots.*.units' => ['nullable', 'integer', 'min:1'],
+            'lots.*.ecommerce_units' => ['nullable'],
+            'lots.*.status' => ['nullable', 'string', Rule::in(self::STATUSES)],
         ];
     }
 }
