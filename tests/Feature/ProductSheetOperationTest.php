@@ -5,7 +5,7 @@ use App\Models\ProductSheet\ProductSheetOperationHistory;
 use App\Models\ProductSheet\ProductionOrderOperation;
 use App\Models\ProductSheet\Programmer;
 use App\Services\ProductSheet\ProductOperationListService;
-use App\Services\ProductSheet\ProductionOrderService;
+use App\Services\Production\ProductionOrderService;
 
 /**
  * Tests de listado operacional (ProductSheetOperation) y snapshot de orden (ProductionOrderService).

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models\ProductSheet;
+namespace App\Models\Production;
 
 use App\Models\Concerns\HasAuditLabel;
 use App\Models\User;

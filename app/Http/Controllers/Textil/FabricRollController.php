@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Textil;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Inventory\StoreFabricRollRequest;
-use App\Http\Requests\Inventory\UpdateFabricRollOutputRequest;
-use App\Http\Requests\Inventory\UpdateFabricRollRequest;
+use App\Http\Requests\Textil\StoreFabricRollRequest;
+use App\Http\Requests\Textil\UpdateFabricRollOutputRequest;
+use App\Http\Requests\Textil\UpdateFabricRollRequest;
 use App\Http\Resources\Inventory\FabricRollResource;
 use App\Models\Production\Programmer;
 use App\Models\Textil\FabricRoll;

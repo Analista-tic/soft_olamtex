@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\MasterData;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Inventory\AdditionalFieldRequest;
+use App\Http\Requests\MasterData\AdditionalFieldRequest;
 use App\Models\Settings\Setting;
 use App\Services\MasterData\AdditionalFieldService;
 use Illuminate\Http\Request;

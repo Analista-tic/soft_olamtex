@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Settings\RetentionRequest;
+use App\Http\Requests\Finance\RetentionRequest;
 use App\Services\Finance\RetentionService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;

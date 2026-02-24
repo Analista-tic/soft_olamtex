@@ -11,7 +11,7 @@ use App\Services\Production\OperationSectionService;
 use App\Services\Production\ProductSheetService;
 use App\Http\Requests\Production\StoreProductOperationListRequest;
 use App\Http\Requests\Production\UpdateProductOperationListRequest;
-use App\Http\Resources\ProductSheet\ProductOperationListResource;
+use App\Http\Resources\Production\ProductOperationListResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;

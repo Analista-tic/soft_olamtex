@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Representa una orden para producir unidades de un producto (ProductSheet).
  * Al crearse, genera un snapshot congelado de operaciones (ProductionOrderOperation).
  *
- * @see \App\Services\ProductSheet\ProductionOrderService
+ * @see \App\Services\Production\ProductionOrderService
  */
 class Programmer extends Model
 {
