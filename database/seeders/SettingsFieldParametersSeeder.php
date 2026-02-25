@@ -141,6 +141,68 @@ class SettingsFieldParametersSeeder extends Seeder
                         ],
             [
                 'kind' => 'parameter',
+                'key' => 'credit_note_reason',
+                'data' => [
+                    'label' => 'Motivos nota credito',
+                    'description' => 'Motivos configurables para notas credito.',
+                    'value' => [
+                        [
+                            'id' => 'partial_return_or_partial_rejection',
+                            'name' => 'Devolucion parcial de los bienes y/o no aceptacion parcial del servicio',
+                        ],
+                        [
+                            'id' => 'electronic_invoice_cancellation',
+                            'name' => 'Anulacion de factura electronica',
+                        ],
+                        [
+                            'id' => 'total_or_partial_discount',
+                            'name' => 'Rebaja o descuento parcial o total',
+                        ],
+                        [
+                            'id' => 'price_adjustment',
+                            'name' => 'Ajuste de precio',
+                        ],
+                        [
+                            'id' => 'early_payment_discount',
+                            'name' => 'Descuento comercial por pronto pago',
+                        ],
+                        [
+                            'id' => 'volume_discount',
+                            'name' => 'Descuento comercial por volumen de ventas',
+                        ],
+                    ],
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
+                'key' => 'debit_note_reason',
+                'data' => [
+                    'label' => 'Motivos nota debito',
+                    'description' => 'Motivos configurables para notas debito.',
+                    'value' => [
+                        [
+                            'id' => 'interests',
+                            'name' => 'Intereses',
+                        ],
+                        [
+                            'id' => 'receivable_charges',
+                            'name' => 'Gastos por cobrar',
+                        ],
+                        [
+                            'id' => 'value_change',
+                            'name' => 'Cambio del valor',
+                        ],
+                        [
+                            'id' => 'other',
+                            'name' => 'Otros',
+                        ],
+                    ],
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
                 'key' => 'areas',
                 'data' => [
                     'label' => 'Áreas',

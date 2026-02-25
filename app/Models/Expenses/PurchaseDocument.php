@@ -68,6 +68,8 @@ class PurchaseDocument extends Model implements HasAuditLabel
     public const TYPE_REQUEST = 'purchase_request';
     public const TYPE_ORDER   = 'purchase_order';
     public const TYPE_INVOICE = 'purchase_invoice';
+    public const TYPE_CREDIT_NOTE = 'purchase_credit_note';
+    public const TYPE_DEBIT_NOTE  = 'purchase_debit_note';
 
     // Detalles (ítems) del documento
     public function items()
@@ -166,6 +168,16 @@ class PurchaseDocument extends Model implements HasAuditLabel
     public function scopeInvoices($query)
     {
         return $query->where('document_type', self::TYPE_INVOICE);
+    }
+
+    public function scopeCreditNotes($query)
+    {
+        return $query->where('document_type', self::TYPE_CREDIT_NOTE);
+    }
+
+    public function scopeDebitNotes($query)
+    {
+        return $query->where('document_type', self::TYPE_DEBIT_NOTE);
     }
 
     // Métodos de estado para órdenes

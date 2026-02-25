@@ -1,18 +1,32 @@
 import axios from 'axios';
 import type {
+    CreditDebitNote,
+    CreditDebitNoteListQuery,
+    CreditDebitNotePayload,
     Retention,
     RetentionListQuery,
     RetentionPayload,
     Tax,
     TaxPayload,
 } from './types';
-import type { RetentionDto, TaxDto } from './dto';
-import { mapRetentionDto, mapTaxDto } from './mappers';
+import type {
+    CreditDebitNoteDto,
+    RetentionDto,
+    TaxDto,
+} from './dto';
+import {
+    mapCreditDebitNoteFromApi,
+    mapCreditDebitNoteToApi,
+    mapRetentionDto,
+    mapTaxDto,
+} from './mappers';
 
 const TAX_ENDPOINT = '/impuestos';
 const TAX_DATA_ENDPOINT = '/impuestos/data';
 const RETENTION_ENDPOINT = '/retenciones';
 const RETENTION_DATA_ENDPOINT = '/retenciones/data';
+const CREDIT_DEBIT_NOTE_ENDPOINT = '/notas-credito-debito';
+const CREDIT_DEBIT_NOTE_DATA_ENDPOINT = '/notas-credito-debito/data';
 
 export async function fetchTaxes(): Promise<Tax[]> {
     const res = await axios.get<{ data: TaxDto[] } | TaxDto[]>(TAX_DATA_ENDPOINT);
@@ -72,4 +86,73 @@ export async function updateRetention(id: number, payload: RetentionPayload): Pr
 
 export async function deleteRetention(id: number): Promise<void> {
     await axios.delete(`${RETENTION_ENDPOINT}/${id}`);
+}
+
+type CreditDebitNoteEntityResponse = CreditDebitNoteDto | { data: CreditDebitNoteDto };
+type CreditDebitNoteListResponse = {
+    data?: CreditDebitNoteDto[];
+    total?: number;
+    current_page?: number;
+} | CreditDebitNoteDto[];
+
+function isCreditDebitNoteEntityEnvelope(raw: CreditDebitNoteEntityResponse): raw is { data: CreditDebitNoteDto } {
+    return typeof raw === 'object'
+        && raw !== null
+        && 'data' in raw
+        && Boolean((raw as { data?: CreditDebitNoteDto }).data);
+}
+
+function pickCreditDebitNoteEntity(raw: CreditDebitNoteEntityResponse): CreditDebitNoteDto {
+    if (isCreditDebitNoteEntityEnvelope(raw)) {
+        return raw.data;
+    }
+
+    return raw as CreditDebitNoteDto;
+}
+
+function pickCreditDebitNoteRows(raw: CreditDebitNoteListResponse): CreditDebitNoteDto[] {
+    if (Array.isArray(raw)) {
+        return raw;
+    }
+    return Array.isArray(raw.data) ? raw.data : [];
+}
+
+export async function list(params: CreditDebitNoteListQuery = {}): Promise<{
+    data: CreditDebitNote[];
+    total?: number;
+    current_page?: number;
+}> {
+    const res = await axios.get<CreditDebitNoteListResponse>(CREDIT_DEBIT_NOTE_DATA_ENDPOINT, { params });
+    const rows = pickCreditDebitNoteRows(res.data).map(mapCreditDebitNoteFromApi);
+
+    return {
+        data: rows,
+        total: !Array.isArray(res.data) ? res.data.total : undefined,
+        current_page: !Array.isArray(res.data) ? res.data.current_page : undefined,
+    };
+}
+
+export async function get(id: number | string): Promise<CreditDebitNote> {
+    const res = await axios.get<CreditDebitNoteEntityResponse>(`${CREDIT_DEBIT_NOTE_ENDPOINT}/${id}`);
+    return mapCreditDebitNoteFromApi(pickCreditDebitNoteEntity(res.data));
+}
+
+export async function create(payload: CreditDebitNotePayload): Promise<CreditDebitNote> {
+    const res = await axios.post<CreditDebitNoteEntityResponse>(
+        CREDIT_DEBIT_NOTE_ENDPOINT,
+        mapCreditDebitNoteToApi(payload),
+    );
+    return mapCreditDebitNoteFromApi(pickCreditDebitNoteEntity(res.data));
+}
+
+export async function update(id: number | string, payload: CreditDebitNotePayload): Promise<CreditDebitNote> {
+    const res = await axios.put<CreditDebitNoteEntityResponse>(
+        `${CREDIT_DEBIT_NOTE_ENDPOINT}/${id}`,
+        mapCreditDebitNoteToApi(payload),
+    );
+    return mapCreditDebitNoteFromApi(pickCreditDebitNoteEntity(res.data));
+}
+
+export async function remove(id: number | string): Promise<void> {
+    await axios.delete(`${CREDIT_DEBIT_NOTE_ENDPOINT}/${id}`);
 }

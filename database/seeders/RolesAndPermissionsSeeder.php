@@ -95,8 +95,8 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $areas = is_array($areasSetting?->value) ? $areasSetting->value : [];
 
-        $adminAreaId = $this->resolveAreaId($areas, ['TICs', 'Tecnologia', 'Administracion', 'Administración']);
-        $generalAreaId = $this->resolveAreaId($areas, ['Produccion', 'Producción']);
+        $adminAreaId = $this->resolveAreaId($areas, ['TICs', 'Tecnologia', 'Administracion', 'AdministraciÃ³n']);
+        $generalAreaId = $this->resolveAreaId($areas, ['Produccion', 'ProducciÃ³n']);
         $contabilidadAreaId = $this->resolveAreaId($areas, ['Contabilidad']);
 
         // Crear usuarios de ejemplo con area asignada

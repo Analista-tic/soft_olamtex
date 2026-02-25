@@ -9,7 +9,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
+import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye, MinusCircle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
@@ -303,6 +303,42 @@ function goToReception(invoice: PurchaseInvoice) {
     router.visit(buildReceptionUrl(invoice.id));
 }
 
+function stopMenuEvent(event?: Event) {
+    event?.stopPropagation();
+}
+
+function handlePrintAction(invoice: PurchaseInvoice, event?: Event) {
+    stopMenuEvent(event);
+    openPrintDialog(invoice);
+}
+
+function handleReceptionAction(invoice: PurchaseInvoice, event?: Event) {
+    stopMenuEvent(event);
+    goToReception(invoice);
+}
+
+async function handleSendMailAction(invoice: PurchaseInvoice, event?: Event) {
+    stopMenuEvent(event);
+    await sendInvoiceByEmail(invoice);
+}
+
+function goToCreditDebitNote(
+    invoice: PurchaseInvoice,
+    documentType: 'purchase_credit_note' | 'purchase_debit_note',
+    event?: Event,
+) {
+    stopMenuEvent(event);
+    if (!invoice?.id) return;
+
+    const query = new URLSearchParams({
+        scope: 'expenses',
+        parent_document_id: String(invoice.id),
+        document_type: documentType,
+    });
+
+    router.visit(`/finance/notas-credito-debito?${query.toString()}`);
+}
+
 async function viewInvoiceDetails(invoice: PurchaseInvoice) {
     if (!invoice.id) return;
     try {
@@ -489,7 +525,7 @@ function handleDialogError(message?: string) {
                                         <Tooltip>
                                             <TooltipTrigger as-child>
                                                 <DropdownMenuTrigger as-child>
-                                                    <Button variant="ghost" size="icon" :class="actionButtonClass">
+                                                    <Button variant="ghost" size="icon" :class="actionButtonClass" @click.stop @pointerdown.stop>
                                                         <MoreVertical :class="actionIconClass" />
                                                         <span class="sr-only">Acciones</span>
                                                     </Button>
@@ -498,17 +534,23 @@ function handleDialogError(message?: string) {
                                             <TooltipContent>Acciones</TooltipContent>
                                         </Tooltip>
                                         <DropdownMenuContent align="end" class="w-48">
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(invoice)">
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="handlePrintAction(invoice, $event)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception(invoice)">
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="handleReceptionAction(invoice, $event)">
                                                 <Package class="h-4 w-4" /> Ir a recepción
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)">
+                                                <MinusCircle class="h-4 w-4" /> Crear Nota Crédito
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)">
+                                                <PlusCircle class="h-4 w-4" /> Crear Nota Débito
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 class="cursor-pointer gap-2"
                                                 :class="isSendingMail ? 'opacity-60 cursor-not-allowed' : ''"
                                                 :disabled="isSendingMail"
-                                                @click="sendInvoiceByEmail(invoice)"
+                                                @select="handleSendMailAction(invoice, $event)"
                                             >
                                                 <Mail class="h-4 w-4" /> Enviar al correo
                                             </DropdownMenuItem>

@@ -62,7 +62,7 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Cotizaciones', href: underConstructionHref('Cotizaciones') },
                     { title: 'Pedidos', href: underConstructionHref('Pedidos') },
                     { title: 'Facturas de venta', href: underConstructionHref('Facturas de venta') },
-                    { title: 'Notas Crédito / Débito', href: underConstructionHref('Notas Crédito / Débito') },
+                    { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=sale' },
                     { title: 'Recaudos / Pagos recibidos', href: underConstructionHref('Recaudos / Pagos recibidos') },
                 ],
             },
@@ -86,7 +86,7 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Recepciones', href: underConstructionHref('Recepciones') },
                     { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver telas' },
                     { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver telas' },
-                    { title: 'Notas Crédito / Débito', href: underConstructionHref('Notas Crédito / Débito') },
+                    { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=purchase', permission: 'ver telas' },
                 ],
             },
             {
@@ -203,34 +203,50 @@ const { state, setOpen } = useSidebar();
 const isSidebarCollapsed = computed(() => state.value === 'collapsed');
 
 const page = usePage();
-const currentPath = computed(() => {
+const currentUrl = computed(() => {
     try {
-        return new URL(page.url ?? window.location.href, window.location.origin).pathname;
+        return new URL(String(page.url ?? window.location.href), window.location.origin);
     } catch {
-        return window.location.pathname;
+        return new URL(window.location.href);
     }
 });
 
-const normalizeHref = (href: string): string => {
+const resolveHrefUrl = (href: string): URL | null => {
     if (!href || href === '#') {
-        return '';
+        return null;
     }
 
     try {
-        const url = new URL(href, window.location.origin);
-        return url.pathname;
+        return new URL(href, window.location.origin);
     } catch {
-        return href.startsWith('/') ? href : `/${href}`;
+        return null;
     }
 };
 
+const hasMatchingQueryParams = (target: URL, current: URL): boolean => {
+    for (const [key, value] of target.searchParams.entries()) {
+        if (current.searchParams.get(key) !== value) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
 const isRouteActive = (href: string) => {
-    const normalized = normalizeHref(href);
-    if (!normalized) {
+    const targetUrl = resolveHrefUrl(href);
+    if (!targetUrl) {
         return false;
     }
 
-    return currentPath.value === normalized || currentPath.value.startsWith(`${normalized}/`);
+    const current = currentUrl.value;
+    const hasQuery = targetUrl.searchParams.toString().length > 0;
+
+    if (hasQuery) {
+        return current.pathname === targetUrl.pathname && hasMatchingQueryParams(targetUrl, current);
+    }
+
+    return current.pathname === targetUrl.pathname || current.pathname.startsWith(`${targetUrl.pathname}/`);
 };
 
 const getActiveSectionTitle = () => {
@@ -296,7 +312,7 @@ watch(
 );
 
 watch(
-    currentPath,
+    () => `${currentUrl.value.pathname}${currentUrl.value.search}`,
     () => {
         openSectionForActiveRoute();
     },
@@ -426,4 +442,3 @@ watch(
     margin-bottom: 0;
 }
 </style>
-

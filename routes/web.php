@@ -33,6 +33,7 @@ use App\Http\Controllers\MasterData\ItemController;
 use App\Http\Controllers\MasterData\AdditionalFieldController;
 use App\Http\Controllers\Finance\RetentionController;
 use App\Http\Controllers\Finance\TaxController;
+use App\Http\Controllers\Finance\CreditDebitNoteController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\InventoryMovementController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
@@ -478,6 +479,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/{id}', [TaxController::class, 'update'])->name('update');
         Route::delete('/{id}', [TaxController::class, 'destroy'])->name('destroy');
         Route::post('/{id}/toggle-status', [TaxController::class, 'toggleStatus'])->name('toggle-status');
+    });
+
+    // === NOTAS CRÉDITO / DÉBITO (FINANCE) ===
+    Route::prefix('notas-credito-debito')->group(function () {
+        Route::get('/', [CreditDebitNoteController::class, 'index']);
+        Route::get('/data', [CreditDebitNoteController::class, 'getData']);
+        Route::post('/', [CreditDebitNoteController::class, 'store']);
+        Route::get('/{id}', [CreditDebitNoteController::class, 'show']);
+        Route::put('/{id}', [CreditDebitNoteController::class, 'update']);
+        Route::delete('/{id}', [CreditDebitNoteController::class, 'destroy']);
     });
 
     // === KARDEX TELAS ===

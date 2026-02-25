@@ -13,7 +13,7 @@ return new class extends Migration
 
             // Identificación general
             $table->string('document_number', 50)->nullable()->index(); // SOL-2025-001, ORD-2025-001, FAC-2025-001
-            $table->enum('document_type', ['purchase_request', 'purchase_order', 'purchase_invoice'])->index();
+            $table->enum('document_type', ['purchase_request', 'purchase_order', 'purchase_invoice', 'purchase_credit_note', 'purchase_debit_note'])->index();
 
             // Encadenamiento (Solicitud -> Orden -> Factura)
             $table->unsignedBigInteger('parent_document_id')->nullable()->index();
@@ -104,7 +104,7 @@ return new class extends Migration
             $table->timestamp('ordered_at')->nullable();   // Cuándo se ordenó
             $table->timestamp('invoiced_at')->nullable();  // Cuándo se facturó
 
-            // AuditorÃ­a base
+            // Auditoría base
             $table->timestamps();
             $table->softDeletes();
 
