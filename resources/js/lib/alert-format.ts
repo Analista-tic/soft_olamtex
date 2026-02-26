@@ -15,4 +15,3 @@ export function formatRequiredFieldsMessage(baseMessage: string, fields: string[
     const trimmedBase = baseMessage.trim().replace(/[:.]+$/, '');
     return `${trimmedBase}: ${normalizedFields.join(', ')}.`;
 }
-

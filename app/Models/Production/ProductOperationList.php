@@ -13,25 +13,30 @@ class ProductOperationList extends Model
 {
     use HasFactory, SoftDeletes, HasAuditLabel;
 
-    protected $table = 'product_operation_lists';
+    protected $table = 'product_sheet_operations';
 
     protected $fillable = [
         'product_sheet_id',
         'operation_id',
         'machine_id',
         'operation_section_id',
-        'sequence_order',
+        'sequence',
+        'sequence_order', // Alias para sequence (mapeado vía mutator)
+        'fabric_base_id',
+        'quantity',
+        'sam_base',
+        'sam',
+        'fabric_base_factor',
+        'sam_total_unitario',
+        'sam_total_operacion',
         'is_active',
         'optimal_time',
-        'sam',
         'operator_efficiency_factor',
         'machine_supplement_factor',
         'production_time',
         'actual_time',
         'variance',
         'notes',
-        'created_by',
-        'updated_by',
     ];
 
     protected $casts = [
@@ -39,7 +44,7 @@ class ProductOperationList extends Model
         'operation_id' => 'integer',
         'machine_id' => 'integer',
         'operation_section_id' => 'integer',
-        'sequence_order' => 'integer',
+        'sequence' => 'integer',
         'is_active' => 'boolean',
         'optimal_time' => 'float',
         'sam' => 'float',
@@ -76,14 +81,32 @@ class ProductOperationList extends Model
         return $this->belongsTo(OperationSection::class);
     }
 
-    public function createdBy()
+    public function calculateSamTotalUnitario(): float
     {
-        return $this->belongsTo(User::class, 'created_by');
+        $samBase = $this->sam_base ?? $this->sam ?? 0;
+        $sup = $this->machine_supplement_factor ?? 1.0;
+        $fabric = $this->fabric_base_factor ?? 1.0;
+        $op = $this->operator_efficiency_factor ?? 1.0;
+
+        return $samBase * $sup * $fabric * $op;
     }
 
-    public function updatedBy()
+    public function calculateSamTotalOperacion(): float
     {
-        return $this->belongsTo(User::class, 'updated_by');
+        return $this->calculateSamTotalUnitario() * ($this->quantity ?? 1);
+    }
+
+    /**
+     * Alias: sequence_order mapea a sequence para compatibilidad con frontend.
+     */
+    public function getSequenceOrderAttribute(): int
+    {
+        return (int) ($this->attributes['sequence'] ?? 0);
+    }
+
+    public function setSequenceOrderAttribute($value): void
+    {
+        $this->attributes['sequence'] = $value;
     }
 
     // Scopes
@@ -114,7 +137,7 @@ class ProductOperationList extends Model
 
     public function scopeOrdered(Builder $query): Builder
     {
-        return $query->orderBy('sequence_order');
+        return $query->orderBy('sequence');
     }
 
     public function scopeWithRelations(Builder $query): Builder

@@ -1,4 +1,3 @@
-
 import type { Item } from '@/domain/MasterData';
 
 // Only Warehouse remains in the inventory domain

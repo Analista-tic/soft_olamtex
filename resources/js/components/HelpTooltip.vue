@@ -50,7 +50,7 @@ function handleFocus() {
                 class="help-tooltip-trigger"
                 :aria-label="computedAriaLabel"
                 role="button"
-                tabindex="0"
+                tabindex="-1"
                 @mouseenter="handleMouseEnter"
                 @mouseleave="handleMouseLeave"
                 @click="handleClick"
@@ -123,4 +123,3 @@ function handleFocus() {
     bottom: -0.72rem;
 }
 </style>
-

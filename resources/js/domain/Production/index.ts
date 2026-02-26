@@ -1,7 +1,7 @@
 export * from './dto';
-export * from './types';
 export * from './mappers';
-export * from './sizes';
-export * from './service';
 export * from './rawMaterialSelection';
+export * from './service';
+export * from './sizes';
+export * from './types';
 // product-sheet utilities were folded into './mappers'

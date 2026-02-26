@@ -18,11 +18,13 @@ class Machine extends Model
     protected $fillable = [
         'code',
         'name',
+        'supplement_factor',
         'is_active',
         'created_by',
     ];
 
     protected $casts = [
+        'supplement_factor' => 'float',
         'is_active' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
@@ -40,39 +42,6 @@ class Machine extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
-    }
-
-    // Accessors
-    /**
-     * Obtiene el factor de suplemento de la máquina según su código/tipo
-     */
-    public function getSupplementFactorAttribute(): float
-    {
-        // Suplementos por defecto según tipo de máquina
-        $supplements = [
-            'RECTA' => 1.05,
-            'OVERLOCK' => 1.08,
-            'COLLARIN' => 1.10,
-            'RECUBRIDORA' => 1.12,
-            'BOTONERA' => 1.15,
-            'OJAL' => 1.15,
-            'ELASTIQUERA' => 1.10,
-            'CERRADORA' => 1.08,
-            'PRESILLADORA' => 1.12,
-            'DEFAULT' => 1.05,
-        ];
-
-        $code = strtoupper($this->code);
-        $name = strtoupper($this->name);
-
-        // Buscar coincidencia por código o nombre
-        foreach ($supplements as $type => $supplement) {
-            if ($type !== 'DEFAULT' && (str_contains($code, $type) || str_contains($name, $type))) {
-                return $supplement;
-            }
-        }
-
-        return $supplements['DEFAULT'];
     }
 
     // Scopes

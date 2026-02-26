@@ -69,4 +69,3 @@ export function mapFabricRollViewDto(dto: FabricRollViewDto): FabricRollView {
         status: dto.status,
     };
 }
-

@@ -168,6 +168,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->middleware('permission:eliminar sabana productos')
             ->name('sabana-productos.destroy');
 
+        Route::get('base-operaciones', [OperationController::class, 'indexView'])
+            ->middleware('permission:ver listados operacionales|ver sabana productos')
+            ->name('base-operaciones.index');
+
         Route::get('listados-operacionales', [ProductOperationListController::class, 'indexView'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
             ->name('listados-operacionales.index');
@@ -191,6 +195,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/copiar-desde-producto', [ProductOperationListController::class, 'copyFromProduct'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('copy-from-product');
+            Route::get('/{listItem}/history', [ProductOperationListController::class, 'history'])
+                ->middleware('permission:ver listados operacionales|ver sabana productos')
+                ->name('history');
         });
 
         // Parametros
@@ -211,9 +218,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Operaciones
         Route::prefix('operaciones')->name('operaciones.')->group(function () {
             Route::get('/data', [OperationController::class, 'data'])->name('data');
+            Route::get('/metadata', [OperationController::class, 'metadata'])->name('metadata');
+            Route::get('/paginated', [OperationController::class, 'paginated'])->name('paginated');
             Route::post('/', [OperationController::class, 'store'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('store');
+            Route::put('/{operation}', [OperationController::class, 'update'])
+                ->middleware('permission:editar listados operacionales|editar sabana productos')
+                ->name('update');
+            Route::delete('/{operation}', [OperationController::class, 'destroy'])
+                ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
+                ->name('destroy');
+            Route::post('/{operation}/update-standard-time', [OperationController::class, 'updateStandardTime'])
+                ->middleware('permission:editar listados operacionales|editar sabana productos')
+                ->name('update-standard-time');
+            Route::get('/{operation}/audit-log', [OperationController::class, 'auditLog'])
+                ->middleware('permission:ver listados operacionales|ver sabana productos')
+                ->name('audit-log');
         });
 
         // MÃ¡quinas

@@ -17,3 +17,4 @@ export {
     mapRetentionFormToPayload,
 } from './mappers';
 export * from './service';
+export * from './types';

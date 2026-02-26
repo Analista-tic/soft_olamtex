@@ -21,4 +21,3 @@ const computedDescription = computed(() => props.description ?? '');
         <slot />
     </div>
 </template>
-

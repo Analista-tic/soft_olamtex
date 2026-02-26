@@ -1,19 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import SelectField from '@/components/SelectField.vue';
-import ProcessesTab from './tabs/ProcessesTab.vue';
-import CostsTab from './tabs/CostsTab.vue';
-import SuppliesTab from './tabs/SuppliesTab.vue';
-import RollsTab from './tabs/RollsTab.vue';
-import ThreadsTab from './tabs/ThreadsTab.vue';
-import RawMaterialTab from './tabs/RawMaterialTab.vue';
-import AdditionalInfoTab from './tabs/AdditionalInfoTab/index.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Layers, Package, Volleyball, Workflow } from 'lucide-vue-next';
-import type { BreadcrumbItem, Option } from '@/domain/shared';
 import type { OpBasicInfo, OperationalList } from '@/domain/Production';
 import {
     assignOperationalListToOp,
@@ -22,6 +10,18 @@ import {
     fetchOpOperationalList,
     fetchOpOptions,
 } from '@/domain/Production';
+import type { BreadcrumbItem, Option } from '@/domain/shared';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Layers, Package, Volleyball, Workflow } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import AdditionalInfoTab from './tabs/AdditionalInfoTab/index.vue';
+import CostsTab from './tabs/CostsTab.vue';
+import ProcessesTab from './tabs/ProcessesTab.vue';
+import RawMaterialTab from './tabs/RawMaterialTab.vue';
+import RollsTab from './tabs/RollsTab.vue';
+import SuppliesTab from './tabs/SuppliesTab.vue';
+import ThreadsTab from './tabs/ThreadsTab.vue';
 
 const props = defineProps<{
     initialOpId: string | number | null;
@@ -59,19 +59,40 @@ type RawMaterialsInfoRow = {
 };
 const rawMaterialsInfo = ref<RawMaterialsInfoRow[]>([]);
 
+function resolveDrawingUrl(raw: string | null | undefined): string | null {
+    const path = typeof raw === 'string' ? raw.trim() : '';
+    if (!path) return null;
+    if (/^https?:\/\//i.test(path) || /^(data:|blob:)/i.test(path)) return path;
+    if (path.startsWith('/')) return path;
+    return `/storage/${path.replace(/^\/?storage\//, '')}`;
+}
+
 const drawingUrl = computed(() => {
-    const op = selectedOp.value as (OpBasicInfo & { drawingUrl?: string | null; imageUrl?: string | null }) | null;
-    return op?.flatDrawingUrl ?? op?.drawingUrl ?? op?.imageUrl ?? null;
+    const op = selectedOp.value as
+        | (OpBasicInfo & {
+              drawingUrl?: string | null;
+              imageUrl?: string | null;
+              flat_sketch_path?: string | null;
+          })
+        | null;
+    const raw = op?.flatDrawingUrl ?? op?.drawingUrl ?? op?.imageUrl ?? op?.flat_sketch_path ?? null;
+    return raw ? resolveDrawingUrl(raw) : null;
 });
 const hasDrawing = computed(() => Boolean(drawingUrl.value));
-const isSampleOp = computed(() => String(selectedOp.value?.type ?? selectedOp.value?.opCode ?? '').toUpperCase().startsWith('MU'));
+const isSampleOp = computed(() =>
+    String(selectedOp.value?.type ?? selectedOp.value?.opCode ?? '')
+        .toUpperCase()
+        .startsWith('MU'),
+);
 const displayedSecondReference = computed(() => {
-    const op = selectedOp.value as (OpBasicInfo & {
-        sampleReference?: string | null;
-        productReference?: string | null;
-        sample_reference?: string | null;
-        product_reference?: string | null;
-    }) | null;
+    const op = selectedOp.value as
+        | (OpBasicInfo & {
+              sampleReference?: string | null;
+              productReference?: string | null;
+              sample_reference?: string | null;
+              product_reference?: string | null;
+          })
+        | null;
     if (!op) return '-';
 
     const sampleFromField = (op.sampleReference ?? op.sample_reference ?? '').trim();
@@ -82,7 +103,10 @@ const displayedSecondReference = computed(() => {
     const reference = String(op.reference ?? '').trim();
     if (!reference) return '-';
 
-    const parts = reference.split(' - ').map((part) => part.trim()).filter(Boolean);
+    const parts = reference
+        .split(' - ')
+        .map((part) => part.trim())
+        .filter(Boolean);
     const sampleRef = parts[0] ?? reference;
     const productRef = parts[parts.length - 1] ?? reference;
     return isSampleOp.value ? sampleRef : productRef;
@@ -104,9 +128,7 @@ const tabs = [
     { value: 'costos', label: 'Costos', icon: DollarSign },
 ];
 
-const defaultTabValue = computed(() => (
-    tabs.some((tab) => tab.value === 'lista_operacional') ? 'lista_operacional' : 'procesos'
-));
+const defaultTabValue = computed(() => (tabs.some((tab) => tab.value === 'lista_operacional') ? 'lista_operacional' : 'procesos'));
 const activeTab = ref<string>(defaultTabValue.value);
 
 function formatDate(value: string | null): string {
@@ -231,7 +253,12 @@ async function loadOperationalListOptions(searchTerm = ''): Promise<void> {
 }
 
 async function assignOperationalList(): Promise<void> {
-    if (!selectedOpId.value || selectedOperationalListId.value === null || selectedOperationalListId.value === undefined || selectedOperationalListId.value === '') {
+    if (
+        !selectedOpId.value ||
+        selectedOperationalListId.value === null ||
+        selectedOperationalListId.value === undefined ||
+        selectedOperationalListId.value === ''
+    ) {
         return;
     }
 
@@ -271,7 +298,10 @@ function formatOpOptionLabel(option: Option): string {
     if (!left || !right) return raw;
 
     const opCode = left;
-    const parts = right.split(' - ').map((segment) => segment.trim()).filter(Boolean);
+    const parts = right
+        .split(' - ')
+        .map((segment) => segment.trim())
+        .filter(Boolean);
     const isSample = opCode.toUpperCase().startsWith('MU');
     const sampleRef = parts[0] ?? right;
     const productRef = parts[parts.length - 1] ?? right;
@@ -363,17 +393,11 @@ onBeforeUnmount(() => {
                 Cargando informacion...
             </div>
 
-            <div
-                v-else-if="!selectedOpId"
-                class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground"
-            >
+            <div v-else-if="!selectedOpId" class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
                 Selecciona una OP
             </div>
 
-            <div
-                v-else-if="!selectedOp"
-                class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground"
-            >
+            <div v-else-if="!selectedOp" class="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
                 No hay resultados
             </div>
 
@@ -405,7 +429,7 @@ onBeforeUnmount(() => {
                     >
                         <div v-show="!isBasicInfoCollapsed" class="grid grid-cols-1 gap-4 overflow-hidden lg:grid-cols-3">
                             <div class="lg:col-span-2">
-                                <div class="grid grid-cols-1 gap-y-4 gap-x-8 sm:grid-cols-2 xl:grid-cols-4">
+                                <div class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
                                     <div v-for="field in basicInfoFields" :key="field.key" class="space-y-1">
                                         <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ field.label }}</p>
                                         <p class="text-sm font-medium text-foreground">{{ field.value }}</p>
@@ -426,22 +450,16 @@ onBeforeUnmount(() => {
                                     @click="openDrawing"
                                     :disabled="!drawingUrl"
                                 >
-                                    <img
-                                        :src="drawingUrl!"
-                                        class="h-full w-auto max-w-full object-contain"
-                                        alt="Dibujo plano"
-                                    />
+                                    <img :src="drawingUrl!" class="h-full w-auto max-w-full object-contain" alt="Dibujo plano" />
                                 </button>
-                                <div v-else class="mt-2 flex h-[110px] items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10">
+                                <div
+                                    v-else
+                                    class="mt-2 flex h-[110px] items-center justify-center overflow-hidden rounded-md border border-dashed border-muted-foreground/25 bg-muted/10"
+                                >
                                     <p class="text-sm text-muted-foreground">Sin dibujo</p>
                                 </div>
 
-                                <ImagePreviewDialog
-                                    v-model:open="isDrawingOpen"
-                                    title="Dibujo plano"
-                                    :src="drawingUrl"
-                                    alt="Dibujo plano"
-                                />
+                                <ImagePreviewDialog v-model:open="isDrawingOpen" title="Dibujo plano" :src="drawingUrl" alt="Dibujo plano" />
                             </div>
                         </div>
                     </transition>
@@ -468,10 +486,7 @@ onBeforeUnmount(() => {
                             Cargando listado operacional...
                         </div>
 
-                        <div
-                            v-else-if="!hasOperationalList"
-                            class="rounded-lg border border-dashed border-border bg-background px-4 py-6"
-                        >
+                        <div v-else-if="!hasOperationalList" class="rounded-lg border border-dashed border-border bg-background px-4 py-6">
                             <div class="space-y-4">
                                 <div>
                                     <p class="text-sm font-semibold text-foreground">Lista operacional</p>
@@ -506,7 +521,8 @@ onBeforeUnmount(() => {
                                 <p class="text-sm font-semibold text-foreground">Lista operacional</p>
                                 <p class="text-xs text-muted-foreground">Listado asignado a la OP</p>
                                 <p class="mt-1 text-sm font-medium text-foreground">
-                                    {{ operationalList?.reference ?? 'Sin referencia' }}{{ operationalList?.name ? ` - ${operationalList.name}` : '' }}
+                                    {{ operationalList?.reference ?? 'Sin referencia'
+                                    }}{{ operationalList?.name ? ` - ${operationalList.name}` : '' }}
                                 </p>
                             </div>
 
@@ -518,7 +534,9 @@ onBeforeUnmount(() => {
                             </div>
                             <div v-else class="overflow-x-auto">
                                 <div class="min-w-[760px] rounded-md border border-border">
-                                    <div class="grid grid-cols-[90px_220px_1fr_120px_170px] border-b border-border bg-muted/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                    <div
+                                        class="grid grid-cols-[90px_220px_1fr_120px_170px] border-b border-border bg-muted/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                                    >
                                         <p># / Orden</p>
                                         <p>Proceso / Operacion</p>
                                         <p>Descripcion</p>
@@ -542,34 +560,19 @@ onBeforeUnmount(() => {
                     </TabsContent>
 
                     <TabsContent value="procesos" class="mt-0">
-                        <ProcessesTab
-                            :op-id="selectedOpId"
-                            :selected-op="selectedOp"
-                            @go-to-operational-list="activeTab = 'lista_operacional'"
-                        />
+                        <ProcessesTab :op-id="selectedOpId" :selected-op="selectedOp" @go-to-operational-list="activeTab = 'lista_operacional'" />
                     </TabsContent>
 
                     <TabsContent value="materia_prima" class="mt-0">
-                        <RawMaterialTab
-                            v-if="selectedOpId"
-                            :op-id="selectedOpId"
-                        />
+                        <RawMaterialTab v-if="selectedOpId" :op-id="selectedOpId" />
                     </TabsContent>
 
                     <TabsContent value="rollos" class="mt-0">
-                        <RollsTab
-                            v-if="selectedOpId"
-                            :op-id="selectedOpId"
-                            :units="selectedOp?.units ?? null"
-                        />
+                        <RollsTab v-if="selectedOpId" :op-id="selectedOpId" :units="selectedOp?.units ?? null" />
                     </TabsContent>
 
                     <TabsContent value="hilos" class="mt-0">
-                        <ThreadsTab
-                            v-if="selectedOpId"
-                            :op-id="selectedOpId"
-                            :units="selectedOp?.units ?? null"
-                        />
+                        <ThreadsTab v-if="selectedOpId" :op-id="selectedOpId" :units="selectedOp?.units ?? null" />
                     </TabsContent>
 
                     <TabsContent value="insumos" class="mt-0">
@@ -603,4 +606,3 @@ onBeforeUnmount(() => {
         </div>
     </AppLayout>
 </template>
-

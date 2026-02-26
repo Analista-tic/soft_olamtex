@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
-import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Save, Trash } from 'lucide-vue-next';
+import type { AvailableFabricRoll, FabricType, RollLine, RollState } from '@/domain/Production';
+import { fetchAvailableFabricRolls, fetchOpRolls, getAllowedFabricItemIds, saveOpRolls } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
 import { formatMeters, formatNumberEsCO, formatWidthToMeters, toUnitNumber } from '@/domain/Textil';
-import type { AvailableFabricRoll, FabricType, RollLine, RollState } from '@/domain/Production';
-import { fetchAvailableFabricRolls, fetchOpRolls, saveOpRolls, getAllowedFabricItemIds } from '@/domain/Production';
 import PurchaseRequestDialog from '@/pages/Expenses/PurchaseRequests/PurchaseRequestDialog.vue';
+import { Plus, Save, Trash } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     opId: string | number;
@@ -77,10 +77,12 @@ const filteredAvailableRolls = computed(() => {
     });
 });
 
-const rollOptions = computed<Option[]>(() => filteredAvailableRolls.value.map((roll) => ({
-    id: roll.id,
-    name: roll.label,
-})));
+const rollOptions = computed<Option[]>(() =>
+    filteredAvailableRolls.value.map((roll) => ({
+        id: roll.id,
+        name: roll.label,
+    })),
+);
 
 function generateUid(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -109,16 +111,21 @@ function formatCOP(value: number): string {
     return `$ ${formatted}`.replace(/\u00A0/g, ' ');
 }
 
-function normalizeRoll(roll: {
-    width?: string | number | null;
-    widthCm?: string | number | null;
-    roll_qty?: string | number | null;
-    partial_output?: string | number | null;
-    partial_availability?: string | number | null;
-    exit_quantity?: string | number | null;
-    real_availability?: string | number | null;
-    availableMeters?: string | number | null;
-} | null | undefined) {
+function normalizeRoll(
+    roll:
+        | {
+              width?: string | number | null;
+              widthCm?: string | number | null;
+              roll_qty?: string | number | null;
+              partial_output?: string | number | null;
+              partial_availability?: string | number | null;
+              exit_quantity?: string | number | null;
+              real_availability?: string | number | null;
+              availableMeters?: string | number | null;
+          }
+        | null
+        | undefined,
+) {
     return {
         width: formatWidthToMeters(roll?.widthCm ?? roll?.width),
         rollQty: formatMeters(roll?.roll_qty ?? roll?.availableMeters),
@@ -156,41 +163,39 @@ function createEmptyRow(index: number): LocalRollRow {
     };
 }
 
-const rowsWithCalc = computed(() => rows.value.map((row) => {
-    const averageTrace = Math.max(0, toNumber(row.averageTrace));
-    const factor = Math.max(0, toNumber(row.factor));
-    const consumption = averageTrace * factor;
-    const pricePerMeter = Math.max(0, toNumber(row.pricePerMeter));
-    const metersProgrammed = Math.max(0, toNumber(row.metersProgrammed));
-    const unitCost = consumption * pricePerMeter;
-    const totalCost = metersProgrammed * pricePerMeter;
-    const availableMeters = toNullableNumber(row.availableMeters);
-    const balanceMeters = availableMeters === null ? null : availableMeters - metersProgrammed;
-    const overAllocated = balanceMeters !== null && balanceMeters < 0;
+const rowsWithCalc = computed(() =>
+    rows.value.map((row) => {
+        const averageTrace = Math.max(0, toNumber(row.averageTrace));
+        const factor = Math.max(0, toNumber(row.factor));
+        const consumption = averageTrace * factor;
+        const pricePerMeter = Math.max(0, toNumber(row.pricePerMeter));
+        const metersProgrammed = Math.max(0, toNumber(row.metersProgrammed));
+        const unitCost = consumption * pricePerMeter;
+        const totalCost = metersProgrammed * pricePerMeter;
+        const availableMeters = toNullableNumber(row.availableMeters);
+        const balanceMeters = availableMeters === null ? null : availableMeters - metersProgrammed;
+        const overAllocated = balanceMeters !== null && balanceMeters < 0;
 
-    return {
-        ...row,
-        averageTrace,
-        factor,
-        consumption,
-        pricePerMeter,
-        metersProgrammed,
-        unitCost,
-        totalCost,
-        availableMeters,
-        balanceMeters,
-        overAllocated,
-    };
-}));
+        return {
+            ...row,
+            averageTrace,
+            factor,
+            consumption,
+            pricePerMeter,
+            metersProgrammed,
+            unitCost,
+            totalCost,
+            availableMeters,
+            balanceMeters,
+            overAllocated,
+        };
+    }),
+);
 
 const totalMetersProgrammed = computed(() => rowsWithCalc.value.reduce((acc, row) => acc + row.metersProgrammed, 0));
 const totalCost = computed(() => rowsWithCalc.value.reduce((acc, row) => acc + row.totalCost, 0));
-const weightedCopPerMeter = computed(() => (
-    totalMetersProgrammed.value > 0 ? (totalCost.value / totalMetersProgrammed.value) : 0
-));
-const weightedMetersPerCop = computed(() => (
-    totalCost.value > 0 ? (totalMetersProgrammed.value / totalCost.value) : 0
-));
+const weightedCopPerMeter = computed(() => (totalMetersProgrammed.value > 0 ? totalCost.value / totalMetersProgrammed.value : 0));
+const weightedMetersPerCop = computed(() => (totalCost.value > 0 ? totalMetersProgrammed.value / totalCost.value : 0));
 
 const hasOverAllocation = computed(() => rowsWithCalc.value.some((row) => row.overAllocated));
 
@@ -264,9 +269,7 @@ function mapApiLineToLocal(line: RollLine, index: number): LocalRollRow {
     return {
         uid: generateUid(),
         id: line.id ? String(line.id) : null,
-        rollId: line.rollId !== null && line.rollId !== undefined
-            ? String(line.rollId)
-            : (line.fabricName ? String(line.fabricName) : null),
+        rollId: line.rollId !== null && line.rollId !== undefined ? String(line.rollId) : line.fabricName ? String(line.fabricName) : null,
         consecutive: line.consecutive ?? getDefaultConsecutive(index),
         type: line.type,
         averageTrace: String(line.averageTrace ?? DEFAULT_TRACE),
@@ -286,9 +289,7 @@ function mapApiLineToLocal(line: RollLine, index: number): LocalRollRow {
 }
 
 function applyState(state: RollState): void {
-    const loadedRows = Array.isArray(state.lines)
-        ? state.lines.map((line, index) => mapApiLineToLocal(line, index))
-        : [];
+    const loadedRows = Array.isArray(state.lines) ? state.lines.map((line, index) => mapApiLineToLocal(line, index)) : [];
 
     rows.value = loadedRows.length > 0 ? loadedRows : [createEmptyRow(0)];
     deletedIds.value = [];
@@ -375,19 +376,19 @@ const requestDialogDraft = computed(() => {
     return {
         date: new Date().toISOString().split('T')[0],
         destination: 'Produccion / Ficha Tecnica',
-        description: suggestedName
-            ? `${baseDescription}. Solicitud de rollo/tela: ${suggestedName}`
-            : baseDescription,
+        description: suggestedName ? `${baseDescription}. Solicitud de rollo/tela: ${suggestedName}` : baseDescription,
         provider_name: null,
         status: 'draft',
-        items: [{
-            item_id: null,
-            name: suggestedName || '',
-            price: 0,
-            quantity: 1,
-            description: '',
-            total: 0,
-        }],
+        items: [
+            {
+                item_id: null,
+                name: suggestedName || '',
+                price: 0,
+                quantity: 1,
+                description: '',
+                total: 0,
+            },
+        ],
     };
 });
 
@@ -458,10 +459,7 @@ async function loadRolls(): Promise<void> {
     refreshAllowedFabricFilters();
 
     try {
-        const [state] = await Promise.all([
-            fetchOpRolls(props.opId),
-            loadAvailableRolls(),
-        ]);
+        const [state] = await Promise.all([fetchOpRolls(props.opId), loadAvailableRolls()]);
         applyState(state);
     } catch (err) {
         console.error('Error al cargar rollos:', err);
@@ -500,9 +498,7 @@ async function handleSave(): Promise<void> {
 watch(
     () => hasOverAllocation.value,
     (value) => {
-        warning.value = value
-            ? 'Hay filas donde los metros a programar superan la disponibilidad del rollo.'
-            : null;
+        warning.value = value ? 'Hay filas donde los metros a programar superan la disponibilidad del rollo.' : null;
     },
     { immediate: true },
 );
@@ -547,15 +543,10 @@ onBeforeUnmount(() => {
             <p class="text-sm text-muted-foreground">Materia prima por OP con consumo y costo estimado.</p>
         </div>
 
-        <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">
-            Cargando programacion de rollos...
-        </div>
+        <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">Cargando programacion de rollos...</div>
 
         <template v-else>
-            <div
-                v-if="rows.length === 0"
-                class="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center"
-            >
+            <div v-if="rows.length === 0" class="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center">
                 <p class="text-sm font-medium text-foreground">No hay rollos registrados. Agrega una linea para iniciar.</p>
             </div>
 
@@ -571,11 +562,7 @@ onBeforeUnmount(() => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow
-                            v-for="(row, index) in rowsWithCalc"
-                            :key="row.uid"
-                            :class="row.overAllocated ? 'bg-amber-50/60' : ''"
-                        >
+                        <TableRow v-for="(row, index) in rowsWithCalc" :key="row.uid" :class="row.overAllocated ? 'bg-amber-50/60' : ''">
                             <TableCell>
                                 <SelectField
                                     :model-value="rows[index].rollId"
@@ -634,12 +621,7 @@ onBeforeUnmount(() => {
                         <Plus class="mr-1 h-4 w-4" />
                         Agregar rollo
                     </Button>
-                    <Button
-                        type="button"
-                        class="h-9 rounded-full px-4"
-                        :disabled="!canSave"
-                        @click="handleSave"
-                    >
+                    <Button type="button" class="h-9 rounded-full px-4" :disabled="!canSave" @click="handleSave">
                         <Save class="mr-1 h-4 w-4" />
                         {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                     </Button>
@@ -647,10 +629,18 @@ onBeforeUnmount(() => {
 
                 <div class="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                     <div class="space-y-1 text-right">
-                        <p class="text-xs uppercase tracking-wide text-muted-foreground">Total metros programados: <span class="font-semibold text-foreground">{{ formatMeters(totalMetersProgrammed) }}</span></p>
-                        <p class="text-xs uppercase tracking-wide text-muted-foreground">Total costo: <span class="font-semibold text-foreground">{{ formatCOP(totalCost) }}</span></p>
-                        <p class="text-xs uppercase tracking-wide text-muted-foreground">Costo ponderado (COP/m): <span class="font-semibold text-foreground">{{ formatCOP(weightedCopPerMeter) }}</span></p>
-                        <p class="text-xs uppercase tracking-wide text-muted-foreground">Costo ponderado (m/COP): <span class="font-semibold text-foreground">{{ weightedMetersPerCop.toFixed(6) }}</span></p>
+                        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+                            Total metros programados: <span class="font-semibold text-foreground">{{ formatMeters(totalMetersProgrammed) }}</span>
+                        </p>
+                        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+                            Total costo: <span class="font-semibold text-foreground">{{ formatCOP(totalCost) }}</span>
+                        </p>
+                        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+                            Costo ponderado (COP/m): <span class="font-semibold text-foreground">{{ formatCOP(weightedCopPerMeter) }}</span>
+                        </p>
+                        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+                            Costo ponderado (m/COP): <span class="font-semibold text-foreground">{{ weightedMetersPerCop.toFixed(6) }}</span>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -680,4 +670,3 @@ onBeforeUnmount(() => {
         />
     </div>
 </template>
-

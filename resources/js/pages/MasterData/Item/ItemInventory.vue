@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import { computed, onMounted, ref, watch } from 'vue';
+import StatusBadge from '@/components/common/StatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import Input from '@/components/ui/input/Input.vue';
-import StatusBadge from '@/components/common/StatusBadge.vue';
 import { Button } from '@/components/ui/button';
+import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -19,11 +15,15 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
-import axios from 'axios';
-import type { Option } from '@/domain/shared';
-import type { Warehouse } from '@/domain/Inventory';
-import { Search } from 'lucide-vue-next';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { Warehouse } from '@/domain/Inventory';
+import type { Option } from '@/domain/shared';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Search } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 
 type InventoryViewItem = {
     id: number;
@@ -38,9 +38,7 @@ type InventoryViewItem = {
     category_sub_group_id?: number | null;
 };
 
-const breadcrumbs = [
-    { title: 'Inventario de Ítems', href: '/inventario-item' },
-];
+const breadcrumbs = [{ title: 'Inventario de Ítems', href: '/inventario-item' }];
 
 const statusOptions: Option[] = [
     { id: 'all', name: 'Todos' },
@@ -122,15 +120,15 @@ async function fetchItems(page = 1) {
 async function fetchWarehouses() {
     try {
         const response = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
-    warehouses.value = [
-        { id: '', name: 'Todos' },
-        ...(response.data.data ?? [])
-            .filter((warehouse: Warehouse) => warehouse.id != null)
-            .map((warehouse: Warehouse) => ({
-                id: warehouse.id!,
-                name: warehouse.name,
-            })),
-    ];
+        warehouses.value = [
+            { id: '', name: 'Todos' },
+            ...(response.data.data ?? [])
+                .filter((warehouse: Warehouse) => warehouse.id != null)
+                .map((warehouse: Warehouse) => ({
+                    id: warehouse.id!,
+                    name: warehouse.name,
+                })),
+        ];
     } catch (error) {
         console.error('Error al cargar bodegas', error);
     }
@@ -166,19 +164,15 @@ onMounted(() => {
             </div>
             <!-- FILTROS -->
             <FilterBar align="start" gap="gap-4">
-                <FilterField
-                    label="Buscar referencia"
-                    :active="isSearchFilterActive"
-                    class="flex-1 min-w-[220px]"
-                >
+                <FilterField label="Buscar referencia" :active="isSearchFilterActive" class="min-w-[220px] flex-1">
                     <div class="relative">
                         <Input v-model="searchQuery" placeholder="Buscar ítem o referencia" class="h-10 w-full pl-12" />
-                        <span class="absolute inset-y-0 start-3 flex items-center justify-center pointer-events-none">
+                        <span class="pointer-events-none absolute inset-y-0 start-3 flex items-center justify-center">
                             <Search :size="18" class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
-                <FilterField label="Bodega" :active="isWarehouseActive" class="flex-1 min-w-[220px]">
+                <FilterField label="Bodega" :active="isWarehouseActive" class="min-w-[220px] flex-1">
                     <SelectField
                         v-model="warehouseFilter"
                         :options="warehouses"
@@ -189,39 +183,34 @@ onMounted(() => {
                 </FilterField>
 
                 <FilterField label="Estado" :active="isStatusActive" class="min-w-[180px]">
-                    <SelectField
-                        v-model="statusFilter"
-                        :options="statusOptions"
-                        placeholder="Estado"
-                        :button-class="statusButtonClasses"
-                    />
+                    <SelectField v-model="statusFilter" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
                 </FilterField>
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                        <TableHead class="text-start">Nombre ítem</TableHead>
-                        <TableHead>Referencia</TableHead>
-                        <TableHead>Cantidad</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Costo promedio</TableHead>
-                        <TableHead>Total</TableHead>
+                            <TableHead class="text-start">Nombre ítem</TableHead>
+                            <TableHead>Referencia</TableHead>
+                            <TableHead>Cantidad</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Costo promedio</TableHead>
+                            <TableHead>Total</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="item in items" :key="item.id">
-                        <TableCell class="text-start">{{ item.item_name }}</TableCell>
-                        <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
-                        <TableCell class="text-center">{{ formatQuantity(item.quantity) }}</TableCell>
-                        <TableCell class="text-center">
-                            <StatusBadge :status="item.status" />
-                        </TableCell>
-                        <TableCell class="text-center">{{ formatCurrency(item.average_cost) }}</TableCell>
-                        <TableCell class="text-center">{{ formatCurrency(item.total) }}</TableCell>
+                            <TableCell class="text-start">{{ item.item_name }}</TableCell>
+                            <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
+                            <TableCell class="text-center">{{ formatQuantity(item.quantity) }}</TableCell>
+                            <TableCell class="text-center">
+                                <StatusBadge :status="item.status" />
+                            </TableCell>
+                            <TableCell class="text-center">{{ formatCurrency(item.average_cost) }}</TableCell>
+                            <TableCell class="text-center">{{ formatCurrency(item.total) }}</TableCell>
                         </TableRow>
                         <TableRow v-if="items.length === 0">
-                        <TableCell :colspan="6" class="text-center text-gray-400">No hay ítems en el inventario.</TableCell>
+                            <TableCell :colspan="6" class="text-center text-gray-400">No hay ítems en el inventario.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
@@ -239,7 +228,11 @@ onMounted(() => {
                         <PaginationPrev />
                         <template v-for="item in paginationItems" :key="item.type === 'page' ? `page-${item.value}` : item.type">
                             <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button class="h-6 w-6 p-0" :variant="item.value === currentPage ? 'default' : 'outline'" @click="handlePageChange(item.value)">
+                                <Button
+                                    class="h-6 w-6 p-0"
+                                    :variant="item.value === currentPage ? 'default' : 'outline'"
+                                    @click="handlePageChange(item.value)"
+                                >
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>
@@ -253,4 +246,3 @@ onMounted(() => {
         </div>
     </AppLayout>
 </template>
-

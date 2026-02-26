@@ -45,10 +45,9 @@ export function useLastPurchaseByItem() {
         controllersByKey.set(requestKey, controller);
 
         try {
-            const response = await axios.get<LastPurchaseResponse>(
-                `/produccion/insumos/items/${itemId}/last-purchase`,
-                { signal: controller.signal },
-            );
+            const response = await axios.get<LastPurchaseResponse>(`/produccion/insumos/items/${itemId}/last-purchase`, {
+                signal: controller.signal,
+            });
             const data = response.data?.data ?? null;
             cache.set(itemId, data);
             return data;
@@ -93,4 +92,3 @@ export function useLastPurchaseByItem() {
 }
 
 export type { LastPurchaseDto };
-

@@ -5,9 +5,7 @@ function toEnabledSizeRecord(input: unknown[]): Record<string, boolean> {
 }
 
 function toBooleanRecord(input: Record<string, unknown>): Record<string, boolean> {
-    return Object.fromEntries(
-        Object.entries(input).map(([key, value]) => [key, Boolean(value)]),
-    );
+    return Object.fromEntries(Object.entries(input).map(([key, value]) => [key, Boolean(value)]));
 }
 
 function extractSizeKeys(input: NormalizedSizes): string[] {

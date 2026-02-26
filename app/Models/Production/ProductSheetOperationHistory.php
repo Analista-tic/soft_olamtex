@@ -3,7 +3,7 @@
 namespace App\Models\Production;
 
 use App\Models\Concerns\HasAuditLabel;
-use App\Models\User;
+use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -50,7 +50,7 @@ class ProductSheetOperationHistory extends Model
 
     public function productSheetOperation()
     {
-        return $this->belongsTo(ProductSheetOperation::class, 'product_sheet_operation_id');
+        return $this->belongsTo(ProductOperationList::class, 'product_sheet_operation_id');
     }
 
     public function usuario()

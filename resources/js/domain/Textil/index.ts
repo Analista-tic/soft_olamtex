@@ -1,24 +1,8 @@
-export type {
-    FabricOrder,
-    FabricOrderItem,
-    FabricRoll,
-    FabricRollView,
-    FabricRollReceptionForm,
-} from './types';
+export type { FabricOrder, FabricOrderItem, FabricRoll, FabricRollReceptionForm, FabricRollView } from './types';
 
-export type {
-    FabricOrderDto,
-    FabricOrderItemDto,
-    FabricRollDto,
-    FabricRollViewDto,
-} from './dto';
+export type { FabricOrderDto, FabricOrderItemDto, FabricRollDto, FabricRollViewDto } from './dto';
 
-export {
-    mapFabricOrderDto,
-    mapFabricOrderItemDto,
-    mapFabricRollDto,
-    mapFabricRollViewDto,
-} from './mappers';
+export { mapFabricOrderDto, mapFabricOrderItemDto, mapFabricRollDto, mapFabricRollViewDto } from './mappers';
 
 type UnitValue = string | number | null | undefined;
 
@@ -40,9 +24,7 @@ function normalizeNumericToken(token: string): string {
         const decimalSeparator = lastDot > lastComma ? '.' : ',';
         const thousandsSeparator = decimalSeparator === '.' ? ',' : '.';
 
-        return clean
-            .replace(new RegExp(`\\${thousandsSeparator}`, 'g'), '')
-            .replace(decimalSeparator, '.');
+        return clean.replace(new RegExp(`\\${thousandsSeparator}`, 'g'), '').replace(decimalSeparator, '.');
     }
 
     if (hasComma) {
@@ -86,11 +68,7 @@ export function formatNumberEsCO(
     value: UnitValue,
     options: { maximumFractionDigits?: number; minimumFractionDigits?: number; fallback?: string } = {},
 ): string {
-    const {
-        maximumFractionDigits = 1,
-        minimumFractionDigits = 0,
-        fallback = '-',
-    } = options;
+    const { maximumFractionDigits = 1, minimumFractionDigits = 0, fallback = '-' } = options;
 
     const parsed = toUnitNumber(value);
     if (parsed === null) return fallback;
@@ -128,4 +106,3 @@ export function formatMeters(value: UnitValue, fallback = '-'): string {
 
     return `${formatNumberEsCO(normalized, { maximumFractionDigits: 1, fallback })} m`;
 }
-

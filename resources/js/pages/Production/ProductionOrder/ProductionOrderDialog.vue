@@ -3,13 +3,7 @@ import FormDialogContent from '@/components/FormDialogContent.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { router } from '@inertiajs/vue3';
@@ -155,13 +149,13 @@ const statusLabel = computed(() => {
 });
 
 const statusBadgeClass = computed(() =>
-    statusLabel.value === 'Completo'
-        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-        : 'border-amber-500 bg-amber-50 text-amber-700',
+    statusLabel.value === 'Completo' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-amber-500 bg-amber-50 text-amber-700',
 );
 
 const orderKind = computed<'sample' | 'product' | 'unknown'>(() => {
-    const opCode = String(productionOrder.value?.op_code ?? programmer.value?.op_code ?? '').trim().toUpperCase();
+    const opCode = String(productionOrder.value?.op_code ?? programmer.value?.op_code ?? '')
+        .trim()
+        .toUpperCase();
     if (opCode.startsWith('MU') || opCode.startsWith('MUT')) return 'sample';
     if (opCode.startsWith('MF') || opCode.startsWith('MFT')) return 'product';
     return 'unknown';
@@ -177,15 +171,19 @@ const infoRows = computed<InfoRow[]>(() => {
     const isProduct = orderKind.value === 'product';
 
     const rows: Array<InfoRow | null> = [
-        { label: 'Temporada', value: normalizeText(productionOrder.value?.season_display || productionOrder.value?.season || programmer.value?.season) },
+        {
+            label: 'Temporada',
+            value: normalizeText(productionOrder.value?.season_display || productionOrder.value?.season || programmer.value?.season),
+        },
         { label: 'Destino', value: normalizeText(productionOrder.value?.destination?.name) },
         { label: 'Unidades', value: normalizeText(productionOrder.value?.units ?? programmer.value?.units) },
         !isProduct
-            ? { label: 'Tiempo de entrega estimado', value: formatDate(productionOrder.value?.estimated_delivery_date ?? programmer.value?.estimated_delivery_date) }
+            ? {
+                  label: 'Tiempo de entrega estimado',
+                  value: formatDate(productionOrder.value?.estimated_delivery_date ?? programmer.value?.estimated_delivery_date),
+              }
             : null,
-        !isSample
-            ? { label: 'Prioridad', value: normalizeText(productionOrder.value?.priority ?? programmer.value?.priority) }
-            : null,
+        !isSample ? { label: 'Prioridad', value: normalizeText(productionOrder.value?.priority ?? programmer.value?.priority) } : null,
         { label: 'Secci�n', value: normalizeText(productSheet.value?.section?.name) },
         { label: 'Grupo', value: normalizeText(productSheet.value?.group?.name) },
         { label: 'Marca', value: normalizeText(productSheet.value?.brand?.name) },
@@ -198,9 +196,7 @@ const infoRows = computed<InfoRow[]>(() => {
         { label: 'E-commerce', value: programmer.value?.ecommerce_units ? 'S�' : '-' },
     ];
 
-    return rows
-        .filter((row): row is InfoRow => row !== null)
-        .filter((row) => row.value !== '-' && row.value !== '');
+    return rows.filter((row): row is InfoRow => row !== null).filter((row) => row.value !== '-' && row.value !== '');
 });
 
 function normalizeText(value: unknown, fallback = '-'): string {
@@ -243,7 +239,12 @@ function formatSizes(value: unknown): string {
     if (value === null || value === undefined || value === '') return '-';
 
     if (Array.isArray(value)) {
-        return value.map((item) => String(item)).filter(Boolean).join(', ') || '-';
+        return (
+            value
+                .map((item) => String(item))
+                .filter(Boolean)
+                .join(', ') || '-'
+        );
     }
 
     if (typeof value === 'string') {
@@ -423,9 +424,7 @@ onUnmounted(() => {
 
                         <!-- Dibujo plano / imagen -->
                         <div class="w-full shrink-0 lg:w-[280px]">
-                            <p class="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Dibujo plano
-                            </p>
+                            <p class="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Dibujo plano</p>
                             <button
                                 v-if="drawingUrl"
                                 type="button"
@@ -447,22 +446,21 @@ onUnmounted(() => {
                                 <p class="text-sm text-muted-foreground">Sin dibujo</p>
                             </div>
 
-                            <ImagePreviewDialog
-                                v-model:open="isDrawingOpen"
-                                title="Dibujo plano"
-                                :src="drawingUrl"
-                                alt="Dibujo plano"
-                            />
+                            <ImagePreviewDialog v-model:open="isDrawingOpen" title="Dibujo plano" :src="drawingUrl" alt="Dibujo plano" />
                         </div>
                     </div>
                 </template>
             </div>
 
-            <DialogFooter class="flex-shrink-0 border-t bg-background pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end md:items-center px-6">
+            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t bg-background px-6 pt-4 md:flex-row md:items-center md:justify-end">
                 <div class="w-full md:w-auto">
-                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="closeDialog">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        @click="closeDialog"
+                    >
                         Cerrar
-                    </Button>
+                    </button>
                 </div>
                 <div class="w-full md:w-auto">
                     <Button
@@ -480,4 +478,3 @@ onUnmounted(() => {
         </FormDialogContent>
     </Dialog>
 </template>
-

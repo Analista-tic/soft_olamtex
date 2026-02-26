@@ -14,4 +14,3 @@ const patternId = computed(() => `pattern-${Math.random().toString(36).substring
         <rect stroke="none" :fill="`url(#${patternId})`" width="100%" height="100%"></rect>
     </svg>
 </template>
-

@@ -1,5 +1,4 @@
-import type { Item } from '@/domain/MasterData';
-import type { ContactDto } from '@/domain/MasterData';
+import type { ContactDto, Item } from '@/domain/MasterData';
 
 export interface PurchaseOrderItemDto {
     id?: number;
@@ -55,7 +54,6 @@ export interface PurchaseInvoiceItemDto {
     order_width?: string;
     original_order_item?: PurchaseOrderItemDto;
 }
-
 
 export interface PurchaseInvoiceDto {
     id?: number;

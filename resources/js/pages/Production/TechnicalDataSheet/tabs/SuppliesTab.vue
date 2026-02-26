@@ -1,20 +1,16 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { Plus, Save, Trash } from 'lucide-vue-next';
+import ReadOnlyCell from '@/components/ReadOnlyCell.vue';
+import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
-import SelectField from '@/components/SelectField.vue';
-import ReadOnlyCell from '@/components/ReadOnlyCell.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Option } from '@/domain/shared';
-import type { SupplyItem, SupplyModaLinea, SupplyStage } from '@/domain/Production';
-import {
-    fetchOpSupplies,
-    fetchSupplyCatalogItems,
-    saveOpSupplies,
-} from '@/domain/Production';
-import PurchaseRequestDialog from '@/pages/Expenses/PurchaseRequests/PurchaseRequestDialog.vue';
 import { useLastPurchaseByItem } from '@/composables/useLastPurchaseByItem';
+import type { SupplyItem, SupplyModaLinea, SupplyStage } from '@/domain/Production';
+import { fetchOpSupplies, fetchSupplyCatalogItems, saveOpSupplies } from '@/domain/Production';
+import type { Option } from '@/domain/shared';
+import PurchaseRequestDialog from '@/pages/Expenses/PurchaseRequests/PurchaseRequestDialog.vue';
+import { Plus, Save, Trash } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 type LocalSupplyRow = {
     uuid: string;
@@ -105,9 +101,7 @@ function getDefaultModaLinea(): SupplyModaLinea {
 }
 
 function nextStageSequence(stage: SupplyStage): number {
-    const used = rows.value
-        .filter((row) => row.stage === stage)
-        .map((row) => row.sequence);
+    const used = rows.value.filter((row) => row.stage === stage).map((row) => row.sequence);
     return used.length ? Math.max(...used) + 1 : 1;
 }
 
@@ -168,19 +162,19 @@ const requestDialogDraft = computed(() => {
     return {
         date: new Date().toISOString().split('T')[0],
         destination: 'Produccion / Ficha Tecnica',
-        description: suggestedName
-            ? `${baseDescription}. Crear item INSUMO: ${suggestedName}`
-            : baseDescription,
+        description: suggestedName ? `${baseDescription}. Crear item INSUMO: ${suggestedName}` : baseDescription,
         provider_name: null,
         status: 'draft',
-        items: [{
-            item_id: null,
-            name: suggestedName || 'Insumo solicitado',
-            price: 0,
-            quantity: qty,
-            description: '',
-            total: 0,
-        }],
+        items: [
+            {
+                item_id: null,
+                name: suggestedName || 'Insumo solicitado',
+                price: 0,
+                quantity: qty,
+                description: '',
+                total: 0,
+            },
+        ],
     };
 });
 
@@ -266,10 +260,7 @@ async function loadSupplies(): Promise<void> {
     rows.value.forEach((row) => cancelRequest(row.uuid));
     loadingLastPurchaseByRow.value = {};
     try {
-        const [items] = await Promise.all([
-            fetchOpSupplies(props.opId),
-            loadCatalog(),
-        ]);
+        const [items] = await Promise.all([fetchOpSupplies(props.opId), loadCatalog()]);
         applyLoadedRows(items);
         rows.value.forEach((row) => {
             if (row.itemId && (!normalizeText(row.supplier) || Number(row.unitCost || 0) <= 0)) {
@@ -500,16 +491,11 @@ watch(
 
 <template>
     <div class="space-y-4">
-        <div
-            v-if="!hasOperationalList"
-            class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-        >
+        <div v-if="!hasOperationalList" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             Esta OP no tiene listado operacional asignado. Puedes registrar insumos, pero valida las etapas cuando asignes la lista operacional.
         </div>
 
-        <div v-if="isLoading" class="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">
-            Cargando insumos...
-        </div>
+        <div v-if="isLoading" class="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">Cargando insumos...</div>
 
         <template v-else>
             <div class="space-y-2">
@@ -538,11 +524,7 @@ watch(
                         <TableBody>
                             <TableRow v-for="(meta, index) in rowsWithMeta" :key="meta.row.uuid" class="group transition-colors hover:bg-muted/30">
                                 <TableCell>
-                                    <Input
-                                        v-model="meta.row.label"
-                                        placeholder="Ej: Terminacion bolsillo"
-                                        :disabled="isSaving"
-                                    />
+                                    <Input v-model="meta.row.label" placeholder="Ej: Terminacion bolsillo" :disabled="isSaving" />
                                 </TableCell>
                                 <TableCell>
                                     <SelectField
@@ -566,11 +548,7 @@ watch(
                                     />
                                 </TableCell>
                                 <TableCell>
-                                    <Input
-                                        v-model="meta.row.description"
-                                        placeholder="Descripcion"
-                                        :disabled="isSaving"
-                                    />
+                                    <Input v-model="meta.row.description" placeholder="Descripcion" :disabled="isSaving" />
                                 </TableCell>
                                 <TableCell>
                                     <SelectField
@@ -589,15 +567,15 @@ watch(
                                         step="1"
                                         class="text-right tabular-nums"
                                         :disabled="isSaving"
-                                        @update:model-value="(value) => { meta.row.qtyPerUnit = Math.max(0, Number(value) || 0); }"
+                                        @update:model-value="
+                                            (value) => {
+                                                meta.row.qtyPerUnit = Math.max(0, Number(value) || 0);
+                                            }
+                                        "
                                     />
                                 </TableCell>
                                 <TableCell>
-                                    <ReadOnlyCell
-                                        :value="toCOPOrEmpty(meta.row.unitCost)"
-                                        placeholder="-"
-                                        align="right"
-                                    />
+                                    <ReadOnlyCell :value="toCOPOrEmpty(meta.row.unitCost)" placeholder="-" align="right" />
                                 </TableCell>
                                 <TableCell class="text-right font-semibold tabular-nums">{{ toCOP(meta.rowTotal) }}</TableCell>
                                 <TableCell class="text-center">
@@ -617,22 +595,11 @@ watch(
 
                 <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div class="flex items-center gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            class="h-9 rounded-full px-4"
-                            :disabled="isSaving"
-                            @click="addRow('CONFECCION')"
-                        >
+                        <Button type="button" variant="outline" class="h-9 rounded-full px-4" :disabled="isSaving" @click="addRow('CONFECCION')">
                             <Plus class="mr-1 h-4 w-4" />
                             Agregar insumo
                         </Button>
-                        <Button
-                            type="button"
-                            class="h-9 rounded-full px-4"
-                            :disabled="!canSave"
-                            @click="handleSaveRows"
-                        >
+                        <Button type="button" class="h-9 rounded-full px-4" :disabled="!canSave" @click="handleSaveRows">
                             <Save class="mr-1 h-4 w-4" />
                             {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                         </Button>
@@ -660,4 +627,3 @@ watch(
         />
     </div>
 </template>
-

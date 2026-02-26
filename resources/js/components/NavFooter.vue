@@ -90,7 +90,6 @@ const isRouteActive = (href: string) => {
         </SidebarGroupContent>
     </SidebarGroup>
 </template>
-
 <style scoped>
 .icon-column {
     min-width: 56px;

@@ -789,6 +789,3 @@ const hardLightStyle = { mixBlendMode: 'hard-light' as const };
         <div class="h-14.5 hidden lg:block"></div>
     </div>
 </template>
-
-
-

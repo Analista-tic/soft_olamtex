@@ -1,8 +1,1 @@
-export type {
-    DeleteButtonProps,
-    CreateButtonProps,
-    Branch,
-    BranchesListProps,
-    AdditionalContactsListProps,
-} from './types';
-
+export type { AdditionalContactsListProps, Branch, BranchesListProps, CreateButtonProps, DeleteButtonProps } from './types';

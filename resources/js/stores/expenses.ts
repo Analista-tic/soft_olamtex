@@ -64,4 +64,3 @@ export const useExpensesStore = defineStore('expenses', {
         },
     },
 });
-

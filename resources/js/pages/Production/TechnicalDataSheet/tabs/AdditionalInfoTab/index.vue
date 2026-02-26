@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
 import { Badge } from '@/components/ui/badge';
-import { Scissors, Stamp, WashingMachine, ChevronRight } from 'lucide-vue-next';
-import type { AdditionalInfo, Grain, PieceType, Side, OpBasicInfo } from '@/domain/Production';
+import type { AdditionalInfo, Grain, OpBasicInfo, PieceType, Side } from '@/domain/Production';
 import { fetchOpAdditionalInfo, fetchOpProcesses, saveOpAdditionalInfo } from '@/domain/Production';
+import { ChevronRight, Scissors, Stamp, WashingMachine } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 import CuttingDialog from './CuttingDialog.vue';
 import StampingLaundryDialog from './StampingLaundryDialog.vue';
 
@@ -65,7 +65,11 @@ const stampingProcessGuide = ref<{ supplier: string | null; price: number | null
 });
 
 const localStorageKey = computed(() => `op_additional_info_${props.opId}`);
-const opCode = computed(() => String(props.opBasicInfo?.opCode ?? '').trim().toUpperCase());
+const opCode = computed(() =>
+    String(props.opBasicInfo?.opCode ?? '')
+        .trim()
+        .toUpperCase(),
+);
 const isEmbroidery = computed(() => {
     // Regla negocio: MFT/MUT => Bordado; MF/MU => Estampado.
     if (!opCode.value) return false;
@@ -73,9 +77,7 @@ const isEmbroidery = computed(() => {
 });
 const stampingDisplayName = computed(() => (isEmbroidery.value ? 'Bordado' : 'Estampado'));
 const stampingDisplayNameLower = computed(() => (isEmbroidery.value ? 'bordado' : 'estampado'));
-const stampingDialogDisplayName = computed(() =>
-    activeStampingDialogSection.value === 'laundry' ? 'Lavanderia' : stampingDisplayName.value,
-);
+const stampingDialogDisplayName = computed(() => (activeStampingDialogSection.value === 'laundry' ? 'Lavanderia' : stampingDisplayName.value));
 
 const cuttingData = computed<AdditionalInfo['cutting']>({
     get: () => data.value.cutting,
@@ -169,10 +171,7 @@ const isCuttingComplete = computed(() => {
     const hasPieces = cutting.pieces.length > 0;
     const hasNotes = Boolean(cutting.generalNotes?.trim());
     const hasCurves =
-        cutting.espigaLength != null ||
-        cutting.liqLength != null ||
-        Boolean(cutting.espigaCurve?.trim()) ||
-        Boolean(cutting.liqCurve?.trim());
+        cutting.espigaLength != null || cutting.liqLength != null || Boolean(cutting.espigaCurve?.trim()) || Boolean(cutting.liqCurve?.trim());
     return hasSizesWithUnits || hasPieces || hasNotes || hasCurves;
 });
 
@@ -242,15 +241,18 @@ function resolveDefaultSectionVisibility(): SectionVisibility {
     }
 
     const detected = Array.isArray(props.processTypes)
-        ? props.processTypes.map((item) => String(item || '').toUpperCase().trim())
+        ? props.processTypes.map((item) =>
+              String(item || '')
+                  .toUpperCase()
+                  .trim(),
+          )
         : [];
 
     if (detected.length > 0) {
         return {
             cutting: detected.includes('CORTE'),
             stamping:
-                detected.some((item) => item.includes('ESTAMPADO') || item.includes('BORDADO') || item.includes('ESTAMPA')) ||
-                isEmbroidery.value,
+                detected.some((item) => item.includes('ESTAMPADO') || item.includes('BORDADO') || item.includes('ESTAMPA')) || isEmbroidery.value,
             laundry: true,
         };
     }
@@ -341,9 +343,7 @@ function normalizePayload(payload: AdditionalInfo): AdditionalInfo {
                         uid: stableId,
                         name: String(piece.name ?? '').trim(),
                         type: (piece.type === 'SECUNDARIO' ? 'SECUNDARIO' : 'PRINCIPAL') as PieceType,
-                        side: (['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(String(piece.side))
-                            ? piece.side
-                            : 'NO_APLICA') as Side,
+                        side: (['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(String(piece.side)) ? piece.side : 'NO_APLICA') as Side,
                         grain: (['90', '180', 'SESGO'].includes(String(piece.grain)) ? piece.grain : '90') as Grain,
                         notes: normalizeText(piece.notes),
                     };
@@ -439,7 +439,9 @@ async function loadAdditionalInfo(): Promise<void> {
 }
 
 function normalizeProcessType(value: string | null | undefined): string {
-    return String(value ?? '').toUpperCase().trim();
+    return String(value ?? '')
+        .toUpperCase()
+        .trim();
 }
 
 function resolveGuideProcessTypes(section: 'stamping' | 'laundry'): string[] {
@@ -447,9 +449,7 @@ function resolveGuideProcessTypes(section: 'stamping' | 'laundry'): string[] {
         return ['LAVANDERIA'];
     }
 
-    return isEmbroidery.value
-        ? ['BORDADO']
-        : ['ESTAMPADO', 'ESTAMPA'];
+    return isEmbroidery.value ? ['BORDADO'] : ['ESTAMPADO', 'ESTAMPA'];
 }
 
 async function loadStampingProcessGuide(section: 'stamping' | 'laundry' = activeStampingDialogSection.value): Promise<void> {
@@ -548,9 +548,7 @@ watch(
             {{ success }}
         </div>
 
-        <div v-if="isLoading" class="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">
-            Cargando informacion adicional...
-        </div>
+        <div v-if="isLoading" class="rounded-lg border border-border px-4 py-6 text-sm text-muted-foreground">Cargando informacion adicional...</div>
 
         <template v-else>
             <div

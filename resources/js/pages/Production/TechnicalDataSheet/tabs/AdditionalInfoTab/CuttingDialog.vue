@@ -1,14 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import Button from '@/components/ui/button/Button.vue';
-import Input from '@/components/ui/input/Input.vue';
-import SelectField from '@/components/SelectField.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
-import { Textarea } from '@/components/ui/textarea';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import SelectField from '@/components/SelectField.vue';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -19,11 +13,17 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import Button from '@/components/ui/button/Button.vue';
+import { Dialog, DialogFooter } from '@/components/ui/dialog';
+import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Check, Pencil, Plus, Trash, X } from 'lucide-vue-next';
-import type { Option } from '@/domain/shared';
-import { fetchSettingsParameters } from '@/domain/Production';
+import { Textarea } from '@/components/ui/textarea';
 import type { CuttingPiece, Grain, Side, SizeUnit } from '@/domain/Production';
+import { fetchSettingsParameters } from '@/domain/Production';
+import type { Option } from '@/domain/shared';
+import { Check, Pencil, Plus, Trash, X } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 type CuttingData = {
     params: { cutCostCop: number | null };
@@ -113,7 +113,9 @@ function normalizeSideValue(value: string | null | undefined): Side | null {
 }
 
 function normalizeGrainValue(value: string | null | undefined): Grain | null {
-    const normalized = String(value ?? '').trim().toUpperCase();
+    const normalized = String(value ?? '')
+        .trim()
+        .toUpperCase();
     if (['90', '180', 'SESGO'].includes(normalized)) {
         return normalized as Grain;
     }
@@ -215,9 +217,7 @@ const localData = computed({
 });
 
 const totalUnitsBySize = computed(() => localData.value.sizes.reduce((acc, row) => acc + Number(row.units || 0), 0));
-const totalCurvesBySize = computed(() =>
-    localData.value.sizes.reduce((acc, row) => acc + Math.max(0, Number(row.curve || 0)), 0),
-);
+const totalCurvesBySize = computed(() => localData.value.sizes.reduce((acc, row) => acc + Math.max(0, Number(row.curve || 0)), 0));
 
 const effectiveTotalUnits = computed(() => (typeof props.totalUnits === 'number' ? props.totalUnits : totalUnitsBySize.value));
 
@@ -250,7 +250,9 @@ const fabricOptionsForEditor = computed<Option[]>(() => {
     return [{ id: inlinePieceForm.value.fabricId, name: fallbackName }, ...fabricOptions.value];
 });
 const selectedPieceOption = computed(() => pieceOptionsForEditor.value.find((option) => String(option.id) === inlinePieceForm.value.pieceId) ?? null);
-const selectedFabricOption = computed(() => fabricOptionsForEditor.value.find((option) => String(option.id) === inlinePieceForm.value.fabricId) ?? null);
+const selectedFabricOption = computed(
+    () => fabricOptionsForEditor.value.find((option) => String(option.id) === inlinePieceForm.value.fabricId) ?? null,
+);
 const inlineQuantity = computed(() => quantityFromSide(normalizeSideValue(inlinePieceForm.value.sideId)));
 const canSaveInlinePiece = computed(() => {
     return (
@@ -669,7 +671,7 @@ watch(
     <Dialog :open="open" @update:open="handleDialogOpenChange">
         <FormDialogContent
             overlay-class="backdrop-blur-0"
-            class="flex max-h-[96vh] max-w-[1460px] flex-col overflow-hidden px-2 py-2 data-[state=open]:animate-none data-[state=closed]:animate-none"
+            class="flex max-h-[96vh] max-w-[1460px] flex-col overflow-hidden px-2 py-2 data-[state=closed]:animate-none data-[state=open]:animate-none"
         >
             <FormHeader class="pb-2" title="Corte" description="Configura unidades por talla, curvas, despiece y notas generales." />
 
@@ -693,22 +695,22 @@ watch(
                                     />
                                 </div>
                             </div>
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <div class="flex items-center gap-2">
-                                        <Badge variant="outline">Curvas: {{ totalCurvesBySize }}</Badge>
-                                        <Badge variant="outline">Total: {{ totalUnitsBySize }}</Badge>
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        class="rounded-full border-primary/40 px-4 text-primary hover:bg-primary/10 hover:text-primary"
-                                        @click="handleAddSizeClick"
-                                    >
-                                        <Plus class="mr-1 h-4 w-4" />
-                                        Agregar talla
-                                    </Button>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="flex items-center gap-2">
+                                    <Badge variant="outline">Curvas: {{ totalCurvesBySize }}</Badge>
+                                    <Badge variant="outline">Total: {{ totalUnitsBySize }}</Badge>
                                 </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    class="rounded-full border-primary/40 px-4 text-primary hover:bg-primary/10 hover:text-primary"
+                                    @click="handleAddSizeClick"
+                                >
+                                    <Plus class="mr-1 h-4 w-4" />
+                                    Agregar talla
+                                </Button>
+                            </div>
                         </div>
 
                         <div v-if="unitsUnavailable" class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -776,7 +778,7 @@ watch(
                                                 <p v-if="isInlineSizeFieldInvalid('units')" class="text-xs text-destructive">Debe ser mayor a 0</p>
                                             </div>
                                         </TableCell>
-                                        <TableCell class="w-[84px] align-top text-center">
+                                        <TableCell class="w-[84px] text-center align-top">
                                             <div class="flex items-center justify-center gap-2">
                                                 <button
                                                     type="button"
@@ -839,10 +841,12 @@ watch(
                                                         :aria-invalid="isInlineSizeFieldInvalid('units') ? 'true' : undefined"
                                                         @update:model-value="(value) => (inlineSizeForm.units = String(value))"
                                                     />
-                                                    <p v-if="isInlineSizeFieldInvalid('units')" class="text-xs text-destructive">Debe ser mayor a 0</p>
+                                                    <p v-if="isInlineSizeFieldInvalid('units')" class="text-xs text-destructive">
+                                                        Debe ser mayor a 0
+                                                    </p>
                                                 </div>
                                             </TableCell>
-                                            <TableCell class="w-[84px] align-top text-center">
+                                            <TableCell class="w-[84px] text-center align-top">
                                                 <div class="flex items-center justify-center gap-2">
                                                     <button
                                                         type="button"
@@ -867,7 +871,7 @@ watch(
                                             <TableCell class="font-medium text-foreground">{{ row.size }}</TableCell>
                                             <TableCell>{{ row.curve || '-' }}</TableCell>
                                             <TableCell>{{ row.units }}</TableCell>
-                                            <TableCell class="w-[84px] align-top text-center">
+                                            <TableCell class="w-[84px] text-center align-top">
                                                 <div class="flex items-center justify-center gap-2">
                                                     <button
                                                         type="button"
@@ -897,10 +901,7 @@ watch(
                             <div>
                                 <div class="flex items-center gap-1">
                                     <p class="text-sm font-semibold text-foreground">Despiece</p>
-                                    <HelpTooltip
-                                        text="Listado de piezas para proceso de corte."
-                                        aria-label="Ayuda sobre Despiece"
-                                    />
+                                    <HelpTooltip text="Listado de piezas para proceso de corte." aria-label="Ayuda sobre Despiece" />
                                 </div>
                             </div>
                             <Button
@@ -915,7 +916,10 @@ watch(
                             </Button>
                         </div>
 
-                        <div v-if="loadingPieceOptions" class="mb-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+                        <div
+                            v-if="loadingPieceOptions"
+                            class="mb-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground"
+                        >
                             Cargando parámetros de despiece...
                         </div>
 
@@ -993,7 +997,7 @@ watch(
                                                 <p v-if="isInlineFieldInvalid('grainId')" class="text-xs text-destructive">Campo obligatorio</p>
                                             </div>
                                         </TableCell>
-                                        <TableCell class="align-top text-center">
+                                        <TableCell class="text-center align-top">
                                             <div class="flex items-center justify-center gap-2">
                                                 <button
                                                     type="button"
@@ -1076,7 +1080,7 @@ watch(
                                                     <p v-if="isInlineFieldInvalid('grainId')" class="text-xs text-destructive">Campo obligatorio</p>
                                                 </div>
                                             </TableCell>
-                                            <TableCell class="align-top text-center">
+                                            <TableCell class="text-center align-top">
                                                 <div class="flex items-center justify-center gap-2">
                                                     <button
                                                         type="button"
@@ -1130,7 +1134,7 @@ watch(
                                         </template>
                                     </TableRow>
                                 </TableBody>
-</Table>
+                            </Table>
 
                             <div
                                 v-if="localData.pieces.length === 0 && !hasInlinePieceEditor"
@@ -1169,17 +1173,10 @@ watch(
                                 aria-label="Abrir dibujo plano en tamaño grande"
                                 @click="openDrawingPreview"
                             >
-                                <img
-                                    :src="resolvedDrawingUrl"
-                                    alt="Dibujo plano de referencia"
-                                    class="h-52 w-full object-cover"
-                                />
+                                <img :src="resolvedDrawingUrl" alt="Dibujo plano de referencia" class="h-52 w-full object-cover" />
                             </button>
 
-                            <div
-                                v-else
-                                class="flex h-52 items-center justify-center rounded-md bg-background/70 px-3 text-sm text-muted-foreground"
-                            >
+                            <div v-else class="flex h-52 items-center justify-center rounded-md bg-background/70 px-3 text-sm text-muted-foreground">
                                 Sin dibujo plano
                             </div>
 
@@ -1264,7 +1261,13 @@ watch(
                 />
             </div>
             <DialogFooter class="mt-4 justify-end">
-                <Button type="button" variant="outline" class="rounded-full px-6" aria-label="Cerrar vista de dibujo plano" @click="isDrawingPreviewOpen = false">
+                <Button
+                    type="button"
+                    variant="outline"
+                    class="rounded-full px-6"
+                    aria-label="Cerrar vista de dibujo plano"
+                    @click="isDrawingPreviewOpen = false"
+                >
                     Cerrar
                 </Button>
             </DialogFooter>
@@ -1296,6 +1299,3 @@ watch(
         </AlertDialogContent>
     </AlertDialog>
 </template>
-
-
-

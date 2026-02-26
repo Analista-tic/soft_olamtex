@@ -13,12 +13,10 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import Badge from '@/components/ui/badge/Badge.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Calendar } from '@/components/ui/calendar';
-import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import Input from '@/components/ui/input/Input.vue';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     Pagination,
     PaginationEllipsis,
@@ -29,15 +27,17 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { ProductSheet, Programmer } from '@/domain/Production';
 import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { monthLabel } from '@/lib/months';
 import { useAuthStore } from '@/stores/auth';
-import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import { Head } from '@inertiajs/vue3';
+import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import axios from 'axios';
 import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -145,7 +145,7 @@ const statusButtonClasses = useFilterButtonClasses(statusIsActive);
 const destinationButtonClasses = useFilterButtonClasses(destinationIsActive);
 const deliveryDateButtonClasses = useFilterButtonClasses(deliveryDateIsActive, {
     baseClasses:
-        'h-10 w-full rounded-md border px-3 text-sm font-normal flex items-center justify-between transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'h-10 w-full rounded-md border px-3 text-sm font-normal flex items-center justify-between transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
 });
 const FALLBACK_REF = 'Sin referencia';
 const deliveryDateValue = computed<DateValue | undefined>({
@@ -214,8 +214,7 @@ async function fetchProgrammers(page = 1) {
                 priority: filters.value.priority === DEFAULT_SELECT_VALUE ? undefined : filters.value.priority,
                 status: filters.value.status === DEFAULT_SELECT_VALUE ? undefined : filters.value.status,
                 destination_id: filters.value.destination_id === DEFAULT_SELECT_VALUE ? undefined : filters.value.destination_id,
-                estimated_delivery_date:
-                    filters.value.estimated_delivery_date.trim() === '' ? undefined : filters.value.estimated_delivery_date,
+                estimated_delivery_date: filters.value.estimated_delivery_date.trim() === '' ? undefined : filters.value.estimated_delivery_date,
             },
             signal: controller.signal,
         });
@@ -238,7 +237,6 @@ async function fetchProgrammers(page = 1) {
         }
     }
 }
-
 
 function clearFetchDebounce() {
     if (fetchDebounceTimer) {
@@ -342,7 +340,9 @@ function getPendingMessage(programmer: Programmer): string {
  * Retorna true si el OP inicia con MU o MUT.
  */
 function isAutoFromSheet(row: Programmer): boolean {
-    const opCode = String(row.op_code ?? '').trim().toUpperCase();
+    const opCode = String(row.op_code ?? '')
+        .trim()
+        .toUpperCase();
     return opCode.startsWith('MU');
 }
 
@@ -543,113 +543,117 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
 
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>OP</TableHead>
-                            <TableHead>Referencia</TableHead>
-                            <TableHead>Temporada</TableHead>
-                            <TableHead>Prioridad</TableHead>
-                            <TableHead>Destino</TableHead>
-                            <TableHead>Precio Fact</TableHead>
-                            <TableHead>Precio Venta</TableHead>
-                            <TableHead>Total Unidades</TableHead>
-                            <TableHead>Fecha Entrega Est.</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow
-                            v-for="programmer in programmers"
-                            :key="programmer.id"
-                            :class="[
-                                'text-center',
-                                shouldHighlightRow(programmer)
-                                    ? 'bg-yellow-50 border-l-4 border-yellow-400 dark:border-yellow-500/60 dark:bg-yellow-500/10'
-                                    : '',
-                                'text-nowrap'
-                            ]"
-                        >
-                            <TableCell class="font-medium">{{ getOpLabel(programmer) }}</TableCell>
-                            <TableCell class="font-medium">{{ getRefLabel(programmer) }}</TableCell>
-                            <TableCell>{{ monthLabel(programmer.season_display || programmer.season) }}</TableCell>
-                            <TableCell>
-                                <template v-if="programmer.source === 'manual'">
-                                    {{ programmer.priority || '-' }}
-                                </template>
-                                <template v-else>
-                                    <span class="text-muted-foreground">N/A</span>
-                                </template>
-                            </TableCell>
-                            <TableCell>{{ programmer.destination?.name || 'Sin destino' }}</TableCell>
-                            <TableCell>{{ programmer.product_sheet?.billing_price ?? 'N/A' }}</TableCell>
-                            <TableCell>{{ programmer.product_sheet?.selling_price ?? 'N/A' }}</TableCell>
-                            <TableCell>{{ programmer.units ?? '-' }}</TableCell>
-                            <TableCell>
-                                <template v-if="programmer.source === 'auto'">
-                                    {{ formatEstimatedDeliveryDate(programmer.estimated_delivery_date) }}
-                                </template>
-                                <template v-else>
-                                    <span class="text-muted-foreground">N/A</span>
-                                </template>
-                            </TableCell>
-                            <TableCell>
-                                <TableStatusBadge
-                                    :label="(programmer.is_pending_completion ?? false) ? 'Pendiente' : 'Completo'"
-                                    :title="(programmer.is_pending_completion ?? false) ? getPendingMessage(programmer) : 'Registro completo.'"
-                                    :tone="(programmer.is_pending_completion ?? false) ? 'amber' : 'green'"
-                                />
-                            </TableCell>
-                            <TableCell class="text-center">
-                                <div class="flex items-center justify-center gap-2">
-                                    <Tooltip v-if="canView">
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Ver detalle"
-                                                @click="viewProgrammer(programmer)"
-                                            >
-                                                <Eye :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Ver detalle</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip v-if="canEdit">
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                aria-label="Editar"
-                                                @click="openEditDialog(programmer)"
-                                            >
-                                                <Pencil :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Editar</TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip v-if="canDelete">
-                                        <TooltipTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
-                                                aria-label="Eliminar"
-                                                @click="confirmDeleteProgrammer(programmer)"
-                                            >
-                                                <Trash :class="actionIconClass" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Eliminar</TooltipContent>
-                                    </Tooltip>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>OP</TableHead>
+                                <TableHead>Referencia</TableHead>
+                                <TableHead>Temporada</TableHead>
+                                <TableHead>Prioridad</TableHead>
+                                <TableHead>Destino</TableHead>
+                                <TableHead>Precio Fact</TableHead>
+                                <TableHead>Precio Venta</TableHead>
+                                <TableHead>Total Unidades</TableHead>
+                                <TableHead>Fecha Entrega Est.</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead class="text-center">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow
+                                v-for="programmer in programmers"
+                                :key="programmer.id"
+                                :class="[
+                                    'text-center',
+                                    shouldHighlightRow(programmer) ? 'border-l-4 border-yellow-400 bg-yellow-50' : '',
+                                    'text-nowrap',
+                                ]"
+                            >
+                                <TableCell class="font-medium">{{ getOpLabel(programmer) }}</TableCell>
+                                <TableCell class="font-medium">{{ getRefLabel(programmer) }}</TableCell>
+                                <TableCell>{{ monthLabel(programmer.season_display || programmer.season) }}</TableCell>
+                                <TableCell>
+                                    <template v-if="programmer.source === 'manual'">
+                                        {{ programmer.priority || '-' }}
+                                    </template>
+                                    <template v-else>
+                                        <span class="text-muted-foreground">N/A</span>
+                                    </template>
+                                </TableCell>
+                                <TableCell>{{ programmer.destination?.name || 'Sin destino' }}</TableCell>
+                                <TableCell>{{ programmer.product_sheet?.billing_price ?? 'N/A' }}</TableCell>
+                                <TableCell>{{ programmer.product_sheet?.selling_price ?? 'N/A' }}</TableCell>
+                                <TableCell>{{ programmer.units ?? '-' }}</TableCell>
+                                <TableCell>
+                                    <template v-if="programmer.source === 'auto'">
+                                        {{ formatEstimatedDeliveryDate(programmer.estimated_delivery_date) }}
+                                    </template>
+                                    <template v-else>
+                                        <span class="text-muted-foreground">N/A</span>
+                                    </template>
+                                </TableCell>
+                                <TableCell>
+                                    <Badge
+                                        :variant="'outline'"
+                                        :title="(programmer.is_pending_completion ?? false) ? getPendingMessage(programmer) : 'Registro completo.'"
+                                        :class="
+                                            (programmer.is_pending_completion ?? false)
+                                                ? 'border-amber-500 text-amber-600'
+                                                : 'border-green-500 text-green-500'
+                                        "
+                                    >
+                                        {{ (programmer.is_pending_completion ?? false) ? 'Pendiente' : 'Completo' }}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell class="text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <Tooltip v-if="canView">
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Ver detalle"
+                                                    @click="viewProgrammer(programmer)"
+                                                >
+                                                    <Eye :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Ver detalle</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip v-if="canEdit">
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Editar"
+                                                    @click="openEditDialog(programmer)"
+                                                >
+                                                    <Pencil :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Editar</TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip v-if="canDelete">
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
+                                                    aria-label="Eliminar"
+                                                    @click="confirmDeleteProgrammer(programmer)"
+                                                >
+                                                    <Trash :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Eliminar</TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </TooltipProvider>
                 <Pagination
                     class="mt-5 flex justify-center"
@@ -693,9 +697,13 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
             </AlertDialogDescription>
             <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
                 <AlertDialogCancel asChild>
-                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="isDialogOpen = false">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        @click="isDialogOpen = false"
+                    >
                         Cancelar
-                    </Button>
+                    </button>
                 </AlertDialogCancel>
                 <AlertDialogAction asChild>
                     <Button

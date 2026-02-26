@@ -1,10 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import Button from '@/components/ui/button/Button.vue';
-import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
-import { CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -15,11 +10,16 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import Button from '@/components/ui/button/Button.vue';
+import { CardContent } from '@/components/ui/card';
+import Input from '@/components/ui/input/Input.vue';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Lock, Plus, Save, Trash } from 'lucide-vue-next';
 import type { OpBasicInfo, OpProcessRow, OpProcessType, OpProcessesData } from '@/domain/Production';
 import { fetchOpProcesses, fetchSettingsParameters, saveOpProcesses } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
+import { Lock, Plus, Save, Trash } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     opId: string | number | null;
@@ -118,15 +118,17 @@ function normalizeRowsForCompare(value: LocalProcessRow[]): LocalProcessRow[] {
         .slice()
         .filter((row) => !row._deleted)
         .sort((a, b) => Number(a.order) - Number(b.order))
-        .map((row, index): LocalProcessRow => ({
-            id: row.id ?? undefined,
-            order: index + 1,
-            type: row.type,
-            supplier: row.supplier?.trim() ? row.supplier.trim() : null,
-            manualPrice: FIXED_TYPES.includes(row.type) ? null : Number(row.manualPrice || 0),
-            tempId: row.tempId,
-            _deleted: Boolean(row._deleted),
-        }));
+        .map(
+            (row, index): LocalProcessRow => ({
+                id: row.id ?? undefined,
+                order: index + 1,
+                type: row.type,
+                supplier: row.supplier?.trim() ? row.supplier.trim() : null,
+                manualPrice: FIXED_TYPES.includes(row.type) ? null : Number(row.manualPrice || 0),
+                tempId: row.tempId,
+                _deleted: Boolean(row._deleted),
+            }),
+        );
 }
 
 function isEqualRows(a: LocalProcessRow[], b: LocalProcessRow[]): boolean {
@@ -374,15 +376,10 @@ onMounted(() => {
 
 <template>
     <div class="space-y-4">
-        <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">
-            Cargando procesos...
-        </div>
+        <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">Cargando procesos...</div>
 
         <template v-else-if="data">
-            <div
-                v-if="!hasOperationalList"
-                class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-            >
+            <div v-if="!hasOperationalList" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <p>Esta OP no tiene listado operacional asignado. Asigna uno para calcular Confeccion y Terminacion.</p>
                     <Button
@@ -416,11 +413,7 @@ onMounted(() => {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow
-                                    v-for="(row, index) in rowsWithCost"
-                                    :key="row.tempId"
-                                    class="group transition-colors hover:bg-muted/30"
-                                >
+                                <TableRow v-for="(row, index) in rowsWithCost" :key="row.tempId" class="group transition-colors hover:bg-muted/30">
                                     <TableCell class="w-[110px]">
                                         <span class="text-sm text-foreground">{{ row.label }}</span>
                                     </TableCell>
@@ -443,12 +436,7 @@ onMounted(() => {
                                     </TableCell>
                                     <TableCell class="min-w-[140px]">
                                         <div class="flex items-center justify-end">
-                                            <Input
-                                                v-if="row.isFixed"
-                                                :model-value="formatCOP(row.computedPrice)"
-                                                class="text-right"
-                                                disabled
-                                            />
+                                            <Input v-if="row.isFixed" :model-value="formatCOP(row.computedPrice)" class="text-right" disabled />
                                             <Input
                                                 v-else
                                                 :model-value="String(rows[index].manualPrice ?? 0)"
@@ -461,7 +449,9 @@ onMounted(() => {
                                             />
                                         </div>
                                     </TableCell>
-                                    <TableCell class="w-[120px] text-right font-semibold text-foreground">{{ formatCOP(row.computedPrice) }}</TableCell>
+                                    <TableCell class="w-[120px] text-right font-semibold text-foreground">{{
+                                        formatCOP(row.computedPrice)
+                                    }}</TableCell>
                                     <TableCell class="w-[80px] text-center">
                                         <TooltipProvider>
                                             <Tooltip>
@@ -472,13 +462,13 @@ onMounted(() => {
                                                     >
                                                         <Lock class="h-4 w-4" />
                                                     </span>
-                <button
-                    v-else
-                    type="button"
-                    class="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40"
-                    :disabled="isSaving"
-                    @click="requestDelete(row)"
-                >
+                                                    <button
+                                                        v-else
+                                                        type="button"
+                                                        class="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40"
+                                                        :disabled="isSaving"
+                                                        @click="requestDelete(row)"
+                                                    >
                                                         <Trash class="h-4 w-4" />
                                                     </button>
                                                 </TooltipTrigger>
@@ -505,12 +495,7 @@ onMounted(() => {
                                 <Plus class="mr-1 h-4 w-4" />
                                 Agregar proceso
                             </Button>
-                            <Button
-                                type="button"
-                                class="h-9 rounded-full px-4"
-                                :disabled="!canSave"
-                                @click="handleSave"
-                            >
+                            <Button type="button" class="h-9 rounded-full px-4" :disabled="!canSave" @click="handleSave">
                                 <Save class="mr-1 h-4 w-4" />
                                 {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                             </Button>
@@ -523,7 +508,6 @@ onMounted(() => {
                         </div>
                     </div>
                 </CardContent>
-
             </div>
 
             <p v-if="saveMessage" class="text-sm text-emerald-700">{{ saveMessage }}</p>
@@ -537,18 +521,24 @@ onMounted(() => {
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Eliminar proceso</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Esta accion eliminara el proceso seleccionado de la tabla.
-                    </AlertDialogDescription>
+                    <AlertDialogDescription> Esta accion eliminara el proceso seleccionado de la tabla. </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel as-child>
-                        <Button variant="outline" @click="closeDeleteDialog">
+                        <button
+                            type="button"
+                            class="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                            @click="closeDeleteDialog"
+                        >
                             Cancelar
-                        </Button>
+                        </button>
                     </AlertDialogCancel>
                     <AlertDialogAction as-child>
-                        <button type="button" class="inline-flex h-9 items-center justify-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90" @click.prevent.stop="confirmDelete">
+                        <button
+                            type="button"
+                            class="inline-flex h-9 items-center justify-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
+                            @click.prevent.stop="confirmDelete"
+                        >
                             Eliminar
                         </button>
                     </AlertDialogAction>
@@ -557,4 +547,3 @@ onMounted(() => {
         </AlertDialog>
     </div>
 </template>
-

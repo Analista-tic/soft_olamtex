@@ -25,7 +25,9 @@ type OperationRecord = {
     created_at: string;
     section?: { id: number; name: string; type?: string } | null;
     product_sheet_reference?: { id: number; sample_reference?: string; product_reference?: string; type?: string } | null;
+    productSheetReference?: { id: number; sample_reference?: string; product_reference?: string; type?: string } | null;
     machine_reference?: { id: number; code: string; name: string } | null;
+    machineReference?: { id: number; code: string; name: string } | null;
     created_by?: { id: number; name: string } | null;
 };
 
@@ -110,12 +112,24 @@ watch(localOpen, (v) => {
                     <div>
                         <p class="text-[11px] font-medium text-muted-foreground">Referencia (Sábana de producto)</p>
                         <p>
-                            {{ (operation.product_sheet_reference?.sample_reference ?? operation.product_sheet_reference?.product_reference) || '-' }}
+                            {{
+                                (operation.productSheetReference?.sample_reference ??
+                                    operation.productSheetReference?.product_reference ??
+                                    operation.product_sheet_reference?.sample_reference ??
+                                    operation.product_sheet_reference?.product_reference) ||
+                                '-'
+                            }}
                         </p>
                     </div>
                     <div>
                         <p class="text-[11px] font-medium text-muted-foreground">Máquina de referencia</p>
-                        <p>{{ operation.machine_reference ? `${operation.machine_reference.code} · ${operation.machine_reference.name}` : '-' }}</p>
+                        <p>
+                            {{
+                                (operation.machineReference ?? operation.machine_reference)
+                                    ? `${(operation.machineReference ?? operation.machine_reference)!.code} · ${(operation.machineReference ?? operation.machine_reference)!.name}`
+                                    : '-'
+                            }}
+                        </p>
                     </div>
 
                     <div class="col-span-2">

@@ -116,4 +116,3 @@ function submitAdjust() {
         </FormDialogContent>
     </Dialog>
 </template>
-

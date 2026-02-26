@@ -118,6 +118,7 @@ export interface OpBasicInfoDto {
     units?: number | null;
     date: string | null;
     flatDrawingUrl: string | null;
+    flat_sketch_path?: string | null;
     destination: string | null;
     section: string | null;
     group: string | null;
@@ -178,15 +179,7 @@ export interface ProcessSummaryDto {
     operationalList: { id: number | string; name: string | null } | null;
 }
 
-export type OpProcessTypeDto =
-    | 'CORTE'
-    | 'CONFECCION'
-    | 'TERMINACION'
-    | 'ESTAMPADO'
-    | 'BORDADO'
-    | 'LAVANDERIA'
-    | 'OTRO'
-    | (string & {});
+export type OpProcessTypeDto = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'ESTAMPADO' | 'BORDADO' | 'LAVANDERIA' | 'OTRO' | (string & {});
 
 export interface OpProcessRowDto {
     id?: string;

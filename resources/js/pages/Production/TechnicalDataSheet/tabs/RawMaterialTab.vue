@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import Button from '@/components/ui/button/Button.vue';
 import SelectField from '@/components/SelectField.vue';
-import Input from '@/components/ui/input/Input.vue';
+import Button from '@/components/ui/button/Button.vue';
 import { CardContent } from '@/components/ui/card';
+import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Save, Trash } from 'lucide-vue-next';
-import type { Option } from '@/domain/shared';
-import { fetchRawMaterialCatalogOptions, fetchRawMaterialItemMeta } from '@/domain/Production';
 import type { RawMaterialItemMeta } from '@/domain/Production';
+import { fetchRawMaterialCatalogOptions, fetchRawMaterialItemMeta } from '@/domain/Production';
+import type { Option } from '@/domain/shared';
+import { Plus, Save, Trash } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     opId: string | number;
@@ -354,7 +354,16 @@ function updateNumberField(
     uid: string,
     field: Exclude<
         keyof RawMaterialRow,
-        'uid' | 'telaItemId' | 'tela' | 'supplierId' | 'lastSupplierName' | 'lastUnitPriceCop' | 'lastPurchaseDate' | 'lastInvoiceNumber' | 'ancho' | 'anchoUnit'
+        | 'uid'
+        | 'telaItemId'
+        | 'tela'
+        | 'supplierId'
+        | 'lastSupplierName'
+        | 'lastUnitPriceCop'
+        | 'lastPurchaseDate'
+        | 'lastInvoiceNumber'
+        | 'ancho'
+        | 'anchoUnit'
     >,
     value: string | number,
 ): void {
@@ -433,9 +442,11 @@ function loadRows(): void {
 const dirty = computed(() => serializeEditableRows(rows.value) !== snapshot.value);
 const canSave = computed(() => dirty.value && !isSaving.value);
 
-const estimatedTotal = computed(() => rows.value.reduce((acc, row) => {
-    return acc + (row.lastUnitPriceCop ?? 0);
-}, 0));
+const estimatedTotal = computed(() =>
+    rows.value.reduce((acc, row) => {
+        return acc + (row.lastUnitPriceCop ?? 0);
+    }, 0),
+);
 
 function handleSave(): void {
     if (!canSave.value) return;
@@ -455,9 +466,11 @@ function handleSave(): void {
         saveMessage.value = 'Guardado.';
 
         if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('tds-raw-material-saved', {
-                detail: { opId: props.opId },
-            }));
+            window.dispatchEvent(
+                new CustomEvent('tds-raw-material-saved', {
+                    detail: { opId: props.opId },
+                }),
+            );
         }
     } finally {
         isSaving.value = false;
@@ -519,7 +532,11 @@ watch(
                                     <span v-if="loadingMetaByRow[row.uid]" class="text-muted-foreground">Cargando...</span>
                                     <span
                                         v-else-if="row.lastSupplierName"
-                                        :title="row.lastPurchaseDate ? `Ultima compra: ${formatDate(row.lastPurchaseDate)}${row.lastInvoiceNumber ? ` (${row.lastInvoiceNumber})` : ''}` : ''"
+                                        :title="
+                                            row.lastPurchaseDate
+                                                ? `Ultima compra: ${formatDate(row.lastPurchaseDate)}${row.lastInvoiceNumber ? ` (${row.lastInvoiceNumber})` : ''}`
+                                                : ''
+                                        "
                                     >
                                         {{ row.lastSupplierName }}
                                     </span>
@@ -589,7 +606,11 @@ watch(
                                     <span
                                         v-else-if="row.lastUnitPriceCop !== null"
                                         class="font-medium text-foreground"
-                                        :title="row.lastPurchaseDate ? `Ultima compra: ${formatDate(row.lastPurchaseDate)}${row.lastInvoiceNumber ? ` (${row.lastInvoiceNumber})` : ''}` : ''"
+                                        :title="
+                                            row.lastPurchaseDate
+                                                ? `Ultima compra: ${formatDate(row.lastPurchaseDate)}${row.lastInvoiceNumber ? ` (${row.lastInvoiceNumber})` : ''}`
+                                                : ''
+                                        "
                                     >
                                         {{ formatCOP(row.lastUnitPriceCop) }}
                                     </span>
@@ -632,12 +653,7 @@ watch(
                         <Plus class="mr-1 h-4 w-4" />
                         Agregar tela
                     </Button>
-                    <Button
-                        type="button"
-                        class="h-9 rounded-full px-4"
-                        :disabled="!canSave"
-                        @click="handleSave"
-                    >
+                    <Button type="button" class="h-9 rounded-full px-4" :disabled="!canSave" @click="handleSave">
                         <Save class="mr-1 h-4 w-4" />
                         {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                     </Button>
@@ -659,4 +675,3 @@ watch(
         </div>
     </div>
 </template>
-

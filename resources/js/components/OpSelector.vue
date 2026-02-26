@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { computed } from 'vue';
 
 interface Option {
     id: number | string;
@@ -56,11 +56,7 @@ const selectedValue = computed<string>({
             </SelectTrigger>
             <SelectContent>
                 <SelectGroup>
-                    <SelectItem
-                        v-for="option in options"
-                        :key="option.id"
-                        :value="String(option.id)"
-                    >
+                    <SelectItem v-for="option in options" :key="option.id" :value="String(option.id)">
                         {{ option.name }}
                     </SelectItem>
                 </SelectGroup>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { computed } from 'vue';
 
 const props = withDefaults(
     defineProps<{
@@ -43,4 +43,3 @@ const dialogOpen = computed({
         </DialogContent>
     </Dialog>
 </template>
-

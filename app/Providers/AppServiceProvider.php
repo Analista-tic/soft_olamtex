@@ -60,6 +60,8 @@ class AppServiceProvider extends ServiceProvider
 
         Route::model('purchaseDocument', PurchaseDocument::class);
         Route::model('programador', Programmer::class);
+        Route::model('listItem', ProductOperationList::class);
+        Route::model('operation', Operation::class);
 
         $this->registerAuditObservers();
         PurchaseDocument::observe(PurchaseDocumentInventoryObserver::class);

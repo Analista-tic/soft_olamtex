@@ -423,6 +423,7 @@ class ExampleDataSeeder extends Seeder
             ['name' => 'Delantero', 'type' => 'confección'],
             ['name' => 'Trasero', 'type' => 'confección'],
             ['name' => 'Pretina', 'type' => 'confección'],
+            ['name' => 'Cuello', 'type' => 'confección'],
             ['name' => 'Ensamble', 'type' => 'confección'],
             ['name' => 'Terminacion', 'type' => 'presentación'],
             ['name' => 'Presentacion', 'type' => 'presentación'],
@@ -434,20 +435,34 @@ class ExampleDataSeeder extends Seeder
             );
         }
 
-        // Máquinas
+        // Máquinas con factor de suplemento (conversión)
         $machines = [
-            ['code' => 'MF5H', 'name' => 'Fileteadora 5 hilos'],
-            ['code' => 'MF3H', 'name' => 'Fileteadora 3 hilos'],
-            ['code' => 'MPP', 'name' => 'Máquina plana pespunte'],
-            ['code' => 'PLANC', 'name' => 'Plancha'],
-            ['code' => 'OFM', 'name' => 'Ojaladora de franela manual'],
-            ['code' => 'MASH', 'name' => 'Máquina atracadora semiautomática horizontal'],
-            ['code' => 'COLL', 'name' => 'Collaretera'],
+            ['code' => 'PLN', 'name' => 'PLANA', 'supplement_factor' => 1.169],
+            ['code' => 'MF5H', 'name' => 'FILETEADORA 5 HILOS', 'supplement_factor' => 1.145],
+            ['code' => 'MF3H', 'name' => 'FILETEADORA 3 HILOS', 'supplement_factor' => 1.145],
+            ['code' => 'MPP', 'name' => 'MÁQUINA PLANA PESPUNTE', 'supplement_factor' => 1.169],
+            ['code' => 'PLANC', 'name' => 'PLANCHA', 'supplement_factor' => 1.2],
+            ['code' => 'OFM', 'name' => 'OJALADORA DE FRANELA MANUAL', 'supplement_factor' => 1.086],
+            ['code' => 'MASH', 'name' => 'MÁQUINA ATRACADORA SEMIAUTOMÁTICA HORIZONTAL', 'supplement_factor' => 1.0],
+            ['code' => 'COLL', 'name' => 'COLLARETERA', 'supplement_factor' => 1.19],
+            ['code' => 'P2A', 'name' => 'PLANA 2 AGUJAS', 'supplement_factor' => 1.18],
+            ['code' => 'CDC', 'name' => 'CERRADORA DE CODO', 'supplement_factor' => 1.21],
+            ['code' => 'PRES', 'name' => 'PRESILLADORA', 'supplement_factor' => 1.169],
+            ['code' => 'MAN', 'name' => 'MANUAL', 'supplement_factor' => 1.086],
+            ['code' => 'EMP', 'name' => 'EMPRETINADORA', 'supplement_factor' => 1.21],
+            ['code' => 'FUS', 'name' => 'FUSIONADORA', 'supplement_factor' => 1.2],
+            ['code' => 'BOT', 'name' => 'BOTONADORA', 'supplement_factor' => 1.169],
         ];
         foreach ($machines as $machine) {
             DB::table('machines')->updateOrInsert(
                 ['code' => $machine['code']],
-                ['name' => $machine['name'], 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]
+                [
+                    'name' => $machine['name'],
+                    'supplement_factor' => $machine['supplement_factor'],
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
             );
         }
 

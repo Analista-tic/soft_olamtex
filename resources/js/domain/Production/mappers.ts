@@ -1,6 +1,6 @@
-import type { ProductSheetDto, ProgrammerDto, OpBasicInfoDto, ProductionOrderDetailResponseDto } from './dto';
-import type { ProductSheet, Programmer, OpOption, OpBasicInfo } from './types';
 import type { Option } from '@/domain/shared';
+import type { OpBasicInfoDto, ProductionOrderDetailResponseDto, ProductSheetDto, ProgrammerDto } from './dto';
+import type { OpBasicInfo, OpOption, ProductSheet, Programmer } from './types';
 
 // Helpers from TechnicalDataSheet
 export function normalizeSearch(text: string): string {
@@ -14,7 +14,9 @@ export function normalizeSearch(text: string): string {
 }
 
 function extractOpType(opCode: string | null | undefined): 'MU' | 'MF' | 'MUT' | 'MFT' {
-    const code = String(opCode ?? '').trim().toUpperCase();
+    const code = String(opCode ?? '')
+        .trim()
+        .toUpperCase();
     if (code.startsWith('MUT')) return 'MUT';
     if (code.startsWith('MU')) return 'MU';
     if (code.startsWith('MFT')) return 'MFT';
@@ -47,7 +49,10 @@ function parseSizes(sizes: unknown): string[] {
             if (Array.isArray(parsed)) return parsed.map(String);
             if (typeof parsed === 'object') return Object.keys(parsed).filter((k) => (parsed as Record<string, any>)[k]);
         } catch {
-            return sizes.split(',').map((s) => s.trim()).filter(Boolean);
+            return sizes
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
         }
     }
     if (typeof sizes === 'object') return Object.keys(sizes as Record<string, boolean>).filter((k) => (sizes as Record<string, boolean>)[k]);
@@ -161,6 +166,7 @@ export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo
         units: dto.units ?? null,
         deliveryDate: dto.date ?? null,
         flatDrawingUrl: dto.flatDrawingUrl ?? null,
+        flat_sketch_path: dto.flat_sketch_path ?? null,
         section: dto.section ?? null,
         group: dto.group ?? null,
         world: dto.world ?? null,

@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-const props = withDefaults(defineProps<{
-    value?: string | number | null;
-    placeholder?: string;
-    align?: 'left' | 'right';
-    title?: string | null;
-    cellClass?: string;
-}>(), {
-    value: null,
-    placeholder: '-',
-    align: 'left',
-    title: null,
-    cellClass: '',
-});
+const props = withDefaults(
+    defineProps<{
+        value?: string | number | null;
+        placeholder?: string;
+        align?: 'left' | 'right';
+        title?: string | null;
+        cellClass?: string;
+    }>(),
+    {
+        value: null,
+        placeholder: '-',
+        align: 'left',
+        title: null,
+        cellClass: '',
+    },
+);
 
 const normalizedValue = computed(() => {
     if (typeof props.value === 'number') {
@@ -37,9 +40,7 @@ const resolvedTitle = computed(() => {
     <div
         :class="[
             'h-10 w-full px-3 text-sm',
-            align === 'right'
-                ? 'flex items-center justify-end text-right tabular-nums'
-                : 'flex items-center',
+            align === 'right' ? 'flex items-center justify-end text-right tabular-nums' : 'flex items-center',
             hasValue ? 'text-foreground' : 'text-muted-foreground',
             props.cellClass,
         ]"
@@ -50,4 +51,3 @@ const resolvedTitle = computed(() => {
         </span>
     </div>
 </template>
-

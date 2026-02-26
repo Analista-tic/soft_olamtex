@@ -66,4 +66,3 @@ export const useInventoryStore = defineStore('inventory', {
         },
     },
 });
-

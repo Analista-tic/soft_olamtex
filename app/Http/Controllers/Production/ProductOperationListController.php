@@ -4,14 +4,17 @@ namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductOperationList;
+use App\Models\Production\ProductSheetOperationHistory;
 use App\Services\Production\ProductOperationListService;
 use App\Services\Production\OperationService;
 use App\Services\Production\MachineService;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\ProductSheetService;
+use App\Services\Settings\SettingService;
 use App\Http\Requests\Production\StoreProductOperationListRequest;
 use App\Http\Requests\Production\UpdateProductOperationListRequest;
 use App\Http\Resources\Production\ProductOperationListResource;
+use App\Models\Settings\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
@@ -24,7 +27,8 @@ class ProductOperationListController extends Controller
         protected OperationService $operationService,
         protected MachineService $machineService,
         protected OperationSectionService $sectionService,
-        protected ProductSheetService $sheetService
+        protected ProductSheetService $sheetService,
+        protected SettingService $settingService,
     ) {
     }
 
@@ -35,8 +39,10 @@ class ProductOperationListController extends Controller
             'operations' => $this->operationService->options(),
             'machines' => $this->machineService->options(),
             'productSheets' => $this->sheetService->recentOptions(50),
+            'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
             'actions' => $this->operationService->getUniqueActions(),
             'garmentParts' => $this->operationService->getUniqueGarmentParts(),
+            'locations' => $this->operationService->getUniqueLocations(),
         ]);
     }
 
@@ -46,14 +52,52 @@ class ProductOperationListController extends Controller
      */
     public function indexView(): Response
     {
-        return Inertia::render('ProductOperationList/Index', [
+        return Inertia::render('Production/ProductOperationList/Index', [
             'sections' => $this->sectionService->options(),
             'operations' => $this->operationService->options(),
             'machines' => $this->machineService->options(),
             'productSheets' => $this->sheetService->recentOptions(50),
+            'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
             'actions' => $this->operationService->getUniqueActions(),
             'garmentParts' => $this->operationService->getUniqueGarmentParts(),
+            'locations' => $this->operationService->getUniqueLocations(),
+            'costParameters' => $this->getCostParameters(),
         ]);
+    }
+
+    /**
+     * Parámetros de costo para listado operacional (desde parametros).
+     * - operation_cost: Costo de operaciones ($/min)
+     * - yarn_cost: Costo hilo (fijo por producto)
+     */
+    private function getCostParameters(): array
+    {
+        $operationCost = $this->getNumericParameter('operation_cost', 406.0);
+        $yarnCost = $this->getNumericParameter('yarn_cost', 0);
+
+        return [
+            'operation_cost' => round($operationCost, 4),
+            'yarn_cost' => round($yarnCost, 4),
+        ];
+    }
+
+    private function getNumericParameter(string $key, float $default): float
+    {
+        $setting = Setting::parameters()
+            ->where('key', $key)
+            ->where('status', true)
+            ->first();
+
+        if (! $setting) {
+            return $default;
+        }
+
+        $raw = $setting->getAttribute('value');
+        if (is_array($raw)) {
+            $raw = $raw['value'] ?? $raw[0] ?? null;
+        }
+
+        return is_numeric($raw) ? (float) $raw : $default;
     }
 
     /**
@@ -89,24 +133,23 @@ class ProductOperationListController extends Controller
     }
 
     /**
-     * Crea una nueva operaciÃƒÆ’Ã‚Â³n en el listado
+     * Crea una nueva operación en el listado
      * POST /diseno/listados-operacionales
      */
     public function store(StoreProductOperationListRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        $validated['created_by'] = auth()->id();
 
         $item = $this->service->create($validated);
 
         return response()->json([
-            'message' => 'OperaciÃƒÆ’Ã‚Â³n agregada correctamente.',
+            'message' => 'Operación agregada correctamente.',
             'data' => new ProductOperationListResource($item)
         ], 201);
     }
 
     /**
-     * Crea mÃƒÆ’Ã‚Âºltiples operaciones en lote
+     * Crea múltiples operaciones en lote
      * POST /diseno/listados-operacionales/bulk
      */
     public function storeBulk(Request $request): JsonResponse
@@ -117,21 +160,17 @@ class ProductOperationListController extends Controller
             'operations.*.operation_id' => ['required', 'integer', 'exists:operations,id'],
             'operations.*.machine_id' => ['required', 'integer', 'exists:machines,id'],
             'operations.*.operation_section_id' => ['required', 'integer', 'exists:operation_sections,id'],
-            'operations.*.sequence_order' => ['required', 'integer', 'min:1'],
+            'operations.*.sequence' => ['required', 'integer', 'min:1'],
             'operations.*.optimal_time' => ['required', 'numeric', 'min:0'],
             'operations.*.operator_efficiency_factor' => ['required', 'numeric', 'between:1,2'],
             'operations.*.machine_supplement_factor' => ['required', 'numeric', 'min:1'],
+            'operations.*.fabric_base_id' => ['nullable', 'integer'],
+            'operations.*.quantity' => ['nullable', 'integer', 'min:1'],
             'operations.*.actual_time' => ['nullable', 'numeric', 'min:0'],
             'operations.*.notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        // AÃƒÆ’Ã‚Â±adir created_by a cada operaciÃƒÆ’Ã‚Â³n
-        $operations = collect($validated['operations'])->map(function ($op) {
-            $op['created_by'] = auth()->id();
-            return $op;
-        })->toArray();
-
-        $items = $this->service->createBulk($operations);
+        $items = $this->service->createBulk($validated['operations']);
 
         return response()->json([
             'message' => count($items) . ' operaciones agregadas correctamente.',
@@ -140,24 +179,25 @@ class ProductOperationListController extends Controller
     }
 
     /**
-     * Actualiza una operaciÃƒÆ’Ã‚Â³n existente
+     * Actualiza una operación existente
      * PUT /diseno/listados-operacionales/{listItem}
      */
     public function update(UpdateProductOperationListRequest $request, ProductOperationList $listItem): JsonResponse
     {
         $validated = $request->validated();
-        $validated['updated_by'] = auth()->id();
+        $motivo = $validated['motivo'] ?? '';
+        unset($validated['motivo']);
 
-        $item = $this->service->update($listItem, $validated);
+        $item = $this->service->update($listItem, $validated, $motivo);
 
         return response()->json([
-            'message' => 'OperaciÃƒÆ’Ã‚Â³n actualizada correctamente.',
+            'message' => 'Operación actualizada correctamente.',
             'data' => new ProductOperationListResource($item)
         ]);
     }
 
     /**
-     * Elimina una operaciÃƒÆ’Ã‚Â³n del listado
+     * Elimina una operación del listado
      * DELETE /diseno/listados-operacionales/{listItem}
      */
     public function destroy(ProductOperationList $listItem): JsonResponse
@@ -165,12 +205,12 @@ class ProductOperationListController extends Controller
         $this->service->delete($listItem);
 
         return response()->json([
-            'message' => 'OperaciÃƒÆ’Ã‚Â³n eliminada correctamente.'
+            'message' => 'Operación eliminada correctamente.'
         ]);
     }
 
     /**
-     * Elimina mÃƒÆ’Ã‚Âºltiples operaciones en lote
+     * Elimina múltiples operaciones en lote
      * DELETE /diseno/listados-operacionales/bulk
      */
     public function destroyBulk(Request $request): JsonResponse
@@ -178,7 +218,7 @@ class ProductOperationListController extends Controller
         $validated = $request->validate([
             'product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
             'operation_ids' => ['required', 'array', 'min:1'],
-            'operation_ids.*' => ['integer', 'exists:product_operation_lists,id'],
+            'operation_ids.*' => ['integer', 'exists:product_sheet_operations,id'],
         ]);
 
         $count = $this->service->deleteBulk(
@@ -222,7 +262,7 @@ class ProductOperationListController extends Controller
         $validated = $request->validate([
             'product_sheet_id' => ['required', 'integer', 'exists:product_sheets,id'],
             'operation_ids' => ['required', 'array', 'min:1'],
-            'operation_ids.*' => ['integer', 'exists:product_operation_lists,id'],
+            'operation_ids.*' => ['integer', 'exists:product_sheet_operations,id'],
         ]);
 
         $this->service->reorder(
@@ -233,5 +273,19 @@ class ProductOperationListController extends Controller
         return response()->json([
             'message' => 'Orden actualizado correctamente.'
         ]);
+    }
+
+    /**
+     * Obtiene el historial de cambios de una operación
+     * GET /produccion/listados-operacionales/{listItem}/history
+     */
+    public function history(ProductOperationList $listItem): JsonResponse
+    {
+        $history = ProductSheetOperationHistory::where('product_sheet_operation_id', $listItem->id)
+            ->with('usuario:id,name')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json(['data' => $history]);
     }
 }

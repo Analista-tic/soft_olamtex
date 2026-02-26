@@ -30,7 +30,8 @@ class MachineService
     {
         return $this->model
             ->active()
-            ->select(['id', 'code', 'name'])
+            ->select(['id', 'code', 'name', 'supplement_factor'])
+            ->orderBy('code')
             ->get();
     }
 

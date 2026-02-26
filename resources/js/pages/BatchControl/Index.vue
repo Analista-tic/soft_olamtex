@@ -1,21 +1,8 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -114,10 +101,9 @@ async function confirmChangeProcess() {
     if (!selectedRow.value || !selectedNewProcess.value) return;
 
     try {
-        await axios.patch(
-            route('control-de-lotes.update-process', { programmer: selectedRow.value.id }),
-            { current_process: selectedNewProcess.value },
-        );
+        await axios.patch(route('control-de-lotes.update-process', { programmer: selectedRow.value.id }), {
+            current_process: selectedNewProcess.value,
+        });
         showSuccess('Proceso actualizado correctamente.');
         closeChangeProcessDialog();
         await fetchData();
@@ -154,21 +140,13 @@ onMounted(() => {
                         v-for="(process, idx) in processes"
                         :key="process"
                         :value="process"
-                        :class="[
-                            'rounded-md border px-3 py-2 text-sm font-medium transition',
-                            tabColor(idx),
-                        ]"
+                        :class="['rounded-md border px-3 py-2 text-sm font-medium transition', tabColor(idx)]"
                     >
                         {{ process }}
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent
-                    v-for="process in processes"
-                    :key="process"
-                    :value="process"
-                    class="mt-0"
-                >
+                <TabsContent v-for="process in processes" :key="process" :value="process" class="mt-0">
                     <div class="rounded-lg border bg-card">
                         <div v-if="isLoading" class="p-6">
                             <Skeleton class="h-64 w-full" />
@@ -206,12 +184,7 @@ onMounted(() => {
                                         <TableCell>{{ row.fecha }}</TableCell>
                                         <TableCell class="font-mono text-sm">{{ row.op_code }}</TableCell>
                                         <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                class="h-8 gap-1"
-                                                @click="openChangeProcess(row)"
-                                            >
+                                            <Button variant="ghost" size="sm" class="h-8 gap-1" @click="openChangeProcess(row)">
                                                 <ArrowRightLeft class="h-3.5 w-3.5" />
                                                 Cambiar
                                             </Button>
@@ -230,8 +203,8 @@ onMounted(() => {
                 <DialogHeader>
                     <DialogTitle>Cambiar proceso</DialogTitle>
                     <DialogDescription>
-                        Orden <span class="font-mono font-medium">{{ selectedRow?.op_code }}</span>
-                        — {{ selectedRow?.referencia }}. Selecciona el nuevo proceso y confirma.
+                        Orden <span class="font-mono font-medium">{{ selectedRow?.op_code }}</span> — {{ selectedRow?.referencia }}. Selecciona el
+                        nuevo proceso y confirma.
                     </DialogDescription>
                 </DialogHeader>
                 <div class="space-y-4 py-4">
@@ -242,11 +215,7 @@ onMounted(() => {
                                 <SelectValue placeholder="Selecciona un proceso" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem
-                                    v-for="p in otherProcesses"
-                                    :key="p"
-                                    :value="p"
-                                >
+                                <SelectItem v-for="p in otherProcesses" :key="p" :value="p">
                                     {{ p }}
                                 </SelectItem>
                             </SelectContent>
@@ -254,15 +223,8 @@ onMounted(() => {
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" @click="closeChangeProcessDialog">
-                        Cancelar
-                    </Button>
-                    <Button
-                        :disabled="!selectedNewProcess"
-                        @click="confirmChangeProcess"
-                    >
-                        Confirmar cambio
-                    </Button>
+                    <Button variant="outline" @click="closeChangeProcessDialog"> Cancelar </Button>
+                    <Button :disabled="!selectedNewProcess" @click="confirmChangeProcess"> Confirmar cambio </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

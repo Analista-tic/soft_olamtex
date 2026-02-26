@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
-import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Save, Trash } from 'lucide-vue-next';
 import type { ThreadLine, ThreadState } from '@/domain/Production';
 import { fetchOpThreads, fetchSettingsParameters, saveOpThreads } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
+import { Plus, Save, Trash } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps<{
     opId: string | number;
@@ -50,7 +50,9 @@ function formatCOP(value: number): string {
         style: 'currency',
         currency: 'COP',
         maximumFractionDigits: 0,
-    }).format(Number(value || 0)).replace(/\u00A0/g, ' ');
+    })
+        .format(Number(value || 0))
+        .replace(/\u00A0/g, ' ');
 }
 
 const totalHilos = computed(() => 0);
@@ -78,9 +80,7 @@ function mapApiLineToLocal(line: ThreadLine): LocalThreadRow {
         brand: String(line.brand ?? ''),
         color: String(line.color ?? ''),
         colorCode: String(line.colorCode ?? ''),
-        stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined
-            ? Number(line.stitchesPerInch)
-            : null,
+        stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined ? Number(line.stitchesPerInch) : null,
     };
 }
 
@@ -252,15 +252,10 @@ onMounted(() => {
             </div>
         </div>
 
-        <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">
-            Cargando hilos...
-        </div>
+        <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">Cargando hilos...</div>
 
         <template v-else>
-            <div
-                v-if="rows.length === 0"
-                class="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center"
-            >
+            <div v-if="rows.length === 0" class="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center">
                 <p class="text-sm font-medium text-foreground">No hay hilos registrados. Agrega una linea para iniciar.</p>
             </div>
 
@@ -280,11 +275,7 @@ onMounted(() => {
                     <TableBody>
                         <TableRow v-for="(row, index) in rows" :key="row.uid" class="group transition-colors hover:bg-muted/30">
                             <TableCell>
-                                <Input
-                                    v-model="rows[index].threadName"
-                                    placeholder="Nombre del hilo"
-                                    :disabled="isSaving"
-                                />
+                                <Input v-model="rows[index].threadName" placeholder="Nombre del hilo" :disabled="isSaving" />
                             </TableCell>
                             <TableCell>
                                 <SelectField
@@ -304,22 +295,14 @@ onMounted(() => {
                                     :disabled="isSaving || isLoadingParameterOptions"
                                     :searchable="true"
                                     :allow-custom="true"
-                                    custom-option-label="Crear &quot;{value}&quot;"
+                                    custom-option-label='Crear "{value}"'
                                 />
                             </TableCell>
                             <TableCell>
-                                <Input
-                                    v-model="rows[index].color"
-                                    placeholder="Color"
-                                    :disabled="isSaving"
-                                />
+                                <Input v-model="rows[index].color" placeholder="Color" :disabled="isSaving" />
                             </TableCell>
                             <TableCell>
-                                <Input
-                                    v-model="rows[index].colorCode"
-                                    placeholder="Codigo"
-                                    :disabled="isSaving"
-                                />
+                                <Input v-model="rows[index].colorCode" placeholder="Codigo" :disabled="isSaving" />
                             </TableCell>
                             <TableCell>
                                 <SelectField
@@ -357,12 +340,7 @@ onMounted(() => {
                         <Plus class="mr-1 h-4 w-4" />
                         Agregar hilo
                     </Button>
-                    <Button
-                        type="button"
-                        class="h-9 rounded-full px-4"
-                        :disabled="!canSave"
-                        @click="handleSave"
-                    >
+                    <Button type="button" class="h-9 rounded-full px-4" :disabled="!canSave" @click="handleSave">
                         <Save class="mr-1 h-4 w-4" />
                         {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                     </Button>
@@ -384,4 +362,3 @@ onMounted(() => {
         </div>
     </div>
 </template>
-

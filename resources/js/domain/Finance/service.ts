@@ -58,10 +58,7 @@ export async function fetchRetentionsPage(params: RetentionListQuery = {}): Prom
     total?: number;
     current_page?: number;
 }> {
-    const res = await axios.get<{ data: RetentionDto[]; total?: number; current_page?: number }>(
-        RETENTION_DATA_ENDPOINT,
-        { params },
-    );
+    const res = await axios.get<{ data: RetentionDto[]; total?: number; current_page?: number }>(RETENTION_DATA_ENDPOINT, { params });
     return {
         data: Array.isArray(res.data.data) ? res.data.data.map(mapRetentionDto) : [],
         total: res.data.total,

@@ -3,10 +3,10 @@
  * Kept for backward compatibility. Prefer importing from @/domain/Production.
  */
 export {
+    convertSampleToProduct,
+    createProductSheet,
+    deleteProductSheet,
     listProductSheets,
     showProductSheet,
-    createProductSheet,
     updateProductSheet,
-    deleteProductSheet,
-    convertSampleToProduct,
 } from '@/domain/Production/service';

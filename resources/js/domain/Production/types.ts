@@ -105,8 +105,10 @@ export interface ProductOperationListPageProps extends SharedData {
     operations: Array<{ id: number; name: string; action: string; garment_part: string }>;
     machines: Array<{ id: number; code: string; name: string }>;
     productSheets: Array<{ id: number; reference: string; type: string }>;
+    fabric_bases?: Array<{ id: number; name: string; factor?: number }>;
     actions: string[];
     garmentParts: string[];
+    locations?: string[];
 }
 
 export interface ProductOperationPayload {
@@ -119,6 +121,8 @@ export interface ProductOperationPayload {
     operator_efficiency_factor: number;
     machine_supplement_factor: number;
     notes?: string;
+    quantity?: number;
+    fabric_base_id?: number | null;
 }
 
 // Operational / Op types (from TechnicalDataSheet)
@@ -145,6 +149,7 @@ export interface OpBasicInfo {
     units: number | null;
     deliveryDate: string | null;
     flatDrawingUrl: string | null;
+    flat_sketch_path?: string | null;
     section: string | null;
     group: string | null;
     world: string | null;
@@ -188,15 +193,7 @@ export type ProcessSummary = {
     operationalList?: { id: number | string; name: string | null } | null;
 };
 
-export type OpProcessType =
-    | 'CORTE'
-    | 'CONFECCION'
-    | 'TERMINACION'
-    | 'ESTAMPADO'
-    | 'BORDADO'
-    | 'LAVANDERIA'
-    | 'OTRO'
-    | (string & {});
+export type OpProcessType = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'ESTAMPADO' | 'BORDADO' | 'LAVANDERIA' | 'OTRO' | (string & {});
 
 export type OpProcessRow = {
     id?: string;
@@ -206,20 +203,84 @@ export type OpProcessRow = {
     manualPrice: number | null;
 };
 
-export type OpProcessesData = { hasOperationalList: boolean; params: { cuttingCost: number; minuteCost: number }; minutes: { confeccion: number; terminacion: number }; processes: OpProcessRow[] };
+export type OpProcessesData = {
+    hasOperationalList: boolean;
+    params: { cuttingCost: number; minuteCost: number };
+    minutes: { confeccion: number; terminacion: number };
+    processes: OpProcessRow[];
+};
 
-export type CostsSummary = { prices: { invoicing: number | null; fixedCost: number | null; sale: number | null; historicInvoicing: number | null }; units: number | null; costs: { rawMaterial: number; supplies: number; processes: number; cut: number; confection: number; finishing: number; total: number }; profitability: { olamtex: { value: number | null; percent: number | null }; client: { value: number | null; percent: number | null } }; breakdownAvailable: { rawMaterial: boolean; supplies: boolean; processes: boolean } };
+export type CostsSummary = {
+    prices: { invoicing: number | null; fixedCost: number | null; sale: number | null; historicInvoicing: number | null };
+    units: number | null;
+    costs: { rawMaterial: number; supplies: number; processes: number; cut: number; confection: number; finishing: number; total: number };
+    profitability: { olamtex: { value: number | null; percent: number | null }; client: { value: number | null; percent: number | null } };
+    breakdownAvailable: { rawMaterial: boolean; supplies: boolean; processes: boolean };
+};
 
 export type SupplyStage = 'CORTE' | 'CONFECCION' | 'TERMINACION' | 'GENERAL' | 'OTRO';
 export type SupplyModaLinea = 'MODA' | 'LINEA' | 'NA';
 
-export type SupplyItem = { id: string; name: string; stage: SupplyStage; sequence?: number | null; displayLabel?: string | null; itemId?: number | null; requestedName?: string | null; supplier?: string | null; description?: string | null; modaLinea?: SupplyModaLinea; uom?: string | null; qtyPerUnit: number; unitCost: number; internalRequestId?: number | null; notes?: string | null; createdAt?: string; updatedAt?: string };
+export type SupplyItem = {
+    id: string;
+    name: string;
+    stage: SupplyStage;
+    sequence?: number | null;
+    displayLabel?: string | null;
+    itemId?: number | null;
+    requestedName?: string | null;
+    supplier?: string | null;
+    description?: string | null;
+    modaLinea?: SupplyModaLinea;
+    uom?: string | null;
+    qtyPerUnit: number;
+    unitCost: number;
+    internalRequestId?: number | null;
+    notes?: string | null;
+    createdAt?: string;
+    updatedAt?: string;
+};
 
-export type SupplyCatalogItem = { id: number; label: string; name?: string | null; reference?: string | null; unit?: string | null; code?: string | null; supplier?: string | null; description?: string | null; suggestedPrice?: number | null };
+export type SupplyCatalogItem = {
+    id: number;
+    label: string;
+    name?: string | null;
+    reference?: string | null;
+    unit?: string | null;
+    code?: string | null;
+    supplier?: string | null;
+    description?: string | null;
+    suggestedPrice?: number | null;
+};
 
 export type FabricType = 'PRINCIPAL' | 'SECUNDARIA';
 
-export type RollLine = { id: string; consecutive?: string | null; type: FabricType; fabricName: string; averageTrace?: number | null; factor?: number | null; programmedMeters?: number | null; colors?: string | null; availableMeters?: number | null; color?: string | null; colorCode?: string | null; widthCm?: number | null; supplier?: string | null; pricePerMeter: number; consumptionBase: number; extraMeters: number; unitCost?: number | null; totalCost?: number | null; balanceMeters?: number | null; notes?: string | null; fabricItemId?: string | number | null; rollId?: string | number | null; createdAt?: string; updatedAt?: string };
+export type RollLine = {
+    id: string;
+    consecutive?: string | null;
+    type: FabricType;
+    fabricName: string;
+    averageTrace?: number | null;
+    factor?: number | null;
+    programmedMeters?: number | null;
+    colors?: string | null;
+    availableMeters?: number | null;
+    color?: string | null;
+    colorCode?: string | null;
+    widthCm?: number | null;
+    supplier?: string | null;
+    pricePerMeter: number;
+    consumptionBase: number;
+    extraMeters: number;
+    unitCost?: number | null;
+    totalCost?: number | null;
+    balanceMeters?: number | null;
+    notes?: string | null;
+    fabricItemId?: string | number | null;
+    rollId?: string | number | null;
+    createdAt?: string;
+    updatedAt?: string;
+};
 
 export type RollParams = { trazo: number; defaultExtra: number };
 
@@ -227,7 +288,17 @@ export type RollState = { params: RollParams; lines: RollLine[] };
 
 export type RollSavePayload = { rolls: RollLine[]; deletedIds: string[] };
 
-export type ThreadLine = { id: string; threadName: string; gauge?: number | null; brand?: string | null; color?: string | null; colorCode?: string | null; stitchesPerInch?: number | null; createdAt?: string; updatedAt?: string };
+export type ThreadLine = {
+    id: string;
+    threadName: string;
+    gauge?: number | null;
+    brand?: string | null;
+    color?: string | null;
+    colorCode?: string | null;
+    stitchesPerInch?: number | null;
+    createdAt?: string;
+    updatedAt?: string;
+};
 
 export type ThreadState = { lines: ThreadLine[] };
 
@@ -243,4 +314,17 @@ export type Grain = '90' | '180' | 'SESGO';
 
 export type CuttingPiece = { id: string; uid?: string; name: string; type: PieceType; side: Side; grain: Grain; notes?: string | null };
 
-export type AdditionalInfo = { cutting: { params: CuttingParams; sizes: SizeUnit[]; espigaLength?: number | null; espigaCurve?: string | null; liqLength?: number | null; liqCurve?: string | null; pieces: CuttingPiece[]; generalNotes?: string | null }; stamping: { designNotes?: string | null; attachments?: { id: string; name: string; url: string }[] }; laundry: { type?: string | null; instructions?: string | null } };
+export type AdditionalInfo = {
+    cutting: {
+        params: CuttingParams;
+        sizes: SizeUnit[];
+        espigaLength?: number | null;
+        espigaCurve?: string | null;
+        liqLength?: number | null;
+        liqCurve?: string | null;
+        pieces: CuttingPiece[];
+        generalNotes?: string | null;
+    };
+    stamping: { designNotes?: string | null; attachments?: { id: string; name: string; url: string }[] };
+    laundry: { type?: string | null; instructions?: string | null };
+};

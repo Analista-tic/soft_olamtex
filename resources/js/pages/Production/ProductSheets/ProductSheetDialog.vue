@@ -1,40 +1,35 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import ProcessSelector from '@/components/ProcessSelector.vue';
+import SegmentedToggle from '@/components/SegmentedToggle.vue';
 import SelectField from '@/components/SelectField.vue';
 import SizeSelector from '@/components/SizeSelector.vue';
 import SwitchField from '@/components/SwitchField.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
-import SegmentedToggle from '@/components/SegmentedToggle.vue';
-import ProductOperationListDialog from '@/pages/Production/ProductOperationList/ProductOperationListDialog.vue';
-import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import FormDialogContent from '@/components/FormDialogContent.vue';
-import type {
-    MachineOption,
-    OperationOption,
-    OperationSection,
-    OptionParams,
-    ProductOperationPayload,
-    ProductSheet,
-} from '@/domain/Production';
+import Label from '@/components/ui/label/Label.vue';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { useAlertStack } from '@/composables/useAlert';
+import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
+import type { MachineOption, OperationOption, OperationSection, OptionParams, ProductOperationPayload, ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
     PRODUCT_SHEET_TYPE_SAMPLE,
+    convertSampleToProduct,
+    createProductSheet,
     normalizeProductSheetType,
     parseBooleanRecord,
     stringifyJsonRecord,
+    updateProductSheet,
 } from '@/domain/Production';
-import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
-import { computed, ref, watch } from 'vue';
-import { Eye, Image as ImageIcon, List, Trash } from 'lucide-vue-next';
-import AlertStack from '@/components/common/AlertStack.vue';
-import { useAlertStack } from '@/composables/useAlert';
+import ProductOperationListDialog from '@/pages/Production/ProductOperationList/ProductOperationListDialog.vue';
 import axios from 'axios';
-import { convertSampleToProduct, createProductSheet, updateProductSheet } from '@/domain/Production';
-import Label from '@/components/ui/label/Label.vue';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { Eye, Image as ImageIcon, List, Trash } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 interface Props {
     mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
@@ -87,7 +82,7 @@ function setAlert(message: string, type: AlertType = 'info'): void {
     } else {
         showError(message, type);
     }
-    
+
     if (dialogInnerRef.value?.scrollTo) {
         dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -221,6 +216,14 @@ const form = ref<FormState>(createInitialFormState());
 const operationListDialogOpen = ref(false);
 const operationListOptionsLoaded = ref(false);
 const operationListOptionsLoading = ref(false);
+const operationListPayload = ref<ProductOperationPayload[]>([]);
+const operationDialogInitialData = ref<{
+    productSheetId: number | string | null;
+    operations: Array<{ section_id: number | null; operation_id: number | null; machine_id: number | null; optimal_time: string }>;
+    operatorEfficiencyFactor: number;
+    machineSupplementFactor: number;
+    notes: string;
+} | null>(null);
 const operationListMeta = ref({
     sections: [] as OperationSection[],
     operations: [] as OperationOption[],
@@ -272,13 +275,20 @@ const productSheetOptionsForDialog = computed(() => {
     return exists ? withoutTemp : [base, ...withoutTemp];
 });
 
-const operationDialogInitialData = computed(() => ({
-    productSheetId: temporarySampleProductSheetOption.value?.id ?? props.productSheet?.id ?? form.value.id ?? null,
-    operations: [],
-    operatorEfficiencyFactor: 1.25,
-    machineSupplementFactor: 1.0,
-    notes: '',
-}));
+const operationDialogBoundProductId = computed(() => {
+    const id = props.productSheet?.id ?? form.value.id ?? temporarySampleProductSheetOption.value?.id ?? null;
+    return id;
+});
+
+function buildOperationDialogInitialData() {
+    return {
+        productSheetId: operationDialogBoundProductId.value,
+        operations: [] as Array<{ section_id: number | null; operation_id: number | null; machine_id: number | null; optimal_time: string }>,
+        operatorEfficiencyFactor: 1,
+        machineSupplementFactor: 1.0,
+        notes: '',
+    };
+}
 
 const sizeGroups = {
     tallas_1: ['XS', 'S', 'M', 'L', 'XL', '2XL'],
@@ -290,12 +300,7 @@ const parsedSizes = computed<Record<string, boolean>>(() => parseBooleanRecord(f
 
 const overallStatus = computed<boolean>(() => {
     const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
-    return (
-        Boolean(form.value.reference) &&
-        Boolean(form.value.billing_price) &&
-        Boolean(form.value.selling_price) &&
-        hasSelectedSize
-    );
+    return Boolean(form.value.reference) && Boolean(form.value.billing_price) && Boolean(form.value.selling_price) && hasSelectedSize;
 });
 
 const allProcesses = ref([
@@ -348,7 +353,7 @@ const showConvertButton = computed(
 );
 const mainReferenceLabel = computed(() => (form.value.type === TYPE_SAMPLE ? 'Referencia (Muestra)' : 'Referencia (Producto)'));
 const displayedReferenceForInput = computed<string>(() =>
-    form.value.type === TYPE_SAMPLE ? form.value.sample_reference ?? '' : form.value.product_reference ?? '',
+    form.value.type === TYPE_SAMPLE ? (form.value.sample_reference ?? '') : (form.value.product_reference ?? ''),
 );
 const hasBothReferences = computed(() => Boolean(form.value.sample_reference && form.value.product_reference));
 
@@ -356,9 +361,7 @@ const isConvertDialogOpen = ref(false);
 const convertLoading = ref(false);
 const activeReference = computed<string>({
     get() {
-        return form.value.type === TYPE_SAMPLE
-            ? form.value.sample_reference
-            : form.value.product_reference;
+        return form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
     },
     set(value: string) {
         const normalized = (value ?? '').trim();
@@ -379,9 +382,7 @@ const { validationErrors, isValid } = useProductSheetValidation({
 watch(
     () => form.value.type,
     (type) => {
-        form.value.reference = type === TYPE_SAMPLE
-            ? form.value.sample_reference ?? ''
-            : form.value.product_reference ?? '';
+        form.value.reference = type === TYPE_SAMPLE ? (form.value.sample_reference ?? '') : (form.value.product_reference ?? '');
 
         if (type === TYPE_PRODUCT && autoAddedSampleProcess.value) {
             const currentProcesses = parseProcessesValue(form.value.processes);
@@ -439,16 +440,14 @@ watch(
                 flat_sketch_path: String(newProductSheet.flat_sketch_path ?? ''),
                 sample_reference: String(newProductSheet.sample_reference ?? ''),
                 product_reference: String(newProductSheet.product_reference ?? ''),
-                processes: stringifyJsonRecord(newProductSheet.processes, {}),
+                processes: normalizeProcessesForForm(newProductSheet.processes),
                 status: newProductSheet.status === 'complete' ? 'complete' : 'incomplete',
             };
-            form.value.reference = form.value.type === TYPE_SAMPLE
-                ? form.value.sample_reference
-                : form.value.product_reference;
+            form.value.reference = form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
             isConvertDialogOpen.value = false;
         }
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 watch(
@@ -463,16 +462,17 @@ watch(
             }
         }
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 watch(
     () => localDialogOpen.value,
     (newValue) => {
-        if (props.open !== newValue) { // Evitar actualizaciones redundantes
+        if (props.open !== newValue) {
+            // Evitar actualizaciones redundantes
             emit('update:open', newValue);
         }
-    }
+    },
 );
 
 watch(requiresOperationalList, (needs) => {
@@ -507,6 +507,36 @@ async function loadOperationListOptions() {
 
 async function openOperationListDialog() {
     await loadOperationListOptions();
+    const productId = props.productSheet?.id ?? form.value.id;
+    if (productId && typeof productId === 'number') {
+        try {
+            const { data } = await axios.get('/produccion/listados-operacionales/data', {
+                params: { product_sheet_id: productId },
+            });
+            const rows = Array.isArray(data?.data) ? data.data : [];
+            const sorted = [...rows].sort(
+                (a: { sequence_order?: number }, b: { sequence_order?: number }) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0),
+            );
+            const first = sorted[0] ?? {};
+            operationDialogInitialData.value = {
+                productSheetId: productId,
+                operations: sorted.map((row: Record<string, unknown>) => ({
+                    section_id: Number(row.operation_section_id ?? row.section_id ?? 0) || null,
+                    operation_id: Number(row.operation_id ?? 0) || null,
+                    machine_id: Number(row.machine_id ?? 0) || null,
+                    optimal_time: String(row.optimal_time ?? row.sam ?? '0.00'),
+                })),
+                operatorEfficiencyFactor: Number(first.operator_efficiency_factor ?? 1) || 1,
+                machineSupplementFactor: Number(first.machine_supplement_factor ?? 1.0) || 1.0,
+                notes: String(first.notes ?? ''),
+            };
+        } catch (err) {
+            console.error('Error al cargar operaciones:', err);
+            operationDialogInitialData.value = { ...buildOperationDialogInitialData(), productSheetId: productId };
+        }
+    } else {
+        operationDialogInitialData.value = buildOperationDialogInitialData();
+    }
     operationListDialogOpen.value = true;
 }
 
@@ -514,9 +544,48 @@ function closeOperationListDialog() {
     operationListDialogOpen.value = false;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function handleOperationDialogSave(_payload: ProductOperationPayload[]) {
-    setAlert('Listado operacional guardado correctamente.', 'success');
+async function handleOperationDialogSave(payload: ProductOperationPayload[]) {
+    const productId = props.productSheet?.id ?? form.value.id;
+    const hasRealProductId = typeof productId === 'number' && productId > 0;
+
+    if (hasRealProductId) {
+        const validPayloads = payload.filter((p) => p.section_id && p.operation_id && p.machine_id && Number(p.optimal_time) > 0);
+        if (validPayloads.length === 0) {
+            setAlert('Agrega al menos una operación válida.', 'warning');
+            return;
+        }
+        try {
+            const requests = validPayloads.map((p) =>
+                axios.post('/produccion/listados-operacionales', {
+                    product_sheet_id: productId,
+                    operation_id: p.operation_id,
+                    machine_id: p.machine_id,
+                    operation_section_id: p.section_id,
+                    sequence_order: p.sequence_order,
+                    optimal_time: Number(p.optimal_time),
+                    operator_efficiency_factor: p.operator_efficiency_factor,
+                    machine_supplement_factor: p.machine_supplement_factor,
+                    notes: p.notes,
+                }),
+            );
+            await Promise.all(requests);
+            setAlert(`${validPayloads.length} operación(es) guardada(s) correctamente.`, 'success');
+        } catch (err) {
+            console.error('Error al guardar operaciones:', err);
+            const msg = axios.isAxiosError(err) ? err.response?.data?.message : null;
+            setAlert(msg ?? 'Error al guardar las operaciones.', 'error');
+            return;
+        }
+    } else {
+        operationListPayload.value = payload.filter((p) => p.section_id && p.operation_id && p.machine_id && Number(p.optimal_time) > 0);
+        setAlert(
+            operationListPayload.value.length > 0
+                ? `${operationListPayload.value.length} operación(es) añadida(s). Se guardarán al crear el producto.`
+                : 'Agrega al menos una operación válida.',
+            operationListPayload.value.length > 0 ? 'success' : 'warning',
+        );
+        if (operationListPayload.value.length === 0) return;
+    }
     operationListDialogOpen.value = false;
 }
 
@@ -580,6 +649,35 @@ function normalizeBooleanInput(value: unknown): boolean {
     return Boolean(value);
 }
 
+function normalizeProcessesForForm(value: unknown): string {
+    if (typeof value === 'string') {
+        try {
+            JSON.parse(value);
+            return value;
+        } catch {
+            return '{}';
+        }
+    }
+    if (Array.isArray(value)) {
+        return JSON.stringify(Object.fromEntries(value.map((p) => [String(p), true])));
+    }
+    if (value && typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+    return '{}';
+}
+
+function ensureValidProcessesJson(value: string | undefined): string {
+    const str = (value ?? '').trim();
+    if (!str) return JSON.stringify({ Muestra: true, Confección: true, Terminación: true, Bodega: true });
+    try {
+        JSON.parse(str);
+        return str;
+    } catch {
+        return JSON.stringify({ Muestra: true, Confección: true, Terminación: true, Bodega: true });
+    }
+}
+
 function buildBasePayload() {
     const wovenProduct = normalizeBooleanInput(form.value.woven_product);
 
@@ -598,7 +696,7 @@ function buildBasePayload() {
         sizes: stringifyJsonRecord(form.value.sizes, {}),
         woven_product: wovenProduct ? 1 : 0,
         description: form.value.description ?? '',
-        processes: stringifyJsonRecord(form.value.processes, {}),
+        processes: ensureValidProcessesJson(form.value.processes),
         status: form.value.status ?? 'incomplete',
         operational_list_id: form.value.operational_list_id ?? null,
     };
@@ -733,7 +831,31 @@ async function saveProductSheet() {
     });
 
     request
-        .then((response) => {
+        .then(async (response) => {
+            const savedProduct = response?.data?.data ?? response?.data;
+            const productId = savedProduct?.id ?? props.productSheet?.id;
+
+            if (operationListPayload.value.length > 0 && productId && typeof productId === 'number') {
+                try {
+                    const requests = operationListPayload.value.map((p, idx) =>
+                        axios.post('/produccion/listados-operacionales', {
+                            product_sheet_id: productId,
+                            operation_id: p.operation_id,
+                            machine_id: p.machine_id,
+                            operation_section_id: p.section_id,
+                            sequence_order: idx + 1,
+                            optimal_time: Number(p.optimal_time),
+                            operator_efficiency_factor: p.operator_efficiency_factor ?? 1,
+                            machine_supplement_factor: p.machine_supplement_factor ?? 1.0,
+                            notes: p.notes,
+                        }),
+                    );
+                    await Promise.all(requests);
+                } catch (err) {
+                    console.error('Error al guardar operaciones del nuevo producto:', err);
+                }
+            }
+
             setAlert(`Product sheet ${isEditMode.value ? 'actualizado' : 'creado'} exitosamente.`, 'success');
             emit('productSheetSaved', response.data);
             resetForm();
@@ -802,8 +924,11 @@ function handleFlatSketchImageError() {
 function resetForm() {
     resetFlatSketchSelection();
     closeConvertDialog();
+    closeOperationListDialog();
     hasAppliedDefaultSampleProcess.value = false;
     autoAddedSampleProcess.value = false;
+    operationListPayload.value = [];
+    operationDialogInitialData.value = null;
     form.value = createInitialFormState();
     clearAlert();
 }
@@ -821,13 +946,15 @@ function handleClose() {
 
 <template>
     <Dialog v-model:open="localDialogOpen" @close="handleClose">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[190vh] px-2 py-2">
-            <DialogHeader class="flex-shrink-0 px-6 pt-6 pb-4">
-                <DialogTitle>
-                    {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos
-                </DialogTitle>
+        <FormDialogContent class="flex max-h-[95vh] max-w-[190vh] flex-col px-2 py-2">
+            <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
+                <DialogTitle> {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos </DialogTitle>
                 <DialogDescription>
-                    {{ isViewMode ? 'Visualiza los detalles del producto.' : `Completa los campos para ${isEditMode ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.` }}
+                    {{
+                        isViewMode
+                            ? 'Visualiza los detalles del producto.'
+                            : `Completa los campos para ${isEditMode ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.`
+                    }}
                 </DialogDescription>
             </DialogHeader>
             <AlertStack
@@ -842,50 +969,44 @@ function handleClose() {
             />
 
             <TooltipProvider>
-                <div ref="dialogInnerRef" class="overflow-y-auto flex-1 px-6 pb-24 scroll-smooth" style="scrollbar-width: thin;">
+                <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
                     <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
                             <div class="grid gap-2">
                                 <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium">
-                                        Tipo<span class="text-red-500">*</span>
-                                    </Label>
-                                    <HelpTooltip
-                                        :text="tooltips.type"
-                                        aria-label="Ayuda sobre Tipo"
-                                    />
+                                    <Label class="text-sm font-medium"> Tipo<span class="text-red-500">*</span> </Label>
+                                    <HelpTooltip :text="tooltips.type" aria-label="Ayuda sobre Tipo" />
                                 </div>
                                 <SegmentedToggle v-model="typeModel" :options="typeOptions" :disabled="isReadonly" />
                             </div>
 
                             <!-- Primera seccion: Identificacion del producto -->
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                                 <div class="md:col-span-1">
                                     <div v-if="!isReadonly" class="space-y-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">
-                                                {{ mainReferenceLabel }}<span class="text-red-500">*</span>
-                                            </Label>
+                                            <Label class="text-sm font-medium"> {{ mainReferenceLabel }}<span class="text-red-500">*</span> </Label>
                                         </div>
-                                        <InputField
-                                            v-model="activeReference"
-                                            label=""
-                                            placeholder="ejemplo: 901010"
-                                            :disabled="isReadonly"
-                                        />
+                                        <InputField v-model="activeReference" label="" placeholder="ejemplo: 901010" :disabled="isReadonly" />
                                     </div>
                                     <div v-else-if="hasBothReferences" class="space-y-1.5">
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">Referencias</Label>
                                         </div>
                                         <div class="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-3">
-                                            <span class="inline-flex h-5 items-center gap-0.5 rounded-full bg-blue-100 px-2 text-[11px] font-medium text-blue-800 whitespace-nowrap">
+                                            <span
+                                                class="inline-flex h-5 items-center gap-0.5 whitespace-nowrap rounded-full bg-blue-100 px-2 text-[11px] font-medium text-blue-800"
+                                            >
                                                 <span class="text-blue-500">M:</span>
-                                                <span class="truncate max-w-[80px]" :title="form.sample_reference">{{ form.sample_reference }}</span>
+                                                <span class="max-w-[80px] truncate" :title="form.sample_reference">{{ form.sample_reference }}</span>
                                             </span>
-                                            <span class="inline-flex h-5 items-center gap-0.5 rounded-full bg-green-100 px-2 text-[11px] font-medium text-green-800 whitespace-nowrap">
+                                            <span
+                                                class="inline-flex h-5 items-center gap-0.5 whitespace-nowrap rounded-full bg-green-100 px-2 text-[11px] font-medium text-green-800"
+                                            >
                                                 <span class="text-green-600">P:</span>
-                                                <span class="truncate max-w-[80px]" :title="form.product_reference">{{ form.product_reference }}</span>
+                                                <span class="max-w-[80px] truncate" :title="form.product_reference">{{
+                                                    form.product_reference
+                                                }}</span>
                                             </span>
                                         </div>
                                     </div>
@@ -912,7 +1033,7 @@ function handleClose() {
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-4 gap-4 mb-4">
+                            <div class="mb-4 grid grid-cols-4 gap-4">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Seccion<span class="text-red-500">*</span></Label>
@@ -938,18 +1059,22 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Mundo<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.world" aria-label="Ayuda sobre Mundo" />
                                     </div>
-                                    <SelectField class="w-full" v-model="form.world_id" label="" :options="props.worlds" required :disabled="isReadonly" />
+                                    <SelectField
+                                        class="w-full"
+                                        v-model="form.world_id"
+                                        label=""
+                                        :options="props.worlds"
+                                        required
+                                        :disabled="isReadonly"
+                                    />
                                 </div>
                             </div>
 
-                            <div :class="`grid gap-4 mb-4 ${form.woven_product ? 'grid-cols-4' : 'grid-cols-3'}`">
-                                <div class="flex flex-col gap-1 w-auto">
+                            <div :class="`mb-4 grid gap-4 ${form.woven_product ? 'grid-cols-4' : 'grid-cols-3'}`">
+                                <div class="flex w-auto flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Producto tejido</Label>
-                                        <HelpTooltip
-                                            :text="tooltips.wovenProduct"
-                                            aria-label="Ayuda sobre Producto tejido"
-                                        />
+                                        <HelpTooltip :text="tooltips.wovenProduct" aria-label="Ayuda sobre Producto tejido" />
                                     </div>
                                     <SwitchField v-model="form.woven_product" label="" id="woven_product" :disabled="isReadonly" />
                                 </div>
@@ -958,15 +1083,19 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Base<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.base" aria-label="Ayuda sobre Base" />
                                     </div>
-                                    <SelectField class="w-full" v-model="form.fabric_base_id" label="" :options="props.fabricBases" required :disabled="isReadonly" />
+                                    <SelectField
+                                        class="w-full"
+                                        v-model="form.fabric_base_id"
+                                        label=""
+                                        :options="props.fabricBases"
+                                        required
+                                        :disabled="isReadonly"
+                                    />
                                 </div>
                                 <div v-if="form.woven_product" class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Base hilaza<span class="text-red-500">*</span></Label>
-                                        <HelpTooltip
-                                            :text="tooltips.yarnBase"
-                                            aria-label="Ayuda sobre Base hilaza"
-                                        />
+                                        <HelpTooltip :text="tooltips.yarnBase" aria-label="Ayuda sobre Base hilaza" />
                                     </div>
                                     <SelectField
                                         class="w-full"
@@ -987,7 +1116,7 @@ function handleClose() {
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-1 gap-4 mb-4">
+                            <div class="mb-4 grid grid-cols-1 gap-4">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Descripcion</Label>
@@ -1011,10 +1140,7 @@ function handleClose() {
                                         <div class="flex items-center gap-2">
                                             <List class="h-4 w-4 text-emerald-700" />
                                             <Label class="text-sm font-semibold text-emerald-900">Listado operacional</Label>
-                                            <HelpTooltip
-                                                :text="tooltips.operationalList"
-                                                aria-label="Ayuda sobre Listado operacional"
-                                            />
+                                            <HelpTooltip :text="tooltips.operationalList" aria-label="Ayuda sobre Listado operacional" />
                                         </div>
                                         <p class="text-xs leading-relaxed text-emerald-800/80">
                                             Configura las operaciones detalladas para el proceso de desarrollo de muestras.
@@ -1027,12 +1153,8 @@ function handleClose() {
                                         :disabled="isReadonly || operationListOptionsLoading"
                                         @click="openOperationListDialog"
                                     >
-                                        <template v-if="operationListOptionsLoading">
-                                            Cargando...
-                                        </template>
-                                        <template v-else>
-                                            Configurar procesos
-                                        </template>
+                                        <template v-if="operationListOptionsLoading"> Cargando... </template>
+                                        <template v-else> Configurar procesos </template>
                                     </Button>
                                 </div>
                             </div>
@@ -1040,10 +1162,7 @@ function handleClose() {
                             <div class="space-y-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">Procesos<span class="text-red-500">*</span></Label>
-                                    <HelpTooltip
-                                        :text="tooltips.processes"
-                                        aria-label="Ayuda sobre Procesos"
-                                    />
+                                    <HelpTooltip :text="tooltips.processes" aria-label="Ayuda sobre Procesos" />
                                 </div>
                                 <div class="tooltip-managed-process-selector">
                                     <ProcessSelector
@@ -1055,14 +1174,11 @@ function handleClose() {
                                 </div>
                             </div>
                         </div>
-                        <div class="min-w-0 w-full md:w-[320px]">
+                        <div class="w-full min-w-0 md:w-[320px]">
                             <div class="sticky top-3 space-y-4">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">Dibujo plano</Label>
-                                    <HelpTooltip
-                                        :text="tooltips.flatSketch"
-                                        aria-label="Ayuda sobre Dibujo plano"
-                                    />
+                                    <HelpTooltip :text="tooltips.flatSketch" aria-label="Ayuda sobre Dibujo plano" />
                                 </div>
                                 <div class="flex w-full flex-col items-start gap-2">
                                     <div class="relative w-full overflow-hidden">
@@ -1077,23 +1193,23 @@ function handleClose() {
                                         />
                                         <div
                                             :class="[
-                                                'group relative flex min-h-[320px] w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
-                                                isReadonly ? 'cursor-default opacity-100' : 'hover:border-primary hover:shadow-lg',
+                                                'group relative flex min-h-[320px] w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
+                                                isReadonly ? 'cursor-default opacity-100' : 'hover:border-blue-400 hover:shadow-lg',
                                             ]"
-                                            style="min-width: 0;"
+                                            style="min-width: 0"
                                         >
                                             <template v-if="flatSketchVisualUrl">
-                                                <div class="relative h-52 w-full overflow-hidden">
+                                                <div class="relative flex min-h-[200px] w-full flex-1 items-center justify-center overflow-hidden">
                                                     <img
                                                         :src="flatSketchVisualUrl"
                                                         alt="Previsualización dibujo plano"
-                                                        class="absolute inset-0 z-10 block h-full w-full rounded object-contain transition-transform duration-200 group-hover:scale-105"
+                                                        class="z-10 max-h-full max-w-full rounded object-contain transition-transform duration-200 group-hover:scale-105"
                                                         @error="handleFlatSketchImageError"
                                                     />
                                                 </div>
                                             </template>
                                             <template v-else>
-                                                <div class="z-10 flex h-full w-full flex-col items-center justify-center pointer-events-none">
+                                                <div class="pointer-events-none z-10 flex h-full w-full flex-col items-center justify-center">
                                                     <ImageIcon class="mb-2 h-12 w-12 text-gray-400" />
                                                     <span class="text-sm text-gray-500">
                                                         {{ isReadonly ? 'Sin imagen' : 'Haz clic para subir imagen' }}
@@ -1128,11 +1244,15 @@ function handleClose() {
                 </div>
             </TooltipProvider>
 
-            <DialogFooter class="flex-shrink-0 border-t bg-background pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end md:items-center">
+            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t bg-background pt-4 md:flex-row md:items-center md:justify-end">
                 <div class="w-full md:w-auto">
-                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="handleClose">
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        @click="handleClose"
+                    >
                         {{ isViewMode ? 'Cerrar' : 'Cancelar' }}
-                    </Button>
+                    </button>
                 </div>
                 <div v-if="showConvertButton" class="w-full md:w-auto">
                     <Button
@@ -1161,8 +1281,9 @@ function handleClose() {
     </Dialog>
     <ProductOperationListDialog
         :open="operationListDialogOpen"
-        mode="create"
+        :mode="(operationDialogInitialData?.operations?.length ? 'edit' : 'create') as 'create' | 'edit'"
         :initial-data="operationDialogInitialData"
+        :bound-product-sheet-id="operationDialogBoundProductId"
         :productSheets="productSheetOptionsForDialog"
         :sections="operationListMeta.sections"
         :operations="operationListMeta.operations"

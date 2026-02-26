@@ -23,4 +23,3 @@ const className = computed(() => props.class);
         </div>
     </main>
 </template>
-

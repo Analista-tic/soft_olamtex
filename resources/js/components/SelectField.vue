@@ -9,10 +9,7 @@ import { computePosition, offset, flip, shift, autoUpdate } from '@floating-ui/d
 
 type LocalModelValue = Option['id'] | Option['id'][] | null;
 
-const normalizeModelValue = (
-    value: Option['id'] | Option['id'][] | undefined | null,
-    multiple: boolean,
-): LocalModelValue => {
+const normalizeModelValue = (value: Option['id'] | Option['id'][] | undefined | null, multiple: boolean): LocalModelValue => {
     if (multiple) {
         return Array.isArray(value) ? value : [];
     }
@@ -24,50 +21,53 @@ const normalizeModelValue = (
 
 const isLocalModelArray = (value: LocalModelValue): value is Option['id'][] => Array.isArray(value);
 
-const props = withDefaults(defineProps<{
-    label?: string;
-    options: Option[];
-    required?: boolean;
-    modelValue: Option['id'] | Option['id'][] | undefined | null;
-    multiple?: boolean;
-    placeholder?: string;
-    disabled?: boolean;
-    searchable?: boolean;
-    searchPlaceholder?: string;
-    showPlaceholderOption?: boolean;
-    searchThreshold?: number;
-    buttonClass?: string;
-    allowCustom?: boolean;
-    customOptionLabel?: string;
-    tooltipText?: string;
-    getOptionLabel?: (option: Option) => string;
-    actionLabel?: string;
-    actionIcon?: 'plus' | false;
-    actionDisabled?: boolean;
-    actionClass?: string;
-    actionSticky?: boolean;
-    invalid?: boolean;
-    errorMessage?: string;
-}>(), {
-    required: false,
-    multiple: false,
-    placeholder: '',
-    disabled: false,
-    searchable: false,
-    searchPlaceholder: 'Buscar y seleccionar...',
-    showPlaceholderOption: true,
-    searchThreshold: 5,
-    buttonClass: '',
-    allowCustom: false,
-    customOptionLabel: '',
-    tooltipText: '',
-    actionIcon: 'plus',
-    actionDisabled: false,
-    actionClass: '',
-    actionSticky: true,
-    invalid: false,
-    errorMessage: '',
-});
+const props = withDefaults(
+    defineProps<{
+        label?: string;
+        options: Option[];
+        required?: boolean;
+        modelValue: Option['id'] | Option['id'][] | undefined | null;
+        multiple?: boolean;
+        placeholder?: string;
+        disabled?: boolean;
+        searchable?: boolean;
+        searchPlaceholder?: string;
+        showPlaceholderOption?: boolean;
+        searchThreshold?: number;
+        buttonClass?: string;
+        allowCustom?: boolean;
+        customOptionLabel?: string;
+        tooltipText?: string;
+        getOptionLabel?: (option: Option) => string;
+        actionLabel?: string;
+        actionIcon?: 'plus' | false;
+        actionDisabled?: boolean;
+        actionClass?: string;
+        actionSticky?: boolean;
+        invalid?: boolean;
+        errorMessage?: string;
+    }>(),
+    {
+        required: false,
+        multiple: false,
+        placeholder: '',
+        disabled: false,
+        searchable: false,
+        searchPlaceholder: 'Buscar y seleccionar...',
+        showPlaceholderOption: true,
+        searchThreshold: 5,
+        buttonClass: '',
+        allowCustom: false,
+        customOptionLabel: '',
+        tooltipText: '',
+        actionIcon: 'plus',
+        actionDisabled: false,
+        actionClass: '',
+        actionSticky: true,
+        invalid: false,
+        errorMessage: '',
+    },
+);
 
 const emit = defineEmits<{
     (e: 'update:modelValue', value: Option['id'] | Option['id'][] | undefined | null): void;
@@ -81,7 +81,7 @@ watch(
     () => props.modelValue,
     (newVal) => {
         localModelValue.value = normalizeModelValue(newVal, props.multiple);
-    }
+    },
 );
 
 watch(
@@ -121,7 +121,6 @@ onBeforeUnmount(() => {
     stopFloatingUpdates();
 });
 
-
 const normalizedSearchTerm = computed(() => searchTerm.value.trim());
 const hasExactMatch = computed(() => {
     if (!normalizedSearchTerm.value) return false;
@@ -158,9 +157,7 @@ const filteredOptions = computed(() => {
     if (!term) {
         return props.options;
     }
-    return props.options.filter(option =>
-        option.name.toLowerCase().includes(term)
-    );
+    return props.options.filter((option) => option.name.toLowerCase().includes(term));
 });
 
 const groupedOptions = computed(() => {
@@ -185,9 +182,7 @@ const comboboxValue = computed<Option | Option[] | null>(() => {
         if (!isLocalModelArray(modelValue)) {
             return [];
         }
-        return props.options.filter((option) =>
-            modelValue.some((selectedId) => selectedId == option.id),
-        );
+        return props.options.filter((option) => modelValue.some((selectedId) => selectedId == option.id));
     }
     const modelValue = localModelValue.value;
     if (modelValue === null || isLocalModelArray(modelValue)) {
@@ -256,7 +251,7 @@ function isOptionSelected(option: Option) {
 function handleComboboxChange(value: Option | Option[] | null) {
     if (props.multiple) {
         const selected = Array.isArray(value) ? value : [];
-        localModelValue.value = selected.map(option => option.id);
+        localModelValue.value = selected.map((option) => option.id);
     } else {
         const selected = value as Option | null;
         localModelValue.value = selected?.id ?? null;
@@ -324,17 +319,12 @@ async function updateFloatingPosition() {
 
 function startFloatingUpdates() {
     if (floatingCleanup || !triggerRef.value || !floatingRef.value) return;
-    floatingCleanup = autoUpdate(
-        triggerRef.value,
-        floatingRef.value,
-        updateFloatingPosition,
-        {
-            ancestorScroll: true,
-            ancestorResize: true,
-            elementResize: true,
-            animationFrame: true,
-        },
-    );
+    floatingCleanup = autoUpdate(triggerRef.value, floatingRef.value, updateFloatingPosition, {
+        ancestorScroll: true,
+        ancestorResize: true,
+        elementResize: true,
+        animationFrame: true,
+    });
     void updateFloatingPosition();
 }
 
@@ -384,7 +374,10 @@ watch(
                 <template #default="{ open }">
                     <div ref="triggerRef" class="relative">
                         <!-- Selected chips (only for multiple) -->
-                        <div v-if="multiple && selectedOptions.length" class="absolute left-3 top-2 z-0 flex max-w-[70%] flex-wrap items-center gap-2">
+                        <div
+                            v-if="multiple && selectedOptions.length"
+                            class="absolute left-3 top-2 z-0 flex max-w-[70%] flex-wrap items-center gap-2"
+                        >
                             <template v-for="opt in selectedOptions" :key="String(opt.id)">
                                 <span class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-foreground/90 shadow-sm">
                                     <span class="truncate max-w-[10rem]">{{ labelOf(opt) }}</span>
@@ -419,14 +412,7 @@ watch(
                             <ChevronDown class="h-4 w-4" />
                         </ComboboxButton>
                         <Teleport to="body">
-                            <div
-                                v-if="open"
-                                ref="floatingRef"
-                                :style="floatingStyles"
-                                class="z-50"
-                                @pointerdown.stop
-                                @click.stop
-                            >
+                            <div v-if="open" ref="floatingRef" :style="floatingStyles" class="z-50" @pointerdown.stop @click.stop>
                                 <ComboboxOptions
                                     class="relative max-h-52 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
                                 >
@@ -457,10 +443,7 @@ watch(
                                     >
                                         <slot name="header" :searchTerm="normalizedSearchTerm" />
                                     </div>
-                                    <ComboboxOption
-                                        v-if="customOption"
-                                        :value="customOption"
-                                    >
+                                    <ComboboxOption v-if="customOption" :value="customOption">
                                         <template #default="{ active }">
                                             <div
                                                 :class="[
@@ -492,21 +475,14 @@ watch(
                                         {{ placeholderText }}
                                     </ComboboxOption>
                                     <template v-if="groupedOptions.length">
-                                        <template
-                                            v-for="(group, groupIndex) in groupedOptions"
-                                            :key="group.label || groupIndex"
-                                        >
+                                        <template v-for="(group, groupIndex) in groupedOptions" :key="group.label || groupIndex">
                                             <div
                                                 v-if="group.label"
                                                 class="rounded-t-md bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70"
                                             >
                                                 {{ group.label }}
                                             </div>
-                                            <ComboboxOption
-                                                v-for="option in group.options"
-                                                :key="String(option.id)"
-                                                :value="option"
-                                            >
+                                            <ComboboxOption v-for="option in group.options" :key="String(option.id)" :value="option">
                                                 <template #default="{ active }">
                                                     <div
                                                         :class="[
@@ -531,13 +507,8 @@ watch(
                                             </ComboboxOption>
                                         </template>
                                     </template>
-                                    <div
-                                        v-if="filteredOptions.length === 0 && !customOption"
-                                        class="px-3 py-2 text-sm text-muted-foreground/70"
-                                    >
-                                        <slot name="empty" :search-term="normalizedSearchTerm">
-                                            No se encontraron opciones.
-                                        </slot>
+                                    <div v-if="filteredOptions.length === 0 && !customOption" class="px-3 py-2 text-sm text-muted-foreground/70">
+                                        <slot name="empty" :search-term="normalizedSearchTerm"> No se encontraron opciones. </slot>
                                     </div>
                                     <div v-if="$slots.footer" class="border-t border-border/70 bg-popover px-2 pb-2 pt-2">
                                         <slot name="footer" :searchTerm="normalizedSearchTerm" />

@@ -150,4 +150,3 @@ defineExpose({
 <style scoped>
 /* Agregar estilos específicos si es necesario */
 </style>
-

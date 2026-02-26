@@ -61,5 +61,4 @@ export const ACTION_LABELS = {
     REJECT: 'Rechazar',
 } as const;
 
-export type ActionLabel = typeof ACTION_LABELS[keyof typeof ACTION_LABELS];
-
+export type ActionLabel = (typeof ACTION_LABELS)[keyof typeof ACTION_LABELS];

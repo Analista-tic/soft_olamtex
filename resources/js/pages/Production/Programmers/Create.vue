@@ -1,25 +1,24 @@
 <script setup lang="ts">
-
-import { computed, ref, watch } from 'vue';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
-import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 import CreateProductSheetDialog from '../ProductSheets/ProductSheetDialog.vue';
+import EcommerceSizesDialog from './EcommerceSizesDialog.vue';
 
-import InputField from '@/components/InputField.vue';
-import SelectField from '@/components/SelectField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
+import InputField from '@/components/InputField.vue';
+import SelectField from '@/components/SelectField.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import FormDialogContent from '@/components/FormDialogContent.vue';
 
-import { normalizeSizes, sizesToLabel } from '@/domain/Production';
 import type { ProductSheet, Programmer } from '@/domain/Production';
+import { normalizeSizes, sizesToLabel } from '@/domain/Production';
 import type { Option } from '@/domain/shared/types';
 
 import { useAlertStack } from '@/composables/useAlert';
@@ -91,9 +90,7 @@ const ALERT_TITLES: Record<AlertType, string> = {
     error: 'Error',
 };
 
-const monthOptions = computed<Option[]>(() =>
-    Array.isArray(props.months) && props.months.length > 0 ? props.months : MONTHS_FALLBACK,
-);
+const monthOptions = computed<Option[]>(() => (Array.isArray(props.months) && props.months.length > 0 ? props.months : MONTHS_FALLBACK));
 
 const priorityOptions = computed<Option[]>(() =>
     Array.isArray(props.priorities) && props.priorities.length > 0 ? props.priorities : PRIORITIES_FALLBACK,
@@ -102,39 +99,23 @@ const priorityOptions = computed<Option[]>(() =>
 const destinationOptions = computed<Option[]>(() => props.destinations ?? []);
 
 /** Normaliza un option “value” a su name (string) */
-function normalizeOptionToName(
-    value: string | number | null | undefined,
-    options: Option[],
-): string | null {
+function normalizeOptionToName(value: string | number | null | undefined, options: Option[]): string | null {
     if (value === null || value === undefined || value === '') return null;
 
     const byId = options.find((opt) => opt.id === value || String(opt.id) === String(value));
     if (byId) return String(byId.name).toUpperCase();
 
-    const byName = options.find(
-        (opt) => String(opt.name).toUpperCase() === String(value).toUpperCase(),
-    );
+    const byName = options.find((opt) => String(opt.name).toUpperCase() === String(value).toUpperCase());
     if (byName) return String(byName.name).toUpperCase();
 
     return String(value).toUpperCase();
 }
 
-const normalizeSeason = (value: string | number | null | undefined) =>
-    normalizeOptionToName(value, monthOptions.value);
+const normalizeSeason = (value: string | number | null | undefined) => normalizeOptionToName(value, monthOptions.value);
 
-const normalizePriority = (value: string | number | null | undefined) =>
-    normalizeOptionToName(value, priorityOptions.value);
+const normalizePriority = (value: string | number | null | undefined) => normalizeOptionToName(value, priorityOptions.value);
 
-const {
-    successMessage,
-    errorMessage,
-    errorType,
-    showSuccess,
-    showError,
-    clearAlerts,
-    clearSuccess,
-    clearError,
-} = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 
 const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
 
@@ -172,9 +153,7 @@ const dialogInnerRef = ref<HTMLElement | null>(null);
 const isSubmitting = ref(false);
 const saveDisabled = computed(() => formErrors.value.length > 0);
 
-const allProductSheets = ref<ProductSheet[]>(
-    Array.isArray(props.productSheets) ? [...props.productSheets] : [],
-);
+const allProductSheets = ref<ProductSheet[]>(Array.isArray(props.productSheets) ? [...props.productSheets] : []);
 
 function getProductSheetValue(sheet: ProductSheet): number {
     const candidate = (sheet as ProductSheet & { value?: number | string }).value ?? sheet.id;
@@ -213,9 +192,7 @@ const productSheetsById = computed(() => {
 
 const selectedProductSheet = computed<ProductSheet | null>(() => {
     if (!form.value.productSheetId) return null;
-    return productSheetList.value.find(
-        (sheet) => getProductSheetValue(sheet) === Number(form.value.productSheetId),
-    ) ?? null;
+    return productSheetList.value.find((sheet) => getProductSheetValue(sheet) === Number(form.value.productSheetId)) ?? null;
 });
 
 function getDisplayReference(productSheetId: number | null | undefined): string {
@@ -323,8 +300,7 @@ function getLotErrors(lot: Partial<Programmer>): string[] {
     if (!lot.priority) errors.push('Prioridad');
 
     const units = lot.units;
-    const isValidUnits =
-        units !== null && units !== undefined && !Number.isNaN(Number(units)) && Number(units) > 0;
+    const isValidUnits = units !== null && units !== undefined && !Number.isNaN(Number(units)) && Number(units) > 0;
 
     if (!isValidUnits) errors.push('Unidades');
 
@@ -356,9 +332,7 @@ function validateLotField(lotIndex: number) {
     if (idx >= 0) formErrors.value.splice(idx, 1);
 }
 
-function resolveEcommerceValues(
-    value?: string | Record<string, number> | null,
-): Record<string, number> | null {
+function resolveEcommerceValues(value?: string | Record<string, number> | null): Record<string, number> | null {
     if (!value) return null;
 
     if (typeof value === 'string') {
@@ -448,10 +422,7 @@ async function createProgrammer() {
     validateForm();
 
     if (formErrors.value.length > 0) {
-        setAlert(
-            `Por favor, completa todos los campos requeridos. ${errorSummary.value?.message ?? ''}`.trim(),
-            'warning',
-        );
+        setAlert(`Por favor, completa todos los campos requeridos. ${errorSummary.value?.message ?? ''}`.trim(), 'warning');
         return;
     }
 
@@ -459,11 +430,7 @@ async function createProgrammer() {
     isSubmitting.value = true;
 
     try {
-        await axios.post(
-            '/comercial/programador',
-            { lots: buildLotsPayload() },
-            { headers: { 'X-Request-Id': requestId } },
-        );
+        await axios.post('/comercial/programador', { lots: buildLotsPayload() }, { headers: { 'X-Request-Id': requestId } });
 
         setAlert('Programadores creados exitosamente.', 'success');
         emit('programmerCreated');
@@ -518,22 +485,16 @@ watch(
 <template>
     <Dialog @open="resetForm" v-model:open="isDialogOpen">
         <DialogTrigger as-child>
-            <Button
-                variant="default"
-                size="sm"
-                class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
-            >
+            <Button variant="default" size="sm" class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm">
                 <PlusCircle class="h-4 w-4" />
                 Nuevo Programador
             </Button>
         </DialogTrigger>
 
-        <FormDialogContent class="flex flex-col max-h-[200vh] max-w-[200vh] px-2 py-2">
-            <DialogHeader class="flex-shrink-0 px-6 pt-6 pb-4">
+        <FormDialogContent class="flex max-h-[200vh] max-w-[200vh] flex-col px-2 py-2">
+            <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
-                <DialogDescription>
-                    Completa los campos para crear un programador. Haz clic en guardar cuando termines.
-                </DialogDescription>
+                <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
             </DialogHeader>
 
             <AlertStack
@@ -547,38 +508,25 @@ watch(
             />
 
             <TooltipProvider>
-                <div
-                    ref="dialogInnerRef"
-                    class="overflow-y-auto flex-1 px-6 pb-24 scroll-smooth"
-                    style="scrollbar-width: thin;"
-                >
+                <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
                     <div class="grid grid-cols-1 gap-4 pt-4">
                         <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                             <!-- Referencia -->
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium">
-                                        Referencia Seleccionada<span class="text-destructive">*</span>
-                                    </Label>
+                                    <Label class="text-sm font-medium"> Referencia Seleccionada<span class="text-red-500">*</span> </Label>
                                     <HelpTooltip
                                         text="Selecciona la sábana de producto que deseas programar para producción."
                                         aria-label="Ayuda sobre referencia"
                                     />
                                 </div>
-                                <SelectField
-                                    v-model="form.productSheetId"
-                                    label=""
-                                    :options="productSheetOptions"
-                                    required
-                                />
+                                <SelectField v-model="form.productSheetId" label="" :options="productSheetOptions" required />
                             </div>
 
                             <!-- Cantidad lotes -->
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
-                                    <Label class="text-sm font-medium">
-                                        Cantidad de Lotes<span class="text-destructive">*</span>
-                                    </Label>
+                                    <Label class="text-sm font-medium"> Cantidad de Lotes<span class="text-red-500">*</span> </Label>
                                     <HelpTooltip
                                         text="Número de lotes de producción que deseas crear para esta referencia."
                                         aria-label="Ayuda sobre cantidad de lotes"
@@ -626,53 +574,53 @@ watch(
 
                         <!-- Detalles product sheet -->
                         <div v-if="selectedProductSheet" class="mb-4">
-                            <h3 class="text-lg font-bold mb-2">Detalles de la Ficha de Producto</h3>
+                            <h3 class="mb-2 text-lg font-bold">Detalles de la Ficha de Producto</h3>
 
-                            <table class="w-full text-sm text-left border border-border rounded-lg overflow-hidden">
+                            <table class="w-full overflow-hidden rounded-lg border border-gray-300 text-left text-sm">
                                 <tbody>
                                     <tr>
                                         <td class="px-4 py-2 font-bold">Referencia:</td>
-                                        <td class="px-4 py-2 border border-l-0">
+                                        <td class="border border-l-0 px-4 py-2">
                                             {{ getProductSheetLabel(selectedProductSheet) || 'Sin referencia' }}
                                         </td>
                                         <td class="px-4 py-2 font-bold">Sección:</td>
-                                        <td class="px-4 py-2 border border-l-0">
+                                        <td class="border border-l-0 px-4 py-2">
                                             {{ selectedProductSheet.section?.name || 'Sin sección' }}
                                         </td>
                                         <td class="px-4 py-2 font-bold">Grupo:</td>
-                                        <td class="px-4 py-2 border border-l-0">
+                                        <td class="border border-l-0 px-4 py-2">
                                             {{ selectedProductSheet.group?.name || 'Sin grupo' }}
                                         </td>
                                         <td class="px-4 py-2 font-bold">Marca:</td>
-                                        <td class="px-4 py-2 border border-l-0">
+                                        <td class="border border-l-0 px-4 py-2">
                                             {{ selectedProductSheet.brand?.name || 'Sin marca' }}
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td class="px-4 py-1 font-bold border border-r-0">Mundo:</td>
-                                        <td class="px-4 py-1 border border-l-0">
+                                        <td class="border border-r-0 px-4 py-1 font-bold">Mundo:</td>
+                                        <td class="border border-l-0 px-4 py-1">
                                             {{ selectedProductSheet.world?.name || 'Sin mundo' }}
                                         </td>
-                                        <td class="px-4 py-1 font-bold border border-r-0">Base:</td>
-                                        <td class="px-4 py-1 border border-l-0">
+                                        <td class="border border-r-0 px-4 py-1 font-bold">Base:</td>
+                                        <td class="border border-l-0 px-4 py-1">
                                             {{ selectedProductSheet.fabric_base?.name || 'Sin base' }}
                                         </td>
-                                        <td class="px-4 py-1 font-bold border border-r-0">Precio Facturación:</td>
-                                        <td class="px-4 py-1 border border-l-0">
+                                        <td class="border border-r-0 px-4 py-1 font-bold">Precio Facturación:</td>
+                                        <td class="border border-l-0 px-4 py-1">
                                             {{ selectedProductSheet.billing_price ?? 'N/A' }}
                                         </td>
-                                        <td class="px-4 py-1 font-bold border border-r-0">Precio Venta:</td>
-                                        <td class="px-4 py-1 border border-l-0">
+                                        <td class="border border-r-0 px-4 py-1 font-bold">Precio Venta:</td>
+                                        <td class="border border-l-0 px-4 py-1">
                                             {{ selectedProductSheet.selling_price ?? 'N/A' }}
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td class="px-4 py-5 font-bold border">Tallas:</td>
-                                        <td class="px-8 py-5 border" colspan="3">
+                                        <td class="border px-4 py-5 font-bold">Tallas:</td>
+                                        <td class="border px-8 py-5" colspan="3">
                                             {{ sizesToLabel(selectedProductSheet?.sizes) }}
                                         </td>
-                                        <td class="px-4 py-5 font-bold border">Descripción:</td>
-                                        <td class="px-4 py-5 border" colspan="3">
+                                        <td class="border px-4 py-5 font-bold">Descripción:</td>
+                                        <td class="border px-4 py-5" colspan="3">
                                             {{ selectedProductSheet.description || 'Sin descripción' }}
                                         </td>
                                     </tr>
@@ -683,33 +631,31 @@ watch(
 
                     <!-- Lotes -->
                     <div v-if="lotsForm.length > 0" class="mt-4">
-                        <h3 class="text-base font-bold mb-2">Lotes Generados:</h3>
+                        <h3 class="mb-2 text-base font-bold">Lotes Generados:</h3>
 
-                        <table class="w-full text-sm border border-border rounded-lg overflow-visible shadow-sm text-center">
+                        <table class="w-full overflow-visible rounded-lg border border-gray-300 text-center text-sm shadow-sm">
                             <thead>
-                                <tr class="bg-muted/40">
-                                    <th class="px-4 py-3 border border-border font-semibold">Lote</th>
-                                    <th class="px-4 py-3 border border-border font-semibold">Referencia</th>
-                                    <th class="px-4 py-3 border border-border font-semibold">Temporada</th>
-                                    <th class="px-4 py-3 border border-border font-semibold">Destino</th>
-                                    <th class="px-4 py-3 border border-border font-semibold">Prioridad</th>
-                                    <th class="px-4 py-3 border border-border font-semibold">E-commerce (opcional)</th>
-                                    <th class="px-4 py-3 border border-border font-semibold">Unidades</th>
-                                    <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="px-4 py-3 border font-semibold">
-                                        Cant. E-commerce
-                                    </th>
+                                <tr class="bg-gray-50">
+                                    <th class="border px-4 py-3 font-semibold">Lote</th>
+                                    <th class="border px-4 py-3 font-semibold">Referencia</th>
+                                    <th class="border px-4 py-3 font-semibold">Temporada</th>
+                                    <th class="border px-4 py-3 font-semibold">Destino</th>
+                                    <th class="border px-4 py-3 font-semibold">Prioridad</th>
+                                    <th class="border px-4 py-3 font-semibold">E-commerce (opcional)</th>
+                                    <th class="border px-4 py-3 font-semibold">Unidades</th>
+                                    <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border px-4 py-3 font-semibold">Cant. E-commerce</th>
                                 </tr>
                             </thead>
 
                             <tbody>
-                                <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-muted/30">
-                                    <td class="px-4 py-4 border whitespace-nowrap">MF300{{ index + 1 }}</td>
+                                <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
+                                    <td class="whitespace-nowrap border px-4 py-4">MF300{{ index + 1 }}</td>
 
-                                    <td class="px-4 py-4 border">
+                                    <td class="border px-4 py-4">
                                         {{ getDisplayReference(lot.product_sheet_id) }}
                                     </td>
 
-                                    <td class="px-4 py-4 border" style="min-width: 180px;">
+                                    <td class="border px-4 py-4" style="min-width: 180px">
                                         <SelectField
                                             v-model="lot.season"
                                             :options="monthOptions"
@@ -720,7 +666,7 @@ watch(
                                         />
                                     </td>
 
-                                    <td class="px-4 py-4 border" style="min-width: 200px;">
+                                    <td class="border px-4 py-4" style="min-width: 200px">
                                         <SelectField
                                             v-model="lot.destination_id"
                                             :options="destinationOptions"
@@ -731,7 +677,7 @@ watch(
                                         />
                                     </td>
 
-                                    <td class="px-4 py-4 border" style="min-width: 150px;">
+                                    <td class="border px-4 py-4" style="min-width: 150px">
                                         <SelectField
                                             v-model="lot.priority"
                                             :options="priorityOptions"
@@ -742,12 +688,12 @@ watch(
                                         />
                                     </td>
 
-                                    <td class="px-4 py-4 border text-center">
+                                    <td class="border px-4 py-4 text-center">
                                         <input
                                             type="checkbox"
                                             v-model="lot.isEcommerce"
                                             :aria-label="`Habilitar e-commerce para lote ${index + 1}`"
-                                            class="form-checkbox h-5 w-5 cursor-pointer text-primary"
+                                            class="form-checkbox h-5 w-5 cursor-pointer text-blue-600"
                                             @change="
                                                 () => {
                                                     if (!lot.isEcommerce) lot.ecommerce_units = null;
@@ -756,7 +702,7 @@ watch(
                                         />
                                     </td>
 
-                                    <td class="px-4 py-4 border" style="min-width: 180px;">
+                                    <td class="border px-4 py-4" style="min-width: 180px">
                                         <InputField
                                             :model-value="lot.unitsInput ?? ''"
                                             inputmode="numeric"
@@ -778,7 +724,7 @@ watch(
                                         />
                                     </td>
 
-                                    <td v-if="lot.isEcommerce" class="px-4 py-4 border text-center">
+                                    <td v-if="lot.isEcommerce" class="border px-4 py-4 text-center">
                                         <EcommerceSizesDialog
                                             :productSheet="getDialogProductSheet(selectedProductSheet)"
                                             :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
@@ -807,13 +753,15 @@ watch(
             </TooltipProvider>
 
             <!-- Footer fijo -->
-            <div
-                class="absolute bottom-0 right-0 left-0 rounded-b-[24px] border-t border-border bg-background px-6 py-4 shadow-lg flex flex-col gap-2 items-end"
-            >
-                <div class="flex items-center justify-end gap-3 w-full max-w-lg">
-                    <Button variant="outline" size="pill" class="px-6 py-2.5" @click="closeDialog">
+            <div class="absolute bottom-0 left-0 right-0 flex flex-col items-end gap-2 rounded-b-[24px] border-t bg-white px-6 py-4 shadow-lg">
+                <div class="flex w-full max-w-lg items-center justify-end gap-3">
+                    <button
+                        type="button"
+                        class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        @click="closeDialog"
+                    >
                         Cancelar
-                    </Button>
+                    </button>
 
                     <Button
                         type="button"

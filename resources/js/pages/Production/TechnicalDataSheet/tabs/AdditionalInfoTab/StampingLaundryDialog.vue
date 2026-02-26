@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import Button from '@/components/ui/button/Button.vue';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import HelpTooltip from '@/components/HelpTooltip.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import { Badge } from '@/components/ui/badge';
+import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
 import { Image as ImageIcon, Upload, X } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 
 type Attachment = { id: string; name: string; url: string };
 type StampingData = {
@@ -182,10 +182,8 @@ const meta = computed(() => parseStampingMeta(localData.value.designNotes));
 const processesLength = computed(() => meta.value.processes.length);
 const observationValue = computed(() => (isLaundryMode.value ? String(localData.value.designNotes ?? '') : meta.value.observation));
 const observationLength = computed(() => observationValue.value.length);
-const imageAttachment = computed(() => (Array.isArray(localData.value.attachments) ? localData.value.attachments[0] ?? null : null));
-const guideRows = computed(() =>
-    (props.cuttingData?.sizes ?? []).filter((row) => String(row.size ?? '').trim() !== ''),
-);
+const imageAttachment = computed(() => (Array.isArray(localData.value.attachments) ? (localData.value.attachments[0] ?? null) : null));
+const guideRows = computed(() => (props.cuttingData?.sizes ?? []).filter((row) => String(row.size ?? '').trim() !== ''));
 const totalGuideUnits = computed(() => guideRows.value.reduce((acc, row) => acc + Math.max(0, Number(row.units || 0)), 0));
 const resolvedDrawingUrl = computed(() => {
     const raw = String(props.drawingUrl ?? '').trim();
@@ -235,11 +233,7 @@ const orderedBasicInfoItems = computed(() => {
 
     const used = new Set<number>();
     const sorted: BasicInfoItem[] = [];
-    [
-        ['orden de produccion', 'op'],
-        ['base'],
-        ['disenador'],
-    ].forEach((terms) => {
+    [['orden de produccion', 'op'], ['base'], ['disenador']].forEach((terms) => {
         const idx = take(terms, used);
         if (idx >= 0) {
             sorted.push(visibleItems[idx]);
@@ -347,7 +341,7 @@ function handleDialogOpenChange(value: boolean): void {
     <Dialog :open="open" @update:open="handleDialogOpenChange">
         <FormDialogContent
             overlay-class="backdrop-blur-0"
-            class="flex max-h-[96vh] max-w-[1150px] flex-col overflow-hidden px-2 py-2 data-[state=open]:animate-none data-[state=closed]:animate-none"
+            class="flex max-h-[96vh] max-w-[1150px] flex-col overflow-hidden px-2 py-2 data-[state=closed]:animate-none data-[state=open]:animate-none"
         >
             <FormHeader :title="displayName" :description="headerDescription" />
 
@@ -370,11 +364,15 @@ function handleDialogOpenChange(value: boolean): void {
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div class="space-y-1">
                                     <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Proveedor</p>
-                                    <p class="text-sm font-medium text-foreground">{{ hasStampingProcess ? (stampingProcess.supplier ?? 'No definido') : 'No definido' }}</p>
+                                    <p class="text-sm font-medium text-foreground">
+                                        {{ hasStampingProcess ? (stampingProcess.supplier ?? 'No definido') : 'No definido' }}
+                                    </p>
                                 </div>
                                 <div class="space-y-1">
                                     <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio</p>
-                                    <p class="text-sm font-medium text-foreground">{{ hasStampingProcess ? formatCOP(stampingProcess.price) : 'No definido' }}</p>
+                                    <p class="text-sm font-medium text-foreground">
+                                        {{ hasStampingProcess ? formatCOP(stampingProcess.price) : 'No definido' }}
+                                    </p>
                                 </div>
                             </div>
                             <p v-if="!hasStampingProcess" class="mt-2 text-xs text-muted-foreground">Configúralo en los Procesos.</p>
@@ -388,7 +386,10 @@ function handleDialogOpenChange(value: boolean): void {
                                 <Badge variant="outline">Total unidades: {{ totalGuideUnits }}</Badge>
                             </div>
 
-                            <div v-if="guideRows.length === 0" class="rounded-md border border-dashed border-border px-3 py-5 text-sm text-muted-foreground">
+                            <div
+                                v-if="guideRows.length === 0"
+                                class="rounded-md border border-dashed border-border px-3 py-5 text-sm text-muted-foreground"
+                            >
                                 Aún no hay datos de Corte registrados. Guarda Corte para ver esta guía.
                             </div>
 
@@ -430,7 +431,7 @@ function handleDialogOpenChange(value: boolean): void {
                         </template>
 
                         <div class="mt-4 flex items-center gap-1.5">
-                                <p class="text-sm font-semibold text-foreground">Observación</p>
+                            <p class="text-sm font-semibold text-foreground">Observación</p>
                             <HelpTooltip text="Describe observaciones adicionales, tintas, consideraciones." aria-label="Ayuda sobre Observación" />
                         </div>
                         <Textarea
@@ -446,16 +447,13 @@ function handleDialogOpenChange(value: boolean): void {
                         <div class="rounded-lg border border-border bg-background p-4">
                             <div class="mb-3 flex items-center gap-1.5">
                                 <p class="text-sm font-semibold text-foreground">Imagen de {{ displayNameLower }}</p>
-                                <HelpTooltip :text="`Carga 1 imagen de ${displayNameLower} (JPG, PNG o WEBP; máximo 2MB).`" aria-label="Ayuda sobre Imagen" />
+                                <HelpTooltip
+                                    :text="`Carga 1 imagen de ${displayNameLower} (JPG, PNG o WEBP; máximo 2MB).`"
+                                    aria-label="Ayuda sobre Imagen"
+                                />
                             </div>
 
-                            <input
-                                ref="fileInputRef"
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp"
-                                class="hidden"
-                                @change="onFileSelected"
-                            />
+                            <input ref="fileInputRef" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onFileSelected" />
 
                             <div
                                 :class="[
@@ -519,10 +517,7 @@ function handleDialogOpenChange(value: boolean): void {
                                     <img :src="resolvedDrawingUrl" alt="Dibujo plano de referencia" class="h-52 w-full object-cover" />
                                 </button>
 
-                                <div
-                                    v-else
-                                    class="flex h-52 items-center justify-center rounded-md bg-muted/20 px-3 text-sm text-muted-foreground"
-                                >
+                                <div v-else class="flex h-52 items-center justify-center rounded-md bg-muted/20 px-3 text-sm text-muted-foreground">
                                     Sin dibujo plano
                                 </div>
                             </div>

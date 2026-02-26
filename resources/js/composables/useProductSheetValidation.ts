@@ -40,4 +40,3 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
         isValid,
     };
 }
-

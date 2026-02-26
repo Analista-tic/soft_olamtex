@@ -1,33 +1,33 @@
-import axios from 'axios';
 import type { Option } from '@/domain/shared';
 import { toUnitNumber } from '@/domain/Textil';
+import axios from 'axios';
 import type {
     AdditionalInfoDto,
-    OpProcessesResponseDto,
+    CostsSummaryDto,
     OpBasicInfoDto,
     OperationalListOptionDto,
     OperationalListResponseDto,
-    CostsSummaryDto,
+    OpProcessesResponseDto,
     RollStateDto,
     ThreadStateDto,
 } from './dto';
+import { mapOpBasicInfoDtoToOpBasicInfo } from './mappers';
 import type {
     AdditionalInfo,
-    CuttingPiece,
     CostsSummary,
-    OpProcessesData,
+    CuttingPiece,
     OpBasicInfo,
     OperationalListResponse,
+    OpProcessesData,
     RollLine,
-    RollSavePayload,
     RollParams,
+    RollSavePayload,
     RollState,
-    SupplyItem,
     SupplyCatalogItem,
+    SupplyItem,
     ThreadSavePayload,
     ThreadState,
 } from './types';
-import { mapOpBasicInfoDtoToOpBasicInfo } from './mappers';
 
 const ENDPOINTS = {
     SETTINGS_PARAMETERS: '/settings/parameters',
@@ -253,8 +253,15 @@ export function createProductSheet(payload: Record<string, any>) {
     return axios.post(ENDPOINTS.PRODUCT_SHEETS_STORE, payload);
 }
 
-export function updateProductSheet(id: number, payload: Record<string, any>) {
+export function updateProductSheet(id: number, payload: Record<string, any> | FormData) {
     const url = ENDPOINTS.PRODUCT_SHEETS_UPDATE.replace(':id', String(id));
+    // PHP no parsea multipart/form-data en PUT; usar POST + _method=PUT (method spoofing)
+    if (payload instanceof FormData) {
+        if (!payload.has('_method')) {
+            payload.append('_method', 'PUT');
+        }
+        return axios.post(url, payload);
+    }
     return axios.put(url, payload);
 }
 
@@ -454,9 +461,7 @@ export async function saveOpSupplies(opId: string | number, items: SupplyItem[])
 }
 
 export async function deleteOpSupply(opId: string | number, supplyId: string): Promise<SupplyItem[]> {
-    const url = ENDPOINTS.OP_SUPPLY_DELETE
-        .replace(':id', String(opId))
-        .replace(':supplyId', encodeURIComponent(supplyId));
+    const url = ENDPOINTS.OP_SUPPLY_DELETE.replace(':id', String(opId)).replace(':supplyId', encodeURIComponent(supplyId));
     const response = await axios.delete<SupplyItem[]>(url);
     return Array.isArray(response.data) ? response.data : [];
 }
@@ -517,9 +522,7 @@ export async function upsertOpRollLine(opId: string | number, payload: RollLine)
 }
 
 export async function deleteOpRollLine(opId: string | number, lineId: string): Promise<RollState> {
-    const url = ENDPOINTS.OP_ROLLS_LINE_DELETE
-        .replace(':id', String(opId))
-        .replace(':lineId', encodeURIComponent(lineId));
+    const url = ENDPOINTS.OP_ROLLS_LINE_DELETE.replace(':id', String(opId)).replace(':lineId', encodeURIComponent(lineId));
     const response = await axios.delete<RollStateDto>(url);
     return normalizeRollState(response.data);
 }
@@ -552,11 +555,7 @@ export async function fetchAvailableFabricRolls(fabricItemIds: number[] = []): P
             fabricItemIds: fabricItemIds.length > 0 ? fabricItemIds : undefined,
         },
     });
-    const raw = Array.isArray(response.data)
-        ? response.data
-        : Array.isArray(response.data?.data)
-        ? response.data.data
-        : [];
+    const raw = Array.isArray(response.data) ? response.data : Array.isArray(response.data?.data) ? response.data.data : [];
 
     return raw.map((roll) => {
         const id = String(roll.id);
@@ -593,9 +592,7 @@ function normalizeThreadState(data: ThreadStateDto | null | undefined): ThreadSt
             brand: line.brand ?? null,
             color: line.color ?? null,
             colorCode: line.colorCode ?? null,
-            stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined
-                ? Number(line.stitchesPerInch)
-                : null,
+            stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined ? Number(line.stitchesPerInch) : null,
             createdAt: line.createdAt,
             updatedAt: line.updatedAt,
         })),
@@ -629,9 +626,7 @@ function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): Ad
                   side: ['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(String(piece.side))
                       ? (piece.side as CuttingPiece['side'])
                       : 'NO_APLICA',
-                  grain: ['90', '180', 'SESGO'].includes(String(piece.grain))
-                      ? (piece.grain as CuttingPiece['grain'])
-                      : '90',
+                  grain: ['90', '180', 'SESGO'].includes(String(piece.grain)) ? (piece.grain as CuttingPiece['grain']) : '90',
                   notes: piece.notes ?? null,
               };
           })
@@ -640,9 +635,10 @@ function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): Ad
     return {
         cutting: {
             params: {
-                cutCostCop: data?.cutting?.params?.cutCostCop !== null && data?.cutting?.params?.cutCostCop !== undefined
-                    ? Number(data.cutting.params.cutCostCop)
-                    : null,
+                cutCostCop:
+                    data?.cutting?.params?.cutCostCop !== null && data?.cutting?.params?.cutCostCop !== undefined
+                        ? Number(data.cutting.params.cutCostCop)
+                        : null,
             },
             sizes: Array.isArray(data?.cutting?.sizes)
                 ? data!.cutting.sizes.map((sizeRow) => ({

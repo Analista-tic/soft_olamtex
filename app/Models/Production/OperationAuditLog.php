@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Models\ProductSheet;
+namespace App\Models\Production;
 
-use App\Models\User;
+use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Model;
 
 class OperationAuditLog extends Model

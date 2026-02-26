@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import NavFooter from '@/components/NavFooter.vue';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
     Sidebar,
     SidebarContent,
@@ -10,7 +11,6 @@ import {
     SidebarMenuItem,
     useSidebar,
 } from '@/components/ui/sidebar';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { footerNavItems } from '@/data/footerNavItems';
 import { useAuthStore } from '@/stores/auth';
@@ -67,9 +67,7 @@ const moduleSections: ModuleSection[] = [
             },
             {
                 label: 'Cartera clientes',
-                items: [
-                    { title: 'Cuentas por cobrar', href: underConstructionHref('Cuentas por cobrar') },
-                ],
+                items: [{ title: 'Cuentas por cobrar', href: underConstructionHref('Cuentas por cobrar') }],
             },
         ],
     },
@@ -153,7 +151,7 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Movimientos de inventario', href: '/inventario/item', permission: 'ver inventario telas' },
                     { title: 'Ajustes', href: '/inventario/ajuste-inventario', permission: 'ver inventario telas' },
                 ],
-            }
+            },
         ],
     },
     {
@@ -164,8 +162,9 @@ const moduleSections: ModuleSection[] = [
                 label: '',
                 items: [
                     { title: 'Sábana de Productos', href: '/produccion/sabana-productos' },
+                    { title: 'Base de operaciones', href: '/produccion/base-operaciones' },
                     { title: 'Programación de producción', href: '/comercial/programador' },
-                    { title: 'Órdenes de producción', href:'/produccion/ordenes-produccion' },
+                    { title: 'Órdenes de producción', href: '/produccion/ordenes-produccion' },
                     { title: 'Ficha Técnica', href: '/produccion/ficha-tecnica' },
                     { title: 'Control de lotes', href: '/control-de-lotes' },
                 ],
@@ -181,7 +180,11 @@ const moduleSections: ModuleSection[] = [
                 items: [
                     { title: 'Inventario tela por rollos', href: route('kardex-telas.inventario-rollos'), permission: 'ver sabana productos' },
                     { title: 'Descargue de telas por orden', href: route('kardex-telas.descargue-orden'), permission: 'ver sabana productos' },
-                    { title: 'Salida de telas por orden', href: underConstructionHref('Salida de telas por orden'), permission: 'ver sabana productos' },
+                    {
+                        title: 'Salida de telas por orden',
+                        href: underConstructionHref('Salida de telas por orden'),
+                        permission: 'ver sabana productos',
+                    },
                 ],
             },
         ],
@@ -242,18 +245,17 @@ const isRouteActive = (href: string) => {
 };
 
 const getActiveSectionTitle = () => {
-    return moduleSections.find((section) =>
-        section.groups.some((group) =>
-            group.items.some((item) => isRouteActive(item.href)),
-        ),
-    )?.title;
+    return moduleSections.find((section) => section.groups.some((group) => group.items.some((item) => isRouteActive(item.href))))?.title;
 };
 
 const buildSectionStates = (openTitle?: string) =>
-    moduleSections.reduce((acc, section) => {
-        acc[section.title] = Boolean(openTitle && section.title === openTitle);
-        return acc;
-    }, {} as Record<string, boolean>);
+    moduleSections.reduce(
+        (acc, section) => {
+            acc[section.title] = Boolean(openTitle && section.title === openTitle);
+            return acc;
+        },
+        {} as Record<string, boolean>,
+    );
 
 const sectionStates = ref<Record<string, boolean>>(buildSectionStates(getActiveSectionTitle()));
 
@@ -428,17 +430,9 @@ watch(
                             <div v-if="group.label" class="module-group-label">
                                 {{ group.label }}
                             </div>
-                            <SidebarMenu class="px-0 module-submodules">
-                                <SidebarMenuItem
-                                    v-for="item in group.items"
-                                    :key="item.title"
-                                    class="module-submodule-item"
-                                >
-                                    <SidebarMenuButton
-                                        as-child
-                                        :tooltip="item.title"
-                                        :class="{ active: isRouteActive(item.href) }"
-                                    >
+                            <SidebarMenu class="module-submodules px-0">
+                                <SidebarMenuItem v-for="item in group.items" :key="item.title" class="module-submodule-item">
+                                    <SidebarMenuButton as-child :tooltip="item.title" :class="{ active: isRouteActive(item.href) }">
                                         <Link :href="item.href">
                                             <span>{{ item.title }}</span>
                                         </Link>
@@ -496,7 +490,6 @@ watch(
 .module-submodule-item:last-child {
     margin-bottom: 0;
 }
-
 /* Asegurar que la columna del ícono nunca cambie */
 .icon-column {
     min-width: 56px;

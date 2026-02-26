@@ -185,4 +185,3 @@ function preventDrag(event: DragEvent) {
         </DialogContent>
     </Dialog>
 </template>
-

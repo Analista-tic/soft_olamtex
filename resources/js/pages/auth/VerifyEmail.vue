@@ -34,4 +34,3 @@ const submit = () => {
         </form>
     </AuthLayout>
 </template>
-

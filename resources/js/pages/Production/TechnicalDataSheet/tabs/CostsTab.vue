@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
+import MetricTile from '@/components/MetricTile.vue';
 import type { CostsSummary, OpBasicInfo } from '@/domain/Production';
 import { fetchOpCostsSummary } from '@/domain/Production';
-import MetricTile from '@/components/MetricTile.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
 import { Minus, TrendingDown, TrendingUp } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     opId: string | number | null;
@@ -162,10 +162,7 @@ const profitabilityCards = computed<ProfitabilityCard[]>(() => {
 
     const rentPercent = summary.value.profitability.olamtex.percent;
     const rentPill = buildPercentagePill(rentPercent);
-    const rentCardClass =
-        typeof rentPercent === 'number' && rentPercent < 0
-            ? 'bg-rose-50 ring-rose-200'
-            : 'bg-card';
+    const rentCardClass = typeof rentPercent === 'number' && rentPercent < 0 ? 'bg-rose-50 ring-rose-200' : 'bg-card';
 
     return [
         {
@@ -183,9 +180,7 @@ const profitabilityCards = computed<ProfitabilityCard[]>(() => {
         {
             key: 'rentability',
             label: 'Rentabilidad',
-            value: hasRentabilityData.value
-                ? formatCOP(summary.value.profitability.olamtex.value)
-                : NO_DATA,
+            value: hasRentabilityData.value ? formatCOP(summary.value.profitability.olamtex.value) : NO_DATA,
             tooltipText: 'Rentabilidad = Precio facturacion - Costo fijo',
             cardClass: rentCardClass,
             percentagePill: rentPill,
@@ -227,9 +222,7 @@ watch(
         <h1 class="text-lg font-semibold">Resumen de costos</h1>
         <p class="text-xs">Consolidado por prenda con base en materia prima, procesos e insumos.</p>
 
-        <div v-if="isLoading" class="rounded-lg bg-background px-4 py-6 text-sm text-muted-foreground ring-1 ring-border/60">
-            Cargando costos...
-        </div>
+        <div v-if="isLoading" class="rounded-lg bg-background px-4 py-6 text-sm text-muted-foreground ring-1 ring-border/60">Cargando costos...</div>
 
         <template v-else-if="summary">
             <section class="space-y-2">
@@ -255,10 +248,7 @@ watch(
                     <article
                         v-for="card in costVisualCards"
                         :key="card.key"
-                        :class="[
-                            'rounded-xl p-4 ring-1 ring-border/70 transition-colors',
-                            card.cardClass,
-                        ]"
+                        :class="['rounded-xl p-4 ring-1 ring-border/70 transition-colors', card.cardClass]"
                     >
                         <div class="flex items-start justify-between gap-3">
                             <p class="text-xs font-medium text-muted-foreground">{{ card.label }}</p>
@@ -275,10 +265,7 @@ watch(
                     <article
                         v-for="card in profitabilityCards"
                         :key="card.key"
-                        :class="[
-                            'rounded-xl p-4 ring-1 ring-border/70 transition-colors',
-                            card.cardClass,
-                        ]"
+                        :class="['rounded-xl p-4 ring-1 ring-border/70 transition-colors', card.cardClass]"
                     >
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex items-center gap-1.5">
@@ -311,4 +298,3 @@ watch(
         </div>
     </div>
 </template>
-

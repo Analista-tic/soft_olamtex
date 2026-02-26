@@ -18,4 +18,3 @@ export function formatTaxOptionLabel(tax: Tax): string {
     const truncated = Number.isFinite(percentage) ? Math.trunc(percentage) : 0;
     return `${tax.name} (${truncated}%)`;
 }
-

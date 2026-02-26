@@ -45,7 +45,9 @@ type OperationRecord = {
     created_at: string;
     section?: { id: number; name: string; type?: string } | null;
     product_sheet_reference?: { id: number; sample_reference?: string; product_reference?: string; type?: string } | null;
+    productSheetReference?: { id: number; sample_reference?: string; product_reference?: string; type?: string } | null;
     machine_reference?: { id: number; code: string; name: string } | null;
+    machineReference?: { id: number; code: string; name: string } | null;
     created_by?: { id: number; name: string } | null;
 };
 

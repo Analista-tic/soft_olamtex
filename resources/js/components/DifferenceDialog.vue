@@ -1,15 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps<{
     open: boolean;
@@ -199,83 +192,71 @@ function handleSave() {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogContent class="flex max-h-[90vh] max-w-2xl flex-col">
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>Valor diferente a la orden</DialogTitle>
                 <DialogDescription>
                     El total de la factura {{ formattedTotal }} no coincide con el valor de la orden {{ formattedOrderTotal }}.
                 </DialogDescription>
             </DialogHeader>
-            <div class="overflow-y-auto flex-1 pr-2 scroll-smooth" style="scrollbar-width: thin;">
-            <div class="space-y-4">
-                <TextareaField v-model="reason" label="Motivo" rows="3" required />
-                <div class="space-y-2 text-sm">
-                    <label class="block font-semibold">
-                        Evidencia (imagen)
-                        <span class="text-red-500">*</span>
-                    </label>
-                    <div class="space-y-2">
-                        <label class="block">
-                            <Button as="label" variant="outline" class="w-full justify-center px-4">
-                                Seleccionar archivo
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    class="sr-only"
-                                    @change="handleFileChange"
-                                    required
-                                />
-                            </Button>
+            <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
+                <div class="space-y-4">
+                    <TextareaField v-model="reason" label="Motivo" rows="3" required />
+                    <div class="space-y-2 text-sm">
+                        <label class="block font-semibold">
+                            Evidencia (imagen)
+                            <span class="text-red-500">*</span>
                         </label>
                         <div class="space-y-2">
-                            <Button
-                                variant="outline"
-                                type="button"
-                                class="w-full justify-center px-4"
-                                @click="toggleCamera"
-                                v-if="!cameraCaptured"
-                            >
-                                {{ isCameraActive ? 'Cerrar cámara' : 'Abrir cámara' }}
-                            </Button>
-                            <div class="flex flex-wrap gap-2">
+                            <label class="block">
+                                <Button as="label" variant="outline" class="w-full justify-center px-4">
+                                    Seleccionar archivo
+                                    <input type="file" accept="image/*" class="sr-only" @change="handleFileChange" required />
+                                </Button>
+                            </label>
+                            <div class="space-y-2">
                                 <Button
                                     variant="outline"
                                     type="button"
                                     class="w-full justify-center px-4"
-                                    @click="retakePhoto"
-                                    v-if="cameraCaptured"
+                                    @click="toggleCamera"
+                                    v-if="!cameraCaptured"
                                 >
-                                    Reanudar foto
+                                    {{ isCameraActive ? 'Cerrar cámara' : 'Abrir cámara' }}
                                 </Button>
+                                <div class="flex flex-wrap gap-2">
+                                    <Button
+                                        variant="outline"
+                                        type="button"
+                                        class="w-full justify-center px-4"
+                                        @click="retakePhoto"
+                                        v-if="cameraCaptured"
+                                    >
+                                        Reanudar foto
+                                    </Button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <p v-if="evidenceName" class="text-muted-foreground text-xs">{{ evidenceName }}</p>
-                    <p v-else-if="capturedImagePreview" class="text-muted-foreground text-xs">Imagen capturada</p>
-                    <p v-if="cameraError" class="text-xs text-red-500">{{ cameraError }}</p>
-                    <div v-if="videoStream" class="border border-border/60 rounded overflow-hidden">
-                        <video ref="videoElement" autoplay playsinline class="w-full h-64 object-cover bg-black"></video>
-                        <div class="flex justify-end p-2">
-                            <Button variant="default" type="button" @click="takePhoto">Tomar foto</Button>
+                        <p v-if="evidenceName" class="text-xs text-muted-foreground">{{ evidenceName }}</p>
+                        <p v-else-if="capturedImagePreview" class="text-xs text-muted-foreground">Imagen capturada</p>
+                        <p v-if="cameraError" class="text-xs text-red-500">{{ cameraError }}</p>
+                        <div v-if="videoStream" class="overflow-hidden rounded border border-border/60">
+                            <video ref="videoElement" autoplay playsinline class="h-64 w-full bg-black object-cover"></video>
+                            <div class="flex justify-end p-2">
+                                <Button variant="default" type="button" @click="takePhoto">Tomar foto</Button>
+                            </div>
+                        </div>
+                        <div v-else-if="capturedImagePreview" class="overflow-hidden rounded border border-border/60">
+                            <img :src="capturedImagePreview" alt="Foto capturada" class="h-64 w-full object-cover" />
                         </div>
                     </div>
-                    <div v-else-if="capturedImagePreview" class="border border-border/60 rounded overflow-hidden">
-                        <img
-                            :src="capturedImagePreview"
-                            alt="Foto capturada"
-                            class="w-full h-64 object-cover"
-                        />
-                    </div>
+                    <p v-if="validationMessage" class="text-xs text-red-500">{{ validationMessage }}</p>
                 </div>
-                <p v-if="validationMessage" class="text-xs text-red-500">{{ validationMessage }}</p>
             </div>
-            </div>
-            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 gap-2">
+            <DialogFooter class="mt-4 flex-shrink-0 gap-2 border-t pt-4">
                 <Button variant="outline" type="button" @click="handleCancel">Cancelar</Button>
                 <Button variant="default" type="button" @click="handleSave">Guardar y continuar</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
 </template>
-
-

@@ -71,24 +71,31 @@ const emit = defineEmits(['update:modelValue']);
 const localSelectedProcess = ref<string | null>(null);
 const nonRemovableProcesses = ['Muestra', 'Confección', 'Terminación', 'Bodega'];
 
-// Función helper para parsear JSON de forma segura
-function safeJsonParse(value: string | undefined): Record<string, boolean> {
+// Normaliza a Record<string, boolean>; acepta objeto o array desde backend
+function normalizeProcessesToRecord(value: string | undefined): Record<string, boolean> {
     try {
-        return JSON.parse(value || '{}');
+        const parsed = JSON.parse(value || '{}');
+        if (Array.isArray(parsed)) {
+            return Object.fromEntries(parsed.map((p: string) => [String(p), true]));
+        }
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [String(k), Boolean(v)]));
+        }
+        return {};
     } catch (error) {
         console.error('Error parsing processes JSON:', error, 'Value:', value);
         return {};
     }
 }
 
-const selectedProcesses = ref<Record<string, boolean>>(safeJsonParse(props.modelValue));
+const selectedProcesses = ref<Record<string, boolean>>(normalizeProcessesToRecord(props.modelValue));
 const processOrder = [
     'Tejido',
     'Corte',
     'Bordado',
     'Sublimado',
     'Estampado',
-    'Lavanderia',
+    'Lavandería',
     'Muestra',
     'Desarrollo de muestras',
     'Confección',
@@ -123,10 +130,14 @@ watch(
 watch(
     () => props.modelValue,
     (newValue) => {
-        selectedProcesses.value = safeJsonParse(newValue);
+        const parsed = normalizeProcessesToRecord(newValue);
         nonRemovableProcesses.forEach((process) => {
-            selectedProcesses.value[process] = true;
+            parsed[process] = true;
         });
+        const serialized = JSON.stringify(parsed);
+        if (JSON.stringify(selectedProcesses.value) !== serialized) {
+            selectedProcesses.value = parsed;
+        }
     },
     { immediate: true },
 );

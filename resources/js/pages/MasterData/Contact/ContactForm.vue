@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import GroupSelect from '@/components/GroupSelect.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import GroupSelect from '@/components/GroupSelect.vue';
-import { ref, computed, onMounted, watch } from 'vue';
-import axios from 'axios';
 import type { Contact } from '@/domain/MasterData';
+import axios from 'axios';
+import { computed, onMounted, ref, watch } from 'vue';
 import colombiaData from '../../../data/colombia.json';
 
 const props = defineProps<{
@@ -49,9 +49,7 @@ function normalizeFormPayload(form?: Partial<Contact> | Record<string, any>): Pa
 }
 
 // Inicializar de forma segura: merge de defaults con el prop (si existe)
-const internalForm = ref<Partial<Contact>>(
-    Object.assign({}, defaultForm, normalizeFormPayload(props.form)),
-);
+const internalForm = ref<Partial<Contact>>(Object.assign({}, defaultForm, normalizeFormPayload(props.form)));
 
 // Sincronizar el objeto interno con el prop `form` sin causar recursividad
 watch(
@@ -86,7 +84,7 @@ const allLocationOptions = colombiaData.flatMap((department: any) =>
         id: `${municipality}||${department.departamento}`,
         name: `${municipality}, ${department.departamento}`,
         searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
-    }))
+    })),
 );
 
 // Usar un array limitado para renderizado inicial rápido
@@ -96,23 +94,21 @@ const isLoadingLocations = ref(false);
 // Función optimizada para búsqueda y actualización de opciones
 const updateLocationOptions = (searchQuery: string = '') => {
     if (isLoadingLocations.value) return;
-    
+
     const query = searchQuery.toLowerCase().trim();
-    
+
     if (!query) {
         // Sin búsqueda: mostrar primeras 50 opciones
         locationOptions.value = allLocationOptions.slice(0, 50);
         return;
     }
-    
+
     // Con búsqueda: filtrar y limitar a 100 resultados
     isLoadingLocations.value = true;
-    
+
     // Usar setTimeout para no bloquear el UI
     setTimeout(() => {
-        locationOptions.value = allLocationOptions
-            .filter(opt => opt.searchText.includes(query))
-            .slice(0, 100);
+        locationOptions.value = allLocationOptions.filter((opt) => opt.searchText.includes(query)).slice(0, 100);
         isLoadingLocations.value = false;
     }, 0);
 };
@@ -206,26 +202,15 @@ const validateField = (field: string) => {
                 { id: 'PPT', name: 'PPT - Permiso de protección temporal' },
             ]"
         />
-        <div class="grid grid-cols-5 gap-4 mb-4">
+        <div class="mb-4 grid grid-cols-5 gap-4">
             <div class="col-span-4">
-                <InputField
-                    v-model="internalForm.id_number"
-                    label="Número de identificación"
-                    required
-                    placeholder="Número de identificación"
-                />
+                <InputField v-model="internalForm.id_number" label="Número de identificación" required placeholder="Número de identificación" />
             </div>
             <div class="col-span-1">
                 <InputField v-model="internalForm.dv" label="DV" placeholder="DV" />
             </div>
         </div>
-        <InputField
-            v-model="internalForm.full_name"
-            label="Nombre completo o razón social"
-            required
-            placeholder="Nombre completo"
-            class="mb-4"
-        />
+        <InputField v-model="internalForm.full_name" label="Nombre completo o razón social" required placeholder="Nombre completo" class="mb-4" />
         <SelectField
             v-model="internalForm.person_type"
             label="Tipo de persona"
@@ -236,7 +221,7 @@ const validateField = (field: string) => {
             ]"
             class="mb-4"
             :searchable="false"
-            />
+        />
         <div class="md:col-span-2">
             <SelectField
                 v-model="locationValue"
@@ -248,10 +233,15 @@ const validateField = (field: string) => {
                 :searchable="true"
                 :searchThreshold="0"
                 @search="updateLocationOptions"
-                @input="() => { validateField('municipality'); validateField('department'); }"
+                @input="
+                    () => {
+                        validateField('municipality');
+                        validateField('department');
+                    }
+                "
             />
         </div>
-        <div class="col-span-full grid grid-cols-3 gap-4 mb-4">
+        <div class="col-span-full mb-4 grid grid-cols-3 gap-4">
             <InputField v-model="internalForm.address" label="Dirección" placeholder="Dirección" />
             <InputField
                 v-model="internalForm.email"

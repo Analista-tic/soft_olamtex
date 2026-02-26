@@ -68,4 +68,3 @@ export interface FabricRollReceptionForm {
     width: number;
     quantity: number;
 }
-

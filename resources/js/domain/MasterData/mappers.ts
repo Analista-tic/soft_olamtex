@@ -1,5 +1,5 @@
+import type { AdditionalContactDto, CategorySubGroupDto, ContactDto, ItemDto } from './dto';
 import type { AdditionalContact, CategorySubGroup, Contact, ExtraFields, Item } from './types';
-import type { AdditionalContactDto, ContactDto, ItemDto, CategorySubGroupDto } from './dto';
 
 function parseExtraFields(value?: string | Record<string, string>): ExtraFields | undefined {
     if (!value) return undefined;

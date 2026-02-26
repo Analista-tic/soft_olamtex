@@ -189,7 +189,8 @@ class TechnicalDataSheetController extends Controller
             : $season;
 
         $priority = $this->nullableText($programmer->priority);
-        $flatDrawingUrl = $this->resolveFlatDrawingUrl($productSheet?->flat_sketch_path);
+        $rawPath = $productSheet?->flat_sketch_path;
+        $flatDrawingUrl = $this->resolveFlatDrawingUrl($rawPath);
 
         return response()->json([
             'id' => $programmer->id,
@@ -198,6 +199,7 @@ class TechnicalDataSheetController extends Controller
             'units' => $programmer->units !== null ? (int) $programmer->units : null,
             'date' => $productSheet?->created_at?->toDateString(),
             'flatDrawingUrl' => $flatDrawingUrl,
+            'flat_sketch_path' => $flatDrawingUrl ? null : $rawPath,
             'destination' => $destination['name'] ?? null,
             'section' => $section['name'] ?? null,
             'group' => $group['name'] ?? null,
@@ -235,6 +237,9 @@ class TechnicalDataSheetController extends Controller
         if (Str::startsWith($normalized, 'product-sheets/flat-sketches/')) {
             $candidates[] = Str::replaceFirst('product-sheets/flat-sketches/', 'product_sheets/', $normalized);
         }
+        if (Str::startsWith($normalized, 'product_sheets/')) {
+            $candidates[] = Str::replaceFirst('product_sheets/', 'product-sheets/flat-sketches/', $normalized);
+        }
 
         foreach ($candidates as $candidate) {
             if ($candidate !== '' && Storage::disk('public')->exists($candidate)) {
@@ -267,7 +272,7 @@ class TechnicalDataSheetController extends Controller
         $rows = ProductOperationList::query()
             ->with(['operation:id,action,garment_part', 'operationSection:id,name,type'])
             ->where('product_sheet_id', $productSheet->id)
-            ->orderBy('sequence_order')
+            ->orderBy('sequence')
             ->get();
 
         return response()->json([

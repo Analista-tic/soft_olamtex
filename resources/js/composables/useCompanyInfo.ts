@@ -12,4 +12,3 @@ export function useCompanyInfo() {
         logoUrl,
     };
 }
-

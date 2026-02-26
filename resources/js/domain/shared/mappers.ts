@@ -18,4 +18,3 @@ export function mapAuditLogDto(dto: AuditLogDto): AuditLog {
         ...dto,
     };
 }
-

@@ -186,4 +186,3 @@ defineExpose({ addItem });
         </div>
     </div>
 </template>
-

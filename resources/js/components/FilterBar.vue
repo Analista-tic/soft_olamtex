@@ -23,4 +23,3 @@ const classes = computed(() => {
         <slot />
     </div>
 </template>
-

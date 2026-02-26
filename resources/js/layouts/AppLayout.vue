@@ -16,4 +16,3 @@ const props = withDefaults(defineProps<Props>(), {
         <slot />
     </AppSidebarLayout>
 </template>
-
