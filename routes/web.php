@@ -319,7 +319,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:eliminar roles')
         ->name('roles.destroy');
 
-    // === AUDITORÃA ===
+    // === AUDITORÍA ===
     Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('auditoria', [AuditLogController::class, 'index'])
             ->name('auditoria.index')
@@ -327,6 +327,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('auditoria/data', [AuditLogController::class, 'data'])
             ->name('auditoria.data')
             ->middleware('permission:ver auditoria');
+    });
+
+    // === NOTIFICACIONES ===
+    Route::prefix('configuracion/notificaciones')->name('notificaciones.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Settings\NotificationsController::class, 'index'])
+            ->name('index');
+        Route::get('/data', [App\Http\Controllers\Settings\NotificationsController::class, 'data'])
+            ->name('data');
+        Route::get('/latest', [App\Http\Controllers\Settings\NotificationsController::class, 'latest'])
+            ->name('latest');
+        Route::get('/unread-count', [App\Http\Controllers\Settings\NotificationsController::class, 'unreadCount'])
+            ->name('unread-count');
+        Route::get('/types', [App\Http\Controllers\Settings\NotificationsController::class, 'types'])
+            ->name('types');
+        Route::post('/{id}/read', [App\Http\Controllers\Settings\NotificationsController::class, 'markAsRead'])
+            ->name('mark-read');
+        Route::post('/read-all', [App\Http\Controllers\Settings\NotificationsController::class, 'markAllAsRead'])
+            ->name('mark-all-read');
     });
 
     // === CATEGORIAS ===

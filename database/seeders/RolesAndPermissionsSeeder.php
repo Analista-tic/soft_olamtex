@@ -63,6 +63,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver ingresos',
             'ver gastos',
             'ver financiero',
+            // Solicitudes de insumos
+            'inventory.requests.attend',
         ];
 
         foreach ($permissions as $perm) {
@@ -85,6 +87,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'ver ingresos',
             'ver gastos',
             'ver financiero',
+        ]);
+
+        // Rol Logistica: atender solicitudes de insumos
+        $logistica = Role::firstOrCreate(['name' => 'Logistica']);
+        $logistica->givePermissionTo([
+            'inventory.requests.attend',
         ]);
 
         // Obtener catalogo de areas desde settings (kind=parameter, key=areas)

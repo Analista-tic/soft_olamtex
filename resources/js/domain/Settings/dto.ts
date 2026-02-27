@@ -21,3 +21,30 @@ export interface UserDto {
     area_id?: number | null;
     area?: { id: number; nombre: string } | null;
 }
+
+// ============================================
+// Notificaciones
+// ============================================
+
+export interface NotificationRowDto {
+    id: string;
+    type: string | null;
+    title: string | null;
+    body: string | null;
+    module: string | null;
+    url: string | null;
+    entity_id: number | string | null;
+    read_at: string | null;
+    created_at: string;
+    is_read: boolean;
+    area?: string | null;
+    user_name?: string | null;
+}
+
+export interface NotificationPaginatedResponseDto {
+    data: NotificationRowDto[];
+    total: number;
+    per_page: number;
+    current_page: number;
+    last_page: number;
+}

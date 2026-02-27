@@ -20,3 +20,100 @@ export interface AuthState {
 }
 
 export type Auth = SharedAuth;
+
+// ============================================
+// Notificaciones
+// ============================================
+
+/**
+ * Representa una fila de notificación en la tabla.
+ */
+export interface NotificationRow {
+    /** UUID de la notificación */
+    id: string;
+    /** Tipo de notificación (ej. 'inventory_request.created') */
+    type: string | null;
+    /** Título de la notificación */
+    title: string | null;
+    /** Cuerpo/mensaje de la notificación */
+    body: string | null;
+    /** Módulo al que pertenece (ej. 'Inventario') */
+    module: string | null;
+    /** URL de redirección al hacer click */
+    url: string | null;
+    /** ID de la entidad relacionada */
+    entity_id: number | string | null;
+    /** Fecha en que se marcó como leída (ISO8601) */
+    read_at: string | null;
+    /** Fecha de creación (ISO8601) */
+    created_at: string;
+    /** Indica si está leída */
+    is_read: boolean;
+    /** Área del usuario (opcional, viene de data.area) */
+    area?: string | null;
+    /** Nombre del usuario (opcional, viene de data.user_name) */
+    user_name?: string | null;
+}
+
+/**
+ * Datos de notificación que se guardan en el campo 'data'.
+ */
+export interface NotificationData {
+    title: string;
+    body: string;
+    url?: string;
+    type: string;
+    module?: string;
+    entity_id?: number | string;
+}
+
+/**
+ * Filtros disponibles para el listado de notificaciones.
+ */
+export interface NotificationFilters {
+    search?: string | null;
+    area?: string | null;
+    status?: 'all' | 'unread' | 'read' | null;
+    date?: string | null;
+}
+
+/**
+ * Respuesta paginada del endpoint /data.
+ */
+export interface NotificationPaginatedResponse {
+    data: NotificationRow[];
+    total: number;
+    per_page: number;
+    current_page: number;
+    last_page: number;
+}
+
+/**
+ * Respuesta del endpoint /latest.
+ */
+export interface NotificationLatestResponse {
+    data: NotificationRow[];
+}
+
+/**
+ * Respuesta del endpoint /unread-count.
+ */
+export interface NotificationUnreadCountResponse {
+    count: number;
+}
+
+/**
+ * Objeto de opción para el select de estados.
+ */
+export interface NotificationStatusOption {
+    value: string;
+    label: string;
+}
+
+/**
+ * Objeto de opción para el select de tipos.
+ */
+export interface NotificationTypeOption {
+    value: string;
+    label: string;
+}

@@ -5,8 +5,10 @@ namespace App\Services\Inventory;
 use App\Models\Inventory\InventoryRequest;
 use App\Models\Inventory\InventoryRequestItem;
 use App\Models\Settings\User;
+use App\Notifications\InventoryRequestCreatedNotification;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
 class InventoryRequestService
@@ -52,7 +54,7 @@ class InventoryRequestService
 
     public function create(array $data, User $user): InventoryRequest
     {
-        return DB::transaction(function () use ($data, $user) {
+        $inventoryRequest = DB::transaction(function () use ($data, $user) {
             $documentNumber = $this->generateDocumentNumber();
 
             $imagePath = null;
@@ -74,6 +76,58 @@ class InventoryRequestService
 
             return $this->findOrFail($request->id);
         });
+
+        // Enviar notificación a usuarios con permiso inventory.requests.attend
+        $this->notifyInventoryRequestCreated($inventoryRequest, $user);
+
+        return $inventoryRequest;
+    }
+
+    /**
+     * Notifica a los usuarios con permiso inventory.requests.attend sobre una nueva solicitud.
+     */
+    protected function notifyInventoryRequestCreated(InventoryRequest $request, User $creator): void
+    {
+        $recipients = User::permission('inventory.requests.attend')
+            ->where('id', '!=', $creator->id) // No notificar al creador
+            ->get();
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        $requesterName = $creator->name ?? null;
+        $requesterArea = $this->resolveUserArea($creator);
+
+        Notification::send(
+            $recipients,
+            new InventoryRequestCreatedNotification($request, $requesterName, $requesterArea)
+        );
+    }
+
+    /**
+     * Resuelve el área del usuario a partir de su área asignada.
+     */
+    protected function resolveUserArea(User $user): ?string
+    {
+        if (!$user->area_id) {
+            return null;
+        }
+
+        $areasSetting = \App\Models\Settings\Setting::query()
+            ->where('kind', 'parameter')
+            ->where('key', 'areas')
+            ->first();
+
+        $areas = is_array($areasSetting?->value) ? $areasSetting->value : [];
+
+        foreach ($areas as $area) {
+            if (is_array($area) && isset($area['id']) && (int) $area['id'] === $user->area_id) {
+                return $area['name'] ?? null;
+            }
+        }
+
+        return null;
     }
 
     public function update(InventoryRequest $request, array $data, ?array $items = null): InventoryRequest
