@@ -3,6 +3,7 @@
 namespace App\Services\Finance;
 
 use App\Models\Expenses\PurchaseDocument;
+use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Expenses\PurchaseDocumentService;
 use App\Services\Settings\SettingService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -22,6 +23,7 @@ class CreditDebitNoteService
 
     public function __construct(
         private PurchaseDocumentService $documentService,
+        private PurchaseDocumentInvoiceService $invoiceService,
         private SettingService $settingService,
     )
     {
@@ -74,7 +76,7 @@ class CreditDebitNoteService
             ]);
         }
 
-        return DB::transaction(function () use ($payload, $parentInvoice, $contactId) {
+        return DB::transaction(function () use ($payload, $parentInvoice, $contactId, $reasonCode) {
             $note = PurchaseDocument::create([
                 'document_number' => $payload['document_number'] ?? null,
                 'document_type' => $payload['document_type'],
@@ -96,7 +98,13 @@ class CreditDebitNoteService
                 $note->save();
             }
 
-            return $this->documentService->updateDocument($note, [], $payload['items']);
+            $updatedNote = $this->documentService->updateDocument($note, [], $payload['items']);
+
+            if ($note->document_type === PurchaseDocument::TYPE_CREDIT_NOTE) {
+                $this->ensureCreditNoteBalanceIsNonNegative($parentInvoice);
+            }
+
+            return $updatedNote;
         });
     }
 
@@ -132,7 +140,7 @@ class CreditDebitNoteService
             ]);
         }
 
-        return DB::transaction(function () use ($note, $payload, $parentInvoice, $contactId) {
+        return DB::transaction(function () use ($note, $payload, $parentInvoice, $contactId, $reasonCode) {
             $note->fill([
                 'document_number' => $payload['document_number'] ?? $note->document_number,
                 'document_type' => $payload['document_type'] ?? $note->document_type,
@@ -153,7 +161,13 @@ class CreditDebitNoteService
             }
 
             $note->save();
-            return $this->documentService->updateDocument($note, [], $payload['items']);
+            $updatedNote = $this->documentService->updateDocument($note, [], $payload['items']);
+
+            if ($note->document_type === PurchaseDocument::TYPE_CREDIT_NOTE) {
+                $this->ensureCreditNoteBalanceIsNonNegative($parentInvoice);
+            }
+
+            return $updatedNote;
         });
     }
 
@@ -261,6 +275,17 @@ class CreditDebitNoteService
         if (!in_array($reasonCode, $allowedCodes, true)) {
             throw ValidationException::withMessages([
                 'reason_code' => 'El motivo seleccionado no pertenece al catálogo configurado para este tipo de nota.',
+            ]);
+        }
+    }
+
+    private function ensureCreditNoteBalanceIsNonNegative(PurchaseDocument $invoice): void
+    {
+        $summary = $this->invoiceService->getInvoiceNotesSummary($invoice);
+
+        if ((float) ($summary['balance_after_notes'] ?? 0) < 0) {
+            throw ValidationException::withMessages([
+                'document_type' => 'La nota crédito supera el saldo disponible de la factura.',
             ]);
         }
     }

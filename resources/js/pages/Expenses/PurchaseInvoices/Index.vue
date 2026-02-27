@@ -13,6 +13,10 @@ import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye, MinusCir
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
+import PurchaseInvoiceCreditDebitNotesDialog, {
+    type PurchaseInvoiceAssociatedNote,
+    type PurchaseInvoiceNotesSummary,
+} from './PurchaseInvoiceCreditDebitNotesDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import InputDate from '@/components/InputDate.vue';
 import { Button } from '@/components/ui/button';
@@ -24,7 +28,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
@@ -45,6 +48,12 @@ const itemsPerPage = 10;
 const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const invoiceToPrint = ref<PurchaseInvoice | null>(null);
+const isNotesDialogOpen = ref(false);
+const invoiceForNotes = ref<PurchaseInvoice | null>(null);
+const associatedNotes = ref<PurchaseInvoiceAssociatedNote[]>([]);
+const associatedNotesSummary = ref<PurchaseInvoiceNotesSummary | null>(null);
+const isLoadingAssociatedNotes = ref(false);
+const associatedNotesError = ref('');
 const isSendingMail = ref(false);
 const {
     successMessage,
@@ -307,6 +316,41 @@ function stopMenuEvent(event?: Event) {
     event?.stopPropagation();
 }
 
+function normalizeAssociatedNotes(payload: unknown): PurchaseInvoiceAssociatedNote[] {
+    if (Array.isArray(payload)) {
+        return payload as PurchaseInvoiceAssociatedNote[];
+    }
+    if (
+        payload &&
+        typeof payload === 'object' &&
+        'data' in payload &&
+        Array.isArray((payload as { data?: unknown }).data)
+    ) {
+        return (payload as { data: PurchaseInvoiceAssociatedNote[] }).data;
+    }
+    return [];
+}
+
+function normalizeAssociatedNotesSummary(payload: unknown): PurchaseInvoiceNotesSummary | null {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    const source = payload as Record<string, unknown>;
+    const toAmount = (value: unknown) => {
+        const numeric = Number(value ?? 0);
+        return Number.isFinite(numeric) ? numeric : 0;
+    };
+
+    return {
+        credit_total: toAmount(source.credit_total),
+        debit_total: toAmount(source.debit_total),
+        net_adjustment: toAmount(source.net_adjustment),
+        invoice_total: toAmount(source.invoice_total),
+        balance_after_notes: toAmount(source.balance_after_notes),
+    };
+}
+
 function handlePrintAction(invoice: PurchaseInvoice, event?: Event) {
     stopMenuEvent(event);
     openPrintDialog(invoice);
@@ -331,12 +375,69 @@ function goToCreditDebitNote(
     if (!invoice?.id) return;
 
     const query = new URLSearchParams({
+        context: 'purchase',
         scope: 'expenses',
         parent_document_id: String(invoice.id),
         document_type: documentType,
     });
 
-    router.visit(`/finance/notas-credito-debito?${query.toString()}`);
+    router.visit(`/notas-credito-debito?${query.toString()}`);
+}
+
+async function fetchAssociatedNotes(invoiceId: number): Promise<void> {
+    isLoadingAssociatedNotes.value = true;
+    associatedNotesError.value = '';
+    associatedNotesSummary.value = null;
+
+    try {
+        const response = await axios.get(`/gastos/facturas-compra/${invoiceId}/notas-credito-debito`);
+        associatedNotes.value = normalizeAssociatedNotes(response.data?.data ?? response.data);
+    } catch (error) {
+        console.error('Error al cargar notas asociadas de la factura', error);
+        associatedNotes.value = [];
+        associatedNotesSummary.value = null;
+        associatedNotesError.value = 'No se pudieron cargar las notas asociadas.';
+    } finally {
+        isLoadingAssociatedNotes.value = false;
+    }
+
+    if (!associatedNotesError.value) {
+        try {
+            const summaryResponse = await axios.get(`/gastos/facturas-compra/${invoiceId}/notes-summary`);
+            associatedNotesSummary.value = normalizeAssociatedNotesSummary(summaryResponse.data?.data ?? summaryResponse.data);
+        } catch (error) {
+            console.error('Error al cargar el resumen de notas de la factura', error);
+            associatedNotesSummary.value = null;
+        }
+    }
+}
+
+function openAssociatedNotesDialog(invoice: PurchaseInvoice, event?: Event) {
+    stopMenuEvent(event);
+    if (!invoice?.id) return;
+
+    invoiceForNotes.value = invoice;
+    isNotesDialogOpen.value = true;
+    void fetchAssociatedNotes(invoice.id);
+}
+
+function closeAssociatedNotesDialog() {
+    isNotesDialogOpen.value = false;
+    associatedNotesSummary.value = null;
+}
+
+function handleOpenAssociatedNote(note: PurchaseInvoiceAssociatedNote) {
+    if (!invoiceForNotes.value?.id) return;
+    if (note.document_type !== 'purchase_credit_note' && note.document_type !== 'purchase_debit_note') return;
+
+    const query = new URLSearchParams({
+        context: 'purchase',
+        scope: 'expenses',
+        parent_document_id: String(invoiceForNotes.value.id),
+        document_type: note.document_type,
+    });
+
+    router.visit(`/notas-credito-debito?${query.toString()}`);
 }
 
 async function viewInvoiceDetails(invoice: PurchaseInvoice) {
@@ -449,7 +550,6 @@ function handleDialogError(message?: string) {
                 </FilterField>
             </FilterBar>
             <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">
-                <TooltipProvider>
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -522,23 +622,28 @@ function handleDialogError(message?: string) {
                                         :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
                                     />
                                     <DropdownMenu>
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <DropdownMenuTrigger as-child>
-                                                    <Button variant="ghost" size="icon" :class="actionButtonClass" @click.stop @pointerdown.stop>
-                                                        <MoreVertical :class="actionIconClass" />
-                                                        <span class="sr-only">Acciones</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Acciones</TooltipContent>
-                                        </Tooltip>
+                                        <DropdownMenuTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                title="Acciones"
+                                                @click.stop
+                                                @pointerdown.stop
+                                            >
+                                                <MoreVertical :class="actionIconClass" />
+                                                <span class="sr-only">Acciones</span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" class="w-48">
                                             <DropdownMenuItem class="cursor-pointer gap-2" @select="handlePrintAction(invoice, $event)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
                                             <DropdownMenuItem class="cursor-pointer gap-2" @select="handleReceptionAction(invoice, $event)">
                                                 <Package class="h-4 w-4" /> Ir a recepción
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="openAssociatedNotesDialog(invoice, $event)">
+                                                <Eye class="h-4 w-4" /> Ver notas crédito/débito
                                             </DropdownMenuItem>
                                             <DropdownMenuItem class="cursor-pointer gap-2" @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)">
                                                 <MinusCircle class="h-4 w-4" /> Crear Nota Crédito
@@ -561,7 +666,6 @@ function handleDialogError(message?: string) {
                         </TableRow>
                     </TableBody>
                 </Table>
-                </TooltipProvider>
             </div>
         </div>
         <PurchaseInvoiceDialog
@@ -579,6 +683,16 @@ function handleDialogError(message?: string) {
             :isOpen="isPrintDialogOpen"
             :invoice="invoiceToPrint"
             @close="isPrintDialogOpen = false"
+        />
+        <PurchaseInvoiceCreditDebitNotesDialog
+            :isOpen="isNotesDialogOpen"
+            :invoice="invoiceForNotes"
+            :notes="associatedNotes"
+            :summary="associatedNotesSummary"
+            :loading="isLoadingAssociatedNotes"
+            :error="associatedNotesError"
+            @close="closeAssociatedNotesDialog"
+            @open-note="handleOpenAssociatedNote"
         />
         <ConfirmDialog
         v-model:open="isDeleteDialogOpen"

@@ -41,7 +41,7 @@ const isLoading = ref(false);
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
 const isSendingMail = ref(false);
-const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
+const { successMessage, errorMessage, errorType, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref<string>('');
 const itemsTableRef = ref<{ addItem: () => void; validateFabricFields: () => string | null } | null>(null);
 
@@ -352,12 +352,6 @@ function formatCurrency(value: number) {
     });
 }
 
-function clearSelectedPurchaseRequest() {
-    selectedPurchaseRequestId.value = null;
-    selectedPurchaseRequest.value = null;
-    resetForm();
-}
-
 const scrollToDialogTop = () => {
     const dialogEl = document.querySelector('[role="dialog"]');
     dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -534,7 +528,7 @@ watch(dialogOpen, (isOpen) => {
     if (!isOpen) emit('close');
 });
 
-watch(selectedPurchaseRequestId, async (requestId, oldVal) => {
+watch(selectedPurchaseRequestId, async (requestId) => {
     // Solo limpiar si el valor es null o '' (no seleccionado)
     if (requestId === null || (typeof requestId === 'string' && requestId === '')) {
         selectedPurchaseRequest.value = null;
@@ -751,36 +745,15 @@ watch(selectedPurchaseRequestId, async (requestId, oldVal) => {
                                 <div class="w-full max-w-xs rounded p-2 space-y-1 bg-card text-card-foreground shadow-sm">
                                     <div class="flex justify-between items-center">
                                         <span class="font-semibold text-card-foreground/70">Subtotal</span>
-                                        <span>{{
-                                            Number(subtotal || 0).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                        }}</span>
+                                        <span>{{ formatCurrency(Number(subtotal || 0)) }}</span>
                                     </div>
                                     <div class="flex justify-between items-center">
                                         <span class="font-semibold text-card-foreground/70">IVA</span>
-                                        <span>{{
-                                            Number(iva || 0).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                        }}</span>
+                                        <span>{{ formatCurrency(Number(iva || 0)) }}</span>
                                     </div>
                                     <div class="flex justify-between items-center pt-1">
                                         <span class="font-bold text-card-foreground">Total orden de compra</span>
-                                        <span class="font-bold text-card-foreground">{{
-                                            Number(total || 0).toLocaleString('es-CO', {
-                                                style: 'currency',
-                                                currency: 'COP',
-                                                minimumFractionDigits: 0,
-                                                maximumFractionDigits: 0,
-                                            })
-                                        }}</span>
+                                        <span class="font-bold text-card-foreground">{{ formatCurrency(Number(total || 0)) }}</span>
                                     </div>
                                 </div>
                             </div>

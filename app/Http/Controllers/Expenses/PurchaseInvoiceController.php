@@ -6,11 +6,13 @@ use App\Http\Controllers\Expenses\Concerns\ValidatesPurchaseInvoiceRequest;
 use App\Models\Expenses\PurchaseDocument;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
+use Illuminate\Support\Facades\Auth;
 
 class PurchaseInvoiceController extends PurchaseDocumentController
 {
     use ValidatesPurchaseInvoiceRequest;
+
+    protected PurchaseDocumentInvoiceService $invoiceService;
 
     /**
      * Marcar factura como recibida (NO tela)
@@ -42,7 +44,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         $purchaseDocument->status = 'rejected';
         $purchaseDocument->rejection_reason = $validated['rejection_reason'];
         $purchaseDocument->rejection_notes = $validated['rejection_notes'] ?? null;
-        $purchaseDocument->rejected_by_user_id = auth()->id();
+        $purchaseDocument->rejected_by_user_id = Auth::id();
         $purchaseDocument->rejected_at = now();
         $purchaseDocument->save();
         // Aquí podrías disparar eventos, auditoría, etc.
@@ -50,6 +52,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     }
     public function __construct(PurchaseDocumentInvoiceService $service)
     {
+        $this->invoiceService = $service;
         parent::__construct($service);
     }
 
@@ -75,12 +78,30 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         ]);
     }
 
+    public function creditDebitNotes(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+
+        return response()->json([
+            'data' => $this->invoiceService->getLinkedCreditDebitNotes($purchaseDocument),
+        ]);
+    }
+
+    public function notesSummary(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
+
+        return response()->json([
+            'data' => $this->invoiceService->getInvoiceNotesSummary($purchaseDocument),
+        ]);
+    }
+
     public function store(Request $request)
     {
         $payload = $this->validateInvoiceRequest($request);
         $items = $payload['items'] ?? [];
         $withholdings = $payload['withholdings'] ?? [];
-        $invoice = $this->service->createInvoice($payload, $items, $withholdings);
+        $invoice = $this->invoiceService->createInvoice($payload, $items, $withholdings);
 
         return response()->json(['data' => $invoice], 201);
     }
@@ -127,7 +148,15 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 
     protected function buildFilters(Request $request): array
     {
-        $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id']);
+        $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'contact_id']);
+
+        $contactId = (int) ($request->input('contact_id') ?? 0);
+        if ($contactId > 0) {
+            $filters['contact_id'] = $contactId;
+        } else {
+            unset($filters['contact_id']);
+        }
+
         return $filters;
     }
 }

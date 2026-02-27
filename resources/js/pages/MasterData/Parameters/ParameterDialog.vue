@@ -40,7 +40,7 @@ const defaultForm = {
 const localForm = ref({ ...defaultForm });
 const valueList = ref<string[]>([]);
 const newValueInput = ref('');
-const hasValues = computed(() => valueList.value.length > 0);
+// const hasValues = computed(() => valueList.value.length > 0);
 const hasDuplicateOptions = computed(() => false);
 const isViewMode = computed(() => props.dialogType === 'view');
 
@@ -179,6 +179,22 @@ function handleSubmit() {
                             </button>
                         </div>
                         <div v-if="valueList.length" class="flex flex-wrap gap-2">
+                            <!-- <div v-if="!isViewMode" class="flex gap-2">
+                                <InputField
+                                    v-model="newValueInput"
+                                    label=""
+                                    placeholder="Agregar valor"
+                                    @keydown.enter.prevent="addValueEntry()"
+                                />
+                                <button
+                                    type="button"
+                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-slate-500 transition hover:border-primary hover:bg-primary hover:text-white"
+                                    @click="addValueEntry"
+                                >
+                                    <Plus class="h-4 w-4" />
+                                </button>
+                            </div>
+                        <div v-if="hasValues" class="flex flex-wrap gap-2"> -->
                             <span
                                 v-for="(item, index) in valueList"
                                 :key="`value-chip-${index}`"
@@ -227,4 +243,3 @@ function handleSubmit() {
         </FormDialogContent>
     </Dialog>
 </template>
-

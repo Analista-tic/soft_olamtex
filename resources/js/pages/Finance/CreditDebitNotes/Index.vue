@@ -135,6 +135,14 @@ const page = usePage();
 const isContextRefreshInProgress = ref(false);
 const hasInitializedContext = ref(false);
 
+function hasBackendRouteByUri(targetUri: string): boolean {
+  const routes = ((page.props as any)?.ziggy?.routes ?? {}) as Record<string, { uri?: string }>;
+  const normalizedTarget = targetUri.replace(/^\/+/, '');
+  return Object.values(routes).some((routeDef) => String(routeDef?.uri ?? '').replace(/^\/+/, '') === normalizedTarget);
+}
+
+const salesInvoiceDataEndpointAvailable = computed(() => hasBackendRouteByUri('ingresos/facturas-venta/data'));
+
 const pageTitle = computed(() => (context.value === 'sale' ? 'Notas credito/debito de ventas' : 'Notas credito/debito de compras'));
 const pageDescription = computed(() =>
   context.value === 'sale'
@@ -153,17 +161,25 @@ const providerOptions = computed(() => [
   ...providers.value.map((p) => ({ id: String(p.id), name: p.full_name })),
 ]);
 
+const typeOptions = computed(() => [
+  { id: 'all', name: 'Todos los tipos' },
+  { id: toContextDocumentType('credit'), name: 'Nota credito' },
+  { id: toContextDocumentType('debit'), name: 'Nota debito' },
+]);
+
 /**
  * Formatting / resolvers
  * (mantengo el comportamiento actual sin tocar rutas ni “reglas del negocio”)
  */
 function noteKindFromDocumentType(documentType: CreditDebitNoteType): NoteKind {
-  return documentType === NoteType.DEBIT ? 'debit' : 'credit';
+  return String(documentType || '').includes('debit') ? 'debit' : 'credit';
 }
 
-function formatType(type: CreditDebitNoteType): string {
-  // Nota: esto es igual a tu versión original (no distingue sale/purchase todavía)
-  return type === 'purchase_credit_note' ? 'Nota credito' : 'Nota debito';
+function formatType(type: CreditDebitNoteType | string): string {
+  const normalized = String(type || '').toLowerCase();
+  if (normalized.includes('credit')) return 'Nota credito';
+  if (normalized.includes('debit')) return 'Nota debito';
+  return '-';
 }
 
 function formatDate(value?: string | null): string {
@@ -214,6 +230,7 @@ async function syncContextFromUrl(urlLike?: string): Promise<void> {
 
   if (!hasInitializedContext.value) {
     hasInitializedContext.value = true;
+    await fetchInvoiceReferences();
     // Carga inicial: usa initialData si aplica, si no hay data o el contexto no es el default.
     if (!props.initialData?.data?.length || nextContext !== 'purchase') {
       await fetchNotes(1);
@@ -235,7 +252,7 @@ async function syncContextFromUrl(urlLike?: string): Promise<void> {
     isContextRefreshInProgress.value = false;
   }
 
-  await fetchNotes(1);
+  await Promise.all([fetchInvoiceReferences(), fetchNotes(1)]);
 }
 
 /**
@@ -244,6 +261,9 @@ async function syncContextFromUrl(urlLike?: string): Promise<void> {
  */
 const filteredNotes = computed(() => {
   let rows = [...notes.value];
+  const contextPrefix = context.value === 'sale' ? 'sale_' : 'purchase_';
+
+  rows = rows.filter((note) => String(note.document_type || '').startsWith(contextPrefix));
 
   if (typeFilter.value !== 'all') {
     rows = rows.filter((note) => note.document_type === typeFilter.value);
@@ -273,9 +293,13 @@ async function fetchProviders(): Promise<void> {
 }
 
 async function fetchInvoiceReferences(): Promise<void> {
-  // Mantengo el endpoint (igual a tu versión)
-  const data = await safeGet<any>('/gastos/facturas-compra/data', { params: { per_page: 1000 } });
-  invoiceReferences.value = Array.isArray(data?.data) ? data!.data : [];
+  // Evita 404 en consola si el endpoint de ventas todavia no existe en backend.
+  const endpoint =
+    context.value === 'sale' && salesInvoiceDataEndpointAvailable.value
+      ? '/ingresos/facturas-venta/data'
+      : '/gastos/facturas-compra/data';
+  const data = await safeGet<any>(endpoint, { params: { per_page: 1000 } });
+  invoiceReferences.value = Array.isArray(data?.data) ? data.data : [];
 }
 
 async function fetchNotes(pageNumber = 1): Promise<void> {
@@ -311,7 +335,7 @@ async function fetchNotes(pageNumber = 1): Promise<void> {
 function buildCreateForm(overrides: Partial<CreditDebitNote> = {}): Partial<CreditDebitNote> {
   return {
     scope: contextScope.value,
-    document_type: 'purchase_credit_note',
+    document_type: (context.value === 'sale' ? 'sale_credit_note' : 'purchase_credit_note') as CreditDebitNoteType,
     contact_id: null,
     parent_document_id: 0,
     date: todayDate(),
@@ -323,6 +347,11 @@ function buildCreateForm(overrides: Partial<CreditDebitNote> = {}): Partial<Cred
     items: [],
     ...overrides,
   };
+}
+
+function toContextDocumentType(kind: NoteKind): CreditDebitNoteType {
+  const prefix = context.value === 'sale' ? 'sale' : 'purchase';
+  return `${prefix}_${kind}_note` as CreditDebitNoteType;
 }
 
 function openCreateDialog(
@@ -350,7 +379,7 @@ function openCreateDialogByType(noteType: CreditDebitNoteType) {
 }
 
 function openDialog(kind: NoteKind) {
-  openCreateDialogByType(kind === 'credit' ? NoteType.CREDIT : NoteType.DEBIT);
+  openCreateDialogByType(toContextDocumentType(kind));
 }
 
 async function openEditDialog(note: CreditDebitNote) {
@@ -500,7 +529,7 @@ watch(
 );
 
 onMounted(async () => {
-  await Promise.all([fetchProviders(), fetchInvoiceReferences()]);
+  await fetchProviders();
   await syncContextFromUrl(String(page.url || window.location.href));
   openDialogFromQueryParams();
 });
@@ -560,16 +589,7 @@ onMounted(async () => {
         </FilterField>
 
         <FilterField label="Tipo" :active="isTypeFilterActive" class="w-[220px] min-w-[200px]">
-          <SelectField
-            v-model="typeFilter"
-            label=""
-            :options="[
-              { id: 'all', name: 'Todos los tipos' },
-              { id: NoteType.CREDIT, name: 'Nota credito' },
-              { id: NoteType.DEBIT, name: 'Nota debito' },
-            ]"
-            :button-class="typeButtonClasses"
-          />
+          <SelectField v-model="typeFilter" label="" :options="typeOptions" :button-class="typeButtonClasses" />
         </FilterField>
 
         <FilterField :label="counterpartLabel" :active="isProviderFilterActive" class="w-[260px] min-w-[220px]">

@@ -127,13 +127,6 @@ const approvalStatus = computed(() => {
     return 'pending_approval';
 });
 
-const approvalStatusLabel = computed(() => {
-    const s = approvalStatus.value;
-    if (s === 'approved') return 'Aprobada';
-    if (s === 'pending_approval') return 'A la espera de aprobación';
-    return null;
-});
-
 function resetForm() {
     editingRoll.value = null;
     form.value = {
@@ -550,4 +543,3 @@ onMounted(() => {
         </DialogContent>
     </Dialog>
 </template>
-

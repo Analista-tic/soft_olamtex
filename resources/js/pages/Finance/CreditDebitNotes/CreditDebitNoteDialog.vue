@@ -16,14 +16,17 @@ import type {
   NoteKind,
   CreditDebitNoteType,
 } from '@/domain/Finance';
-import { NoteType as NoteTypeDictionary, create as createCreditDebitNote, update as updateCreditDebitNote } from '@/domain/Finance';
+import { create as createCreditDebitNote, update as updateCreditDebitNote } from '@/domain/Finance';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
 import { PlusCircle, Trash } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
-type CreditDebitNoteWithMeta = Partial<CreditDebitNote> & {
+type RuntimeDocumentType = CreditDebitNoteType | 'sale_credit_note' | 'sale_debit_note';
+
+type CreditDebitNoteWithMeta = Omit<Partial<CreditDebitNote>, 'document_type'> & {
   id?: number;
+  document_type?: RuntimeDocumentType;
   parent?: {
     id: number;
     document_number?: string | null;
@@ -36,6 +39,11 @@ type ParentSummary = {
   document_number?: string | null;
   contact_id?: number | null;
   provider_name?: string | null;
+};
+
+type InvoiceOption = {
+  id: number;
+  name: string;
 };
 
 type ItemOption = {
@@ -128,9 +136,10 @@ const isSubmitting = ref(false);
 
 const contacts = ref<ContactOption[]>([]);
 const itemsCatalog = ref<ItemOption[]>([]);
-const invoiceOptions = ref<Array<{ id: number; name: string }>>([]);
+const invoiceOptions = ref<InvoiceOption[]>([]);
 const parentSummary = ref<ParentSummary | null>(null);
 const reasonOptions = ref<Array<{ id: string; name: string }>>([]);
+const isSyncingParentApplication = ref(false);
 
 const localForm = ref<CreditDebitNoteWithMeta>(createDefaultForm());
 
@@ -144,8 +153,12 @@ const isParentFixed = computed(() => Boolean(props.fixedParentDocumentId));
 
 const contactLabel = computed(() => (noteContext.value === 'sale' ? 'Cliente' : 'Proveedor'));
 const contactSelectPlaceholder = computed(() => (noteContext.value === 'sale' ? 'Selecciona cliente' : 'Selecciona proveedor'));
-const baseInvoiceLabel = computed(() => (noteContext.value === 'sale' ? 'Factura de venta base' : 'Factura de compra base'));
+const baseInvoiceLabel = computed(() => (noteContext.value === 'sale' ? 'Factura de venta' : 'Factura de compra'));
 const selectBaseInvoiceLabel = computed(() => `Seleccionar ${baseInvoiceLabel.value.toLowerCase()}`);
+const canSelectInvoice = computed(() => asNumber(localForm.value.contact_id, 0) > 0);
+const baseInvoicePlaceholder = computed(() =>
+  canSelectInvoice.value ? 'Selecciona una factura' : `Primero selecciona ${contactLabel.value.toLowerCase()}`,
+);
 
 const resolvedNoteType = computed<NoteKind>(() => {
   if (props.noteType === 'credit' || props.noteType === 'debit') return props.noteType;
@@ -158,15 +171,24 @@ const noteTypeLabel = computed(() => (resolvedNoteType.value === 'debit' ? 'Nota
 
 const dialogTitle = computed(() => (props.dialogType === 'create' ? `Nueva ${noteTypeLabel.value}` : `Editar ${noteTypeLabel.value}`));
 
-/**
- * ⚠️ Bugfix (sin tocar rutas):
- * antes siempre devolvía "purchase_*" incluso en sale.
- */
-function toDocumentType(noteType: NoteKind): CreditDebitNoteType {
-  const contextPrefix = noteContext.value === 'sale' ? 'sale' : 'purchase';
-  const resolvedType = `${contextPrefix}_${noteType}_note`;
+function asRuntimeDocumentType(value: unknown, fallback: RuntimeDocumentType): RuntimeDocumentType {
+  const normalized = trimText(value).toLowerCase();
+  if (normalized === 'purchase_credit_note') return 'purchase_credit_note';
+  if (normalized === 'purchase_debit_note') return 'purchase_debit_note';
+  if (normalized === 'sale_credit_note') return 'sale_credit_note';
+  if (normalized === 'sale_debit_note') return 'sale_debit_note';
+  return fallback;
+}
 
-  return resolvedType === NoteTypeDictionary.DEBIT ? NoteTypeDictionary.DEBIT : NoteTypeDictionary.CREDIT;
+/**
+ * Bugfix crítico:
+ * ahora respeta el contexto (purchase/sale) al construir document_type.
+ */
+function toDocumentType(noteType: NoteKind): RuntimeDocumentType {
+  if (props.fixedDocumentType) return props.fixedDocumentType as RuntimeDocumentType;
+  // Evita dependencia de noteContext durante la inicializacion temprana del setup.
+  const contextPrefix = props.context === 'sale' ? 'sale' : 'purchase';
+  return `${contextPrefix}_${noteType}_note` as RuntimeDocumentType;
 }
 
 /**
@@ -207,6 +229,8 @@ const parentDocumentSelectValue = computed<number | null>({
     localForm.value.parent_document_id = asNumber(value, 0);
   },
 });
+
+const filteredInvoiceOptions = computed(() => invoiceOptions.value);
 
 const reasonCodeValue = computed<string>({
   get() {
@@ -313,7 +337,7 @@ function handleSelectItem(item: CreditDebitNoteItem, rawValue: string | number):
 function createDefaultForm(): CreditDebitNoteWithMeta {
   return {
     scope: DEFAULT_SCOPE,
-    document_type: 'purchase_credit_note',
+    document_type: toDocumentType('credit'),
     parent_document_id: 0,
     contact_id: null,
     date: todayDate(),
@@ -328,7 +352,10 @@ function createDefaultForm(): CreditDebitNoteWithMeta {
 }
 
 function normalizeForm(source: CreditDebitNoteWithMeta): CreditDebitNoteWithMeta {
-  const incomingType = source.document_type || props.fixedDocumentType || toDocumentType(resolvedNoteType.value);
+  const incomingType = asRuntimeDocumentType(
+    source.document_type ?? props.fixedDocumentType,
+    toDocumentType(resolvedNoteType.value),
+  );
   const incomingReasonCode = trimText(source.reason_code ?? source.reason ?? '');
 
   const normalized: CreditDebitNoteWithMeta = {
@@ -349,7 +376,9 @@ function normalizeForm(source: CreditDebitNoteWithMeta): CreditDebitNoteWithMeta
     parent: source.parent || null,
   };
 
-  if (props.fixedDocumentType) normalized.document_type = props.fixedDocumentType;
+  if (props.fixedDocumentType) {
+    normalized.document_type = asRuntimeDocumentType(props.fixedDocumentType, normalized.document_type ?? toDocumentType('credit'));
+  }
   if (props.fixedParentDocumentId) normalized.parent_document_id = props.fixedParentDocumentId;
   if (!normalized.reason && normalized.reason_code) normalized.reason = normalized.reason_code;
 
@@ -359,6 +388,7 @@ function normalizeForm(source: CreditDebitNoteWithMeta): CreditDebitNoteWithMeta
 function validateForm(): boolean {
   const missingFields: string[] = [];
 
+  if (!isParentFixed.value && !asNumber(localForm.value.contact_id, 0)) missingFields.push(contactLabel.value);
   if (!trimText(reasonCodeValue.value)) missingFields.push('Motivo');
   if (!asNumber(localForm.value.parent_document_id, 0)) missingFields.push('Factura base');
   if (!localForm.value.date) missingFields.push('Fecha');
@@ -416,7 +446,7 @@ function buildPayload(): CreditDebitNotePayload {
 
   return {
     scope: DEFAULT_SCOPE,
-    document_type: toDocumentType(resolvedNoteType.value),
+    document_type: toDocumentType(resolvedNoteType.value) as unknown as CreditDebitNoteType,
     parent_document_id: asNumber(localForm.value.parent_document_id, 0),
     contact_id: localForm.value.contact_id != null ? asNumber(localForm.value.contact_id) : null,
     date: localForm.value.date || todayDate(),
@@ -478,27 +508,24 @@ async function fetchReasonOptions(): Promise<void> {
   ensureCurrentReasonOption();
 }
 
-const invoiceListEndpoint = computed(() =>
-  noteContext.value === 'sale' ? '/ingresos/facturas-venta/data' : '/gastos/facturas-compra/data',
-);
-const invoiceShowEndpoint = (id: number) =>
-  noteContext.value === 'sale' ? `/ingresos/facturas-venta/${id}` : `/gastos/facturas-compra/${id}`;
+const purchaseInvoiceListEndpoint = '/gastos/facturas-compra/data';
+const purchaseInvoiceShowEndpoint = (id: number) => `/gastos/facturas-compra/${id}`;
 
-async function fetchInvoiceOptions(): Promise<void> {
-  // Mantengo el fallback existente, pero centralizado
-  const primary = await safeGet<any>(invoiceListEndpoint.value, { params: { per_page: 1000 } });
+async function fetchInvoiceOptions(contactId?: number | null): Promise<void> {
+  const parsedContactId = asNumber(contactId ?? localForm.value.contact_id, 0);
+  const params: Record<string, number> = { per_page: 1000 };
 
-  let rows: any[] = Array.isArray(primary?.data) ? primary.data : [];
-
-  if (rows.length === 0 && noteContext.value === 'sale') {
-    // TODO: cuando exista endpoint definitivo de facturas de venta, remover fallback.
-    const fallback = await safeGet<any>('/gastos/facturas-compra/data', { params: { per_page: 1000 } });
-    rows = Array.isArray(fallback?.data) ? fallback.data : [];
+  if (parsedContactId > 0) {
+    params.contact_id = parsedContactId;
   }
+
+  const primary = await safeGet<any>(purchaseInvoiceListEndpoint, { params });
+  const rows: any[] = Array.isArray(primary?.data) ? primary.data : [];
 
   invoiceOptions.value = rows.map((invoice: any) => {
     const counterpartName = invoice?.supplier?.full_name || invoice?.customer?.full_name || invoice?.contact?.full_name || '';
     const documentNumber = invoice?.document_number || `Factura #${invoice?.id}`;
+
     return {
       id: asNumber(invoice?.id),
       name: counterpartName ? `${documentNumber} - ${counterpartName}` : documentNumber,
@@ -546,12 +573,7 @@ async function fetchParentSummary(parentId: number, applyInvoiceValues = false):
     return;
   }
 
-  let invoiceData = await safeGet<any>(invoiceShowEndpoint(parentId));
-
-  if (!invoiceData && noteContext.value === 'sale') {
-    // TODO: cuando exista endpoint definitivo de facturas de venta, remover fallback.
-    invoiceData = await safeGet<any>(`/gastos/facturas-compra/${parentId}`);
-  }
+  const invoiceData = await safeGet<any>(purchaseInvoiceShowEndpoint(parentId));
 
   const invoice = invoiceData?.data ?? null;
 
@@ -636,7 +658,12 @@ async function initializeDialog(): Promise<void> {
   localForm.value = normalizeForm(props.form || createDefaultForm());
   localForm.value.document_type = toDocumentType(resolvedNoteType.value);
 
-  await Promise.all([fetchContacts(), fetchItemsCatalog(), fetchInvoiceOptions(), fetchReasonOptions()]);
+  const initialContactId = asNumber(localForm.value.contact_id, 0);
+  const invoiceOptionsPromise = isParentFixed.value
+    ? Promise.resolve()
+    : fetchInvoiceOptions(initialContactId > 0 ? initialContactId : null);
+
+  await Promise.all([fetchContacts(), fetchItemsCatalog(), invoiceOptionsPromise, fetchReasonOptions()]);
 
   // Si se disparó otra inicialización, aborta esta.
   if (token !== initToken.value) return;
@@ -644,7 +671,17 @@ async function initializeDialog(): Promise<void> {
   const parentId = asNumber(localForm.value.parent_document_id, 0);
   if (parentId > 0) {
     const shouldPrefillFromParent = props.dialogType === 'create' && !localForm.value.id;
-    await fetchParentSummary(parentId, shouldPrefillFromParent);
+    isSyncingParentApplication.value = true;
+    try {
+      await fetchParentSummary(parentId, shouldPrefillFromParent);
+    } finally {
+      isSyncingParentApplication.value = false;
+    }
+
+    if (!isParentFixed.value) {
+      const currentContactId = asNumber(localForm.value.contact_id, 0);
+      await fetchInvoiceOptions(currentContactId > 0 ? currentContactId : null);
+    }
   } else {
     parentSummary.value = null;
   }
@@ -686,9 +723,32 @@ watch(
     const previousParentId = asNumber(oldValue, 0);
 
     if (newParentId > 0 && newParentId !== previousParentId) {
-      await fetchParentSummary(newParentId, true);
+      isSyncingParentApplication.value = true;
+      try {
+        await fetchParentSummary(newParentId, true);
+      } finally {
+        isSyncingParentApplication.value = false;
+      }
     }
     if (newParentId <= 0) parentSummary.value = null;
+  },
+);
+
+watch(
+  () => localForm.value.contact_id,
+  async (value, oldValue) => {
+    if (isParentFixed.value) return;
+    if (isSyncingParentApplication.value) return;
+
+    const newContactId = asNumber(value, 0);
+    const previousContactId = asNumber(oldValue, 0);
+    if (newContactId === previousContactId) return;
+
+    localForm.value.parent_document_id = 0;
+    parentSummary.value = null;
+    localForm.value.items = [createEmptyItem()];
+
+    await fetchInvoiceOptions(newContactId > 0 ? newContactId : null);
   },
 );
 
@@ -725,29 +785,8 @@ onMounted(async () => {
       />
 
       <div class="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
-        <section class="rounded-xl border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <InputField
-              label="# Nota"
-              :modelValue="localForm.document_number ?? (localForm.id ? `N-${localForm.id}` : 'Autogenerado')"
-              readonly
-            />
-
-            <InputDate v-model="localForm.date" label="Fecha" required />
-
-            <SelectField
-              v-model="reasonCodeValue"
-              :label="reasonLabel"
-              :options="reasonOptions"
-              placeholder="Selecciona un motivo"
-              required
-            />
-          </div>
-        </section>
-
-        <section class="rounded-xl border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-          <h3 class="mb-2 text-sm font-semibold">{{ contactLabel }}</h3>
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div class="space-y-3">
             <SelectField
               v-model="localForm.contact_id"
               :label="contactLabel"
@@ -757,30 +796,44 @@ onMounted(async () => {
             <InputField label="Identificacion" :modelValue="contactIdNumber" readonly />
             <InputField label="Telefono" :modelValue="contactPhone" readonly />
           </div>
-        </section>
 
-        <section class="rounded-xl border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-          <h3 class="mb-2 text-sm font-semibold">{{ baseInvoiceLabel }}</h3>
+          <div class="space-y-3">
+            <InputField
+              label="# Nota"
+              :modelValue="localForm.document_number ?? (localForm.id ? `N-${localForm.id}` : 'Autogenerado')"
+              readonly
+            />
+            <InputDate v-model="localForm.date" label="Fecha" required />
+            <SelectField
+              v-model="reasonCodeValue"
+              :label="reasonLabel"
+              :options="reasonOptions"
+              placeholder="Selecciona un motivo"
+              required
+            />
+          </div>
+        </div>
 
-          <SelectField
-            v-if="!isParentFixed"
-            v-model="parentDocumentSelectValue"
-            :label="selectBaseInvoiceLabel"
-            :options="invoiceOptions"
-            required
-          />
-          <InputField v-else :label="baseInvoiceLabel" :modelValue="parentDisplay || `Factura #${localForm.parent_document_id}`" readonly />
-        </section>
+        <SelectField
+          v-if="!isParentFixed"
+          v-model="parentDocumentSelectValue"
+          :label="selectBaseInvoiceLabel"
+          :options="filteredInvoiceOptions"
+          :placeholder="baseInvoicePlaceholder"
+          :disabled="!canSelectInvoice"
+          required
+        />
+        <InputField v-else :label="baseInvoiceLabel" :modelValue="parentDisplay || `Factura #${localForm.parent_document_id}`" readonly />
 
         <section class="rounded-xl border border-sidebar-border/70 p-3 dark:border-sidebar-border">
           <div class="mb-2 flex items-center justify-between">
             <h3 class="text-sm font-semibold">Items</h3>
             <button
               type="button"
-              class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90"
+              class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/35 bg-white px-4 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               @click="addItem"
             >
-              <PlusCircle class="h-4 w-4" />
+              <PlusCircle class="h-4 w-4 text-primary" />
               Agregar item
             </button>
           </div>
@@ -789,11 +842,11 @@ onMounted(async () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead class="min-w-[260px]">Concepto / Descripcion</TableHead>
+                  <TableHead class="min-w-[260px]">Concepto</TableHead>
                   <TableHead class="min-w-[110px]">Precio</TableHead>
                   <TableHead class="min-w-[110px]">Impuesto %</TableHead>
                   <TableHead class="min-w-[100px]">Cantidad</TableHead>
-                  <TableHead class="min-w-[200px]">Observacion</TableHead>
+                  <TableHead class="min-w-[200px]">Observaciones</TableHead>
                   <TableHead class="min-w-[130px] text-right">Total</TableHead>
                   <TableHead class="w-[60px] text-center">-</TableHead>
                 </TableRow>
@@ -847,7 +900,7 @@ onMounted(async () => {
                     <Input
                       :modelValue="item.description ?? ''"
                       @update:modelValue="(value) => updateItemDescription(item, value)"
-                      placeholder="Observacion (opcional)"
+                      placeholder="Observaciones (opcional)"
                       class="h-9"
                     />
                   </TableCell>
@@ -888,15 +941,13 @@ onMounted(async () => {
           </div>
         </section>
 
-        <section class="rounded-xl border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-          <TextareaField
-            :modelValue="String(localForm.description ?? '')"
-            @update:modelValue="(value) => (localForm.description = String(value ?? ''))"
-            label="Observacion general"
-            placeholder="Agrega una observacion para la nota"
-            :rows="3"
-          />
-        </section>
+        <TextareaField
+          :modelValue="String(localForm.description ?? '')"
+          @update:modelValue="(value) => (localForm.description = String(value ?? ''))"
+          label="Observacion general"
+          placeholder="Agrega una observacion para la nota"
+          :rows="3"
+        />
       </div>
 
       <DialogFooter class="mt-3 flex justify-end gap-2">

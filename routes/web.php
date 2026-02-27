@@ -435,6 +435,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::prefix('facturas-compra')->name('purchase-invoices.')->group(function () {
             Route::get('/', [PurchaseInvoiceController::class, 'index'])->name('index');
             Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
+            Route::get('/{purchaseDocument}/notas-credito-debito', [PurchaseInvoiceController::class, 'creditDebitNotes'])->name('credit-debit-notes');
+            Route::get('/{purchaseDocument}/notes-summary', [PurchaseInvoiceController::class, 'notesSummary'])->name('notes-summary');
             Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store');
             Route::get('/{purchaseDocument}', [PurchaseInvoiceController::class, 'show'])->name('show');
             Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update');
@@ -481,7 +483,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/{id}/toggle-status', [TaxController::class, 'toggleStatus'])->name('toggle-status');
     });
 
-    // === NOTAS CRÉDITO / DÉBITO (FINANCE) ===
+    // === NOTAS CRÉDITO / DÉBITO ===
     Route::prefix('notas-credito-debito')->group(function () {
         Route::get('/', [CreditDebitNoteController::class, 'index']);
         Route::get('/data', [CreditDebitNoteController::class, 'getData']);

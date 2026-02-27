@@ -41,6 +41,14 @@ class PurchaseDocumentService
     public function applyDocumentFilters(Builder $query, array $filters): Builder
     {
         $search = trim($filters['search'] ?? '');
+        $contactIdFilter = isset($filters['contact_id']) ? (int) $filters['contact_id'] : null;
+        if (!($contactIdFilter > 0)) {
+            $providerId = $filters['provider_id'] ?? null;
+            $contactIdFilter = is_numeric($providerId) ? (int) $providerId : null;
+            if (!($contactIdFilter > 0)) {
+                $contactIdFilter = null;
+            }
+        }
 
         $query = $query
             ->when($search !== '', fn (Builder $builder) =>
@@ -58,8 +66,8 @@ class PurchaseDocumentService
             ->when($this->shouldApplyFilter($filters['approval_status'] ?? null), fn (Builder $builder) =>
                 $builder->where('approval_status', $filters['approval_status'])
             )
-            ->when($this->shouldApplyFilter($filters['provider_id'] ?? null), fn (Builder $builder) =>
-                $builder->where('contact_id', $filters['provider_id'])
+            ->when($contactIdFilter !== null, fn (Builder $builder) =>
+                $builder->where('contact_id', $contactIdFilter)
             )
             ->when($this->shouldApplyFilter($filters['subgroup_id'] ?? null), fn (Builder $builder) =>
                 $builder->whereHas('items.item', fn (Builder $itemQuery) =>
