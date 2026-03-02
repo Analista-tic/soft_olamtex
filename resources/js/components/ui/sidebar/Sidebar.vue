@@ -3,6 +3,7 @@ import Sheet from '@/components/ui/sheet/Sheet.vue';
 import SheetContent from '@/components/ui/sheet/SheetContent.vue';
 import { cn } from '@/lib/utils';
 import type { HTMLAttributes } from 'vue';
+import { computed } from 'vue';
 import { SIDEBAR_WIDTH_MOBILE, useSidebar } from './utils';
 
 defineOptions({
@@ -23,7 +24,10 @@ const props = withDefaults(
     },
 );
 
-const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+const { isMobile, state, openMobile, setOpenMobile, open, hoverOpen, handleHoverEnter, handleHoverLeave } = useSidebar();
+
+// Track if expanded via hover (not manual toggle)
+const isHoverExpanded = computed(() => !open.value && hoverOpen.value);
 </script>
 
 <template>
@@ -58,14 +62,17 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
         :data-collapsible="state === 'collapsed' ? collapsible : ''"
         :data-variant="variant"
         :data-side="side"
+        :data-hover-expanded="isHoverExpanded ? 'true' : undefined"
     >
         <!-- This is what handles the sidebar gap on desktop  -->
         <div
             :class="
                 cn(
-                    'relative h-svh w-[--sidebar-width] bg-transparent transition-[width] duration-200 ease-linear',
+                    'relative h-svh bg-transparent transition-[width] duration-200 ease-linear overflow-hidden',
                     'group-data-[collapsible=offcanvas]:w-0',
                     'group-data-[side=right]:rotate-180',
+                    // Base width handling
+                    state === 'expanded' ? 'w-[--sidebar-width]' : 'w-[--sidebar-width-icon]',
                     variant === 'floating' || variant === 'inset'
                         ? 'group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]'
                         : 'group-data-[collapsible=icon]:w-[--sidebar-width-icon]',
@@ -75,10 +82,12 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
         <div
             :class="
                 cn(
-                    'fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] transition-[left,right,width] duration-200 ease-linear md:flex',
+                    'fixed inset-y-0 z-10 hidden h-svh transition-[left,right,width] duration-200 ease-linear md:flex overflow-x-hidden min-w-0',
                     side === 'left'
                         ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
                         : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',
+                    // Width based on effective state
+                    state === 'expanded' ? 'w-[--sidebar-width]' : 'w-[--sidebar-width-icon]',
                     // Adjust the padding for floating and inset variants.
                     variant === 'floating' || variant === 'inset'
                         ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]'
@@ -87,10 +96,12 @@ const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
                 )
             "
             v-bind="$attrs"
+            @mouseenter="handleHoverEnter"
+            @mouseleave="handleHoverLeave"
         >
             <div
                 data-sidebar="sidebar"
-                class="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
+                class="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow overflow-x-hidden"
             >
                 <slot />
             </div>

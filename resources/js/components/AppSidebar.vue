@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import {
     Sidebar,
@@ -12,14 +11,13 @@ import {
     useSidebar,
 } from '@/components/ui/sidebar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuthStore } from '@/stores/auth';
 import type { LucideIcon } from 'lucide-vue-next';
 import type { NavItem } from '@/domain/shared';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { ChartColumn, ChevronDown, Factory, LayoutGrid, Package, Shirt, SquareArrowDown, SquareArrowUp, SquarePen } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import AppLogo from './AppLogo.vue';
-import { usePage } from '@inertiajs/vue3';
 
 const auth = useAuthStore();
 
@@ -189,16 +187,6 @@ const moduleSections: ModuleSection[] = [
     },
 ];
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: '/dashboard',
-        icon: LayoutGrid,
-    },
-];
-
-const filteredMainNavItems = computed(() => mainNavItems);
-
 const { state, setOpen } = useSidebar();
 const isSidebarCollapsed = computed(() => state.value === 'collapsed');
 
@@ -322,49 +310,118 @@ watch(
 
 <template>
     <Sidebar collapsible="icon" variant="inset">
-        <SidebarHeader>
+        <SidebarHeader class="px-0">
             <SidebarMenu>
                 <SidebarMenuItem>
-                    <SidebarMenuButton size="lg" as-child>
-                        <Link :href="route('dashboard')">
-                            <AppLogo />
-                        </Link>
-                    </SidebarMenuButton>
+                    <!-- Logo: estructura unificada, ícono fijo -->
+                    <Tooltip :disabled="!isSidebarCollapsed">
+                        <TooltipTrigger as-child>
+                            <Link
+                                :href="route('dashboard')"
+                                class="sidebar-item flex items-center h-12 rounded-md transition-colors hover:bg-sidebar-accent mx-1"
+                            >
+                                <!-- Columna ícono: ancho fijo, centrado -->
+                                <div class="icon-column w-[56px] flex-shrink-0 flex items-center justify-center">
+                                    <div class="flex items-center justify-center size-9 rounded-md bg-sidebar-primary">
+                                        <img src="/images/logo.jpg" alt="Logo" class="size-6 rounded-sm object-cover" />
+                                    </div>
+                                </div>
+                                <!-- Columna label: transición suave -->
+                                <span
+                                    class="label-column font-semibold text-sm whitespace-nowrap transition-all duration-200 ease-out"
+                                    :class="isSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'"
+                                >
+                                    ForU Tex
+                                </span>
+                            </Link>
+                        </TooltipTrigger>
+                        <TooltipContent v-if="isSidebarCollapsed" side="right" align="center">
+                            ForU Tex
+                        </TooltipContent>
+                    </Tooltip>
                 </SidebarMenuItem>
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent>
-            <NavMain :items="filteredMainNavItems" class="mt-2 px-2 flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground" />
+        <SidebarContent class="px-0">
+            <!-- Dashboard: estructura unificada -->
+            <div class="mt-2">
+                <Tooltip :disabled="!isSidebarCollapsed">
+                    <TooltipTrigger as-child>
+                        <Link
+                            :href="route('dashboard')"
+                            class="sidebar-item flex items-center h-10 rounded-md mx-1 transition-colors hover:bg-sidebar-accent"
+                            :class="{ 'bg-sidebar-accent/50 text-primary': isRouteActive('/dashboard') }"
+                        >
+                            <div class="icon-column w-[56px] flex-shrink-0 flex items-center justify-center">
+                                <LayoutGrid class="size-[18px] shrink-0" />
+                            </div>
+                            <span
+                                class="label-column text-sm font-medium whitespace-nowrap transition-all duration-200 ease-out"
+                                :class="isSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'"
+                            >
+                                Dashboard
+                            </span>
+                        </Link>
+                    </TooltipTrigger>
+                    <TooltipContent v-if="isSidebarCollapsed" side="right" align="center">
+                        Dashboard
+                    </TooltipContent>
+                </Tooltip>
+            </div>
+
+            <!-- Secciones de módulos -->
             <template v-for="section in moduleSections" :key="section.title">
                 <Collapsible
                     :open="sectionStates[section.title] ?? true"
                     class="group/collapsible"
                     @update:open="(open) => toggleSection(section.title, open)"
                 >
-                    <div class="module-label mt-2 px-2">
-                            <CollapsibleTrigger as-child>
-                            <button @click="ensureSidebarExpanded" class="flex w-full items-center gap-2 rounded-md p-1 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground">
-                                <component :is="section.icon" class="size-4 text-sidebar-foreground/60" />
-                                <span v-if="!isSidebarCollapsed">{{ section.title }}</span>
-                                <ChevronDown
-                                    v-if="!isSidebarCollapsed"
-                                    class="ml-auto rotate-0 transition-transform duration-200"
-                                    :class="{ 'rotate-180': sectionStates[section.title] }"
-                                />
-                            </button>
-                        </CollapsibleTrigger>
+                    <div class="mt-2">
+                        <Tooltip :disabled="!isSidebarCollapsed">
+                            <TooltipTrigger as-child>
+                                <CollapsibleTrigger as-child>
+                                    <button
+                                        @click="ensureSidebarExpanded"
+                                        class="sidebar-item flex items-center h-10 w-full rounded-md mx-1 transition-colors hover:bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                                        :style="{ width: 'calc(100% - 0.5rem)' }"
+                                    >
+                                        <div class="icon-column w-[56px] flex-shrink-0 flex items-center justify-center">
+                                            <component :is="section.icon" class="size-[18px] shrink-0" />
+                                        </div>
+                                        <span
+                                            class="label-column flex-1 text-sm font-medium whitespace-nowrap text-left transition-all duration-200 ease-out"
+                                            :class="isSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'"
+                                        >
+                                            {{ section.title }}
+                                        </span>
+                                        <ChevronDown
+                                            class="mr-2 transition-all duration-200"
+                                            :class="[
+                                                sectionStates[section.title] ? 'rotate-180' : 'rotate-0',
+                                                isSidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100 size-4'
+                                            ]"
+                                        />
+                                    </button>
+                                </CollapsibleTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent v-if="isSidebarCollapsed" side="right" align="center">
+                                {{ section.title }}
+                            </TooltipContent>
+                        </Tooltip>
                     </div>
-                    <CollapsibleContent>
+                    
+                    <!-- Contenido colapsable: solo visible en modo expandido -->
+                    <CollapsibleContent
+                        class="transition-all duration-200 overflow-hidden"
+                        :class="isSidebarCollapsed ? 'max-h-0 opacity-0' : 'max-h-[1000px] opacity-100'"
+                    >
                         <div
                             v-for="(group, groupIndex) in section.groups"
                             :key="group.label ?? `${section.title}-${groupIndex}`"
-                            class="px-2 pb-2 module-group"
+                            class="pl-[56px] pr-2 pb-2 module-group"
                         >
-                            <div
-                                v-if="group.label"
-                                class="module-group-label"
-                            >
+                            <div v-if="group.label" class="module-group-label">
                                 {{ group.label }}
                             </div>
                             <SidebarMenu class="px-0 module-submodules">
@@ -390,13 +447,11 @@ watch(
             </template>
         </SidebarContent>
 
-        <SidebarFooter class="border-t border-sidebar-border/80 pt-2">
-            <div class="rounded-xl border border-sidebar-border/60 bg-sidebar-accent/30 p-2">
-                <NavUser />
-            </div>
+        <SidebarFooter class="border-t border-sidebar-border/80 pt-2 px-1">
+            <NavUser />
         </SidebarFooter>
     </Sidebar>
-<slot />
+    <slot />
 </template>
 
 <style scoped>
@@ -409,13 +464,10 @@ watch(
     width: 100%;
 }
 
-.module-label button {
-    position: relative;
-}
-
+/* Estilos para los subitems con indentación */
 .module-group {
     border-left: 1px solid rgba(74, 85, 104, 0.25);
-    margin-left: 6px;
+    margin-left: 20px;
     padding-left: 8px;
 }
 
@@ -440,5 +492,16 @@ watch(
 
 .module-submodule-item:last-child {
     margin-bottom: 0;
+}
+
+/* Asegurar que la columna del ícono nunca cambie */
+.icon-column {
+    min-width: 56px;
+    max-width: 56px;
+}
+
+/* Transición suave para el label */
+.label-column {
+    transform-origin: left center;
 }
 </style>

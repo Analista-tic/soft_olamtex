@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import UserInfo from '@/components/UserInfo.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
 import type { NavItem, SharedData } from '@/domain/shared';
 import type { NotificationRow } from '@/domain/Settings';
@@ -13,18 +15,30 @@ import { usePage, router } from '@inertiajs/vue3';
 import { BarChart3, Bell, ChevronsUpDown, CheckCheck, ExternalLink, Inbox, Settings, ShieldCheck } from 'lucide-vue-next';
 import UserMenuContent from './UserMenuContent.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useInitials } from '@/composables/useInitials';
 import axios from 'axios';
 
 const page = usePage<SharedData>();
 const user = page.props.auth.user as User;
-const { isMobile, state } = useSidebar();
+const { isMobile, state, setOverlayOpen } = useSidebar();
 const auth = useAuthStore();
+const { getInitials } = useInitials();
+
+// Computed para saber si está colapsado
+const isCollapsed = computed(() => state.value === 'collapsed');
+
+// Avatar computed
+const avatarSrc = computed(() => (user.avatar ?? '').trim());
+const showAvatar = computed(() => avatarSrc.value !== '');
 
 // Estado de notificaciones
 const unreadCount = ref(0);
 const latestNotifications = ref<NotificationRow[]>([]);
 const isNotificationsOpen = ref(false);
 const isLoadingNotifications = ref(false);
+
+// Estado del dropdown de perfil (para lock del sidebar)
+const isProfileDropdownOpen = ref(false);
 
 const toSlug = (value: string) =>
     value
@@ -165,9 +179,18 @@ function formatRelativeDate(dateString: string): string {
  */
 function onPopoverOpenChange(open: boolean) {
     isNotificationsOpen.value = open;
+    setOverlayOpen(open); // Lock sidebar while popover is open
     if (open) {
         fetchLatestNotifications();
     }
+}
+
+/**
+ * Handler para el dropdown de perfil.
+ */
+function onProfileDropdownOpenChange(open: boolean) {
+    isProfileDropdownOpen.value = open;
+    setOverlayOpen(open); // Lock sidebar while dropdown is open
 }
 
 // Cargar contador al montar
@@ -179,9 +202,139 @@ onMounted(() => {
 <template>
     <SidebarMenu>
         <SidebarMenuItem>
-            <div class="flex items-center gap-1 w-full">
+            <!-- ===== MODO COLAPSADO: Botones cuadrados centrados ===== -->
+            <div v-if="isCollapsed" class="flex flex-col items-center gap-2 w-full">
+                <!-- Botón Notificaciones (Campana) con Popover - PRIMERO -->
+                <Popover :open="isNotificationsOpen" @update:open="onPopoverOpenChange">
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <PopoverTrigger as-child>
+                                <button
+                                    class="relative flex items-center justify-center h-10 w-10 rounded-md hover:bg-sidebar-accent transition-colors"
+                                    aria-label="Notificaciones"
+                                >
+                                    <Bell class="size-[18px]" />
+                                    <Badge
+                                        v-if="unreadCount > 0"
+                                        variant="destructive"
+                                        class="absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[10px]"
+                                    >
+                                        {{ unreadCount > 99 ? '99+' : unreadCount }}
+                                    </Badge>
+                                </button>
+                            </PopoverTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" align="center">
+                            Notificaciones
+                        </TooltipContent>
+                    </Tooltip>
+                    <PopoverContent 
+                        class="w-80 p-0" 
+                        side="right"
+                        :side-offset="8"
+                        align="start"
+                    >
+                        <!-- Header del Popover -->
+                        <div class="flex items-center justify-between px-4 py-3 border-b">
+                            <h4 class="font-semibold text-sm">Notificaciones</h4>
+                            <Button
+                                v-if="unreadCount > 0"
+                                variant="ghost"
+                                size="sm"
+                                class="h-7 text-xs"
+                                @click="markAllAsRead"
+                            >
+                                <CheckCheck class="h-3 w-3 mr-1" />
+                                Leer todas
+                            </Button>
+                        </div>
+
+                        <!-- Lista de Notificaciones -->
+                        <div class="max-h-80 overflow-y-auto">
+                            <div v-if="isLoadingNotifications" class="flex items-center justify-center py-8">
+                                <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                            </div>
+                            <div v-else-if="latestNotifications.length === 0" class="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                                <Inbox class="h-8 w-8 mb-2 opacity-50" />
+                                <p class="text-xs">No hay notificaciones</p>
+                            </div>
+                            <template v-else>
+                                <button
+                                    v-for="notification in latestNotifications"
+                                    :key="notification.id"
+                                    class="w-full text-left px-4 py-3 border-b last:border-b-0 hover:bg-muted/50 transition-colors"
+                                    :class="{ 'bg-primary/5': !notification.is_read }"
+                                    @click="handleNotificationClick(notification)"
+                                >
+                                    <div class="flex items-start gap-2">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium truncate" :class="{ 'text-primary': !notification.is_read }">
+                                                {{ notification.title ?? 'Notificación' }}
+                                            </p>
+                                            <p class="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                                {{ notification.body }}
+                                            </p>
+                                            <div class="flex items-center gap-2 mt-1">
+                                                <Badge v-if="notification.module" variant="secondary" class="text-[10px] px-1.5 py-0">
+                                                    {{ notification.module }}
+                                                </Badge>
+                                                <span class="text-[10px] text-muted-foreground">
+                                                    {{ formatRelativeDate(notification.created_at) }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <ExternalLink v-if="notification.url" class="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+
+                        <!-- Footer -->
+                        <div class="border-t px-4 py-2">
+                            <Button variant="ghost" size="sm" class="w-full text-xs" @click="goToNotifications">
+                                Ver todas las notificaciones
+                            </Button>
+                        </div>
+                    </PopoverContent>
+                </Popover>
+
+                <!-- Botón Usuario (Avatar) con Dropdown - SEGUNDO -->
+                <DropdownMenu @update:open="onProfileDropdownOpenChange">
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <DropdownMenuTrigger as-child>
+                                <button
+                                    class="flex items-center justify-center h-10 w-10 rounded-md hover:bg-sidebar-accent transition-colors"
+                                    aria-label="Perfil"
+                                >
+                                    <Avatar class="h-7 w-7 overflow-hidden rounded-md">
+                                        <AvatarImage v-if="showAvatar" :src="avatarSrc" :alt="user.name" />
+                                        <AvatarFallback class="rounded-md text-black dark:text-white text-xs">
+                                            {{ getInitials(user.name) }}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                </button>
+                            </DropdownMenuTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" align="center">
+                            Perfil
+                        </TooltipContent>
+                    </Tooltip>
+                    <DropdownMenuContent 
+                        class="min-w-56 rounded-lg" 
+                        side="right"
+                        align="end" 
+                        :side-offset="8"
+                    >
+                        <UserMenuContent :user="user" :items="filteredUserNavItems" />
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+
+            <!-- ===== MODO EXPANDIDO: Layout original ===== -->
+            <div v-else class="flex items-center gap-1 w-full">
                 <!-- Usuario + Dropdown -->
-                <DropdownMenu>
+                <DropdownMenu @update:open="onProfileDropdownOpenChange">
                     <DropdownMenuTrigger as-child>
                         <SidebarMenuButton size="lg" class="flex-1 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                             <UserInfo :user="user" />
@@ -190,7 +343,7 @@ onMounted(() => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent 
                         class="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg" 
-                        :side="isMobile ? 'bottom' : state === 'collapsed' ? 'left' : 'bottom'"
+                        side="bottom"
                         align="end" 
                         :side-offset="4"
                     >
@@ -198,7 +351,7 @@ onMounted(() => {
                     </DropdownMenuContent>
                 </DropdownMenu>
 
-                <!-- Botón de Notificaciones (SIEMPRE VISIBLE) -->
+                <!-- Botón de Notificaciones -->
                 <Popover :open="isNotificationsOpen" @update:open="onPopoverOpenChange">
                     <PopoverTrigger as-child>
                         <Button
@@ -208,7 +361,6 @@ onMounted(() => {
                             aria-label="Notificaciones"
                         >
                             <Bell class="h-5 w-5" />
-                            <!-- Badge condicional -->
                             <Badge
                                 v-if="unreadCount > 0"
                                 variant="destructive"
@@ -241,18 +393,13 @@ onMounted(() => {
 
                         <!-- Lista de Notificaciones -->
                         <div class="max-h-80 overflow-y-auto">
-                            <!-- Loading -->
                             <div v-if="isLoadingNotifications" class="flex items-center justify-center py-8">
                                 <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
                             </div>
-
-                            <!-- Estado vacío -->
                             <div v-else-if="latestNotifications.length === 0" class="flex flex-col items-center justify-center py-8 text-muted-foreground">
                                 <Inbox class="h-8 w-8 mb-2 opacity-50" />
                                 <p class="text-xs">No hay notificaciones</p>
                             </div>
-
-                            <!-- Notificaciones -->
                             <template v-else>
                                 <button
                                     v-for="notification in latestNotifications"
