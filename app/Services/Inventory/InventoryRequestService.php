@@ -7,6 +7,7 @@ use App\Models\Inventory\InventoryRequestItem;
 use App\Models\Settings\User;
 use App\Notifications\InventoryRequestCreatedNotification;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -84,13 +85,11 @@ class InventoryRequestService
     }
 
     /**
-     * Notifica a los usuarios con permiso inventory.requests.attend sobre una nueva solicitud.
+     * Notifica a los usuarios con permiso inventory.requests.attend o rol admin sobre una nueva solicitud.
      */
     protected function notifyInventoryRequestCreated(InventoryRequest $request, User $creator): void
     {
-        $recipients = User::permission('inventory.requests.attend')
-            ->where('id', '!=', $creator->id) // No notificar al creador
-            ->get();
+        $recipients = $this->resolveRecipientsForInventoryRequest($creator);
 
         if ($recipients->isEmpty()) {
             return;
@@ -103,6 +102,30 @@ class InventoryRequestService
             $recipients,
             new InventoryRequestCreatedNotification($request, $requesterName, $requesterArea)
         );
+    }
+
+    /**
+     * Resuelve los destinatarios para notificaciones de solicitudes de inventario.
+     * Incluye usuarios con permiso inventory.requests.attend O rol admin.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, User>
+     */
+    protected function resolveRecipientsForInventoryRequest(User $excludeUser): \Illuminate\Database\Eloquent\Collection
+    {
+        // Usuarios con permiso inventory.requests.attend
+        $byPermission = User::permission('inventory.requests.attend')
+            ->where('id', '!=', $excludeUser->id)
+            ->pluck('id');
+
+        // Usuarios con rol admin
+        $byRole = User::role('admin')
+            ->where('id', '!=', $excludeUser->id)
+            ->pluck('id');
+
+        // Combinar y eliminar duplicados
+        $recipientIds = $byPermission->merge($byRole)->unique()->values();
+
+        return User::whereIn('id', $recipientIds)->get();
     }
 
     /**
@@ -128,6 +151,19 @@ class InventoryRequestService
         }
 
         return null;
+    }
+
+    /**
+     * Marca como leídas todas las notificaciones asociadas a una solicitud de inventario.
+     * Se usa cuando el status cambia de 'solicitado' a otro.
+     */
+    protected function markNotificationsAsReadForRequest(int $requestId): void
+    {
+        DatabaseNotification::query()
+            ->where('notifiable_type', User::class)
+            ->whereNull('read_at')
+            ->whereRaw("JSON_EXTRACT(data, '$.request_id') = ?", [$requestId])
+            ->update(['read_at' => now()]);
     }
 
     public function update(InventoryRequest $request, array $data, ?array $items = null): InventoryRequest
@@ -163,7 +199,7 @@ class InventoryRequestService
             ]);
         }
 
-        return DB::transaction(function () use ($request, $payload, $user) {
+        $deliveredRequest = DB::transaction(function () use ($request, $payload, $user) {
             $deliveryDate = $payload['delivery_date'] ?? now()->toDateString();
             $itemsPayload = $payload['items'] ?? [];
             $items = $request->items()->get()->keyBy('id');
@@ -253,6 +289,11 @@ class InventoryRequestService
 
             return $this->findOrFail($request->id);
         });
+
+        // Marcar notificaciones como leídas al cambiar de status
+        $this->markNotificationsAsReadForRequest($request->id);
+
+        return $deliveredRequest;
     }
 
     public function reject(InventoryRequest $request, string $reason, User $user): InventoryRequest
@@ -265,6 +306,9 @@ class InventoryRequestService
             'rejected_at' => now(),
             'rejection_reason' => $reason,
         ]);
+
+        // Marcar notificaciones como leídas al cambiar de status
+        $this->markNotificationsAsReadForRequest($request->id);
 
         return $this->findOrFail($request->id);
     }

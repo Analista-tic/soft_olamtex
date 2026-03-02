@@ -3,14 +3,10 @@
 namespace App\Notifications;
 
 use App\Models\Inventory\InventoryRequest;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class InventoryRequestCreatedNotification extends Notification implements ShouldQueue
+class InventoryRequestCreatedNotification extends Notification
 {
-    use Queueable;
-
     public function __construct(
         protected InventoryRequest $inventoryRequest,
         protected ?string $requesterName = null,
@@ -34,22 +30,22 @@ class InventoryRequestCreatedNotification extends Notification implements Should
      */
     public function toArray(object $notifiable): array
     {
-        $documentNumber = $this->inventoryRequest->document_number ?? $this->inventoryRequest->id;
-        $itemsCount = $this->inventoryRequest->items()->count();
+        $documentNumber = $this->inventoryRequest->document_number ?? (string) $this->inventoryRequest->id;
 
         return [
-            'type' => 'inventory_request.created',
+            'type' => 'inventory_request',
+            'request_id' => $this->inventoryRequest->id,
+            'document_number' => $documentNumber,
+            'area' => 'Logística',
+            'module' => 'Inventario',
+            'user_name' => $this->requesterName ?? 'Usuario',
+            'message' => "Nueva solicitud de insumos {$documentNumber}",
             'title' => "Nueva solicitud de insumos #{$documentNumber}",
             'body' => sprintf(
-                '%s ha creado una solicitud de insumos con %d ítem(s).',
-                $this->requesterName ?? 'Un usuario',
-                $itemsCount
+                '%s ha creado una nueva solicitud de insumos.',
+                $this->requesterName ?? 'Un usuario'
             ),
-            'module' => 'Inventario',
-            'url' => '/inventario/solicitudes',
-            'entity_id' => $this->inventoryRequest->id,
-            'area' => $this->requesterArea,
-            'user_name' => $this->requesterName,
+            'url' => '/inventario/solicitudes-internas',
         ];
     }
 }
