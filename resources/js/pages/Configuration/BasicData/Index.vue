@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import AlertBox from '@/components/AlertBox.vue';
+import { useAuthAvatar } from '@/composables/useAuthAvatar';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import SelectField from '@/components/SelectField.vue';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import Textarea from '@/components/ui/textarea/Textarea.vue';
 import colombiaData from '@/data/colombia.json';
-import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
+import type { BreadcrumbItem, SharedData, User } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Image } from 'lucide-vue-next';
+import { Camera, Trash2 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import AppearanceSection from './Appearance.vue';
+import AvatarCropDialog from './Profile/AvatarCropDialog.vue';
 import ProfileSection from './Profile.vue';
 
 interface CompanyData {
@@ -30,7 +35,100 @@ interface CompanyData {
 
 const props = defineProps<{ company?: Partial<CompanyData>; activeSection?: SectionKey }>();
 const page = usePage<SharedData>();
-const user = page.props.auth.user;
+const user = page.props.auth.user as User;
+const auth = useAuthStore();
+const canEditCompany = computed(() => auth.hasRole('admin'));
+const { avatarUrl: currentAvatarUrl, hasAvatar, setAvatarUrl, clearAvatarUrl } = useAuthAvatar();
+
+// Avatar state
+const avatarFileInputRef = ref<HTMLInputElement | null>(null);
+const isAvatarMenuOpen = ref(false);
+const isCropDialogOpen = ref(false);
+const pendingAvatarFile = ref<File | null>(null);
+
+// Computed para obtener las iniciales del usuario
+const userInitials = computed(() => {
+    const name = user.name || '';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+});
+
+function syncAuthFromServer() {
+    router.reload({
+        only: ['auth'],
+        preserveScroll: true,
+        preserveState: true,
+    });
+}
+
+// Funciones para manejar el avatar
+function triggerAvatarFileSelect() {
+    avatarFileInputRef.value?.click();
+}
+
+function handleChangeAvatarAction() {
+    isAvatarMenuOpen.value = false;
+    triggerAvatarFileSelect();
+}
+
+function handleAvatarFileChange(event: Event) {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+        showErrorAlert('Solo se permiten imágenes JPG, PNG o WebP.');
+        return;
+    }
+
+    // Validar tamaño (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+        showErrorAlert('La imagen no debe superar los 5MB.');
+        return;
+    }
+
+    // Abrir dialog de crop con el archivo
+    pendingAvatarFile.value = file;
+    isCropDialogOpen.value = true;
+
+    // Limpiar input para permitir seleccionar el mismo archivo de nuevo
+    target.value = '';
+}
+
+async function deleteAvatar() {
+    isAvatarMenuOpen.value = false;
+
+    try {
+        const response = await axios.delete(route('profile.avatar.destroy'));
+        const url = (response.data?.avatar_url ?? null) as string | null;
+        if (url) {
+            setAvatarUrl(url);
+        } else {
+            clearAvatarUrl();
+        }
+        pendingAvatarFile.value = null;
+        syncAuthFromServer();
+        showSuccessAlert('Avatar eliminado correctamente.');
+    } catch {
+        showErrorAlert('No se pudo eliminar el avatar.');
+    }
+}
+
+function handleAvatarSuccess(message: string, avatarUrl: string) {
+    setAvatarUrl(avatarUrl);
+    pendingAvatarFile.value = null; // Limpiar archivo pendiente
+    syncAuthFromServer();
+    showSuccessAlert(message);
+}
+
+function handleAvatarError(message: string) {
+    showErrorAlert(message);
+}
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -222,10 +320,16 @@ const companyLogo = computed(() => logoPreviewUrl.value ?? companyInfo.logo_url 
 const hasCustomLogo = computed(() => Boolean(logoPreviewUrl.value));
 
 function triggerLogoUpload(): void {
+    if (!canEditCompany.value) {
+        return;
+    }
     iconInputRef.value?.click();
 }
 
 function processSelectedLogo(file: File): void {
+    if (!canEditCompany.value) {
+        return;
+    }
     logoFile.value = file;
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -235,6 +339,9 @@ function processSelectedLogo(file: File): void {
 }
 
 function handleLogoChange(event: Event): void {
+    if (!canEditCompany.value) {
+        return;
+    }
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     if (!file) {
@@ -245,6 +352,9 @@ function handleLogoChange(event: Event): void {
 }
 
 function handleLogoDrop(event: DragEvent): void {
+    if (!canEditCompany.value) {
+        return;
+    }
     event.preventDefault();
     const file = event.dataTransfer?.files?.[0];
     if (!file) {
@@ -300,7 +410,7 @@ const setError = (message: string, type: 'error' | 'warning' | 'info' = 'error')
 const alertTitleForType = (type: 'success' | 'error' | 'info' | 'warning') => {
     switch (type) {
         case 'success':
-            return '¡Listo!';
+            return 'Â¡Listo!';
         case 'warning':
             return 'Advertencia';
         case 'info':
@@ -436,6 +546,11 @@ async function saveBasicData(): Promise<void> {
     clearAlerts();
     missingRequiredFields.value = [];
 
+    if (!canEditCompany.value) {
+        setError('Solo administradores pueden modificar información de empresa.', 'warning');
+        return;
+    }
+
     if (!validateRequiredFields()) {
         const labels = missingRequiredFields.value.map((field) => requiredFieldLabels[field] ?? field).join(', ');
         setError(`Completa los campos obligatorios: ${labels}.`, 'warning');
@@ -465,7 +580,12 @@ watch(
     },
 );
 
-onMounted(() => {
+onMounted(async () => {
+    try {
+        await auth.fetchUser();
+    } catch {
+        // no-op: la vista mantiene modo solo lectura si no se cargan roles
+    }
     isInitialLoad.value = false;
 });
 
@@ -504,7 +624,64 @@ onBeforeUnmount(() => {
 
             <div class="grid items-start gap-6 lg:grid-cols-[420px_minmax(0,1fr)]">
                 <aside class="rounded-2xl border border-border bg-card p-5 shadow-sm">
-                    <div class="space-y-3">
+                    <!-- Preview del usuario cuando está en sección perfil -->
+                    <div v-if="selectedSection !== 'empresa'" class="space-y-3">
+                        <div class="flex flex-col items-center py-4">
+                            <!-- Avatar con botón fijo de edición - NO se mueve -->
+                            <div class="relative inline-block h-28 w-28">
+                                <Avatar class="h-28 w-28 ring-4 ring-white shadow-lg">
+                                    <AvatarImage v-if="currentAvatarUrl" :src="currentAvatarUrl" :alt="user.name" />
+                                    <AvatarFallback class="bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-semibold text-white">
+                                        {{ userInitials }}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <!-- Botón de cámara - position absolute, tamaño fijo -->
+                                <DropdownMenu v-model:open="isAvatarMenuOpen" :modal="false">
+                                    <DropdownMenuTrigger :as-child="true">
+                                        <button
+                                            type="button"
+                                            class="absolute bottom-0 right-0 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-primary text-white box-border shadow-md transition-colors hover:bg-primary/90 data-[state=open]:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                            aria-label="Acciones de foto de perfil"
+                                        >
+                                            <Camera class="h-4 w-4" />
+                                        </button>
+                                    </DropdownMenuTrigger>
+
+                                    <DropdownMenuContent align="end" side="bottom" :side-offset="10" class="w-44 rounded-xl">
+                                        <DropdownMenuItem class="cursor-pointer" @select.prevent="handleChangeAvatarAction">
+                                            <Camera class="mr-2 h-4 w-4" />
+                                            <span>Cambiar foto</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            v-if="hasAvatar"
+                                            class="cursor-pointer text-destructive focus:text-destructive"
+                                            @select.prevent="deleteAvatar"
+                                        >
+                                            <Trash2 class="mr-2 h-4 w-4" />
+                                            <span>Eliminar foto</span>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                            <!-- Input file oculto -->
+                            <input
+                                ref="avatarFileInputRef"
+                                type="file"
+                                accept="image/jpeg,image/jpg,image/png,image/webp"
+                                class="hidden"
+                                @change="handleAvatarFileChange"
+                            />
+
+                        </div>
+                        <div class="space-y-1 text-center">
+                            <p class="text-xs font-semibold uppercase text-muted-foreground/70">Usuario</p>
+                            <h2 class="text-lg font-semibold text-card-foreground">{{ user.name || 'Sin nombre' }}</h2>
+                            <p class="text-sm text-muted-foreground/70">{{ user.email || '-' }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Preview de empresa en otras secciones -->
+                    <div v-else class="space-y-3">
                         <div class="relative h-28 w-full overflow-hidden rounded-2xl bg-slate-100">
                             <img :src="companyLogo" alt="Logotipo de la empresa" class="h-full w-full object-cover" />
                         </div>
@@ -548,8 +725,15 @@ onBeforeUnmount(() => {
                 </aside>
 
                 <section class="rounded-2xl border border-border bg-card p-5 shadow-sm">
-                    <div v-if="selectedSection === 'empresa'">
+                    <div v-if="selectedSection === 'empresa'" class="space-y-4">
+                        <div
+                            v-if="!canEditCompany"
+                            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                        >
+                            Solo administradores pueden modificar informacion de empresa.
+                        </div>
                         <form class="space-y-6" @submit.prevent="saveBasicData">
+                            <fieldset class="space-y-6" :disabled="!canEditCompany">
                             <div class="grid gap-4 md:grid-cols-2">
                                 <div class="space-y-2">
                                     <label for="legal-name" class="text-sm font-medium text-card-foreground">
@@ -620,6 +804,7 @@ onBeforeUnmount(() => {
                                         v-model="locationValue"
                                         label="Municipio y departamento"
                                         required
+                                        :disabled="!canEditCompany"
                                         :options="locationOptions"
                                         placeholder="Selecciona un municipio o departamento"
                                         :searchable="true"
@@ -647,10 +832,11 @@ onBeforeUnmount(() => {
                                 </p>
                                 <div class="flex flex-col gap-3">
                                     <div
-                                        class="relative w-full cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted transition hover:border-blue-400 dark:border-border dark:bg-slate-900"
+                                        class="relative w-full overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted transition dark:border-border dark:bg-slate-900"
+                                        :class="canEditCompany ? 'cursor-pointer hover:border-blue-400' : 'cursor-not-allowed opacity-70'"
                                         style="min-height: 9rem"
-                                        @click="triggerLogoUpload"
-                                        @drop.prevent="handleLogoDrop"
+                                        @click="canEditCompany && triggerLogoUpload()"
+                                        @drop.prevent="canEditCompany && handleLogoDrop($event)"
                                         @dragover.prevent
                                     >
                                         <template v-if="logoPreviewUrl">
@@ -661,7 +847,7 @@ onBeforeUnmount(() => {
                                         </template>
                                         <template v-else>
                                             <div class="flex h-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground/60">
-                                                <Image class="h-20 w-6" />
+                                                <Camera class="h-6 w-6" />
                                                 <span class="text-center text-xs leading-tight"> Haz clic o arrastra una imagen. </span>
                                             </div>
                                         </template>
@@ -669,26 +855,34 @@ onBeforeUnmount(() => {
                                     <button
                                         type="button"
                                         class="inline-flex items-center justify-center gap-1 self-start rounded-full border border-border/80 bg-white px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        :disabled="!hasCustomLogo"
+                                        :disabled="!hasCustomLogo || !canEditCompany"
                                         @click="resetLogoPreview"
                                     >
                                         Restablecer
                                     </button>
                                 </div>
-                                <input ref="iconInputRef" type="file" accept="image/*" class="hidden" @change="handleLogoChange" />
+                                <input
+                                    ref="iconInputRef"
+                                    type="file"
+                                    accept="image/*"
+                                    class="hidden"
+                                    :disabled="!canEditCompany"
+                                    @change="handleLogoChange"
+                                />
                             </div>
+                            </fieldset>
 
                             <div class="flex flex-wrap gap-3 border-t pt-4">
                                 <button
                                     type="submit"
-                                    :disabled="isSaving"
+                                    :disabled="isSaving || !canEditCompany"
                                     class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                                 </button>
                                 <button
                                     type="button"
-                                    :disabled="isSaving"
+                                    :disabled="isSaving || !canEditCompany"
                                     class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     @click="resetForm"
                                 >
@@ -706,6 +900,15 @@ onBeforeUnmount(() => {
                 </section>
             </div>
         </div>
+
+        <!-- Dialog de Avatar Crop -->
+        <AvatarCropDialog
+            v-model="isCropDialogOpen"
+            :image-file="pendingAvatarFile"
+            :has-current-avatar="hasAvatar"
+            @success="handleAvatarSuccess"
+            @error="handleAvatarError"
+            @delete="deleteAvatar"
+        />
     </AppLayout>
 </template>
-

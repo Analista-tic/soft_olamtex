@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import NavUser from '@/components/NavUser.vue';
+import NavFooter from '@/components/NavFooter.vue';
 import {
     Sidebar,
     SidebarContent,
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { footerNavItems } from '@/data/footerNavItems';
 import { useAuthStore } from '@/stores/auth';
 import type { LucideIcon } from 'lucide-vue-next';
 import type { NavItem } from '@/domain/shared';
@@ -189,6 +190,9 @@ const moduleSections: ModuleSection[] = [
 
 const { state, setOpen } = useSidebar();
 const isSidebarCollapsed = computed(() => state.value === 'collapsed');
+const filteredFooterNavItems = computed<NavItem[]>(() =>
+    footerNavItems.filter((item) => (item.permission ? auth.can(item.permission) : true)),
+);
 
 const page = usePage();
 const currentUrl = computed(() => {
@@ -446,10 +450,10 @@ watch(
                 </Collapsible>
             </template>
         </SidebarContent>
-
-        <SidebarFooter class="border-t border-sidebar-border/80 pt-2 px-1">
-            <NavUser />
+        <SidebarFooter class="mt-auto border-t border-sidebar-border/80 px-1 py-2">
+            <NavFooter :items="filteredFooterNavItems" />
         </SidebarFooter>
+
     </Sidebar>
     <slot />
 </template>

@@ -19,6 +19,7 @@ return new class extends Migration
             $table->foreign('area_id')->references('id')->on('settings')->nullOnDelete();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->string('avatar_path')->nullable(); // Ruta del avatar del usuario
             $table->rememberToken();
             $table->timestamps();
         });

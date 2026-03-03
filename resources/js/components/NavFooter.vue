@@ -18,7 +18,11 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href);
         <SidebarGroupContent>
             <SidebarMenu>
                 <SidebarMenuItem v-for="item in items" :key="item.title">
-                    <SidebarMenuButton class="text-neutral-600 hover:text-neutral-800 dark:text-neutral-300 dark:hover:text-neutral-100" as-child>
+                    <SidebarMenuButton
+                        class="text-neutral-600 hover:text-neutral-800 dark:text-neutral-300 dark:hover:text-neutral-100"
+                        :tooltip="item.title"
+                        as-child
+                    >
                         <Link v-if="!isExternal(item.href)" :href="item.href">
                             <component :is="item.icon" />
                             <span>{{ item.title }}</span>
@@ -33,4 +37,3 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href);
         </SidebarGroupContent>
     </SidebarGroup>
 </template>
-

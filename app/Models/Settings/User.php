@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements \App\Contracts\HasAuditLabel
@@ -26,6 +27,7 @@ class User extends Authenticatable implements \App\Contracts\HasAuditLabel
         'email',
         'area_id',
         'password',
+        'avatar_path',
     ];
 
     public function area()
@@ -51,6 +53,19 @@ class User extends Authenticatable implements \App\Contracts\HasAuditLabel
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    protected $appends = [
+        'avatar_url',
+    ];
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if (!$this->avatar_path) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($this->avatar_path);
+    }
 
     protected static function newFactory(): UserFactory
     {

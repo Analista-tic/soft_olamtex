@@ -15,7 +15,17 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { getInitials } = useInitials();
 
-const avatarSrc = computed(() => (props.user.avatar ?? '').trim());
+const avatarSrc = computed(() => {
+    if (props.user.avatar_url) {
+        return props.user.avatar_url.trim();
+    }
+
+    if (props.user.avatar_path) {
+        return `/storage/${props.user.avatar_path}`;
+    }
+
+    return (props.user.avatar ?? '').trim();
+});
 const showAvatar = computed(() => avatarSrc.value !== '');
 </script>
 
@@ -32,4 +42,3 @@ const showAvatar = computed(() => avatarSrc.value !== '');
         <span v-if="showEmail" class="truncate text-xs text-muted-foreground">{{ user.email }}</span>
     </div>
 </template>
-
