@@ -345,6 +345,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('mark-read');
         Route::post('/read-all', [App\Http\Controllers\Settings\NotificationsController::class, 'markAllAsRead'])
             ->name('mark-all-read');
+        Route::patch('/{id}/archive', [App\Http\Controllers\Settings\NotificationsController::class, 'archive'])
+            ->name('archive');
+        Route::delete('/{id}', [App\Http\Controllers\Settings\NotificationsController::class, 'destroy'])
+            ->name('destroy');
     });
 
     // === CATEGORIAS ===

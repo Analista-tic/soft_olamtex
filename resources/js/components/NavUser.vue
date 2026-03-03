@@ -12,7 +12,7 @@ import type { NotificationRow } from '@/domain/Settings';
 import type { User } from '@/domain/Settings/types';
 import { computed, onMounted, ref } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
-import { BarChart3, Bell, ChevronsUpDown, CheckCheck, ExternalLink, Inbox, Settings, ShieldCheck } from 'lucide-vue-next';
+import { Archive, BarChart3, Bell, ChevronsUpDown, CheckCheck, ExternalLink, Inbox, Settings, ShieldCheck, X } from 'lucide-vue-next';
 import UserMenuContent from './UserMenuContent.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useInitials } from '@/composables/useInitials';
@@ -26,6 +26,18 @@ const { getInitials } = useInitials();
 
 // Computed para saber si está colapsado
 const isCollapsed = computed(() => state.value === 'collapsed');
+
+/**
+ * Formatea el contador de notificaciones para el badge.
+ * - 0 o negativo: null (no mostrar)
+ * - 1-99: número como string
+ * - 100+: "99+"
+ */
+const formattedBadgeCount = computed(() => {
+    if (unreadCount.value <= 0) return null;
+    if (unreadCount.value > 99) return '99+';
+    return String(unreadCount.value);
+});
 
 // Avatar computed
 const avatarSrc = computed(() => (user.avatar ?? '').trim());
@@ -153,6 +165,62 @@ function goToNotifications() {
 }
 
 /**
+ * Archiva una notificación (optimista).
+ */
+async function archiveNotification(notification: NotificationRow, event: Event) {
+    event.stopPropagation();
+    
+    // Guardar estado para restaurar en caso de error
+    const previousList = [...latestNotifications.value];
+    const wasUnread = !notification.is_read;
+    
+    // Actualización optimista
+    latestNotifications.value = latestNotifications.value.filter(n => n.id !== notification.id);
+    if (wasUnread) {
+        unreadCount.value = Math.max(0, unreadCount.value - 1);
+    }
+    
+    try {
+        await axios.patch(`/configuracion/notificaciones/${notification.id}/archive`);
+    } catch (error) {
+        // Restaurar estado anterior si falla
+        latestNotifications.value = previousList;
+        if (wasUnread) {
+            unreadCount.value += 1;
+        }
+        console.error('Error al archivar notificación:', error);
+    }
+}
+
+/**
+ * Elimina una notificación (optimista).
+ */
+async function deleteNotification(notification: NotificationRow, event: Event) {
+    event.stopPropagation();
+    
+    // Guardar estado para restaurar en caso de error
+    const previousList = [...latestNotifications.value];
+    const wasUnread = !notification.is_read;
+    
+    // Actualización optimista
+    latestNotifications.value = latestNotifications.value.filter(n => n.id !== notification.id);
+    if (wasUnread) {
+        unreadCount.value = Math.max(0, unreadCount.value - 1);
+    }
+    
+    try {
+        await axios.delete(`/configuracion/notificaciones/${notification.id}`);
+    } catch (error) {
+        // Restaurar estado anterior si falla
+        latestNotifications.value = previousList;
+        if (wasUnread) {
+            unreadCount.value += 1;
+        }
+        console.error('Error al eliminar notificación:', error);
+    }
+}
+
+/**
  * Formatea fecha relativa.
  */
 function formatRelativeDate(dateString: string): string {
@@ -213,14 +281,17 @@ onMounted(() => {
                                     class="relative flex items-center justify-center h-10 w-10 rounded-md hover:bg-sidebar-accent transition-colors"
                                     aria-label="Notificaciones"
                                 >
-                                    <Bell class="size-[18px]" />
-                                    <Badge
-                                        v-if="unreadCount > 0"
-                                        variant="destructive"
-                                        class="absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[10px]"
-                                    >
-                                        {{ unreadCount > 99 ? '99+' : unreadCount }}
-                                    </Badge>
+                                    <!-- Wrapper fijo para el ícono + badge -->
+                                    <span class="relative inline-flex items-center justify-center">
+                                        <Bell class="size-[18px]" />
+                                        <Badge
+                                            v-if="formattedBadgeCount"
+                                            variant="destructive"
+                                            class="notification-badge absolute -top-2 -right-2.5 h-4 min-w-4 px-1 flex items-center justify-center text-[10px] leading-none font-medium"
+                                        >
+                                            {{ formattedBadgeCount }}
+                                        </Badge>
+                                    </span>
                                 </button>
                             </PopoverTrigger>
                         </TooltipTrigger>
@@ -229,7 +300,7 @@ onMounted(() => {
                         </TooltipContent>
                     </Tooltip>
                     <PopoverContent 
-                        class="w-80 p-0" 
+                        class="w-[360px] p-0" 
                         side="right"
                         :side-offset="8"
                         align="start"
@@ -259,33 +330,65 @@ onMounted(() => {
                                 <p class="text-xs">No hay notificaciones</p>
                             </div>
                             <template v-else>
-                                <button
+                                <div
                                     v-for="notification in latestNotifications"
                                     :key="notification.id"
-                                    class="w-full text-left px-4 py-3 border-b last:border-b-0 hover:bg-muted/50 transition-colors"
+                                    class="notification-item group relative border-b last:border-b-0 overflow-hidden"
                                     :class="{ 'bg-primary/5': !notification.is_read }"
-                                    @click="handleNotificationClick(notification)"
                                 >
-                                    <div class="flex items-start gap-2">
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-sm font-medium truncate" :class="{ 'text-primary': !notification.is_read }">
-                                                {{ notification.title ?? 'Notificación' }}
-                                            </p>
-                                            <p class="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                                                {{ notification.body }}
-                                            </p>
-                                            <div class="flex items-center gap-2 mt-1">
-                                                <Badge v-if="notification.module" variant="secondary" class="text-[10px] px-1.5 py-0">
-                                                    {{ notification.module }}
-                                                </Badge>
-                                                <span class="text-[10px] text-muted-foreground">
+                                    <!-- Contenido principal - se desplaza al hover -->
+                                    <button
+                                        class="notification-content w-full text-left px-4 py-3 transition-transform duration-150 ease-out group-hover:-translate-x-2"
+                                        @click="handleNotificationClick(notification)"
+                                    >
+                                        <div class="flex items-start gap-2">
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium truncate" :class="{ 'text-primary': !notification.is_read }">
+                                                    {{ notification.title ?? 'Notificación' }}
+                                                </p>
+                                                <p class="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                                    {{ notification.body }}
+                                                </p>
+                                                <span class="text-[10px] text-muted-foreground mt-1 block">
                                                     {{ formatRelativeDate(notification.created_at) }}
                                                 </span>
                                             </div>
+                                            <ExternalLink v-if="notification.url" class="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
                                         </div>
-                                        <ExternalLink v-if="notification.url" class="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
+                                    </button>
+                                    
+                                    <!-- Acciones hover (posición absoluta) -->
+                                    <div 
+                                        class="notification-actions absolute right-0 top-0 bottom-0 flex items-center gap-0.5 px-2 bg-gradient-to-l from-background via-background to-transparent opacity-0 pointer-events-none transition-opacity duration-150 ease-out group-hover:opacity-100 group-hover:pointer-events-auto"
+                                    >
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <button
+                                                    class="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                                    @click="archiveNotification(notification, $event)"
+                                                >
+                                                    <Archive class="h-3.5 w-3.5" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" :side-offset="4">
+                                                Archivar
+                                            </TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <button
+                                                    class="h-7 w-7 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                                    @click="deleteNotification(notification, $event)"
+                                                >
+                                                    <X class="h-3.5 w-3.5" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" :side-offset="4">
+                                                Eliminar
+                                            </TooltipContent>
+                                        </Tooltip>
                                     </div>
-                                </button>
+                                </div>
                             </template>
                         </div>
 
@@ -360,18 +463,21 @@ onMounted(() => {
                             class="relative h-9 w-9 shrink-0 rounded-md hover:bg-sidebar-accent"
                             aria-label="Notificaciones"
                         >
-                            <Bell class="h-5 w-5" />
-                            <Badge
-                                v-if="unreadCount > 0"
-                                variant="destructive"
-                                class="absolute -top-1 -right-1 h-5 min-w-5 px-1 flex items-center justify-center text-xs"
-                            >
-                                {{ unreadCount > 99 ? '99+' : unreadCount }}
-                            </Badge>
+                            <!-- Wrapper fijo para el ícono + badge -->
+                            <span class="relative inline-flex items-center justify-center">
+                                <Bell class="size-[18px]" />
+                                <Badge
+                                    v-if="formattedBadgeCount"
+                                    variant="destructive"
+                                    class="notification-badge absolute -top-2 -right-2.5 h-4 min-w-4 px-1 flex items-center justify-center text-[10px] leading-none font-medium"
+                                >
+                                    {{ formattedBadgeCount }}
+                                </Badge>
+                            </span>
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent 
-                        class="w-80 p-0" 
+                        class="w-[360px] p-0" 
                         :side="isMobile ? 'top' : 'right'"
                         :side-offset="8"
                         align="end"
@@ -401,33 +507,65 @@ onMounted(() => {
                                 <p class="text-xs">No hay notificaciones</p>
                             </div>
                             <template v-else>
-                                <button
+                                <div
                                     v-for="notification in latestNotifications"
                                     :key="notification.id"
-                                    class="w-full text-left px-4 py-3 border-b last:border-b-0 hover:bg-muted/50 transition-colors"
+                                    class="notification-item group relative border-b last:border-b-0 overflow-hidden"
                                     :class="{ 'bg-primary/5': !notification.is_read }"
-                                    @click="handleNotificationClick(notification)"
                                 >
-                                    <div class="flex items-start gap-2">
-                                        <div class="flex-1 min-w-0">
-                                            <p class="text-sm font-medium truncate" :class="{ 'text-primary': !notification.is_read }">
-                                                {{ notification.title ?? 'Notificación' }}
-                                            </p>
-                                            <p class="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                                                {{ notification.body }}
-                                            </p>
-                                            <div class="flex items-center gap-2 mt-1">
-                                                <Badge v-if="notification.module" variant="secondary" class="text-[10px] px-1.5 py-0">
-                                                    {{ notification.module }}
-                                                </Badge>
-                                                <span class="text-[10px] text-muted-foreground">
+                                    <!-- Contenido principal - se desplaza al hover -->
+                                    <button
+                                        class="notification-content w-full text-left px-4 py-3 transition-transform duration-150 ease-out group-hover:-translate-x-2"
+                                        @click="handleNotificationClick(notification)"
+                                    >
+                                        <div class="flex items-start gap-2">
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium truncate" :class="{ 'text-primary': !notification.is_read }">
+                                                    {{ notification.title ?? 'Notificación' }}
+                                                </p>
+                                                <p class="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                                    {{ notification.body }}
+                                                </p>
+                                                <span class="text-[10px] text-muted-foreground mt-1 block">
                                                     {{ formatRelativeDate(notification.created_at) }}
                                                 </span>
                                             </div>
+                                            <ExternalLink v-if="notification.url" class="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
                                         </div>
-                                        <ExternalLink v-if="notification.url" class="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
+                                    </button>
+                                    
+                                    <!-- Acciones hover (posición absoluta) -->
+                                    <div 
+                                        class="notification-actions absolute right-0 top-0 bottom-0 flex items-center gap-0.5 px-2 bg-gradient-to-l from-background via-background to-transparent opacity-0 pointer-events-none transition-opacity duration-150 ease-out group-hover:opacity-100 group-hover:pointer-events-auto"
+                                    >
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <button
+                                                    class="h-7 w-7 flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                                    @click="archiveNotification(notification, $event)"
+                                                >
+                                                    <Archive class="h-3.5 w-3.5" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" :side-offset="4">
+                                                Archivar
+                                            </TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <button
+                                                    class="h-7 w-7 flex items-center justify-center rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                                    @click="deleteNotification(notification, $event)"
+                                                >
+                                                    <X class="h-3.5 w-3.5" />
+                                                </button>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top" :side-offset="4">
+                                                Eliminar
+                                            </TooltipContent>
+                                        </Tooltip>
                                     </div>
-                                </button>
+                                </div>
                             </template>
                         </div>
 

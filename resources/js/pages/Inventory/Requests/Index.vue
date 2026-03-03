@@ -68,10 +68,10 @@ const DEFAULT_STATUS_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
-const iconPillButtonClass =
-    'inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-white text-foreground shadow-sm transition-colors hover:bg-muted/60 hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
-const iconPillButtonSuccessClass = 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700';
-const iconPillButtonDangerClass = 'border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive';
+const actionButtonClass =
+    'inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+const actionButtonSuccessClass = 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50';
+const actionButtonDangerClass = 'text-destructive hover:text-destructive hover:bg-destructive/10';
 const actionIconClass = 'h-4 w-4';
 
 const statusLabels: Record<string, string> = {
@@ -281,7 +281,7 @@ onMounted(() => {
                                         <TooltipTrigger as-child>
                                             <Button
                                                 variant="ghost"
-                                                :class="iconPillButtonClass"
+                                                :class="actionButtonClass"
                                                 aria-label="Ver detalle"
                                                 @click="openViewRequest(request)"
                                             >
@@ -294,7 +294,7 @@ onMounted(() => {
                                         <TooltipTrigger as-child>
                                             <Button
                                                 variant="ghost"
-                                                :class="iconPillButtonClass"
+                                                :class="actionButtonClass"
                                                 aria-label="Editar"
                                                 @click="openEditRequest(request)"
                                             >
@@ -307,7 +307,7 @@ onMounted(() => {
                                         <TooltipTrigger as-child>
                                             <Button
                                                 variant="ghost"
-                                                :class="[iconPillButtonClass, iconPillButtonSuccessClass]"
+                                                :class="[actionButtonClass, actionButtonSuccessClass]"
                                                 aria-label="Marcar como entregada"
                                                 @click="openDelivery(request)"
                                             >
@@ -320,7 +320,7 @@ onMounted(() => {
                                         <TooltipTrigger as-child>
                                             <Button
                                                 variant="ghost"
-                                                :class="[iconPillButtonClass, iconPillButtonDangerClass]"
+                                                :class="[actionButtonClass, actionButtonDangerClass]"
                                                 aria-label="Rechazar solicitud"
                                                 @click="openReject(request)"
                                             >

@@ -17,11 +17,15 @@ return new class extends Migration
             $table->morphs('notifiable');
             $table->text('data');
             $table->timestamp('read_at')->nullable();
+            $table->timestamp('archived_at')->nullable();
+            $table->softDeletes(); // deleted_at
             $table->timestamps();
 
             // Índices para optimizar queries comunes
             $table->index(['notifiable_type', 'notifiable_id', 'read_at']);
             $table->index('created_at');
+            $table->index('archived_at');
+            $table->index('deleted_at');
         });
     }
 

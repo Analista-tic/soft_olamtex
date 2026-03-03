@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import InputDate from '@/components/InputDate.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -110,6 +110,50 @@ const contactIdNumber = computed(() => selectedContactData.value?.id_number || '
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 const { company, logoUrl } = useCompanyInfo();
 
+function getLocalIsoDate() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function normalizeIsoDate(value: unknown, fallback: string | null = null): string | null {
+    if (typeof value !== 'string') {
+        return fallback;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return fallback;
+    }
+    const datePart = trimmed.includes('T') ? trimmed.split('T')[0] : trimmed.includes(' ') ? trimmed.split(' ')[0] : trimmed;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        return datePart;
+    }
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) {
+        return fallback;
+    }
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+const orderDateModel = computed<string | null>({
+    get: () => normalizeIsoDate(localForm.value.date, getLocalIsoDate()) || getLocalIsoDate(),
+    set: (value) => {
+        localForm.value.date = normalizeIsoDate(value, getLocalIsoDate()) || getLocalIsoDate();
+    },
+});
+
+const deliveryDateModel = computed<string | null>({
+    get: () => normalizeIsoDate(localForm.value.delivery_date, null),
+    set: (value) => {
+        localForm.value.delivery_date = normalizeIsoDate(value, null) || '';
+    },
+});
+
 const orderDocumentNumber = computed(() => {
     const formDocNumber = props.form?.document_number;
     const localDocNumber = localForm.value.document_number;
@@ -143,16 +187,11 @@ async function initializeDialog() {
 }
 
 function createDefaultForm(): Partial<PurchaseOrder> {
-    // Establecer fecha actual en formato YYYY-MM-DD
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const currentDate = `${year}-${month}-${day}`;
+    const currentDate = getLocalIsoDate();
     
     return {
         contact_id: null,
-        date: currentDate, // Fecha actual por defecto
+        date: currentDate,
         delivery_date: '',
         supplier_order_number: '',
         description: '',
@@ -178,14 +217,8 @@ function createEmptyItem() {
 
 function resetForm() {
     localForm.value = props.form?.id ? { ...props.form } : createDefaultForm();
-    // Si es creación nueva, asegurar que la fecha esté establecida a hoy
-    if (!props.form?.id && !localForm.value.date) {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        localForm.value.date = `${year}-${month}-${day}`;
-    }
+    localForm.value.date = normalizeIsoDate(localForm.value.date, getLocalIsoDate()) || getLocalIsoDate();
+    localForm.value.delivery_date = normalizeIsoDate(localForm.value.delivery_date, null) || '';
     if (!localForm.value.items) localForm.value.items = [];
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
@@ -296,7 +329,7 @@ function applyRequestSuggestion() {
     localForm.value.description = request.description || '';
     // NO sobrescribir la fecha de creación - siempre debe ser la fecha actual
     // localForm.value.date se mantiene con la fecha actual establecida en createDefaultForm
-    localForm.value.delivery_date = request.delivery_date || '';
+    localForm.value.delivery_date = normalizeIsoDate(request.delivery_date, null) || '';
     localForm.value.supplier_order_number = request.request_number || '';
     
     // Mapear items de la solicitud a items de la orden
@@ -392,7 +425,8 @@ async function handleSubmit(sendMail = false) {
     isSendingMail.value = sendMail;
     const formToSend: any = { ...localForm.value };
     // Asegurar que todos los campos se incluyan, incluso los readonly
-    formToSend.date = localForm.value.date || formToSend.date;
+    formToSend.date = normalizeIsoDate(localForm.value.date, getLocalIsoDate()) || getLocalIsoDate();
+    formToSend.delivery_date = normalizeIsoDate(localForm.value.delivery_date, null) || '';
     formToSend.contact_id = formToSend.contact_id ? Number(formToSend.contact_id) : null;
     // Si se seleccionó una solicitud, incluir su ID para relacionar la orden con la solicitud
     if (selectedPurchaseRequestId.value) {
@@ -685,11 +719,13 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         aria-label="Ayuda sobre fecha de creación"
                                     />
                                 </div>
-                                <InputDate 
-                                    v-model="localForm.date" 
-                                    label="" 
-                                    readonly
-                                    required 
+                                <DatePickerField
+                                    v-model="orderDateModel"
+                                    label=""
+                                    :disabled="true"
+                                    :clearable="false"
+                                    :show-today="true"
+                                    required
                                 />
                             </div>
                             <div class="flex flex-col gap-1">
@@ -702,11 +738,13 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                         aria-label="Ayuda sobre fecha de entrega"
                                     />
                                 </div>
-                                <InputDate 
-                                    v-model="localForm.delivery_date" 
-                                    label="" 
-                                    :readonly="!canEdit || isReadOnly"
-                                    required 
+                                <DatePickerField
+                                    v-model="deliveryDateModel"
+                                    label=""
+                                    :disabled="!canEdit || isReadOnly"
+                                    :clearable="true"
+                                    :show-today="true"
+                                    required
                                 />
                             </div>
                             <div class="flex flex-col gap-1">

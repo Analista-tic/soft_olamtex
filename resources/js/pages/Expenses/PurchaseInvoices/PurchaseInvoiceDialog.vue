@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import InputDate from '@/components/InputDate.vue';
+import DateField from '@/components/DateField.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
@@ -16,6 +16,7 @@ import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { parseToDate, toIsoDateString } from '@/lib/date';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -50,6 +51,8 @@ const pendingDifferenceSendMail = ref<boolean | null>(null);
 const differenceReason = ref('');
 const differenceEvidenceData = ref<string | null>(null);
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
+const invoiceDate = ref<Date | null>(null);
+const deliveryDate = ref<Date | null>(null);
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -156,16 +159,11 @@ const id = computed(() => {
 });
 
 function createDefaultForm(): PurchaseInvoiceWithProviderName {
-    // Establecer fecha actual en formato YYYY-MM-DD
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const currentDate = `${year}-${month}-${day}`;
+    const currentDate = toIsoDateString(new Date()) || '';
     
     return {
         contact_id: null,
-        date: currentDate, // Fecha actual por defecto
+        date: currentDate,
         delivery_date: '',
         supplier_invoice_number: '',
         description: '',
@@ -194,14 +192,20 @@ function createEmptyItem() {
     };
 }
 
-function toDateInputValue(dateStr: string | undefined | null): string {
-    if (!dateStr) return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const month = (d.getMonth() + 1).toString().padStart(2, '0');
-    const day = d.getDate().toString().padStart(2, '0');
-    return `${d.getFullYear()}-${month}-${day}`;
+function normalizeIsoDate(value: unknown, fallback: string | null = null): string {
+    if (value instanceof Date) {
+        return toIsoDateString(value) || fallback || '';
+    }
+    if (typeof value === 'string') {
+        const normalized = toIsoDateString(value);
+        if (normalized) return normalized;
+    }
+    return fallback || '';
+}
+
+function syncDateRefsFromForm() {
+    invoiceDate.value = parseToDate(localForm.value.date) ?? parseToDate(new Date());
+    deliveryDate.value = parseToDate(localForm.value.delivery_date);
 }
 
 function resetForm() {
@@ -209,20 +213,15 @@ function resetForm() {
         const formCopy = JSON.parse(JSON.stringify(props.form));
         if (!Array.isArray(formCopy.items)) formCopy.items = [];
         if (!Array.isArray(formCopy.withholdings)) formCopy.withholdings = [];
-        formCopy.date = toDateInputValue(formCopy.date);
-        formCopy.delivery_date = toDateInputValue(formCopy.delivery_date);
+        formCopy.date = normalizeIsoDate(formCopy.date, toIsoDateString(new Date()));
+        formCopy.delivery_date = normalizeIsoDate(formCopy.delivery_date, '');
         localForm.value = formCopy;
     } else {
         localForm.value = createDefaultForm();
-        // Si es creación nueva, asegurar que la fecha esté establecida a hoy
-        if (!localForm.value.date) {
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            localForm.value.date = `${year}-${month}-${day}`;
-        }
     }
+    localForm.value.date = normalizeIsoDate(localForm.value.date, toIsoDateString(new Date()));
+    localForm.value.delivery_date = normalizeIsoDate(localForm.value.delivery_date, '');
+    syncDateRefsFromForm();
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
     }
@@ -319,7 +318,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     localForm.value.supplier_invoice_number = order.supplier_order_number || '';
     // NO sobrescribir la fecha de creación - siempre debe ser la fecha actual
     // localForm.value.date se mantiene con la fecha actual establecida en createDefaultForm
-    localForm.value.delivery_date = order.delivery_date || '';
+    localForm.value.delivery_date = normalizeIsoDate(order.delivery_date, '');
     localForm.value.description = order.description || '';
     localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
@@ -351,6 +350,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
             acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0),
         0,
     );
+    syncDateRefsFromForm();
     originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
@@ -380,6 +380,14 @@ const stableStringify = (value: any): string => {
     };
     return JSON.stringify(normalize(value));
 };
+
+watch(invoiceDate, (value) => {
+    localForm.value.date = toIsoDateString(value) || '';
+});
+
+watch(deliveryDate, (value) => {
+    localForm.value.delivery_date = toIsoDateString(value) || '';
+});
 
 function handleInvoiceAddLine() {
     invoiceItemsTableRef.value?.addItem();
@@ -423,7 +431,8 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     const selectedContact = contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id));
     formToSend.provider_name = selectedContact?.full_name || '';
     // Asegurar que todos los campos se incluyan, incluso los readonly
-    formToSend.date = localForm.value.date || formToSend.date;
+    formToSend.date = toIsoDateString(invoiceDate.value) || normalizeIsoDate(localForm.value.date, '');
+    formToSend.delivery_date = toIsoDateString(deliveryDate.value) || normalizeIsoDate(localForm.value.delivery_date, '');
     const orderId = selectedPurchaseOrderId.value ?? localForm.value.purchase_order_id ?? localForm.value.parent_document_id ?? null;
     if (orderId) {
         formToSend.parent_document_id = Number(orderId);
@@ -488,10 +497,10 @@ function validateForm(): boolean {
     if (!localForm.value.contact_id) {
         missingFields.push('Proveedor');
     }
-    if (!localForm.value.date) {
+    if (!invoiceDate.value) {
         missingFields.push('Fecha factura');
     }
-    if (!localForm.value.delivery_date) {
+    if (!deliveryDate.value) {
         missingFields.push('Fecha entrega');
     }
 
@@ -680,11 +689,11 @@ watch(dialogOpen, (isOpen) => {
                         <div class="grid grid-cols-3 gap-4">
                             <div class="flex flex-col gap-1">
                                 <label class="text-sm font-medium">Fecha de factura<span class="text-red-500">*</span></label>
-                                <InputDate v-model="localForm.date" label="" readonly required />
+                                <DateField v-model="invoiceDate" label="" :disabled="isReadOnly" :clearable="true" :show-today="true" required />
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-sm font-medium">Fecha de entrega<span class="text-red-500">*</span></label>
-                                <InputDate v-model="localForm.delivery_date" label="" required />
+                                <DateField v-model="deliveryDate" label="" :disabled="isReadOnly" :clearable="true" :show-today="true" required />
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-sm font-medium"># factura proveedor</label>

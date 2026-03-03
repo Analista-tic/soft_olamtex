@@ -33,8 +33,10 @@ export interface NotificationRowDto {
     body: string | null;
     module: string | null;
     url: string | null;
+    data?: Record<string, unknown> | null;
     entity_id: number | string | null;
     read_at: string | null;
+    archived_at?: string | null;
     created_at: string;
     is_read: boolean;
     area?: string | null;

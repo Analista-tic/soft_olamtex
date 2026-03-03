@@ -18,7 +18,7 @@ import PurchaseInvoiceCreditDebitNotesDialog, {
     type PurchaseInvoiceNotesSummary,
 } from './PurchaseInvoiceCreditDebitNotesDialog.vue';
 import SelectField from '@/components/SelectField.vue';
-import InputDate from '@/components/InputDate.vue';
+import DateField from '@/components/DateField.vue';
 import { Button } from '@/components/ui/button';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useAlertStack } from '@/composables/useAlert';
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import { formatDateDDMMYYYY, toIsoDateString } from '@/lib/date';
 
 const breadcrumbs = [
     { title: 'Facturas de Compra', href: '/facturas-compra' },
@@ -69,8 +70,8 @@ const {
 const statusFilter = ref('all');
 const providerFilter = ref('all');
 const subgroupFilter = ref('all');
-const dateFrom = ref('');
-const dateTo = ref('');
+const dateFrom = ref<Date | null>(null);
+const dateTo = ref<Date | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 const DEFAULT_STATUS_FILTER = 'all';
@@ -106,10 +107,7 @@ function buildReceptionUrl(invoiceId?: number | string) {
 }
 
 const formatDate = (value?: string | null) => {
-    if (!value) return '-';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return String(value);
-    return d.toLocaleDateString('es-CO');
+    return formatDateDDMMYYYY(value, '-');
 };
 
 const formatCurrency = (value: number) => {
@@ -226,8 +224,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: dateFrom.value,
-        date_to: dateTo.value,
+        date_from: toIsoDateString(dateFrom.value) || undefined,
+        date_to: toIsoDateString(dateTo.value) || undefined,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
@@ -543,10 +541,10 @@ function handleDialogError(message?: string) {
                     />
                 </FilterField>
                 <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" placeholder="Desde" />
+                    <DateField v-model="dateFrom" placeholder="Desde" />
                 </FilterField>
                 <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <InputDate v-model="dateTo" placeholder="Hasta" />
+                    <DateField v-model="dateTo" placeholder="Hasta" />
                 </FilterField>
             </FilterBar>
             <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">
@@ -705,4 +703,3 @@ function handleDialogError(message?: string) {
     />
     </AppLayout>
 </template>
-

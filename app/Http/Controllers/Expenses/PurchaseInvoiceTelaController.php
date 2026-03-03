@@ -24,7 +24,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
 
     public function indexFabric()
     {
-        return Inertia::render('Expenses/PurchaseInvoices/Index');
+        return Inertia::render('Expenses/PurchaseInvoices/IndexFabric');
     }
 
     public function show(PurchaseDocument $purchaseInvoice)

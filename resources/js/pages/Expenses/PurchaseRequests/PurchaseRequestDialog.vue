@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import InputDate from '@/components/InputDate.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
@@ -129,8 +129,41 @@ function createDefaultForm(): PurchaseRequestDialogForm {
 }
 
 function getTodayDate() {
-    return new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
+
+function normalizeIsoDate(value: unknown, fallback: string | null = null): string | null {
+    if (typeof value !== 'string') {
+        return fallback;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return fallback;
+    }
+    const datePart = trimmed.includes('T') ? trimmed.split('T')[0] : trimmed.includes(' ') ? trimmed.split(' ')[0] : trimmed;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        return datePart;
+    }
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) {
+        return fallback;
+    }
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+const requestDateModel = computed<string | null>({
+    get: () => normalizeIsoDate(localForm.value.date, getTodayDate()) || getTodayDate(),
+    set: (value) => {
+        localForm.value.date = normalizeIsoDate(value, getTodayDate()) || getTodayDate();
+    },
+});
 
 function resetForm() {
     if (props.form && Object.keys(props.form).length > 0) {
@@ -138,13 +171,7 @@ function resetForm() {
         clone.estimated_amount = clone.estimated_amount ?? null;
         clone.request_number = clone.request_number ?? '';
         
-        // normalizar fecha a formato YYYY-MM-DD
-        if (clone.date) {
-            const parsed = new Date(clone.date);
-            if (!Number.isNaN(parsed.getTime())) {
-                clone.date = parsed.toISOString().split('T')[0];
-            }
-        }
+        clone.date = normalizeIsoDate(clone.date, getTodayDate()) || getTodayDate();
         
         // Parsear items si viene como string JSON
         if (typeof clone.items === 'string') {
@@ -181,6 +208,7 @@ function resetForm() {
     } else {
         localForm.value = createDefaultForm();
     }
+    localForm.value.date = normalizeIsoDate(localForm.value.date, getTodayDate()) || getTodayDate();
 
     // Reset archivo
     documentFile.value = null;
@@ -310,6 +338,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
         const payload: any = {
             ...localForm.value,
         };
+        payload.date = normalizeIsoDate(localForm.value.date, getTodayDate()) || getTodayDate();
         
         // Eliminar estimated_amount ya que se calcula del total de items
         delete payload.estimated_amount;
@@ -570,9 +599,11 @@ watch(
                                                 aria-label="Ayuda sobre fecha"
                                             />
                                         </div>
-                                        <InputDate
-                                            v-model="localForm.date"
-                                            :readonly="isReadOnly"
+                                        <DatePickerField
+                                            v-model="requestDateModel"
+                                            :disabled="isReadOnly"
+                                            :clearable="true"
+                                            :show-today="true"
                                         />
                                     </div>
                                 </div>
@@ -778,4 +809,3 @@ watch(
         </DialogContent>
     </Dialog>
 </template>
-

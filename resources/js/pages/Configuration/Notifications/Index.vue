@@ -418,16 +418,25 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
 
             <!-- Tabla de Notificaciones -->
             <Card class="relative min-h-0 flex-1 rounded-xl border border-border bg-card shadow-sm text-card-foreground md:min-h-min overflow-hidden">
-                <Table class="text-center text-sm text-card-foreground">
+                <Table class="table-fixed">
+                    <colgroup>
+                        <col class="w-[140px]" />
+                        <col class="w-[120px]" />
+                        <col class="w-[140px]" />
+                        <col class="w-[120px]" />
+                        <col />
+                        <col class="w-[120px]" />
+                        <col class="w-[96px]" />
+                    </colgroup>
                     <TableHeader>
                         <TableRow>
-                            <TableHead class="text-center w-[140px]">Fecha</TableHead>
-                            <TableHead class="text-center w-[120px]">Área</TableHead>
-                            <TableHead class="text-center w-[140px]">Usuario</TableHead>
-                            <TableHead class="text-center w-[100px]">Módulo</TableHead>
-                            <TableHead class="text-left min-w-[300px]">Mensaje</TableHead>
-                            <TableHead class="text-center w-[100px]">Estado</TableHead>
-                            <TableHead class="text-center w-[100px]">Acciones</TableHead>
+                            <TableHead class="whitespace-nowrap">Fecha</TableHead>
+                            <TableHead class="whitespace-nowrap">Área</TableHead>
+                            <TableHead class="whitespace-nowrap">Usuario</TableHead>
+                            <TableHead class="whitespace-nowrap">Módulo</TableHead>
+                            <TableHead>Mensaje</TableHead>
+                            <TableHead class="whitespace-nowrap">Estado</TableHead>
+                            <TableHead class="whitespace-nowrap text-right">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -459,36 +468,36 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                             v-for="notification in notificationsList" 
                             :key="notification.id"
                             :class="[
-                                'transition-colors',
-                                !notification.is_read ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-muted/50'
+                                'text-center transition-colors',
+                                !notification.is_read ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-muted/50',
                             ]"
                         >
-                            <TableCell class="text-center text-xs">
+                            <TableCell class="whitespace-nowrap">
                                 {{ formatDate(notification.created_at) }}
                             </TableCell>
-                            <TableCell class="text-center text-xs">
-                                {{ notification.area ?? '—' }}
+                            <TableCell class="whitespace-nowrap">
+                                {{ notification.data?.area ?? notification.area ?? '—' }}
                             </TableCell>
-                            <TableCell class="text-center text-xs">
-                                {{ notification.user_name ?? '—' }}
+                            <TableCell class="whitespace-nowrap">
+                                {{ notification.data?.user_name ?? notification.user_name ?? '—' }}
                             </TableCell>
-                            <TableCell class="text-center">
+                            <TableCell class="whitespace-nowrap">
                                 <Badge v-if="notification.module" variant="secondary" class="text-xs">
                                     {{ notification.module }}
                                 </Badge>
                                 <span v-else class="text-muted-foreground text-xs">—</span>
                             </TableCell>
-                            <TableCell class="text-left">
-                                <div class="flex flex-col gap-0.5">
-                                    <span class="font-medium text-sm" :class="{ 'text-primary': !notification.is_read }">
+                            <TableCell class="text-left align-top">
+                                <div class="min-w-0">
+                                    <span class="line-clamp-1 text-sm font-medium" :class="{ 'text-primary': !notification.is_read }">
                                         {{ notification.title ?? 'Sin título' }}
                                     </span>
-                                    <span class="text-xs text-muted-foreground line-clamp-1">
+                                    <span class="line-clamp-2 text-xs text-muted-foreground break-words">
                                         {{ notification.body ?? '' }}
                                     </span>
                                 </div>
                             </TableCell>
-                            <TableCell class="text-center">
+                            <TableCell class="whitespace-nowrap">
                                 <Badge 
                                     :variant="notification.is_read ? 'outline' : 'default'"
                                     :class="notification.is_read ? '' : 'bg-blue-500 hover:bg-blue-600'"
@@ -496,8 +505,8 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                                     {{ notification.is_read ? 'Leída' : 'No leída' }}
                                 </Badge>
                             </TableCell>
-                            <TableCell class="text-center">
-                                <div class="flex items-center justify-center gap-1">
+                            <TableCell class="text-right">
+                                <div class="flex items-center justify-end gap-1">
                                     <Button
                                         v-if="notification.url"
                                         @click="handleNotificationClick(notification)"

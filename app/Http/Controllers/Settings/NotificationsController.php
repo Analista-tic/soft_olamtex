@@ -129,6 +129,42 @@ class NotificationsController extends Controller
     }
 
     /**
+     * Archiva una notificación del usuario.
+     */
+    public function archive(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+
+        try {
+            $this->service->archiveForUser($user, $id);
+
+            return response()->json(null, 204);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return response()->json([
+                'message' => 'Notificación no encontrada.',
+            ], 404);
+        }
+    }
+
+    /**
+     * Elimina (soft delete) una notificación del usuario.
+     */
+    public function destroy(Request $request, string $id): JsonResponse
+    {
+        $user = $request->user();
+
+        try {
+            $this->service->deleteForUser($user, $id);
+
+            return response()->json(null, 204);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return response()->json([
+                'message' => 'Notificación no encontrada.',
+            ], 404);
+        }
+    }
+
+    /**
      * Extrae los filtros válidos del request.
      *
      * @return array{
@@ -137,12 +173,13 @@ class NotificationsController extends Controller
      *      area?: string|null,
      *      type?: string|null,
      *      date_from?: string|null,
-     *      date_to?: string|null
+     *      date_to?: string|null,
+     *      show_archived?: string|null
      * }
      */
     protected function extractFilters(Request $request): array
     {
-        $filters = $request->only(['search', 'status', 'area', 'type', 'date_from', 'date_to']);
+        $filters = $request->only(['search', 'status', 'area', 'type', 'date_from', 'date_to', 'show_archived']);
 
         foreach ($filters as $key => $value) {
             if (is_string($value) && trim($value) === '') {

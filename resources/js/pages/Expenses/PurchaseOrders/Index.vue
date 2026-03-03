@@ -17,10 +17,9 @@ import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
-import InputDate from '@/components/InputDate.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 const breadcrumbs = [{ title: 'Órdenes de Compra', href: '/ordenes-compra' }];
@@ -47,8 +46,8 @@ const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 // NUEVOS FILTROS
 const statusFilter = ref('all');
 const providerFilter = ref('all');
-const dateFrom = ref('');
-const dateTo = ref('');
+const dateFrom = ref<string | null>(null);
+const dateTo = ref<string | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 
 const DEFAULT_STATUS_FILTER = 'all';
@@ -167,8 +166,8 @@ async function fetchOrders(page = 1, search = '') {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: dateFrom.value,
-        date_to: dateTo.value,
+        date_from: dateFrom.value || undefined,
+        date_to: dateTo.value || undefined,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all') params.provider_id = providerFilter.value;
@@ -325,21 +324,44 @@ function handleDialogError(message?: string) {
                         label=""
                         :options="[
                             { id: 'all', name: 'Todos los proveedores' },
-                            ...providers.map((prov: { id: number; full_name: string }) => ({ id: String(prov.id), name: prov.full_name })),
+                            ...providers.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
                         ]"
                         :button-class="providerButtonClasses"
                     />
                 </FilterField>
                 <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" placeholder="Desde" />
+                    <div class="flex items-center gap-2">
+                        <DatePickerField v-model="dateFrom" label="" placeholder-text="Desde" class="min-w-0 flex-1" />
+                        <Button
+                            v-if="isDateFromActive"
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            class="h-10 px-2 text-xs"
+                            @click="dateFrom = null"
+                        >
+                            Borrar
+                        </Button>
+                    </div>
                 </FilterField>
                 <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <InputDate v-model="dateTo" placeholder="Hasta" />
+                    <div class="flex items-center gap-2">
+                        <DatePickerField v-model="dateTo" label="" placeholder-text="Hasta" class="min-w-0 flex-1" />
+                        <Button
+                            v-if="isDateToActive"
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            class="h-10 px-2 text-xs"
+                            @click="dateTo = null"
+                        >
+                            Borrar
+                        </Button>
+                    </div>
                 </FilterField>
             </FilterBar>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <TooltipProvider>
-                    <Table>
+                <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>#Orden</TableHead>
@@ -414,17 +436,19 @@ function handleDialogError(message?: string) {
                                         :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
                                     />
                                     <DropdownMenu>
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <DropdownMenuTrigger as-child>
-                                                    <Button variant="ghost" size="icon" :class="actionButtonClass">
-                                                        <MoreVertical :class="actionIconClass" />
-                                                        <span class="sr-only">Acciones</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Acciones</TooltipContent>
-                                        </Tooltip>
+                                        <DropdownMenuTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                title="Acciones"
+                                                @click.stop
+                                                @pointerdown.stop
+                                            >
+                                                <MoreVertical :class="actionIconClass" />
+                                                <span class="sr-only">Acciones</span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" class="w-48">
                                             <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(order)">
                                                 <Printer class="h-4 w-4" /> Imprimir
@@ -461,7 +485,6 @@ function handleDialogError(message?: string) {
                             </TableRow>
                         </TableBody>
                     </Table>
-                </TooltipProvider>
             </div>
         </div>
         <PurchaseOrderDialog
@@ -484,4 +507,3 @@ function handleDialogError(message?: string) {
         />
     </AppLayout>
 </template>
-

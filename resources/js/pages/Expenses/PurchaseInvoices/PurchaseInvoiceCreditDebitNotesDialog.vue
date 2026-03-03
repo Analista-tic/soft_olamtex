@@ -4,6 +4,7 @@ import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { PurchaseInvoice } from '@/domain/Expenses';
+import { formatDateDDMMYYYY } from '@/lib/date';
 import { Loader2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -61,10 +62,7 @@ function formatType(value: string): string {
 }
 
 function formatDate(value?: string | null): string {
-    if (!value) return '-';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleDateString('es-CO');
+    return formatDateDDMMYYYY(value, '-');
 }
 
 function formatCurrency(value?: number | string | null): string {

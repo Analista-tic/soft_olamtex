@@ -42,6 +42,7 @@ export function mapNotificationRowDto(dto: NotificationRowDto): NotificationRow 
         body: dto.body,
         module: dto.module,
         url: dto.url,
+        data: (dto.data as NotificationRow['data']) ?? null,
         entity_id: dto.entity_id,
         read_at: dto.read_at,
         created_at: dto.created_at,

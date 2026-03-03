@@ -31,8 +31,11 @@ class NotificationService
         $type = $this->normalizeFilter($filters, 'type');
         $dateFrom = $this->normalizeFilter($filters, 'date_from');
         $dateTo = $this->normalizeFilter($filters, 'date_to');
+        $showArchived = $this->normalizeFilter($filters, 'show_archived') === '1';
 
         $query = $user->notifications()
+            ->whereNull('deleted_at')
+            ->when(!$showArchived, fn (Builder $q) => $q->whereNull('archived_at'))
             ->when($search, function (Builder $query) use ($search) {
                 $query->where(function (Builder $q) use ($search) {
                     $q->where('data->title', 'like', "%{$search}%")
@@ -57,10 +60,13 @@ class NotificationService
 
     /**
      * Obtiene las últimas N notificaciones del usuario (para el dropdown de la campana).
+     * Excluye archivadas y eliminadas por defecto.
      */
     public function latest(User $user, int $limit = 10): Collection
     {
         return $user->notifications()
+            ->whereNull('deleted_at')
+            ->whereNull('archived_at')
             ->latest()
             ->take($limit)
             ->get()
@@ -69,10 +75,14 @@ class NotificationService
 
     /**
      * Obtiene el conteo de notificaciones no leídas del usuario.
+     * Excluye archivadas y eliminadas.
      */
     public function unreadCount(User $user): int
     {
-        return $user->unreadNotifications()->count();
+        return $user->unreadNotifications()
+            ->whereNull('deleted_at')
+            ->whereNull('archived_at')
+            ->count();
     }
 
     /**
@@ -126,8 +136,12 @@ class NotificationService
      *      body: string|null,
      *      module: string|null,
      *      url: string|null,
+     *      data: array<string, mixed>,
+     *      area: string|null,
+     *      user_name: string|null,
      *      entity_id: int|string|null,
      *      read_at: string|null,
+     *      archived_at: string|null,
      *      created_at: string,
      *      is_read: bool
      * }
@@ -135,6 +149,7 @@ class NotificationService
     protected function transform(DatabaseNotification $notification): array
     {
         $data = $notification->data ?? [];
+        $archivedAt = $notification->archived_at;
 
         return [
             'id' => $notification->id,
@@ -143,11 +158,43 @@ class NotificationService
             'body' => $data['body'] ?? null,
             'module' => $data['module'] ?? null,
             'url' => $data['url'] ?? null,
+            'data' => $data,
+            'area' => $data['area'] ?? null,
+            'user_name' => $data['user_name'] ?? null,
             'entity_id' => $data['entity_id'] ?? null,
             'read_at' => $notification->read_at?->toIso8601String(),
+            'archived_at' => $archivedAt ? Carbon::parse($archivedAt)->toIso8601String() : null,
             'created_at' => $notification->created_at->toIso8601String(),
             'is_read' => $notification->read_at !== null,
         ];
+    }
+
+    /**
+     * Archiva una notificación del usuario.
+     *
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     */
+    public function archiveForUser(User $user, string $notificationId): void
+    {
+        $notification = $user->notifications()
+            ->whereNull('deleted_at')
+            ->findOrFail($notificationId);
+
+        $notification->update(['archived_at' => now()]);
+    }
+
+    /**
+     * Elimina (soft) una notificación del usuario.
+     *
+     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException
+     */
+    public function deleteForUser(User $user, string $notificationId): void
+    {
+        $notification = $user->notifications()
+            ->whereNull('deleted_at')
+            ->findOrFail($notificationId);
+
+        $notification->update(['deleted_at' => now()]);
     }
 
     /**

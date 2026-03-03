@@ -45,10 +45,14 @@ export interface NotificationRow {
     entity_id: number | string | null;
     /** Fecha en que se marcó como leída (ISO8601) */
     read_at: string | null;
+    /** Fecha en que se archivó (ISO8601) */
+    archived_at?: string | null;
     /** Fecha de creación (ISO8601) */
     created_at: string;
     /** Indica si está leída */
     is_read: boolean;
+    /** Payload crudo de la notificación */
+    data?: NotificationData | null;
     /** Área del usuario (opcional, viene de data.area) */
     area?: string | null;
     /** Nombre del usuario (opcional, viene de data.user_name) */
@@ -65,6 +69,9 @@ export interface NotificationData {
     type: string;
     module?: string;
     entity_id?: number | string;
+    area?: string;
+    user_name?: string;
+    [key: string]: unknown;
 }
 
 /**
