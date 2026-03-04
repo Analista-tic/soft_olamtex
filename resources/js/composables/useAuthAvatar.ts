@@ -5,7 +5,7 @@ import { computed, ref, watch } from 'vue';
 const sharedAvatarUrl = ref<string | null>(null);
 let initialized = false;
 
-function stripVersion(url: string): string {
+function stripQuery(url: string): string {
     const [base] = url.split('?');
     return base ?? url;
 }
@@ -19,36 +19,58 @@ function normalizeUrl(url: string | null | undefined): string | null {
     return trimmed.length > 0 ? trimmed : null;
 }
 
-function withCacheBust(url: string | null): string | null {
+function normalizeVersion(version: unknown): string | null {
+    if (version === null || version === undefined) {
+        return null;
+    }
+
+    const raw = String(version).trim();
+    if (!raw) {
+        return null;
+    }
+
+    const timestamp = Date.parse(raw);
+    return Number.isNaN(timestamp) ? raw : String(timestamp);
+}
+
+function withCacheBust(url: string | null, version?: unknown): string | null {
     if (!url) {
         return null;
     }
 
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}v=${Date.now()}`;
+    const [base, query = ''] = url.split('?');
+    const params = new URLSearchParams(query);
+    const normalizedVersion = normalizeVersion(version);
+    params.set('v', normalizedVersion ?? String(Date.now()));
+
+    return `${base}?${params.toString()}`;
 }
 
 export function useAuthAvatar() {
     const page = usePage<SharedData>();
 
+    const pageUser = computed(() => page.props.auth?.user as User | null | undefined);
+
     const pageAvatarUrl = computed(() => {
-        const user = page.props.auth?.user as User | null | undefined;
-        return normalizeUrl(user?.avatar_url ?? null);
+        return normalizeUrl(pageUser.value?.avatar_url ?? null);
     });
 
+    const pageAvatarVersion = computed(() => normalizeVersion(pageUser.value?.updated_at ?? null));
+
     if (!initialized) {
-        sharedAvatarUrl.value = pageAvatarUrl.value;
+        sharedAvatarUrl.value = withCacheBust(pageAvatarUrl.value, pageAvatarVersion.value);
         initialized = true;
     }
 
     watch(
-        pageAvatarUrl,
-        (next) => {
-            const currentBase = sharedAvatarUrl.value ? stripVersion(sharedAvatarUrl.value) : null;
-            const nextBase = next ? stripVersion(next) : null;
+        [pageAvatarUrl, pageAvatarVersion],
+        ([nextUrl, nextVersion]) => {
+            const currentBase = sharedAvatarUrl.value ? stripQuery(sharedAvatarUrl.value) : null;
+            const nextBase = nextUrl ? stripQuery(nextUrl) : null;
+            const expectedUrl = withCacheBust(nextUrl, nextVersion);
 
-            if (currentBase !== nextBase) {
-                sharedAvatarUrl.value = next;
+            if (currentBase !== nextBase || sharedAvatarUrl.value !== expectedUrl) {
+                sharedAvatarUrl.value = expectedUrl;
             }
         },
         { immediate: true },
@@ -57,9 +79,9 @@ export function useAuthAvatar() {
     const avatarUrl = computed(() => sharedAvatarUrl.value);
     const hasAvatar = computed(() => Boolean(sharedAvatarUrl.value));
 
-    function setAvatarUrl(nextUrl: string | null, options?: { cacheBust?: boolean }) {
+    function setAvatarUrl(nextUrl: string | null, options?: { cacheBust?: boolean; version?: string | number | null }) {
         const normalized = normalizeUrl(nextUrl);
-        sharedAvatarUrl.value = options?.cacheBust === false ? normalized : withCacheBust(normalized);
+        sharedAvatarUrl.value = options?.cacheBust === false ? normalized : withCacheBust(normalized, options?.version);
     }
 
     function clearAvatarUrl() {
@@ -73,4 +95,3 @@ export function useAuthAvatar() {
         clearAvatarUrl,
     };
 }
-

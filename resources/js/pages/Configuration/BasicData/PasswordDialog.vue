@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import axios from 'axios';
 import { reactive, ref, watch } from 'vue';
@@ -83,7 +84,7 @@ const handleSubmit = async () => {
 
 <template>
     <Dialog :open="modelValue" @update:open="close">
-        <DialogContent class="w-full max-w-sm rounded-3xl border bg-white shadow-2xl">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
             <form class="space-y-4" @submit.prevent="handleSubmit">
                 <DialogHeader>
                     <DialogTitle>Actualizar contraseña</DialogTitle>
@@ -106,14 +107,22 @@ const handleSubmit = async () => {
                         {{ message }}
                     </p>
                 </fieldset>
-                <DialogFooter class="space-x-3">
-                    <Button type="button" variant="outline" @click="close" :disabled="saving"> Cancelar </Button>
-                    <Button type="submit" variant="default" :disabled="saving">
+                <DialogFooter class="flex justify-end gap-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="pill"
+                        class="border-primary/40 bg-white text-primary hover:bg-primary/10 hover:text-primary"
+                        @click="close"
+                        :disabled="saving"
+                    >
+                        Cancelar
+                    </Button>
+                    <Button type="submit" size="pill" :disabled="saving">
                         {{ saving ? 'Guardando...' : 'Guardar contraseña' }}
                     </Button>
                 </DialogFooter>
             </form>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>
-

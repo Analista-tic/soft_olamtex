@@ -39,6 +39,7 @@ const user = page.props.auth.user as User;
 const auth = useAuthStore();
 const canEditCompany = computed(() => auth.hasRole('admin'));
 const { avatarUrl: currentAvatarUrl, hasAvatar, setAvatarUrl, clearAvatarUrl } = useAuthAvatar();
+const ALERT_AUTO_CLOSE_MS = 4000;
 
 // Avatar state
 const avatarFileInputRef = ref<HTMLInputElement | null>(null);
@@ -56,11 +57,14 @@ const userInitials = computed(() => {
     return name.substring(0, 2).toUpperCase();
 });
 
-function syncAuthFromServer() {
-    router.reload({
-        only: ['auth'],
-        preserveScroll: true,
-        preserveState: true,
+function syncAuthFromServer(): Promise<void> {
+    return new Promise((resolve) => {
+        router.reload({
+            only: ['auth'],
+            preserveScroll: true,
+            preserveState: true,
+            onFinish: () => resolve(),
+        });
     });
 }
 
@@ -112,17 +116,25 @@ async function deleteAvatar() {
             clearAvatarUrl();
         }
         pendingAvatarFile.value = null;
-        syncAuthFromServer();
+        await syncAuthFromServer();
+        const refreshedUser = page.props.auth?.user as User | null | undefined;
+        if (refreshedUser?.avatar_url) {
+            setAvatarUrl(refreshedUser.avatar_url, { version: refreshedUser.updated_at });
+        } else {
+            clearAvatarUrl();
+        }
         showSuccessAlert('Avatar eliminado correctamente.');
     } catch {
         showErrorAlert('No se pudo eliminar el avatar.');
     }
 }
 
-function handleAvatarSuccess(message: string, avatarUrl: string) {
-    setAvatarUrl(avatarUrl);
+async function handleAvatarSuccess(message: string, avatarUrl: string) {
+    setAvatarUrl(avatarUrl, { version: Date.now() });
     pendingAvatarFile.value = null; // Limpiar archivo pendiente
-    syncAuthFromServer();
+    await syncAuthFromServer();
+    const refreshedUser = page.props.auth?.user as User | null | undefined;
+    setAvatarUrl(refreshedUser?.avatar_url ?? avatarUrl, { version: refreshedUser?.updated_at ?? Date.now() });
     showSuccessAlert(message);
 }
 
@@ -608,7 +620,7 @@ onBeforeUnmount(() => {
                     :type="activeAlert.type"
                     :title="activeAlert.title"
                     :message="activeAlert.message"
-                    :auto-close-ms="0"
+                    :auto-close-ms="ALERT_AUTO_CLOSE_MS"
                     @close="clearAlerts"
                 />
             </div>

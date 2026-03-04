@@ -19,7 +19,7 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href);
             <SidebarMenu>
                 <SidebarMenuItem v-for="item in items" :key="item.title">
                     <SidebarMenuButton
-                        class="text-neutral-600 hover:text-neutral-800 dark:text-neutral-300 dark:hover:text-neutral-100"
+                        class="text-sidebar-foreground/80 hover:text-sidebar-foreground group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:[&>span]:hidden [&>svg]:!size-[18px] [&>svg]:shrink-0"
                         :tooltip="item.title"
                         as-child
                     >
