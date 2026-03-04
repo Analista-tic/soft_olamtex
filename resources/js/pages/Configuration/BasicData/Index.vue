@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import AlertBox from '@/components/AlertBox.vue';
-import { useAuthAvatar } from '@/composables/useAuthAvatar';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -35,11 +34,21 @@ interface CompanyData {
 
 const props = defineProps<{ company?: Partial<CompanyData>; activeSection?: SectionKey }>();
 const page = usePage<SharedData>();
-const user = page.props.auth.user as User;
+const user = computed(() => page.props.auth.user as User);
 const auth = useAuthStore();
 const canEditCompany = computed(() => auth.hasRole('admin'));
-const { avatarUrl: currentAvatarUrl, hasAvatar, setAvatarUrl, clearAvatarUrl } = useAuthAvatar();
-const ALERT_AUTO_CLOSE_MS = 4000;
+const rawAvatarUrl = computed(() => (user.value?.avatar_url ?? '').trim());
+const currentAvatarUrl = computed(() => {
+    if (!rawAvatarUrl.value) {
+        return '';
+    }
+
+    const version = user.value?.updated_at ? encodeURIComponent(String(user.value.updated_at)) : '';
+    const separator = rawAvatarUrl.value.includes('?') ? '&' : '?';
+    return version ? `${rawAvatarUrl.value}${separator}v=${version}` : rawAvatarUrl.value;
+});
+const hasAvatar = computed(() => Boolean(rawAvatarUrl.value));
+const ALERT_AUTO_CLOSE_MS = 3000;
 
 // Avatar state
 const avatarFileInputRef = ref<HTMLInputElement | null>(null);
@@ -49,7 +58,7 @@ const pendingAvatarFile = ref<File | null>(null);
 
 // Computed para obtener las iniciales del usuario
 const userInitials = computed(() => {
-    const name = user.name || '';
+    const name = user.value?.name || '';
     const parts = name.trim().split(/\s+/);
     if (parts.length >= 2) {
         return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -108,33 +117,18 @@ async function deleteAvatar() {
     isAvatarMenuOpen.value = false;
 
     try {
-        const response = await axios.delete(route('profile.avatar.destroy'));
-        const url = (response.data?.avatar_url ?? null) as string | null;
-        if (url) {
-            setAvatarUrl(url);
-        } else {
-            clearAvatarUrl();
-        }
+        await axios.delete(route('profile.avatar.destroy'));
         pendingAvatarFile.value = null;
         await syncAuthFromServer();
-        const refreshedUser = page.props.auth?.user as User | null | undefined;
-        if (refreshedUser?.avatar_url) {
-            setAvatarUrl(refreshedUser.avatar_url, { version: refreshedUser.updated_at });
-        } else {
-            clearAvatarUrl();
-        }
         showSuccessAlert('Avatar eliminado correctamente.');
     } catch {
         showErrorAlert('No se pudo eliminar el avatar.');
     }
 }
 
-async function handleAvatarSuccess(message: string, avatarUrl: string) {
-    setAvatarUrl(avatarUrl, { version: Date.now() });
+async function handleAvatarSuccess(message: string, _avatarUrl: string) {
     pendingAvatarFile.value = null; // Limpiar archivo pendiente
     await syncAuthFromServer();
-    const refreshedUser = page.props.auth?.user as User | null | undefined;
-    setAvatarUrl(refreshedUser?.avatar_url ?? avatarUrl, { version: refreshedUser?.updated_at ?? Date.now() });
     showSuccessAlert(message);
 }
 
@@ -422,7 +416,7 @@ const setError = (message: string, type: 'error' | 'warning' | 'info' = 'error')
 const alertTitleForType = (type: 'success' | 'error' | 'info' | 'warning') => {
     switch (type) {
         case 'success':
-            return 'Â¡Listo!';
+            return '¡Listo!';
         case 'warning':
             return 'Advertencia';
         case 'info':
@@ -642,7 +636,7 @@ onBeforeUnmount(() => {
                             <!-- Avatar con botón fijo de edición - NO se mueve -->
                             <div class="relative inline-block h-28 w-28">
                                 <Avatar class="h-28 w-28 ring-4 ring-white shadow-lg">
-                                    <AvatarImage v-if="currentAvatarUrl" :src="currentAvatarUrl" :alt="user.name" />
+                                    <AvatarImage v-if="currentAvatarUrl" :key="user.avatar_url ?? 'no-avatar'" :src="currentAvatarUrl" :alt="user.name" />
                                     <AvatarFallback class="bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-semibold text-white">
                                         {{ userInitials }}
                                     </AvatarFallback>

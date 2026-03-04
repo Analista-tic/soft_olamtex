@@ -16,13 +16,15 @@ import { Archive, BarChart3, Bell, ChevronsUpDown, CheckCheck, ExternalLink, Inb
 import UserMenuContent from './UserMenuContent.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useInitials } from '@/composables/useInitials';
+import { useAuthAvatar } from '@/composables/useAuthAvatar';
 import axios from 'axios';
 
 const page = usePage<SharedData>();
-const user = page.props.auth.user as User;
+const user = computed(() => page.props.auth.user as User);
 const { isMobile, state, setOverlayOpen } = useSidebar();
 const auth = useAuthStore();
 const { getInitials } = useInitials();
+const { avatarUrl } = useAuthAvatar();
 
 // Computed para saber si está colapsado
 const isCollapsed = computed(() => state.value === 'collapsed');
@@ -40,7 +42,7 @@ const formattedBadgeCount = computed(() => {
 });
 
 // Avatar computed
-const avatarSrc = computed(() => (user.avatar ?? '').trim());
+const avatarSrc = computed(() => avatarUrl.value ?? (user.value.avatar_url ?? '').trim());
 const showAvatar = computed(() => avatarSrc.value !== '');
 
 // Estado de notificaciones
@@ -581,4 +583,3 @@ onMounted(() => {
         </SidebarMenuItem>
     </SidebarMenu>
 </template>
-

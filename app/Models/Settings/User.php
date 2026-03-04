@@ -7,7 +7,6 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements \App\Contracts\HasAuditLabel
@@ -64,7 +63,18 @@ class User extends Authenticatable implements \App\Contracts\HasAuditLabel
             return null;
         }
 
-        return Storage::disk('public')->url($this->avatar_path);
+        $path = trim($this->avatar_path);
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        $path = ltrim($path, '/');
+        if (str_starts_with($path, 'storage/')) {
+            $path = substr($path, strlen('storage/'));
+        }
+
+        return route('profile.avatar.show', ['path' => $path]);
     }
 
     protected static function newFactory(): UserFactory

@@ -32,6 +32,16 @@ const props = withDefaults(defineProps<Props>(), {
 
 const page = usePage<{ auth: Auth }>();
 const auth = computed(() => page.props.auth as Auth);
+const avatarUrl = computed(() => {
+    const rawUrl = (auth.value.user?.avatar_url ?? '').trim();
+    if (!rawUrl) {
+        return '';
+    }
+
+    const version = auth.value.user?.updated_at ? encodeURIComponent(String(auth.value.user.updated_at)) : '';
+    const separator = rawUrl.includes('?') ? '&' : '?';
+    return version ? `${rawUrl}${separator}v=${version}` : rawUrl;
+});
 
 const isCurrentRoute = computed(() => (url: string) => page.url === url);
 
@@ -170,7 +180,7 @@ const rightNavItems: NavItem[] = [
                                 class="relative size-10 w-auto rounded-full p-1 focus-within:ring-2 focus-within:ring-primary"
                             >
                                 <Avatar class="size-8 overflow-hidden rounded-full">
-                                    <AvatarImage v-if="auth.user.avatar" :src="auth.user.avatar" :alt="auth.user.name" />
+                                    <AvatarImage v-if="avatarUrl" :key="auth.user.avatar_url ?? 'no-avatar'" :src="avatarUrl" :alt="auth.user.name" />
                                     <AvatarFallback class="rounded-lg bg-neutral-200 font-semibold text-black dark:bg-neutral-700 dark:text-white">
                                         {{ getInitials(auth.user?.name) }}
                                     </AvatarFallback>
@@ -192,4 +202,3 @@ const rightNavItems: NavItem[] = [
         </div>
     </div>
 </template>
-

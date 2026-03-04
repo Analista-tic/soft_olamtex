@@ -16,6 +16,9 @@ Route::middleware('auth')->group(function () {
     // Avatar routes (new canonical endpoints)
     Route::post('profile/avatar', [AvatarController::class, 'upload'])->name('profile.avatar.upload');
     Route::delete('profile/avatar', [AvatarController::class, 'destroy'])->name('profile.avatar.destroy');
+    Route::get('profile/avatar-file/{path}', [AvatarController::class, 'show'])
+        ->where('path', '.*')
+        ->name('profile.avatar.show');
 
     // Avatar routes (legacy aliases to avoid breaking existing integrations)
     Route::post('settings/avatar', [AvatarController::class, 'upload'])->name('avatar.upload');

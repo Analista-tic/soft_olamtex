@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AvatarController extends Controller
 {
@@ -23,15 +24,15 @@ class AvatarController extends Controller
 
         $this->deleteOldAvatar($user->avatar_path);
 
-        $filename = 'avatar_' . $user->id . '_' . Str::random(10) . '.' . $file->getClientOriginalExtension();
-        $path = $file->storeAs('avatars', $filename, 'public');
+        $path = $file->store('avatars', 'public');
 
         $user->update(['avatar_path' => $path]);
+        $user->refresh();
 
         return response()->json([
             'message' => 'Avatar actualizado correctamente.',
             'avatar_path' => $path,
-            'avatar_url' => Storage::disk('public')->url($path),
+            'avatar_url' => $user->avatar_url,
         ]);
     }
 
@@ -76,11 +77,12 @@ class AvatarController extends Controller
         Storage::disk('public')->put($path, $imageData['data']);
 
         $user->update(['avatar_path' => $path]);
+        $user->refresh();
 
         return response()->json([
             'message' => 'Avatar ajustado correctamente.',
             'avatar_path' => $path,
-            'avatar_url' => Storage::disk('public')->url($path),
+            'avatar_url' => $user->avatar_url,
         ]);
     }
 
@@ -98,6 +100,26 @@ class AvatarController extends Controller
             'message' => 'Avatar eliminado correctamente.',
             'avatar_path' => null,
             'avatar_url' => null,
+        ]);
+    }
+
+    /**
+     * Servir avatar desde el disk public (fallback cuando /storage no es accesible por servidor web).
+     */
+    public function show(string $path): StreamedResponse
+    {
+        $normalizedPath = ltrim($path, '/');
+
+        if (!str_starts_with($normalizedPath, 'avatars/')) {
+            abort(404);
+        }
+
+        if (!Storage::disk('public')->exists($normalizedPath)) {
+            abort(404);
+        }
+
+        return Storage::disk('public')->response($normalizedPath, null, [
+            'Cache-Control' => 'public, max-age=31536000, immutable',
         ]);
     }
 

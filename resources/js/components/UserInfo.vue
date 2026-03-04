@@ -16,15 +16,23 @@ const props = withDefaults(defineProps<Props>(), {
 const { getInitials } = useInitials();
 
 const avatarSrc = computed(() => {
-    if (props.user.avatar_url) {
-        return props.user.avatar_url.trim();
+    const rawUrl = (props.user.avatar_url ?? '').trim();
+    if (!rawUrl) {
+        return '';
     }
 
-    if (props.user.avatar_path) {
-        return `/storage/${props.user.avatar_path}`;
+    const [base, query = ''] = rawUrl.split('?');
+    const params = new URLSearchParams(query);
+    const versionRaw = String(props.user.updated_at ?? '').trim();
+
+    if (versionRaw) {
+        const parsedVersion = Date.parse(versionRaw);
+        params.set('v', Number.isNaN(parsedVersion) ? versionRaw : String(parsedVersion));
+    } else if (!params.has('v')) {
+        params.set('v', '1');
     }
 
-    return (props.user.avatar ?? '').trim();
+    return `${base}?${params.toString()}`;
 });
 const showAvatar = computed(() => avatarSrc.value !== '');
 </script>

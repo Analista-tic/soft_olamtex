@@ -8,7 +8,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAuthAvatar } from '@/composables/useAuthAvatar';
 import { useInitials } from '@/composables/useInitials';
 import type { SharedData } from '@/domain/shared';
 import type { User } from '@/domain/Settings/types';
@@ -18,11 +17,18 @@ import { computed } from 'vue';
 
 const page = usePage<SharedData>();
 const { getInitials } = useInitials();
-const { avatarUrl } = useAuthAvatar();
 
 const user = computed(() => page.props.auth.user as User);
+const avatarSrc = computed(() => {
+    const rawUrl = (user.value?.avatar_url ?? '').trim();
+    if (!rawUrl) {
+        return '';
+    }
 
-const avatarSrc = computed(() => avatarUrl.value);
+    const version = user.value?.updated_at ? encodeURIComponent(String(user.value.updated_at)) : '';
+    const separator = rawUrl.includes('?') ? '&' : '?';
+    return version ? `${rawUrl}${separator}v=${version}` : rawUrl;
+});
 
 const showAvatar = computed(() => Boolean(avatarSrc.value));
 
@@ -48,7 +54,7 @@ function logout() {
                 aria-label="Menu de usuario"
             >
                 <Avatar class="h-6 w-6 shrink-0 overflow-hidden rounded-full">
-                    <AvatarImage v-if="showAvatar" :src="avatarSrc" :alt="user.name" />
+                    <AvatarImage v-if="showAvatar" :key="user.avatar_url ?? 'no-avatar'" :src="avatarSrc" :alt="user.name" />
                     <AvatarFallback class="rounded-full bg-slate-100 text-sm font-semibold text-slate-500">
                         {{ getInitials(user.name ?? '') }}
                     </AvatarFallback>
