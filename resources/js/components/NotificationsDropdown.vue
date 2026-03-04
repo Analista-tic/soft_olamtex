@@ -161,14 +161,14 @@ onMounted(() => {
 
 <template>
     <Popover :open="isOpen" :modal="false" @update:open="onOpenChange">
-        <PopoverTrigger :as-child="true">
+        <PopoverTrigger as-child>
             <button
                 type="button"
-                class="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-transparent text-muted-foreground box-border transition-colors hover:bg-muted/50 hover:text-foreground data-[state=open]:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                class="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-muted-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 aria-label="Notificaciones"
                 title="Notificaciones"
             >
-                <Bell class="h-5 w-5" />
+                <Bell class="h-[18px] w-[18px]" />
                 <Badge
                     v-if="badgeCount"
                     variant="destructive"

@@ -22,8 +22,11 @@ const props = withDefaults(defineProps<Props>(), {
         <AppContent variant="sidebar">
             <AppSidebarHeader :breadcrumbs="props.breadcrumbs">
                 <template #header-right>
-                    <NotificationsDropdown />
-                    <UserMenuDropdown />
+                    <div class="flex items-center gap-2 text-sm">
+                        <NotificationsDropdown />
+                        <span class="h-5 w-px bg-border/80" aria-hidden="true" />
+                        <UserMenuDropdown />
+                    </div>
                 </template>
             </AppSidebarHeader>
             <slot />

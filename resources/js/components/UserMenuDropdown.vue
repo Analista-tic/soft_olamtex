@@ -41,13 +41,13 @@ function logout() {
 
 <template>
     <DropdownMenu :modal="false">
-        <DropdownMenuTrigger :as-child="true">
+        <DropdownMenuTrigger as-child>
             <button
                 type="button"
-                class="inline-flex h-9 min-h-9 min-w-[11rem] max-w-[14rem] shrink-0 items-center gap-2 rounded-full border border-transparent px-2 py-1 text-sm font-medium leading-none text-foreground box-border transition-colors hover:bg-muted/50 data-[state=open]:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                class="inline-flex h-9 max-w-[12rem] shrink-0 items-center gap-2 rounded-md border border-transparent bg-transparent px-1.5 text-sm font-medium leading-none text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 aria-label="Menu de usuario"
             >
-                <Avatar class="h-7 w-7 shrink-0 overflow-hidden rounded-full">
+                <Avatar class="h-6 w-6 shrink-0 overflow-hidden rounded-full">
                     <AvatarImage v-if="showAvatar" :src="avatarSrc" :alt="user.name" />
                     <AvatarFallback class="rounded-full bg-slate-100 text-sm font-semibold text-slate-500">
                         {{ getInitials(user.name ?? '') }}
