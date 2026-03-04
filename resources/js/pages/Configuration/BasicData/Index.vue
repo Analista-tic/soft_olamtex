@@ -70,8 +70,6 @@ function syncAuthFromServer(): Promise<void> {
     return new Promise((resolve) => {
         router.reload({
             only: ['auth'],
-            preserveScroll: true,
-            preserveState: true,
             onFinish: () => resolve(),
         });
     });
@@ -126,7 +124,7 @@ async function deleteAvatar() {
     }
 }
 
-async function handleAvatarSuccess(message: string, _avatarUrl: string) {
+async function handleAvatarSuccess(message: string) {
     pendingAvatarFile.value = null; // Limpiar archivo pendiente
     await syncAuthFromServer();
     showSuccessAlert(message);
