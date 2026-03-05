@@ -98,9 +98,9 @@ const typeLabelMap: Record<string, string> = {
 };
 
 const typeBadgeStyles: Record<string, string> = {
-    entrada: 'bg-green-100 text-green-800',
-    salida: 'bg-red-100 text-red-800',
-    ajuste: 'bg-blue-100 text-blue-800',
+    entrada: 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400',
+    salida: 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
+    ajuste: 'bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400',
 };
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
@@ -354,7 +354,7 @@ onMounted(() => {
                                 <span
                                     :class="[
                                         'px-2 py-1 rounded-full text-xs font-semibold',
-                                        typeBadgeStyles[movement.type] || 'bg-gray-100 text-gray-800',
+                                        typeBadgeStyles[movement.type] || 'bg-muted text-foreground',
                                     ]"
                                 >
                                     {{ typeLabelMap[movement.type] || movement.type }}
@@ -473,7 +473,7 @@ onMounted(() => {
                                 <span
                                     :class="[
                                         'px-2 py-1 rounded-full text-xs font-semibold',
-                                        typeBadgeStyles[selectedMovement.type] || 'bg-gray-100 text-gray-800',
+                                        typeBadgeStyles[selectedMovement.type] || 'bg-muted text-foreground',
                                     ]"
                                 >
                                     {{ typeLabelMap[selectedMovement.type] || selectedMovement.type }}

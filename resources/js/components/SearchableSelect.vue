@@ -94,35 +94,34 @@ function handleInputClick() {
 
 <template>
     <div class="relative w-full" v-click-outside="closeDropdown">
-        <Label class="mb-1">{{ label }}<span v-if="required" class="text-red-500">*</span></Label>
+        <Label class="mb-1">{{ label }}<span v-if="required" class="text-destructive">*</span></Label>
         <input
             v-model="searchQuery"
             type="text"
             placeholder="Buscar y seleccionar..."
-            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
             @focus="handleInputFocus"
             @click="handleInputClick"
             :disabled="props.disabled"
         />
         <div
             v-if="isOpen"
-            class="absolute left-0 top-full z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-card shadow-lg"
+            class="absolute left-0 top-full z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
         >
-            <div v-if="$slots.header" class="border-b border-border/70 bg-muted px-2 py-2">
+            <div v-if="$slots.header" class="border-b border-border/70 bg-popover px-2 py-2">
                 <slot name="header" />
             </div>
             <div
                 v-for="option in filteredOptions"
                 :key="option.id"
-                class="cursor-pointer px-3 py-2 text-sm text-card-foreground/90 transition-colors hover:bg-muted/70"
+                class="cursor-pointer px-3 py-2 text-sm text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                 @click="selectOption(option)"
             >
                 {{ option.name }}
             </div>
-            <div v-if="$slots.footer" class="border-t border-border/70 bg-muted px-2 py-2">
+            <div v-if="$slots.footer" class="border-t border-border/70 bg-popover px-2 py-2">
                 <slot name="footer" />
             </div>
         </div>
     </div>
 </template>
-

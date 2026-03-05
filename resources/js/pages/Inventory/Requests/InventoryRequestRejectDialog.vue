@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
 import { ref, watch } from 'vue';
@@ -86,13 +87,9 @@ watch(dialogOpen, (isOpen) => {
                 <TextareaField v-model="reason" label="Motivo" placeholder="Describe el motivo del rechazo" :required="true" />
             </div>
             <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t px-4 pb-4 pt-4">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="dialogOpen = false"
-                >
+                <Button variant="outline" size="pill" @click="dialogOpen = false">
                     Cancelar
-                </button>
+                </Button>
                 <button
                     type="button"
                     :disabled="isLoading"

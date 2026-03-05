@@ -405,16 +405,9 @@ function clearErrorMessage() {
                                     >
                                         Agregar
                                     </button>
-                                    <button
-                                        type="button"
-                                        class="rounded-md border px-3 py-2 text-sm font-semibold hover:bg-muted/50"
-                                        @click="
-                                            showActionInput = false;
-                                            newActionValue = '';
-                                        "
-                                    >
+                                    <Button variant="outline" size="sm" @click="showActionInput = false; newActionValue = ''">
                                         Cancelar
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
 
@@ -450,16 +443,9 @@ function clearErrorMessage() {
                                     >
                                         Agregar
                                     </button>
-                                    <button
-                                        type="button"
-                                        class="rounded-md border px-3 py-2 text-sm font-semibold hover:bg-muted/50"
-                                        @click="
-                                            showGarmentPartInput = false;
-                                            newGarmentPartValue = '';
-                                        "
-                                    >
+                                    <Button variant="outline" size="sm" @click="showGarmentPartInput = false; newGarmentPartValue = ''">
                                         Cancelar
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                         </div>
@@ -510,13 +496,9 @@ function clearErrorMessage() {
                 </div>
             </div>
             <DialogFooter class="mt-6 flex flex-shrink-0 justify-end gap-2 border-t pt-4">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="closeDialog"
-                >
+                <Button variant="outline" size="pill" @click="closeDialog">
                     Cancelar
-                </button>
+                </Button>
                 <button
                     type="button"
                     class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"

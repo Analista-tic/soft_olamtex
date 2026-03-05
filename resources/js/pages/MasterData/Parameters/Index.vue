@@ -389,17 +389,17 @@ watch([searchQuery, statusFilter], () => {
                             </TableRow>
 
                             <TableRow v-else-if="parameters.length === 0">
-                                <TableCell colspan="5" class="px-4 py-2 text-center text-sm text-gray-400">
+                                <TableCell colspan="5" class="px-4 py-2 text-center text-sm text-muted-foreground">
                                     No hay parámetros registrados.
                                 </TableCell>
                             </TableRow>
 
                             <TableRow v-else v-for="param in parameters" :key="param.id">
                                 <TableCell class="font-medium">{{ param.label }}</TableCell>
-                                <TableCell class="break-words text-left text-sm text-slate-600">
+                                <TableCell class="break-words text-left text-sm text-muted-foreground">
                                     {{ param.description || 'Sin descripción' }}
                                 </TableCell>
-                                <TableCell class="text-left text-sm text-slate-700">
+                                <TableCell class="text-left text-sm text-foreground/90">
                                     {{ formatValuePreview(param.value) }}
                                 </TableCell>
                                 <TableCell>

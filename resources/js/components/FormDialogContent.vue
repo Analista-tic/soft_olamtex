@@ -5,11 +5,10 @@ const props = defineProps<{ class?: string; overlayClass?: string; scrollable?: 
 
 <template>
   <DialogContent
-    :class="['w-full max-w-md max-h-[80vh] rounded-2xl bg-white', props.class]"
+    :class="['w-full max-w-md max-h-[80vh] rounded-2xl bg-background text-foreground', props.class]"
     :overlay-class="props.overlayClass"
     :scrollable="props.scrollable"
   >
     <slot />
   </DialogContent>
 </template>
-

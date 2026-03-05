@@ -116,20 +116,20 @@ function removeOption(optionId: Option['id']) {
 }
 
 const buttonClasses = computed(() => [
-    'w-full rounded-md border px-3 py-2 min-h-[42px] text-sm font-normal shadow-sm transition-colors flex items-center justify-between gap-2',
-    props.disabled ? 'pointer-events-none opacity-60 bg-gray-50' : 'bg-white',
-    props.error ? 'border-red-400 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500',
+    'flex min-h-[42px] w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+    props.disabled ? 'pointer-events-none bg-muted/20 text-muted-foreground opacity-60' : '',
+    props.error ? 'border-destructive focus-visible:ring-destructive/40' : '',
 ]);
 
 const pillClasses =
-    'inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 shadow-sm';
+    'inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-foreground/90 shadow-sm';
 </script>
 
 <template>
     <div class="grid w-full items-start gap-1">
         <Label>
             {{ label }}
-            <span v-if="required" class="text-red-500">*</span>
+            <span v-if="required" class="text-destructive">*</span>
         </Label>
         <div class="relative w-full">
             <Listbox class="w-full" :modelValue="localValue" :multiple="true" :disabled="disabled" @update:modelValue="handleChange">
@@ -145,7 +145,7 @@ const pillClasses =
                                         <span class="max-w-[8rem] truncate">{{ option.name }}</span>
                                         <button
                                             type="button"
-                                            class="flex items-center justify-center rounded-full p-0.5 text-blue-600 hover:bg-blue-100"
+                                            class="flex items-center justify-center rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                                             @click.stop.prevent="removeOption(option.id)"
                                         >
                                             <X class="h-3 w-3" />
@@ -154,35 +154,41 @@ const pillClasses =
                                 </div>
                             </template>
                         </div>
-                        <ChevronDown class="h-4 w-4 text-gray-400" />
+                        <ChevronDown class="h-4 w-4 text-muted-foreground" />
                     </ListboxButton>
                     <ListboxOptions
-                        class="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-2xl focus:outline-none"
+                        class="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
                     >
-                        <div v-if="shouldShowSearchInput" class="bg-white px-3 pb-3 pt-3">
+                        <div v-if="shouldShowSearchInput" class="bg-popover px-3 pb-3 pt-3">
                             <input
                                 v-model="searchTerm"
                                 type="text"
                                 :placeholder="searchPlaceholder"
-                                class="w-full rounded-md border border-input px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                 @keydown.stop
                                 @keyup.stop
                                 @click.stop
                             />
                         </div>
-                        <div v-if="filteredOptions.length === 0" class="px-3 py-2 text-sm text-gray-500">No se encontraron opciones.</div>
+                        <div v-if="filteredOptions.length === 0" class="px-3 py-2 text-sm text-muted-foreground">No se encontraron opciones.</div>
                         <ListboxOption v-for="option in filteredOptions" :key="String(option.id)" :value="option.id">
                             <template #default="{ active, selected }">
                                 <div
                                     :class="[
                                         'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
-                                        active ? 'bg-blue-600 text-white' : 'text-gray-900',
+                                        active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                     ]"
                                 >
                                     <span :class="selected ? 'font-semibold' : 'font-normal'">
                                         {{ option.name }}
                                     </span>
-                                    <span v-if="selected" class="absolute inset-y-0 right-0 flex items-center pr-4 text-blue-600">
+                                    <span
+                                        v-if="selected"
+                                        :class="[
+                                            'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
+                                            active ? 'text-accent-foreground' : 'text-primary',
+                                        ]"
+                                    >
                                         <Check class="h-4 w-4" />
                                     </span>
                                 </div>
@@ -192,7 +198,6 @@ const pillClasses =
                 </div>
             </Listbox>
         </div>
-        <p v-if="error" class="text-xs text-red-500">{{ error }}</p>
+        <p v-if="error" class="text-xs text-destructive">{{ error }}</p>
     </div>
 </template>
-

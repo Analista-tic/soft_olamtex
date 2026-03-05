@@ -51,7 +51,7 @@ const selectedValue = computed<string>({
         </Label>
 
         <Select v-model="selectedValue" :disabled="disabled">
-            <SelectTrigger class="h-9 w-full rounded border border-gray-300 text-sm shadow-sm">
+            <SelectTrigger class="h-9 w-full text-sm shadow-sm">
                 <SelectValue :placeholder="placeholder" />
             </SelectTrigger>
             <SelectContent>

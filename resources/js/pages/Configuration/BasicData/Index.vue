@@ -858,7 +858,7 @@ onBeforeUnmount(() => {
                                     </div>
                                     <button
                                         type="button"
-                                        class="inline-flex items-center justify-center gap-1 self-start rounded-full border border-border/80 bg-white px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        class="inline-flex items-center justify-center gap-1 self-start rounded-full border border-border/80 bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                         :disabled="!hasCustomLogo || !canEditCompany"
                                         @click="resetLogoPreview"
                                     >
@@ -887,7 +887,7 @@ onBeforeUnmount(() => {
                                 <button
                                     type="button"
                                     :disabled="isSaving || !canEditCompany"
-                                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     @click="resetForm"
                                 >
                                     Restablecer valores

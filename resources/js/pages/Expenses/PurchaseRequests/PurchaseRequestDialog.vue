@@ -676,7 +676,7 @@ watch(
                                     <button
                                         v-if="!isReadOnly"
                                         type="button"
-                                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                         @click="itemsTableRef?.addItem()"
                                     >
                                         <Plus class="h-4 w-4" />
@@ -780,13 +780,9 @@ watch(
             </div>
 
             <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4 px-4 pb-4">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                    @click="dialogOpen = false"
-                >
+                <Button variant="outline" size="pill" @click="dialogOpen = false">
                     Cancelar
-                </button>
+                </Button>
                 <button
                     v-if="!props.readonly && !isReadOnly"
                     type="button"

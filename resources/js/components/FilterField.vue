@@ -19,7 +19,7 @@ const labelClasses = computed(() => {
     const base = [
         'filter-field__label',
         'text-xs font-semibold transition duration-150',
-        props.active ? 'text-blue-700 dark:text-blue-200' : 'text-muted-foreground',
+        props.active ? 'text-primary' : 'text-muted-foreground',
     ];
     return base.join(' ');
 });
@@ -40,9 +40,10 @@ const labelClasses = computed(() => {
 .filter-field .multiselect,
 .filter-field .combobox,
 .filter-field .vs__dropdown-toggle {
-    background-color: #ffffff;
-    color: #0f172a;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--input));
+    box-shadow: 0 1px 2px hsl(var(--foreground) / 0.08);
     transition: box-shadow 150ms ease;
 }
 
@@ -52,23 +53,22 @@ const labelClasses = computed(() => {
 .filter-field--active .combobox,
 .filter-field--active .vs__dropdown-toggle,
 .filter-field--active :deep(input) {
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
-    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 0 0 2px hsl(var(--ring) / 0.25);
+    border-color: hsl(var(--ring) / 0.6);
 }
 
 .filter-field select::placeholder,
 .filter-field input::placeholder {
-    color: rgba(15, 23, 42, 0.35);
+    color: hsl(var(--muted-foreground));
 }
 
 .filter-field__label {
-    color: var(--filter-title-color, #475569);
+    color: hsl(var(--muted-foreground));
     font-size: 0.75rem;
     font-weight: 600;
 }
 
 .filter-field__label.filter-field__label--active {
-    color: var(--filter-title-active-color, #1d4ed8);
+    color: hsl(var(--primary));
 }
 </style>
-

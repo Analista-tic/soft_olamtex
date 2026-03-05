@@ -126,7 +126,7 @@ onMounted(fetchProgrammers);
             <Input
               v-model="searchQuery"
               placeholder="Buscar lote"
-              class="h-10 w-full rounded-md border border-gray-200 bg-white pl-10 text-sm focus:border-primary focus:ring-0"
+              class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm focus:border-primary focus:ring-0"
             />
             <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
               <Search class="text-muted-foreground" />
@@ -135,7 +135,7 @@ onMounted(fetchProgrammers);
         </FilterField>
       </FilterBar>
 
-      <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 bg-white md:min-h-min">
+      <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 bg-card md:min-h-min">
         <div class="overflow-x-auto">
           <Table class="min-w-full text-[0.9rem]">
             <TableHeader>

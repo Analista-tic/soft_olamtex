@@ -306,7 +306,7 @@ function isAddDisabled() {
             <div
                 v-for="([field]) in extraFieldEntries"
                 :key="field"
-                class="flex flex-col gap-3 rounded-2xl border border-border bg-white/80 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                class="flex flex-col gap-3 rounded-2xl border border-border bg-card/80 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
             >
                 <div class="flex-1 space-y-2">
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">

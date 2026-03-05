@@ -486,7 +486,7 @@ function handleDialogError(message?: string) {
                 <div class="flex gap-2">
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="router.visit(buildReceptionUrl())"
                     >
                         <Package class="h-4 w-4" />
@@ -578,11 +578,11 @@ function handleDialogError(message?: string) {
                                     v-if="invoice.status"
                                     :class="[
                                         'px-2 py-1 rounded-full text-xs font-medium',
-                                        invoice.status === 'pending_receipt' ? 'bg-yellow-100 text-yellow-800' :
-                                        invoice.status === 'approved' ? 'bg-green-100 text-green-800' :
-                                        invoice.status === 'received' ? 'bg-green-100 text-green-800' :
-                                        invoice.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                        'bg-gray-100 text-gray-800'
+                                        invoice.status === 'pending_receipt' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400' :
+                                        invoice.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400' :
+                                        invoice.status === 'received' ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400' :
+                                        invoice.status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400' :
+                                        'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                                     ]"
                                 >
                                     {{ 
@@ -593,7 +593,7 @@ function handleDialogError(message?: string) {
                                         'Sin estado'
                                     }}
                                 </span>
-                                <span v-else class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                <span v-else class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">
                                     Pendiente
                                 </span>
                             </TableCell>

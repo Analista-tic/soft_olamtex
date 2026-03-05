@@ -266,7 +266,7 @@ watch(() => [props.productSheetId, props.open], ([sheetId, isOpen]) => {
                                 <template v-else>
                                     <template v-for="group in groupedOperations" :key="group.sectionName">
                                         <tr>
-                                            <td colspan="5" class="bg-gray-200 px-4 py-2 text-center font-bold uppercase tracking-wider">
+                                            <td colspan="5" class="bg-muted px-4 py-2 text-center font-bold uppercase tracking-wider">
                                                 {{ group.sectionName }}
                                             </td>
                                         </tr>
@@ -281,7 +281,7 @@ watch(() => [props.productSheetId, props.open], ([sheetId, isOpen]) => {
                                                 {{ getUnits100(getSamValue(entry)) }}
                                             </td>
                                         </tr>
-                                        <tr class="border-t-2 border-gray-400 bg-yellow-50">
+                                        <tr class="border-t-2 border-border bg-yellow-50 dark:bg-yellow-900/20">
                                             <td colspan="3" class="px-3 py-2.5 font-bold text-right">
                                                 Total SAM {{ group.sectionName }}
                                             </td>
@@ -291,8 +291,8 @@ watch(() => [props.productSheetId, props.open], ([sheetId, isOpen]) => {
                                             <td class="px-3 py-2.5"></td>
                                         </tr>
                                         <template v-if="group.sectionName === 'Confección'">
-                                            <tr class="border-t bg-amber-50">
-                                                <td colspan="3" class="px-3 py-2 font-semibold text-right text-gray-700">
+                                            <tr class="border-t bg-amber-50 dark:bg-amber-900/20">
+                                                <td colspan="3" class="px-3 py-2 font-semibold text-right text-muted-foreground">
                                                     Costo Confección Olamtex
                                                 </td>
                                                 <td class="px-3 py-2 text-center font-mono font-semibold">
@@ -300,8 +300,8 @@ watch(() => [props.productSheetId, props.open], ([sheetId, isOpen]) => {
                                                 </td>
                                                 <td class="px-3 py-2"></td>
                                             </tr>
-                                            <tr class="border-t bg-amber-50">
-                                                <td colspan="3" class="px-3 py-2 font-semibold text-right text-gray-700">
+                                            <tr class="border-t bg-amber-50 dark:bg-amber-900/20">
+                                                <td colspan="3" class="px-3 py-2 font-semibold text-right text-muted-foreground">
                                                     Costo Hilo
                                                 </td>
                                                 <td class="px-3 py-2 text-center font-mono font-semibold">

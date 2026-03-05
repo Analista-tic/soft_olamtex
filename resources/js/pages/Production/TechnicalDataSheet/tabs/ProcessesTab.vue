@@ -543,9 +543,9 @@ onMounted(() => {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel as-child>
-                        <button type="button" class="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground" @click="closeDeleteDialog">
+                        <Button variant="outline" @click="closeDeleteDialog">
                             Cancelar
-                        </button>
+                        </Button>
                     </AlertDialogCancel>
                     <AlertDialogAction as-child>
                         <button type="button" class="inline-flex h-9 items-center justify-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90" @click.prevent.stop="confirmDelete">

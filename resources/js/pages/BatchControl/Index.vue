@@ -57,19 +57,19 @@ const selectedRow = ref<BatchControlRow | null>(null);
 const selectedNewProcess = ref<string>('');
 
 const TAB_COLORS = [
-    'bg-blue-100 text-blue-800 data-[state=active]:bg-blue-200 data-[state=active]:border-blue-300',
-    'bg-sky-100 text-sky-800 data-[state=active]:bg-sky-200 data-[state=active]:border-sky-300',
-    'bg-teal-100 text-teal-800 data-[state=active]:bg-teal-200 data-[state=active]:border-teal-300',
-    'bg-emerald-100 text-emerald-800 data-[state=active]:bg-emerald-200 data-[state=active]:border-emerald-300',
-    'bg-green-100 text-green-800 data-[state=active]:bg-green-200 data-[state=active]:border-green-300',
-    'bg-lime-100 text-lime-800 data-[state=active]:bg-lime-200 data-[state=active]:border-lime-300',
-    'bg-amber-100 text-amber-800 data-[state=active]:bg-amber-200 data-[state=active]:border-amber-300',
-    'bg-orange-100 text-orange-800 data-[state=active]:bg-orange-200 data-[state=active]:border-orange-300',
-    'bg-rose-100 text-rose-800 data-[state=active]:bg-rose-200 data-[state=active]:border-rose-300',
-    'bg-pink-100 text-pink-800 data-[state=active]:bg-pink-200 data-[state=active]:border-pink-300',
-    'bg-violet-100 text-violet-800 data-[state=active]:bg-violet-200 data-[state=active]:border-violet-300',
-    'bg-indigo-100 text-indigo-800 data-[state=active]:bg-indigo-200 data-[state=active]:border-indigo-300',
-    'bg-slate-100 text-slate-800 data-[state=active]:bg-slate-200 data-[state=active]:border-slate-300',
+    'bg-blue-100 text-blue-800 data-[state=active]:bg-blue-200 data-[state=active]:border-blue-300 dark:bg-blue-950/30 dark:text-blue-400 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:border-blue-700',
+    'bg-sky-100 text-sky-800 data-[state=active]:bg-sky-200 data-[state=active]:border-sky-300 dark:bg-sky-950/30 dark:text-sky-400 dark:data-[state=active]:bg-sky-900/40 dark:data-[state=active]:border-sky-700',
+    'bg-teal-100 text-teal-800 data-[state=active]:bg-teal-200 data-[state=active]:border-teal-300 dark:bg-teal-950/30 dark:text-teal-400 dark:data-[state=active]:bg-teal-900/40 dark:data-[state=active]:border-teal-700',
+    'bg-emerald-100 text-emerald-800 data-[state=active]:bg-emerald-200 data-[state=active]:border-emerald-300 dark:bg-emerald-950/30 dark:text-emerald-400 dark:data-[state=active]:bg-emerald-900/40 dark:data-[state=active]:border-emerald-700',
+    'bg-green-100 text-green-800 data-[state=active]:bg-green-200 data-[state=active]:border-green-300 dark:bg-green-950/30 dark:text-green-400 dark:data-[state=active]:bg-green-900/40 dark:data-[state=active]:border-green-700',
+    'bg-lime-100 text-lime-800 data-[state=active]:bg-lime-200 data-[state=active]:border-lime-300 dark:bg-lime-950/30 dark:text-lime-400 dark:data-[state=active]:bg-lime-900/40 dark:data-[state=active]:border-lime-700',
+    'bg-amber-100 text-amber-800 data-[state=active]:bg-amber-200 data-[state=active]:border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:data-[state=active]:bg-amber-900/40 dark:data-[state=active]:border-amber-700',
+    'bg-orange-100 text-orange-800 data-[state=active]:bg-orange-200 data-[state=active]:border-orange-300 dark:bg-orange-950/30 dark:text-orange-400 dark:data-[state=active]:bg-orange-900/40 dark:data-[state=active]:border-orange-700',
+    'bg-rose-100 text-rose-800 data-[state=active]:bg-rose-200 data-[state=active]:border-rose-300 dark:bg-rose-950/30 dark:text-rose-400 dark:data-[state=active]:bg-rose-900/40 dark:data-[state=active]:border-rose-700',
+    'bg-pink-100 text-pink-800 data-[state=active]:bg-pink-200 data-[state=active]:border-pink-300 dark:bg-pink-950/30 dark:text-pink-400 dark:data-[state=active]:bg-pink-900/40 dark:data-[state=active]:border-pink-700',
+    'bg-violet-100 text-violet-800 data-[state=active]:bg-violet-200 data-[state=active]:border-violet-300 dark:bg-violet-950/30 dark:text-violet-400 dark:data-[state=active]:bg-violet-900/40 dark:data-[state=active]:border-violet-700',
+    'bg-indigo-100 text-indigo-800 data-[state=active]:bg-indigo-200 data-[state=active]:border-indigo-300 dark:bg-indigo-950/30 dark:text-indigo-400 dark:data-[state=active]:bg-indigo-900/40 dark:data-[state=active]:border-indigo-700',
+    'bg-slate-100 text-slate-800 data-[state=active]:bg-slate-200 data-[state=active]:border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:data-[state=active]:bg-slate-700 dark:data-[state=active]:border-slate-600',
 ];
 
 const tabColor = (index: number) => TAB_COLORS[index % TAB_COLORS.length];

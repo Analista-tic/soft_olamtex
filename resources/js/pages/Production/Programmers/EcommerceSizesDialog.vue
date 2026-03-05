@@ -184,14 +184,10 @@ function saveSizes() {
                 </div>
             </div>
 
-            <div class="flex flex-shrink-0 items-center justify-end gap-3 border-t bg-white px-6 py-4">
-                <button
-                    type="button"
-                    class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="isDialogOpen = false"
-                >
+            <div class="flex flex-shrink-0 items-center justify-end gap-3 border-t border-border bg-background px-6 py-4">
+                <Button variant="outline" size="pill" class="px-6 py-2.5" @click="isDialogOpen = false">
                     {{ isReadOnly ? 'Cerrar' : 'Cancelar' }}
-                </button>
+                </Button>
                 <Button
                     v-if="!isReadOnly"
                     type="button"
@@ -204,4 +200,3 @@ function saveSizes() {
         </FormDialogContent>
     </Dialog>
 </template>
-

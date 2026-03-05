@@ -145,7 +145,7 @@ const statusButtonClasses = useFilterButtonClasses(statusIsActive);
 const destinationButtonClasses = useFilterButtonClasses(destinationIsActive);
 const deliveryDateButtonClasses = useFilterButtonClasses(deliveryDateIsActive, {
     baseClasses:
-        'h-10 w-full rounded-md border px-3 text-sm font-normal flex items-center justify-between transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2',
+        'h-10 w-full rounded-md border px-3 text-sm font-normal flex items-center justify-between transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
 });
 const FALLBACK_REF = 'Sin referencia';
 const deliveryDateValue = computed<DateValue | undefined>({
@@ -697,13 +697,9 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
             </AlertDialogDescription>
             <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
                 <AlertDialogCancel asChild>
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="isDialogOpen = false"
-                    >
+                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="isDialogOpen = false">
                         Cancelar
-                    </button>
+                    </Button>
                 </AlertDialogCancel>
                 <AlertDialogAction asChild>
                     <Button
@@ -718,4 +714,3 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
         </AlertDialogContent>
     </AlertDialog>
 </template>
-

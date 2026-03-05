@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import DateField from '@/components/DateField.vue';
 import InputField from '@/components/InputField.vue';
+import { Button } from '@/components/ui/button';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import DifferenceDialog from '@/components/DifferenceDialog.vue';
@@ -799,13 +800,9 @@ watch(dialogOpen, (isOpen) => {
                         </div>
                     </div>
                     <DialogFooter class="flex justify-end gap-2">
-                        <button
-                            type="button"
-                            class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                            @click="dialogOpen = false"
-                        >
+                        <Button variant="outline" size="pill" @click="dialogOpen = false">
                             Cancelar
-                        </button>
+                        </Button>
                         <button
                             type="button"
                             :disabled="isLoading || isSendingMail"

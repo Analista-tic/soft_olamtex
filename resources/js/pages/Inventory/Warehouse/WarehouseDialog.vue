@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
@@ -94,13 +95,9 @@ function handleSubmit() {
                 </TooltipProvider>
             </div>
             <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                    @click="handleClose"
-                >
+                <Button variant="outline" size="pill" @click="handleClose">
                     Cancelar
-                </button>
+                </Button>
                 <button
                     type="button"
                     :disabled="loading"

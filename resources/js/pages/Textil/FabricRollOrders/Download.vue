@@ -360,7 +360,7 @@ function cleanSizeLabel(size: string | number): string {
             <div
               v-for="entry in primaryCurveDisplay"
               :key="`primary-${entry.size}`"
-              class="flex flex-col items-center gap-1 rounded-xl border border-dashed border-sidebar-border/70 bg-white px-4 py-4 shadow-sm transition hover:border-primary hover:shadow-md"
+              class="flex flex-col items-center gap-1 rounded-xl border border-dashed border-sidebar-border/70 bg-card px-4 py-4 shadow-sm transition hover:border-primary hover:shadow-md"
             >
               <span class="text-xs font-medium text-muted-foreground">{{ cleanSizeLabel(entry.size) }}</span>
               <input
@@ -393,7 +393,7 @@ function cleanSizeLabel(size: string | number): string {
             <div
               v-for="entry in liquidationCurveDisplay"
               :key="`liquid-${entry.size}`"
-              class="flex flex-col items-center gap-1 rounded-xl border border-dashed border-sidebar-border/70 bg-white px-4 py-4 shadow-sm transition hover:border-primary hover:shadow-md"
+              class="flex flex-col items-center gap-1 rounded-xl border border-dashed border-sidebar-border/70 bg-card px-4 py-4 shadow-sm transition hover:border-primary hover:shadow-md"
             >
               <span class="text-xs font-medium text-muted-foreground">{{ cleanSizeLabel(entry.size) }}</span>
               <input

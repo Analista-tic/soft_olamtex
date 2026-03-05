@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -309,7 +310,7 @@ function handleSubmit() {
                                 <span
                                     v-for="(option, index) in localOptions"
                                     :key="`option-chip-${index}`"
-                                    class="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1 text-xs font-semibold text-slate-600"
+                                    class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground"
                                 >
                                     {{ option }}
                                     <button
@@ -360,13 +361,9 @@ function handleSubmit() {
                     </div>
                 </div>
                 <DialogFooter class="mt-6 justify-end gap-2">
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="handleClose"
-                    >
+                    <Button variant="outline" size="pill" @click="handleClose">
                         Cancelar
-                    </button>
+                    </Button>
                     <button
                         type="button"
                         :disabled="loading || hasDuplicateOptions"

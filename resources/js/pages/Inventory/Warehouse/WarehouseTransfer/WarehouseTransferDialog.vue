@@ -605,13 +605,9 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 			</div>
 			<DialogFooter class="flex-shrink-0 border-t pt-4 mt-4">
 				<div class="flex justify-end gap-3 w-full">
-					<button
-						type="button"
-						class="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-						@click="closeDialog"
-					>
+					<Button variant="outline" size="pill" @click="closeDialog">
 						{{ cancelButtonLabel }}
-					</button>
+					</Button>
 					<button
 						v-if="!isViewMode"
 						type="button"

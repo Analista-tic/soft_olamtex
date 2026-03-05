@@ -35,7 +35,7 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
         <Label class="flex items-center gap-1.5">
             <span>{{ label }}</span>
             <HelpTooltip v-if="props.tooltipText" :text="props.tooltipText" />
-            <span v-if="required" class="text-red-500">*</span>
+            <span v-if="required" class="text-destructive">*</span>
         </Label>
         <textarea
             :id="label"
@@ -45,8 +45,7 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
             :disabled="disabled"
             :required="required"
             :rows="rows || 4"
-            class="block w-full rounded border border-border bg-card px-3 py-2 text-sm text-card-foreground transition duration-150 placeholder:text-muted-foreground focus:border-blue-500 focus:outline-none focus:ring focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+            class="block w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground transition duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
         ></textarea>
     </div>
 </template>
-

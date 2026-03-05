@@ -112,7 +112,7 @@ const handleSubmit = async () => {
                         type="button"
                         variant="outline"
                         size="pill"
-                        class="border-primary/40 bg-white text-primary hover:bg-primary/10 hover:text-primary"
+                        class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
                         @click="close"
                         :disabled="saving"
                     >

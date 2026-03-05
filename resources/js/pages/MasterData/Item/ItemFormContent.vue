@@ -1216,7 +1216,7 @@ onBeforeUnmount(() => {
                                             :class="[
                                                 option.value === currentItemType
                                                     ? 'border-blue-500 bg-blue-500 text-white shadow'
-                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
+                                                    : 'border-border bg-background text-muted-foreground hover:border-input hover:bg-muted/50',
                                             ]"
                                             :aria-pressed="option.value === currentItemType"
                                             :disabled="isViewMode"
@@ -1343,7 +1343,7 @@ onBeforeUnmount(() => {
 
                             <div
                                 v-if="currentItemType !== 'service'"
-                                class="mt-2 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
+                                class="mt-2 rounded-lg border border-border bg-card p-3"
                             >
                                 <div class="mb-2 flex items-center justify-between">
                                     <p class="text-sm font-semibold flex items-center gap-1">
@@ -1354,7 +1354,7 @@ onBeforeUnmount(() => {
                                     <button
                                         v-if="!isViewMode"
                                         type="button"
-                                        class="rounded-full p-1 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                                        class="rounded-full p-1 transition hover:bg-muted"
                                         :class="availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
                                         @click="handleAddWarehouseStock"
                                         title="Agregar Bodega"
@@ -1366,7 +1366,7 @@ onBeforeUnmount(() => {
                                 <div
                                     v-for="(ws, idx) in warehouseStocks"
                                     :key="idx"
-                                    class="mb-2 rounded-md bg-gray-50 p-2 dark:bg-gray-800"
+                                    class="mb-2 rounded-md bg-muted/50 p-2"
                                 >
                                     <div class="grid grid-cols-1 gap-2 sm:grid-cols-[220px,1fr,1fr,1fr,auto] sm:items-end">
                                         <div class="flex h-full flex-col justify-between gap-1">
@@ -1467,7 +1467,7 @@ onBeforeUnmount(() => {
 
                                     <div
                                         :class="[
-                                            'group relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-gray-50 transition-all duration-200',
+                                            'group relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
                                             isViewMode
                                                 ? 'cursor-default opacity-100'
                                                 : 'cursor-pointer hover:border-blue-400 hover:shadow-lg',
@@ -1646,7 +1646,7 @@ onBeforeUnmount(() => {
                 <div v-if="dialogType !== 'view' && showAdvancedLink" class="w-full md:w-auto">
                     <button
                         type="button"
-                        class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="redirectToAdvancedForm"
                     >
                         <ExternalLink class="h-4 w-4" />
@@ -1655,13 +1655,9 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="w-full md:w-auto">
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="handleClose"
-                    >
+                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="handleClose">
                         {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
-                    </button>
+                    </Button>
                 </div>
 
                 <div class="w-full md:w-auto">
@@ -1722,7 +1718,7 @@ onBeforeUnmount(() => {
             role="dialog"
         >
             <div
-                class="relative mx-auto max-h-[98vh] max-w-[98vw] overflow-hidden rounded-2xl bg-white shadow-[0_25px_70px_rgba(15,23,42,0.8)] transform scale-125"
+                class="relative mx-auto max-h-[98vh] max-w-[98vw] overflow-hidden rounded-2xl bg-card shadow-[0_25px_70px_rgba(15,23,42,0.8)] transform scale-125"
                 @click.stop
             >
                 <img

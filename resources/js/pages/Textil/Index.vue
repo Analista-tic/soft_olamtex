@@ -19,7 +19,7 @@ function openReception() {
 <template>
     <Head title="Kardex de Telas" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="rounded-xl border border-dashed border-muted-foreground/60 bg-white/70 p-8 text-center shadow-sm">
+        <div class="rounded-xl border border-dashed border-muted-foreground/60 bg-card/70 p-8 text-center shadow-sm">
             <div class="flex items-center justify-center gap-3">
                 <p class="text-lg font-semibold text-muted-foreground">Bienvenido al Kardex de Telas</p>
                 <Button @click="openReception" variant="outline" size="sm">

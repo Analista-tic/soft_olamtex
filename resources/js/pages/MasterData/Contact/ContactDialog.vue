@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { AdditionalContact, Contact } from '@/domain/MasterData';
 import type { Branch } from '@/domain/shared';
@@ -337,7 +338,7 @@ const updateBranches = (branches: any[]) => {
                         :additionalContacts="form.additional_contacts ?? []"
                         @update:additionalContacts="updateAdditionalContacts"
                     />
-                    <p v-if="errors.additional_contacts" class="text-red-500 text-sm mt-2">
+                    <p v-if="errors.additional_contacts" class="mt-2 text-sm text-destructive">
                         {{ errors.additional_contacts[0] }}
                     </p>
                 </TabsContent>
@@ -353,16 +354,12 @@ const updateBranches = (branches: any[]) => {
 
             </div>
             <DialogFooter class="mt-4 flex justify-end gap-2">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                    @click="closeDialog"
-                >
+                    <Button variant="outline" size="pill" @click="closeDialog">
                     Cancelar
-                </button>
+                </Button>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     @click="submitForm"
                 >
                     {{ dialogType === 'create' ? 'Crear' : 'Actualizar' }}

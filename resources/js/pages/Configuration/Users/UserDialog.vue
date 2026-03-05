@@ -187,7 +187,7 @@ function submitForm() {
                 <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <Label class="text-sm font-medium">
-                            Nombre<span class="text-red-500">*</span>
+                            Nombre<span class="text-destructive">*</span>
                         </Label>
                         <HelpTooltip
                             text="Nombre completo del usuario que tendrá acceso al sistema."
@@ -199,7 +199,7 @@ function submitForm() {
                 <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <Label class="text-sm font-medium">
-                            Email<span class="text-red-500">*</span>
+                            Email<span class="text-destructive">*</span>
                         </Label>
                         <HelpTooltip
                             text="Correo electrónico que se usará como nombre de usuario para iniciar sesión."
@@ -212,7 +212,7 @@ function submitForm() {
                 <div v-if="dialogType === 'create'" class="flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <Label class="text-sm font-medium">
-                            Contraseña<span class="text-red-500">*</span>
+                            Contraseña<span class="text-destructive">*</span>
                         </Label>
                         <HelpTooltip
                             text="Contraseña para acceder al sistema. Debe ser segura y única."
@@ -251,7 +251,7 @@ function submitForm() {
                 <div v-if="form.password" class="flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <Label class="text-sm font-medium">
-                            Confirmar Contraseña<span class="text-red-500">*</span>
+                            Confirmar Contraseña<span class="text-destructive">*</span>
                         </Label>
                         <HelpTooltip
                             text="Confirma la contraseña ingresada para evitar errores."
@@ -271,7 +271,7 @@ function submitForm() {
                 <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-2">
                         <Label class="text-sm font-medium">
-                            Área<span class="text-red-500">*</span>
+                            Área<span class="text-destructive">*</span>
                         </Label>
                         <HelpTooltip
                             text="Área organizacional a la que pertenece el usuario. Solo organiza, no autoriza acciones."
@@ -297,19 +297,15 @@ function submitForm() {
                     :disabled="isView"
                 />
                 <!-- Mensaje de error -->
-                <p v-if="errorMessage" class="text-red-500 text-sm">{{ errorMessage }}</p>
+                <p v-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
             </div>
             </div>
             </TooltipProvider>
             <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="closeDialog"
-                    >
+                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="closeDialog">
                         {{ isView ? 'Cerrar' : 'Cancelar' }}
-                    </button>
+                    </Button>
                 </div>
                 <div v-if="!isView" class="w-full md:w-auto">
                     <Button
@@ -326,7 +322,6 @@ function submitForm() {
 </template>
 
 \n
-
 
 
 

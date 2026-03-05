@@ -292,7 +292,7 @@ defineExpose({ addItem, validateFabricFields });
         class="w-full"
     >
 
-        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none;">
+        <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none;">
             <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
                 <TableHeader>
                     <TableRow class="text-center border-b border-border/60">
@@ -395,7 +395,7 @@ defineExpose({ addItem, validateFabricFields });
                     </TableRow>
 
                     <TableRow v-if="localItems.length === 0">
-                        <TableCell :colspan="totalColumns" class="text-center text-gray-400"> No hay items agregados. </TableCell>
+                        <TableCell :colspan="totalColumns" class="text-center text-muted-foreground"> No hay items agregados. </TableCell>
                     </TableRow>
                 </TableBody>
             </Table>

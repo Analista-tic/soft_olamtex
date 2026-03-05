@@ -274,7 +274,7 @@ function togglePasswordVisibility() {
     <template v-if="hasLabel">
       <Label>
         {{ label }}
-        <span v-if="required" class="text-red-500">*</span>
+        <span v-if="required" class="text-destructive">*</span>
       </Label>
     </template>
 
@@ -310,10 +310,10 @@ function togglePasswordVisibility() {
         @blur="handleBlur"
         @beforeinput="handleBeforeInput"
         :class="[
-          'h-10 pr-5 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50',
+          'h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
           hasError
-            ? 'border-red-500 ring-1 ring-red-400 focus:ring-red-500 focus:border-red-500'
-            : 'border-input'
+            ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40'
+            : ''
         ]"
       />
 
@@ -348,10 +348,10 @@ function togglePasswordVisibility() {
         @blur="handleBlur"
         @beforeinput="handleBeforeInput"
         :class="[
-          'h-10 pr-5 w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-50',
+          'h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
           hasError
-            ? 'border-red-500 ring-1 ring-red-400 focus:ring-red-500 focus:border-red-500'
-            : 'border-input'
+            ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40'
+            : ''
         ]"
       />
 
@@ -361,14 +361,13 @@ function togglePasswordVisibility() {
         class="absolute inset-y-0 right-0 flex items-center px-2"
         @click="togglePasswordVisibility"
       >
-        <Eye v-if="!isPasswordVisible" class="h-5 w-5 text-gray-500" />
-        <EyeOff v-else class="h-5 w-5 text-gray-500" />
+        <Eye v-if="!isPasswordVisible" class="h-5 w-5 text-muted-foreground" />
+        <EyeOff v-else class="h-5 w-5 text-muted-foreground" />
       </button>
     </div>
 
-    <p v-if="hasError && errorMessage" class="text-xs text-red-500 mt-0.5">
+    <p v-if="hasError && errorMessage" class="mt-0.5 text-xs text-destructive">
       {{ errorMessage }}
     </p>
   </div>
 </template>
-

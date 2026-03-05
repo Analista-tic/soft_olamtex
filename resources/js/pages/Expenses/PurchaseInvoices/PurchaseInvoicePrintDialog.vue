@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import { computed, watch, ref } from 'vue';
@@ -239,13 +240,9 @@ function print() {
                     </div>
                 </div>
                 <DialogFooter class="mt-4 flex justify-end gap-3 print:hidden">
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="dialogOpen = false"
-                    >
+                    <Button variant="outline" size="pill" @click="dialogOpen = false">
                         Cerrar
-                    </button>
+                    </Button>
                     <button
                         type="button"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"

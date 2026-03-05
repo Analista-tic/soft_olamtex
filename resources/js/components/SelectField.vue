@@ -273,7 +273,7 @@ function handleInput(event: Event) {
 const hasLabel = computed(() => Boolean(props.label?.trim()));
 const hasAction = computed(() => Boolean(props.actionLabel?.trim()));
 const actionButtonClass = computed(() => {
-    const base = 'w-full inline-flex items-center justify-center gap-2 rounded-full border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted/20 disabled:text-muted-foreground';
+    const base = 'w-full inline-flex items-center justify-center gap-2 rounded-full border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border disabled:bg-muted/20 disabled:text-muted-foreground';
     const customClass = props.actionClass || '';
     return customClass ? `${base} ${customClass}` : base;
 });
@@ -369,7 +369,7 @@ watch(
             <Label class="flex items-center gap-1.5">
                 <span>{{ label }}</span>
                 <HelpTooltip v-if="tooltipText" :text="tooltipText" />
-                <span v-if="required" class="text-red-500">*</span>
+                <span v-if="required" class="text-destructive">*</span>
             </Label>
         </template>
         <div class="relative w-full">
@@ -386,9 +386,9 @@ watch(
                         <!-- Selected chips (only for multiple) -->
                         <div v-if="multiple && selectedOptions.length" class="absolute left-3 top-2 z-0 flex max-w-[70%] flex-wrap items-center gap-2">
                             <template v-for="opt in selectedOptions" :key="String(opt.id)">
-                                <span class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700 shadow-sm">
+                                <span class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-foreground/90 shadow-sm">
                                     <span class="truncate max-w-[10rem]">{{ labelOf(opt) }}</span>
-                                    <button type="button" @click.stop.prevent="removeSelected(opt.id)" class="inline-flex items-center justify-center rounded-full p-0.5 text-blue-700 hover:bg-blue-100">
+                                    <button type="button" @click.stop.prevent="removeSelected(opt.id)" class="inline-flex items-center justify-center rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
                                         <X class="h-3 w-3" />
                                     </button>
                                 </span>
@@ -397,12 +397,12 @@ watch(
 
                         <ComboboxInput
                             ref="inputRef"
-                            class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                            class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
                             :class="[
                                 !isSearchEnabled ? 'cursor-default' : '',
                                 buttonClass,
                                 multiple ? 'pl-28' : '',
-                                invalid ? 'border-destructive ring-2 ring-destructive/40 focus:border-destructive focus:ring-destructive/40' : '',
+                                invalid ? 'border-destructive focus-visible:ring-destructive/40' : '',
                             ]"
                             :aria-invalid="invalid ? 'true' : undefined"
                             :data-invalid="invalid ? 'true' : undefined"
@@ -428,12 +428,12 @@ watch(
                                 @click.stop
                             >
                                 <ComboboxOptions
-                                    class="relative max-h-52 overflow-y-auto rounded-md border border-border bg-background shadow-2xl focus:outline-none"
+                                    class="relative max-h-52 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
                                 >
                                     <div
                                         v-if="hasAction"
                                         :class="[
-                                            'relative isolate z-20 border-b border-border bg-background px-3 py-2 shadow-sm',
+                                            'relative isolate z-20 border-b border-border bg-popover px-3 py-2 shadow-sm',
                                             actionSticky ? 'sticky top-0' : '',
                                         ]"
                                     >
@@ -451,7 +451,7 @@ watch(
                                     <div
                                         v-if="$slots.header"
                                         :class="[
-                                            'border-b border-border/70 bg-background px-2 py-2',
+                                            'border-b border-border/70 bg-popover px-2 py-2',
                                             !hasAction ? 'sticky top-0 z-10' : '',
                                         ]"
                                     >
@@ -465,7 +465,7 @@ watch(
                                             <div
                                                 :class="[
                                                     'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
-                                                    active ? 'bg-primary text-primary-foreground' : ''
+                                                    active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                                 ]"
                                             >
                                                 <span>
@@ -475,7 +475,7 @@ watch(
                                                     v-if="customOption && isOptionSelected(customOption)"
                                                     :class="[
                                                         'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
-                                                        active ? 'text-white' : 'text-blue-600'
+                                                        active ? 'text-accent-foreground' : 'text-primary',
                                                     ]"
                                                 >
                                                     <Check class="h-4 w-4" />
@@ -487,7 +487,7 @@ watch(
                                         v-if="!multiple && showPlaceholderOption"
                                         :value="null"
                                         disabled
-                                        class="text-muted-foreground/60 bg-card cursor-default select-none relative py-2 pl-3 pr-9"
+                                        class="bg-muted/30 text-muted-foreground cursor-default select-none relative py-2 pl-3 pr-9"
                                     >
                                         {{ placeholderText }}
                                     </ComboboxOption>
@@ -510,7 +510,8 @@ watch(
                                                 <template #default="{ active }">
                                                     <div
                                                         :class="[
-                                                            'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors'
+                                                            'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
+                                                            active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                                         ]"
                                                     >
                                                         <span>
@@ -520,7 +521,7 @@ watch(
                                                             v-if="isOptionSelected(option)"
                                                             :class="[
                                                                 'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
-                                                                active ? 'text-white' : 'text-blue-600'
+                                                                active ? 'text-accent-foreground' : 'text-primary',
                                                             ]"
                                                         >
                                                             <Check class="h-4 w-4" />
@@ -538,7 +539,7 @@ watch(
                                             No se encontraron opciones.
                                         </slot>
                                     </div>
-                                    <div v-if="$slots.footer" class="border-t border-border/70 bg-muted px-2 pb-2 pt-2">
+                                    <div v-if="$slots.footer" class="border-t border-border/70 bg-popover px-2 pb-2 pt-2">
                                         <slot name="footer" :searchTerm="normalizedSearchTerm" />
                                     </div>
                                 </ComboboxOptions>
@@ -551,4 +552,3 @@ watch(
         <p v-if="invalid && errorMessage" class="text-xs text-destructive">{{ errorMessage }}</p>
     </div>
 </template>
-

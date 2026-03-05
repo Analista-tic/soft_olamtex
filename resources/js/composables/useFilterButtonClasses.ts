@@ -2,7 +2,7 @@ import type { Ref } from 'vue';
 import { computed } from 'vue';
 
 const DEFAULT_BASE_CLASSES =
-    'h-10 w-full rounded-full border px-3 text-sm font-normal flex items-center justify-between transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2';
+    'h-10 w-full rounded-full border px-3 text-sm font-normal flex items-center justify-between transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
 export function useFilterButtonClasses(
     isActive: Ref<boolean>,
@@ -15,10 +15,9 @@ export function useFilterButtonClasses(
     return computed(() => {
         const active = isActive.value;
         const baseClasses = options?.baseClasses ?? DEFAULT_BASE_CLASSES;
-        const activeClasses = options?.activeClasses ?? 'border-blue-500/80 bg-blue-50 text-blue-700 shadow';
-        const inactiveClasses = options?.inactiveClasses ?? 'border-border bg-white text-foreground shadow-sm hover:border-blue-300';
+        const activeClasses = options?.activeClasses ?? 'border-primary/60 bg-accent text-accent-foreground shadow';
+        const inactiveClasses = options?.inactiveClasses ?? 'border-border bg-background text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground';
 
         return `${baseClasses} ${active ? activeClasses : inactiveClasses}`.trim();
     });
 }
-

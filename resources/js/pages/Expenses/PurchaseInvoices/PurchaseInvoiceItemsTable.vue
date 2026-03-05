@@ -337,7 +337,7 @@ defineExpose({ addItem });
         class="w-full"
     >
 
-        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none;">
+        <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none;">
             <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
                 <TableHeader>
                     <TableRow class="border-b border-border/60">

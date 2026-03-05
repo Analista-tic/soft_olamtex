@@ -3,10 +3,10 @@
         <div class="grid w-full items-center gap-1">
             <Label class="text-sm font-medium">Procesos<span class="text-red-500">*</span></Label>
             <div>
-                <div class="border-gray-300 bg-white p-2 shadow-sm">
+                <div class="rounded-md border border-border bg-background p-2 shadow-sm">
                     <div class="mb-3" v-if="!props.disabled">
                         <Select v-model="localSelectedProcess" :disabled="props.disabled">
-                            <SelectTrigger class="h-9 w-full rounded border border-gray-300 text-sm shadow-sm">
+                            <SelectTrigger class="h-9 w-full text-sm shadow-sm">
                                 <SelectValue placeholder="Selecciona un proceso para añadir" />
                             </SelectTrigger>
                             <SelectContent>
@@ -18,18 +18,18 @@
                             </SelectContent>
                         </Select>
                     </div>
-                    <div v-if="orderedSelectedProcesses.length === 0" class="py-1 text-center text-xs text-gray-400">
+                    <div v-if="orderedSelectedProcesses.length === 0" class="py-1 text-center text-xs text-muted-foreground">
                         No hay procesos seleccionados
                     </div>
                     <div v-else class="grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3">
                         <div
                             v-for="(process, index) in orderedSelectedProcesses"
                             :key="process"
-                            class="flex items-center justify-between rounded border bg-gray-100 px-2 shadow-sm"
+                            class="flex items-center justify-between rounded border border-border bg-muted/40 px-2 shadow-sm"
                         >
                             <div class="flex items-center space-x-1">
-                                <span class="text-xs font-medium text-gray-500">{{ index + 1 }}.</span>
-                                <span class="text-xs font-semibold text-gray-900">{{ process }}</span>
+                                <span class="text-xs font-medium text-muted-foreground">{{ index + 1 }}.</span>
+                                <span class="text-xs font-semibold text-foreground">{{ process }}</span>
                             </div>
                             <Button
                                 v-if="!props.disabled"
@@ -37,7 +37,7 @@
                                 size="sm"
                                 @click="removeProcess(process)"
                                 :disabled="nonRemovableProcesses.includes(process)"
-                                class="text-gray-600 hover:text-red-500"
+                                class="text-muted-foreground hover:text-destructive"
                             >
                                 <X class="h-3 w-3" />
                             </Button>
@@ -158,4 +158,3 @@ function removeProcess(process: string) {
     }
 }
 </script>
-

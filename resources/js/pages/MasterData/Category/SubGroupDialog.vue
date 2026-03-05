@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import axios from 'axios';
 import { ref, watch } from 'vue'; // Asegurar que watch esté importado
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
@@ -174,7 +175,7 @@ async function confirmDeleteGroup() {
                         <div class="flex flex-col flex-1 gap-1">
                             <div class="flex items-center gap-2">
                                 <Label class="text-sm font-medium">
-                                    Grupo<span class="text-red-500">*</span>
+                                    Grupo<span class="text-destructive">*</span>
                                 </Label>
                                 <HelpTooltip
                                     text="Selecciona el grupo principal que alojará este subgrupo."
@@ -203,7 +204,7 @@ async function confirmDeleteGroup() {
                             </SelectField>
                         </div>
                         <X
-                            class="w-6 h-6 mt-5 hover:text-red-600 cursor-pointer"
+                            class="mt-5 h-6 w-6 cursor-pointer transition-colors hover:text-destructive"
                             :disabled="!form.category_group_id"
                             @click="() => form.category_group_id != null && openDeleteDialog(form.category_group_id)"
                         />
@@ -218,7 +219,7 @@ async function confirmDeleteGroup() {
                         @click="addSubGroupToList"
                         :disabled="!subGroupName.trim()"
                     >
-                        <Plus class="w-6 h-6 mt-5 hover:text-blue-600 cursor-pointer" />
+                        <Plus class="mt-5 h-6 w-6 cursor-pointer transition-colors hover:text-primary" />
                     </button>
                 </div>
                 <div class="mt-4 space-y-2">
@@ -229,23 +230,19 @@ async function confirmDeleteGroup() {
                             class="px-3 py-1 bg-muted rounded-full text-sm flex items-center space-x-2"
                         >
                             <span>{{ subGroup.name }}</span>
-                            <X class="mr-2 w-4 h-4 hover:text-red-600 cursor-pointer" @click="removeSubGroupFromList(index)" />
+                            <X class="mr-2 h-4 w-4 cursor-pointer transition-colors hover:text-destructive" @click="removeSubGroupFromList(index)" />
                         </span>
                     </p>
                 </div>
             </div>
             </div>
             <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                    @click="closeDialog"
-                >
+                <Button variant="outline" size="pill" @click="closeDialog">
                     Cancelar
-                </button>
+                </Button>
                 <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     @click="submitForm"
                 >
                     {{ dialogType === 'create' ? 'Crear' : 'Guardar' }}
@@ -271,4 +268,3 @@ async function confirmDeleteGroup() {
         @confirm="confirmDeleteGroup"
     />
 </template>
-

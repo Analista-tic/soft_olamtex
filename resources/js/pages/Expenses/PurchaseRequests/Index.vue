@@ -84,12 +84,12 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusBadgeStyles: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-800',
-    pending: 'bg-yellow-100 text-yellow-800',
-    approved: 'bg-green-100 text-green-800',
-    processed: 'bg-blue-100 text-blue-800',
-    rejected: 'bg-red-100 text-red-800',
-    cancelled: 'bg-slate-100 text-slate-800',
+    draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+    pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400',
+    approved: 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400',
+    processed: 'bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400',
+    rejected: 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
+    cancelled: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
 };
 
 
@@ -311,8 +311,8 @@ const getStatusLabel = (status?: string) => {
 };
 
 const getStatusClasses = (status?: string) => {
-    if (!status) return 'bg-gray-100 text-gray-800';
-    return statusBadgeStyles[status] ?? 'bg-gray-100 text-gray-800';
+    if (!status) return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+    return statusBadgeStyles[status] ?? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
 };
 
 // Funciones para verificar permisos de estado

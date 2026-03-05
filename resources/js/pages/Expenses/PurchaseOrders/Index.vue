@@ -391,14 +391,14 @@ function handleDialogError(message?: string) {
                                         :class="[
                                             'rounded-full px-2 py-1 text-xs font-semibold',
                                             order.status === 'approved'
-                                                ? 'bg-green-100 text-green-800'
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
                                                 : order.status === 'sent'
-                                                  ? 'bg-blue-100 text-blue-800'
+                                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400'
                                                   : order.status === 'invoiced'
-                                                    ? 'bg-indigo-100 text-indigo-800'
+                                                    ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-400'
                                                     : order.status === 'rejected'
-                                                      ? 'bg-red-100 text-red-800'
-                                                      : 'bg-yellow-100 text-yellow-800',
+                                                      ? 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400'
+                                                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400',
                                         ]"
                                     >
                                         {{

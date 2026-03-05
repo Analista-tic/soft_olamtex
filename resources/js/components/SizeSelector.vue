@@ -76,7 +76,7 @@ function resetLocalModelValue() {
 <template>
     <div>
         <div class="mb-2">
-            <Label class="font-medium">Tallas<span class="text-red-500">*</span></Label>
+            <Label class="font-medium">Tallas<span class="text-destructive">*</span></Label>
         </div>
         <Button class="w-full text-start" variant="outline" size="md" @click="isDialogOpen = true"
             >Seleccionar Tallas <SquareArrowOutUpRight
@@ -96,11 +96,11 @@ function resetLocalModelValue() {
                 <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
                     <div class="space-y-4">
                         <div v-for="(sizes, group) in sizeGroups" :key="group" class="rounde py-2">
-                            <label v-if="!props.disabled" class="flex items-center font-medium text-gray-700">
+                            <label v-if="!props.disabled" class="flex items-center font-medium text-foreground">
                                 <input
                                     type="checkbox"
                                     :checked="isGroupChecked(group)"
-                                    class="mr-1 h-3 w-3 rounded border-gray-300 text-blue-600 focus:ring focus:ring-blue-300"
+                                    class="mr-1 h-3 w-3 rounded border-input bg-background text-primary focus:ring-2 focus:ring-ring"
                                     @change="toggleGroup(group, ($event.target as HTMLInputElement).checked)"
                                 />
                                 (Seleccionar Todo)
@@ -109,14 +109,14 @@ function resetLocalModelValue() {
                                 <label
                                     v-for="size in sizes"
                                     :key="size"
-                                    class="flex items-center rounded border bg-white px-2 py-1 shadow-sm"
-                                    :class="props.disabled ? '' : 'cursor-pointer hover:bg-gray-100'"
+                                    class="flex items-center rounded border border-border bg-background px-2 py-1 text-foreground shadow-sm"
+                                    :class="props.disabled ? '' : 'cursor-pointer transition-colors hover:bg-accent hover:text-accent-foreground'"
                                     style="flex: 0 0 auto"
                                 >
                                     <input
                                         type="checkbox"
                                         :checked="localModelValue[size] ?? false"
-                                        class="mr-1 h-3 w-3 rounded border-gray-300 text-blue-600 focus:ring focus:ring-blue-300"
+                                        class="mr-1 h-3 w-3 rounded border-input bg-background text-primary focus:ring-2 focus:ring-ring"
                                         @change="updateModelValue(size, ($event.target as HTMLInputElement).checked)"
                                         :disabled="props.disabled"
                                     />
@@ -130,7 +130,7 @@ function resetLocalModelValue() {
                     <div class="w-full md:w-auto">
                         <button
                             type="button"
-                            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-border bg-background px-5 py-2 text-sm font-semibold text-foreground transition hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                             @click="isDialogOpen = false"
                         >
                             Cerrar
@@ -144,7 +144,6 @@ function resetLocalModelValue() {
 
 <style scoped>
 .summary-active {
-    background-color: #f3f4f6;
+    background-color: hsl(var(--muted));
 }
 </style>
-

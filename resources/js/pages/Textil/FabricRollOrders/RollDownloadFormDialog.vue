@@ -296,13 +296,13 @@ function submitForm() {
 
         <!-- TOTALES -->
         <div class="grid gap-4 md:grid-cols-3">
-          <div class="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+          <div class="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <p class="text-rm font-semibold text-muted-foreground">Consumo total</p>
             <Input v-model="form.consumoTotalManual" type="number" placeholder="0" />
             <p class="mt-1 text-xs text-muted-foreground">Calculado: {{ consumoTotal }} unidades</p>
           </div>
 
-          <div class="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+          <div class="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <p class="text-rm font-semibold text-muted-foreground">Restante rollo</p>
             <Input v-model="form.restanteManual" type="number" placeholder="0" />
             <p class="mt-1 text-xs text-muted-foreground">
@@ -310,7 +310,7 @@ function submitForm() {
             </p>
           </div>
 
-          <div class="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+          <div class="rounded-2xl border border-border bg-card p-4 shadow-sm">
             <p class="text-rm font-semibold text-muted-foreground">Último descargue</p>
 
             <label class="inline-flex items-center gap-2">
@@ -332,13 +332,9 @@ function submitForm() {
 
       <DialogFooter class="flex-shrink-0 border-t pt-4 mt-6 flex flex-col gap-2 md:flex-row md:justify-end">
         <div class="w-full md:w-auto">
-          <button
-            type="button"
-            class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-            @click="handleOpenChange(false)"
-          >
+          <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="handleOpenChange(false)">
             Cancelar
-          </button>
+          </Button>
         </div>
         <div class="w-full md:w-auto">
           <Button

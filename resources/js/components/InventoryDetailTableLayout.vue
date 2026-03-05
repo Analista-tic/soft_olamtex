@@ -34,7 +34,7 @@ const handleCreateLineClick = () => emit('create-line');
                 <button
                     v-if="showCreateLineButton"
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="createLineButtonDisabled"
                     @click="handleCreateLineClick"
                 >
@@ -43,9 +43,8 @@ const handleCreateLineClick = () => emit('create-line');
                 </button>
             </slot>
         </div>
-        <div class="overflow-x-auto rounded-lg border border-gray-200" style="overflow: visible; max-height: none">
+        <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none">
             <slot />
         </div>
     </div>
 </template>
-

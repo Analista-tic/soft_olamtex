@@ -558,7 +558,7 @@ watch(
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">
-                                        Referencia Seleccionada<span class="text-red-500">*</span>
+                                        Referencia Seleccionada<span class="text-destructive">*</span>
                                     </Label>
                                     <HelpTooltip
                                         text="Selecciona la sábana de producto que deseas programar para producción."
@@ -577,7 +577,7 @@ watch(
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">
-                                        Cantidad de Lotes<span class="text-red-500">*</span>
+                                        Cantidad de Lotes<span class="text-destructive">*</span>
                                     </Label>
                                     <HelpTooltip
                                         text="Número de lotes de producción que deseas crear para esta referencia."
@@ -628,7 +628,7 @@ watch(
                         <div v-if="selectedProductSheet" class="mb-4">
                             <h3 class="text-lg font-bold mb-2">Detalles de la Ficha de Producto</h3>
 
-                            <table class="w-full text-sm text-left border border-gray-300 rounded-lg overflow-hidden">
+                            <table class="w-full text-sm text-left border border-border rounded-lg overflow-hidden">
                                 <tbody>
                                     <tr>
                                         <td class="px-4 py-2 font-bold">Referencia:</td>
@@ -685,16 +685,16 @@ watch(
                     <div v-if="lotsForm.length > 0" class="mt-4">
                         <h3 class="text-base font-bold mb-2">Lotes Generados:</h3>
 
-                        <table class="w-full text-sm border border-gray-300 rounded-lg overflow-visible shadow-sm text-center">
+                        <table class="w-full text-sm border border-border rounded-lg overflow-visible shadow-sm text-center">
                             <thead>
-                                <tr class="bg-gray-50">
-                                    <th class="px-4 py-3 border font-semibold">Lote</th>
-                                    <th class="px-4 py-3 border font-semibold">Referencia</th>
-                                    <th class="px-4 py-3 border font-semibold">Temporada</th>
-                                    <th class="px-4 py-3 border font-semibold">Destino</th>
-                                    <th class="px-4 py-3 border font-semibold">Prioridad</th>
-                                    <th class="px-4 py-3 border font-semibold">E-commerce (opcional)</th>
-                                    <th class="px-4 py-3 border font-semibold">Unidades</th>
+                                <tr class="bg-muted/40">
+                                    <th class="px-4 py-3 border border-border font-semibold">Lote</th>
+                                    <th class="px-4 py-3 border border-border font-semibold">Referencia</th>
+                                    <th class="px-4 py-3 border border-border font-semibold">Temporada</th>
+                                    <th class="px-4 py-3 border border-border font-semibold">Destino</th>
+                                    <th class="px-4 py-3 border border-border font-semibold">Prioridad</th>
+                                    <th class="px-4 py-3 border border-border font-semibold">E-commerce (opcional)</th>
+                                    <th class="px-4 py-3 border border-border font-semibold">Unidades</th>
                                     <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="px-4 py-3 border font-semibold">
                                         Cant. E-commerce
                                     </th>
@@ -702,7 +702,7 @@ watch(
                             </thead>
 
                             <tbody>
-                                <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
+                                <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-muted/30">
                                     <td class="px-4 py-4 border whitespace-nowrap">MF300{{ index + 1 }}</td>
 
                                     <td class="px-4 py-4 border">
@@ -747,7 +747,7 @@ watch(
                                             type="checkbox"
                                             v-model="lot.isEcommerce"
                                             :aria-label="`Habilitar e-commerce para lote ${index + 1}`"
-                                            class="form-checkbox h-5 w-5 text-blue-600 cursor-pointer"
+                                            class="form-checkbox h-5 w-5 cursor-pointer text-primary"
                                             @change="
                                                 () => {
                                                     if (!lot.isEcommerce) lot.ecommerce_units = null;
@@ -808,16 +808,12 @@ watch(
 
             <!-- Footer fijo -->
             <div
-                class="absolute bottom-0 right-0 left-0 bg-white border-t shadow-lg px-6 py-4 flex flex-col gap-2 items-end rounded-b-[24px]"
+                class="absolute bottom-0 right-0 left-0 rounded-b-[24px] border-t border-border bg-background px-6 py-4 shadow-lg flex flex-col gap-2 items-end"
             >
                 <div class="flex items-center justify-end gap-3 w-full max-w-lg">
-                    <button
-                        type="button"
-                        class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="closeDialog"
-                    >
+                    <Button variant="outline" size="pill" class="px-6 py-2.5" @click="closeDialog">
                         Cancelar
-                    </button>
+                    </Button>
 
                     <Button
                         type="button"

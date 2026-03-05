@@ -699,13 +699,9 @@ async function handleSubmit() {
 
           <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex flex-col gap-2 md:flex-row md:justify-end px-4 pb-4">
             <div class="w-full md:w-auto">
-              <button
-                type="button"
-                class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                @click="emit('close')"
-              >
+              <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="emit('close')">
                 Cancelar
-              </button>
+              </Button>
             </div>
             <div class="w-full md:w-auto">
               <Button

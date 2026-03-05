@@ -2,6 +2,7 @@
 import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { PurchaseOrder } from '@/domain/Expenses';
 import type { Contact } from '@/domain/MasterData';
@@ -647,7 +648,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                                     readonly
                                     v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && orderDocumentNumber)"
                                 />
-                                <span v-else-if="dialogType === 'create' && isLoadingOrderId" class="text-gray-400">Cargando...</span>
+                                <span v-else-if="dialogType === 'create' && isLoadingOrderId" class="text-muted-foreground">Cargando...</span>
                             </div>
                             <div class="relative flex h-full items-center justify-center rounded p-4">
                                 <img
@@ -678,7 +679,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">
-                                        Proveedor<span class="text-red-500">*</span>
+                                        Proveedor<span class="text-destructive">*</span>
                                     </Label>
                                     <HelpTooltip
                                         text="Selecciona el proveedor que suministrará los productos de esta orden de compra."
@@ -712,7 +713,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">
-                                        Fecha de creación<span class="text-red-500">*</span>
+                                        Fecha de creación<span class="text-destructive">*</span>
                                     </Label>
                                     <HelpTooltip
                                         text="Fecha en la que se crea la orden de compra."
@@ -731,7 +732,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">
-                                        Fecha de entrega<span class="text-red-500">*</span>
+                                        Fecha de entrega<span class="text-destructive">*</span>
                                     </Label>
                                     <HelpTooltip
                                         text="Fecha estimada en la que el proveedor debe entregar los productos."
@@ -750,7 +751,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">
-                                        # orden de compra proveedor<span class="text-red-500">*</span>
+                                        # orden de compra proveedor<span class="text-destructive">*</span>
                                     </Label>
                                     <HelpTooltip
                                         text="Número de orden de compra asignado por el proveedor para seguimiento."
@@ -818,17 +819,13 @@ watch(selectedPurchaseRequestId, async (requestId) => {
 
                     <!-- Botones -->
                     <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4 px-4 pb-4">
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="dialogOpen = false"
-                    >
+                    <Button variant="outline" size="pill" @click="dialogOpen = false">
                         Cancelar
-                    </button>
+                    </Button>
                     <button
                         type="button"
                         :disabled="isLoading || isSendingMail"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
                         @click.prevent="handleSubmit(false)"
                     >
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
@@ -836,7 +833,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                     <button
                         type="button"
                         :disabled="isLoading || isSendingMail"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
                         @click.prevent="handleSubmit(true)"
                     >
                         {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}

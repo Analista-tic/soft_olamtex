@@ -3,6 +3,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import axios from 'axios';
@@ -251,7 +252,7 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto rounded-lg border border-gray-200">
+                    <div class="overflow-x-auto rounded-lg border border-border">
                         <Table class="min-w-full table-fixed border-separate border-spacing-x-2 border-spacing-y-1 text-center">
                             <TableHeader>
                                 <TableRow class="border-b border-border/60 text-center">
@@ -306,13 +307,9 @@ onMounted(() => {
             </div>
 
             <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t px-4 pb-4 pt-4">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="dialogOpen = false"
-                >
+                <Button variant="outline" size="pill" @click="dialogOpen = false">
                     Cancelar
-                </button>
+                </Button>
                 <button
                     type="button"
                     :disabled="isLoading || hasMissingItems"

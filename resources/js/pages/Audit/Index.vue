@@ -360,7 +360,7 @@ function translateDiffLabel(key: string): string {
     return fieldLabelTranslations[key] ?? humanizeFieldKey(key);
 }
 
-const defaultActionGradientClass = 'bg-gradient-to-r from-gray-100 via-white to-gray-100 border-gray-200 text-gray-700';
+const defaultActionGradientClass = 'bg-gradient-to-r from-muted/60 via-background to-muted/60 border-border text-muted-foreground';
 
 function getActionGradient(action: string | null) {
     return actionGradientClasses[action ?? ''] ?? defaultActionGradientClass;
@@ -865,12 +865,9 @@ watch(detailDialogOpen, (value) => {
                 </div>
                 <DialogFooter class="flex flex-shrink-0 justify-end gap-2 border-t border-border px-6 py-3">
                     <DialogClose as-child>
-                        <button
-                            type="button"
-                            class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        >
+                        <Button variant="outline" size="pill">
                             Cerrar
-                        </button>
+                        </Button>
                     </DialogClose>
                 </DialogFooter>
             </DialogContent>

@@ -451,15 +451,18 @@ onMounted(() => {
                                 <TextareaField v-model="form.description" label="Observaciones" :rows="2" placeholder="Opcional" />
                             </div>
 
-                            <DialogFooter class="flex flex-wrap justify-end gap-2 border-t pt-2">
-                                <Button type="button" variant="outline" @click="dialogOpen = false"> Cancelar </Button>
-                                <Button type="submit" :disabled="isLoading">
+                            <DialogFooter class="mt-4 border-t pt-4">
+                                <Button type="button" variant="outline" class="rounded-full px-5 py-2 text-sm font-semibold" @click="dialogOpen = false">
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm" :disabled="isLoading">
                                     {{ isLoading ? 'Guardando...' : editingRoll ? 'Actualizar rollo' : 'Guardar rollo' }}
                                 </Button>
                                 <Button
                                     v-if="editingRoll"
                                     type="button"
                                     variant="outline"
+                                    class="rounded-full px-5 py-2 text-sm font-semibold"
                                     @click="
                                         resetForm();
                                         form.roll_number = generateRollNumber();
@@ -522,10 +525,13 @@ onMounted(() => {
                                 </table>
                             </div>
                             <p class="text-sm font-medium text-muted-foreground">Longitud total recibida: {{ totalReceived.toFixed(2) }} mts</p>
-                            <DialogFooter class="flex justify-end border-t pt-2">
-                                <Button type="button" variant="outline" @click="dialogOpen = false"> Cerrar </Button>
+                            <DialogFooter class="mt-4 border-t pt-4">
+                                <Button type="button" variant="outline" class="rounded-full px-5 py-2 text-sm font-semibold" @click="dialogOpen = false">
+                                    Cerrar
+                                </Button>
                                 <Button
                                     type="button"
+                                    class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                                     @click="
                                         resetForm();
                                         form.roll_number = generateRollNumber();

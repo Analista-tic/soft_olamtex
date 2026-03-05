@@ -524,7 +524,7 @@ async function saveChanges() {
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">
-                                            Referencia<span class="text-red-500">*</span>
+                                            Referencia<span class="text-destructive">*</span>
                                         </Label>
                                         <HelpTooltip
                                             text="Sabana de producto asignada a este lote de produccion."
@@ -546,7 +546,7 @@ async function saveChanges() {
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">
-                                            Temporada<span class="text-red-500">*</span>
+                                            Temporada<span class="text-destructive">*</span>
                                         </Label>
                                         <HelpTooltip
                                             text="Temporada o mes en el que se programara la produccion del lote."
@@ -576,7 +576,7 @@ async function saveChanges() {
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">
-                                            Destino<span class="text-red-500">*</span>
+                                            Destino<span class="text-destructive">*</span>
                                         </Label>
                                         <HelpTooltip
                                             text="Canal o mercado destino para el lote programado."
@@ -728,13 +728,9 @@ async function saveChanges() {
             </TooltipProvider>
 
             <DialogFooter class="mt-4 flex items-center justify-end gap-3 border-t px-6 pt-4 pb-6">
-                <button
-                    type="button"
-                    class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="isDialogOpen = false"
-                >
+                <Button variant="outline" size="pill" @click="isDialogOpen = false">
                     {{ isReadOnly ? 'Cerrar' : 'Cancelar' }}
-                </button>
+                </Button>
 
                 <Button
                     v-if="!isReadOnly"

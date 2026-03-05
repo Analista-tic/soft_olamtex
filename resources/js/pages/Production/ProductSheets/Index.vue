@@ -559,13 +559,9 @@ onUnmounted(() => {
             </AlertDialogHeader>
             <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
                 <AlertDialogCancel asChild>
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="isDeleteDialogOpen = false"
-                    >
+                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="isDeleteDialogOpen = false">
                         Cancelar
-                    </button>
+                    </Button>
                 </AlertDialogCancel>
                 <AlertDialogAction asChild>
                     <Button

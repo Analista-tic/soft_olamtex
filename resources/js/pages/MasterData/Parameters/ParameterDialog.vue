@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import InputField from '@/components/InputField.vue';
@@ -172,7 +173,7 @@ function handleSubmit() {
                             <InputField v-model="newValueInput" label="" placeholder="Agregar valor" @keydown.enter.prevent="addValueEntry()" />
                             <button
                                 type="button"
-                                class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-slate-500 transition hover:border-primary hover:bg-primary hover:text-white"
+                                class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground"
                                 @click="addValueEntry"
                             >
                                 <Plus class="h-4 w-4" />
@@ -188,7 +189,7 @@ function handleSubmit() {
                                 />
                                 <button
                                     type="button"
-                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-slate-500 transition hover:border-primary hover:bg-primary hover:text-white"
+                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground"
                                     @click="addValueEntry"
                                 >
                                     <Plus class="h-4 w-4" />
@@ -198,13 +199,13 @@ function handleSubmit() {
                             <span
                                 v-for="(item, index) in valueList"
                                 :key="`value-chip-${index}`"
-                                class="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1 text-xs font-semibold text-slate-600"
+                                class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-foreground"
                             >
                                 {{ item }}
                                 <button
                                     v-if="!isViewMode"
                                     type="button"
-                                    class="text-slate-400 hover:text-slate-600"
+                                    class="text-muted-foreground transition-colors hover:text-foreground"
                                     @click="removeValueEntry(index)"
                                     aria-label="Eliminar valor"
                                 >
@@ -212,11 +213,11 @@ function handleSubmit() {
                                 </button>
                             </span>
                         </div>
-                        <p v-else class="text-xs text-slate-500">Sin valores registrados.</p>
+                        <p v-else class="text-xs text-muted-foreground">Sin valores registrados.</p>
                     </div>
                     <TextareaField v-model="localForm.description" label="Descripción" placeholder="Opcional" :rows="3" :disabled="isViewMode" />
                     <div class="flex flex-wrap gap-4">
-                        <div class="flex w-full items-center gap-3 text-sm text-slate-600">
+                        <div class="flex w-full items-center gap-3 text-sm text-foreground/80">
                             <span>Activo</span>
                             <SwitchField v-model="localForm.status!" :disabled="isViewMode" />
                         </div>
@@ -224,17 +225,13 @@ function handleSubmit() {
                 </div>
             </div>
             <DialogFooter class="mt-6 justify-end gap-2">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="handleClose"
-                >
+                <Button variant="outline" size="pill" @click="handleClose">
                     Cancelar
-                </button>
+                </Button>
                 <button
                     type="button"
                     :disabled="loading || hasDuplicateOptions"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                     @click="handleSubmit"
                 >
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}

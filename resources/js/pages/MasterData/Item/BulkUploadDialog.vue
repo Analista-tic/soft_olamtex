@@ -121,7 +121,7 @@ function preventDrag(event: DragEvent) {
                         </ul>
                     </section>
 
-                    <section class="rounded-2xl border border-muted bg-white p-6 shadow-sm">
+                    <section class="rounded-2xl border border-muted bg-card p-6 shadow-sm">
                         <div class="space-y-4">
                             <div>
                                 <p class="text-sm font-semibold text-foreground">1. Descarga la plantilla oficial</p>
@@ -166,13 +166,9 @@ function preventDrag(event: DragEvent) {
 
             <DialogFooter class="mt-4 flex flex-shrink-0 flex-col-reverse gap-2 border-t pt-4 md:flex-row md:justify-end">
                 <div class="w-full md:w-auto">
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="close"
-                    >
+                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="close">
                         Cancelar
-                    </button>
+                    </Button>
                 </div>
                 <div class="w-full md:w-auto">
                     <Button

@@ -52,11 +52,11 @@ function navigate(event: KeyboardEvent, currentIndex: number) {
             :aria-checked="option.value === selectedValue"
             :aria-label="option.label"
             :disabled="disabled"
-            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
+            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             :class="[
                 option.value === selectedValue
-                    ? 'border-blue-500 bg-blue-500 text-white shadow'
-                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
+                    ? 'border-primary bg-primary text-primary-foreground shadow'
+                    : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                 disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
             ]"
             @click="selectValue(option.value)"
@@ -66,4 +66,3 @@ function navigate(event: KeyboardEvent, currentIndex: number) {
         </button>
     </div>
 </template>
-
