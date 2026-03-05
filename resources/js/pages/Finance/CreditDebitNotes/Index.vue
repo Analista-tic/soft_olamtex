@@ -7,6 +7,7 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -187,6 +188,18 @@ function formatDate(value?: string | null): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return String(value);
   return d.toLocaleDateString('es-CO');
+}
+
+function getNoteStatusLabel(status?: string | null): string {
+  return String(status || 'pending');
+}
+
+function getNoteStatusTone(status?: string | null): 'yellow' | 'green' | 'red' | 'gray' {
+  const normalized = String(status || 'pending').toLowerCase();
+  if (['approved', 'processed', 'completed', 'active'].includes(normalized)) return 'green';
+  if (['rejected', 'cancelled', 'canceled'].includes(normalized)) return 'red';
+  if (['pending', 'draft', 'in_review'].includes(normalized)) return 'yellow';
+  return 'gray';
 }
 
 function resolveProviderName(contactId: number | null): string {
@@ -622,7 +635,9 @@ onMounted(async () => {
               <TableCell>{{ formatDate(note.date) }}</TableCell>
               <TableCell>{{ resolveProviderName(note.contact_id) }}</TableCell>
               <TableCell>{{ resolveParentNumber(note.parent_document_id) }}</TableCell>
-              <TableCell>{{ note.status || 'pending' }}</TableCell>
+              <TableCell>
+                <TableStatusBadge :label="getNoteStatusLabel(note.status)" :tone="getNoteStatusTone(note.status)" />
+              </TableCell>
               <TableCell class="flex justify-center gap-1">
                 <EditButton :onClick="() => openEditDialog(note)" />
                 <DeleteButton :onClick="() => confirmDelete(note)" />

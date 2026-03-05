@@ -13,7 +13,7 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
 import SelectField from '@/components/SelectField.vue';
-import StatusBadge from '@/components/common/StatusBadge.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -403,7 +403,7 @@ watch([searchQuery, statusFilter], () => {
                                     {{ formatValuePreview(param.value) }}
                                 </TableCell>
                                 <TableCell>
-                                    <StatusBadge :status="param.status" />
+                                    <TableStatusBadge :label="param.status ? 'Activo' : 'Inactivo'" :tone="param.status ? 'green' : 'red'" />
                                 </TableCell>
                                 <TableCell class="text-center">
                                     <div class="flex flex-wrap justify-center gap-2">

@@ -14,6 +14,7 @@ import TaxDialog from './TaxDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useAlertStack } from '@/composables/useAlert';
@@ -180,7 +181,9 @@ onMounted(() => fetchTaxes());
                             <TableCell class="font-medium">{{ tax.id }}</TableCell>
                             <TableCell class="font-medium">{{ tax.name }}</TableCell>
                             <TableCell>{{ Math.trunc(tax.percentage) }}%</TableCell>
-                            <TableCell>{{ tax.status ? 'Activo' : 'Inactivo' }}</TableCell>
+                            <TableCell>
+                                <TableStatusBadge :label="tax.status ? 'Activo' : 'Inactivo'" :tone="tax.status ? 'green' : 'red'" />
+                            </TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', tax)" />
                                 <DeleteButton :onClick="() => confirmDeleteTax(tax)" />
@@ -234,7 +237,6 @@ onMounted(() => fetchTaxes());
         />
     </AppLayout>
 </template>
-
 
 
 

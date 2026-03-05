@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card } from '@/components/ui/card';
 import Input from '@/components/ui/input/Input.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -498,12 +499,7 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                                 </div>
                             </TableCell>
                             <TableCell class="whitespace-nowrap">
-                                <Badge 
-                                    :variant="notification.is_read ? 'outline' : 'default'"
-                                    :class="notification.is_read ? '' : 'bg-blue-500 hover:bg-blue-600'"
-                                >
-                                    {{ notification.is_read ? 'Leída' : 'No leída' }}
-                                </Badge>
+                                <TableStatusBadge :label="notification.is_read ? 'Leída' : 'No leída'" :tone="notification.is_read ? 'neutral' : 'sky'" />
                             </TableCell>
                             <TableCell class="text-right">
                                 <div class="flex items-center justify-end gap-1">

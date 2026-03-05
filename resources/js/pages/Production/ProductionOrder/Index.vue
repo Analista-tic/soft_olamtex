@@ -20,7 +20,7 @@ import {
     Card,
     CardContent,
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import {
     Table,
     TableBody,
@@ -79,14 +79,14 @@ const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
 
-const STATUS_UI: Readonly<Record<StatusUiKey, { text: 'Pendiente' | 'Completo'; badgeClass: string }>> = {
+const STATUS_UI: Readonly<Record<StatusUiKey, { text: 'Pendiente' | 'Completo'; tone: 'amber' | 'green' }>> = {
     pending: {
         text: 'Pendiente',
-        badgeClass: 'border-amber-500 text-amber-700 bg-amber-50',
+        tone: 'amber',
     },
     complete: {
         text: 'Completo',
-        badgeClass: 'border-emerald-500 text-emerald-700 bg-emerald-50',
+        tone: 'green',
     },
 };
 
@@ -212,8 +212,8 @@ function getStatusText(row: Programmer): 'Pendiente' | 'Completo' {
     return STATUS_UI[getStatusKey(row)].text;
 }
 
-function getStatusBadgeClass(row: Programmer): string {
-    return STATUS_UI[getStatusKey(row)].badgeClass;
+function getStatusTone(row: Programmer): 'amber' | 'green' {
+    return STATUS_UI[getStatusKey(row)].tone;
 }
 
 // -----------------------------------------------------------------------------
@@ -549,9 +549,7 @@ onUnmounted(() => {
                                                 <TableCell class="text-center">{{ row.destination?.name || '-' }}</TableCell>
                                                 <TableCell class="text-center">{{ row.units ?? '-' }}</TableCell>
                                                 <TableCell class="text-center">
-                                                    <Badge :class="getStatusBadgeClass(row)" variant="outline">
-                                                        {{ getStatusText(row) }}
-                                                    </Badge>
+                                                    <TableStatusBadge :label="getStatusText(row)" :tone="getStatusTone(row)" />
                                                 </TableCell>
                                                 <TableCell class="text-center">
                                                     <div class="flex items-center justify-center gap-2">
@@ -640,6 +638,5 @@ onUnmounted(() => {
         @create-tech-sheet="handleCreateTechSheetFromDialog"
     />
 </template>
-
 
 

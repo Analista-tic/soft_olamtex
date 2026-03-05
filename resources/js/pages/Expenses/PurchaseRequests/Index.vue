@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
@@ -83,13 +84,13 @@ const statusLabels: Record<string, string> = {
     cancelled: 'Cancelada',
 };
 
-const statusBadgeStyles: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
-    pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400',
-    approved: 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400',
-    processed: 'bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400',
-    rejected: 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
-    cancelled: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
+const statusBadgeTones: Record<string, 'gray' | 'yellow' | 'green' | 'blue' | 'red' | 'slate'> = {
+    draft: 'gray',
+    pending: 'yellow',
+    approved: 'green',
+    processed: 'blue',
+    rejected: 'red',
+    cancelled: 'slate',
 };
 
 
@@ -310,9 +311,9 @@ const getStatusLabel = (status?: string) => {
     return statusLabels[status] ?? status;
 };
 
-const getStatusClasses = (status?: string) => {
-    if (!status) return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
-    return statusBadgeStyles[status] ?? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+const getStatusTone = (status?: string): 'gray' | 'yellow' | 'green' | 'blue' | 'red' | 'slate' => {
+    if (!status) return 'gray';
+    return statusBadgeTones[status] ?? 'gray';
 };
 
 // Funciones para verificar permisos de estado
@@ -496,14 +497,7 @@ onMounted(() => {
                                 <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
                                 <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
                                 <TableCell>
-                                    <span
-                                        :class="[
-                                            'inline-flex rounded-full px-2 py-1 text-xs font-semibold',
-                                            getStatusClasses(request.status),
-                                        ]"
-                                    >
-                                        {{ getStatusLabel(request.status) }}
-                                    </span>
+                                    <TableStatusBadge :label="getStatusLabel(request.status)" :tone="getStatusTone(request.status)" />
                                 </TableCell>
                                 <TableCell class="flex justify-center items-center gap-2">
                                     <button
@@ -605,4 +599,3 @@ onMounted(() => {
         @confirm="handleReject"
     />
 </template>
-

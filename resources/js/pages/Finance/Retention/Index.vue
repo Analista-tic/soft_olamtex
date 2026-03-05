@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { PlusCircle, Search } from 'lucide-vue-next';
@@ -236,7 +237,12 @@ onMounted(() => fetchRetentions());
                             <TableCell>{{ Math.trunc(retention.percent) }}%</TableCell>
                             <TableCell>{{ retention.type }}</TableCell>
                             <TableCell>{{ retention.description }}</TableCell>
-                            <TableCell>{{ retention.status === 'active' ? 'Activa' : 'Inactiva' }}</TableCell>
+                            <TableCell>
+                                <TableStatusBadge
+                                    :label="retention.status === 'active' ? 'Activa' : 'Inactiva'"
+                                    :tone="retention.status === 'active' ? 'green' : 'red'"
+                                />
+                            </TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', retention)" />
                                 <DeleteButton :onClick="() => confirmDeleteRetention(retention)" />

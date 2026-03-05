@@ -21,6 +21,7 @@ import SelectField from '@/components/SelectField.vue';
 import DateField from '@/components/DateField.vue';
 import { Button } from '@/components/ui/button';
 import AlertStack from '@/components/common/AlertStack.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import {
     DropdownMenu,
@@ -151,6 +152,21 @@ const getInvoiceItemsPreview = (invoice: PurchaseInvoice) => {
     }
     return `${names.slice(0, 2).join(', ')} +${names.length - 2} más`;
 };
+
+function getInvoiceStatusLabel(status?: string): string {
+    if (status === 'pending_receipt') return 'Pendiente';
+    if (status === 'approved') return 'Aprobado';
+    if (status === 'received') return 'Recibida';
+    if (status === 'rejected') return 'Rechazada';
+    return 'Sin estado';
+}
+
+function getInvoiceStatusTone(status?: string): 'yellow' | 'green' | 'red' | 'gray' {
+    if (status === 'pending_receipt') return 'yellow';
+    if (status === 'approved' || status === 'received') return 'green';
+    if (status === 'rejected') return 'red';
+    return 'gray';
+}
 
 async function fetchProviders() {
     try {
@@ -574,28 +590,10 @@ function handleDialogError(message?: string) {
                             <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
                             <TableCell class="text-start max-w-32 truncate">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>
-                                <span 
-                                    v-if="invoice.status"
-                                    :class="[
-                                        'px-2 py-1 rounded-full text-xs font-medium',
-                                        invoice.status === 'pending_receipt' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400' :
-                                        invoice.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400' :
-                                        invoice.status === 'received' ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400' :
-                                        invoice.status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400' :
-                                        'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                                    ]"
-                                >
-                                    {{ 
-                                        invoice.status === 'pending_receipt' ? 'Pendiente' :
-                                        invoice.status === 'approved' ? 'Aprobado' :
-                                        invoice.status === 'received' ? 'Recibida' :
-                                        invoice.status === 'rejected' ? 'Rechazada' :
-                                        'Sin estado'
-                                    }}
-                                </span>
-                                <span v-else class="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">
-                                    Pendiente
-                                </span>
+                                <TableStatusBadge
+                                    :label="invoice.status ? getInvoiceStatusLabel(invoice.status) : 'Pendiente'"
+                                    :tone="invoice.status ? getInvoiceStatusTone(invoice.status) : 'yellow'"
+                                />
                             </TableCell>
                             <TableCell>
                                 <div class="flex justify-center gap-1 flex-wrap">

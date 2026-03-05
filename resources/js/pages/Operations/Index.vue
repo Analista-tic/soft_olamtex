@@ -4,6 +4,7 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -200,16 +201,6 @@ const pageNumbers = computed(() => {
     return pages;
 });
 
-const groupedBySection = computed(() => {
-    const map = new Map<string, OperationRecord[]>();
-    records.value.forEach((op) => {
-        const key = op.section?.name ?? 'Sin sección';
-        if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push(op);
-    });
-    return map;
-});
-
 onMounted(() => fetchPage(1));
 </script>
 
@@ -335,9 +326,7 @@ onMounted(() => fetchPage(1));
                                         {{ (op.generated_description || '-').toUpperCase() }}
                                     </TableCell>
                                     <TableCell class="text-center">
-                                        <Badge :variant="op.is_active ? 'default' : 'secondary'" class="text-[10px]">
-                                            {{ op.is_active ? 'Activa' : 'Inactiva' }}
-                                        </Badge>
+                                        <TableStatusBadge :label="op.is_active ? 'Activa' : 'Inactiva'" :tone="op.is_active ? 'green' : 'red'" />
                                     </TableCell>
                                     <TableCell>
                                         <div class="flex items-center justify-center gap-0.5">

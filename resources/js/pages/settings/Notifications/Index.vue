@@ -2,7 +2,7 @@
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Badge } from '@/components/ui/badge';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -283,20 +283,7 @@ function handleOpen(notification: NotificationRow) {
                                 </div>
                             </TableCell>
                             <TableCell class="px-4 py-3 text-left">
-                                <Badge
-                                    v-if="!notification.read_at"
-                                    variant="outline"
-                                    class="bg-gradient-to-r from-emerald-100 via-emerald-50 to-emerald-100 border-emerald-200 text-[11px] font-semibold text-emerald-700"
-                                >
-                                    No leída
-                                </Badge>
-                                <Badge
-                                    v-else
-                                    variant="outline"
-                                    class="bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 border-slate-200 text-[11px] font-semibold text-slate-700"
-                                >
-                                    Leída
-                                </Badge>
+                                <TableStatusBadge :label="!notification.read_at ? 'No leída' : 'Leída'" :tone="!notification.read_at ? 'green' : 'slate'" />
                             </TableCell>
                             <TableCell class="px-4 py-3 pr-6 text-right">
                                 <Button

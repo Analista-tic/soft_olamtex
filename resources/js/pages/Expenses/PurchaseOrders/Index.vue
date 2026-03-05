@@ -19,6 +19,7 @@ import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
@@ -220,6 +221,22 @@ function canApproveOrder(order: PurchaseOrder): boolean {
     return order.status === 'pending';
 }
 
+function getOrderStatusLabel(status?: string): string {
+    if (status === 'approved') return 'Aprobada';
+    if (status === 'sent') return 'Enviada';
+    if (status === 'invoiced') return 'Facturada';
+    if (status === 'rejected') return 'Rechazada';
+    return 'Pendiente';
+}
+
+function getOrderStatusTone(status?: string): 'green' | 'blue' | 'indigo' | 'red' | 'yellow' {
+    if (status === 'approved') return 'green';
+    if (status === 'sent') return 'blue';
+    if (status === 'invoiced') return 'indigo';
+    if (status === 'rejected') return 'red';
+    return 'yellow';
+}
+
 async function approveOrder(order: PurchaseOrder) {
     if (isApproving.value !== null) return;
     isApproving.value = order.id ?? null;
@@ -387,32 +404,7 @@ function handleDialogError(message?: string) {
                                 <TableCell>{{ formatCurrency(computeOrderTotal(order)) }}</TableCell>
                                 <TableCell class="text-start">{{ order.description || '-' }}</TableCell>
                                 <TableCell>
-                                    <span
-                                        :class="[
-                                            'rounded-full px-2 py-1 text-xs font-semibold',
-                                            order.status === 'approved'
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
-                                                : order.status === 'sent'
-                                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400'
-                                                  : order.status === 'invoiced'
-                                                    ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-400'
-                                                    : order.status === 'rejected'
-                                                      ? 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400'
-                                                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400',
-                                        ]"
-                                    >
-                                        {{
-                                            order.status === 'approved'
-                                                ? 'Aprobada'
-                                                : order.status === 'sent'
-                                                  ? 'Enviada'
-                                                  : order.status === 'invoiced'
-                                                    ? 'Facturada'
-                                                    : order.status === 'rejected'
-                                                      ? 'Rechazada'
-                                                      : 'Pendiente'
-                                        }}
-                                    </span>
+                                    <TableStatusBadge :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
                                 </TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <EditButton

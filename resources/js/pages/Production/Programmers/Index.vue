@@ -13,9 +13,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import Badge from '@/components/ui/badge/Badge.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Calendar } from '@/components/ui/calendar';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import Input from '@/components/ui/input/Input.vue';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -565,7 +565,9 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                             :key="programmer.id"
                             :class="[
                                 'text-center',
-                                shouldHighlightRow(programmer) ? 'bg-yellow-50 border-l-4 border-yellow-400' : '',
+                                shouldHighlightRow(programmer)
+                                    ? 'bg-yellow-50 border-l-4 border-yellow-400 dark:border-yellow-500/60 dark:bg-yellow-500/10'
+                                    : '',
                                 'text-nowrap'
                             ]"
                         >
@@ -593,17 +595,11 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                 </template>
                             </TableCell>
                             <TableCell>
-                                <Badge
-                                    :variant="'outline'"
+                                <TableStatusBadge
+                                    :label="(programmer.is_pending_completion ?? false) ? 'Pendiente' : 'Completo'"
                                     :title="(programmer.is_pending_completion ?? false) ? getPendingMessage(programmer) : 'Registro completo.'"
-                                    :class="
-                                        (programmer.is_pending_completion ?? false)
-                                            ? 'border-amber-500 text-amber-600'
-                                            : 'border-green-500 text-green-500'
-                                    "
-                                >
-                                    {{ (programmer.is_pending_completion ?? false) ? 'Pendiente' : 'Completo' }}
-                                </Badge>
+                                    :tone="(programmer.is_pending_completion ?? false) ? 'amber' : 'green'"
+                                />
                             </TableCell>
                             <TableCell class="text-center">
                                 <div class="flex items-center justify-center gap-2">

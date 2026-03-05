@@ -11,7 +11,7 @@ import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Ban, Check, Eye, Pencil, Search, PlusCircle } from 'lucide-vue-next';
 import {
     Pagination,
@@ -80,10 +80,10 @@ const statusLabels: Record<string, string> = {
     entregado: 'Entregado',
 };
 
-const statusVariants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-    solicitado: 'secondary',
-    rechazado: 'destructive',
-    entregado: 'default',
+const statusTones: Record<string, 'gray' | 'red' | 'green'> = {
+    solicitado: 'gray',
+    rechazado: 'red',
+    entregado: 'green',
 };
 
 const statusOptions = [
@@ -269,9 +269,10 @@ onMounted(() => {
                             <TableCell>{{ formatDate(request.date) }}</TableCell>
                             <TableCell>{{ formatDate(request.delivery_date) }}</TableCell>
                             <TableCell>
-                                <Badge :variant="statusVariants[request.status]">
-                                    {{ statusLabels[request.status] || request.status }}
-                                </Badge>
+                                <TableStatusBadge
+                                    :label="statusLabels[request.status] || request.status"
+                                    :tone="statusTones[request.status] || 'gray'"
+                                />
                             </TableCell>
                             <TableCell>{{ request.requester?.name || '-' }}</TableCell>
                             <TableCell>{{ request.observation || '-' }}</TableCell>

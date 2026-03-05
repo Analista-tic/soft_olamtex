@@ -8,6 +8,7 @@ import AdditionalFieldDialog from './AdditionalFieldDialog.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -416,7 +417,9 @@ onMounted(() => {
                                 {{ fieldTypeLabels[field.field_type] ?? field.field_type }}
                             </TableCell>
                             <TableCell>{{ field.is_required ? 'Si' : 'No' }}</TableCell>
-                            <TableCell>{{ field.status ? 'Activo' : 'Inactivo' }}</TableCell>
+                            <TableCell>
+                                <TableStatusBadge :label="field.status ? 'Activo' : 'Inactivo'" :tone="field.status ? 'green' : 'red'" />
+                            </TableCell>
                             <TableCell>{{ field.options?.length ?? 0 }}</TableCell>
                             <TableCell class="flex justify-center gap-1">
                                 <EditButton :onClick="() => openDialog('edit', field)" />
@@ -487,4 +490,3 @@ onMounted(() => {
         />
     </AppLayout>
 </template>
-

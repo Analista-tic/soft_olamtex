@@ -15,7 +15,7 @@ import {
 } from 'lucide-vue-next';
 
 import AppLayout from '@/layouts/AppLayout.vue';
-import StatusBadge from '@/components/common/StatusBadge.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 
@@ -425,10 +425,7 @@ onMounted(async () => {
                                 <TableCell>{{ item.reference }}</TableCell>
                                 <TableCell>{{ item.description }}</TableCell>
                                 <TableCell>
-                                    <StatusBadge
-                                        :text="item.status ? 'Habilitado' : 'Deshabilitado'"
-                                        :type="item.status ? 'green' : 'red'"
-                                    />
+                                    <TableStatusBadge :label="item.status ? 'Habilitado' : 'Deshabilitado'" :tone="item.status ? 'green' : 'red'" />
                                 </TableCell>
 
                                 <TableCell class="text-center">
