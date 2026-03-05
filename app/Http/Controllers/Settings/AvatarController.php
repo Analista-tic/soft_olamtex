@@ -109,16 +109,35 @@ class AvatarController extends Controller
     public function show(string $path): StreamedResponse
     {
         $normalizedPath = ltrim($path, '/');
+        $disk = Storage::disk('public');
 
-        if (!str_starts_with($normalizedPath, 'avatars/')) {
+        if (!str_starts_with($normalizedPath, 'avatars/') || str_contains($normalizedPath, '..')) {
             abort(404);
         }
 
-        if (!Storage::disk('public')->exists($normalizedPath)) {
+        $absolutePath = $disk->path($normalizedPath);
+        if (!is_file($absolutePath)) {
             abort(404);
         }
 
-        return Storage::disk('public')->response($normalizedPath, null, [
+        $stream = fopen($absolutePath, 'rb');
+        if ($stream === false) {
+            abort(404);
+        }
+
+        $detectedMime = mime_content_type($absolutePath);
+        $mimeType = is_string($detectedMime) && $detectedMime !== '' ? $detectedMime : 'application/octet-stream';
+        $size = filesize($absolutePath);
+        $contentLength = is_int($size) ? (string) $size : '0';
+
+        return response()->stream(function () use ($stream): void {
+            fpassthru($stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }, 200, [
+            'Content-Type' => $mimeType,
+            'Content-Length' => $contentLength,
             'Cache-Control' => 'public, max-age=31536000, immutable',
         ]);
     }

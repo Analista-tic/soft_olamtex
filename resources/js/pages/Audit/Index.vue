@@ -58,6 +58,8 @@ interface DiffEntry {
     key: string;
     oldValue: string;
     newValue: string;
+    oldImageUrl: string | null;
+    newImageUrl: string | null;
 }
 
 const props = defineProps<AuditPageProps>();
@@ -485,6 +487,70 @@ function formatStructuredObject(value: Record<string, unknown>): string {
     return entries.map(([key, nested]) => `${translateDiffLabel(key)}: ${formatValue(nested)}`).join('\n');
 }
 
+function looksLikeImagePath(value: string): boolean {
+    const cleanValue = value.split('?')[0] ?? value;
+    return /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(cleanValue);
+}
+
+function buildAvatarImageUrl(value: unknown): string | null {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const raw = value.trim();
+    if (!raw || raw === '-' || raw.toLowerCase() === 'null') {
+        return null;
+    }
+
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('data:image/')) {
+        return looksLikeImagePath(raw) ? raw : null;
+    }
+
+    let normalizedPath = raw.replace(/^\/+/, '');
+    if (normalizedPath.startsWith('storage/')) {
+        normalizedPath = normalizedPath.slice('storage/'.length);
+    }
+
+    if (!normalizedPath.startsWith('avatars/') || !looksLikeImagePath(normalizedPath)) {
+        return null;
+    }
+
+    const encodedPath = normalizedPath
+        .split('/')
+        .map((segment) => encodeURIComponent(segment))
+        .join('/');
+
+    return `/profile/avatar-file/${encodedPath}`;
+}
+
+function resolveAuditImageUrl(key: string, value: unknown): string | null {
+    if (key !== 'avatar_path') {
+        return null;
+    }
+
+    return buildAvatarImageUrl(value);
+}
+
+const auditImageFallback =
+    'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%228%22 fill=%22%23f1f5f9%22/%3E%3Ccircle cx=%2232%22 cy=%2226%22 r=%2210%22 fill=%22%23cbd5e1%22/%3E%3Crect x=%2216%22 y=%2240%22 width=%2232%22 height=%2212%22 rx=%226%22 fill=%22%23cbd5e1%22/%3E%3C/svg%3E';
+
+function isAvatarField(key: string): boolean {
+    return key === 'avatar_path';
+}
+
+function handleAuditImageError(event: Event) {
+    const image = event.target as HTMLImageElement | null;
+    if (image) {
+        if (image.dataset.fallbackApplied === 'true') {
+            return;
+        }
+
+        image.dataset.fallbackApplied = 'true';
+        image.src = auditImageFallback;
+        image.classList.add('opacity-70');
+    }
+}
+
 function tryParseJsonString(value: string): Record<string, unknown> | unknown[] | null {
     if (!value) {
         return null;
@@ -535,9 +601,13 @@ function getDiffEntries(log: AuditLog): DiffEntry[] {
     const entries = keys
         .filter((key) => !ignoreDateKeys.includes(key))
         .map((key) => {
-            const oldValue = formatValue(oldValues[key]);
-            const newValue = formatValue(newValues[key]);
-            return { key, oldValue, newValue };
+            const oldRaw = oldValues[key];
+            const newRaw = newValues[key];
+            const oldValue = formatValue(oldRaw);
+            const newValue = formatValue(newRaw);
+            const oldImageUrl = resolveAuditImageUrl(key, oldRaw);
+            const newImageUrl = resolveAuditImageUrl(key, newRaw);
+            return { key, oldValue, newValue, oldImageUrl, newImageUrl };
         })
         .filter((entry) => entry.oldValue !== entry.newValue);
 
@@ -760,10 +830,32 @@ watch(detailDialogOpen, (value) => {
                                         {{ translateDiffLabel(entry.key) }}
                                     </TableCell>
                                     <TableCell class="max-w-[220px] whitespace-pre-line break-words text-center text-xs">
-                                        {{ entry.oldValue }}
+                                        <div class="flex flex-col items-center gap-2">
+                                            <template v-if="isAvatarField(entry.key)">
+                                                <img
+                                                    :src="entry.oldImageUrl ?? auditImageFallback"
+                                                    alt="Avatar anterior"
+                                                    class="h-16 w-16 rounded-md border border-border object-cover"
+                                                    loading="lazy"
+                                                    @error="handleAuditImageError"
+                                                />
+                                            </template>
+                                            <span v-else>{{ entry.oldValue }}</span>
+                                        </div>
                                     </TableCell>
                                     <TableCell class="max-w-[220px] whitespace-pre-line break-words text-center text-xs">
-                                        {{ entry.newValue }}
+                                        <div class="flex flex-col items-center gap-2">
+                                            <template v-if="isAvatarField(entry.key)">
+                                                <img
+                                                    :src="entry.newImageUrl ?? auditImageFallback"
+                                                    alt="Avatar actualizado"
+                                                    class="h-16 w-16 rounded-md border border-border object-cover"
+                                                    loading="lazy"
+                                                    @error="handleAuditImageError"
+                                                />
+                                            </template>
+                                            <span v-else>{{ entry.newValue }}</span>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             </TableBody>
@@ -785,4 +877,3 @@ watch(detailDialogOpen, (value) => {
         </Dialog>
     </AppLayout>
 </template>
-
