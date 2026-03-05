@@ -455,7 +455,7 @@ function handleDialogError(message?: string) {
                             <TableCell>
                                 <div class="flex justify-center gap-1 flex-wrap">
                                     <button
-                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-blue-600"
+                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
                                         @click="viewInvoiceDetails(invoice)"
                                         title="Ver detalles"
                                     >
@@ -532,4 +532,3 @@ function handleDialogError(message?: string) {
     />
     </AppLayout>
 </template>
-

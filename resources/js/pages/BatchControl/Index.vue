@@ -57,7 +57,7 @@ const selectedRow = ref<BatchControlRow | null>(null);
 const selectedNewProcess = ref<string>('');
 
 const TAB_COLORS = [
-    'bg-blue-100 text-blue-800 data-[state=active]:bg-blue-200 data-[state=active]:border-blue-300 dark:bg-blue-950/30 dark:text-blue-400 dark:data-[state=active]:bg-blue-900/40 dark:data-[state=active]:border-blue-700',
+    'bg-primary/10 text-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary',
     'bg-sky-100 text-sky-800 data-[state=active]:bg-sky-200 data-[state=active]:border-sky-300 dark:bg-sky-950/30 dark:text-sky-400 dark:data-[state=active]:bg-sky-900/40 dark:data-[state=active]:border-sky-700',
     'bg-teal-100 text-teal-800 data-[state=active]:bg-teal-200 data-[state=active]:border-teal-300 dark:bg-teal-950/30 dark:text-teal-400 dark:data-[state=active]:bg-teal-900/40 dark:data-[state=active]:border-teal-700',
     'bg-emerald-100 text-emerald-800 data-[state=active]:bg-emerald-200 data-[state=active]:border-emerald-300 dark:bg-emerald-950/30 dark:text-emerald-400 dark:data-[state=active]:bg-emerald-900/40 dark:data-[state=active]:border-emerald-700',

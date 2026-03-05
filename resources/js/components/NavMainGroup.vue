@@ -62,7 +62,7 @@ const clickableGroupSlugs = new Set(['sabana-de-productos', 'ficha-tecnica']);
 const shouldNavigateOnGroupClick = (title: string) => clickableGroupSlugs.has(toSlug(title));
 
 // Verifica si una ruta coincide con la actual
-function isRouteActive(href: string, _title?: string): boolean {
+function isRouteActive(href: string): boolean {
     const normalized = normalizeHref(href);
     if (!normalized) {
         return false;
@@ -72,7 +72,7 @@ function isRouteActive(href: string, _title?: string): boolean {
 }
 
 const isGroupActive = (item: { title: string; href: string; items?: { title: string; href: string }[] }) =>
-    isRouteActive(item.href, item.title) || Boolean(item.items?.some((sub) => isRouteActive(sub.href)));
+    isRouteActive(item.href) || Boolean(item.items?.some((sub) => isRouteActive(sub.href)));
 
 const openGroups = ref<Record<string, boolean>>({});
 
@@ -170,12 +170,10 @@ const handleGroupButtonClick = (item: { title: string; href: string }) => {
 
 <style scoped>
 .active {
-    font-weight: bold;
-    color: #3490dc;
+    @apply font-bold text-primary;
 }
 
 .group\/collapsible {
     width: 100%;
 }
 </style>
-

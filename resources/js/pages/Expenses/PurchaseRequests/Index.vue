@@ -501,7 +501,7 @@ onMounted(() => {
                                 </TableCell>
                                 <TableCell class="flex justify-center items-center gap-2">
                                     <button
-                                        class="flex items-center text-gray-500 hover:text-blue-500 transition-colors duration-200"
+                                        class="flex items-center text-muted-foreground hover:text-primary transition-colors duration-200"
                                         @click="viewRequest(request)"
                                         title="Ver detalles"
                                     >

@@ -189,7 +189,7 @@ const goToSection = (key: SectionKey) => {
 
 const navSectionBaseClasses =
     'flex w-full items-start justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition-colors min-h-[58px] shadow-sm bg-card border-border dark:border-border';
-const navSectionActiveClasses = 'border-blue-100 bg-blue-50 text-blue-600 dark:border-blue-700 dark:bg-blue-600/10 dark:text-blue-300';
+const navSectionActiveClasses = 'border-primary bg-primary/10 text-primary';
 const navSectionDefaultClasses =
     'text-muted-foreground/80 hover:border-slate-300 hover:bg-slate-50 hover:text-card-foreground dark:text-muted-foreground/60 dark:hover:border-slate-600 dark:hover:bg-slate-900 dark:hover:text-white';
 
@@ -719,7 +719,10 @@ onBeforeUnmount(() => {
                                         <p class="font-semibold text-card-foreground">{{ section.label }}</p>
                                         <p class="text-xs text-muted-foreground/70">{{ section.description }}</p>
                                     </div>
-                                    <span class="text-[10px] font-semibold uppercase tracking-wide text-blue-600">
+                                    <span
+                                        class="text-[10px] font-semibold uppercase tracking-wide"
+                                        :class="selectedSection === section.key ? 'text-primary' : 'text-muted-foreground/60'"
+                                    >
                                         {{ selectedSection === section.key ? 'Activo' : 'Disponible' }}
                                     </span>
                                 </button>
@@ -837,7 +840,7 @@ onBeforeUnmount(() => {
                                 <div class="flex flex-col gap-3">
                                     <div
                                         class="relative w-full overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted transition dark:border-border dark:bg-slate-900"
-                                        :class="canEditCompany ? 'cursor-pointer hover:border-blue-400' : 'cursor-not-allowed opacity-70'"
+                                        :class="canEditCompany ? 'cursor-pointer hover:border-primary' : 'cursor-not-allowed opacity-70'"
                                         style="min-height: 9rem"
                                         @click="canEditCompany && triggerLogoUpload()"
                                         @drop.prevent="canEditCompany && handleLogoDrop($event)"

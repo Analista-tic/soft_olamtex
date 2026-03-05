@@ -7,6 +7,7 @@ import { createPinia } from 'pinia'; // Importar Pinia
 import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
+import { initAccentColor } from './composables/useAccentColor';
 import { initializeTheme } from './composables/useAppearance';
 
 // ImportMeta declarations are provided in resources/js/env.d.ts
@@ -115,5 +116,5 @@ createInertiaApp({
 
 // This will set light / dark mode on page load...
 initializeTheme();
+initAccentColor();
 localStorage.setItem('appearance', localStorage.getItem('appearance') || 'light'); // Forzar 'light' si no hay preferencia guardada
-

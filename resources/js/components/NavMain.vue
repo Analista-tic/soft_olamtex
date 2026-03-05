@@ -27,8 +27,6 @@ const page = usePage<SharedData>();
 
 <style scoped>
 .active {
-    font-weight: bold;
-    color: #3490dc;
+    @apply font-bold text-primary;
 }
 </style>
-

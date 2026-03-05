@@ -165,7 +165,7 @@ const modules = [
                     :key="module.title"
                     class="group relative flex flex-col rounded-lg border border-border bg-card p-4 shadow-md transition-shadow hover:shadow-lg"
                 >
-                    <div class="text-md font-semibold text-card-foreground group-hover:text-blue-500">
+                    <div class="text-md font-semibold text-card-foreground group-hover:text-primary">
                         {{ module.title }}
                     </div>
                     <p class="mt-1 text-xs text-muted-foreground">
@@ -175,7 +175,7 @@ const modules = [
                         <li
                             v-for="option in module.options"
                             :key="option.name"
-                            class="transition-colors hover:text-blue-500"
+                            class="transition-colors hover:text-primary"
                         >
                             <Link :href="option.href" class="relative z-10 block text-current">
                                 {{ option.name }}
@@ -183,11 +183,10 @@ const modules = [
                         </li>
                     </ul>
                     <div
-                        class="pointer-events-none absolute inset-0 rounded-lg ring-2 ring-transparent group-hover:ring-blue-500"
+                        class="pointer-events-none absolute inset-0 rounded-lg ring-2 ring-transparent group-hover:ring-ring"
                     ></div>
                 </div>
             </div>
         </div>
     </AppLayout>
 </template>
-

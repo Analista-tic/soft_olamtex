@@ -490,7 +490,7 @@ onUnmounted(() => {
                                     'group relative flex h-56 w-full flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/50 text-center transition-all duration-200',
                                     isReadonly
                                         ? 'cursor-default opacity-90'
-                                        : 'cursor-pointer hover:border-blue-400 hover:shadow-md',
+                                        : 'cursor-pointer hover:border-primary hover:shadow-md',
                                 ]"
                                 @click="triggerFileInput"
                             >
@@ -551,4 +551,3 @@ onUnmounted(() => {
         </DialogContent>
     </Dialog>
 </template>
-

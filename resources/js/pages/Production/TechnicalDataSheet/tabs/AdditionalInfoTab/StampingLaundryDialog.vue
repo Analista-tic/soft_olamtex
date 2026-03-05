@@ -460,7 +460,7 @@ function handleDialogOpenChange(value: boolean): void {
                             <div
                                 :class="[
                                     'group relative flex h-64 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/20 transition-all duration-200',
-                                    processingImage ? 'cursor-wait opacity-70' : 'cursor-pointer hover:border-blue-400 hover:shadow-lg',
+                                    processingImage ? 'cursor-wait opacity-70' : 'cursor-pointer hover:border-primary hover:shadow-lg',
                                 ]"
                                 @click="!processingImage && openFilePicker()"
                             >
@@ -580,4 +580,3 @@ function handleDialogOpenChange(value: boolean): void {
         </FormDialogContent>
     </Dialog>
 </template>
-

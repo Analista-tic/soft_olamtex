@@ -375,7 +375,7 @@ function cleanSizeLabel(size: string | number): string {
                   'mt-2 h-9 w-24 rounded-full border px-2 text-center text-xs focus:outline-none focus-visible:ring-2',
                   entry.manual 
                     ? 'border-green-400 text-card-foreground focus:border-green-500 focus-visible:ring-green-400' 
-                    : 'border-blue-400 border-dashed text-muted-foreground focus:border-primary focus-visible:ring-primary'
+                    : 'border-primary border-dashed text-muted-foreground focus:border-primary focus-visible:ring-ring'
                 ]"
               />
               <span class="text-[10px] text-muted-foreground">{{ entry.manual ? 'Manual' : 'Unidades' }}</span>
@@ -408,7 +408,7 @@ function cleanSizeLabel(size: string | number): string {
                   'mt-2 h-9 w-24 rounded-full border px-2 text-center text-xs focus:outline-none focus-visible:ring-2',
                   entry.manual 
                     ? 'border-green-400 text-card-foreground focus:border-green-500 focus-visible:ring-green-400' 
-                    : 'border-blue-400 border-dashed text-muted-foreground focus:border-primary focus-visible:ring-primary'
+                    : 'border-primary border-dashed text-muted-foreground focus:border-primary focus-visible:ring-ring'
                 ]"
               />
               <span class="text-[10px] text-muted-foreground">{{ entry.manual ? 'Manual' : 'Unidades' }}</span>
@@ -458,4 +458,3 @@ function cleanSizeLabel(size: string | number): string {
     />
   </AppLayout>
 </template>
-

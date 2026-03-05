@@ -1078,7 +1078,7 @@ function handleClose() {
                                         <div
                                             :class="[
                                                 'group relative flex min-h-[320px] w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
-                                                isReadonly ? 'cursor-default opacity-100' : 'hover:border-blue-400 hover:shadow-lg',
+                                                isReadonly ? 'cursor-default opacity-100' : 'hover:border-primary hover:shadow-lg',
                                             ]"
                                             style="min-width: 0;"
                                         >
@@ -1190,4 +1190,3 @@ function handleClose() {
     display: none;
 }
 </style>
-

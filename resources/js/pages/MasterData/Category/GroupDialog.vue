@@ -47,7 +47,7 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[95vh] px-2 py-2">
+        <FormDialogContent class="flex flex-col h-[35vh] max-w-[95vh] px-2 py-2">
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>Crear Grupo</DialogTitle>
                 <DialogDescription>

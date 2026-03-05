@@ -460,8 +460,7 @@ watch(
 
 <style scoped>
 .active {
-    font-weight: 600;
-    color: #3490dc;
+    @apply font-semibold text-primary;
 }
 
 .group\/collapsible {

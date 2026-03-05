@@ -706,7 +706,7 @@ function onFabricRollSuccess() {
                                 <TableCell>{{ (invoice.items || []).length }} item(s)</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <button
-                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-blue-600"
+                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
                                         @click="viewInvoice(invoice)"
                                         title="Ver detalle"
                                     >
@@ -861,7 +861,7 @@ function onFabricRollSuccess() {
                                             <template v-if="isFabricItem(item)">
                                                 <button
                                                     class="flex h-full items-center justify-center text-muted-foreground transition-colors duration-200"
-                                                    :class="isInvoiceReceptionApproved(selectedInvoice) ? 'cursor-not-allowed opacity-50' : 'hover:text-blue-600'"
+                                                    :class="isInvoiceReceptionApproved(selectedInvoice) ? 'cursor-not-allowed opacity-50' : 'hover:text-primary'"
                                                     :disabled="isInvoiceReceptionApproved(selectedInvoice)"
                                                     :title="isInvoiceReceptionApproved(selectedInvoice) ? 'La factura ya está aprobada; no se puede registrar más rollos' : 'Registrar rollo'"
                                                     @click="!isInvoiceReceptionApproved(selectedInvoice) && openFabricRollDialog(item)"
@@ -1091,4 +1091,3 @@ function onFabricRollSuccess() {
         </div>
     </AppLayout>
 </template>
-

@@ -1215,7 +1215,7 @@ onBeforeUnmount(() => {
                                             class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
                                             :class="[
                                                 option.value === currentItemType
-                                                    ? 'border-blue-500 bg-blue-500 text-white shadow'
+                                                    ? 'border-primary bg-primary text-primary-foreground shadow'
                                                     : 'border-border bg-background text-muted-foreground hover:border-input hover:bg-muted/50',
                                             ]"
                                             :aria-pressed="option.value === currentItemType"
@@ -1470,7 +1470,7 @@ onBeforeUnmount(() => {
                                             'group relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
                                             isViewMode
                                                 ? 'cursor-default opacity-100'
-                                                : 'cursor-pointer hover:border-blue-400 hover:shadow-lg',
+                                                : 'cursor-pointer hover:border-primary hover:shadow-lg',
                                         ]"
                                         @click="!isViewMode && triggerFileInput()"
                                         style="min-width: 0; position: relative"

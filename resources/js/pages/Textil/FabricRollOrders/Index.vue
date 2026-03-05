@@ -167,7 +167,7 @@ onMounted(fetchProgrammers);
 
                 <TableCell class="flex justify-center gap-1">
                   <button
-                    class="inline-flex items-center justify-center text-gray-500 transition-colors hover:text-blue-600"
+                    class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-primary"
                     title="Descargar orden"
                     type="button"
                     @click="openDownloadWindow(programmer)"
@@ -194,7 +194,6 @@ onMounted(fetchProgrammers);
     </div>
   </AppLayout>
 </template>
-
 
 
 

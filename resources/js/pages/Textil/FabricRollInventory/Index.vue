@@ -316,7 +316,7 @@ onMounted(fetchFabricRolls);
                                 <TableCell class="text-center text-sm text-foreground/90">{{ formatMeters(roll.real_availability) }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
                                     <button
-                                        class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-blue-600"
+                                        class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-primary"
                                         title="Ver rollo"
                                         type="button"
                                         @click="selectRoll(roll)"
@@ -325,7 +325,7 @@ onMounted(fetchFabricRolls);
                                     </button>
                                     <DeleteButton @click="confirmDeleteRoll(roll)" />
                                     <button
-                                        class="inline-flex items-center justify-center text-gray-500 transition-colors hover:text-blue-600"
+                                        class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-primary"
                                         title="Descargar rollo"
                                         type="button"
                                         @click="openDownloadDialog(roll)"
@@ -333,7 +333,7 @@ onMounted(fetchFabricRolls);
                                         <ArrowDownToLine class="h-4 w-4" />
                                     </button>
                                     <button
-                                        class="inline-flex items-center justify-center text-gray-500 transition-colors hover:text-blue-600"
+                                        class="inline-flex items-center justify-center text-muted-foreground transition-colors hover:text-primary"
                                         title="Ajustar salida"
                                         type="button"
                                         @click="openAdjustDialog(roll)"
@@ -388,4 +388,3 @@ onMounted(fetchFabricRolls);
         />
     </AppLayout>
 </template>
-
