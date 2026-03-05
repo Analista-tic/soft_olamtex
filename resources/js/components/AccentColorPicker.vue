@@ -6,7 +6,7 @@ const { accentColor, updateAccentColor } = useAccentColor();
 const options: Array<{ value: AccentColor; label: string; swatchClass: string }> = [
     { value: 'zinc', label: 'Zinc', swatchClass: 'bg-zinc-600' },
     { value: 'red', label: 'Rojo', swatchClass: 'bg-red-500' },
-    { value: 'rose', label: 'Rose', swatchClass: 'bg-rose-500' },
+    { value: 'rose', label: 'Rosa', swatchClass: 'bg-rose-300' },
     { value: 'orange', label: 'Naranja', swatchClass: 'bg-orange-500' },
     { value: 'green', label: 'Verde', swatchClass: 'bg-green-500' },
     { value: 'blue', label: 'Azul', swatchClass: 'bg-blue-500' },

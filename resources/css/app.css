@@ -95,9 +95,9 @@ html {
     }
 
     html[data-accent='rose'] {
-        --primary: 346.8 77.2% 49.8%;
-        --primary-foreground: 0 0% 98%;
-        --ring: 346.8 77.2% 49.8%;
+        --primary: 352.6 95.7% 81.8%;
+        --primary-foreground: 20 14.3% 4.1%;
+        --ring: 352.6 95.7% 81.8%;
     }
 
     html[data-accent='orange'] {
