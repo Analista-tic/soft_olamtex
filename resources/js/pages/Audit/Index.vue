@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import FilterBar from '@/components/FilterBar.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Badge } from '@/components/ui/badge';
@@ -150,6 +151,12 @@ const selectModule = ref<string | null>(filters.module ?? '');
 const moduleFilterActive = computed(() => Boolean(selectModule.value?.trim()));
 const actionFilterActive = computed(() => Boolean(selectAction.value));
 const dateFilterActive = computed(() => Boolean(filters.date?.trim()));
+const dateFilterModel = computed<string | null>({
+    get: () => filters.date || null,
+    set: (value) => {
+        filters.date = value ?? '';
+    },
+});
 const moduleButtonClasses = useFilterButtonClasses(moduleFilterActive);
 const actionButtonClasses = useFilterButtonClasses(actionFilterActive);
 
@@ -676,7 +683,7 @@ watch(detailDialogOpen, (value) => {
                         />
                     </FilterField>
                     <FilterField label="Fecha" :active="dateFilterActive" class="min-w-[220px]">
-                        <Input id="audit-filter-date" v-model="filters.date" type="date" placeholder="Fecha" class="h-10 w-full" />
+                        <DatePickerField v-model="dateFilterModel" label="" placeholder-text="dd/mm/aaaa" class="w-full" />
                     </FilterField>
                 </FilterBar>
             </div>

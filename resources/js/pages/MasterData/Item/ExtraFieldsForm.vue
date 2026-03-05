@@ -293,8 +293,9 @@ function isAddDisabled() {
             </div>
             <Button
                 type="button"
-                variant="default"
-                class="h-9"
+                variant="outline"
+                size="pill"
+                class="h-9 border-primary/40 bg-background px-4 text-xs font-semibold text-primary hover:bg-primary/10 hover:text-primary"
                 :disabled="isAddDisabled()"
                 @click="addExtraField"
             >
@@ -356,4 +357,3 @@ function isAddDisabled() {
         </div>
     </div>
 </template>
-
