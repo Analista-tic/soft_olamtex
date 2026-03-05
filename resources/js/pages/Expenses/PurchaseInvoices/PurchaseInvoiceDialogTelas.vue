@@ -519,7 +519,6 @@ watch(dialogOpen, (isOpen) => {
     <Dialog v-model:open="dialogOpen">
         <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
             <AlertStack
-                class="absolute inset-x-0 bottom-0 z-10 rounded-b-2xl border-t bg-background/95 px-4 py-2 shadow-sm"
                 :success-message="successMessage"
                 :error-message="errorMessage"
                 success-title="Éxito"

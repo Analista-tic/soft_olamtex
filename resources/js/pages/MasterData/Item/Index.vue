@@ -450,7 +450,7 @@ onMounted(async () => {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    :class="actionButtonClass"
+                                                    :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
                                                     aria-label="Eliminar"
                                                     @click="confirmDeleteItem(item)"
                                                 >

@@ -376,8 +376,8 @@ watch([searchQuery, statusFilter], () => {
                                 <TableHead>Nombre</TableHead>
                                 <TableHead>Descripción</TableHead>
                                 <TableHead>Valor</TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead class="text-center">Acciones</TableHead>
+                                <TableHead class="w-[140px] text-center">Estado</TableHead>
+                                <TableHead class="w-[140px] text-center">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
 
@@ -402,11 +402,11 @@ watch([searchQuery, statusFilter], () => {
                                 <TableCell class="text-left text-sm text-foreground/90">
                                     {{ formatValuePreview(param.value) }}
                                 </TableCell>
-                                <TableCell>
+                                <TableCell class="align-middle">
                                     <TableStatusBadge :label="param.status ? 'Activo' : 'Inactivo'" :tone="param.status ? 'green' : 'red'" />
                                 </TableCell>
-                                <TableCell class="text-center">
-                                    <div class="flex flex-wrap justify-center gap-2">
+                                <TableCell class="w-[140px] align-middle text-center">
+                                    <div class="flex items-center justify-center gap-2 whitespace-nowrap">
                                         <Tooltip>
                                             <TooltipTrigger as-child>
                                                 <Button

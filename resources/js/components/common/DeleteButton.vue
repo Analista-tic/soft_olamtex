@@ -18,8 +18,7 @@ function handleClick() {
 </script>
 
 <template>
-    <Button variant="ghost" size="icon" class="h-8 w-8 text-muted-foreground hover:text-foreground" @click="handleClick" type="button">
+    <Button variant="ghost" size="icon" class="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive" @click="handleClick" type="button">
         <Trash :class="['h-4 w-4', props.customClass]" />
     </Button>
 </template>
-
