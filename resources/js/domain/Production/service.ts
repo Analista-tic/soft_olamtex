@@ -34,6 +34,7 @@ const ENDPOINTS = {
     OPTIONS: '/produccion/ficha-tecnica/opciones',
     BASIC_INFO: '/produccion/ficha-tecnica/:id/basica',
     OP_OPERATIONAL_LIST: '/produccion/ficha-tecnica/:id/listado-operacional',
+    OP_OPERATIONAL_LIST_DETAIL: '/produccion/ficha-tecnica/:id/listado-operacional-detallado',
     OPERATIONAL_LIST_OPTIONS: '/produccion/ficha-tecnica/listados-operacionales/opciones',
     OP_PROCESSES_SUMMARY: '/produccion/ficha-tecnica/:id/procesos',
     OP_COSTS_SUMMARY: '/produccion/ficha-tecnica/:id/costos',
@@ -49,6 +50,7 @@ const ENDPOINTS = {
     OP_ROLLS_LINE_DELETE: '/produccion/ficha-tecnica/:id/rollos/lines/:lineId',
     INVENTORY_ROLLS: '/kardex-telas/inventario-rollos/data',
     OP_THREADS: '/produccion/ficha-tecnica/:id/hilos',
+    OP_RAW_MATERIALS: '/produccion/ficha-tecnica/:id/materia-prima',
     OP_ADDITIONAL_INFO: '/produccion/ficha-tecnica/:id/info-adicional',
     PRODUCT_SHEETS: '/produccion/product-sheets',
     PRODUCT_SHEETS_SHOW: '/produccion/sabana-productos/:id',
@@ -162,6 +164,32 @@ export interface FetchOperationalListOptionsParams {
 type SettingsParametersResponse = {
     data?: Record<string, Array<{ id: string | number | boolean; name: string }>>;
 };
+
+export type OperationalListDetailResponse = {
+    data: Array<{
+        id: number;
+        sequence?: number;
+        quantity?: number;
+        operation?: { id: number; name?: string; action?: string; garment_part?: string };
+        machine?: { id: number; code?: string; name?: string };
+        sam_base?: number;
+        sam_total_unitario?: number;
+        sam_total_operacion?: number;
+        machine_supplement_factor?: number;
+        fabric_base_factor?: number;
+        operator_efficiency_factor?: number;
+        operation_section?: { id: number; name?: string; type?: string };
+        operation_section_id?: number | null;
+    }>;
+    sections: Array<{ id: number; name: string; type: string }>;
+    costParameters: { operation_cost: number; yarn_cost: number };
+};
+
+export async function fetchOpOperationalListDetail(opId: string | number): Promise<OperationalListDetailResponse> {
+    const url = ENDPOINTS.OP_OPERATIONAL_LIST_DETAIL.replace(':id', String(opId));
+    const response = await axios.get<OperationalListDetailResponse>(url);
+    return response.data;
+}
 
 export async function fetchOpOperationalList(opId: string | number): Promise<OperationalListResponse> {
     const url = ENDPOINTS.OP_OPERATIONAL_LIST.replace(':id', String(opId));
@@ -286,6 +314,8 @@ export async function fetchOpProcesses(opId: string | number): Promise<OpProcess
             cuttingCost: Number(data?.params?.cuttingCost ?? 0),
             minuteCost: Number(data?.params?.minuteCost ?? 0),
         },
+        costConfeccion: data?.costConfeccion != null ? Number(data.costConfeccion) : undefined,
+        costTerminacion: data?.costTerminacion != null ? Number(data.costTerminacion) : undefined,
         minutes: {
             confeccion: Number(data?.minutes?.confeccion ?? 0),
             terminacion: Number(data?.minutes?.terminacion ?? 0),
@@ -297,8 +327,11 @@ export async function fetchOpProcesses(opId: string | number): Promise<OpProcess
                   type: row.type,
                   supplier: row.supplier ?? null,
                   manualPrice: row.manualPrice !== null && row.manualPrice !== undefined ? Number(row.manualPrice) : null,
+                  fixedCost: row.fixedCost !== null && row.fixedCost !== undefined ? Number(row.fixedCost) : undefined,
               }))
             : [],
+        costsAreFixed: Boolean(data?.costsAreFixed),
+        canEditProcesses: Boolean(data?.canEditProcesses),
     };
 }
 
@@ -313,6 +346,8 @@ export async function saveOpProcesses(opId: string | number, payload: { processe
             cuttingCost: Number(data?.params?.cuttingCost ?? 0),
             minuteCost: Number(data?.params?.minuteCost ?? 0),
         },
+        costConfeccion: data?.costConfeccion != null ? Number(data.costConfeccion) : undefined,
+        costTerminacion: data?.costTerminacion != null ? Number(data.costTerminacion) : undefined,
         minutes: {
             confeccion: Number(data?.minutes?.confeccion ?? 0),
             terminacion: Number(data?.minutes?.terminacion ?? 0),
@@ -324,8 +359,11 @@ export async function saveOpProcesses(opId: string | number, payload: { processe
                   type: row.type,
                   supplier: row.supplier ?? null,
                   manualPrice: row.manualPrice !== null && row.manualPrice !== undefined ? Number(row.manualPrice) : null,
+                  fixedCost: row.fixedCost !== null && row.fixedCost !== undefined ? Number(row.fixedCost) : undefined,
               }))
             : [],
+        costsAreFixed: Boolean(data?.costsAreFixed),
+        canEditProcesses: Boolean(data?.canEditProcesses),
     };
 }
 
@@ -422,7 +460,7 @@ export async function fetchRawMaterialCatalogOptions(search = ''): Promise<Optio
             const id = Number(item.id);
             const name = String(item.name ?? '').trim();
             const reference = String(item.reference ?? '').trim();
-            const label = reference ? `${name} (${reference})` : name;
+            const label = reference ? `${reference} - ${name}` : name;
             return { id, name: label };
         })
         .filter((option) => Number.isFinite(Number(option.id)) && option.name !== '');
@@ -446,6 +484,36 @@ export async function fetchRawMaterialItemMeta(itemId: number): Promise<RawMater
     const url = ENDPOINTS.ITEM_META_BY_ITEM.replace(':itemId', String(itemId));
     const response = await axios.get<RawMaterialItemMetaResponse>(url);
     return response.data?.data ?? null;
+}
+
+/** Respuesta GET materia prima por OP (ficha técnica). */
+export type RawMaterialsResponse = { rows: RawMaterialRowDto[] };
+
+export type RawMaterialRowDto = {
+    uid?: string;
+    telaItemId?: number | null;
+    tela?: string;
+    supplierId?: number | null;
+    lastSupplierName?: string | null;
+    lastUnitPriceCop?: number | null;
+    ancho?: number | null;
+    anchoUnit?: 'm' | 'cm' | null;
+    promTrazo?: number;
+    largoTrazo?: number;
+    largoLiq?: number;
+    consumo?: number;
+};
+
+export async function fetchOpRawMaterials(opId: string | number): Promise<RawMaterialRowDto[]> {
+    const url = ENDPOINTS.OP_RAW_MATERIALS.replace(':id', String(opId));
+    const response = await axios.get<RawMaterialsResponse>(url);
+    return Array.isArray(response.data?.rows) ? response.data.rows : [];
+}
+
+export async function saveOpRawMaterials(opId: string | number, rows: RawMaterialRowDto[]): Promise<RawMaterialRowDto[]> {
+    const url = ENDPOINTS.OP_RAW_MATERIALS.replace(':id', String(opId));
+    const response = await axios.put<RawMaterialsResponse>(url, { rows });
+    return Array.isArray(response.data?.rows) ? response.data.rows : [];
 }
 
 export async function upsertOpSupply(opId: string | number, payload: SupplyItem): Promise<SupplyItem[]> {

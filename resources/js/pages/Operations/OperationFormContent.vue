@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Plus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -107,8 +107,18 @@ watch(
     { immediate: true },
 );
 
-watch(() => props.actions, (v) => { actionsList.value = v ? [...v] : []; });
-watch(() => props.garmentParts, (v) => { garmentPartsList.value = v ? [...v] : []; });
+watch(
+    () => props.actions,
+    (v) => {
+        actionsList.value = v ? [...v] : [];
+    },
+);
+watch(
+    () => props.garmentParts,
+    (v) => {
+        garmentPartsList.value = v ? [...v] : [];
+    },
+);
 
 watch(newActionValue, (v) => {
     const n = v.toUpperCase();
@@ -119,9 +129,7 @@ watch(newGarmentPartValue, (v) => {
     if (v !== n) newGarmentPartValue.value = n;
 });
 
-const sectionOptions = computed(() =>
-    props.sections.map((s) => ({ id: s.id, name: s.name })),
-);
+const sectionOptions = computed(() => props.sections.map((s) => ({ id: s.id, name: s.name })));
 const actionOptions = computed(() => {
     const base = actionsList.value.map((a) => ({ id: a, name: a }));
     const current = form.value.action?.trim();
@@ -163,9 +171,7 @@ const generatedDescription = computed(() => {
     if (generatedName.value) parts.push(generatedName.value);
     if (form.value.measure != null && form.value.measure > 0) parts.push(`${Number(form.value.measure).toFixed(2)} cm`);
     if (form.value.quantity != null && form.value.quantity > 0) parts.push(String(form.value.quantity));
-    const sectionName = form.value.section_id
-        ? (props.sections.find((s) => s.id === form.value.section_id)?.name ?? '')
-        : '';
+    const sectionName = form.value.section_id ? (props.sections.find((s) => s.id === form.value.section_id)?.name ?? '') : '';
     if (sectionName) parts.push(sectionName);
     return parts.join(' ').toUpperCase();
 });
@@ -202,9 +208,19 @@ function validate(): string | null {
     if (!form.value.action?.trim()) return 'La acción es obligatoria.';
     if (!form.value.garment_part?.trim()) return 'La parte de prenda es obligatoria.';
     if (!form.value.section_id && !isEditing.value) return 'La sección es obligatoria.';
-    const sam = form.value.sam_base ?? 0;
-    if ((!isEditing.value || form.value.sam_base != null) && (sam <= 0 || !Number.isFinite(sam))) {
-        return 'El SAM base es obligatorio y debe ser mayor a 0 (ej: 0.25 min).';
+
+    // En creación: SAM es obligatorio y debe ser > 0
+    if (!isEditing.value) {
+        const sam = form.value.sam_base ?? 0;
+        if (sam <= 0 || !Number.isFinite(sam)) {
+            return 'El SAM base es obligatorio y debe ser mayor a 0 (ej: 0.25 min).';
+        }
+    }
+    // En edición: si se proporciona SAM, debe ser > 0
+    else if (form.value.sam_base != null) {
+        if (form.value.sam_base <= 0 || !Number.isFinite(form.value.sam_base)) {
+            return 'El SAM base debe ser mayor a 0 si se especifica.';
+        }
     }
     return null;
 }
@@ -219,11 +235,11 @@ function submit() {
         action: (form.value.action ?? '').trim().toUpperCase(),
         garment_part: (form.value.garment_part ?? '').trim().toUpperCase(),
         section_id: form.value.section_id,
-        measure: form.value.measure,
+        measure: form.value.measure ?? null,
         quantity: form.value.quantity ?? 1,
-        sam_base: form.value.sam_base ?? 0,
-        product_sheet_id_reference: form.value.product_sheet_id_reference,
-        machine_id_reference: form.value.machine_id_reference,
+        sam_base: form.value.sam_base ?? null,
+        product_sheet_id_reference: form.value.product_sheet_id_reference ?? null,
+        machine_id_reference: form.value.machine_id_reference ?? null,
         is_active: form.value.is_active ?? true,
     };
     emit('submit', payload);
@@ -245,34 +261,16 @@ defineExpose({ submit, validate });
         <div class="grid grid-cols-2 gap-4">
             <div v-if="isEditing" class="space-y-1.5">
                 <Label>Código</Label>
-                <InputField
-                    :model-value="form.codigo ?? ''"
-                    label=""
-                    class="bg-muted/50 font-mono"
-                    disabled
-                    placeholder="Generado al guardar"
-                />
+                <InputField :model-value="form.codigo ?? ''" label="" class="bg-muted/50 font-mono" disabled placeholder="Generado al guardar" />
             </div>
-            <SelectField
-                v-model="form.section_id"
-                label="Sección"
-                placeholder="Selecciona sección"
-                :options="sectionOptions"
-                required
-            />
+            <SelectField v-model="form.section_id" label="Sección" placeholder="Selecciona sección" :options="sectionOptions" required />
         </div>
 
         <!-- Acción + Parte -->
         <div class="grid grid-cols-2 gap-4">
             <div>
                 <Label>Acción <span class="text-destructive">*</span></Label>
-                <SelectField
-                    v-if="!showActionInput"
-                    v-model="form.action"
-                    :options="actionOptions"
-                    placeholder="Selecciona acción"
-                    required
-                >
+                <SelectField v-if="!showActionInput" v-model="form.action" :options="actionOptions" placeholder="Selecciona acción" required>
                     <template #header>
                         <Button type="button" size="sm" variant="outline" class="w-full justify-center gap-1 text-xs" @click="showActionInput = true">
                             <Plus class="h-4 w-4" /> Nueva acción
@@ -282,7 +280,15 @@ defineExpose({ submit, validate });
                 <div v-else class="flex gap-2">
                     <InputField v-model="newActionValue" label="" placeholder="Ej: CERRAR, COSER" class="flex-1" />
                     <Button size="sm" @click="addNewAction">Agregar</Button>
-                    <Button size="sm" variant="outline" @click="showActionInput = false; newActionValue = ''">Cancelar</Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        @click="
+                            showActionInput = false;
+                            newActionValue = '';
+                        "
+                        >Cancelar</Button
+                    >
                 </div>
             </div>
             <div>
@@ -295,7 +301,13 @@ defineExpose({ submit, validate });
                     required
                 >
                     <template #header>
-                        <Button type="button" size="sm" variant="outline" class="w-full justify-center gap-1 text-xs" @click="showGarmentPartInput = true">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            class="w-full justify-center gap-1 text-xs"
+                            @click="showGarmentPartInput = true"
+                        >
                             <Plus class="h-4 w-4" /> Nueva parte
                         </Button>
                     </template>
@@ -303,7 +315,15 @@ defineExpose({ submit, validate });
                 <div v-else class="flex gap-2">
                     <InputField v-model="newGarmentPartValue" label="" placeholder="Ej: BOLSILLO, PRETINA" class="flex-1" />
                     <Button size="sm" @click="addNewGarmentPart">Agregar</Button>
-                    <Button size="sm" variant="outline" @click="showGarmentPartInput = false; newGarmentPartValue = ''">Cancelar</Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        @click="
+                            showGarmentPartInput = false;
+                            newGarmentPartValue = '';
+                        "
+                        >Cancelar</Button
+                    >
                 </div>
             </div>
         </div>
@@ -339,7 +359,7 @@ defineExpose({ submit, validate });
             </div>
             <div v-else-if="lockProductSheet && defaultProductSheetId">
                 <Label>Referencia (sábana de producto)</Label>
-                <div class="text-sm text-muted-foreground py-2">{{ selectedProductSheetName }}</div>
+                <div class="py-2 text-sm text-muted-foreground">{{ selectedProductSheetName }}</div>
             </div>
             <div v-if="machines?.length">
                 <Label>Máquina de referencia</Label>
@@ -351,7 +371,9 @@ defineExpose({ submit, validate });
         <div v-if="isEditing" class="flex items-center gap-3 rounded-md border px-3 py-2.5">
             <input type="checkbox" id="op-active" v-model="form.is_active" class="h-4 w-4 rounded" />
             <label for="op-active" class="text-sm">Operación activa</label>
-            <Badge :variant="form.is_active ? 'default' : 'secondary'" class="ml-auto text-[10px]">{{ form.is_active ? 'Activa' : 'Inactiva' }}</Badge>
+            <Badge :variant="form.is_active ? 'default' : 'secondary'" class="ml-auto text-[10px]">{{
+                form.is_active ? 'Activa' : 'Inactiva'
+            }}</Badge>
         </div>
     </div>
 </template>

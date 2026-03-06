@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import AlertStack from '@/components/common/AlertStack.vue';
+import AlertBox from '@/components/AlertBox.vue';
+import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -13,9 +14,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { useAlertStack } from '@/composables/useAlert';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
-import type { MachineOption, OperationOption, OperationSection, OptionParams, ProductOperationPayload, ProductSheet } from '@/domain/Production';
+import type { FabricBaseOption, ProductOperationPayload } from '@/domain/product-sheet';
+import type { MachineOption, OperationOption, OperationSection, OptionParams, ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
     PRODUCT_SHEET_TYPE_SAMPLE,
@@ -45,6 +46,49 @@ interface Props {
 }
 
 const props = defineProps<Props & { open: boolean }>(); // Agregar la propiedad `open`
+async function loadOperationsForProduct(productId: number, silent = false): Promise<void> {
+    try {
+        const { data } = await axios.get(route('produccion.listados-operacionales.data'), {
+            params: { product_sheet_id: productId },
+        });
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        const sorted = [...rows].sort(
+            (a: { sequence_order?: number }, b: { sequence_order?: number }) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0),
+        );
+        const seen = new Set<string>();
+        const deduplicated: typeof sorted = [];
+        for (const row of sorted) {
+            const key = `${row.operation_id ?? ''}-${row.machine_id ?? ''}-${row.operation_section_id ?? row.section_id ?? ''}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            deduplicated.push(row);
+        }
+        loadedOperationIds.value = deduplicated.map((r: { id?: number }) => Number(r.id)).filter(Boolean);
+        const first = deduplicated[0] ?? {};
+        operationDialogInitialData.value = {
+            productSheetId: productId,
+            operations: deduplicated.map((row: Record<string, unknown>) => ({
+                id: typeof row.id === 'number' ? row.id : undefined,
+                section_id: Number(row.operation_section_id ?? row.section_id ?? 0) || null,
+                operation_id: Number(row.operation_id ?? 0) || null,
+                machine_id: Number(row.machine_id ?? 0) || null,
+                optimal_time: String(row.optimal_time ?? row.sam ?? '0.00'),
+                quantity: Math.max(1, Math.floor(Number(row.quantity ?? 1)) || 1),
+                fabric_base_id: row.fabric_base_id != null ? Number(row.fabric_base_id) || null : null,
+                operator_efficiency_factor: Number(row.operator_efficiency_factor ?? first.operator_efficiency_factor ?? 1) || 1,
+            })),
+            operatorEfficiencyFactor: Number(first.operator_efficiency_factor ?? 1) || 1,
+            machineSupplementFactor: Number(first.machine_supplement_factor ?? 1.0) || 1.0,
+            notes: String(first.notes ?? ''),
+        };
+    } catch (err) {
+        if (!silent) {
+            console.error('Error al cargar operaciones:', err);
+        }
+        loadedOperationIds.value = [];
+        operationDialogInitialData.value = { ...buildOperationDialogInitialData(), productSheetId: productId };
+    }
+}
 
 /** Respuesta estructurada del backend al guardar/actualizar ProductSheet */
 interface ProductSheetSavedPayload {
@@ -55,43 +99,23 @@ interface ProductSheetSavedPayload {
 
 const emit = defineEmits<{
     (e: 'productSheetSaved', payload: ProductSheetSavedPayload): void;
+    (e: 'error', message: string): void;
     (e: 'update:open', value: boolean): void;
     (e: 'close'): void;
 }>();
 
-const localDialogOpen = ref(false); // Estado local para el diálogo
-
-// Alert state - usando el mismo patrón que Programador
-const { successMessage, errorMessage, errorType, showSuccess, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
+const localOpen = ref(props.open);
 const dialogInnerRef = ref<HTMLElement | null>(null);
 const isLoading = ref(false);
+const errorMessage = ref('');
+const errorType = ref<'error' | 'warning' | 'info'>('error');
 
-// Títulos de alertas consistentes con el resto de la app
-type AlertType = 'success' | 'error' | 'info' | 'warning';
-const ALERT_TITLES: Record<AlertType, string> = {
-    warning: 'Advertencia',
-    success: 'Éxito',
-    info: 'Información',
-    error: 'Error',
-};
-const errorTitle = computed(() => ALERT_TITLES[errorType.value]);
-
-function setAlert(message: string, type: AlertType = 'info'): void {
-    if (type === 'success') {
-        showSuccess(message);
-    } else {
-        showError(message, type);
-    }
-
+function setError(message: string, type: 'error' | 'warning' | 'info' = 'error'): void {
+    errorMessage.value = message;
+    errorType.value = type;
     if (dialogInnerRef.value?.scrollTo) {
         dialogInnerRef.value.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-}
-
-function clearAlert(): void {
-    clearAlerts();
 }
 
 const isCreateMode = computed(() => props.mode === 'create');
@@ -133,11 +157,11 @@ const allowedFlatSketchMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
 interface FormState {
     id?: number;
     reference: string;
-    section_id: number;
-    group_id: number;
-    brand_id: number;
-    world_id: number;
-    fabric_base_id: number;
+    section_id: number | null;
+    group_id: number | null;
+    brand_id: number | null;
+    world_id: number | null;
+    fabric_base_id: number | null;
     yarn_base_id: number | null;
     type: string;
     operational_list_id: number | null;
@@ -187,14 +211,45 @@ function defaultSizesJson(): string {
     });
 }
 
+/** Normaliza tallas a JSON válido para el backend (objeto {talla: boolean} o array [talla]). */
+function ensureSizesJson(value: unknown): string {
+    if (value == null || value === '') {
+        return '{}';
+    }
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return '{}';
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === 'object') {
+                return JSON.stringify(parsed);
+            }
+        } catch {
+            return '{}';
+        }
+    }
+    if (Array.isArray(value)) {
+        const obj = Object.fromEntries(value.map((s) => [String(s), true]));
+        return JSON.stringify(obj);
+    }
+    if (typeof value === 'object') {
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return '{}';
+        }
+    }
+    return '{}';
+}
+
 function createInitialFormState(): FormState {
     return {
         reference: '',
-        section_id: 0,
-        group_id: 0,
-        brand_id: 0,
-        world_id: 0,
-        fabric_base_id: 0,
+        section_id: null,
+        group_id: null,
+        brand_id: null,
+        world_id: null,
+        fabric_base_id: null,
         yarn_base_id: null,
         type: TYPE_SAMPLE,
         operational_list_id: null,
@@ -219,16 +274,18 @@ const operationListOptionsLoading = ref(false);
 const operationListPayload = ref<ProductOperationPayload[]>([]);
 const operationDialogInitialData = ref<{
     productSheetId: number | string | null;
-    operations: Array<{ section_id: number | null; operation_id: number | null; machine_id: number | null; optimal_time: string }>;
+    operations: Array<{ id?: number; section_id: number | null; operation_id: number | null; machine_id: number | null; optimal_time: string }>;
     operatorEfficiencyFactor: number;
     machineSupplementFactor: number;
     notes: string;
 } | null>(null);
+const loadedOperationIds = ref<number[]>([]);
 const operationListMeta = ref({
     sections: [] as OperationSection[],
     operations: [] as OperationOption[],
     machines: [] as MachineOption[],
     productSheets: [] as ProductSheetDialogOption[],
+    fabricBases: [] as FabricBaseOption[],
     actions: [] as string[],
     garmentParts: [] as string[],
 });
@@ -339,6 +396,25 @@ function applyDefaultSampleProcessOnce() {
 
 const selectedProcesses = computed(() => parseProcessesValue(form.value.processes));
 const requiresOperationalList = computed(() => Boolean(selectedProcesses.value[developmentProcessLabel]));
+const hasOperationalListConfigured = computed(
+    () =>
+        Boolean(form.value.operational_list_id) ||
+        operationListPayload.value.length > 0 ||
+        (operationDialogInitialData.value != null &&
+            Array.isArray(operationDialogInitialData.value.operations) &&
+            operationDialogInitialData.value.operations.length > 0),
+);
+
+const operationalListCount = computed(() => {
+    const payloadLen = operationListPayload.value.length;
+    const dialogLen =
+        operationDialogInitialData.value != null && Array.isArray(operationDialogInitialData.value.operations)
+            ? operationDialogInitialData.value.operations.length
+            : 0;
+    return payloadLen > 0 ? payloadLen : dialogLen;
+});
+
+const operationListReadonly = computed(() => Boolean(props.productSheet?.has_production_orders));
 
 const typeModel = computed({
     get() {
@@ -373,10 +449,13 @@ const activeReference = computed<string>({
         }
     },
 });
-const { validationErrors, isValid } = useProductSheetValidation({
+const showFieldErrors = ref(false);
+const { validationErrors, fieldErrors, isValid } = useProductSheetValidation({
     form,
     activeReference,
     requiresOperationalList,
+    hasOperationalListConfigured,
+    requiresYarnBase: computed(() => form.value.woven_product),
 });
 
 watch(
@@ -413,25 +492,30 @@ watch(
     },
 );
 
+function toIdOrNull(value: unknown): number | null {
+    const n = Number(value);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 watch(
     () => props.productSheet,
     (newProductSheet) => {
         if ((isEditMode.value || isViewMode.value) && newProductSheet) {
             resetFlatSketchSelection();
-            const sizeValue = stringifyJsonRecord(newProductSheet.sizes, {});
+            const sizeValue = ensureSizesJson(newProductSheet.sizes);
             const normalizedType = normalizeTypeValue(newProductSheet.type);
 
             form.value = {
                 ...createInitialFormState(),
                 id: newProductSheet.id,
-                section_id: Number(newProductSheet.section_id ?? 0),
-                group_id: Number(newProductSheet.group_id ?? 0),
-                brand_id: Number(newProductSheet.brand_id ?? 0),
-                world_id: Number(newProductSheet.world_id ?? 0),
-                fabric_base_id: Number(newProductSheet.fabric_base_id ?? 0),
-                yarn_base_id: newProductSheet.yarn_base_id ? Number(newProductSheet.yarn_base_id) : null,
+                section_id: toIdOrNull(newProductSheet.section_id),
+                group_id: toIdOrNull(newProductSheet.group_id),
+                brand_id: toIdOrNull(newProductSheet.brand_id),
+                world_id: toIdOrNull(newProductSheet.world_id),
+                fabric_base_id: toIdOrNull(newProductSheet.fabric_base_id),
+                yarn_base_id: toIdOrNull(newProductSheet.yarn_base_id),
                 type: normalizedType,
-                operational_list_id: newProductSheet.operational_list_id ? Number(newProductSheet.operational_list_id) : null,
+                operational_list_id: toIdOrNull(newProductSheet.operational_list_id),
                 billing_price: Number(newProductSheet.billing_price ?? 0),
                 selling_price: Number(newProductSheet.selling_price ?? 0),
                 sizes: sizeValue,
@@ -452,28 +536,31 @@ watch(
 
 watch(
     () => props.open,
-    (newValue) => {
-        if (localDialogOpen.value !== newValue) {
-            localDialogOpen.value = newValue;
-            if (!newValue) {
-                resetForm(); // Restablecer el formulario si el diálogo se cierra desde el padre
-            } else if (isCreateMode.value) {
-                resetForm(); // Restablecer el formulario al abrir en modo "crear"
+    async (newValue) => {
+        localOpen.value = newValue;
+        if (!newValue) {
+            resetForm();
+        } else {
+            errorMessage.value = '';
+            if (isCreateMode.value) {
+                resetForm();
+            } else if ((isEditMode.value || isViewMode.value) && props.productSheet?.id) {
+                // Precargar operaciones existentes para validación correcta
+                const productId = props.productSheet.id;
+                if (typeof productId === 'number' && requiresOperationalList.value) {
+                    await loadOperationsForProduct(productId, true);
+                }
             }
         }
     },
     { immediate: true },
 );
 
-watch(
-    () => localDialogOpen.value,
-    (newValue) => {
-        if (props.open !== newValue) {
-            // Evitar actualizaciones redundantes
-            emit('update:open', newValue);
-        }
-    },
-);
+watch(localOpen, (newValue) => {
+    if (!newValue) {
+        emit('update:open', false);
+    }
+});
 
 watch(requiresOperationalList, (needs) => {
     if (!needs) {
@@ -482,60 +569,62 @@ watch(requiresOperationalList, (needs) => {
     }
 });
 
-async function loadOperationListOptions() {
-    if (operationListOptionsLoaded.value || operationListOptionsLoading.value) return;
+async function loadOperationListOptions(forceRefresh = false) {
+    if ((!forceRefresh && operationListOptionsLoaded.value) || operationListOptionsLoading.value) return;
+    if (forceRefresh) operationListOptionsLoaded.value = false;
     operationListOptionsLoading.value = true;
     try {
-        const response = await axios.get('/produccion/listados-operacionales/options');
+        const response = await axios.get(route('produccion.listados-operacionales.options'));
         const payload = response.data?.data ?? response.data;
+        const rawFabricBases = payload?.fabric_bases ?? [];
+        const fabricBases: FabricBaseOption[] = Array.isArray(rawFabricBases)
+            ? rawFabricBases.map((f: Record<string, unknown>) => ({
+                  id: (typeof f.id === 'number' || typeof f.id === 'string' ? f.id : 0) as number | string,
+                  name: String(f.name ?? f.nombre ?? f.codigo ?? f.code ?? ''),
+                  nombre: f.nombre != null ? String(f.nombre) : undefined,
+                  codigo: f.codigo != null ? String(f.codigo) : undefined,
+                  factor: typeof f.factor === 'number' ? f.factor : typeof f.factor_base === 'number' ? f.factor_base : undefined,
+              }))
+            : [];
+
         operationListMeta.value = {
             sections: payload?.sections ?? [],
             operations: payload?.operations ?? [],
             machines: payload?.machines ?? [],
             productSheets: payload?.productSheets ?? [],
+            fabricBases,
             actions: payload?.actions ?? [],
             garmentParts: payload?.garmentParts ?? [],
         };
         operationListOptionsLoaded.value = true;
     } catch (error) {
         console.error('Error al cargar opciones del listado operacional:', error);
-        setAlert('No se pudieron cargar las opciones de lista operacional.', 'error');
+        setError('No se pudieron cargar las opciones de lista operacional.');
     } finally {
         operationListOptionsLoading.value = false;
     }
 }
 
 async function openOperationListDialog() {
-    await loadOperationListOptions();
+    await loadOperationListOptions(true);
     const productId = props.productSheet?.id ?? form.value.id;
     if (productId && typeof productId === 'number') {
-        try {
-            const { data } = await axios.get('/produccion/listados-operacionales/data', {
-                params: { product_sheet_id: productId },
-            });
-            const rows = Array.isArray(data?.data) ? data.data : [];
-            const sorted = [...rows].sort(
-                (a: { sequence_order?: number }, b: { sequence_order?: number }) => (a.sequence_order ?? 0) - (b.sequence_order ?? 0),
-            );
-            const first = sorted[0] ?? {};
-            operationDialogInitialData.value = {
-                productSheetId: productId,
-                operations: sorted.map((row: Record<string, unknown>) => ({
-                    section_id: Number(row.operation_section_id ?? row.section_id ?? 0) || null,
-                    operation_id: Number(row.operation_id ?? 0) || null,
-                    machine_id: Number(row.machine_id ?? 0) || null,
-                    optimal_time: String(row.optimal_time ?? row.sam ?? '0.00'),
-                })),
-                operatorEfficiencyFactor: Number(first.operator_efficiency_factor ?? 1) || 1,
-                machineSupplementFactor: Number(first.machine_supplement_factor ?? 1.0) || 1.0,
-                notes: String(first.notes ?? ''),
-            };
-        } catch (err) {
-            console.error('Error al cargar operaciones:', err);
-            operationDialogInitialData.value = { ...buildOperationDialogInitialData(), productSheetId: productId };
-        }
+        await loadOperationsForProduct(productId);
     } else {
-        operationDialogInitialData.value = buildOperationDialogInitialData();
+        loadedOperationIds.value = [];
+        const base = buildOperationDialogInitialData();
+        if (operationListPayload.value.length > 0) {
+            base.operations = operationListPayload.value.map((p) => ({
+                section_id: p.section_id,
+                operation_id: p.operation_id,
+                machine_id: p.machine_id,
+                optimal_time: p.optimal_time,
+                quantity: p.quantity ?? 1,
+                fabric_base_id: p.fabric_base_id ?? null,
+                operator_efficiency_factor: p.operator_efficiency_factor ?? 1,
+            }));
+        }
+        operationDialogInitialData.value = base;
     }
     operationListDialogOpen.value = true;
 }
@@ -544,48 +633,99 @@ function closeOperationListDialog() {
     operationListDialogOpen.value = false;
 }
 
+function buildOperationsPayload(items: ProductOperationPayload[], productId: number): Array<Record<string, unknown>> {
+    const toInt = (v: unknown): number => {
+        if (v == null) return 0;
+        const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+        return Number.isFinite(n) ? n : 0;
+    };
+    const toNum = (v: unknown, fallback: number): number => {
+        if (v == null) return fallback;
+        const n = typeof v === 'number' ? v : parseFloat(String(v));
+        return Number.isFinite(n) ? n : fallback;
+    };
+    return items.map((p, idx) => {
+        const fbId = p.fabric_base_id != null ? toInt(p.fabric_base_id) : null;
+        return {
+            product_sheet_id: productId,
+            operation_id: toInt(p.operation_id),
+            machine_id: toInt(p.machine_id),
+            operation_section_id: toInt(p.section_id),
+            sequence: Math.max(1, 'sequence' in p ? toInt(p.sequence) : (idx + 1) * 10),
+            optimal_time: Math.max(0.01, toNum(p.optimal_time, 0.01)),
+            operator_efficiency_factor: Math.max(1, Math.min(2, toNum(p.operator_efficiency_factor, 1))),
+            machine_supplement_factor: Math.max(1, toNum(p.machine_supplement_factor, 1)),
+            quantity: Math.max(1, toInt(p.quantity ?? 1)),
+            fabric_base_id: fbId != null && fbId > 0 ? fbId : null,
+            notes: typeof p.notes === 'string' && p.notes.trim() ? p.notes.trim().slice(0, 1000) : null,
+        };
+    });
+}
+
 async function handleOperationDialogSave(payload: ProductOperationPayload[]) {
     const productId = props.productSheet?.id ?? form.value.id;
     const hasRealProductId = typeof productId === 'number' && productId > 0;
+    const validPayloads = payload.filter((p) => p.section_id && p.operation_id && p.machine_id && Number(p.optimal_time) > 0);
 
     if (hasRealProductId) {
-        const validPayloads = payload.filter((p) => p.section_id && p.operation_id && p.machine_id && Number(p.optimal_time) > 0);
-        if (validPayloads.length === 0) {
-            setAlert('Agrega al menos una operación válida.', 'warning');
-            return;
-        }
         try {
-            const requests = validPayloads.map((p) =>
-                axios.post('/produccion/listados-operacionales', {
+            const idsToDelete = loadedOperationIds.value;
+            if (idsToDelete.length > 0) {
+                await axios.post(route('produccion.listados-operacionales.destroy-bulk'), {
                     product_sheet_id: productId,
-                    operation_id: p.operation_id,
-                    machine_id: p.machine_id,
-                    operation_section_id: p.section_id,
-                    sequence_order: p.sequence_order,
-                    optimal_time: Number(p.optimal_time),
-                    operator_efficiency_factor: p.operator_efficiency_factor,
-                    machine_supplement_factor: p.machine_supplement_factor,
-                    notes: p.notes,
-                }),
-            );
-            await Promise.all(requests);
-            setAlert(`${validPayloads.length} operación(es) guardada(s) correctamente.`, 'success');
+                    operation_ids: idsToDelete,
+                });
+            }
+            if (validPayloads.length === 0) {
+                loadedOperationIds.value = [];
+                operationDialogInitialData.value = {
+                    ...(operationDialogInitialData.value ?? buildOperationDialogInitialData()),
+                    productSheetId: productId ?? null,
+                    operations: [],
+                };
+                operationListDialogOpen.value = false;
+                return;
+            }
+            const operations = buildOperationsPayload(validPayloads, productId);
+            await axios.post(route('produccion.listados-operacionales.bulk'), { operations });
+            loadedOperationIds.value = [];
         } catch (err) {
             console.error('Error al guardar operaciones:', err);
-            const msg = axios.isAxiosError(err) ? err.response?.data?.message : null;
-            setAlert(msg ?? 'Error al guardar las operaciones.', 'error');
+            let msg = 'Error al guardar las operaciones.';
+            if (axios.isAxiosError(err)) {
+                const data = err.response?.data;
+                const validationErrors = data?.errors;
+                if (validationErrors && typeof validationErrors === 'object') {
+                    const details = Object.values(validationErrors)
+                        .flat()
+                        .filter((v): v is string => typeof v === 'string')
+                        .join('\n');
+                    msg = details || data?.message || msg;
+                } else if (typeof data?.message === 'string' && data.message.trim()) {
+                    msg = data.message;
+                }
+            }
+            setError(msg);
+            emit('error', msg);
             return;
         }
     } else {
-        operationListPayload.value = payload.filter((p) => p.section_id && p.operation_id && p.machine_id && Number(p.optimal_time) > 0);
-        setAlert(
-            operationListPayload.value.length > 0
-                ? `${operationListPayload.value.length} operación(es) añadida(s). Se guardarán al crear el producto.`
-                : 'Agrega al menos una operación válida.',
-            operationListPayload.value.length > 0 ? 'success' : 'warning',
-        );
-        if (operationListPayload.value.length === 0) return;
+        operationListPayload.value = validPayloads;
     }
+
+    operationDialogInitialData.value = {
+        ...(operationDialogInitialData.value ?? buildOperationDialogInitialData()),
+        productSheetId: productId ?? null,
+        operations: validPayloads.map((p) => ({
+            section_id: p.section_id,
+            operation_id: p.operation_id,
+            machine_id: p.machine_id,
+            optimal_time: p.optimal_time,
+            quantity: p.quantity ?? 1,
+            fabric_base_id: p.fabric_base_id ?? null,
+            operator_efficiency_factor: p.operator_efficiency_factor ?? 1,
+        })),
+    };
     operationListDialogOpen.value = false;
 }
 
@@ -601,21 +741,24 @@ function closeConvertDialog() {
 
 async function submitConvertDialog(productReference: string) {
     if (!props.productSheet?.id) {
-        setAlert('No se pudo identificar la sábana.', 'error');
+        setError('No se pudo identificar la sábana.');
         return;
     }
 
     convertLoading.value = true;
     try {
         const response = await convertSampleToProduct(props.productSheet.id, productReference);
-        setAlert('Producto derivado creado correctamente.', 'success');
-        emit('productSheetSaved', response.data);
+        emit('productSheetSaved', {
+            success: true,
+            message: 'Sábana convertida a producto correctamente.',
+            data: response.data?.data ?? response.data,
+        });
         closeConvertDialog();
     } catch (error: unknown) {
         const message = axios.isAxiosError(error)
             ? (error.response?.data?.message ?? 'Error al convertir la sábana.')
             : 'Error al convertir la sábana.';
-        setAlert(message, 'error');
+        setError(message);
     } finally {
         convertLoading.value = false;
     }
@@ -681,25 +824,28 @@ function ensureValidProcessesJson(value: string | undefined): string {
 function buildBasePayload() {
     const wovenProduct = normalizeBooleanInput(form.value.woven_product);
 
-    return {
+    const payload: Record<string, unknown> = {
         type: form.value.type ?? TYPE_PRODUCT,
-        sample_reference: form.value.sample_reference?.trim() || null,
-        product_reference: form.value.product_reference?.trim() || null,
-        section_id: form.value.section_id ?? null,
-        group_id: form.value.group_id ?? null,
-        brand_id: form.value.brand_id ?? null,
-        world_id: form.value.world_id ?? null,
-        fabric_base_id: form.value.fabric_base_id ?? null,
-        yarn_base_id: wovenProduct ? (form.value.yarn_base_id ?? null) : null,
+        section_id: toIdOrNull(form.value.section_id),
+        group_id: toIdOrNull(form.value.group_id),
+        brand_id: toIdOrNull(form.value.brand_id),
+        world_id: toIdOrNull(form.value.world_id),
+        fabric_base_id: toIdOrNull(form.value.fabric_base_id),
+        yarn_base_id: wovenProduct ? toIdOrNull(form.value.yarn_base_id) : null,
         billing_price: form.value.billing_price ?? 0,
         selling_price: form.value.selling_price ?? 0,
-        sizes: stringifyJsonRecord(form.value.sizes, {}),
+        sizes: ensureSizesJson(form.value.sizes),
         woven_product: wovenProduct ? 1 : 0,
         description: form.value.description ?? '',
         processes: ensureValidProcessesJson(form.value.processes),
         status: form.value.status ?? 'incomplete',
-        operational_list_id: form.value.operational_list_id ?? null,
+        operational_list_id: toIdOrNull(form.value.operational_list_id),
+        // Enviar siempre ambas referencias para no borrar la que no está en el tab activo
+        sample_reference: form.value.sample_reference?.trim() || null,
+        product_reference: form.value.product_reference?.trim() || null,
     };
+
+    return payload;
 }
 
 function buildMultipartPayload(basePayload: Record<string, unknown>): FormData {
@@ -767,7 +913,7 @@ function handleFlatSketchChange(event: Event) {
     const file = input?.files?.[0] ?? null;
 
     if (file && !allowedFlatSketchMimeTypes.includes(file.type)) {
-        setAlert('Formato de imagen no válido. Solo se permiten JPG, PNG o WEBP.', 'warning');
+        setError('Formato de imagen no válido. Solo se permiten JPG, PNG o WEBP.');
         if (input) {
             input.value = '';
         }
@@ -799,12 +945,10 @@ function clearFlatSketch(event?: MouseEvent) {
 }
 
 async function saveProductSheet() {
-    if (isLoading.value) {
-        return;
-    }
+    if (isLoading.value) return;
+    errorMessage.value = '';
 
     if (!validateForm()) {
-        setAlert('Por favor, completa todos los campos requeridos.', 'warning');
         return;
     }
 
@@ -837,54 +981,39 @@ async function saveProductSheet() {
 
             if (operationListPayload.value.length > 0 && productId && typeof productId === 'number') {
                 try {
-                    const requests = operationListPayload.value.map((p, idx) =>
-                        axios.post('/produccion/listados-operacionales', {
-                            product_sheet_id: productId,
-                            operation_id: p.operation_id,
-                            machine_id: p.machine_id,
-                            operation_section_id: p.section_id,
-                            sequence_order: idx + 1,
-                            optimal_time: Number(p.optimal_time),
-                            operator_efficiency_factor: p.operator_efficiency_factor ?? 1,
-                            machine_supplement_factor: p.machine_supplement_factor ?? 1.0,
-                            notes: p.notes,
-                        }),
-                    );
-                    await Promise.all(requests);
+                    const operations = buildOperationsPayload(operationListPayload.value, productId);
+                    await axios.post(route('produccion.listados-operacionales.bulk'), { operations });
                 } catch (err) {
                     console.error('Error al guardar operaciones del nuevo producto:', err);
                 }
             }
 
-            setAlert(`Product sheet ${isEditMode.value ? 'actualizado' : 'creado'} exitosamente.`, 'success');
-            emit('productSheetSaved', response.data);
+            emit('productSheetSaved', {
+                success: true,
+                message: isEditMode.value ? 'Sábana actualizada correctamente.' : 'Sábana creada correctamente.',
+                data: response.data?.data ?? response.data,
+            });
             resetForm();
-            localDialogOpen.value = false;
+            localOpen.value = false;
         })
         .catch((error: unknown) => {
+            let errMsg = `Hubo un error al ${isEditMode.value ? 'actualizar' : 'crear'} el product sheet.`;
             if (error instanceof Error && error.message === 'INVALID_FLAT_SKETCH_TYPE') {
-                setAlert('Formato de imagen no válido. Solo se permiten JPG, PNG o WEBP.', 'warning');
-                return;
-            }
-            console.error(`Error al ${isEditMode.value ? 'actualizar' : 'crear'} el product sheet:`, error);
-            if (axios.isAxiosError(error)) {
+                errMsg = 'Formato de imagen no válido. Solo se permiten JPG, PNG o WEBP.';
+            } else if (axios.isAxiosError(error)) {
                 const backendMessage = error.response?.data?.message;
                 const validationErrors = error.response?.data?.errors;
                 if (validationErrors && typeof validationErrors === 'object') {
-                    console.error('Errores de validación ProductSheet:', validationErrors);
                     const details = Object.values(validationErrors)
                         .flat()
                         .filter((value): value is string => typeof value === 'string')
                         .join('\n');
-                    setAlert(details || `Hubo un error al ${isEditMode.value ? 'actualizar' : 'crear'} el product sheet.`, 'error');
-                    return;
-                }
-                if (typeof backendMessage === 'string' && backendMessage.trim()) {
-                    setAlert(backendMessage, 'error');
-                    return;
+                    errMsg = details || errMsg;
+                } else if (typeof backendMessage === 'string' && backendMessage.trim()) {
+                    errMsg = backendMessage;
                 }
             }
-            setAlert(`Hubo un error al ${isEditMode.value ? 'actualizar' : 'crear'} el product sheet.`, 'error');
+            emit('error', errMsg);
         })
         .finally(() => {
             isLoading.value = false;
@@ -893,10 +1022,11 @@ async function saveProductSheet() {
 
 function validateForm() {
     if (!isValid.value) {
-        setAlert(validationErrors.value.join('\n'), 'warning');
+        showFieldErrors.value = true;
+        setError(validationErrors.value.join('\n'));
         return false;
     }
-
+    showFieldErrors.value = false;
     return true;
 }
 
@@ -930,13 +1060,14 @@ function resetForm() {
     operationListPayload.value = [];
     operationDialogInitialData.value = null;
     form.value = createInitialFormState();
-    clearAlert();
+    showFieldErrors.value = false;
+    errorMessage.value = '';
 }
 
 function handleClose() {
     resetForm(); // Restablecer el formulario al cerrar el diálogo
-    if (localDialogOpen.value) {
-        localDialogOpen.value = false; // Asegurar que el estado local se actualice
+    if (localOpen.value) {
+        localOpen.value = false; // Asegurar que el estado local se actualice
     }
     if (props.open) {
         emit('update:open', false); // Sincronizar el estado con el componente padre
@@ -945,7 +1076,19 @@ function handleClose() {
 </script>
 
 <template>
-    <Dialog v-model:open="localDialogOpen" @close="handleClose">
+    <!-- Alerta flotante en la parte superior central - Sobrepuesta a todo -->
+    <div v-if="errorMessage" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
+        <AlertBox
+            :type="errorType"
+            :title="errorType === 'warning' ? 'Advertencia' : errorType === 'info' ? 'Información' : 'Error'"
+            :message="errorMessage"
+            :auto-close-ms="errorType === 'error' ? 0 : 4000"
+            class="pointer-events-auto"
+            @close.stop.prevent="errorMessage = ''"
+        />
+    </div>
+
+    <Dialog v-model:open="localOpen">
         <FormDialogContent class="flex max-h-[95vh] max-w-[190vh] flex-col px-2 py-2">
             <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
                 <DialogTitle> {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos </DialogTitle>
@@ -957,17 +1100,6 @@ function handleClose() {
                     }}
                 </DialogDescription>
             </DialogHeader>
-            <AlertStack
-                :success-message="successMessage"
-                :error-message="errorMessage"
-                :error-type="errorType"
-                :success-title="ALERT_TITLES.success"
-                :error-title="errorTitle"
-                class="top-20"
-                @close-success="clearSuccess"
-                @close-error="clearError"
-            />
-
             <TooltipProvider>
                 <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
                     <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_340px]">
@@ -987,7 +1119,13 @@ function handleClose() {
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium"> {{ mainReferenceLabel }}<span class="text-red-500">*</span> </Label>
                                         </div>
-                                        <InputField v-model="activeReference" label="" placeholder="ejemplo: 901010" :disabled="isReadonly" />
+                                        <InputField
+                                            v-model="activeReference"
+                                            label=""
+                                            placeholder="ejemplo: 901010"
+                                            :disabled="isReadonly"
+                                            :error="showFieldErrors && fieldErrors.reference ? fieldErrors.reference : undefined"
+                                        />
                                     </div>
                                     <div v-else-if="hasBothReferences" class="space-y-1.5">
                                         <div class="flex items-center gap-2">
@@ -1039,20 +1177,47 @@ function handleClose() {
                                         <Label class="text-sm font-medium">Seccion<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Seccion" />
                                     </div>
-                                    <SelectField v-model="form.section_id" label="" :options="props.sections" required :disabled="isReadonly" />
+                                    <SelectField
+                                        v-model="form.section_id"
+                                        label=""
+                                        :options="props.sections"
+                                        required
+                                        placeholder="Seleccione sección"
+                                        :disabled="isReadonly"
+                                        :invalid="showFieldErrors && !!fieldErrors.section_id"
+                                        :error-message="showFieldErrors ? fieldErrors.section_id : undefined"
+                                    />
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Grupo<span class="text-red-500">*</span></Label>
                                         <HelpTooltip :text="tooltips.group" aria-label="Ayuda sobre Grupo" />
                                     </div>
-                                    <SelectField v-model="form.group_id" label="" :options="props.groups" required :disabled="isReadonly" />
+                                    <SelectField
+                                        v-model="form.group_id"
+                                        label=""
+                                        :options="props.groups"
+                                        required
+                                        placeholder="Seleccione grupo"
+                                        :disabled="isReadonly"
+                                        :invalid="showFieldErrors && !!fieldErrors.group_id"
+                                        :error-message="showFieldErrors ? fieldErrors.group_id : undefined"
+                                    />
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Marca<span class="text-red-500">*</span></Label>
                                     </div>
-                                    <SelectField v-model="form.brand_id" label="" :options="props.brands" required :disabled="isReadonly" />
+                                    <SelectField
+                                        v-model="form.brand_id"
+                                        label=""
+                                        :options="props.brands"
+                                        required
+                                        placeholder="Seleccione marca"
+                                        :disabled="isReadonly"
+                                        :invalid="showFieldErrors && !!fieldErrors.brand_id"
+                                        :error-message="showFieldErrors ? fieldErrors.brand_id : undefined"
+                                    />
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
@@ -1065,7 +1230,10 @@ function handleClose() {
                                         label=""
                                         :options="props.worlds"
                                         required
+                                        placeholder="Seleccione mundo"
                                         :disabled="isReadonly"
+                                        :invalid="showFieldErrors && !!fieldErrors.world_id"
+                                        :error-message="showFieldErrors ? fieldErrors.world_id : undefined"
                                     />
                                 </div>
                             </div>
@@ -1089,7 +1257,10 @@ function handleClose() {
                                         label=""
                                         :options="props.fabricBases"
                                         required
+                                        placeholder="Seleccione base"
                                         :disabled="isReadonly"
+                                        :invalid="showFieldErrors && !!fieldErrors.fabric_base_id"
+                                        :error-message="showFieldErrors ? fieldErrors.fabric_base_id : undefined"
                                     />
                                 </div>
                                 <div v-if="form.woven_product" class="flex flex-col gap-1">
@@ -1103,7 +1274,10 @@ function handleClose() {
                                         label=""
                                         :options="props.yarnBases"
                                         required
+                                        placeholder="Seleccione base hilaza"
                                         :disabled="isReadonly"
+                                        :invalid="showFieldErrors && !!fieldErrors.yarn_base_id"
+                                        :error-message="showFieldErrors ? fieldErrors.yarn_base_id : undefined"
                                     />
                                 </div>
                                 <div class="flex flex-col gap-1">
@@ -1154,6 +1328,11 @@ function handleClose() {
                                         @click="openOperationListDialog"
                                     >
                                         <template v-if="operationListOptionsLoading"> Cargando... </template>
+                                        <template v-else-if="hasOperationalListConfigured">
+                                            {{ operationalListCount }} operación{{ operationalListCount !== 1 ? 'es' : '' }} configurada{{
+                                                operationalListCount !== 1 ? 's' : ''
+                                            }}
+                                        </template>
                                         <template v-else> Configurar procesos </template>
                                     </Button>
                                 </div>
@@ -1244,38 +1423,27 @@ function handleClose() {
                 </div>
             </TooltipProvider>
 
-            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col gap-2 border-t bg-background pt-4 md:flex-row md:items-center md:justify-end">
-                <div class="w-full md:w-auto">
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="handleClose"
-                    >
-                        {{ isViewMode ? 'Cerrar' : 'Cancelar' }}
-                    </button>
-                </div>
-                <div v-if="showConvertButton" class="w-full md:w-auto">
-                    <Button
-                        variant="ghost"
-                        type="button"
-                        class="mx-auto flex w-full max-w-[170px] items-center justify-center rounded-full border border-dashed border-primary/60 px-5 py-2 text-sm font-semibold text-primary"
-                        :disabled="isLoading"
-                        @click="openConvertDialog"
-                    >
-                        Convertir a Producto
-                    </Button>
-                </div>
-                <div v-if="!isViewMode" class="w-full md:w-auto">
-                    <Button
-                        variant="default"
-                        type="button"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                        :disabled="isLoading"
-                        @click="saveProductSheet"
-                    >
-                        {{ isEditMode ? 'Actualizar' : 'Guardar' }}
-                    </Button>
-                </div>
+            <DialogFooter class="mt-4 flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-background pt-4">
+                <Button
+                    v-if="showConvertButton"
+                    variant="ghost"
+                    class="rounded-full border border-dashed border-primary/60 px-5 py-2 text-sm font-semibold text-primary"
+                    :disabled="isLoading"
+                    @click="openConvertDialog"
+                >
+                    Convertir a Producto
+                </Button>
+                <Button v-if="isViewMode" variant="outline" size="sm" class="rounded-full px-5 py-2 text-sm font-semibold" @click="handleClose">
+                    Cerrar
+                </Button>
+                <DialogActionButtons
+                    v-if="!isViewMode"
+                    cancel-label="Cancelar"
+                    :submit-label="isEditMode ? 'Actualizar' : 'Guardar'"
+                    :loading="isLoading"
+                    @cancel="handleClose"
+                    @submit="saveProductSheet"
+                />
             </DialogFooter>
         </FormDialogContent>
     </Dialog>
@@ -1283,15 +1451,18 @@ function handleClose() {
         :open="operationListDialogOpen"
         :mode="(operationDialogInitialData?.operations?.length ? 'edit' : 'create') as 'create' | 'edit'"
         :initial-data="operationDialogInitialData"
-        :bound-product-sheet-id="operationDialogBoundProductId"
         :productSheets="productSheetOptionsForDialog"
+        :excluded-product-sheet-ids="[]"
         :sections="operationListMeta.sections"
         :operations="operationListMeta.operations"
         :machines="operationListMeta.machines"
+        :fabric-bases="operationListMeta.fabricBases"
         :actions="operationListMeta.actions"
         :garmentParts="operationListMeta.garmentParts"
+        :readonly="operationListReadonly"
         @save="handleOperationDialogSave"
         @close="closeOperationListDialog"
+        @validation-error="setError"
     />
 
     <ConvertSampleToProductDialog

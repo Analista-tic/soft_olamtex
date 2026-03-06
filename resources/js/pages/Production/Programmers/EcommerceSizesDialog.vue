@@ -2,7 +2,7 @@
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { computed, ref } from 'vue';
 
 // Props recibidos desde el componente padre
@@ -133,7 +133,7 @@ function saveSizes() {
 
         <FormDialogContent class="flex max-h-[95vh] max-w-[140vh] flex-col px-2 py-2">
             <div class="flex-shrink-0 border-b px-6 pb-4 pt-6">
-                <h2 class="text-xl font-semibold">Asignar Cantidades E-commerce</h2>
+                <DialogTitle class="text-xl font-semibold">Asignar Cantidades E-commerce</DialogTitle>
                 <p class="mt-1 text-sm text-muted-foreground">Aquí puedes asignar las cantidades de tallas para el producto seleccionado.</p>
             </div>
 

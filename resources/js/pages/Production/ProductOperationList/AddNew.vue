@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
-import SelectField from '@/components/SelectField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import axios from 'axios';
-import { Plus } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
 import OperationFormContent from '@/pages/Operations/OperationFormContent.vue';
+import axios from 'axios';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     isOpen: boolean;
@@ -30,6 +28,8 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const operationFormRef = ref<InstanceType<typeof OperationFormContent> | null>(null);
+/** Fuerza re-mount de OperationFormContent al abrir para evitar estado residual. */
+const operationFormKey = ref(0);
 
 watch(
     () => props.isOpen,
@@ -39,6 +39,7 @@ watch(
             successMessage.value = '';
             errorMessage.value = '';
             errorType.value = 'error';
+            operationFormKey.value += 1;
         }
     },
 );
@@ -92,15 +93,16 @@ function handleOperationSubmit(payload: Record<string, unknown>) {
             if (response?.data?.data) emit('created', response.data.data);
             const wasReused = response?.data?.reused === true;
             successMessage.value = wasReused
-                ? (response?.data?.message || 'Operación existente reutilizada.')
-                : (response?.data?.message || 'Elemento creado correctamente.');
+                ? response?.data?.message || 'Operación existente reutilizada.'
+                : response?.data?.message || 'Elemento creado correctamente.';
             setTimeout(() => {
                 closeDialog();
                 clearSuccessMessage();
             }, 900);
         })
         .catch((error: any) => {
-            const msg = error.response?.data?.message || Object.values(error.response?.data?.errors || {})?.flat()?.[0] || 'Error al crear el elemento';
+            const msg =
+                error.response?.data?.message || Object.values(error.response?.data?.errors || {})?.flat()?.[0] || 'Error al crear el elemento';
             if (error.response?.status === 422 && error.response?.data?.type === 'warning') {
                 errorType.value = 'warning';
                 errorMessage.value = msg || 'Esta operación ya existe en el sistema.';
@@ -109,7 +111,9 @@ function handleOperationSubmit(payload: Record<string, unknown>) {
                 errorMessage.value = msg;
             }
         })
-        .finally(() => { isSubmitting.value = false; });
+        .finally(() => {
+            isSubmitting.value = false;
+        });
 }
 
 async function submitForm() {
@@ -184,7 +188,11 @@ function clearErrorMessage() {
                                     :key="option.id"
                                     type="button"
                                     class="flex-1 rounded-full px-4 py-2 text-sm font-semibold transition"
-                                    :class="selectedSectionType === option.id ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                                    :class="
+                                        selectedSectionType === option.id
+                                            ? 'bg-primary text-white shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    "
                                     @click="selectedSectionType = option.id"
                                 >
                                     {{ option.label }}
@@ -197,6 +205,7 @@ function clearErrorMessage() {
                     <!-- Formulario para Operación (compartido) -->
                     <template v-else-if="entity === 'operation'">
                         <OperationFormContent
+                            :key="`op-form-${operationFormKey}`"
                             ref="operationFormRef"
                             :sections="sections"
                             :actions="actions || []"

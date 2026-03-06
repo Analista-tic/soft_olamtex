@@ -1,4 +1,4 @@
-export type { OptionParamsDto, ProductSheetDto, ProgrammerDto } from './dto';
+export type { OptionParamsDto, ProductSheetDto, ProductionOrderDto, ProgrammerDto } from './dto';
 export {
     PRODUCT_SHEET_TYPE_PRODUCT,
     PRODUCT_SHEET_TYPE_SAMPLE,
@@ -8,7 +8,7 @@ export {
     resolveProductSheetReference,
     stringifyJsonRecord,
 } from './helpers';
-export { mapProductSheetDto, mapProgrammerDto } from './mappers';
+export { mapProductSheetDto, mapProductionOrderDto, mapProgrammerDto } from './mappers';
 export { normalizeSizes, sizesToLabel, sizesToList, type SizesValue } from './sizes';
 export type {
     CostParameters,
@@ -22,5 +22,6 @@ export type {
     ProductOperationPayload,
     ProductSheet,
     ProductSheetOption,
+    ProductionOrder,
     Programmer,
 } from './types';

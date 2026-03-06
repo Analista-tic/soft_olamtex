@@ -61,7 +61,10 @@ const deleteTempId = ref<string | null>(null);
 
 const params = computed(() => data.value?.params ?? { cuttingCost: 0, minuteCost: 0 });
 const minutes = computed(() => data.value?.minutes ?? { confeccion: 0, terminacion: 0 });
+const costConfeccion = computed(() => data.value?.costConfeccion ?? undefined);
+const costTerminacion = computed(() => data.value?.costTerminacion ?? undefined);
 const hasOperationalList = computed(() => Boolean(data.value?.hasOperationalList));
+const canEditDefaultProcesses = computed(() => Boolean(data.value?.canEditProcesses));
 const resolvedProcessOptions = computed(() => (processTypeOptions.value.length > 0 ? processTypeOptions.value : DEFAULT_PROCESS_OPTIONS));
 
 function generateTempId(): string {
@@ -138,6 +141,8 @@ function isEqualRows(a: LocalProcessRow[], b: LocalProcessRow[]): boolean {
 const dirty = computed(() => !isEqualRows(rows.value, snapshot.value));
 const canSave = computed(() => dirty.value && !isSaving.value && !isLoading.value);
 
+const costsAreFixed = computed(() => Boolean(data.value?.costsAreFixed));
+
 const rowsWithCost = computed(() => {
     return rows.value
         .slice()
@@ -147,14 +152,24 @@ const rowsWithCost = computed(() => {
             const type = row.type;
             let price = 0;
 
-            if (type === 'CORTE') {
+            if (costsAreFixed.value && row.fixedCost != null && Number.isFinite(Number(row.fixedCost))) {
+                price = Number(row.fixedCost);
+            } else if (type === 'CORTE') {
                 price = Number(params.value.cuttingCost || 0);
             } else if (type === 'CONFECCION') {
-                const mins = hasOperationalList.value ? Number(minutes.value.confeccion || 0) : 0;
-                price = mins * Number(params.value.minuteCost || 0);
+                if (hasOperationalList.value && costConfeccion.value != null) {
+                    price = Number(costConfeccion.value);
+                } else {
+                    const mins = Number(minutes.value.confeccion || 0);
+                    price = mins * Number(params.value.minuteCost || 0);
+                }
             } else if (type === 'TERMINACION') {
-                const mins = hasOperationalList.value ? Number(minutes.value.terminacion || 0) : 0;
-                price = mins * Number(params.value.minuteCost || 0);
+                if (hasOperationalList.value && costTerminacion.value != null) {
+                    price = Number(costTerminacion.value);
+                } else {
+                    const mins = Number(minutes.value.terminacion || 0);
+                    price = mins * Number(params.value.minuteCost || 0);
+                }
             } else {
                 price = Number(row.manualPrice || 0);
             }
@@ -189,6 +204,7 @@ function applyData(payload: OpProcessesData): void {
             type: row.type,
             supplier: row.supplier ?? (FIXED_TYPES.includes(row.type) ? 'OLAMTEX' : null),
             manualPrice: row.manualPrice,
+            fixedCost: row.fixedCost,
             tempId: generateTempId(),
             _deleted: false,
         }));
@@ -225,10 +241,17 @@ function toSingleSelectValue(value: SelectFieldValue): string | number | null {
     return value;
 }
 
-function updateType(index: number, rawType: SelectFieldValue): void {
+function findRowByTempId(tempId: string): LocalProcessRow | undefined {
+    return rows.value.find((r) => r.tempId === tempId);
+}
+
+function updateType(tempId: string, rawType: SelectFieldValue): void {
+    const row = findRowByTempId(tempId);
+    if (!row) return;
+    if (FIXED_TYPES.includes(row.type) && !canEditDefaultProcesses.value) return;
+
     const normalized = toSingleSelectValue(rawType);
     const nextType = String(normalized || 'OTRO') as OpProcessType;
-    const row = rows.value[index];
     row.type = nextType;
 
     if (FIXED_TYPES.includes(nextType)) {
@@ -241,14 +264,17 @@ function updateType(index: number, rawType: SelectFieldValue): void {
     }
 }
 
-function updateManualPrice(index: number, value: string): void {
-    const row = rows.value[index];
+function updateManualPrice(tempId: string, value: string): void {
+    const row = findRowByTempId(tempId);
+    if (!row || FIXED_TYPES.includes(row.type)) return;
     const parsed = Number(value || 0);
     row.manualPrice = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
 }
 
-function updateSupplier(index: number, value: string | number): void {
-    const row = rows.value[index];
+function updateSupplier(tempId: string, value: string | number): void {
+    const row = findRowByTempId(tempId);
+    if (!row) return;
+    if (FIXED_TYPES.includes(row.type) && !canEditDefaultProcesses.value) return;
     row.supplier = String(value ?? '').trim() || null;
 }
 
@@ -396,7 +422,15 @@ onMounted(() => {
             <div>
                 <div class="p-2">
                     <h1 class="text-lg font-semibold">Procesos</h1>
-                    <p class="text-sm">Calculado con el listado operacional asignado a la OP.</p>
+                    <p class="text-sm">
+                        {{ costsAreFixed ? 'Costos fijos almacenados.' : 'Calculado con el listado operacional asignado a la OP.' }}
+                        <span v-if="!canEditDefaultProcesses" class="text-amber-600">
+                            Los procesos por defecto (Corte, Confección y Terminación) solo los edita un usuario con permisos.
+                        </span>
+                        <span v-else class="text-muted-foreground">
+                            Puedes editar procesos por defecto y adicionales. Los procesos por defecto no se eliminan desde esta tabla.
+                        </span>
+                    </p>
                 </div>
 
                 <CardContent class="p-0">
@@ -422,16 +456,16 @@ onMounted(() => {
                                             :model-value="row.type"
                                             :options="resolvedProcessOptions"
                                             :searchable="false"
-                                            :disabled="isSaving"
-                                            @update:model-value="(value) => updateType(index, value)"
+                                            :disabled="isSaving || (row.isFixed && !canEditDefaultProcesses)"
+                                            @update:model-value="(value) => updateType(row.tempId, value)"
                                         />
                                     </TableCell>
                                     <TableCell class="min-w-[180px]">
                                         <Input
-                                            :model-value="rows[index].supplier ?? ''"
+                                            :model-value="row.supplier ?? ''"
                                             placeholder="Proveedor"
-                                            :disabled="isSaving"
-                                            @update:model-value="(value) => updateSupplier(index, value)"
+                                            :disabled="isSaving || (row.isFixed && !canEditDefaultProcesses)"
+                                            @update:model-value="(value) => updateSupplier(row.tempId, value)"
                                         />
                                     </TableCell>
                                     <TableCell class="min-w-[140px]">
@@ -439,13 +473,13 @@ onMounted(() => {
                                             <Input v-if="row.isFixed" :model-value="formatCOP(row.computedPrice)" class="text-right" disabled />
                                             <Input
                                                 v-else
-                                                :model-value="String(rows[index].manualPrice ?? 0)"
+                                                :model-value="String(row.manualPrice ?? 0)"
                                                 type="number"
                                                 min="0"
                                                 step="0.01"
                                                 class="text-right"
                                                 :disabled="isSaving"
-                                                @update:model-value="(value) => updateManualPrice(index, String(value))"
+                                                @update:model-value="(value) => updateManualPrice(row.tempId, String(value))"
                                             />
                                         </div>
                                     </TableCell>

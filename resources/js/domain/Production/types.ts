@@ -35,7 +35,7 @@ export interface ProductSheet {
     [key: string]: any;
 }
 
-export interface Programmer {
+export interface ProductionOrder {
     id: number;
     op_code?: string | null;
     product_sheet_id: number | null;
@@ -57,6 +57,9 @@ export interface Programmer {
     created_at: string;
     updated_at: string;
 }
+
+/** @deprecated Use ProductionOrder */
+export type Programmer = ProductionOrder;
 
 export interface ProductSheetOption {
     id: number | string;
@@ -158,6 +161,7 @@ export interface OpBasicInfo {
     sizes: string[];
     priceBilling: number | null;
     priceSale: number | null;
+    description?: string | null;
     ecommerce: boolean;
     source?: string | null;
     priority?: string | null;
@@ -201,13 +205,21 @@ export type OpProcessRow = {
     type: OpProcessType;
     supplier: string | null;
     manualPrice: number | null;
+    /** Costo fijo congelado (cuando costsAreFixed=true) */
+    fixedCost?: number;
 };
 
 export type OpProcessesData = {
     hasOperationalList: boolean;
     params: { cuttingCost: number; minuteCost: number };
+    costConfeccion?: number;
+    costTerminacion?: number;
     minutes: { confeccion: number; terminacion: number };
     processes: OpProcessRow[];
+    /** true si los procesos vienen de BD con costos fijos */
+    costsAreFixed?: boolean;
+    /** true si el usuario puede editar procesos por defecto (CORTE, CONFECCION, TERMINACION) */
+    canEditProcesses?: boolean;
 };
 
 export type CostsSummary = {

@@ -8,8 +8,8 @@ interface Props {
     label: string;
     placeholder?: string;
     required?: boolean;
-    modelValue?: string | number;
-    value?: string | number;
+    modelValue?: string | number | null;
+    value?: string | number | null;
     type?: 'text' | 'password' | 'number' | 'currency' | 'email' | 'date';
     readonly?: boolean;
     disabled?: boolean;
@@ -22,7 +22,7 @@ const props = defineProps<Props>();
 const emit = defineEmits(['update:modelValue']);
 
 const isControlled = computed(() => props.modelValue !== undefined);
-const localModelValue = ref<string | number | undefined>(props.modelValue);
+const localModelValue = ref<string | number | null | undefined>(props.modelValue as string | number | null | undefined);
 
 // Sincroniza el valor local solo si el componente es controlado
 watch(
@@ -34,7 +34,7 @@ watch(
     },
 );
 
-function updateValue(newValue: string | number) {
+function updateValue(newValue: string | number | null) {
     if (isControlled.value) {
         emit('update:modelValue', newValue);
     } else {

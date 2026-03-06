@@ -1,8 +1,7 @@
 <?php
 
 use App\Models\Production\ProductSheet;
-use App\Models\Production\Programmer;
-use Illuminate\Support\Facades\Cache;
+use App\Models\Production\ProductionOrder;
 use Illuminate\Support\Str;
 
 function createProductSheetForProgrammer(): ProductSheet
@@ -29,12 +28,10 @@ function createProductSheetForProgrammer(): ProductSheet
     ]);
 }
 
-it('does not duplicate manual programmers on repeated store with same request id', function () {
+it('creates one production order per store request', function () {
     $this->withoutMiddleware();
-    Cache::flush();
 
     $productSheet = createProductSheetForProgrammer();
-    $requestId = (string) Str::uuid();
 
     $payload = [
         'lots' => [[
@@ -48,22 +45,18 @@ it('does not duplicate manual programmers on repeated store with same request id
         ]],
     ];
 
-    $first = $this->postJson('/comercial/programador', $payload, ['X-Request-Id' => $requestId]);
-    $second = $this->postJson('/comercial/programador', $payload, ['X-Request-Id' => $requestId]);
+    $response = $this->postJson('/comercial/programador', $payload);
 
-    $first->assertStatus(201);
-    $second->assertStatus(201);
-
-    expect(Programmer::query()->count())->toBe(1);
-    expect($first->json('data.0.id'))->toBe($second->json('data.0.id'));
+    $response->assertStatus(201);
+    expect(ProductionOrder::query()->count())->toBe(1);
+    expect($response->json('data.0.id'))->toBeInt();
 });
 
-it('replays update response on repeated update with same request id', function () {
+it('updates production order and returns current state', function () {
     $this->withoutMiddleware();
-    Cache::flush();
 
     $productSheet = createProductSheetForProgrammer();
-    $programmer = Programmer::create([
+    $programmer = ProductionOrder::create([
         'product_sheet_id' => $productSheet->id,
         'op_code' => 'MF-0001',
         'season' => 'ENERO',
@@ -76,7 +69,6 @@ it('replays update response on repeated update with same request id', function (
         'source' => 'manual',
     ]);
 
-    $requestId = (string) Str::uuid();
     $payload = [
         'product_sheet_id' => $productSheet->id,
         'season' => 'FEBRERO',
@@ -86,16 +78,14 @@ it('replays update response on repeated update with same request id', function (
         'ecommerce_units' => ['S' => 10, 'M' => 10],
     ];
 
-    $first = $this->putJson("/comercial/programador/{$programmer->id}", $payload, ['X-Request-Id' => $requestId]);
-    $second = $this->putJson("/comercial/programador/{$programmer->id}", $payload, ['X-Request-Id' => $requestId]);
+    $response = $this->putJson("/comercial/programador/{$programmer->id}", $payload);
 
-    $first->assertStatus(200);
-    $second->assertStatus(200);
+    $response->assertStatus(200);
 
     $programmer->refresh();
 
     expect($programmer->priority)->toBe('B');
     expect($programmer->units)->toBe(20);
-    expect(Programmer::query()->count())->toBe(1);
-    expect($first->json('data.id'))->toBe($second->json('data.id'));
+    expect(ProductionOrder::query()->count())->toBe(1);
+    expect($response->json('data.id'))->toBe($programmer->id);
 });

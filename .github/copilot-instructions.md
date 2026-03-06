@@ -117,6 +117,69 @@
 - Prefer Spanish route prefixes and names (e.g., `usuarios`, `gastos`, `inventario`, `kardex-telas`).
 - Provide both the Inertia page endpoint (commonly `index`) and a `/data` JSON endpoint (commonly `getData`). Some modules add `indexView` for pages (see Product Operation List in [routes/web.php#L55-L72](routes/web.php#L55-L72)).
 
+## Sistema de Alertas (Obligatorio en Todo Cambio)
+
+### Regla Crítica
+**Todo cambio que modifique estado, cree, edite, elimine o muestre un resultado DEBE incluir alertas.**
+
+### Patrones de Alertas
+
+**En Vistas (Pages):**
+```typescript
+import { useGlobalAlert } from '@/composables/useGlobalAlert';
+import AlertStack from '@/components/common/AlertStack.vue';
+
+const { successMessage, errorMessage, errorType, success, error, warning, info, clear } = useGlobalAlert();
+
+// En el template:
+<AlertStack
+    :success-message="successMessage"
+    :error-message="errorMessage"
+    :error-type="errorType"
+    @close-success="clear"
+    @close-error="clear"
+/>
+
+// En el código:
+try {
+    await guardar();
+    success('Guardado correctamente');
+} catch (err) {
+    error('Error al guardar');
+}
+```
+
+**En Dialogs:**
+```typescript
+const errorMessage = ref('');
+const errorType = ref<'error' | 'warning' | 'info'>('error');
+
+function setError(msg: string, type: 'error' | 'warning' | 'info' = 'error') {
+    errorMessage.value = msg;
+    errorType.value = type;
+}
+
+// En el template:
+<div v-if="errorMessage" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
+    <AlertBox
+        :type="errorType"
+        :title="errorType === 'warning' ? 'Advertencia' : 'Error'"
+        :message="errorMessage"
+        :auto-close-ms="errorType === 'error' ? 0 : 4000"
+        class="pointer-events-auto"
+        @close="errorMessage = ''"
+    />
+</div>
+```
+
+### Comportamiento de Alertas (IMPORTANTE)
+- ✅ **success/warning/info:** Auto-cierre en 4 segundos, SIN botón X
+- ✅ **error:** NO auto-cierre, CON botón X manual
+- ✅ En dialogs: alertas nunca cierran el dialog al cerrase
+- ❌ NUNCA: No mostrar alertas en cierre manual en dialogs
+
+Ver documentación completa en [GUIA_ALERTAS.md](../docs/GUIA_ALERTAS.md).
+
 ## Notes for Agents
 - **El código nuevo debe aplicar estas instrucciones.** Respetar patrones existentes (agrupación de rutas, nombres en español, endpoints `/data`, vistas Inertia, servicios para lógica de negocio). La consistencia es la base para depurar y mantener el proyecto.
 - **Criterios de ingeniería:** Actuar como ingeniero de desarrollo especializado en Laravel + Vue. En decisiones de diseño (namespaces, modelos, servicios), aplicar cohesión de dominio, reutilizar entidades existentes cuando el concepto coincida, y documentar aquí decisiones no triviales para futura referencia.
@@ -127,7 +190,8 @@
 - **Backend:** Crear controlador en el dominio adecuado (ej. `app/Http/Controllers/Inventory`), definir rutas con `Route::prefix()` y `name()` en español, middleware `auth`, `verified` y `permission:*`, y exponer endpoint `/data` y endpoints de página.
 - **Services:** Poner lógica no trivial en `app/Services/<Domain>` e invocarla desde el controlador.
 - **Auditing:** Si se añaden modelos nuevos, registrar observers en [app/Providers/AppServiceProvider.php](app/Providers/AppServiceProvider.php), definir `fillable`/`casts` en el modelo y excluir campos ruidosos en [app/Models/AuditLog.php](app/Models/AuditLog.php).
-- **Frontend:** Añadir componentes Vue 3 + TS bajo `resources/js/<Domain>/...`, navegar con nombres de ruta Ziggy y mantener nombres alineados con los grupos del backend.
+- **Frontend:** Añadir componentes Vue 3 + TS bajo `resources/js/<Domain>/...`, navegar con nombres de ruta Ziggy y mantener nombres alineados con los grupos del backend. **IMPORTANTE:** Siempre incluir alertas para operaciones (crear, editar, eliminar, guardar) usando `useGlobalAlert()` en páginas y `AlertBox` locale en dialogs.
+- **Alertas:** Toda operación debe mostrar feedback: success para operaciones exitosas, error para fallos, warning para advertencias. Nunca dejar usuarios sin saber si algo se guardó o falló.
 - **QA:** Ejecutar `php artisan migrate:fresh --seed`, `vendor/bin/pest` y format/lint en `resources/`. Todo código nuevo debe ser depurable siguiendo los patrones de este documento.
 
 Si alguna sección no queda clara o falta un patrón importante, indicarlo para refinar estas instrucciones.

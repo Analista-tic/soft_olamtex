@@ -24,7 +24,7 @@ import type { Option } from '@/domain/shared/types';
 import { useAlertStack } from '@/composables/useAlert';
 
 const emit = defineEmits<{
-    (e: 'programmerCreated'): void;
+    (e: 'programmerCreated', message?: string): void;
 }>();
 
 const props = withDefaults(
@@ -256,6 +256,7 @@ function generateLots() {
         season: '',
         destination_id: null,
         priority: '',
+        estimated_delivery_date: null,
         status: 'incomplete',
         isEcommerce: false,
         ecommerce_units: null,
@@ -393,11 +394,15 @@ function buildLotsPayload() {
 
         const unitsValue = lot.units ? Number(lot.units) : null;
 
+        const estimatedDate =
+            typeof lot.estimated_delivery_date === 'string' && lot.estimated_delivery_date.trim() !== '' ? lot.estimated_delivery_date.trim() : null;
+
         return {
             product_sheet_id: lot.product_sheet_id,
             season: normalizeSeason(lot.season),
             destination_id: lot.destination_id || null,
             priority: normalizePriority(lot.priority),
+            estimated_delivery_date: estimatedDate,
             units: unitsValue,
             ecommerce_units: ecommerceUnitsValue,
             status: lot.status,
@@ -430,10 +435,14 @@ async function createProgrammer() {
     isSubmitting.value = true;
 
     try {
-        await axios.post('/comercial/programador', { lots: buildLotsPayload() }, { headers: { 'X-Request-Id': requestId } });
+        const response = await axios.post('/comercial/programador', { lots: buildLotsPayload() }, { headers: { 'X-Request-Id': requestId } });
 
-        setAlert('Programadores creados exitosamente.', 'success');
-        emit('programmerCreated');
+        const successText =
+            typeof response?.data?.message === 'string' && response.data.message.trim() !== ''
+                ? response.data.message.trim()
+                : 'Programadores creados exitosamente.';
+
+        emit('programmerCreated', successText);
         closeDialog();
     } catch (error: unknown) {
         console.error('Error al crear los programadores:', error);
@@ -491,8 +500,8 @@ watch(
             </Button>
         </DialogTrigger>
 
-        <FormDialogContent class="flex max-h-[200vh] max-w-[200vh] flex-col px-2 py-2">
-            <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
+        <FormDialogContent class="flex h-[98vh] w-[96vw] max-w-[1500px] flex-col overflow-hidden p-0">
+            <DialogHeader class="flex-shrink-0 border-b px-6 pb-3 pt-4">
                 <DialogTitle>Crear Nuevo Programador</DialogTitle>
                 <DialogDescription> Completa los campos para crear un programador. Haz clic en guardar cuando termines. </DialogDescription>
             </DialogHeader>
@@ -508,9 +517,9 @@ watch(
             />
 
             <TooltipProvider>
-                <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
-                    <div class="grid grid-cols-1 gap-4 pt-4">
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                <div ref="dialogInnerRef" class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-6 py-3" style="scrollbar-width: thin">
+                    <div class="grid grid-cols-1 gap-3">
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                             <!-- Referencia -->
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
@@ -546,7 +555,7 @@ watch(
                             </div>
 
                             <!-- Acción -->
-                            <div class="flex flex-col gap-2">
+                            <div class="flex flex-col gap-1.5">
                                 <span class="text-sm font-medium leading-tight text-foreground">Accion</span>
                                 <Button
                                     variant="outline"
@@ -573,191 +582,206 @@ watch(
                         </div>
 
                         <!-- Detalles product sheet -->
-                        <div v-if="selectedProductSheet" class="mb-4">
-                            <h3 class="mb-2 text-lg font-bold">Detalles de la Ficha de Producto</h3>
+                        <div v-if="selectedProductSheet" class="mb-3">
+                            <h3 class="mb-2 text-base font-bold">Detalles de la Ficha de Producto</h3>
 
-                            <table class="w-full overflow-hidden rounded-lg border border-gray-300 text-left text-sm">
+                            <div class="overflow-x-auto rounded-lg border border-gray-300">
+                                <table class="w-full min-w-[980px] text-left text-sm">
+                                    <tbody>
+                                        <tr>
+                                            <td class="px-3 py-1.5 font-bold">Referencia:</td>
+                                            <td class="border border-l-0 px-3 py-1.5">
+                                                {{ getProductSheetLabel(selectedProductSheet) || 'Sin referencia' }}
+                                            </td>
+                                            <td class="px-3 py-1.5 font-bold">Sección:</td>
+                                            <td class="border border-l-0 px-3 py-1.5">
+                                                {{ selectedProductSheet.section?.name || 'Sin sección' }}
+                                            </td>
+                                            <td class="px-3 py-1.5 font-bold">Grupo:</td>
+                                            <td class="border border-l-0 px-3 py-1.5">
+                                                {{ selectedProductSheet.group?.name || 'Sin grupo' }}
+                                            </td>
+                                            <td class="px-3 py-1.5 font-bold">Marca:</td>
+                                            <td class="border border-l-0 px-3 py-1.5">
+                                                {{ selectedProductSheet.brand?.name || 'Sin marca' }}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border border-r-0 px-3 py-1.5 font-bold">Mundo:</td>
+                                            <td class="border border-l-0 px-3 py-1.5">
+                                                {{ selectedProductSheet.world?.name || 'Sin mundo' }}
+                                            </td>
+                                            <td class="border border-r-0 px-3 py-1.5 font-bold">Base:</td>
+                                            <td class="border border-l-0 px-3 py-1.5">
+                                                {{ selectedProductSheet.fabric_base?.name || 'Sin base' }}
+                                            </td>
+                                            <td class="border border-r-0 px-3 py-1.5 font-bold">Precio Facturación:</td>
+                                            <td class="border border-l-0 px-3 py-1.5">
+                                                {{ selectedProductSheet.billing_price ?? 'N/A' }}
+                                            </td>
+                                            <td class="border border-r-0 px-3 py-1.5 font-bold">Precio Venta:</td>
+                                            <td class="border border-l-0 px-3 py-1.5">
+                                                {{ selectedProductSheet.selling_price ?? 'N/A' }}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td class="border px-3 py-2 font-bold">Tallas:</td>
+                                            <td class="border px-3 py-2" colspan="3">
+                                                {{ sizesToLabel(selectedProductSheet?.sizes) }}
+                                            </td>
+                                            <td class="border px-3 py-2 font-bold">Descripción:</td>
+                                            <td class="border px-3 py-2" colspan="3">
+                                                {{ selectedProductSheet.description || 'Sin descripción' }}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lotes -->
+                    <div v-if="lotsForm.length > 0" class="mt-3">
+                        <h3 class="mb-2 text-base font-bold">Lotes Generados:</h3>
+
+                        <div class="overflow-x-auto overflow-y-hidden rounded-lg border border-gray-300 shadow-sm">
+                            <table class="w-full min-w-[1200px] text-center text-sm">
+                                <thead>
+                                    <tr class="bg-gray-50">
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Lote</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Referencia</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Temporada</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Destino</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Prioridad</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Fecha est. entrega</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">E-commerce (opcional)</th>
+                                        <th class="border bg-gray-50 px-3 py-2 font-semibold">Unidades</th>
+                                        <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border bg-gray-50 px-3 py-2 font-semibold">
+                                            Cant. E-commerce
+                                        </th>
+                                    </tr>
+                                </thead>
+
                                 <tbody>
-                                    <tr>
-                                        <td class="px-4 py-2 font-bold">Referencia:</td>
-                                        <td class="border border-l-0 px-4 py-2">
-                                            {{ getProductSheetLabel(selectedProductSheet) || 'Sin referencia' }}
+                                    <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
+                                        <td class="whitespace-nowrap border px-3 py-2">MF300{{ index + 1 }}</td>
+
+                                        <td class="border px-3 py-2">
+                                            {{ getDisplayReference(lot.product_sheet_id) }}
                                         </td>
-                                        <td class="px-4 py-2 font-bold">Sección:</td>
-                                        <td class="border border-l-0 px-4 py-2">
-                                            {{ selectedProductSheet.section?.name || 'Sin sección' }}
+
+                                        <td class="border px-3 py-2" style="min-width: 180px">
+                                            <SelectField
+                                                v-model="lot.season"
+                                                :options="monthOptions"
+                                                label=""
+                                                :aria-label="`Temporada para lote ${index + 1}`"
+                                                :class="{ 'border-red-500': !lot.season }"
+                                                @update:modelValue="validateLotField(index)"
+                                            />
                                         </td>
-                                        <td class="px-4 py-2 font-bold">Grupo:</td>
-                                        <td class="border border-l-0 px-4 py-2">
-                                            {{ selectedProductSheet.group?.name || 'Sin grupo' }}
+
+                                        <td class="border px-3 py-2" style="min-width: 200px">
+                                            <SelectField
+                                                v-model="lot.destination_id"
+                                                :options="destinationOptions"
+                                                label=""
+                                                :aria-label="`Destino para lote ${index + 1}`"
+                                                :class="{ 'border-red-500': !lot.destination_id }"
+                                                @update:modelValue="validateLotField(index)"
+                                            />
                                         </td>
-                                        <td class="px-4 py-2 font-bold">Marca:</td>
-                                        <td class="border border-l-0 px-4 py-2">
-                                            {{ selectedProductSheet.brand?.name || 'Sin marca' }}
+
+                                        <td class="border px-3 py-2" style="min-width: 150px">
+                                            <SelectField
+                                                v-model="lot.priority"
+                                                :options="priorityOptions"
+                                                label=""
+                                                :aria-label="`Prioridad para lote ${index + 1}`"
+                                                :class="{ 'border-red-500': !lot.priority }"
+                                                @update:modelValue="validateLotField(index)"
+                                            />
                                         </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="border border-r-0 px-4 py-1 font-bold">Mundo:</td>
-                                        <td class="border border-l-0 px-4 py-1">
-                                            {{ selectedProductSheet.world?.name || 'Sin mundo' }}
+
+                                        <td class="border px-3 py-2" style="min-width: 160px">
+                                            <input
+                                                v-model="lot.estimated_delivery_date"
+                                                type="date"
+                                                class="h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm transition placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                                :aria-label="`Fecha estimada de entrega para lote ${index + 1}`"
+                                            />
                                         </td>
-                                        <td class="border border-r-0 px-4 py-1 font-bold">Base:</td>
-                                        <td class="border border-l-0 px-4 py-1">
-                                            {{ selectedProductSheet.fabric_base?.name || 'Sin base' }}
+
+                                        <td class="border px-3 py-2 text-center">
+                                            <input
+                                                type="checkbox"
+                                                v-model="lot.isEcommerce"
+                                                :aria-label="`Habilitar e-commerce para lote ${index + 1}`"
+                                                class="form-checkbox h-5 w-5 cursor-pointer text-blue-600"
+                                                @change="
+                                                    () => {
+                                                        if (!lot.isEcommerce) lot.ecommerce_units = null;
+                                                    }
+                                                "
+                                            />
                                         </td>
-                                        <td class="border border-r-0 px-4 py-1 font-bold">Precio Facturación:</td>
-                                        <td class="border border-l-0 px-4 py-1">
-                                            {{ selectedProductSheet.billing_price ?? 'N/A' }}
+
+                                        <td class="border px-3 py-2" style="min-width: 180px">
+                                            <InputField
+                                                :model-value="lot.unitsInput ?? ''"
+                                                inputmode="numeric"
+                                                @update:modelValue="
+                                                    (value) => {
+                                                        const raw = typeof value === 'string' ? value : String(value);
+                                                        lot.unitsInput = raw;
+                                                        lot.units = parseUnitsInput(raw);
+                                                        validateLotField(index);
+                                                    }
+                                                "
+                                                label=""
+                                                placeholder="Unidades a programar"
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                :aria-label="`Unidades para lote ${index + 1}`"
+                                                :class="{ 'border-red-500': !lot.units || lot.units <= 0 }"
+                                            />
                                         </td>
-                                        <td class="border border-r-0 px-4 py-1 font-bold">Precio Venta:</td>
-                                        <td class="border border-l-0 px-4 py-1">
-                                            {{ selectedProductSheet.selling_price ?? 'N/A' }}
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="border px-4 py-5 font-bold">Tallas:</td>
-                                        <td class="border px-8 py-5" colspan="3">
-                                            {{ sizesToLabel(selectedProductSheet?.sizes) }}
-                                        </td>
-                                        <td class="border px-4 py-5 font-bold">Descripción:</td>
-                                        <td class="border px-4 py-5" colspan="3">
-                                            {{ selectedProductSheet.description || 'Sin descripción' }}
+
+                                        <td v-if="lot.isEcommerce" class="border px-3 py-2 text-center">
+                                            <EcommerceSizesDialog
+                                                :productSheet="getDialogProductSheet(selectedProductSheet)"
+                                                :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
+                                                @sizesUpdated="
+                                                    (data) => {
+                                                        if (data?.sizes && Object.keys(data.sizes).length > 0) {
+                                                            const sanitized = Object.fromEntries(
+                                                                Object.entries(data.sizes).map(([size, value]) => [
+                                                                    size,
+                                                                    typeof value === 'number' ? Math.max(0, value) : 0,
+                                                                ]),
+                                                            );
+                                                            lot.ecommerce_units = sanitized;
+                                                        } else {
+                                                            lot.ecommerce_units = {};
+                                                        }
+                                                    }
+                                                "
+                                            />
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-
-                    <!-- Lotes -->
-                    <div v-if="lotsForm.length > 0" class="mt-4">
-                        <h3 class="mb-2 text-base font-bold">Lotes Generados:</h3>
-
-                        <table class="w-full overflow-visible rounded-lg border border-gray-300 text-center text-sm shadow-sm">
-                            <thead>
-                                <tr class="bg-gray-50">
-                                    <th class="border px-4 py-3 font-semibold">Lote</th>
-                                    <th class="border px-4 py-3 font-semibold">Referencia</th>
-                                    <th class="border px-4 py-3 font-semibold">Temporada</th>
-                                    <th class="border px-4 py-3 font-semibold">Destino</th>
-                                    <th class="border px-4 py-3 font-semibold">Prioridad</th>
-                                    <th class="border px-4 py-3 font-semibold">E-commerce (opcional)</th>
-                                    <th class="border px-4 py-3 font-semibold">Unidades</th>
-                                    <th v-if="lotsForm.some((lot) => lot.isEcommerce)" class="border px-4 py-3 font-semibold">Cant. E-commerce</th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                <tr v-for="(lot, index) in lotsForm" :key="index" class="hover:bg-gray-50">
-                                    <td class="whitespace-nowrap border px-4 py-4">MF300{{ index + 1 }}</td>
-
-                                    <td class="border px-4 py-4">
-                                        {{ getDisplayReference(lot.product_sheet_id) }}
-                                    </td>
-
-                                    <td class="border px-4 py-4" style="min-width: 180px">
-                                        <SelectField
-                                            v-model="lot.season"
-                                            :options="monthOptions"
-                                            label=""
-                                            :aria-label="`Temporada para lote ${index + 1}`"
-                                            :class="{ 'border-red-500': !lot.season }"
-                                            @update:modelValue="validateLotField(index)"
-                                        />
-                                    </td>
-
-                                    <td class="border px-4 py-4" style="min-width: 200px">
-                                        <SelectField
-                                            v-model="lot.destination_id"
-                                            :options="destinationOptions"
-                                            label=""
-                                            :aria-label="`Destino para lote ${index + 1}`"
-                                            :class="{ 'border-red-500': !lot.destination_id }"
-                                            @update:modelValue="validateLotField(index)"
-                                        />
-                                    </td>
-
-                                    <td class="border px-4 py-4" style="min-width: 150px">
-                                        <SelectField
-                                            v-model="lot.priority"
-                                            :options="priorityOptions"
-                                            label=""
-                                            :aria-label="`Prioridad para lote ${index + 1}`"
-                                            :class="{ 'border-red-500': !lot.priority }"
-                                            @update:modelValue="validateLotField(index)"
-                                        />
-                                    </td>
-
-                                    <td class="border px-4 py-4 text-center">
-                                        <input
-                                            type="checkbox"
-                                            v-model="lot.isEcommerce"
-                                            :aria-label="`Habilitar e-commerce para lote ${index + 1}`"
-                                            class="form-checkbox h-5 w-5 cursor-pointer text-blue-600"
-                                            @change="
-                                                () => {
-                                                    if (!lot.isEcommerce) lot.ecommerce_units = null;
-                                                }
-                                            "
-                                        />
-                                    </td>
-
-                                    <td class="border px-4 py-4" style="min-width: 180px">
-                                        <InputField
-                                            :model-value="lot.unitsInput ?? ''"
-                                            inputmode="numeric"
-                                            @update:modelValue="
-                                                (value) => {
-                                                    const raw = typeof value === 'string' ? value : String(value);
-                                                    lot.unitsInput = raw;
-                                                    lot.units = parseUnitsInput(raw);
-                                                    validateLotField(index);
-                                                }
-                                            "
-                                            label=""
-                                            placeholder="Unidades a programar"
-                                            type="number"
-                                            min="1"
-                                            step="1"
-                                            :aria-label="`Unidades para lote ${index + 1}`"
-                                            :class="{ 'border-red-500': !lot.units || lot.units <= 0 }"
-                                        />
-                                    </td>
-
-                                    <td v-if="lot.isEcommerce" class="border px-4 py-4 text-center">
-                                        <EcommerceSizesDialog
-                                            :productSheet="getDialogProductSheet(selectedProductSheet)"
-                                            :existingValues="resolveEcommerceValues(lot.ecommerce_units)"
-                                            @sizesUpdated="
-                                                (data) => {
-                                                    if (data?.sizes && Object.keys(data.sizes).length > 0) {
-                                                        const sanitized = Object.fromEntries(
-                                                            Object.entries(data.sizes).map(([size, value]) => [
-                                                                size,
-                                                                typeof value === 'number' ? Math.max(0, value) : 0,
-                                                            ]),
-                                                        );
-                                                        lot.ecommerce_units = sanitized;
-                                                    } else {
-                                                        lot.ecommerce_units = {};
-                                                    }
-                                                }
-                                            "
-                                        />
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
             </TooltipProvider>
 
-            <!-- Footer fijo -->
-            <div class="absolute bottom-0 left-0 right-0 flex flex-col items-end gap-2 rounded-b-[24px] border-t bg-white px-6 py-4 shadow-lg">
+            <div class="flex flex-shrink-0 flex-col items-end gap-2 border-t bg-background px-6 py-3">
                 <div class="flex w-full max-w-lg items-center justify-end gap-3">
                     <button
                         type="button"
-                        class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2.5 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-6 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="closeDialog"
                     >
                         Cancelar
@@ -765,7 +789,7 @@ watch(
 
                     <Button
                         type="button"
-                        class="flex items-center justify-center rounded-full px-6 py-2.5 text-sm font-semibold shadow-sm"
+                        class="flex items-center justify-center rounded-full px-6 py-2 text-sm font-semibold shadow-sm"
                         :disabled="saveDisabled || isSubmitting"
                         @click="createProgrammer"
                     >

@@ -4,15 +4,20 @@ namespace App\Services\Textil;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
-use App\Models\MasterData\Item;
+use App\Models\Production\ProductionRollConsumption;
 use App\Models\Textil\FabricRoll;
+use App\Services\Inventory\InventoryMovementService;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 class FabricRollService
 {
+    public function __construct(
+        protected InventoryMovementService $movementService
+    ) {}
     /** Tolerancia de cantidad al aprobar recepción: ±30% respecto al pedido por ítem. */
     public const TOLERANCE_QUANTITY_PERCENT = 30;
 
@@ -69,8 +74,6 @@ class FabricRollService
                 'purchaseDocumentItem.document.creator',
             ]);
 
-            $this->syncItemWarehouseLength($fabricRoll);
-
             return $fabricRoll;
         });
     }
@@ -98,8 +101,6 @@ class FabricRollService
                 'purchaseDocumentItem.document.creator',
             ]);
 
-            $this->syncItemWarehouseLength($fabricRoll);
-
             return $fabricRoll;
         });
     }
@@ -107,11 +108,7 @@ class FabricRollService
     public function delete(FabricRoll $fabricRoll): void
     {
         $this->ensureInvoiceNotYetReceptionApprovedForRoll($fabricRoll);
-        $item = $fabricRoll->purchaseDocumentItem->item ?? null;
         $fabricRoll->delete();
-        if ($item) {
-            $this->syncWarehouseLengthForItem($item);
-        }
     }
 
     /**
@@ -129,8 +126,14 @@ class FabricRollService
         }
     }
 
-    public function updateOutput(FabricRoll $fabricRoll, array $data): FabricRoll
+    public function updateOutput(FabricRoll $fabricRoll, array $data, ?int $productionOrderId = null): FabricRoll
     {
+        $previousOutput = (float) $fabricRoll->actual_output;
+        $newOutput = array_key_exists('actual_output', $data)
+            ? (float) $data['actual_output']
+            : $previousOutput;
+        $consumedDelta = max(0, $newOutput - $previousOutput);
+
         $fabricRoll->update($data);
         $fabricRoll->load([
             'purchaseDocumentItem.item',
@@ -138,9 +141,51 @@ class FabricRollService
             'purchaseDocumentItem.document.creator',
         ]);
 
-        $this->syncItemWarehouseLength($fabricRoll);
+        if ($consumedDelta > 0) {
+            $this->recordConsumptionAndCreateMovement($fabricRoll, $consumedDelta, $productionOrderId);
+        }
 
         return $fabricRoll;
+    }
+
+    /**
+     * Registra consumo de rollo y crea movimiento de inventario (salida).
+     * No llama a syncItemWarehouseLength: el movimiento actualiza warehouse_items.
+     */
+    protected function recordConsumptionAndCreateMovement(FabricRoll $fabricRoll, float $metersConsumed, ?int $productionOrderId): void
+    {
+        $item = $fabricRoll->purchaseDocumentItem?->item;
+        if (!$item) {
+            return;
+        }
+
+        $warehouse = $item->warehouses()->first();
+        if (!$warehouse) {
+            return;
+        }
+
+        $unitPrice = $this->movementService->getCurrentWeightedPrice($item->id, $warehouse->id);
+        if ($unitPrice <= 0 && $fabricRoll->purchaseDocumentItem) {
+            $unitPrice = (float) $fabricRoll->purchaseDocumentItem->price;
+        }
+
+        ProductionRollConsumption::create([
+            'production_order_id' => $productionOrderId,
+            'fabric_roll_id' => $fabricRoll->id,
+            'meters_consumed' => $metersConsumed,
+        ]);
+
+        $this->movementService->createMovement([
+            'item_id' => $item->id,
+            'warehouse_id' => $warehouse->id,
+            'type' => 'salida',
+            'quantity' => $metersConsumed,
+            'unit_price' => $unitPrice,
+            'source_type' => $productionOrderId ? \App\Models\Production\ProductionOrder::class : null,
+            'source_id' => $productionOrderId,
+            'notes' => 'Consumo de rollo #' . $fabricRoll->roll_number,
+            'created_by_user_id' => Auth::id(),
+        ]);
     }
 
     public function storeFromReception(array $data): FabricRoll
@@ -163,58 +208,6 @@ class FabricRollService
             throw ValidationException::withMessages([
                 'general' => ['No se pueden añadir más rollos: la factura ya está recepcionada (aprobada).'],
             ]);
-        }
-    }
-
-    protected function syncItemWarehouseLength(FabricRoll $fabricRoll): void
-    {
-        try {
-            $item = $fabricRoll->purchaseDocumentItem?->item;
-            if (!$item) {
-                return;
-            }
-
-            $this->syncWarehouseLengthForItem($item);
-        } catch (\Throwable $e) {
-            report($e);
-            // No relanzar: el rollo ya se creó; la sincronización de bodega es secundaria
-        }
-    }
-
-    protected function syncWarehouseLengthForItem(Item $item): void
-    {
-        try {
-            $warehouse = $item->warehouses()->first();
-            if (!$warehouse) {
-                return;
-            }
-
-            $totalQuantity = $this->sumRollQuantityForItem($item->id);
-
-            $row = DB::table('warehouse_items')
-                ->where('item_id', $item->id)
-                ->where('warehouse_id', $warehouse->id)
-                ->first();
-
-            $payload = [
-                'quantity' => $totalQuantity,
-                'updated_at' => now(),
-            ];
-
-            if ($row) {
-                DB::table('warehouse_items')->where('id', $row->id)->update($payload);
-                return;
-            }
-
-            $payload['item_id'] = $item->id;
-            $payload['warehouse_id'] = $warehouse->id;
-            $payload['stock_min'] = 0;
-            $payload['stock_max'] = 0;
-            $payload['created_at'] = now();
-
-            DB::table('warehouse_items')->insert($payload);
-        } catch (\Throwable $e) {
-            report($e);
         }
     }
 

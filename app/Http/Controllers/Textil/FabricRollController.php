@@ -7,7 +7,7 @@ use App\Http\Requests\Textil\StoreFabricRollRequest;
 use App\Http\Requests\Textil\UpdateFabricRollOutputRequest;
 use App\Http\Requests\Textil\UpdateFabricRollRequest;
 use App\Http\Resources\Inventory\FabricRollResource;
-use App\Models\Production\Programmer;
+use App\Models\Production\ProductionOrder;
 use App\Models\Textil\FabricRoll;
 use App\Services\Textil\FabricRollService;
 use Illuminate\Http\JsonResponse;
@@ -74,13 +74,13 @@ class FabricRollController extends Controller
 
         $sizes = null;
         if ($programmerId) {
-            $programmer = Programmer::with('productSheet')->find($programmerId);
-            if ($programmer) {
-                $reference = $programmer->productSheet?->reference;
-                $lotName = $reference ? "MF{$programmer->id} - {$reference}" : "MF{$programmer->id}";
+            $order = ProductionOrder::with('productSheet')->find($programmerId);
+            if ($order) {
+                $reference = $order->productSheet?->reference;
+                $lotName = $reference ? "MF{$order->id} - {$reference}" : "MF{$order->id}";
 
-                if ($programmer->productSheet && $programmer->productSheet->sizes) {
-                    $rawSizes = $programmer->productSheet->sizes;
+                if ($order->productSheet && $order->productSheet->sizes) {
+                    $rawSizes = $order->productSheet->sizes;
                     
                     // Procesamiento robusto de tallas - solo tallas activas (true)
                     if (is_array($rawSizes)) {
@@ -245,7 +245,8 @@ class FabricRollController extends Controller
             return $error;
         }
 
-        $fabricRoll = $this->service->updateOutput($fabricRoll, $data);
+        $productionOrderId = isset($data['production_order_id']) ? (int) $data['production_order_id'] : null;
+        $fabricRoll = $this->service->updateOutput($fabricRoll, $data, $productionOrderId);
 
         return response()->json([
             'message' => 'Salidas actualizadas correctamente',

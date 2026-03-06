@@ -111,6 +111,19 @@ function clearAlert() {
     alertMessage.value = '';
     showAlert.value = false;
 }
+
+function handleProgrammerCreated(message?: string) {
+    const successText = typeof message === 'string' && message.trim() !== '' ? message.trim() : 'Programador creado correctamente.';
+    setAlert(successText, 'success');
+    reloadCurrentPage();
+}
+
+function handleProgrammerUpdated(message?: string) {
+    const successText = typeof message === 'string' && message.trim() !== '' ? message.trim() : 'Programador actualizado correctamente.';
+    setAlert(successText, 'success');
+    reloadCurrentPage();
+}
+
 const editProgrammerDialogRef = ref<InstanceType<typeof EditProgrammerDialog> | null>(null);
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
@@ -185,8 +198,13 @@ async function deleteProgrammer() {
     if (!programmerToDelete.value) return;
 
     try {
-        await axios.delete(`/comercial/programador/${programmerToDelete.value.id}`);
+        const response = await axios.delete(`/comercial/programador/${programmerToDelete.value.id}`);
         fetchProgrammers(currentPage.value);
+        const successText =
+            typeof response?.data?.message === 'string' && response.data.message.trim() !== ''
+                ? response.data.message.trim()
+                : 'Programador eliminado correctamente.';
+        setAlert(successText, 'success');
         programmerToDelete.value = null;
         isDialogOpen.value = false;
     } catch (error) {
@@ -437,14 +455,14 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                         :destinations="props.destinations"
                         :months="props.months"
                         :priorities="props.priorities"
-                        @programmerCreated="reloadCurrentPage"
+                        @programmerCreated="handleProgrammerCreated"
                     />
                     <EditProgrammerDialog
                         ref="editProgrammerDialogRef"
                         :productSheets="props.productSheets"
                         :destinations="props.destinations"
                         :months="props.months"
-                        @programmerUpdated="reloadCurrentPage"
+                        @programmerUpdated="handleProgrammerUpdated"
                     />
                 </div>
             </div>

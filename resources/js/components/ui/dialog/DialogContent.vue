@@ -9,7 +9,9 @@ import {
     type DialogContentEmits,
     type DialogContentProps,
 } from 'radix-vue';
-import { computed, type HTMLAttributes } from 'vue';
+import { computed, useAttrs, type HTMLAttributes } from 'vue';
+
+defineOptions({ inheritAttrs: false });
 
 const props = defineProps<
     DialogContentProps & {
@@ -28,7 +30,28 @@ const delegatedProps = computed(() => {
 });
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
+const attrs = useAttrs();
+const mergedForwarded = computed(() => ({ ...forwarded, ...attrs }));
 const isScrollable = computed(() => props.scrollable ?? true);
+
+function isDatepickerPopoverTarget(target: EventTarget | null) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest('[data-datepicker-popover="true"]'));
+}
+
+function handlePointerDownOutside(event: unknown) {
+    const target = (event as { detail?: { originalEvent?: { target?: EventTarget | null } } })?.detail?.originalEvent?.target ?? null;
+    if (isDatepickerPopoverTarget(target)) {
+        (event as { preventDefault: () => void }).preventDefault();
+    }
+}
+
+function handleInteractOutside(event: unknown) {
+    const target = (event as { detail?: { originalEvent?: { target?: EventTarget | null } } })?.detail?.originalEvent?.target ?? null;
+    if (isDatepickerPopoverTarget(target)) {
+        (event as { preventDefault: () => void }).preventDefault();
+    }
+}
 </script>
 
 <template>
@@ -42,7 +65,9 @@ const isScrollable = computed(() => props.scrollable ?? true);
             "
         />
         <DialogContent
-            v-bind="forwarded"
+            v-bind="mergedForwarded"
+            @pointer-down-outside="handlePointerDownOutside"
+            @interact-outside="handleInteractOutside"
             :class="
                 cn(
                     'fixed inset-0 z-50 m-auto h-fit max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-4xl border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-[28px]',

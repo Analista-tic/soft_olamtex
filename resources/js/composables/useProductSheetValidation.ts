@@ -8,13 +8,30 @@ export interface ProductSheetValidationSource {
     world_id: number | null;
     fabric_base_id: number | null;
     operational_list_id: number | null;
+    yarn_base_id?: number | null;
+}
+
+export interface ProductSheetFieldErrors {
+    reference: string;
+    section_id: string;
+    group_id: string;
+    brand_id: string;
+    world_id: string;
+    fabric_base_id: string;
+    yarn_base_id: string;
+    operational_list_id: string;
 }
 
 export function useProductSheetValidation<T extends ProductSheetValidationSource>(params: {
     form: Ref<T>;
     activeReference: Ref<string>;
     requiresOperationalList: Ref<boolean>;
+    hasOperationalListConfigured?: Ref<boolean>;
+    requiresYarnBase?: Ref<boolean>;
 }) {
+    const requiresYarnBase = params.requiresYarnBase ?? computed(() => false);
+    const hasOperationalListConfigured = params.hasOperationalListConfigured ?? computed(() => false);
+
     const validationErrors = computed<string[]>(() => {
         const errors: string[] = [];
         const form = params.form.value;
@@ -26,17 +43,41 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
         if (!form.fabric_base_id) errors.push('Base es requerida.');
         if (!params.activeReference.value.trim()) errors.push('Referencia es requerida.');
 
-        if (params.requiresOperationalList.value && !form.operational_list_id) {
-            errors.push('Selecciona un listado operacional para Desarrollo de muestras.');
+        if (params.requiresOperationalList.value && !hasOperationalListConfigured.value && !form.operational_list_id) {
+            errors.push(
+                'Configura el listado operacional: haz clic en "Configurar procesos" y añade al menos una operación para el proceso Desarrollo de muestras.',
+            );
+        }
+
+        if (requiresYarnBase.value && !form.yarn_base_id) {
+            errors.push('Base hilaza es requerida cuando el producto es tejido.');
         }
 
         return errors;
+    });
+
+    const fieldErrors = computed<ProductSheetFieldErrors>(() => {
+        const form = params.form.value;
+        return {
+            reference: !params.activeReference.value.trim() ? 'Referencia es requerida.' : '',
+            section_id: !form.section_id ? 'Sección es requerida.' : '',
+            group_id: !form.group_id ? 'Grupo es requerido.' : '',
+            brand_id: !form.brand_id ? 'Marca es requerida.' : '',
+            world_id: !form.world_id ? 'Mundo es requerido.' : '',
+            fabric_base_id: !form.fabric_base_id ? 'Base es requerida.' : '',
+            yarn_base_id: requiresYarnBase.value && !form.yarn_base_id ? 'Base hilaza es requerida.' : '',
+            operational_list_id:
+                params.requiresOperationalList.value && !hasOperationalListConfigured.value && !form.operational_list_id
+                    ? 'Configura el listado operacional (Configurar procesos).'
+                    : '',
+        };
     });
 
     const isValid = computed(() => validationErrors.value.length === 0);
 
     return {
         validationErrors,
+        fieldErrors,
         isValid,
     };
 }

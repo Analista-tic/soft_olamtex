@@ -146,7 +146,7 @@ export interface ProductSheet {
     [key: string]: any;
 }
 
-export interface Programmer {
+export interface ProductionOrder {
     id: number;
     op_code?: string | null;
     product_sheet_id: number | null;
@@ -167,6 +167,9 @@ export interface Programmer {
     created_at: string;
     updated_at: string;
 }
+
+/** @deprecated Use ProductionOrder */
+export type Programmer = ProductionOrder;
 
 // Interfaces relacionadas con pedidos de telas
 export interface FabricOrder {

@@ -2,12 +2,10 @@
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import Label from '@/components/ui/label/Label.vue';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 import { type DateValue, getLocalTimeZone, parseDate } from '@internationalized/date';
 
@@ -19,22 +17,14 @@ const props = withDefaults(
         label?: string;
         placeholderText?: string;
         disabled?: boolean;
-        readonly?: boolean;
         required?: boolean;
         displayFormat?: string;
-        clearable?: boolean;
-        showToday?: boolean;
-        align?: 'start' | 'center' | 'end';
     }>(),
     {
         placeholderText: 'Selecciona una fecha',
         disabled: false,
-        readonly: false,
         required: false,
         displayFormat: 'dd/MM/yyyy',
-        clearable: true,
-        showToday: true,
-        align: 'start',
     },
 );
 
@@ -42,163 +32,214 @@ const emit = defineEmits<{
     (e: 'update:modelValue', v: string | null): void;
 }>();
 
-function getLocalIsoDate() {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
+// Valor interno para el calendario (DateValue o undefined)
+const internalValue = ref<DateValue | undefined>(props.modelValue ? parseDate(props.modelValue) : undefined);
 
-function normalizeIsoDate(value: unknown): string | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    const datePart = trimmed.includes('T') ? trimmed.split('T')[0] : trimmed.includes(' ') ? trimmed.split(' ')[0] : trimmed;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
-        return datePart;
-    }
-    const parsed = new Date(trimmed);
-    if (Number.isNaN(parsed.getTime())) return null;
-    const year = parsed.getFullYear();
-    const month = String(parsed.getMonth() + 1).padStart(2, '0');
-    const day = String(parsed.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
+// Placeholder para el calendario
+const calendarPlaceholder = ref<DateValue>((internalValue.value || parseDate(new Date().toISOString().split('T')[0])) as DateValue);
 
-function parseModelValue(value: ModelValue): DateValue | null {
-    const isoDate = normalizeIsoDate(value);
-    if (!isoDate) return null;
-    try {
-        return parseDate(isoDate);
-    } catch {
-        return null;
-    }
-}
-
+// Control manual del popover
 const open = ref(false);
-const internalValue = ref<DateValue | null>(parseModelValue(props.modelValue));
-const calendarPlaceholder = ref<DateValue | null>(internalValue.value ?? parseDate(getLocalIsoDate()));
-const isDisabled = computed(() => props.disabled || props.readonly);
+
+// Referencias y posición
+const triggerRef = ref<HTMLElement | null>(null);
+const popoverRef = ref<HTMLElement | null>(null);
+const popoverPosition = ref({ top: 0, left: 0 });
+
+// Calcular posición del popover con detección inteligente
+function calculatePosition() {
+    if (!triggerRef.value) return;
+
+    const triggerRect = triggerRef.value.getBoundingClientRect();
+    const popoverWidth = 320;
+    const popoverHeight = 400;
+    const spacing = 8;
+
+    // Calcular posición horizontal
+    let left = triggerRect.right - popoverWidth;
+
+    if (left < spacing) {
+        left = spacing;
+    }
+
+    if (left + popoverWidth > window.innerWidth - spacing) {
+        left = window.innerWidth - popoverWidth - spacing;
+    }
+
+    // Calcular posición vertical con detección automática
+    const spaceBelow = window.innerHeight - triggerRect.bottom;
+    const spaceAbove = triggerRect.top;
+
+    let top: number;
+
+    if (spaceBelow >= popoverHeight + spacing) {
+        top = triggerRect.bottom + spacing;
+    } else if (spaceAbove > spaceBelow) {
+        top = triggerRect.top - popoverHeight - spacing;
+        if (top < spacing) {
+            top = spacing;
+        }
+    } else {
+        top = triggerRect.bottom + spacing;
+        if (top + popoverHeight > window.innerHeight - spacing) {
+            top = window.innerHeight - popoverHeight - spacing;
+        }
+    }
+
+    popoverPosition.value = { top, left };
+}
+
+// Cerrar el popover si se hace click fuera
+let clickOutsideHandler: any = null;
+let scrollHandler: any = null;
+let resizeHandler: any = null;
+
+onMounted(() => {
+    clickOutsideHandler = (e: MouseEvent) => {
+        requestAnimationFrame(() => {
+            const pop = popoverRef.value;
+            const trigger = triggerRef.value;
+
+            if (open.value && pop && !pop.contains(e.target as Node) && trigger && !trigger.contains(e.target as Node)) {
+                open.value = false;
+            }
+        });
+    };
+
+    scrollHandler = () => {
+        if (open.value) {
+            calculatePosition();
+        }
+    };
+
+    resizeHandler = () => {
+        if (open.value) {
+            calculatePosition();
+        }
+    };
+
+    document.addEventListener('mouseup', clickOutsideHandler);
+    window.addEventListener('scroll', scrollHandler, true);
+    window.addEventListener('resize', resizeHandler);
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('mouseup', clickOutsideHandler);
+    window.removeEventListener('scroll', scrollHandler, true);
+    window.removeEventListener('resize', resizeHandler);
+});
 
 watch(
     () => props.modelValue,
     (newVal) => {
-        internalValue.value = parseModelValue(newVal);
+        if (newVal) {
+            internalValue.value = parseDate(newVal);
+        } else {
+            internalValue.value = undefined;
+        }
     },
 );
 
 watch(
     () => internalValue.value,
-    (nextValue) => {
-        if (nextValue) {
-            calendarPlaceholder.value = nextValue;
+    (value) => {
+        if (value) {
+            calendarPlaceholder.value = value as DateValue;
         }
     },
 );
 
 watch(open, (isOpen) => {
-    if (!isOpen) return;
-    if (internalValue.value) {
-        calendarPlaceholder.value = internalValue.value;
-    } else {
-        calendarPlaceholder.value = parseDate(getLocalIsoDate());
+    if (isOpen) {
+        if (internalValue.value) {
+            calendarPlaceholder.value = internalValue.value as DateValue;
+        } else {
+            calendarPlaceholder.value = parseDate(new Date().toISOString().split('T')[0]) as DateValue;
+        }
+        nextTick(() => {
+            calculatePosition();
+        });
     }
 });
 
-function handlePlaceholderUpdate(value: DateValue | null) {
-    calendarPlaceholder.value = value;
+function handlePlaceholderUpdate(value: DateValue | undefined) {
+    if (value) {
+        calendarPlaceholder.value = value as DateValue;
+    }
 }
 
-function onSelectDate(value: DateValue | undefined) {
-    const selectedDate = value ?? null;
-    internalValue.value = selectedDate;
-    emit('update:modelValue', selectedDate ? selectedDate.toString() : null);
-    open.value = false;
+function toggleCalendar() {
+    if (props.disabled) return;
+    open.value = !open.value;
 }
 
-function clearDate() {
-    internalValue.value = null;
-    emit('update:modelValue', null);
-    open.value = false;
-}
+function onSelectDate(val: DateValue | undefined) {
+    internalValue.value = val;
+    emit('update:modelValue', val ? val.toString() : null);
 
-function setToday() {
-    const today = parseDate(getLocalIsoDate());
-    internalValue.value = today;
-    emit('update:modelValue', today.toString());
-    open.value = false;
+    nextTick(() => {
+        open.value = false;
+    });
 }
 
 const displayLabel = computed(() => {
-    if (!internalValue.value) {
+    if (!props.modelValue) {
         return props.placeholderText;
     }
     try {
-        const jsDate = internalValue.value.toDate(getLocalTimeZone());
+        const jsDate = parseDate(props.modelValue).toDate(getLocalTimeZone());
         return format(jsDate, props.displayFormat, { locale: es });
     } catch {
-        return props.placeholderText;
+        return props.modelValue;
     }
 });
+
+const calendarModelValue = computed(() => internalValue.value as DateValue | undefined);
+const calendarPlaceholderValue = computed(() => calendarPlaceholder.value as DateValue);
 </script>
 
 <template>
-    <div class="space-y-1">
-        <Label v-if="label"> {{ label }} <span v-if="required" class="text-red-500">*</span> </Label>
-
-        <Popover v-model:open="open" :modal="false">
-            <PopoverTrigger as-child>
-                <button
-                    type="button"
-                    :disabled="isDisabled"
-                    class="flex h-10 w-full items-center justify-start rounded-md border border-input bg-background px-3 py-2 text-left text-sm font-normal shadow-sm transition-colors hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    <CalendarIcon class="mr-2 h-4 w-4 opacity-70" />
-                    <span :class="!internalValue ? 'text-muted-foreground' : ''">
-                        {{ displayLabel }}
-                    </span>
-                </button>
-            </PopoverTrigger>
-            <PopoverContent
-                :align="align"
-                class="z-[70] w-auto p-2"
-                @open-auto-focus.prevent
-                @close-auto-focus.prevent
+    <div class="space-y-2">
+        <Label v-if="label" :required="required">{{ label }}</Label>
+        <div class="relative">
+            <button
+                ref="triggerRef"
+                type="button"
+                :disabled="disabled"
+                class="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                @click="toggleCalendar"
             >
-                <Calendar
-                    :model-value="internalValue"
-                    @update:model-value="onSelectDate"
-                    :placeholder="calendarPlaceholder"
-                    @update:placeholder="handlePlaceholderUpdate"
-                    caption-layout="dropdown"
-                    initial-focus
-                />
-                <div v-if="showToday || clearable" class="mt-2 flex items-center justify-end gap-2 border-t pt-2">
-                    <Button
-                        v-if="showToday"
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        class="h-8 px-2 text-xs"
-                        :disabled="isDisabled"
-                        @click="setToday"
-                    >
-                        Hoy
-                    </Button>
-                    <Button
-                        v-if="clearable"
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        class="h-8 px-2 text-xs"
-                        :disabled="isDisabled || !internalValue"
-                        @click="clearDate"
-                    >
-                        Borrar
-                    </Button>
+                <CalendarIcon class="h-4 w-4 flex-shrink-0" />
+                <span class="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left">
+                    {{ displayLabel }}
+                </span>
+            </button>
+
+            <!-- Popover con Teleport -->
+            <Teleport to="body">
+                <div
+                    v-if="open"
+                    ref="popoverRef"
+                    data-datepicker-popover="true"
+                    class="fixed z-[99999] rounded-md border border-border bg-white shadow-lg"
+                    :style="{
+                        top: popoverPosition.top + 'px',
+                        left: popoverPosition.left + 'px',
+                        width: '320px',
+                    }"
+                    @pointerdown.stop
+                    @mousedown.stop
+                    @mouseup.stop
+                    @click.stop
+                >
+                    <Calendar
+                        :model-value="calendarModelValue"
+                        :placeholder="calendarPlaceholderValue"
+                        @update:model-value="onSelectDate"
+                        @update:placeholder="handlePlaceholderUpdate"
+                    />
                 </div>
-            </PopoverContent>
-        </Popover>
+            </Teleport>
+        </div>
     </div>
 </template>

@@ -2,11 +2,11 @@
 import FilterBar from '@/components/FilterBar.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FilterField from '@/components/FilterField.vue';
+import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
     PaginationEllipsis,

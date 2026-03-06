@@ -5,8 +5,9 @@ import { CardContent } from '@/components/ui/card';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { RawMaterialItemMeta } from '@/domain/Production';
-import { fetchRawMaterialCatalogOptions, fetchRawMaterialItemMeta } from '@/domain/Production';
+import { fetchOpRawMaterials, fetchRawMaterialCatalogOptions, fetchRawMaterialItemMeta, saveOpRawMaterials } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
+import axios from 'axios';
 import { Plus, Save, Trash } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -52,6 +53,7 @@ const rows = ref<RawMaterialRow[]>([]);
 const snapshot = ref<string>('[]');
 const itemOptions = ref<Option[]>([]);
 const isSaving = ref(false);
+const isLoadingRows = ref(false);
 const isLoadingItems = ref(false);
 const error = ref<string | null>(null);
 const saveMessage = ref<string | null>(null);
@@ -421,14 +423,53 @@ function formatWidth(row: RawMaterialRow): string {
     return row.anchoUnit ? `${formatted} ${row.anchoUnit}` : formatted;
 }
 
-function loadRows(): void {
+function formatSaveError(err: unknown): string {
+    if (!axios.isAxiosError(err) || !err.response?.data) {
+        return 'No se pudieron guardar los cambios.';
+    }
+    const data = err.response.data as { message?: string; errors?: Record<string, string[]> };
+    if (err.response.status === 422 && data.errors) {
+        const first = Object.values(data.errors).flat()[0];
+        return first ?? data.message ?? 'Error de validación.';
+    }
+    return data.message ?? 'Error al guardar.';
+}
+
+async function loadRows(): Promise<void> {
     error.value = null;
     saveMessage.value = null;
     loadingMetaByRow.value = {};
     requestCounterByRow.clear();
     itemMetaCache.clear();
+    isLoadingRows.value = true;
 
-    rows.value = loadFromStorage(props.opId);
+    try {
+        const apiRows = await fetchOpRawMaterials(props.opId);
+        if (Array.isArray(apiRows) && apiRows.length > 0) {
+            rows.value = apiRows.map((r) =>
+                normalizeRuntimeRow({
+                    uid: r.uid ?? generateUid(),
+                    telaItemId: r.telaItemId ?? null,
+                    tela: r.tela ?? '',
+                    supplierId: r.supplierId ?? null,
+                    lastSupplierName: r.lastSupplierName ?? null,
+                    lastUnitPriceCop: r.lastUnitPriceCop ?? null,
+                    ancho: r.ancho ?? null,
+                    anchoUnit: r.anchoUnit ?? null,
+                    promTrazo: r.promTrazo ?? 0,
+                    largoTrazo: r.largoTrazo ?? 0,
+                    largoLiq: r.largoLiq ?? 0,
+                    consumo: r.consumo ?? 0,
+                }),
+            );
+        } else {
+            rows.value = loadFromStorage(props.opId);
+        }
+    } catch {
+        rows.value = loadFromStorage(props.opId);
+    } finally {
+        isLoadingRows.value = false;
+    }
     snapshot.value = serializeEditableRows(rows.value);
 
     void loadItemOptions();
@@ -440,7 +481,7 @@ function loadRows(): void {
 }
 
 const dirty = computed(() => serializeEditableRows(rows.value) !== snapshot.value);
-const canSave = computed(() => dirty.value && !isSaving.value);
+const canSave = computed(() => dirty.value && !isSaving.value && !isLoadingRows.value);
 
 const estimatedTotal = computed(() =>
     rows.value.reduce((acc, row) => {
@@ -448,22 +489,38 @@ const estimatedTotal = computed(() =>
     }, 0),
 );
 
-function handleSave(): void {
+async function handleSave(): Promise<void> {
     if (!canSave.value) return;
 
     isSaving.value = true;
     error.value = null;
     saveMessage.value = null;
     try {
-        const success = saveToStorage(props.opId, rows.value);
-        if (!success) {
-            error.value = 'No se pudieron guardar los cambios.';
-            return;
+        const payload = toStorageRows(rows.value);
+        const saved = await saveOpRawMaterials(props.opId, payload);
+        if (Array.isArray(saved) && saved.length > 0) {
+            rows.value = saved.map((r) =>
+                normalizeRuntimeRow({
+                    uid: r.uid ?? generateUid(),
+                    telaItemId: r.telaItemId ?? null,
+                    tela: r.tela ?? '',
+                    supplierId: r.supplierId ?? null,
+                    lastSupplierName: r.lastSupplierName ?? null,
+                    lastUnitPriceCop: r.lastUnitPriceCop ?? null,
+                    ancho: r.ancho ?? null,
+                    anchoUnit: r.anchoUnit ?? null,
+                    promTrazo: r.promTrazo ?? 0,
+                    largoTrazo: r.largoTrazo ?? 0,
+                    largoLiq: r.largoLiq ?? 0,
+                    consumo: r.consumo ?? 0,
+                }),
+            );
+        } else {
+            rows.value = normalizeRows(rows.value);
         }
-
-        rows.value = normalizeRows(rows.value);
         snapshot.value = serializeEditableRows(rows.value);
-        saveMessage.value = 'Guardado.';
+        saveMessage.value = 'Guardado en la ficha técnica.';
+        saveToStorage(props.opId, rows.value);
 
         if (typeof window !== 'undefined') {
             window.dispatchEvent(
@@ -472,6 +529,8 @@ function handleSave(): void {
                 }),
             );
         }
+    } catch (err: unknown) {
+        error.value = formatSaveError(err);
     } finally {
         isSaving.value = false;
     }
@@ -480,7 +539,7 @@ function handleSave(): void {
 watch(
     () => props.opId,
     () => {
-        loadRows();
+        void loadRows();
     },
     { immediate: true },
 );
@@ -491,28 +550,31 @@ watch(
         <div class="p-2">
             <h1 class="text-lg font-semibold">Materia prima</h1>
             <p class="text-sm text-muted-foreground">Registra telas y consumo estimado por OP.</p>
+            <p v-if="isLoadingRows" class="text-sm text-muted-foreground">Cargando...</p>
         </div>
 
         <CardContent class="p-0">
             <div class="max-h-[460px] overflow-auto rounded-md border border-border">
                 <Table>
                     <TableHeader class="sticky top-0 z-10 bg-background">
-                        <TableRow class="w-[110px] text-center">
-                            <TableHead>Item</TableHead>
-                            <TableHead>Tela</TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead>Ancho</TableHead>
-                            <TableHead>Prom. trazo</TableHead>
-                            <TableHead>Largo trazo</TableHead>
-                            <TableHead>Largo liq</TableHead>
-                            <TableHead>Consumo</TableHead>
-                            <TableHead>Precio tela</TableHead>
-                            <TableHead>Accion</TableHead>
+                        <TableRow class="text-center">
+                            <TableHead class="min-w-[80px]">Núm.</TableHead>
+                            <TableHead class="min-w-[300px]">Tela</TableHead>
+                            <TableHead class="min-w-[100px]">Proveedor</TableHead>
+                            <TableHead class="min-w-[60px] text-right">Ancho</TableHead>
+                            <TableHead class="min-w-[50px] text-right">Prom. trazo</TableHead>
+                            <TableHead class="min-w-[50px] text-right">Largo trazo</TableHead>
+                            <TableHead class="min-w-[50px] text-right">Largo liq</TableHead>
+                            <TableHead class="min-w-[50px] text-right">Consumo</TableHead>
+                            <TableHead class="min-w-[90px] text-right">Precio tela</TableHead>
+                            <TableHead class="min-w-[56px]">Accion</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="(row, index) in rows" :key="row.uid" class="min-w-[160px] text-center transition-colors hover:bg-muted/30">
-                            <TableCell class="text-sm font-medium text-foreground">Tela {{ index + 1 }}</TableCell>
+                        <TableRow v-for="(row, index) in rows" :key="row.uid" class="text-center transition-colors hover:bg-muted/30">
+                            <TableCell class="text-sm font-medium text-foreground">
+                                {{ index + 1 }}
+                            </TableCell>
 
                             <TableCell>
                                 <SelectField
@@ -521,7 +583,7 @@ watch(
                                     placeholder="Selecciona tela"
                                     :searchable="true"
                                     search-placeholder="Buscar tela..."
-                                    :disabled="isSaving || isLoadingItems"
+                                    :disabled="isSaving || isLoadingItems || isLoadingRows"
                                     @search="loadItemOptions"
                                     @update:model-value="(value) => onTelaSelected(row.uid, value)"
                                 />
@@ -554,7 +616,7 @@ watch(
 
                             <TableCell>
                                 <Input
-                                    :model-value="String(row.promTrazo)"
+                                    :model-value="row.promTrazo === 0 ? '' : String(row.promTrazo)"
                                     type="number"
                                     min="0"
                                     step="0.01"
@@ -566,7 +628,7 @@ watch(
 
                             <TableCell>
                                 <Input
-                                    :model-value="String(row.largoTrazo)"
+                                    :model-value="row.largoTrazo === 0 ? '' : String(row.largoTrazo)"
                                     type="number"
                                     min="0"
                                     step="0.01"
@@ -578,7 +640,7 @@ watch(
 
                             <TableCell>
                                 <Input
-                                    :model-value="String(row.largoLiq)"
+                                    :model-value="row.largoLiq === 0 ? '' : String(row.largoLiq)"
                                     type="number"
                                     min="0"
                                     step="0.01"
@@ -590,7 +652,7 @@ watch(
 
                             <TableCell>
                                 <Input
-                                    :model-value="String(row.consumo)"
+                                    :model-value="row.consumo === 0 ? '' : String(row.consumo)"
                                     type="number"
                                     min="0"
                                     step="0.01"

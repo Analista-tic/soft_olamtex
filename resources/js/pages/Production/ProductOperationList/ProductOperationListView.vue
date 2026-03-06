@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import HelpTooltip from '@/components/HelpTooltip.vue';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,6 +8,7 @@ import ScrollArea from '@/components/ui/scroll-area/ScrollArea.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import type { OperationSection } from '@/domain/product-sheet';
 import axios from 'axios';
 import { ChevronDown, ChevronRight, History, Pencil, Trash2 } from 'lucide-vue-next';
@@ -291,63 +291,248 @@ watch(
                     </div>
 
                     <TooltipProvider>
-                    <!-- === VISTA AGRUPADA === -->
-                    <div v-if="viewMode === 'grouped'" class="space-y-3">
-                        <div v-for="group in groupedOperations" :key="group.sectionName" class="overflow-hidden rounded-lg border">
-                            <button
-                                type="button"
-                                class="flex w-full items-center justify-between bg-muted/60 px-4 py-2.5 text-left transition hover:bg-muted/80"
-                                @click="toggleSection(group.sectionName)"
-                            >
-                                <div class="flex items-center gap-2">
-                                    <ChevronDown v-if="!collapsedSections.has(group.sectionName)" class="h-4 w-4 text-muted-foreground" />
-                                    <ChevronRight v-else class="h-4 w-4 text-muted-foreground" />
-                                    <span class="text-sm font-semibold">{{ group.sectionName }}</span>
-                                    <Badge variant="outline" class="text-[10px]">{{ group.items.length }} op.</Badge>
+                        <!-- === VISTA AGRUPADA === -->
+                        <div v-if="viewMode === 'grouped'" class="space-y-3">
+                            <div v-for="group in groupedOperations" :key="group.sectionName" class="overflow-hidden rounded-lg border">
+                                <button
+                                    type="button"
+                                    class="flex w-full items-center justify-between bg-muted/60 px-4 py-2.5 text-left transition hover:bg-muted/80"
+                                    @click="toggleSection(group.sectionName)"
+                                >
+                                    <div class="flex items-center gap-2">
+                                        <ChevronDown v-if="!collapsedSections.has(group.sectionName)" class="h-4 w-4 text-muted-foreground" />
+                                        <ChevronRight v-else class="h-4 w-4 text-muted-foreground" />
+                                        <span class="text-sm font-semibold">{{ group.sectionName }}</span>
+                                        <Badge variant="outline" class="text-[10px]">{{ group.items.length }} op.</Badge>
+                                    </div>
+                                    <span class="font-mono text-sm font-semibold text-primary">SAM {{ fmt(group.totalSam) }}</span>
+                                </button>
+                                <div v-if="!collapsedSections.has(group.sectionName)">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow class="text-[11px]">
+                                                <TableHead class="w-10 pl-4">#</TableHead>
+                                                <TableHead>
+                                                    <span class="inline-flex items-center gap-1"
+                                                        >Operación <HelpTooltip text="Nombre de la operación."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="text-center">
+                                                    <span class="inline-flex items-center justify-center gap-1"
+                                                        >Máquina <HelpTooltip text="Código de la máquina asignada."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="w-14 text-right">
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >Cant. <HelpTooltip text="Cantidad de piezas en esta operación."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="text-right">
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >SAM base <HelpTooltip text="SAM base en minutos (del catálogo)."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="text-right">
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >Supl. <HelpTooltip text="Suplemento de la máquina."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="text-right">
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >F. tela <HelpTooltip text="Factor de la base de tela."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="text-right">
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >F. op. <HelpTooltip text="Factor operario."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="text-right">
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >SAM op.
+                                                        <HelpTooltip
+                                                            text="Tiempo total (min): SAM base × suplemento × factor tela × factor op. × cantidad."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="text-right">
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="text-right">
+                                                    <span class="inline-flex items-center justify-end gap-1"
+                                                        >Costo op. <HelpTooltip text="SAM op. × costo por minuto de operaciones."
+                                                    /></span>
+                                                </TableHead>
+                                                <TableHead class="w-24"></TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            <TableRow v-for="entry in group.items" :key="entry.id" class="text-sm">
+                                                <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{
+                                                    entry.sequence ?? '-'
+                                                }}</TableCell>
+                                                <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
+                                                <TableCell class="text-center text-xs text-muted-foreground">{{
+                                                    entry.machine?.code ?? '-'
+                                                }}</TableCell>
+                                                <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
+                                                <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
+                                                <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                    entry.machine_supplement_factor != null ? Number(entry.machine_supplement_factor).toFixed(2) : '-'
+                                                }}</TableCell>
+                                                <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                    entry.fabric_base_factor != null ? fmt(entry.fabric_base_factor) : '-'
+                                                }}</TableCell>
+                                                <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                    entry.operator_efficiency_factor != null
+                                                        ? Number(entry.operator_efficiency_factor).toFixed(2)
+                                                        : '-'
+                                                }}</TableCell>
+                                                <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
+                                                <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                    getOpsPerHour(entry)
+                                                }}</TableCell>
+                                                <TableCell class="text-right font-mono text-xs"
+                                                    >$ {{ formatCurrency(getCostPerOperation(entry)) }}</TableCell
+                                                >
+                                                <TableCell class="py-1">
+                                                    <div class="flex items-center justify-end gap-0.5">
+                                                        <Button variant="ghost" size="icon" class="h-7 w-7" title="Editar" @click="editOperation()"
+                                                            ><Pencil class="h-3.5 w-3.5"
+                                                        /></Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            class="h-7 w-7"
+                                                            title="Historial"
+                                                            @click="openHistory(entry)"
+                                                            ><History class="h-3.5 w-3.5"
+                                                        /></Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            class="h-7 w-7"
+                                                            title="Eliminar"
+                                                            @click="deleteOperation(entry)"
+                                                            ><Trash2 class="h-3.5 w-3.5"
+                                                        /></Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                            <TableRow class="border-t bg-muted/30">
+                                                <TableCell colspan="10" class="py-1.5 text-right text-xs font-bold"
+                                                    >Total {{ group.sectionName }}</TableCell
+                                                >
+                                                <TableCell class="py-1.5 text-right font-mono text-xs font-bold">{{ fmt(group.totalSam) }}</TableCell>
+                                                <TableCell class="py-1.5 text-right font-mono text-xs font-bold"
+                                                    >$ {{ formatCurrency(group.totalSam * operationCost) }}</TableCell
+                                                >
+                                                <TableCell></TableCell>
+                                            </TableRow>
+                                        </TableBody>
+                                    </Table>
+                                    <!-- Costos de sección -->
+                                    <template v-if="group.sectionName === 'Confección'">
+                                        <div class="grid grid-cols-2 border-t bg-amber-50 text-xs dark:bg-amber-950/20">
+                                            <div class="px-4 py-1.5 text-right font-semibold">Confección (SAM × costo operaciones)</div>
+                                            <div class="px-4 py-1.5 font-mono font-semibold">$ {{ formatCurrency(costConfeccion) }}</div>
+                                            <div class="px-4 py-1.5 text-right font-semibold">Costo Hilo</div>
+                                            <div class="px-4 py-1.5 font-mono font-semibold">$ {{ formatCurrency(costHilo) }}</div>
+                                        </div>
+                                        <div class="grid grid-cols-2 border-t bg-amber-100 text-xs dark:bg-amber-900/30">
+                                            <div class="px-4 py-2 text-right font-bold">Costo Total Confección</div>
+                                            <div class="px-4 py-2 font-mono font-bold">$ {{ formatCurrency(costTotalConfeccion) }}</div>
+                                        </div>
+                                    </template>
+                                    <template v-if="group.sectionName === 'Presentación'">
+                                        <div class="grid grid-cols-2 border-t bg-amber-100 text-xs dark:bg-amber-900/30">
+                                            <div class="px-4 py-2 text-right font-bold">Terminación (SAM × costo operaciones)</div>
+                                            <div class="px-4 py-2 font-mono font-bold">$ {{ formatCurrency(costTotalPresentacion) }}</div>
+                                        </div>
+                                    </template>
                                 </div>
-                                <span class="font-mono text-sm font-semibold text-primary">SAM {{ fmt(group.totalSam) }}</span>
-                            </button>
-                            <div v-if="!collapsedSections.has(group.sectionName)">
+                            </div>
+                            <!-- Total general -->
+                            <div class="space-y-2 rounded-lg border bg-primary/5 px-4 py-3">
+                                <div class="flex items-center justify-end gap-6">
+                                    <span class="text-sm font-bold">SAM total ruta</span>
+                                    <span class="font-mono text-lg font-bold text-primary">{{ fmt(totalSam) }} min</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 border-t border-primary/20 pt-2 text-xs">
+                                    <div class="text-right text-muted-foreground">Confección + Terminación (SAM × costo operaciones)</div>
+                                    <div class="font-mono font-semibold">$ {{ formatCurrency(costConfeccion + costTerminacion) }}</div>
+                                    <div class="text-right font-bold">Costo Total Producto</div>
+                                    <div class="font-mono font-bold text-primary">$ {{ formatCurrency(costTotalProducto) }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- === VISTA INDIVIDUAL === -->
+                        <div v-else class="overflow-hidden rounded-lg border">
+                            <ScrollArea class="h-[min(450px,55vh)]">
                                 <Table>
                                     <TableHeader>
                                         <TableRow class="text-[11px]">
-                                            <TableHead class="w-10 pl-4">#</TableHead>
+                                            <TableHead class="w-12 pl-4">Sec</TableHead>
+                                            <TableHead>Sección</TableHead>
                                             <TableHead>
-                                                <span class="inline-flex items-center gap-1">Operación <HelpTooltip text="Nombre de la operación." /></span>
+                                                <span class="inline-flex items-center gap-1"
+                                                    >Operación <HelpTooltip text="Nombre de la operación."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="text-center">
-                                                <span class="inline-flex items-center justify-center gap-1">Máquina <HelpTooltip text="Código de la máquina asignada." /></span>
+                                                <span class="inline-flex items-center justify-center gap-1"
+                                                    >Máquina <HelpTooltip text="Código de la máquina."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="w-14 text-right">
-                                                <span class="inline-flex items-center justify-end gap-1">Cant. <HelpTooltip text="Cantidad de piezas en esta operación." /></span>
+                                                <span class="inline-flex items-center justify-end gap-1"
+                                                    >Cant. <HelpTooltip text="Cantidad de piezas."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="text-right">
-                                                <span class="inline-flex items-center justify-end gap-1">SAM base <HelpTooltip text="SAM base en minutos (del catálogo)." /></span>
+                                                <span class="inline-flex items-center justify-end gap-1"
+                                                    >SAM base <HelpTooltip text="SAM base en minutos."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="text-right">
-                                                <span class="inline-flex items-center justify-end gap-1">Supl. <HelpTooltip text="Suplemento de la máquina." /></span>
+                                                <span class="inline-flex items-center justify-end gap-1"
+                                                    >Supl. <HelpTooltip text="Suplemento máquina."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="text-right">
-                                                <span class="inline-flex items-center justify-end gap-1">F. tela <HelpTooltip text="Factor de la base de tela." /></span>
+                                                <span class="inline-flex items-center justify-end gap-1"
+                                                    >F. tela <HelpTooltip text="Factor tela."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="text-right">
-                                                <span class="inline-flex items-center justify-end gap-1">F. op. <HelpTooltip text="Factor operario." /></span>
+                                                <span class="inline-flex items-center justify-end gap-1"
+                                                    >F. op. <HelpTooltip text="Factor operario."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="text-right">
-                                                <span class="inline-flex items-center justify-end gap-1">SAM op. <HelpTooltip text="Tiempo total (min): SAM base × suplemento × factor tela × factor op. × cantidad." /></span>
+                                                <span class="inline-flex items-center justify-end gap-1"
+                                                    >SAM op. <HelpTooltip text="Tiempo total de la operación (min)."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="text-right">
-                                                <span class="inline-flex items-center justify-end gap-1">Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)." /></span>
+                                                <span class="inline-flex items-center justify-end gap-1"
+                                                    >Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="text-right">
-                                                <span class="inline-flex items-center justify-end gap-1">Costo op. <HelpTooltip text="SAM op. × costo por minuto de operaciones." /></span>
+                                                <span class="inline-flex items-center justify-end gap-1"
+                                                    >Costo op. <HelpTooltip text="Costo de la operación."
+                                                /></span>
                                             </TableHead>
                                             <TableHead class="w-24"></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        <TableRow v-for="entry in group.items" :key="entry.id" class="text-sm">
+                                        <TableRow v-for="entry in operations" :key="entry.id" class="text-sm">
                                             <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
+                                            <TableCell class="text-xs">{{ resolveSectionName(entry) || '-' }}</TableCell>
                                             <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
                                             <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
                                             <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
@@ -362,7 +547,9 @@ watch(
                                                 entry.operator_efficiency_factor != null ? Number(entry.operator_efficiency_factor).toFixed(2) : '-'
                                             }}</TableCell>
                                             <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
-                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOpsPerHour(entry) }}</TableCell>
+                                            <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
+                                                getOpsPerHour(entry)
+                                            }}</TableCell>
                                             <TableCell class="text-right font-mono text-xs"
                                                 >$ {{ formatCurrency(getCostPerOperation(entry)) }}</TableCell
                                             >
@@ -385,137 +572,14 @@ watch(
                                                 </div>
                                             </TableCell>
                                         </TableRow>
-                                        <TableRow class="border-t bg-muted/30">
-                                            <TableCell colspan="10" class="py-1.5 text-right text-xs font-bold"
-                                                >Total {{ group.sectionName }}</TableCell
-                                            >
-                                            <TableCell class="py-1.5 text-right font-mono text-xs font-bold">{{ fmt(group.totalSam) }}</TableCell>
-                                            <TableCell class="py-1.5 text-right font-mono text-xs font-bold"
-                                                >$ {{ formatCurrency(group.totalSam * operationCost) }}</TableCell
-                                            >
-                                            <TableCell></TableCell>
-                                        </TableRow>
                                     </TableBody>
                                 </Table>
-                                <!-- Costos de sección -->
-                                <template v-if="group.sectionName === 'Confección'">
-                                    <div class="grid grid-cols-2 border-t bg-amber-50 text-xs dark:bg-amber-950/20">
-                                        <div class="px-4 py-1.5 text-right font-semibold">Confección (SAM × costo operaciones)</div>
-                                        <div class="px-4 py-1.5 font-mono font-semibold">$ {{ formatCurrency(costConfeccion) }}</div>
-                                        <div class="px-4 py-1.5 text-right font-semibold">Costo Hilo</div>
-                                        <div class="px-4 py-1.5 font-mono font-semibold">$ {{ formatCurrency(costHilo) }}</div>
-                                    </div>
-                                    <div class="grid grid-cols-2 border-t bg-amber-100 text-xs dark:bg-amber-900/30">
-                                        <div class="px-4 py-2 text-right font-bold">Costo Total Confección</div>
-                                        <div class="px-4 py-2 font-mono font-bold">$ {{ formatCurrency(costTotalConfeccion) }}</div>
-                                    </div>
-                                </template>
-                                <template v-if="group.sectionName === 'Presentación'">
-                                    <div class="grid grid-cols-2 border-t bg-amber-100 text-xs dark:bg-amber-900/30">
-                                        <div class="px-4 py-2 text-right font-bold">Terminación (SAM × costo operaciones)</div>
-                                        <div class="px-4 py-2 font-mono font-bold">$ {{ formatCurrency(costTotalPresentacion) }}</div>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                        <!-- Total general -->
-                        <div class="space-y-2 rounded-lg border bg-primary/5 px-4 py-3">
-                            <div class="flex items-center justify-end gap-6">
-                                <span class="text-sm font-bold">SAM total ruta</span>
+                            </ScrollArea>
+                            <div class="flex items-center justify-end gap-6 border-t bg-primary/5 px-4 py-3">
+                                <span class="text-sm font-bold">SAM total</span>
                                 <span class="font-mono text-lg font-bold text-primary">{{ fmt(totalSam) }} min</span>
                             </div>
-                            <div class="grid grid-cols-2 gap-2 border-t border-primary/20 pt-2 text-xs">
-                                <div class="text-right text-muted-foreground">Confección + Terminación (SAM × costo operaciones)</div>
-                                <div class="font-mono font-semibold">$ {{ formatCurrency(costConfeccion + costTerminacion) }}</div>
-                                <div class="text-right font-bold">Costo Total Producto</div>
-                                <div class="font-mono font-bold text-primary">$ {{ formatCurrency(costTotalProducto) }}</div>
-                            </div>
                         </div>
-                    </div>
-
-                    <!-- === VISTA INDIVIDUAL === -->
-                    <div v-else class="overflow-hidden rounded-lg border">
-                        <ScrollArea class="h-[min(450px,55vh)]">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow class="text-[11px]">
-                                        <TableHead class="w-12 pl-4">Sec</TableHead>
-                                        <TableHead>Sección</TableHead>
-                                        <TableHead>
-                                            <span class="inline-flex items-center gap-1">Operación <HelpTooltip text="Nombre de la operación." /></span>
-                                        </TableHead>
-                                        <TableHead class="text-center">
-                                            <span class="inline-flex items-center justify-center gap-1">Máquina <HelpTooltip text="Código de la máquina." /></span>
-                                        </TableHead>
-                                        <TableHead class="w-14 text-right">
-                                            <span class="inline-flex items-center justify-end gap-1">Cant. <HelpTooltip text="Cantidad de piezas." /></span>
-                                        </TableHead>
-                                        <TableHead class="text-right">
-                                            <span class="inline-flex items-center justify-end gap-1">SAM base <HelpTooltip text="SAM base en minutos." /></span>
-                                        </TableHead>
-                                        <TableHead class="text-right">
-                                            <span class="inline-flex items-center justify-end gap-1">Supl. <HelpTooltip text="Suplemento máquina." /></span>
-                                        </TableHead>
-                                        <TableHead class="text-right">
-                                            <span class="inline-flex items-center justify-end gap-1">F. tela <HelpTooltip text="Factor tela." /></span>
-                                        </TableHead>
-                                        <TableHead class="text-right">
-                                            <span class="inline-flex items-center justify-end gap-1">F. op. <HelpTooltip text="Factor operario." /></span>
-                                        </TableHead>
-                                        <TableHead class="text-right">
-                                            <span class="inline-flex items-center justify-end gap-1">SAM op. <HelpTooltip text="Tiempo total de la operación (min)." /></span>
-                                        </TableHead>
-                                        <TableHead class="text-right">
-                                            <span class="inline-flex items-center justify-end gap-1">Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)." /></span>
-                                        </TableHead>
-                                        <TableHead class="text-right">
-                                            <span class="inline-flex items-center justify-end gap-1">Costo op. <HelpTooltip text="Costo de la operación." /></span>
-                                        </TableHead>
-                                        <TableHead class="w-24"></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    <TableRow v-for="entry in operations" :key="entry.id" class="text-sm">
-                                        <TableCell class="pl-4 font-mono text-xs text-muted-foreground">{{ entry.sequence ?? '-' }}</TableCell>
-                                        <TableCell class="text-xs">{{ resolveSectionName(entry) || '-' }}</TableCell>
-                                        <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
-                                        <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
-                                        <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
-                                        <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
-                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
-                                            entry.machine_supplement_factor != null ? Number(entry.machine_supplement_factor).toFixed(2) : '-'
-                                        }}</TableCell>
-                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
-                                            entry.fabric_base_factor != null ? fmt(entry.fabric_base_factor) : '-'
-                                        }}</TableCell>
-                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
-                                            entry.operator_efficiency_factor != null ? Number(entry.operator_efficiency_factor).toFixed(2) : '-'
-                                        }}</TableCell>
-                                        <TableCell class="text-right font-mono font-semibold">{{ fmt(getSamValue(entry)) }}</TableCell>
-                                        <TableCell class="text-right font-mono text-xs text-muted-foreground">{{ getOpsPerHour(entry) }}</TableCell>
-                                        <TableCell class="text-right font-mono text-xs">$ {{ formatCurrency(getCostPerOperation(entry)) }}</TableCell>
-                                        <TableCell class="py-1">
-                                            <div class="flex items-center justify-end gap-0.5">
-                                                <Button variant="ghost" size="icon" class="h-7 w-7" title="Editar" @click="editOperation()"
-                                                    ><Pencil class="h-3.5 w-3.5"
-                                                /></Button>
-                                                <Button variant="ghost" size="icon" class="h-7 w-7" title="Historial" @click="openHistory(entry)"
-                                                    ><History class="h-3.5 w-3.5"
-                                                /></Button>
-                                                <Button variant="ghost" size="icon" class="h-7 w-7" title="Eliminar" @click="deleteOperation(entry)"
-                                                    ><Trash2 class="h-3.5 w-3.5"
-                                                /></Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-                        </ScrollArea>
-                        <div class="flex items-center justify-end gap-6 border-t bg-primary/5 px-4 py-3">
-                            <span class="text-sm font-bold">SAM total</span>
-                            <span class="font-mono text-lg font-bold text-primary">{{ fmt(totalSam) }} min</span>
-                        </div>
-                    </div>
                     </TooltipProvider>
                 </template>
             </div>

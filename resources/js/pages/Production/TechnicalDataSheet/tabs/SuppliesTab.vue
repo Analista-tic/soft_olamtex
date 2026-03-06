@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import ReadOnlyCell from '@/components/ReadOnlyCell.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
 import Input from '@/components/ui/input/Input.vue';
@@ -9,6 +8,7 @@ import type { SupplyItem, SupplyModaLinea, SupplyStage } from '@/domain/Producti
 import { fetchOpSupplies, fetchSupplyCatalogItems, saveOpSupplies } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
 import PurchaseRequestDialog from '@/pages/Expenses/PurchaseRequests/PurchaseRequestDialog.vue';
+import axios from 'axios';
 import { Plus, Save, Trash } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -47,10 +47,9 @@ const props = defineProps<{
     opGroup?: string | null;
 }>();
 
-const MODA_LINEA_OPTIONS: Option[] = [
-    { id: 'MODA', name: 'Moda' },
-    { id: 'LINEA', name: 'Linea' },
-    { id: 'NA', name: 'N/A' },
+const STAGE_OPTIONS: Option[] = [
+    { id: 'CONFECCION', name: 'Confección' },
+    { id: 'TERMINACION', name: 'Terminación' },
 ];
 
 const isLoading = ref(false);
@@ -65,6 +64,9 @@ const purchaseDialogOpen = ref(false);
 const purchasePrefillName = ref('');
 const purchaseRowIndex = ref<number | null>(null);
 const loadingLastPurchaseByRow = ref<Record<string, boolean>>({});
+type ItemMeta = { total: number; weightedAvgPrice: number | null } | -1;
+const itemMetaByItemId = ref<Record<number, ItemMeta>>({});
+const loadingStockByItemId = ref<Record<number, boolean>>({});
 const { getLastPurchase, cancelRequest, clearCache } = useLastPurchaseByItem();
 const lastPurchaseDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -182,22 +184,20 @@ function buildSavePayload(data: LocalSupplyRow[]): SupplyItem[] {
     return data.map((row, index) => {
         const stage = row.stage;
         const sequence = Number(row.sequence || index + 1);
-        const displayLabel = normalizeText(row.label);
-        const name = row.requestedName?.trim()
-            ? row.requestedName.trim()
-            : (catalogItems.value.find((item) => item.id === row.itemId)?.label ?? displayLabel ?? 'INSUMO');
+        const itemLabel = catalogItems.value.find((item) => item.id === row.itemId)?.label;
+        const name = row.requestedName?.trim() ? row.requestedName.trim() : (itemLabel ?? 'INSUMO');
 
         return {
             id: row.id ?? '',
             name,
             stage,
             sequence,
-            displayLabel: displayLabel ?? undefined,
+            displayLabel: (itemLabel ?? row.label) || undefined,
             itemId: row.itemId,
             requestedName: normalizeText(row.requestedName),
-            supplier: normalizeText(row.supplier),
+            supplier: null,
             description: normalizeText(row.description),
-            modaLinea: row.modaLinea,
+            modaLinea: 'NA',
             qtyPerUnit: Number(row.qtyPerUnit || 0),
             unitCost: Number(row.unitCost || 0),
             internalRequestId: row.internalRequestId,
@@ -255,6 +255,7 @@ async function loadSupplies(): Promise<void> {
     error.value = null;
     successMessage.value = null;
     clearCache();
+    itemMetaByItemId.value = {};
     lastPurchaseDebounceTimers.forEach((timer) => clearTimeout(timer));
     lastPurchaseDebounceTimers.clear();
     rows.value.forEach((row) => cancelRequest(row.uuid));
@@ -263,8 +264,11 @@ async function loadSupplies(): Promise<void> {
         const [items] = await Promise.all([fetchOpSupplies(props.opId), loadCatalog()]);
         applyLoadedRows(items);
         rows.value.forEach((row) => {
-            if (row.itemId && (!normalizeText(row.supplier) || Number(row.unitCost || 0) <= 0)) {
-                scheduleFillFromLastPurchase(row);
+            if (row.itemId && Number(row.unitCost || 0) <= 0) {
+                scheduleFillPriceFromInventory(row);
+            }
+            if (row.itemId) {
+                void ensureItemStock(row.itemId);
             }
         });
     } catch (err) {
@@ -324,12 +328,62 @@ function toSingleSelectValue(value: SelectFieldValue): string | number | null {
     return value;
 }
 
-function updateModaLinea(rowUuid: string, value: SelectFieldValue): void {
+function updateStage(rowUuid: string, value: SelectFieldValue): void {
     const row = rows.value.find((item) => item.uuid === rowUuid);
     if (!row) return;
     const normalized = toSingleSelectValue(value);
-    const next = String(normalized || 'NA') as SupplyModaLinea;
-    row.modaLinea = next;
+    const next = String(normalized || 'CONFECCION') as SupplyStage;
+    row.stage = next;
+    row.sequence = nextStageSequence(next);
+}
+
+type WarehouseItemRow = {
+    warehouse_id: number;
+    quantity: number;
+    warehouse_name?: string;
+    weighted_average_price?: number | null;
+};
+
+type WarehouseItemsResponse = {
+    data: WarehouseItemRow[];
+    total_quantity?: number;
+    weighted_average_price?: number | null;
+};
+
+async function ensureItemStock(itemId: number): Promise<void> {
+    if (itemMetaByItemId.value[itemId] !== undefined) return;
+    loadingStockByItemId.value = { ...loadingStockByItemId.value, [itemId]: true };
+    try {
+        const { data } = await axios.get<WarehouseItemsResponse>('/warehouse-items', {
+            params: { item_id: itemId },
+        });
+        const total = data?.total_quantity ?? 0;
+        const weightedAvgPrice = data?.weighted_average_price ?? null;
+        itemMetaByItemId.value = {
+            ...itemMetaByItemId.value,
+            [itemId]: { total: Number(total), weightedAvgPrice: weightedAvgPrice != null ? Number(weightedAvgPrice) : null },
+        };
+    } catch {
+        itemMetaByItemId.value = { ...itemMetaByItemId.value, [itemId]: -1 };
+    } finally {
+        loadingStockByItemId.value = { ...loadingStockByItemId.value, [itemId]: false };
+    }
+}
+
+function getItemStockLabel(itemId: number | null): string {
+    if (!itemId) return '-';
+    if (loadingStockByItemId.value[itemId]) return '...';
+    const meta = itemMetaByItemId.value[itemId];
+    if (meta === undefined) return '-';
+    if (meta === -1) return 'N/D';
+    return String(meta.total);
+}
+
+function getWeightedAvgPrice(itemId: number | null): number | null {
+    if (!itemId) return null;
+    const meta = itemMetaByItemId.value[itemId];
+    if (meta === undefined || meta === -1) return null;
+    return meta.weightedAvgPrice;
 }
 
 function getRowSelectionValue(row: LocalSupplyRow): string | number | null {
@@ -353,6 +407,7 @@ function onItemSelected(rowUuid: string, value: SelectFieldValue): void {
         setLastPurchaseLoading(rowUuid, false);
         row.itemId = null;
         row.requestedName = null;
+        row.description = '';
         return;
     }
 
@@ -360,16 +415,12 @@ function onItemSelected(rowUuid: string, value: SelectFieldValue): void {
     if (selected) {
         row.itemId = selected.id;
         row.requestedName = null;
-        if (!normalizeText(row.description)) {
-            row.description = selected.description ?? '';
-        }
-        if (!normalizeText(row.supplier)) {
-            row.supplier = selected.supplier ?? '';
-        }
+        row.description = selected.description ?? '';
+        void ensureItemStock(selected.id);
         if ((Number(row.unitCost) || 0) <= 0 && selected.suggestedPrice !== null) {
             row.unitCost = Number(selected.suggestedPrice);
         }
-        scheduleFillFromLastPurchase(row);
+        scheduleFillPriceFromInventory(row);
         return;
     }
 
@@ -389,7 +440,7 @@ function onItemSelected(rowUuid: string, value: SelectFieldValue): void {
     openInsumoRequest(customName, rowIndex);
 }
 
-function scheduleFillFromLastPurchase(row: LocalSupplyRow): void {
+function scheduleFillPriceFromInventory(row: LocalSupplyRow): void {
     const current = lastPurchaseDebounceTimers.get(row.uuid);
     if (current) {
         clearTimeout(current);
@@ -397,32 +448,38 @@ function scheduleFillFromLastPurchase(row: LocalSupplyRow): void {
 
     const timer = setTimeout(() => {
         lastPurchaseDebounceTimers.delete(row.uuid);
-        void fillFromLastPurchase(row);
+        void fillPriceFromInventory(row);
     }, 180);
 
     lastPurchaseDebounceTimers.set(row.uuid, timer);
 }
 
-async function fillFromLastPurchase(row: LocalSupplyRow): Promise<void> {
+async function fillPriceFromInventory(row: LocalSupplyRow): Promise<void> {
     if (!row.itemId) return;
 
     setLastPurchaseLoading(row.uuid, true);
 
     try {
-        const lastPurchase = await getLastPurchase(row.itemId, row.uuid);
-        if (!lastPurchase) return;
+        // Asegurar que disponibilidad y PP estén cargados por bodegas (INVENTARIO_4UTEX)
+        await ensureItemStock(row.itemId);
 
-        if (!normalizeText(row.supplier) && normalizeText(lastPurchase.provider?.name)) {
-            row.supplier = String(lastPurchase.provider?.name ?? '');
+        // Prioridad 1: PP ponderado de warehouse_items (INVENTARIO_4UTEX)
+        const weightedPrice = getWeightedAvgPrice(row.itemId);
+        if (weightedPrice != null && weightedPrice > 0) {
+            row.unitCost = weightedPrice;
+            return;
         }
 
+        // Prioridad 2: Última compra (solo si PP no disponible)
         const currentUnitCost = Number(row.unitCost || 0);
-        const lastUnitPrice = Number(lastPurchase.price || 0);
-        if (currentUnitCost <= 0 && lastUnitPrice > 0) {
-            row.unitCost = lastUnitPrice;
+        if (currentUnitCost > 0) return;
+
+        const lastPurchase = await getLastPurchase(row.itemId, row.uuid);
+        if (lastPurchase && Number(lastPurchase.price ?? 0) > 0) {
+            row.unitCost = Number(lastPurchase.price);
         }
     } catch (err) {
-        console.error('Error al autocompletar ultima compra del insumo:', err);
+        console.error('Error al autocompletar precio del insumo:', err);
     } finally {
         setLastPurchaseLoading(row.uuid, false);
     }
@@ -502,7 +559,9 @@ watch(
                 <div class="flex items-start justify-between gap-3">
                     <div>
                         <h2 class="text-lg font-semibold text-foreground">Insumos</h2>
-                        <p class="text-sm text-muted-foreground">Registro de insumos por prenda para esta OP.</p>
+                        <p class="text-sm text-muted-foreground">
+                            Planeación de insumos por prenda. No se descuenta de inventario aún. Se muestra la disponibilidad de stock para cada ítem.
+                        </p>
                     </div>
                 </div>
 
@@ -510,21 +569,25 @@ watch(
                     <Table>
                         <TableHeader class="sticky top-0 z-10 bg-background">
                             <TableRow>
-                                <TableHead class="min-w-[130px] text-left">Insumo</TableHead>
-                                <TableHead class="min-w-[220px] text-left">Tipo de Insumo</TableHead>
-                                <TableHead class="min-w-[160px] text-left">Proveedor</TableHead>
-                                <TableHead class="min-w-[210px] text-left">Descripcion</TableHead>
-                                <TableHead class="min-w-[120px] text-left">Grupo</TableHead>
-                                <TableHead class="min-w-[100px] text-right">Cantidad</TableHead>
-                                <TableHead class="min-w-[120px] text-right">Precio</TableHead>
-                                <TableHead class="w-[130px] text-right">Costo prenda</TableHead>
+                                <TableHead class="min-w-[120px] text-left">Tipo de insumo</TableHead>
+                                <TableHead class="min-w-[220px] text-left">Insumo</TableHead>
+                                <TableHead class="min-w-[90px] text-right">Cantidad</TableHead>
+                                <TableHead class="min-w-[90px] text-center">Disponible</TableHead>
+                                <TableHead class="min-w-[100px] text-right">Precio</TableHead>
+                                <TableHead class="w-[120px] text-right">Costo prenda</TableHead>
                                 <TableHead class="w-[80px] text-center">Accion</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             <TableRow v-for="(meta, index) in rowsWithMeta" :key="meta.row.uuid" class="group transition-colors hover:bg-muted/30">
                                 <TableCell>
-                                    <Input v-model="meta.row.label" placeholder="Ej: Terminacion bolsillo" :disabled="isSaving" />
+                                    <SelectField
+                                        :model-value="meta.row.stage"
+                                        :options="STAGE_OPTIONS"
+                                        :searchable="false"
+                                        :disabled="isSaving"
+                                        @update:model-value="(value) => updateStage(meta.row.uuid, value)"
+                                    />
                                 </TableCell>
                                 <TableCell>
                                     <SelectField
@@ -533,30 +596,12 @@ watch(
                                         :searchable="true"
                                         :allow-custom="false"
                                         search-placeholder="Buscar insumo..."
-                                        placeholder="Selecciona un item"
+                                        placeholder="Selecciona item"
                                         :disabled="isSaving"
                                         action-label="Solicitar insumo"
                                         @action="openSupplyRequestDialog(index)"
                                         @search="loadCatalog"
                                         @update:model-value="(value) => onItemSelected(meta.row.uuid, value)"
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <ReadOnlyCell
-                                        :value="meta.row.supplier"
-                                        :placeholder="loadingLastPurchaseByRow[meta.row.uuid] ? 'Autocompletando...' : '-'"
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <Input v-model="meta.row.description" placeholder="Descripcion" :disabled="isSaving" />
-                                </TableCell>
-                                <TableCell>
-                                    <SelectField
-                                        :model-value="meta.row.modaLinea"
-                                        :options="MODA_LINEA_OPTIONS"
-                                        :searchable="false"
-                                        :disabled="isSaving"
-                                        @update:model-value="(value) => updateModaLinea(meta.row.uuid, value)"
                                     />
                                 </TableCell>
                                 <TableCell>
@@ -566,6 +611,7 @@ watch(
                                         min="0"
                                         step="1"
                                         class="text-right tabular-nums"
+                                        placeholder="0"
                                         :disabled="isSaving"
                                         @update:model-value="
                                             (value) => {
@@ -574,8 +620,25 @@ watch(
                                         "
                                     />
                                 </TableCell>
+                                <TableCell class="text-center tabular-nums text-muted-foreground">
+                                    <span v-if="meta.row.itemId">{{ getItemStockLabel(meta.row.itemId) }}</span>
+                                    <span v-else class="text-muted-foreground/60">-</span>
+                                </TableCell>
                                 <TableCell>
-                                    <ReadOnlyCell :value="toCOPOrEmpty(meta.row.unitCost)" placeholder="-" align="right" />
+                                    <Input
+                                        :model-value="meta.row.unitCost > 0 ? String(meta.row.unitCost) : ''"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        class="text-right tabular-nums"
+                                        placeholder="0"
+                                        :disabled="isSaving"
+                                        @update:model-value="
+                                            (value) => {
+                                                meta.row.unitCost = Math.max(0, Number(value) || 0);
+                                            }
+                                        "
+                                    />
                                 </TableCell>
                                 <TableCell class="text-right font-semibold tabular-nums">{{ toCOP(meta.rowTotal) }}</TableCell>
                                 <TableCell class="text-center">
@@ -594,10 +657,14 @@ watch(
                 </div>
 
                 <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                         <Button type="button" variant="outline" class="h-9 rounded-full px-4" :disabled="isSaving" @click="addRow('CONFECCION')">
                             <Plus class="mr-1 h-4 w-4" />
-                            Agregar insumo
+                            Agregar confección
+                        </Button>
+                        <Button type="button" variant="outline" class="h-9 rounded-full px-4" :disabled="isSaving" @click="addRow('TERMINACION')">
+                            <Plus class="mr-1 h-4 w-4" />
+                            Agregar terminación
                         </Button>
                         <Button type="button" class="h-9 rounded-full px-4" :disabled="!canSave" @click="handleSaveRows">
                             <Save class="mr-1 h-4 w-4" />

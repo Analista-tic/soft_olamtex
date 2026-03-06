@@ -52,4 +52,9 @@ class FabricRoll extends Model
     {
         return $this->available_quantity <= 0;
     }
+
+    public function consumptions()
+    {
+        return $this->hasMany(\App\Models\Production\ProductionRollConsumption::class, 'fabric_roll_id');
+    }
 }

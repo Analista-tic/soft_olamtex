@@ -33,7 +33,7 @@ export interface ProductSheetDto {
     group?: { id: number; name: string } | null;
 }
 
-export interface ProgrammerDto {
+export interface ProductionOrderDto {
     id: number;
     op_code?: string | null;
     product_sheet_id: number | null;
@@ -52,3 +52,6 @@ export interface ProgrammerDto {
     created_at: string;
     updated_at: string;
 }
+
+/** @deprecated Use ProductionOrderDto */
+export type ProgrammerDto = ProductionOrderDto;

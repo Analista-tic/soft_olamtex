@@ -1,10 +1,10 @@
 <?php
 
-use App\Models\ProductSheet\ProductSheetOperation;
-use App\Models\ProductSheet\ProductSheetOperationHistory;
-use App\Models\ProductSheet\ProductionOrderOperation;
-use App\Models\ProductSheet\Programmer;
-use App\Services\ProductSheet\ProductOperationListService;
+use App\Models\Production\ProductOperationList;
+use App\Models\Production\ProductSheetOperationHistory;
+use App\Models\Production\TechnicalSheetOperation;
+use App\Models\Production\ProductionOrder;
+use App\Services\Production\ProductOperationListService;
 use App\Services\Production\ProductionOrderService;
 
 /**
@@ -19,10 +19,10 @@ beforeEach(function () {
 test('create product sheet operation computes sam_total_unitario and sam_total_operacion', function () {
     $this->seed(\Database\Seeders\ExampleDataSeeder::class);
 
-    $sheet = \App\Models\ProductSheet\ProductSheet::query()->first();
-    $operation = \App\Models\ProductSheet\Operation::query()->first();
-    $machine = \App\Models\ProductSheet\Machine::query()->first();
-    $section = \App\Models\ProductSheet\OperationSection::query()->first();
+    $sheet = \App\Models\Production\ProductSheet::query()->first();
+    $operation = \App\Models\Production\Operation::query()->first();
+    $machine = \App\Models\Production\Machine::query()->first();
+    $section = \App\Models\Production\OperationSection::query()->first();
 
     if (!$sheet || !$operation || !$machine || !$section) {
         expect(true)->toBeTrue();
@@ -45,7 +45,7 @@ test('create product sheet operation computes sam_total_unitario and sam_total_o
 
     $item = $this->service->create($data);
 
-    expect($item)->toBeInstanceOf(ProductSheetOperation::class);
+    expect($item)->toBeInstanceOf(ProductOperationList::class);
     expect($item->sam_base)->toBe(0.25);
     expect($item->sam_total_unitario)->toBeGreaterThan(0);
     expect($item->sam_total_operacion)->toBeGreaterThan(0);
@@ -56,17 +56,17 @@ test('create product sheet operation computes sam_total_unitario and sam_total_o
 test('update product sheet operation with factor change records history', function () {
     $this->seed(\Database\Seeders\ExampleDataSeeder::class);
 
-    $sheet = \App\Models\ProductSheet\ProductSheet::query()->first();
-    $operation = \App\Models\ProductSheet\Operation::query()->first();
-    $machine = \App\Models\ProductSheet\Machine::query()->first();
-    $section = \App\Models\ProductSheet\OperationSection::query()->first();
+    $sheet = \App\Models\Production\ProductSheet::query()->first();
+    $operation = \App\Models\Production\Operation::query()->first();
+    $machine = \App\Models\Production\Machine::query()->first();
+    $section = \App\Models\Production\OperationSection::query()->first();
 
     if (!$sheet || !$operation || !$machine || !$section) {
         expect(true)->toBeTrue();
         return;
     }
 
-    $item = ProductSheetOperation::create([
+    $item = ProductOperationList::create([
         'product_sheet_id' => $sheet->id,
         'operation_id' => $operation->id,
         'machine_id' => $machine->id,
@@ -100,13 +100,13 @@ test('update product sheet operation with factor change records history', functi
 test('production order service creates snapshot from programmer', function () {
     $this->seed(\Database\Seeders\ExampleDataSeeder::class);
 
-    $sheet = \App\Models\ProductSheet\ProductSheet::query()->first();
+    $sheet = \App\Models\Production\ProductSheet::query()->first();
     if (!$sheet) {
         expect(true)->toBeTrue();
         return;
     }
 
-    $programmer = Programmer::create([
+    $programmer = ProductionOrder::create([
         'product_sheet_id' => $sheet->id,
         'op_code' => 'OP-TEST-001',
         'season' => 'ENERO',
@@ -125,11 +125,14 @@ test('production order service creates snapshot from programmer', function () {
     }
 
     $orderService = app(ProductionOrderService::class);
-    $created = $orderService->createSnapshotForProgrammer($programmer);
+    $created = $orderService->createSnapshotForOrder($programmer);
 
     expect($created->count())->toBe($ops->count());
 
-    $firstPoo = ProductionOrderOperation::where('programmer_id', $programmer->id)->first();
-    expect($firstPoo)->not->toBeNull();
-    expect($firstPoo->sam_total_lote)->toBeGreaterThan(0);
+    $technicalSheet = \App\Models\Production\TechnicalSheet::where('production_order_id', $programmer->id)->first();
+    expect($technicalSheet)->not->toBeNull();
+
+    $firstOp = TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)->first();
+    expect($firstOp)->not->toBeNull();
+    expect($firstOp->sam_total_lote)->toBeGreaterThan(0);
 });

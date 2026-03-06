@@ -103,8 +103,8 @@ const props = withDefaults(
 );
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Produccion', href: '/produccion' },
-    { title: 'Ordenes de produccion', href: '/produccion/ordenes-produccion' },
+    { title: 'Producción', href: '/produccion' },
+    { title: 'Órdenes de producción', href: '/produccion/ordenes-produccion' },
 ];
 
 const scopeOptions: ReadonlyArray<ScopeOption> = [
@@ -238,7 +238,7 @@ async function fetchRows() {
     } catch (error) {
         if (axios.isCancel(error)) return;
         allRows.value = [];
-        showError('No se pudo cargar el listado de ordenes de produccion.');
+        showError('No se pudo cargar el listado de órdenes de producción.');
     } finally {
         if (activeFetchController === controller) activeFetchController = null;
         isLoading.value = false;
@@ -398,16 +398,16 @@ onUnmounted(() => {
             @close-error="clearError"
         />
 
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl px-2 py-3">
-            <div class="flex flex-col gap-1">
-                <h1 class="text-lg font-bold">Órdenes de producción</h1>
-                <p class="text-sm text-muted-foreground">Seguimiento y detalles de Órdenes de producción (muestras y productos)</p>
+        <div class="flex h-full flex-1 flex-col gap-6 rounded-xl px-3 py-4">
+            <div class="flex flex-col gap-1.5">
+                <h1 class="text-xl font-bold tracking-tight text-foreground">Órdenes de producción</h1>
+                <p class="text-sm text-muted-foreground">Seguimiento y detalles de órdenes de producción (muestras y productos).</p>
             </div>
 
-            <div class="grid grid-cols-12 gap-4">
+            <div class="grid grid-cols-12 gap-6">
                 <div class="col-span-12">
-                    <Card class="border-0 bg-transparent shadow-none">
-                        <CardContent class="space-y-5 px-3">
+                    <Card class="border border-border/60 shadow-sm">
+                        <CardContent class="space-y-6 px-4 py-5">
                             <div class="flex flex-col gap-2">
                                 <div class="min-w-0">
                                     <div class="overflow-x-auto">
@@ -459,7 +459,7 @@ onUnmounted(() => {
                                 </FilterField>
                             </FilterBar>
 
-                            <div class="mt-2 overflow-hidden rounded-xl border border-sidebar-border/70">
+                            <div class="mt-2 overflow-hidden rounded-lg border border-border">
                                 <TooltipProvider>
                                     <Table>
                                         <TableHeader>

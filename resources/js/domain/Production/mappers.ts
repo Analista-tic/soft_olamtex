@@ -1,6 +1,6 @@
 import type { Option } from '@/domain/shared';
-import type { OpBasicInfoDto, ProductionOrderDetailResponseDto, ProductSheetDto, ProgrammerDto } from './dto';
-import type { OpBasicInfo, OpOption, ProductSheet, Programmer } from './types';
+import type { OpBasicInfoDto, ProductSheetDto, ProductionOrderDetailResponseDto, ProductionOrderDto } from './dto';
+import type { OpBasicInfo, OpOption, ProductSheet, ProductionOrder } from './types';
 
 // Helpers from TechnicalDataSheet
 export function normalizeSearch(text: string): string {
@@ -30,7 +30,7 @@ function getGroupLabel(type: 'MU' | 'MF' | 'MUT' | 'MFT'): string {
     return 'Otros';
 }
 
-function buildReference(dto: ProgrammerDto): string {
+function buildReference(dto: ProductionOrderDto): string {
     const sampleRef = dto.product_sheet?.sample_reference?.trim() ?? '';
     const productRef = dto.product_sheet?.product_reference?.trim() ?? '';
 
@@ -102,7 +102,7 @@ export function mapProductSheetDto(dto: ProductSheetDto): ProductSheet {
     } as ProductSheet;
 }
 
-export function mapProgrammerDto(dto: ProgrammerDto): Programmer {
+export function mapProductionOrderDto(dto: ProductionOrderDto): ProductionOrder {
     return {
         id: dto.id,
         op_code: dto.op_code ?? null,
@@ -121,11 +121,14 @@ export function mapProgrammerDto(dto: ProgrammerDto): Programmer {
         pending_fields: dto.pending_fields ?? [],
         created_at: dto.created_at ?? '',
         updated_at: dto.updated_at ?? '',
-    } as Programmer;
+    } as ProductionOrder;
 }
 
+/** @deprecated Use mapProductionOrderDto */
+export const mapProgrammerDto = mapProductionOrderDto;
+
 // TechnicalDataSheet mappers
-export function mapProgrammerToOption(dto: ProgrammerDto): OpOption {
+export function mapProductionOrderToOption(dto: ProductionOrderDto): OpOption {
     const opCode = dto.op_code ?? '';
     const reference = buildReference(dto);
     const type = extractOpType(dto.op_code);
@@ -143,13 +146,19 @@ export function mapProgrammerToOption(dto: ProgrammerDto): OpOption {
     };
 }
 
-export function mapProgrammerToSelectOption(dto: ProgrammerDto): Option {
+/** @deprecated Use mapProductionOrderToOption */
+export const mapProgrammerToOption = mapProductionOrderToOption;
+
+export function mapProductionOrderToSelectOption(dto: ProductionOrderDto): Option {
     const opCode = dto.op_code ?? '';
     const reference = buildReference(dto);
     const type = extractOpType(dto.op_code);
     const name = `${opCode} - ${reference}`;
     return { id: dto.id, name, groupLabel: getGroupLabel(type) } as unknown as Option;
 }
+
+/** @deprecated Use mapProductionOrderToSelectOption */
+export const mapProgrammerToSelectOption = mapProductionOrderToSelectOption;
 
 export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo {
     const base = toNullableText(dto.base) ?? toNullableText(dto.fabricBase) ?? readCatalogName(dto.fabric_base) ?? null;
@@ -173,8 +182,9 @@ export function mapOpBasicInfoDtoToOpBasicInfo(dto: OpBasicInfoDto): OpBasicInfo
         base,
         brand: dto.brand ?? null,
         sizes: parseSizes(dto.sizes),
-        priceBilling: null,
-        priceSale: null,
+        priceBilling: dto.priceBilling ?? null,
+        priceSale: dto.priceSale ?? null,
+        description: dto.description ?? null,
         ecommerce: false,
         priority: toNullableText(dto.priority),
         baseYarn,
@@ -218,6 +228,7 @@ export function mapDetailResponseToBasicInfo(response: ProductionOrderDetailResp
         sizes: parseSizes(sheet?.sizes),
         priceBilling: sheet?.billing_price != null ? Number(sheet.billing_price) : null,
         priceSale: sheet?.selling_price != null ? Number(sheet.selling_price) : null,
+        description: sheet?.description ?? null,
         ecommerce: Boolean(programmer?.ecommerce_units),
         source: order?.source ?? programmer?.source ?? null,
         priority: toNullableText(order?.priority ?? programmer?.priority ?? null),

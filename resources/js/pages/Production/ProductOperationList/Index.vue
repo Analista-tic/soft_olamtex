@@ -13,9 +13,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useAlertStack } from '@/composables/useAlert';
 import type { CostParameters, ProductOperationListPageProps, ProductOperationPayload } from '@/domain/product-sheet';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Pencil, PlusCircle, Search } from 'lucide-vue-next';
+import { ArrowUpRight, Eye, Pencil, PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import ProductOperationListDialog from './ProductOperationListDialog.vue';
 import ProductOperationListView from './ProductOperationListView.vue';
@@ -471,6 +471,21 @@ watch(productSheets, () => {
                     </Button>
                 </div>
             </div>
+
+            <Card class="border-dashed">
+                <CardContent class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="space-y-1">
+                        <p class="text-sm font-semibold text-foreground">Base de operaciones</p>
+                        <p class="text-xs text-muted-foreground">Administra y actualiza las operaciones maestras desde un solo lugar.</p>
+                    </div>
+                    <Button as-child variant="outline" class="sm:shrink-0">
+                        <Link href="/produccion/base-operaciones">
+                            Ir a base de operaciones
+                            <ArrowUpRight class="h-4 w-4" />
+                        </Link>
+                    </Button>
+                </CardContent>
+            </Card>
 
             <FilterBar align="start" gap="gap-4">
                 <FilterField label="Buscar operación" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">

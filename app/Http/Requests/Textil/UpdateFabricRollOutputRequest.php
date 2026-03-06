@@ -9,6 +9,7 @@ class UpdateFabricRollOutputRequest extends \App\Http\Requests\Inventory\Invento
         return [
             'partial_output' => ['nullable', 'numeric', 'min:0'],
             'actual_output' => ['nullable', 'numeric', 'min:0'],
+            'production_order_id' => ['nullable', 'integer', 'exists:production_orders,id'],
         ];
     }
 }

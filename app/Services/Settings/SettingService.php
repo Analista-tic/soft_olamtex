@@ -21,6 +21,7 @@ class SettingService
         'priorities' => ['priorities', 'prioridades', 'prioridad'],
         'process_types' => ['process_types', 'tipos_proceso', 'tipos_de_proceso', 'tipo_proceso', 'process_type', 'processes'],
         'operational_lists' => ['operational_lists', 'listados_operacionales', 'listado_operacional', 'listado_operacional'],
+        'fabric_colors' => ['fabric_colors', 'colores', 'colors'],
     ];
 
     /**
@@ -139,11 +140,15 @@ class SettingService
 
         return collect($value)
             ->map(function (mixed $item) {
-                if (is_array($item) && array_key_exists('id', $item) && array_key_exists('name', $item)) {
-                    return [
-                        'id' => $item['id'],
-                        'name' => (string) $item['name'],
-                    ];
+                if (is_array($item)) {
+                    $name = isset($item['name']) ? (string) $item['name'] : null;
+                    $id = $item['id'] ?? $name ?? $item['code'] ?? null;
+                    if ($name !== null && $id !== null) {
+                        return [
+                            'id' => $id,
+                            'name' => $name,
+                        ];
+                    }
                 }
 
                 $label = is_string($item) ? $item : (string) $item;
@@ -170,5 +175,28 @@ class SettingService
         }
 
         return $key;
+    }
+
+    /**
+     * Obtiene un parámetro numérico por clave.
+     * Usado para operation_cost, yarn_cost, cutting_cost, minute_cost, etc.
+     */
+    public function getNumericParameter(string $key, float $default = 0.0): float
+    {
+        $setting = Setting::parameters()
+            ->where('key', $key)
+            ->where('status', true)
+            ->first();
+
+        if (!$setting) {
+            return $default;
+        }
+
+        $raw = $setting->getAttribute('value');
+        if (is_array($raw)) {
+            $raw = $raw['value'] ?? $raw[0] ?? null;
+        }
+
+        return is_numeric($raw) ? (float) $raw : $default;
     }
 }

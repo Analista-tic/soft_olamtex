@@ -48,7 +48,7 @@ export interface ProductSheetDto {
     flatDrawingUrl?: string | null;
 }
 
-export interface ProgrammerDto {
+export interface ProductionOrderDto {
     id: number;
     op_code?: string | null;
     product_sheet_id: number | null;
@@ -72,9 +72,15 @@ export interface ProgrammerDto {
     updated_at?: string;
 }
 
-export interface ProgrammerListResponseDto {
-    data: ProgrammerDto[];
+/** @deprecated Use ProductionOrderDto */
+export type ProgrammerDto = ProductionOrderDto;
+
+export interface ProductionOrderListResponseDto {
+    data: ProductionOrderDto[];
 }
+
+/** @deprecated Use ProductionOrderListResponseDto */
+export type ProgrammerListResponseDto = ProductionOrderListResponseDto;
 
 export interface ProductionOrderSummaryDto {
     id: number;
@@ -133,6 +139,9 @@ export interface OpBasicInfoDto {
     yarnBase?: string | null;
     fabric_base?: CatalogEntityDto | null;
     yarn_base?: CatalogEntityDto | null;
+    priceBilling?: number | null;
+    priceSale?: number | null;
+    description?: string | null;
 }
 
 export interface OperationalListItemDto {
@@ -150,9 +159,28 @@ export interface OperationalListDto {
     items: OperationalListItemDto[];
 }
 
+export interface SnapshotOperationItemDto {
+    id: number;
+    sequence?: number;
+    quantity?: number;
+    operation_section_id?: number | null;
+    operation?: { id: number; name?: string; action?: string; garment_part?: string } | null;
+    machine?: { id: number; code?: string; name?: string } | null;
+    operation_section?: { id: number; name?: string; type?: string } | null;
+    sam_base?: number;
+    machine_supplement_factor?: number;
+    fabric_base_factor?: number;
+    operator_efficiency_factor?: number;
+    sam_total_operacion?: number;
+}
+
 export interface OperationalListResponseDto {
     hasList: boolean;
-    list: OperationalListDto | null;
+    hasSnapshot?: boolean;
+    readOnly?: boolean;
+    list?: OperationalListDto | null;
+    snapshotOperations?: SnapshotOperationItemDto[];
+    costParameters?: { operation_cost: number; yarn_cost: number };
 }
 
 export interface OperationalListOptionDto {
@@ -187,13 +215,18 @@ export interface OpProcessRowDto {
     type: OpProcessTypeDto;
     supplier: string | null;
     manualPrice: number | null;
+    fixedCost?: number;
 }
 
 export interface OpProcessesResponseDto {
     hasOperationalList: boolean;
     params: { cuttingCost: number; minuteCost: number };
+    costConfeccion?: number;
+    costTerminacion?: number;
     minutes: { confeccion: number; terminacion: number };
     processes: OpProcessRowDto[];
+    costsAreFixed?: boolean;
+    canEditProcesses?: boolean;
 }
 
 export interface UpdateProcessParametersPayloadDto {
@@ -315,7 +348,7 @@ export interface AdditionalInfoDto {
     laundry: { type?: string | null; instructions?: string | null };
 }
 
-export interface FetchProgrammersParams {
+export interface FetchProductionOrdersParams {
     page?: number;
     per_page?: number;
     search?: string;
@@ -323,3 +356,6 @@ export interface FetchProgrammersParams {
     scope?: 'samples' | 'products';
     destination_id?: string;
 }
+
+/** @deprecated Use FetchProductionOrdersParams */
+export type FetchProgrammersParams = FetchProductionOrdersParams;

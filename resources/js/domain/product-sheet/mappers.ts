@@ -1,5 +1,5 @@
-import type { ProductSheetDto, ProgrammerDto } from './dto';
-import type { ProductSheet, Programmer } from './types';
+import type { ProductSheetDto, ProductionOrderDto } from './dto';
+import type { ProductSheet, ProductionOrder } from './types';
 
 export function mapProductSheetDto(dto: ProductSheetDto): ProductSheet {
     return {
@@ -31,7 +31,7 @@ export function mapProductSheetDto(dto: ProductSheetDto): ProductSheet {
     };
 }
 
-export function mapProgrammerDto(dto: ProgrammerDto): Programmer {
+export function mapProductionOrderDto(dto: ProductionOrderDto): ProductionOrder {
     return {
         id: dto.id,
         op_code: dto.op_code ?? null,
@@ -52,3 +52,6 @@ export function mapProgrammerDto(dto: ProgrammerDto): Programmer {
         updated_at: dto.updated_at,
     };
 }
+
+/** @deprecated Use mapProductionOrderDto */
+export const mapProgrammerDto = mapProductionOrderDto;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AlertBox from '@/components/AlertBox.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import {
     convertSampleToProduct,
     deleteProductSheet as deleteProductSheetRequest,
@@ -104,27 +105,7 @@ const convertRowDialogOpen = ref(false);
 const convertRowTarget = ref<ProductSheet | null>(null);
 const convertRowLoading = ref(false);
 
-// Alert state
-const alertMessage = ref('');
-const alertType = ref<'success' | 'error' | 'info' | 'warning'>('info');
-const showAlert = ref(false);
-const pageContentRef = ref<HTMLElement | null>(null);
-
-function setAlert(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') {
-    alertMessage.value = message;
-    alertType.value = type;
-    showAlert.value = true;
-    if (pageContentRef.value && typeof pageContentRef.value.scrollTo === 'function') {
-        pageContentRef.value.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-}
-
-function clearAlert() {
-    alertMessage.value = '';
-    showAlert.value = false;
-}
+const { successMessage, errorMessage, errorType, success, error, warning, clear } = useGlobalAlert();
 
 async function loadPermissions() {
     try {
@@ -147,16 +128,39 @@ async function deleteProductSheet() {
     if (!productSheetToDelete.value) return;
 
     try {
-        await deleteProductSheetRequest(productSheetToDelete.value.id);
+        const response = await deleteProductSheetRequest(productSheetToDelete.value.id);
         const index = productSheets.value.findIndex((product) => product.id === productSheetToDelete.value!.id);
         if (index !== -1) {
             productSheets.value.splice(index, 1);
         }
+
+        const successText =
+            typeof response?.data?.message === 'string' && response.data.message.trim() !== ''
+                ? response.data.message.trim()
+                : 'Sábana de producto eliminada correctamente.';
+
+        success(successText);
         productSheetToDelete.value = null;
         isDeleteDialogOpen.value = false;
-    } catch (error) {
-        console.error('Error al eliminar el product sheet:', error);
-        setAlert('Hubo un error al eliminar el product sheet.', 'error');
+    } catch (err) {
+        console.error('Error al eliminar el product sheet:', err);
+        isDeleteDialogOpen.value = false;
+
+        let errorText = 'Hubo un error al eliminar la sábana de producto.';
+
+        if (axios.isAxiosError(err)) {
+            const responseData = err.response?.data;
+            const errorMessage = responseData?.message ?? '';
+
+            // Detectar error de constraint de foreign key
+            if (err.response?.status === 500 && errorMessage.toLowerCase().includes('foreign key constraint')) {
+                errorText = 'No se puede eliminar esta sábana porque tiene programadores asociados. Elimina primero los programadores relacionados.';
+            } else if (errorMessage) {
+                errorText = errorMessage;
+            }
+        }
+
+        error(errorText);
     }
 }
 
@@ -176,7 +180,7 @@ function closeRowConvertDialog() {
 
 async function submitRowConvertDialog(productReference: string) {
     if (!convertRowTarget.value) {
-        setAlert('No se pudo identificar la sábana.', 'error');
+        error('No se pudo identificar la sábana.');
         return;
     }
 
@@ -199,15 +203,15 @@ async function submitRowConvertDialog(productReference: string) {
             };
         }
 
-        setAlert('Sábana convertida a producto correctamente.', 'success');
+        success('Sábana convertida a producto correctamente.');
         closeRowConvertDialog();
-    } catch (error: unknown) {
-        const message = axios.isAxiosError(error)
-            ? (error.response?.data?.message ?? 'Error al convertir la sábana.')
-            : error instanceof Error
-              ? error.message
+    } catch (err: unknown) {
+        const message = axios.isAxiosError(err)
+            ? (err.response?.data?.message ?? 'Error al convertir la sábana.')
+            : err instanceof Error
+              ? err.message
               : 'Error al convertir la sábana.';
-        setAlert(message, 'error');
+        error(message);
     } finally {
         convertRowLoading.value = false;
     }
@@ -298,11 +302,11 @@ async function loadProductSheetDialog(product: ProductSheet, mode: 'edit' | 'vie
             isViewMode.value = mode === 'view';
             isEditDialogOpen.value = true;
         } else {
-            setAlert('Error al cargar los datos del producto', 'error');
+            error('Error al cargar los datos del producto');
         }
-    } catch (error) {
-        console.error('Error al cargar el producto:', error);
-        setAlert('Error al cargar los datos del producto', 'error');
+    } catch (err) {
+        console.error('Error al cargar el producto:', err);
+        error('Error al cargar los datos del producto');
     }
 }
 
@@ -318,6 +322,13 @@ function openCreateDialog() {
     editProductSheetData.value = undefined; // Asegurarse de que no haya datos de edición
     isViewMode.value = false; // Desactivar modo de solo lectura
     isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diálogo
+}
+
+function handleProductSheetSaved(payload: { success?: boolean; message?: string; data?: ProductSheet }) {
+    isEditDialogOpen.value = false;
+    const msg = payload.message ?? 'Sábana guardada correctamente.';
+    success(msg);
+    reloadProductSheets();
 }
 
 onMounted(async () => {
@@ -337,26 +348,14 @@ onUnmounted(() => {
 <template>
     <Head title="Sabana de Productos" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div ref="pageContentRef" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <transition name="fade">
-                <div v-if="showAlert && alertMessage" class="pointer-events-none fixed left-1/2 top-4 z-50 w-full max-w-xl -translate-x-1/2">
-                    <AlertBox
-                        :type="alertType"
-                        :title="
-                            alertType === 'warning'
-                                ? 'Advertencia'
-                                : alertType === 'success'
-                                  ? 'Éxito'
-                                  : alertType === 'info'
-                                    ? 'Información'
-                                    : 'Error'
-                        "
-                        :message="alertMessage"
-                        class="pointer-events-auto"
-                        @close="clearAlert"
-                    />
-                </div>
-            </transition>
+        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+            <AlertStack
+                :success-message="successMessage"
+                :error-message="errorMessage"
+                :error-type="errorType"
+                @close-success="clear"
+                @close-error="clear"
+            />
             <div class="flex items-center justify-between">
                 <h1 class="text-lg font-bold">Lista Sabana de Productos</h1>
                 <Button
@@ -541,7 +540,8 @@ onUnmounted(() => {
         :operationalLists="props.operationalLists"
         v-model:open="isEditDialogOpen"
         :readonly="isViewMode"
-        @productSheetSaved="reloadProductSheets"
+        @productSheetSaved="handleProductSheetSaved"
+        @error="error"
         @close="isEditDialogOpen = false"
     />
 

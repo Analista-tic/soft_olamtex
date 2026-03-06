@@ -1,14 +1,15 @@
 <script setup lang="ts">
+import AlertBox from '@/components/AlertBox.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
-import { TooltipProvider } from '@/components/ui/tooltip';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import DraggableTableRow from '@/components/DraggableTableRow.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet';
 import { Check, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
 import { computed, PropType, ref, watch } from 'vue';
@@ -102,6 +103,10 @@ const props = defineProps({
         type: Array as () => string[],
         default: () => [],
     },
+    readonly: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits<{
@@ -110,17 +115,16 @@ const emit = defineEmits<{
     (event: 'validation-error', message: string): void;
 }>();
 
+const validationError = ref('');
 const localOpen = ref(props.open);
-watch(
-    () => props.open,
-    (value) => {
-        localOpen.value = value;
-        if (value) initializeForm();
-    },
-);
-watch(localOpen, (value) => {
-    if (!value) emit('close');
-});
+
+function setValidationError(message: string) {
+    validationError.value = message;
+}
+
+function clearValidationError() {
+    validationError.value = '';
+}
 
 const sectionsList = ref<OperationSection[]>([]);
 const operationsList = ref<OperationOption[]>([]);
@@ -140,37 +144,31 @@ const createEmptyRow = (): OperationRow => ({
 });
 const currentRow = ref<OperationRow>(createEmptyRow());
 
+function syncListsFromProps() {
+    sectionsList.value = Array.isArray(props.sections) ? [...props.sections] : [];
+    operationsList.value = Array.isArray(props.operations) ? [...props.operations] : [];
+    machinesList.value = Array.isArray(props.machines) ? [...props.machines] : [];
+    fabricBasesList.value = Array.isArray(props.fabricBases) ? [...props.fabricBases] : [];
+    if (!currentRow.value.fabric_base_id && fabricBasesList.value.length > 0) {
+        currentRow.value.fabric_base_id = fabricBasesList.value[0].id ?? null;
+    }
+}
+
 watch(
-    () => props.sections,
-    (n) => {
-        sectionsList.value = [...n];
-    },
-    { immediate: true },
-);
-watch(
-    () => props.operations,
-    (n) => {
-        operationsList.value = [...n];
-    },
-    { immediate: true },
-);
-watch(
-    () => props.machines,
-    (n) => {
-        machinesList.value = [...n];
-    },
-    { immediate: true },
-);
-watch(
-    () => props.fabricBases,
-    (n: FabricBaseOption[]) => {
-        fabricBasesList.value = Array.isArray(n) ? [...n] : [];
-        if (!currentRow.value.fabric_base_id && fabricBasesList.value.length > 0) {
-            currentRow.value.fabric_base_id = fabricBasesList.value[0].id ?? null;
+    () => props.open,
+    (value) => {
+        localOpen.value = value;
+        if (value) {
+            clearValidationError();
+            syncListsFromProps();
+            initializeForm();
         }
     },
     { immediate: true },
 );
+watch(localOpen, (value) => {
+    if (!value) emit('close');
+});
 
 watch(
     () => currentRow.value.operation_id,
@@ -345,23 +343,33 @@ function addOperation() {
     const eff = Number(currentRow.value.operator_efficiency_factor);
 
     if (!currentRow.value.operation_id || !currentRow.value.machine_id || samBase <= 0 || eff < 1 || eff > 2) {
-        if (!currentRow.value.operation_id) emit('validation-error', 'Selecciona una operación.');
-        else if (!currentRow.value.machine_id) emit('validation-error', 'Selecciona una máquina.');
-        else if (samBase <= 0)
-            emit('validation-error', 'La operación seleccionada no tiene SAM base. Regístralo primero en la base de datos de operaciones.');
-        else emit('validation-error', 'El factor operario debe estar entre 1.00 y 2.00.');
+        let msg = 'Selecciona una operación.';
+        if (!currentRow.value.operation_id) msg = 'Selecciona una operación.';
+        else if (!currentRow.value.machine_id) msg = 'Selecciona una máquina.';
+        else if (samBase <= 0) msg = 'La operación seleccionada no tiene SAM base. Regístralo primero en la base de datos de operaciones.';
+        else msg = 'El factor operario debe estar entre 1.00 y 2.00.';
+        setValidationError(msg);
+        emit('validation-error', msg);
         return;
     }
 
     const opId = currentRow.value.operation_id;
-    if (opId && operationList.value.some((r) => r.operation_id === opId)) {
-        emit('validation-error', 'La operación ya fue añadida en este listado.');
+    const machineId = currentRow.value.machine_id;
+    const sectionId = currentRow.value.section_id;
+    const isDuplicate = operationList.value.some(
+        (r) => r.operation_id === opId && r.machine_id === machineId && (r.section_id === sectionId || (r.section_id == null && sectionId == null)),
+    );
+    if (isDuplicate) {
+        const msg = 'Esta operación con esta máquina y sección ya fue añadida.';
+        setValidationError(msg);
+        emit('validation-error', msg);
         return;
     }
 
     const qty = Math.max(1, Math.floor(Number(currentRow.value.quantity)) || 1);
     operationList.value.push({ ...currentRow.value, quantity: qty });
     currentRow.value = createEmptyRow();
+    clearValidationError();
 }
 
 function removeOperation(i: number) {
@@ -411,11 +419,20 @@ function saveOperations() {
         saveEditRow(editingRowIndex.value);
         if (editingRowIndex.value !== null) return;
     }
-    if (operationList.value.length === 0) return;
+    const keys = operationList.value.map((r) => `${r.operation_id}-${r.machine_id}-${r.section_id ?? ''}`);
+    const hasDuplicates = keys.some((k, i) => keys.indexOf(k) !== i);
+    if (hasDuplicates) {
+        const msg = 'Hay operaciones duplicadas (misma operación, máquina y sección). Elimina duplicados antes de guardar.';
+        setValidationError(msg);
+        emit('validation-error', msg);
+        return;
+    }
 
-    const opIds = operationList.value.map((r) => r.operation_id).filter(Boolean) as number[];
-    if (opIds.find((id, i) => opIds.indexOf(id) !== i)) {
-        emit('validation-error', 'Hay operaciones duplicadas. Elimina duplicados antes de guardar.');
+    if (operationList.value.length === 0) {
+        clearValidationError();
+        emit('save', []);
+        resetForm();
+        localOpen.value = false;
         return;
     }
 
@@ -439,6 +456,7 @@ function saveOperations() {
         fabric_base_id: toNumOrNull(row.fabric_base_id),
     }));
 
+    clearValidationError();
     emit('save', payload);
     resetForm();
     localOpen.value = false;
@@ -454,373 +472,417 @@ function resetForm() {
 </script>
 
 <template>
+    <div v-if="validationError" class="mb-4 flex">
+        <div class="mx-auto w-full max-w-[1300px] px-4">
+            <AlertBox type="warning" title="Validación" :message="validationError" :auto-close-ms="0" @close="clearValidationError" />
+        </div>
+    </div>
     <Dialog v-model:open="localOpen">
         <FormDialogContent class="flex max-h-[95vh] w-full max-w-[1300px] flex-col px-6 py-5">
             <DialogHeader class="flex-shrink-0 space-y-1">
                 <DialogTitle class="text-lg font-semibold tracking-tight text-foreground">
-                    {{ isEditMode ? 'Editar listado operacional' : 'Listado operacional' }}
+                    {{ readonly ? 'Ver listado operacional' : isEditMode ? 'Editar listado operacional' : 'Listado operacional' }}
                 </DialogTitle>
-                <p class="text-sm text-muted-foreground/90">Busca una operación y añade factores, o crea una nueva con todos los datos.</p>
+                <p class="text-sm text-muted-foreground/90">
+                    {{
+                        readonly
+                            ? 'Este listado tiene órdenes de producción asociadas y no se puede modificar.'
+                            : 'Busca una operación y añade factores, o crea una nueva con todos los datos.'
+                    }}
+                </p>
             </DialogHeader>
 
             <TooltipProvider>
-            <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scroll-smooth pr-1" style="scrollbar-width: thin">
-                <!-- Datos generales -->
-                <div class="grid items-end gap-5 pb-5 md:grid-cols-3" style="border-bottom: 1px solid hsl(var(--border) / 0.4)">
-                    <SelectField
-                        v-model="productSheetId"
-                        label="Sábana de producto"
-                        :options="availableProductSheets.map((s) => ({ id: s.id, name: `${s.reference} (${s.type})` }))"
-                        :disabled="isEditMode"
-                        required
-                    />
-                    <InputField v-model="notes" label="Notas generales" />
-                    <div></div>
-                </div>
-
-                <!-- Añadir operación -->
-                <div class="flex flex-wrap items-center justify-between gap-3 py-4">
-                    <div>
-                        <span class="text-sm font-medium text-foreground">Añadir operación</span>
-                        <p class="mt-0.5 text-xs text-muted-foreground/80">Busca, ajusta factores y añade. Si no existe, créala.</p>
-                    </div>
-                    <Button
-                        variant="default"
-                        size="sm"
-                        class="flex h-8 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                        @click="openAddNewDialog('operation')"
-                    >
-                        <PlusCircle class="h-2 w-4" />
-                        Crear operación
-                    </Button>
-                </div>
-
-                <!-- Fila para añadir (encabezados sutiles) -->
-                <div class="grid grid-cols-11 gap-2 px-1 py-1 text-[11px] font-medium text-muted-foreground/80">
-                    <div class="col-span-2 flex items-center gap-1">
-                        Operación
-                        <HelpTooltip text="Nombre de la operación según catálogo." />
-                    </div>
-                    <div class="col-span-2 flex items-center gap-1">
-                        Máquina
-                        <HelpTooltip text="Máquina asignada a la operación. El factor entre paréntesis es el suplemento." />
-                    </div>
-                    <div class="col-span-1 flex items-center justify-end gap-1">
-                        SAM
-                        <HelpTooltip text="SAM base: tiempo estándar en minutos por unidad (del catálogo de operaciones)." />
-                    </div>
-                    <div class="col-span-2 flex items-center gap-1">
-                        Base tela
-                        <HelpTooltip text="Base de tela con su factor. Afecta el tiempo según el tipo de material." />
-                    </div>
-                    <div class="col-span-1 flex items-center gap-1">
-                        F. op.
-                        <HelpTooltip text="Factor operario (1.0 a 2.0). Ajusta el tiempo según rendimiento del operario." />
-                    </div>
-                    <div class="col-span-1 flex items-center justify-end gap-1">
-                        SAM op.
-                        <HelpTooltip text="Tiempo total de la operación: SAM base × suplemento × factor tela × factor op. × cantidad de piezas (min)." />
-                    </div>
-                    <div class="col-span-1 flex items-center justify-end gap-1">
-                        Op./h
-                        <HelpTooltip text="Veces que se completa esta operación en una hora (60 min ÷ SAM op.)." />
-                    </div>
-                </div>
-                <div class="grid grid-cols-11 items-end gap-2 px-1 py-2">
-                    <div class="col-span-2">
+                <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scroll-smooth pr-1" style="scrollbar-width: thin">
+                    <!-- Datos generales -->
+                    <div class="grid items-end gap-5 pb-5 md:grid-cols-3" style="border-bottom: 1px solid hsl(var(--border) / 0.4)">
                         <SelectField
-                            v-model="currentRow.operation_id"
-                            :options="operationsList.map((o) => ({ id: o.id, name: o.name }))"
-                            placeholder="Buscar operación"
-                            class="h-9 w-full"
-                        >
-                            <template #header>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    class="w-full justify-center gap-1 text-xs text-muted-foreground hover:bg-muted/50"
-                                    @click="openAddNewDialog('operation')"
-                                >
-                                    <Plus class="h-4 w-4" /> Crear si no existe
-                                </Button>
-                            </template>
-                        </SelectField>
-                    </div>
-                    <div class="col-span-2">
-                        <SelectField
-                            v-model="currentRow.machine_id"
-                            :options="
-                                machinesList.map((m) => ({ id: m.id, name: `${m.code} · ${m.name} (×${(m.supplement_factor ?? 1).toFixed(2)})` }))
-                            "
-                            placeholder="Máquina"
-                            class="h-9 w-full"
-                        >
-                            <template #header>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    class="w-full justify-center gap-1 text-xs text-muted-foreground hover:bg-muted/50"
-                                    @click="openAddNewDialog('machine')"
-                                >
-                                    <Plus class="h-4 w-4" /> Nueva máquina
-                                </Button>
-                            </template>
-                        </SelectField>
-                    </div>
-                    <div class="col-span-1">
-                        <div
-                            class="flex h-9 items-center justify-end rounded-md bg-muted/30 px-2 font-mono text-xs text-muted-foreground"
-                            title="SAM base de la operación"
-                        >
-                            {{ (Number(currentRow.optimal_time) || 0).toFixed(2) }}
-                        </div>
-                    </div>
-                    <div class="col-span-2">
-                        <SelectField
-                            v-model="currentRow.fabric_base_id"
-                            :options="
-                                fabricBasesList.map((f) => ({
-                                    id: f.id,
-                                    name: `${f.nombre ?? f.name ?? f.codigo ?? String(f.id)} (×${Number(f.factor ?? f.factor_base ?? f.factor_base_tela ?? 1).toFixed(2)})`,
-                                }))
-                            "
-                            placeholder="Base tela"
-                            class="h-9 w-full"
+                            v-model="productSheetId"
+                            label="Sábana de producto"
+                            :options="availableProductSheets.map((s) => ({ id: s.id, name: `${s.reference} (${s.type})` }))"
+                            :disabled="isEditMode || readonly"
+                            required
                         />
+                        <InputField v-model="notes" label="Notas generales" :disabled="readonly" />
+                        <div></div>
                     </div>
-                    <div class="col-span-1" @keydown.enter.prevent="addOperation">
-                        <InputField
-                            v-model.number="currentRow.operator_efficiency_factor"
-                            label=""
-                            type="number"
-                            step="0.01"
-                            min="1"
-                            max="2"
-                            placeholder="1.00"
-                            class="h-9 w-full"
-                            :class="{
-                                'border-red-500':
-                                    Number(currentRow.operator_efficiency_factor) < 1 || Number(currentRow.operator_efficiency_factor) > 2,
-                            }"
-                        />
-                    </div>
-                    <div class="col-span-1">
-                        <div class="flex h-9 items-center justify-end rounded-md bg-primary/5 px-2 font-mono text-xs font-semibold text-primary">
-                            {{ Number(getSamOperacion(currentRow)).toFixed(2) }}
+
+                    <!-- Añadir operación -->
+                    <div v-if="!readonly" class="flex flex-wrap items-center justify-between gap-3 py-4">
+                        <div>
+                            <span class="text-sm font-medium text-foreground">Añadir operación</span>
+                            <p class="mt-0.5 text-xs text-muted-foreground/80">Busca, ajusta factores y añade. Si no existe, créala.</p>
                         </div>
-                    </div>
-                    <div class="col-span-1">
-                        <div class="flex h-9 items-center justify-end rounded-md bg-muted/30 px-2 font-mono text-xs text-muted-foreground">
-                            {{ getOpsPerHour(currentRow) }}
-                        </div>
-                    </div>
-                    <div class="col-span-1">
-                        <Button size="sm" class="w-full gap-1" :disabled="!currentRow.operation_id || !currentRow.machine_id" @click="addOperation">
-                            <Plus class="h-4 w-4" />
-                            Añadir
+                        <Button
+                            variant="default"
+                            size="sm"
+                            class="flex h-8 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                            @click="openAddNewDialog('operation')"
+                        >
+                            <PlusCircle class="h-2 w-4" />
+                            Crear operación
                         </Button>
                     </div>
-                </div>
 
-                <!-- Lista de operaciones añadidas -->
-                <div v-if="operationList.length > 0" class="mt-5 overflow-hidden">
-                    <p class="mb-2 flex items-center gap-2 px-1 text-[11px] text-muted-foreground/80">
-                        <GripVertical class="h-3 w-3 shrink-0" />
-                        Arrastra para reordenar · Edita máquina, base tela y factor operario
-                    </p>
-                    <div class="max-h-[360px] overflow-y-auto scroll-smooth rounded-md bg-muted/20" style="scrollbar-width: thin">
-                        <table class="w-full table-fixed text-sm">
-                            <thead class="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                <tr class="text-[11px] text-muted-foreground/90" style="border-bottom: 1px solid hsl(var(--border) / 0.5)">
-                                    <th class="w-7 py-2.5"></th>
-                                    <th class="w-7 px-3 py-2.5 text-left font-medium">#</th>
-                                    <th class="px-3 py-2.5 text-left font-medium">
-                                        <span class="inline-flex items-center gap-1">Operación <HelpTooltip text="Nombre de la operación." /></span>
-                                    </th>
-                                    <th class="w-24 px-3 py-2.5 text-left font-medium">
-                                        <span class="inline-flex items-center gap-1">Máquina <HelpTooltip text="Máquina asignada. El factor es el suplemento." /></span>
-                                    </th>
-                                    <th class="w-14 px-3 py-2.5 text-right font-medium">
-                                        <span class="inline-flex items-center justify-end gap-1">SAM <HelpTooltip text="SAM base en minutos." /></span>
-                                    </th>
-                                    <th class="w-30 px-3 py-2.5 text-left font-medium">
-                                        <span class="inline-flex items-center gap-1">Base tela <HelpTooltip text="Base de tela con factor." /></span>
-                                    </th>
-                                    <th class="w-28 px-3 py-2.5 text-right font-medium">
-                                        <span class="inline-flex items-center justify-end gap-1">F. op. <HelpTooltip text="Factor operario." /></span>
-                                    </th>
-                                    <th class="w-20 px-3 py-2.5 text-right font-medium">
-                                        <span class="inline-flex items-center justify-end gap-1">SAM op. <HelpTooltip text="Tiempo total (min): SAM base × suplemento × factor tela × factor op. × cantidad." /></span>
-                                    </th>
-                                    <th class="w-16 px-3 py-2.5 text-right font-medium">
-                                        <span class="inline-flex items-center justify-end gap-1">Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)." /></span>
-                                    </th>
-                                    <th class="w-16"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <DraggableTableRow
-                                    v-for="(row, index) in operationList"
-                                    :key="`row-${index}`"
-                                    :index="index"
-                                    :is-draggable="editingRowIndex === null"
-                                    @drag-start="handleDragStart"
-                                    @drag-end="handleDragEnd"
-                                    @drop="handleDrop"
-                                >
-                                    <td class="px-3 py-2.5 text-xs text-muted-foreground/80">{{ index + 1 }}</td>
-                                    <td class="px-3 py-2.5 text-xs">
-                                        <span class="block truncate" :title="getOperationName(row.operation_id)">{{
-                                            getOperationName(row.operation_id)
-                                        }}</span>
-                                    </td>
-                                    <td class="px-2 py-2 text-xs">
-                                        <SelectField
-                                            v-if="isEditingRow(index) && editRow"
-                                            v-model="editRow.machine_id"
-                                            :options="
-                                                machinesList.map((m) => ({
-                                                    id: m.id,
-                                                    name: `${getMachineName(m.id)} (×${(m.supplement_factor ?? 1).toFixed(2)})`,
-                                                }))
-                                            "
-                                            class="h-8 min-w-[140px]"
-                                        />
-                                        <span
-                                            v-else
-                                            class="block truncate text-muted-foreground/90"
-                                            :title="`Suplemento: ×${getSupplementForRow(row).toFixed(2)}`"
-                                            >{{ getMachineDisplayWithSupplement(row) }}</span
-                                        >
-                                    </td>
-                                    <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">
-                                        {{ (Number(row.optimal_time) || 0).toFixed(2) }}
-                                    </td>
-                                    <td class="px-2 py-2 text-xs">
-                                        <SelectField
-                                            v-if="isEditingRow(index) && editRow"
-                                            v-model="editRow.fabric_base_id"
-                                            :options="
-                                                fabricBasesList.map((f) => ({
-                                                    id: f.id,
-                                                    name: `${f.nombre ?? f.name ?? String(f.id)} (×${Number(f.factor ?? f.factor_base ?? 1).toFixed(2)})`,
-                                                }))
-                                            "
-                                            class="h-8 min-w-[90px]"
-                                        />
-                                        <span
-                                            v-else
-                                            class="block truncate text-muted-foreground/90"
-                                            :title="`Factor: ×${getFabricFactorForRow(row).toFixed(2)}`"
-                                        >
-                                            {{ getFabricBaseName(row.fabric_base_id) }}
-                                            <span class="text-[10px]">(×{{ getFabricFactorForRow(row).toFixed(2) }}) </span>
-                                        </span>
-                                    </td>
-                                    <td class="px-3 py-2.5 text-right font-mono text-xs">
-                                        <InputField
-                                            v-if="isEditingRow(index) && editRow"
-                                            v-model.number="editRow.operator_efficiency_factor"
-                                            label=""
-                                            type="number"
-                                            step="0.01"
-                                            min="1"
-                                            max="2"
-                                            class="h-8 w-16 text-right"
-                                            :class="{
-                                                'border-red-500':
-                                                    Number(editRow.operator_efficiency_factor) < 1 || Number(editRow.operator_efficiency_factor) > 2,
-                                            }"
-                                        />
-                                        <span v-else>{{ (Number(row.operator_efficiency_factor) || 0).toFixed(2) }}</span>
-                                    </td>
-                                    <td class="px-3 py-2.5 text-right font-mono text-xs font-semibold text-primary">
-                                        {{ Number(getSamOperacion(isEditingRow(index) && editRow ? editRow : row)).toFixed(2) }}
-                                    </td>
-                                    <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">
-                                        {{ getOpsPerHour(isEditingRow(index) && editRow ? editRow : row) }}
-                                    </td>
-                                    <td class="px-3 py-2">
-                                        <div class="flex items-center justify-end gap-1">
-                                            <Button
-                                                v-if="!isEditingRow(index)"
-                                                variant="ghost"
-                                                size="icon"
-                                                class="h-7 w-7"
-                                                title="Editar factores"
-                                                @click="startEditRow(index)"
-                                            >
-                                                <Pencil class="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button v-else variant="ghost" size="icon" class="h-7 w-7" title="Guardar" @click="saveEditRow(index)">
-                                                <Check class="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button
-                                                v-if="isEditingRow(index)"
-                                                variant="ghost"
-                                                size="icon"
-                                                class="h-7 w-7"
-                                                title="Cancelar"
-                                                @click="cancelEditRow"
-                                            >
-                                                <X class="h-3.5 w-3.5" />
-                                            </Button>
-                                            <DeleteButton
-                                                v-if="!isEditingRow(index)"
-                                                class="h-7 w-7"
-                                                title="Eliminar"
-                                                @click="removeOperation(index)"
+                    <!-- Fila para añadir (encabezados sutiles) -->
+                    <div v-if="!readonly" class="grid grid-cols-11 gap-2 px-1 py-1 text-[11px] font-medium text-muted-foreground/80">
+                        <div class="col-span-2 flex items-center gap-1">
+                            Operación
+                            <HelpTooltip text="Nombre de la operación según catálogo." />
+                        </div>
+                        <div class="col-span-2 flex items-center gap-1">
+                            Máquina
+                            <HelpTooltip text="Máquina asignada a la operación. El factor entre paréntesis es el suplemento." />
+                        </div>
+                        <div class="col-span-1 flex items-center justify-end gap-1">
+                            SAM
+                            <HelpTooltip text="SAM base: tiempo estándar en minutos por unidad (del catálogo de operaciones)." />
+                        </div>
+                        <div class="col-span-2 flex items-center gap-1">
+                            Base tela
+                            <HelpTooltip text="Base de tela con su factor. Afecta el tiempo según el tipo de material." />
+                        </div>
+                        <div class="col-span-1 flex items-center gap-1">
+                            F. op.
+                            <HelpTooltip text="Factor operario (1.0 a 2.0). Ajusta el tiempo según rendimiento del operario." />
+                        </div>
+                        <div class="col-span-1 flex items-center justify-end gap-1">
+                            SAM op.
+                            <HelpTooltip
+                                text="Tiempo total de la operación: SAM base × suplemento × factor tela × factor op. × cantidad de piezas (min)."
+                            />
+                        </div>
+                        <div class="col-span-1 flex items-center justify-end gap-1">
+                            Op./h
+                            <HelpTooltip text="Veces que se completa esta operación en una hora (60 min ÷ SAM op.)." />
+                        </div>
+                    </div>
+                    <div v-if="!readonly" class="grid grid-cols-11 items-end gap-2 px-1 py-2">
+                        <div class="col-span-2">
+                            <SelectField
+                                v-model="currentRow.operation_id"
+                                :options="operationsList.map((o) => ({ id: o.id, name: o.name }))"
+                                placeholder="Buscar operación"
+                                class="h-9 w-full"
+                            >
+                                <template #header>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        class="w-full justify-center gap-1 text-xs text-muted-foreground hover:bg-muted/50"
+                                        @click="openAddNewDialog('operation')"
+                                    >
+                                        <Plus class="h-4 w-4" /> Crear si no existe
+                                    </Button>
+                                </template>
+                            </SelectField>
+                        </div>
+                        <div class="col-span-2">
+                            <SelectField
+                                v-model="currentRow.machine_id"
+                                :options="
+                                    machinesList.map((m) => ({ id: m.id, name: `${m.code} · ${m.name} (×${(m.supplement_factor ?? 1).toFixed(2)})` }))
+                                "
+                                placeholder="Máquina"
+                                class="h-9 w-full"
+                            >
+                                <template #header>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        class="w-full justify-center gap-1 text-xs text-muted-foreground hover:bg-muted/50"
+                                        @click="openAddNewDialog('machine')"
+                                    >
+                                        <Plus class="h-4 w-4" /> Nueva máquina
+                                    </Button>
+                                </template>
+                            </SelectField>
+                        </div>
+                        <div class="col-span-1">
+                            <div
+                                class="flex h-9 items-center justify-end rounded-md bg-muted/30 px-2 font-mono text-xs text-muted-foreground"
+                                title="SAM base de la operación"
+                            >
+                                {{ (Number(currentRow.optimal_time) || 0).toFixed(2) }}
+                            </div>
+                        </div>
+                        <div class="col-span-2">
+                            <SelectField
+                                v-model="currentRow.fabric_base_id"
+                                :options="
+                                    fabricBasesList.map((f) => ({
+                                        id: f.id,
+                                        name: `${f.nombre ?? f.name ?? f.codigo ?? String(f.id)} (×${Number(f.factor ?? f.factor_base ?? f.factor_base_tela ?? 1).toFixed(2)})`,
+                                    }))
+                                "
+                                placeholder="Base tela"
+                                class="h-9 w-full"
+                            />
+                        </div>
+                        <div class="col-span-1" @keydown.enter.prevent="addOperation">
+                            <InputField
+                                v-model.number="currentRow.operator_efficiency_factor"
+                                label=""
+                                type="number"
+                                step="0.01"
+                                min="1"
+                                max="2"
+                                placeholder="1.00"
+                                class="h-9 w-full"
+                                :class="{
+                                    'border-red-500':
+                                        Number(currentRow.operator_efficiency_factor) < 1 || Number(currentRow.operator_efficiency_factor) > 2,
+                                }"
+                            />
+                        </div>
+                        <div class="col-span-1">
+                            <div class="flex h-9 items-center justify-end rounded-md bg-primary/5 px-2 font-mono text-xs font-semibold text-primary">
+                                {{ Number(getSamOperacion(currentRow)).toFixed(2) }}
+                            </div>
+                        </div>
+                        <div class="col-span-1">
+                            <div class="flex h-9 items-center justify-end rounded-md bg-muted/30 px-2 font-mono text-xs text-muted-foreground">
+                                {{ getOpsPerHour(currentRow) }}
+                            </div>
+                        </div>
+                        <div class="col-span-1">
+                            <Button
+                                size="sm"
+                                class="w-full gap-1"
+                                :disabled="!currentRow.operation_id || !currentRow.machine_id"
+                                @click="addOperation"
+                            >
+                                <Plus class="h-4 w-4" />
+                                Añadir
+                            </Button>
+                        </div>
+                    </div>
+
+                    <!-- Lista de operaciones añadidas -->
+                    <div v-if="operationList.length > 0" class="mt-5 overflow-hidden">
+                        <p v-if="!readonly" class="mb-2 flex items-center gap-2 px-1 text-[11px] text-muted-foreground/80">
+                            <GripVertical class="h-3 w-3 shrink-0" />
+                            Arrastra para reordenar · Edita máquina, base tela y factor operario
+                        </p>
+                        <div class="max-h-[360px] overflow-y-auto scroll-smooth rounded-md bg-muted/20" style="scrollbar-width: thin">
+                            <table class="w-full table-fixed text-sm">
+                                <thead class="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                                    <tr class="text-[11px] text-muted-foreground/90" style="border-bottom: 1px solid hsl(var(--border) / 0.5)">
+                                        <th class="w-7 py-2.5"></th>
+                                        <th class="w-7 px-3 py-2.5 text-left font-medium">#</th>
+                                        <th class="px-3 py-2.5 text-left font-medium">
+                                            <span class="inline-flex items-center gap-1"
+                                                >Operación <HelpTooltip text="Nombre de la operación."
+                                            /></span>
+                                        </th>
+                                        <th class="w-24 px-3 py-2.5 text-left font-medium">
+                                            <span class="inline-flex items-center gap-1"
+                                                >Máquina <HelpTooltip text="Máquina asignada. El factor es el suplemento."
+                                            /></span>
+                                        </th>
+                                        <th class="w-14 px-3 py-2.5 text-right font-medium">
+                                            <span class="inline-flex items-center justify-end gap-1"
+                                                >SAM <HelpTooltip text="SAM base en minutos."
+                                            /></span>
+                                        </th>
+                                        <th class="w-30 px-3 py-2.5 text-left font-medium">
+                                            <span class="inline-flex items-center gap-1"
+                                                >Base tela <HelpTooltip text="Base de tela con factor."
+                                            /></span>
+                                        </th>
+                                        <th class="w-28 px-3 py-2.5 text-right font-medium">
+                                            <span class="inline-flex items-center justify-end gap-1"
+                                                >F. op. <HelpTooltip text="Factor operario."
+                                            /></span>
+                                        </th>
+                                        <th class="w-20 px-3 py-2.5 text-right font-medium">
+                                            <span class="inline-flex items-center justify-end gap-1"
+                                                >SAM op.
+                                                <HelpTooltip text="Tiempo total (min): SAM base × suplemento × factor tela × factor op. × cantidad."
+                                            /></span>
+                                        </th>
+                                        <th class="w-16 px-3 py-2.5 text-right font-medium">
+                                            <span class="inline-flex items-center justify-end gap-1"
+                                                >Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)."
+                                            /></span>
+                                        </th>
+                                        <th v-if="!readonly" class="w-16"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <DraggableTableRow
+                                        v-for="(row, index) in operationList"
+                                        :key="`row-${index}`"
+                                        :index="index"
+                                        :is-draggable="!readonly && editingRowIndex === null"
+                                        @drag-start="handleDragStart"
+                                        @drag-end="handleDragEnd"
+                                        @drop="handleDrop"
+                                    >
+                                        <td class="px-3 py-2.5 text-xs text-muted-foreground/80">{{ index + 1 }}</td>
+                                        <td class="px-3 py-2.5 text-xs">
+                                            <span class="block truncate" :title="getOperationName(row.operation_id)">{{
+                                                getOperationName(row.operation_id)
+                                            }}</span>
+                                        </td>
+                                        <td class="px-2 py-2 text-xs">
+                                            <SelectField
+                                                v-if="isEditingRow(index) && editRow"
+                                                v-model="editRow.machine_id"
+                                                :options="
+                                                    machinesList.map((m) => ({
+                                                        id: m.id,
+                                                        name: `${getMachineName(m.id)} (×${(m.supplement_factor ?? 1).toFixed(2)})`,
+                                                    }))
+                                                "
+                                                class="h-8 min-w-[140px]"
                                             />
-                                        </div>
-                                    </td>
-                                </DraggableTableRow>
-                            </tbody>
-                        </table>
+                                            <span
+                                                v-else
+                                                class="block truncate text-muted-foreground/90"
+                                                :title="`Suplemento: ×${getSupplementForRow(row).toFixed(2)}`"
+                                                >{{ getMachineDisplayWithSupplement(row) }}</span
+                                            >
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">
+                                            {{ (Number(row.optimal_time) || 0).toFixed(2) }}
+                                        </td>
+                                        <td class="px-2 py-2 text-xs">
+                                            <SelectField
+                                                v-if="isEditingRow(index) && editRow"
+                                                v-model="editRow.fabric_base_id"
+                                                :options="
+                                                    fabricBasesList.map((f) => ({
+                                                        id: f.id,
+                                                        name: `${f.nombre ?? f.name ?? String(f.id)} (×${Number(f.factor ?? f.factor_base ?? 1).toFixed(2)})`,
+                                                    }))
+                                                "
+                                                class="h-8 min-w-[90px]"
+                                            />
+                                            <span
+                                                v-else
+                                                class="block truncate text-muted-foreground/90"
+                                                :title="`Factor: ×${getFabricFactorForRow(row).toFixed(2)}`"
+                                            >
+                                                {{ getFabricBaseName(row.fabric_base_id) }}
+                                                <span class="text-[10px]">(×{{ getFabricFactorForRow(row).toFixed(2) }}) </span>
+                                            </span>
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right font-mono text-xs">
+                                            <InputField
+                                                v-if="isEditingRow(index) && editRow"
+                                                v-model.number="editRow.operator_efficiency_factor"
+                                                label=""
+                                                type="number"
+                                                step="0.01"
+                                                min="1"
+                                                max="2"
+                                                class="h-8 w-16 text-right"
+                                                :class="{
+                                                    'border-red-500':
+                                                        Number(editRow.operator_efficiency_factor) < 1 ||
+                                                        Number(editRow.operator_efficiency_factor) > 2,
+                                                }"
+                                            />
+                                            <span v-else>{{ (Number(row.operator_efficiency_factor) || 0).toFixed(2) }}</span>
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right font-mono text-xs font-semibold text-primary">
+                                            {{ Number(getSamOperacion(isEditingRow(index) && editRow ? editRow : row)).toFixed(2) }}
+                                        </td>
+                                        <td class="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground/80">
+                                            {{ getOpsPerHour(isEditingRow(index) && editRow ? editRow : row) }}
+                                        </td>
+                                        <td v-if="!readonly" class="px-3 py-2">
+                                            <div class="flex items-center justify-end gap-1">
+                                                <Button
+                                                    v-if="!isEditingRow(index)"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    class="h-7 w-7"
+                                                    title="Editar factores"
+                                                    @click="startEditRow(index)"
+                                                >
+                                                    <Pencil class="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button
+                                                    v-else
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    class="h-7 w-7"
+                                                    title="Guardar"
+                                                    @click="saveEditRow(index)"
+                                                >
+                                                    <Check class="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button
+                                                    v-if="isEditingRow(index)"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    class="h-7 w-7"
+                                                    title="Cancelar"
+                                                    @click="cancelEditRow"
+                                                >
+                                                    <X class="h-3.5 w-3.5" />
+                                                </Button>
+                                                <DeleteButton
+                                                    v-if="!isEditingRow(index)"
+                                                    class="h-7 w-7"
+                                                    title="Eliminar"
+                                                    @click="removeOperation(index)"
+                                                />
+                                            </div>
+                                        </td>
+                                    </DraggableTableRow>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Totales -->
+                        <div
+                            class="mt-1 flex items-center justify-between rounded-b-md bg-muted/15 px-4 py-3"
+                            style="border-top: 1px solid hsl(var(--border) / 0.4)"
+                        >
+                            <span class="text-xs font-medium text-muted-foreground">{{ operationList.length }} operación(es)</span>
+                            <span class="font-mono text-sm font-semibold text-primary">
+                                SAM total: {{ operationList.reduce((s, r) => s + getSamOperacion(r), 0).toFixed(2) }} min
+                            </span>
+                        </div>
                     </div>
-                    <!-- Totales -->
-                    <div
-                        class="mt-1 flex items-center justify-between rounded-b-md bg-muted/15 px-4 py-3"
-                        style="border-top: 1px solid hsl(var(--border) / 0.4)"
-                    >
-                        <span class="text-xs font-medium text-muted-foreground">{{ operationList.length }} operación(es)</span>
-                        <span class="font-mono text-sm font-semibold text-primary">
-                            SAM total: {{ operationList.reduce((s, r) => s + getSamOperacion(r), 0).toFixed(2) }} min
-                        </span>
+
+                    <div v-else class="mt-5 py-10 text-center text-sm text-muted-foreground/80">
+                        <p>Busca una operación, ajusta factores y haz clic en <strong>Añadir</strong>.</p>
+                        <p class="mt-1 text-xs">Si no existe, créala con «Crear operación» o «Crear si no existe».</p>
                     </div>
-                </div>
 
-                <div v-else class="mt-5 py-10 text-center text-sm text-muted-foreground/80">
-                    <p>Busca una operación, ajusta factores y haz clic en <strong>Añadir</strong>.</p>
-                    <p class="mt-1 text-xs">Si no existe, créala con «Crear operación» o «Crear si no existe».</p>
+                    <AddNew
+                        :is-open="addNewDialogOpen"
+                        :entity="addNewEntity"
+                        :sections="sectionsList"
+                        :operations="operationsList"
+                        :machines="machinesList"
+                        :product-sheets="productSheets"
+                        :actions="actions"
+                        :garment-parts="garmentParts"
+                        :default-section-id="currentRow.section_id"
+                        :default-product-sheet-id="productSheetId"
+                        @close="addNewDialogOpen = false"
+                        @created="handleEntityCreated"
+                    />
                 </div>
-
-                <AddNew
-                    :is-open="addNewDialogOpen"
-                    :entity="addNewEntity"
-                    :sections="sectionsList"
-                    :operations="operationsList"
-                    :machines="machinesList"
-                    :product-sheets="productSheets"
-                    :actions="actions"
-                    :garment-parts="garmentParts"
-                    :default-section-id="currentRow.section_id"
-                    :default-product-sheet-id="productSheetId"
-                    @close="addNewDialogOpen = false"
-                    @created="handleEntityCreated"
-                />
-            </div>
             </TooltipProvider>
 
             <DialogFooter class="mt-4 flex flex-shrink-0 items-center justify-end gap-2 pt-5" style="border-top: 1px solid hsl(var(--border) / 0.4)">
                 <DialogActionButtons
+                    v-if="!readonly"
                     cancel-label="Cancelar"
-                    :submit-label="`Guardar (${operationList.length})`"
-                    :disabled="operationList.length === 0"
+                    :submit-label="operationList.length > 0 ? `Guardar (${operationList.length})` : 'Guardar (vaciar lista)'"
                     @cancel="localOpen = false"
                     @submit="saveOperations"
                 />
+                <Button v-else variant="outline" size="sm" class="rounded-full px-5 py-2 text-sm font-semibold" @click="localOpen = false">
+                    Cerrar
+                </Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>

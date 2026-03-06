@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import axios from 'axios';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -15,17 +15,11 @@ import { normalizeSizes } from '@/domain/Production';
 import type { Option } from '@/domain/shared/types';
 
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import { format, isValid, parse } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon } from 'lucide-vue-next';
 
 const props = defineProps<{
     destinations: OptionParams[];
@@ -34,7 +28,7 @@ const props = defineProps<{
 }>();
 
 const emits = defineEmits<{
-    (event: 'programmerUpdated'): void;
+    (event: 'programmerUpdated', message?: string): void;
 }>();
 
 type AlertType = 'success' | 'error' | 'info' | 'warning';
@@ -139,8 +133,6 @@ const programmer = ref<EditableProgrammer>(createEmptyProgrammer());
 const isLoading = ref(false);
 
 const dialogInnerRef = ref<HTMLElement | null>(null);
-const estimatedDatePopoverOpen = ref(false);
-const estimatedDateText = ref('');
 
 const isReadOnly = computed(() => dialogMode.value === 'view');
 
@@ -268,87 +260,6 @@ const ecommerceActionLabel = computed(() => {
     return ecommerceSummary.value.configured ? 'Editar' : 'Configurar';
 });
 
-const calendarValue = computed<DateValue | undefined>({
-    get() {
-        const iso = normalizeIsoDate(programmer.value.estimated_delivery_date);
-        if (!iso) return undefined;
-        try {
-            return parseDate(iso);
-        } catch {
-            return undefined;
-        }
-    },
-    set(v) {
-        programmer.value.estimated_delivery_date = v ? format(v.toDate(getLocalTimeZone()), 'yyyy-MM-dd') : null;
-    },
-});
-
-const estimatedDeliveryDateLabel = computed(() => {
-    const v = calendarValue.value;
-    if (!v) return 'dd/mm/aaaa';
-    try {
-        return format(v.toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es });
-    } catch {
-        return 'dd/mm/aaaa';
-    }
-});
-
-watch(
-    () => programmer.value.estimated_delivery_date,
-    (val) => {
-        const iso = normalizeIsoDate(val);
-        if (!iso) {
-            estimatedDateText.value = '';
-            return;
-        }
-
-        try {
-            estimatedDateText.value = format(parseDate(iso).toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es });
-        } catch {
-            estimatedDateText.value = '';
-        }
-    },
-    { immediate: true },
-);
-
-function commitEstimatedDateText() {
-    const text = estimatedDateText.value.trim();
-
-    if (text === '') {
-        programmer.value.estimated_delivery_date = null;
-        return;
-    }
-
-    const parsedInput = parse(text, 'dd/MM/yyyy', new Date());
-    if (isValid(parsedInput)) {
-        programmer.value.estimated_delivery_date = format(parsedInput, 'yyyy-MM-dd');
-        return;
-    }
-
-    const iso = normalizeIsoDate(text);
-    if (iso) {
-        programmer.value.estimated_delivery_date = iso;
-        return;
-    }
-
-    setAlert('Formato inválido. Usa dd/mm/aaaa', 'warning');
-}
-
-watch(estimatedDatePopoverOpen, (open) => {
-    if (!open) commitEstimatedDateText();
-});
-
-function handleEstimatedDateSelect(value: DateValue | undefined) {
-    calendarValue.value = value;
-    estimatedDateText.value = value ? format(value.toDate(getLocalTimeZone()), 'dd/MM/yyyy', { locale: es }) : '';
-    if (value) estimatedDatePopoverOpen.value = false;
-}
-
-function clearEstimatedDate() {
-    programmer.value.estimated_delivery_date = null;
-    estimatedDatePopoverOpen.value = false;
-}
-
 function getReferenceName(productSheetId: number | null) {
     const sheet = (props.productSheets ?? []).find((s) => getProductSheetValue(s) === Number(productSheetId));
     return sheet ? getProductSheetLabel(sheet) : 'Referencia';
@@ -392,7 +303,6 @@ function openDialog(selectedProgrammer: Programmer, mode: 'edit' | 'view' = 'edi
         estimated_delivery_date: normalizeIsoDate(selectedProgrammer.estimated_delivery_date),
     };
 
-    estimatedDatePopoverOpen.value = false;
     initializeEcommerceSizes();
     isDialogOpen.value = true;
     clearAlerts();
@@ -442,27 +352,30 @@ async function saveChanges() {
             season: normalizeSeasonForApi(programmer.value.season),
             destination_id: programmer.value.destination_id,
             units: programmer.value.units,
+            estimated_delivery_date: programmer.value.estimated_delivery_date,
             ecommerce_units:
                 typeof programmer.value.ecommerce_units === 'string'
                     ? programmer.value.ecommerce_units
                     : JSON.stringify(programmer.value.ecommerce_units || {}),
         };
 
-        const payload: Record<string, unknown> = isAutoGenerated.value
+        const payload: Record<string, unknown> = isManual.value
             ? {
                   ...basePayload,
-                  estimated_delivery_date: programmer.value.estimated_delivery_date,
-              }
-            : {
-                  ...basePayload,
                   priority: normalizePriorityForApi(programmer.value.priority),
-              };
+              }
+            : basePayload;
 
-        await axios.put(`/comercial/programador/${programmer.value.id}`, payload, {
+        const response = await axios.put(`/comercial/programador/${programmer.value.id}`, payload, {
             headers: { 'X-Request-Id': requestId },
         });
 
-        emits('programmerUpdated');
+        const successText =
+            typeof response?.data?.message === 'string' && response.data.message.trim() !== ''
+                ? response.data.message.trim()
+                : 'Programador actualizado correctamente.';
+
+        emits('programmerUpdated', successText);
         isDialogOpen.value = false;
         clearAlerts();
     } catch (error: unknown) {
@@ -479,9 +392,9 @@ async function saveChanges() {
 
 <template>
     <Dialog v-model:open="isDialogOpen" aria-labelledby="dialog-title" aria-describedby="dialog-description">
-        <FormDialogContent class="flex max-h-[85vh] max-w-[1050px] flex-col px-2 py-2">
+        <FormDialogContent class="flex h-[95vh] w-[96vw] max-w-[1200px] flex-col overflow-hidden p-0">
             <TooltipProvider>
-                <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
+                <DialogHeader class="flex-shrink-0 border-b px-6 pb-4 pt-6">
                     <DialogTitle>{{ dialogTitle }}</DialogTitle>
                     <DialogDescription>{{ dialogDescription }}</DialogDescription>
                 </DialogHeader>
@@ -497,7 +410,7 @@ async function saveChanges() {
                     @close-error="clearError"
                 />
 
-                <div ref="dialogInnerRef" class="flex-1 overflow-y-auto px-6 pb-24" style="scrollbar-width: thin">
+                <div ref="dialogInnerRef" class="min-h-0 flex-1 overflow-y-auto px-6 py-4" style="scrollbar-width: thin">
                     <div class="space-y-4 pt-2">
                         <section>
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -584,8 +497,8 @@ async function saveChanges() {
                                     />
                                 </div>
 
-                                <!-- Prioridad / Fecha estimada -->
-                                <div v-if="isManual" class="flex flex-col gap-1">
+                                <!-- Prioridad -->
+                                <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Prioridad</Label>
                                         <HelpTooltip text="Nivel de prioridad del lote de produccion." aria-label="Ayuda sobre prioridad" />
@@ -600,61 +513,19 @@ async function saveChanges() {
                                     />
                                 </div>
 
-                                <div v-else class="flex flex-col gap-1">
+                                <!-- Fecha entrega estimada (disponible para todos) -->
+                                <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Fecha entrega estimada</Label>
-                                        <HelpTooltip
-                                            text="Fecha estimada de entrega de la muestra."
-                                            aria-label="Ayuda sobre fecha entrega estimada"
-                                        />
+                                        <HelpTooltip text="Fecha estimada de entrega del lote." aria-label="Ayuda sobre fecha entrega estimada" />
                                     </div>
 
-                                    <div class="mt-1 flex items-center gap-2">
-                                        <Input
-                                            v-model="estimatedDateText"
-                                            type="text"
-                                            placeholder="dd/mm/aaaa"
-                                            class="h-10"
-                                            :disabled="isReadOnly"
-                                            :title="estimatedDeliveryDateLabel"
-                                            @keydown.enter.prevent="commitEstimatedDateText"
-                                        />
-
-                                        <Popover v-model:open="estimatedDatePopoverOpen" :modal="false">
-                                            <PopoverTrigger as-child>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="icon"
-                                                    class="h-10 w-10 shrink-0"
-                                                    :disabled="isReadOnly"
-                                                    aria-label="Abrir calendario"
-                                                >
-                                                    <CalendarIcon class="h-4 w-4" />
-                                                </Button>
-                                            </PopoverTrigger>
-
-                                            <PopoverContent class="pointer-events-auto z-[9999] w-auto p-0" align="end">
-                                                <Calendar
-                                                    :model-value="calendarValue"
-                                                    @update:model-value="handleEstimatedDateSelect"
-                                                    caption-layout="dropdown"
-                                                />
-                                                <div v-if="!isReadOnly" class="border-t p-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        class="w-full justify-center"
-                                                        :disabled="!programmer.estimated_delivery_date"
-                                                        @click="clearEstimatedDate"
-                                                    >
-                                                        Limpiar fecha
-                                                    </Button>
-                                                </div>
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
+                                    <input
+                                        v-model="programmer.estimated_delivery_date"
+                                        type="date"
+                                        class="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 py-1 text-sm transition placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                        :disabled="isReadOnly"
+                                    />
                                 </div>
 
                                 <div class="hidden md:block" />
@@ -696,7 +567,7 @@ async function saveChanges() {
                 </div>
             </TooltipProvider>
 
-            <DialogFooter class="mt-4 flex items-center justify-end gap-3 border-t px-6 pb-6 pt-4">
+            <DialogFooter class="flex flex-shrink-0 items-center justify-end gap-3 border-t bg-background px-6 py-4">
                 <button
                     type="button"
                     class="flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"

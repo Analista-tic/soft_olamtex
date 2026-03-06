@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AlertBox from '@/components/AlertBox.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
@@ -40,21 +41,33 @@ const emit = defineEmits<{
 }>();
 
 const localOpen = ref(props.open);
-watch(() => props.open, (v) => { localOpen.value = v; });
-watch(localOpen, (v) => { if (!v) emit('close'); });
+watch(
+    () => props.open,
+    (v) => {
+        localOpen.value = v;
+    },
+);
+watch(localOpen, (v) => {
+    if (!v) emit('close');
+});
 
 const isEditing = computed(() => !!props.operation);
 const isSaving = ref(false);
 const error = ref('');
+function clearError() {
+    error.value = '';
+}
 const formRef = ref<InstanceType<typeof OperationFormContent> | null>(null);
 
 const operationForForm = ref<OperationFormData | null>(null);
+const formContentKey = ref(0);
 watch(
     () => [props.open, props.operation],
     (val) => {
         const [open, op] = val as [boolean, OperationRecord | null];
         if (!open) return;
         error.value = '';
+        formContentKey.value += 1;
         if (op) {
             operationForForm.value = {
                 action: op.action ?? '',
@@ -83,38 +96,63 @@ function handleSubmit(payload: Record<string, unknown>) {
     const { __error: _, ...rest } = payload;
     isSaving.value = true;
     error.value = '';
-    const data = {
-        ...rest,
-        action: (rest.action as string)?.trim().toUpperCase() ?? '',
-        garment_part: (rest.garment_part as string)?.trim().toUpperCase() ?? '',
+
+    // Construir el objeto de datos, normalizando campos opcionales
+    const data: Record<string, unknown> = {
+        action: String(rest.action ?? '')
+            .trim()
+            .toUpperCase(),
+        garment_part: String(rest.garment_part ?? '')
+            .trim()
+            .toUpperCase(),
+        section_id: rest.section_id ?? null,
+        measure: rest.measure ?? null,
+        quantity: rest.quantity ?? 1,
+        sam_base: rest.sam_base ?? null,
+        product_sheet_id_reference: rest.product_sheet_id_reference ?? null,
+        machine_id_reference: rest.machine_id_reference ?? null,
+        is_active: rest.is_active === false ? false : true,
     };
+
     (isEditing.value && props.operation
         ? axios.put(`/produccion/operaciones/${props.operation.id}`, data)
         : axios.post('/produccion/operaciones', data)
     )
-        .then(() => emit('saved'))
+        .then(() => {
+            isSaving.value = false;
+            emit('saved');
+            // Cerrar el diálogo después de guardar exitosamente
+            localOpen.value = false;
+        })
         .catch((e: any) => {
             error.value = e?.response?.data?.message ?? 'Error al guardar la operación.';
-        })
-        .finally(() => { isSaving.value = false; });
+            isSaving.value = false;
+        });
 }
 </script>
 
 <template>
+    <div v-if="error" class="mb-4 flex">
+        <div class="mx-auto w-full max-w-2xl px-4">
+            <AlertBox type="error" title="Error" :message="error" :auto-close-ms="0" @close="clearError" />
+        </div>
+    </div>
     <Dialog v-model:open="localOpen">
         <DialogContent class="flex max-h-[90vh] max-w-2xl flex-col p-4">
             <DialogHeader>
                 <DialogTitle>{{ isEditing ? 'Editar operación' : 'Nueva operación' }}</DialogTitle>
                 <DialogDescription>
-                    {{ isEditing ? 'Modifica los datos de la operación. La combinación acción + parte debe ser única.' : 'Registra una nueva operación. La combinación acción + parte debe ser única.' }}
+                    {{
+                        isEditing
+                            ? 'Modifica los datos de la operación. La combinación acción + parte debe ser única.'
+                            : 'Registra una nueva operación. La combinación acción + parte debe ser única.'
+                    }}
                 </DialogDescription>
             </DialogHeader>
 
             <div class="flex-1 overflow-y-auto p-1" style="scrollbar-width: thin">
-                <div v-if="error" class="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {{ error }}
-                </div>
                 <OperationFormContent
+                    :key="`op-form-${formContentKey}`"
                     ref="formRef"
                     :sections="sections"
                     :actions="actions"
