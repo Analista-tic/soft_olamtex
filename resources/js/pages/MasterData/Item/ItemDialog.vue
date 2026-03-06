@@ -151,7 +151,7 @@ function handleFormLoadingState(value: boolean) {
 
     if (props.dialogType === 'create') {
         hideOverlay();
-        emit('loading-state', false);
+        emit('loading-state', value);
         return;
     }
 

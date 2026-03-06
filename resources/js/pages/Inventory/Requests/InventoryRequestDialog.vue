@@ -52,11 +52,15 @@ const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'saved', message?: string): void;
     (e: 'saved', message: string, requestId: number | null): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<InventoryRequestForm>(createDefaultForm());
 const isLoading = ref(false);
+const isInitializingDialog = ref(false);
+const isSubmittingDialog = ref(false);
+const showFullscreenOverlay = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 const itemsTableRef = ref<{ addItem: () => void } | null>(null);
@@ -64,8 +68,15 @@ const nextDocumentNumber = ref('');
 const isLoadingNumber = ref(false);
 const imagePreview = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const previousBodyOverflow = ref<string | null>(null);
+
+const OVERLAY_DELAY_MS = 150;
+let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isReadonly = computed(() => props.dialogType === 'view');
+const shouldShowOverlayRaw = computed(
+    () => dialogOpen.value && (isSubmittingDialog.value || isInitializingDialog.value),
+);
 const footerContainerClass = 'mt-4 flex flex-shrink-0 flex-wrap justify-end gap-2 border-t px-4 pb-4 pt-4';
 const primaryPillButtonClass =
     'shadow-sm';
@@ -79,6 +90,13 @@ const statusLabels: Record<string, string> = {
     rechazado: 'Rechazado',
     entregado: 'Entregado',
 };
+
+function clearOverlayDelay() {
+    if (overlayDelayTimer) {
+        clearTimeout(overlayDelayTimer);
+        overlayDelayTimer = null;
+    }
+}
 
 
 const safeDocumentNumber = computed({
@@ -190,13 +208,18 @@ function formatDateValue(value: string) {
 }
 
 async function initializeDialog() {
-    resetForm();
-    if ((props.dialogType === 'edit' || props.dialogType === 'view') && props.requestId) {
-        await fetchRequest(props.requestId);
-        return;
+    isInitializingDialog.value = true;
+    try {
+        resetForm();
+        if ((props.dialogType === 'edit' || props.dialogType === 'view') && props.requestId) {
+            await fetchRequest(props.requestId);
+            return;
+        }
+        await fetchNextNumber();
+        applyInitialDraft(props.initialDraft);
+    } finally {
+        isInitializingDialog.value = false;
     }
-    await fetchNextNumber();
-    applyInitialDraft(props.initialDraft);
 }
 
 function handleAddLine() {
@@ -290,6 +313,7 @@ async function handleSubmit() {
     if (!validateForm()) return;
 
     isLoading.value = true;
+    isSubmittingDialog.value = true;
     let payload: any;
     const headers: Record<string, string> = {};
 
@@ -343,6 +367,7 @@ async function handleSubmit() {
         errorMessage.value = serverMessage;
     } finally {
         isLoading.value = false;
+        isSubmittingDialog.value = false;
     }
 }
 
@@ -352,12 +377,64 @@ watch(
         dialogOpen.value = isOpen;
         if (isOpen) {
             await initializeDialog();
+        } else {
+            isInitializingDialog.value = false;
+            isSubmittingDialog.value = false;
+            showFullscreenOverlay.value = false;
+            clearOverlayDelay();
         }
     },
 );
 
 watch(dialogOpen, (isOpen) => {
-    if (!isOpen) emit('close');
+    if (!isOpen) {
+        isInitializingDialog.value = false;
+        isSubmittingDialog.value = false;
+        showFullscreenOverlay.value = false;
+        clearOverlayDelay();
+        emit('close');
+    }
+});
+
+watch(
+    shouldShowOverlayRaw,
+    (value) => {
+        emit('loading-state', value);
+
+        if (!value) {
+            clearOverlayDelay();
+            showFullscreenOverlay.value = false;
+            return;
+        }
+
+        clearOverlayDelay();
+        overlayDelayTimer = setTimeout(() => {
+            overlayDelayTimer = null;
+            if (shouldShowOverlayRaw.value) {
+                showFullscreenOverlay.value = true;
+            }
+        }, OVERLAY_DELAY_MS);
+    },
+    { immediate: true },
+);
+
+watch(showFullscreenOverlay, (value) => {
+    if (typeof document === 'undefined') {
+        return;
+    }
+
+    if (value) {
+        if (previousBodyOverflow.value === null) {
+            previousBodyOverflow.value = document.body.style.overflow;
+        }
+        document.body.style.overflow = 'hidden';
+        return;
+    }
+
+    if (previousBodyOverflow.value !== null) {
+        document.body.style.overflow = previousBodyOverflow.value;
+        previousBodyOverflow.value = null;
+    }
 });
 
 watch(
@@ -371,11 +448,30 @@ watch(
 
 onUnmounted(() => {
     revokePreview();
+    clearOverlayDelay();
+    if (typeof document !== 'undefined') {
+        document.body.style.overflow = previousBodyOverflow.value ?? '';
+    }
+    previousBodyOverflow.value = null;
 });
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
+        <div
+            v-if="showFullscreenOverlay"
+            class="fixed inset-0 z-[2000] grid place-items-center bg-background/60 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+        >
+            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
+                <div class="flex items-center gap-3">
+                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
+                </div>
+            </div>
+        </div>
+
         <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
             <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                 <div class="flex flex-col gap-1">

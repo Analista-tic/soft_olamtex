@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
     Ban,
     CheckCircle,
@@ -81,7 +81,8 @@ const statusFilter = ref<StatusFilter>(DEFAULT_STATUS_FILTER);
 const isDialogOpen = ref(false);
 const dialogType = ref<DialogType>('create');
 const form = ref<Partial<Item>>({});
-const isDialogLoading = ref(false);
+const isPreparingDialog = ref(false);
+const isDialogBootstrapping = ref(false);
 
 const isDeleteDialogOpen = ref(false);
 const itemToDelete = ref<Item | null>(null);
@@ -97,6 +98,10 @@ const errorMessage = ref('');
 
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+
+const DIALOG_PREPARE_FALLBACK_MS = 10000;
+let dialogPrepareToken = 0;
+let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
 function getEmptyForm(): Partial<Item> {
     return {
@@ -121,6 +126,20 @@ function setSuccess(message: string) {
 function setError(message: string) {
     errorMessage.value = message;
     successMessage.value = '';
+}
+
+function clearDialogPrepareFallbackTimer() {
+    if (dialogPrepareFallbackTimer) {
+        clearTimeout(dialogPrepareFallbackTimer);
+        dialogPrepareFallbackTimer = null;
+    }
+}
+
+function finishDialogPreparation(token: number) {
+    if (token !== dialogPrepareToken) return;
+    isPreparingDialog.value = false;
+    isDialogBootstrapping.value = false;
+    clearDialogPrepareFallbackTimer();
 }
 
 function getErrorMessage(err: unknown, fallback: string) {
@@ -227,19 +246,38 @@ async function downloadTemplate() {
     }
 }
 
-function openDialog(type: DialogType, item: Item | null = null) {
+async function openDialog(type: DialogType, item: Item | null = null) {
+    if (isPreparingDialog.value) return;
+
+    const token = ++dialogPrepareToken;
+    isPreparingDialog.value = true;
+    isDialogBootstrapping.value = true;
+
     dialogType.value = type;
     form.value = item ? { ...item } : getEmptyForm();
+
+    await nextTick();
+    if (token !== dialogPrepareToken) return;
+
     isDialogOpen.value = true;
+
+    clearDialogPrepareFallbackTimer();
+    dialogPrepareFallbackTimer = setTimeout(() => {
+        finishDialogPreparation(token);
+    }, DIALOG_PREPARE_FALLBACK_MS);
 }
 
 function closeDialog() {
     isDialogOpen.value = false;
-    isDialogLoading.value = false;
+    finishDialogPreparation(dialogPrepareToken);
 }
 
 function handleDialogLoadingState(value: boolean) {
-    isDialogLoading.value = value;
+    if (!isDialogBootstrapping.value) return;
+
+    if (value) return;
+
+    finishDialogPreparation(dialogPrepareToken);
 }
 
 async function handleDialogRefresh() {
@@ -291,18 +329,32 @@ watch(statusFilter, async () => {
     await fetchItems(1);
 });
 
-watch(isDialogOpen, (value) => {
-    if (!value) isDialogLoading.value = false;
-});
-
 onMounted(async () => {
     await fetchItems(currentPage.value);
+});
+
+onBeforeUnmount(() => {
+    clearDialogPrepareFallbackTimer();
 });
 </script>
 
 <template>
     <Head title="Catálogo de ítem" />
     <AppLayout :breadcrumbs="breadcrumbs">
+        <div
+            v-if="isPreparingDialog"
+            class="fixed inset-0 z-[3000] grid place-items-center bg-background/60 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+        >
+            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
+                <div class="flex items-center gap-3">
+                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
+                </div>
+            </div>
+        </div>
+
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
                 :success-message="successMessage"
@@ -326,6 +378,7 @@ onMounted(async () => {
                         @click="openDialog('create')"
                         variant="default"
                         size="sm"
+                        :disabled="isPreparingDialog"
                         class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
                     >
                         <PlusCircle class="h-4 w-4" /> Crear nuevo ítem
@@ -584,17 +637,6 @@ onMounted(async () => {
         </Dialog>
 
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
-
-        <transition name="fade">
-            <div
-                v-if="isDialogOpen && isDialogLoading"
-                class="fixed inset-0 z-[1200] flex flex-col items-center justify-center gap-3 rounded-3xl bg-white/70 p-6 shadow-2xl backdrop-blur-lg dark:bg-slate-900/70"
-                role="status"
-                aria-live="assertive"
-            >
-                <span class="inline-flex h-12 w-12 animate-spin rounded-full border-4 border-t-transparent border-primary"></span>
-                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">Cargando diálogo...</p>
-            </div>
-        </transition>
     </AppLayout>
 </template>
+

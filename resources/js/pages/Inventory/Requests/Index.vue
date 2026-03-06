@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
 import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
@@ -59,6 +59,8 @@ const currentUserId = ref<number | null>(null);
 const isRequestDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit' | 'view'>('create');
 const selectedRequestId = ref<number | null>(null);
+const isPreparingRequestDialog = ref(false);
+const isRequestDialogBootstrapping = ref(false);
 const isDeliveryDialogOpen = ref(false);
 const deliveryRequestId = ref<number | null>(null);
 const isRejectDialogOpen = ref(false);
@@ -73,6 +75,9 @@ const actionButtonClass =
 const actionButtonSuccessClass = 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50';
 const actionButtonDangerClass = 'text-destructive hover:text-destructive hover:bg-destructive/10';
 const actionIconClass = 'h-4 w-4';
+const DIALOG_PREPARE_FALLBACK_MS = 10000;
+let requestDialogPrepareToken = 0;
+let requestDialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
 const statusLabels: Record<string, string> = {
     solicitado: 'Solicitado',
@@ -92,6 +97,20 @@ const statusOptions = [
     { id: 'entregado', name: 'Entregado' },
     { id: 'rechazado', name: 'Rechazado' },
 ];
+
+function clearRequestDialogPrepareFallbackTimer() {
+    if (requestDialogPrepareFallbackTimer) {
+        clearTimeout(requestDialogPrepareFallbackTimer);
+        requestDialogPrepareFallbackTimer = null;
+    }
+}
+
+function finishRequestDialogPreparation(token: number) {
+    if (token !== requestDialogPrepareToken) return;
+    isPreparingRequestDialog.value = false;
+    isRequestDialogBootstrapping.value = false;
+    clearRequestDialogPrepareFallbackTimer();
+}
 
 function formatDate(value?: string | null) {
     if (!value) return '-';
@@ -135,22 +154,80 @@ watch(statusFilter, () => {
     fetchRequests(1, searchQuery.value);
 });
 
-function openCreateRequest() {
+async function openCreateRequest() {
+    if (isPreparingRequestDialog.value) return;
+
+    const token = ++requestDialogPrepareToken;
+    isPreparingRequestDialog.value = true;
+    isRequestDialogBootstrapping.value = true;
+
     dialogType.value = 'create';
     selectedRequestId.value = null;
+
+    await nextTick();
+    if (token !== requestDialogPrepareToken) return;
+
     isRequestDialogOpen.value = true;
+
+    clearRequestDialogPrepareFallbackTimer();
+    requestDialogPrepareFallbackTimer = setTimeout(() => {
+        finishRequestDialogPreparation(token);
+    }, DIALOG_PREPARE_FALLBACK_MS);
 }
 
-function openEditRequest(request: InventoryRequestRow) {
+async function openEditRequest(request: InventoryRequestRow) {
+    if (isPreparingRequestDialog.value) return;
+
+    const token = ++requestDialogPrepareToken;
+    isPreparingRequestDialog.value = true;
+    isRequestDialogBootstrapping.value = true;
+
     dialogType.value = 'edit';
     selectedRequestId.value = request.id;
+
+    await nextTick();
+    if (token !== requestDialogPrepareToken) return;
+
     isRequestDialogOpen.value = true;
+
+    clearRequestDialogPrepareFallbackTimer();
+    requestDialogPrepareFallbackTimer = setTimeout(() => {
+        finishRequestDialogPreparation(token);
+    }, DIALOG_PREPARE_FALLBACK_MS);
 }
 
-function openViewRequest(request: InventoryRequestRow) {
+async function openViewRequest(request: InventoryRequestRow) {
+    if (isPreparingRequestDialog.value) return;
+
+    const token = ++requestDialogPrepareToken;
+    isPreparingRequestDialog.value = true;
+    isRequestDialogBootstrapping.value = true;
+
     dialogType.value = 'view';
     selectedRequestId.value = request.id;
+
+    await nextTick();
+    if (token !== requestDialogPrepareToken) return;
+
     isRequestDialogOpen.value = true;
+
+    clearRequestDialogPrepareFallbackTimer();
+    requestDialogPrepareFallbackTimer = setTimeout(() => {
+        finishRequestDialogPreparation(token);
+    }, DIALOG_PREPARE_FALLBACK_MS);
+}
+
+function closeRequestDialog() {
+    isRequestDialogOpen.value = false;
+    finishRequestDialogPreparation(requestDialogPrepareToken);
+}
+
+function handleRequestDialogLoadingState(value: boolean) {
+    if (!isRequestDialogBootstrapping.value) return;
+
+    if (value) return;
+
+    finishRequestDialogPreparation(requestDialogPrepareToken);
 }
 
 function openDelivery(request: InventoryRequestRow) {
@@ -191,12 +268,30 @@ function canReject(request: InventoryRequestRow) {
 onMounted(() => {
     fetchRequests();
 });
+
+onBeforeUnmount(() => {
+    clearRequestDialogPrepareFallbackTimer();
+});
 </script>
 
 <template>
     <Head title="Solicitudes internas" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
+        <div
+            v-if="isPreparingRequestDialog"
+            class="fixed inset-0 z-[3000] grid place-items-center bg-background/60 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+        >
+            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
+                <div class="flex items-center gap-3">
+                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
+                </div>
+            </div>
+        </div>
+
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
                 :success-message="successMessage"
@@ -217,6 +312,7 @@ onMounted(() => {
 
                 <Button
                     size="sm"
+                    :disabled="isPreparingRequestDialog"
                     class="flex items-center gap-1 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
                     @click="openCreateRequest"
                 >
@@ -377,8 +473,9 @@ onMounted(() => {
             :is-open="isRequestDialogOpen"
             :dialog-type="dialogType"
             :request-id="selectedRequestId"
-            @close="isRequestDialogOpen = false"
+            @close="closeRequestDialog"
             @saved="handleRequestSaved"
+            @loading-state="handleRequestDialogLoadingState"
         />
         <InventoryRequestDeliveryDialog
             :is-open="isDeliveryDialogOpen"

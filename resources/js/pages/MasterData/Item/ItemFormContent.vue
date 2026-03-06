@@ -2,7 +2,7 @@
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
-import { ExternalLink, Image, Plus, Trash2 } from 'lucide-vue-next';
+import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
 
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
@@ -1100,6 +1100,7 @@ watch(
     () => props.isOpen,
     async (value) => {
         if (value) {
+            emit('loading-state', isLoadingState.value);
             if (props.dialogType !== 'create' && props.form.id) {
                 await trackLoading(() => loadItemDetails(Number(props.form.id)));
             }
@@ -1436,11 +1437,11 @@ onBeforeUnmount(() => {
                                             <button
                                                 v-if="!isViewMode"
                                                 type="button"
-                                                class="rounded-full p-1 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                                class="rounded-full p-3 transition hover:bg-red-100 dark:hover:bg-red-900"
                                                 @click="removeWarehouseStock(idx)"
                                                 title="Quitar"
                                             >
-                                                <Trash2 class="h-5 w-5 text-red-500" />
+                                                <Trash class="h-4 w-4 text-red-500" />
                                             </button>
                                         </div>
                                     </div>
