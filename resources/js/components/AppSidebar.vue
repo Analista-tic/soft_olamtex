@@ -162,7 +162,8 @@ const moduleSections: ModuleSection[] = [
                 label: '',
                 items: [
                     { title: 'Sábana de Productos', href: '/produccion/sabana-productos' },
-                    { title: 'Base de operaciones', href: '/produccion/base-operaciones' },
+                    // { title: 'Base de operaciones', href: '/produccion/base-operaciones' },
+                    { title: 'Listados Operacionales', href: '/produccion/listados-operacionales' },
                     { title: 'Programación de producción', href: '/comercial/programador' },
                     { title: 'Órdenes de producción', href: '/produccion/ordenes-produccion' },
                     { title: 'Ficha Técnica', href: '/produccion/ficha-tecnica' },
