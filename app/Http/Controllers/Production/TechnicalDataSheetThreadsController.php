@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
-use App\Models\Production\Programmer;
+use App\Models\Production\ProductionOrder;
 use App\Services\Production\TechnicalDataSheetThreadsStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,7 +27,7 @@ class TechnicalDataSheetThreadsController extends Controller
 
     public function index(int $opId): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $payload = $this->store->read($opId);
         $lines = $this->ensureDefaultLines(is_array($payload['lines'] ?? null) ? $payload['lines'] : []);
@@ -39,7 +39,7 @@ class TechnicalDataSheetThreadsController extends Controller
 
     public function saveAll(int $opId, Request $request): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate([
             'threads' => ['required', 'array'],
@@ -105,7 +105,7 @@ class TechnicalDataSheetThreadsController extends Controller
 
     public function saveParams(int $opId, Request $request): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate([
             'defaultYear' => ['required', 'integer', 'min:2000', 'max:2100'],
@@ -124,7 +124,7 @@ class TechnicalDataSheetThreadsController extends Controller
 
     public function upsertLine(int $opId, Request $request): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate([
             'id' => ['nullable', 'string', 'max:100'],
@@ -185,7 +185,7 @@ class TechnicalDataSheetThreadsController extends Controller
 
     public function destroyLine(int $opId, string $lineId): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $payload = $this->store->read($opId);
         $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];

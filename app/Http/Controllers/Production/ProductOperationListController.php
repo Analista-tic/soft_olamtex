@@ -14,7 +14,6 @@ use App\Services\Settings\SettingService;
 use App\Http\Requests\Production\StoreProductOperationListRequest;
 use App\Http\Requests\Production\UpdateProductOperationListRequest;
 use App\Http\Resources\Production\ProductOperationListResource;
-use App\Models\Settings\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
@@ -72,32 +71,13 @@ class ProductOperationListController extends Controller
      */
     private function getCostParameters(): array
     {
-        $operationCost = $this->getNumericParameter('operation_cost', 406.0);
-        $yarnCost = $this->getNumericParameter('yarn_cost', 0);
+        $operationCost = $this->settingService->getNumericParameter('operation_cost', 406.0);
+        $yarnCost = $this->settingService->getNumericParameter('yarn_cost', 0);
 
         return [
             'operation_cost' => round($operationCost, 4),
             'yarn_cost' => round($yarnCost, 4),
         ];
-    }
-
-    private function getNumericParameter(string $key, float $default): float
-    {
-        $setting = Setting::parameters()
-            ->where('key', $key)
-            ->where('status', true)
-            ->first();
-
-        if (! $setting) {
-            return $default;
-        }
-
-        $raw = $setting->getAttribute('value');
-        if (is_array($raw)) {
-            $raw = $raw['value'] ?? $raw[0] ?? null;
-        }
-
-        return is_numeric($raw) ? (float) $raw : $default;
     }
 
     /**

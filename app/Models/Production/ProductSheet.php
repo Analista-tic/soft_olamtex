@@ -49,4 +49,21 @@ class ProductSheet extends Model
 
     // Relaciones eliminadas: section, group, brand, world, yarnBase, fabricBase
     // Ahora estos datos se obtienen desde la tabla parameters usando ParameterService
+
+    /**
+     * Órdenes de producción asociadas a esta ficha.
+     * Si existen, el listado operacional no debe editarse.
+     */
+    public function productionOrders()
+    {
+        return $this->hasMany(ProductionOrder::class);
+    }
+
+    /**
+     * Indica si la ficha tiene órdenes de producción asociadas.
+     */
+    public function hasProductionOrders(): bool
+    {
+        return $this->productionOrders()->exists();
+    }
 }

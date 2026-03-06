@@ -17,6 +17,11 @@ class TechnicalDataSheetSuppliesStore
 
     public function read(int $opId): array
     {
+        $fromDb = $this->readFromDb($opId);
+        if ($fromDb !== null) {
+            return $fromDb;
+        }
+
         $path = $this->getPath($opId);
         if (!Storage::exists($path)) {
             return [];
@@ -33,8 +38,33 @@ class TechnicalDataSheetSuppliesStore
 
     public function write(int $opId, array $items): void
     {
-        $path = $this->getPath($opId);
-        Storage::put($path, json_encode(array_values($items), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        $items = array_values($items);
+
+        $sheet = \App\Models\Production\TechnicalSheet::firstOrCreate(
+            ['production_order_id' => $opId],
+            ['status' => \App\Models\Production\TechnicalSheet::STATUS_DRAFT],
+        );
+        \App\Models\Production\TechnicalSheetSupply::updateOrCreate(
+            ['technical_sheet_id' => $sheet->id],
+            ['items' => $items],
+        );
+
+        Storage::put($this->getPath($opId), json_encode($items, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
+
+    private function readFromDb(int $opId): ?array
+    {
+        $sheet = \App\Models\Production\TechnicalSheet::where('production_order_id', $opId)->first();
+        if (!$sheet) {
+            return null;
+        }
+
+        $snapshot = $sheet->suppliesSnapshot()->first();
+        if (!$snapshot) {
+            return null;
+        }
+
+        return is_array($snapshot->items) ? array_values($snapshot->items) : [];
     }
 
     /**

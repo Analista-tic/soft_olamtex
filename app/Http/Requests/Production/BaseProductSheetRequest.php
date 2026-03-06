@@ -60,12 +60,11 @@ abstract class BaseProductSheetRequest extends FormRequest
             'processes' => 'required|json',
             'flat_sketch' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'status' => ['required', Rule::in(['incomplete', 'complete'])],
-            'operational_list_id' => array_filter([
-                $requiresOperationalList ? Rule::requiredIf(fn () => $requiresOperationalList) : null,
+            'operational_list_id' => [
                 'nullable',
                 'integer',
                 $this->catalogRule('operational_lists'),
-            ]),
+            ],
         ];
     }
 

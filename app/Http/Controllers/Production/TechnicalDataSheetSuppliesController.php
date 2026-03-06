@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
 use App\Models\MasterData\Item;
-use App\Models\Production\Programmer;
+use App\Models\Production\ProductionOrder;
 use App\Services\Production\TechnicalDataSheetItemOptionsService;
 use App\Services\Production\TechnicalDataSheetSuppliesStore;
 use Illuminate\Http\JsonResponse;
@@ -22,7 +22,7 @@ class TechnicalDataSheetSuppliesController extends Controller
 
     public function index(int $opId): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
         return response()->json($this->store->read($opId));
     }
 
@@ -56,7 +56,7 @@ class TechnicalDataSheetSuppliesController extends Controller
 
     public function upsert(int $opId, Request $request): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate($this->singleItemRules());
 
@@ -88,7 +88,7 @@ class TechnicalDataSheetSuppliesController extends Controller
 
     public function saveAll(int $opId, Request $request): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate([
             'items' => ['required', 'array'],
@@ -131,7 +131,7 @@ class TechnicalDataSheetSuppliesController extends Controller
 
     public function destroy(int $opId, string $supplyId): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
         $targetId = trim($supplyId);
         $items = $this->store->read($opId);
 

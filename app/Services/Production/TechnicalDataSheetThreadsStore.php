@@ -2,6 +2,8 @@
 
 namespace App\Services\Production;
 
+use App\Models\Production\TechnicalSheet;
+use App\Models\Production\TechnicalSheetThread;
 use Illuminate\Support\Facades\Storage;
 
 class TechnicalDataSheetThreadsStore
@@ -13,6 +15,11 @@ class TechnicalDataSheetThreadsStore
 
     public function read(int $opId): array
     {
+        $fromDb = $this->readFromDb($opId);
+        if ($fromDb !== null) {
+            return $fromDb;
+        }
+
         $path = $this->getPath($opId);
         if (!Storage::exists($path)) {
             return $this->defaultPayload();
@@ -51,10 +58,43 @@ class TechnicalDataSheetThreadsStore
             'lines' => is_array($payload['lines'] ?? null) ? array_values($payload['lines']) : [],
         ];
 
+        $sheet = TechnicalSheet::firstOrCreate(
+            ['production_order_id' => $opId],
+            ['status' => TechnicalSheet::STATUS_DRAFT],
+        );
+        TechnicalSheetThread::updateOrCreate(
+            ['technical_sheet_id' => $sheet->id],
+            ['params' => $data['params'], 'lines' => $data['lines']],
+        );
+
         Storage::put(
             $this->getPath($opId),
             json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
         );
+    }
+
+    private function readFromDb(int $opId): ?array
+    {
+        $sheet = TechnicalSheet::where('production_order_id', $opId)->first();
+        if (!$sheet) {
+            return null;
+        }
+
+        $snapshot = $sheet->threadsSnapshot()->first();
+        if (!$snapshot) {
+            return null;
+        }
+
+        $params = is_array($snapshot->params) ? $snapshot->params : [];
+        $lines = is_array($snapshot->lines) ? array_values($snapshot->lines) : [];
+
+        return [
+            'params' => [
+                'defaultYear' => $this->toIntOrDefault($params['defaultYear'] ?? null, (int) date('Y')),
+                'method' => 'PER_GARMENT',
+            ],
+            'lines' => $lines,
+        ];
     }
 
     private function defaultPayload(): array

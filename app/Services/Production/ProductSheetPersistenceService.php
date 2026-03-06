@@ -8,22 +8,59 @@ use Illuminate\Support\Facades\Storage;
 
 class ProductSheetPersistenceService
 {
+    /**
+     * Normaliza tallas a JSON objeto {talla: boolean} para almacenar correctamente.
+     * No convierte a array; preserva el formato objeto.
+     */
     public function normalizeSizes(mixed $sizesValue): string
     {
+        $obj = $this->toSizesObject($sizesValue);
+        return json_encode($obj, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Convierte el valor a objeto {talla: boolean} para almacenamiento.
+     */
+    private function toSizesObject(mixed $sizesValue): array
+    {
         if (is_array($sizesValue)) {
-            return json_encode($this->normalizeSizesArray($sizesValue), JSON_UNESCAPED_UNICODE);
+            return $this->arrayToSizesObject($sizesValue);
         }
 
-        if (!is_string($sizesValue)) {
-            return json_encode([], JSON_UNESCAPED_UNICODE);
+        if (!is_string($sizesValue) || trim($sizesValue) === '') {
+            return [];
         }
 
         $decoded = json_decode($sizesValue, true);
         if (!is_array($decoded)) {
-            return $sizesValue;
+            return [];
         }
 
-        return json_encode($this->normalizeSizesArray($decoded), JSON_UNESCAPED_UNICODE);
+        return $this->arrayToSizesObject($decoded);
+    }
+
+    /**
+     * Convierte array asociativo o secuencial a objeto {talla: boolean}.
+     */
+    private function arrayToSizesObject(array $sizes): array
+    {
+        $isAssociative = array_keys($sizes) !== range(0, count($sizes) - 1);
+
+        if ($isAssociative) {
+            $result = [];
+            foreach ($sizes as $key => $value) {
+                $k = is_string($key) ? trim($key) : (string) $key;
+                if ($k !== '') {
+                    $result[$k] = ($value ?? false) === true;
+                }
+            }
+            return $result;
+        }
+
+        return array_fill_keys(
+            array_map(static fn($v) => is_string($v) ? trim($v) : (string) $v, array_values($sizes)),
+            true,
+        );
     }
 
     public function prepareFlatSketchUpload(Request $request, array $data, ?ProductSheet $productSheet = null): array
@@ -63,16 +100,4 @@ class ProductSheetPersistenceService
         return $data;
     }
 
-    private function normalizeSizesArray(array $sizes): array
-    {
-        $isAssociative = array_keys($sizes) !== range(0, count($sizes) - 1);
-        if (!$isAssociative) {
-            return array_values($sizes);
-        }
-
-        return array_values(array_filter(
-            array_keys($sizes),
-            static fn ($key) => ($sizes[$key] ?? false) === true
-        ));
-    }
 }

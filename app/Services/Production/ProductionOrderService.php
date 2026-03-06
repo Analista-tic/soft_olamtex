@@ -3,49 +3,131 @@
 namespace App\Services\Production;
 
 use App\Enums\EstatusOperacionOrden;
-use App\Models\Production\Programmer;
-use App\Models\Production\ProductionOrderOperation;
+use App\Models\Production\ProductionOrder;
+use App\Models\Production\ProductSheet;
+use App\Models\Production\TechnicalSheet;
+use App\Models\Production\TechnicalSheetOperation;
 use App\Services\Production\ProductOperationListService;
+use App\Services\Settings\SettingService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 /**
- * Servicio para crear y gestionar snapshots congelados de operaciones (ProductionOrderOperation)
- * a partir de un Programmer y su listado operacional (ProductSheetOperation).
+ * Servicio unificado para Órdenes de Producción.
  *
- * ProductionOrder en documentación = Programmer en código (ver .github/copilot-instructions.md).
+ * Gestiona la creación de órdenes (manuales y automáticas), generación de
+ * op_code, resolución de estado y snapshots congelados (TechnicalSheet +
+ * TechnicalSheetOperation) a partir del listado operacional.
  */
 class ProductionOrderService
 {
+    private const DEFAULT_DESTINATION = 'OLAMTEX';
+    private const STATUS_COMPLETE = 'complete';
+    private const STATUS_INCOMPLETE = 'incomplete';
+
+    private const MONTH_NAMES = [
+        'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+        'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE',
+    ];
+
     public function __construct(
         protected ProductOperationListService $listService,
+        protected SettingService $settingService,
     ) {
     }
 
+    // ─── Creación automática desde ficha muestra ──────────────────────
+
     /**
-     * Crea o reemplaza el snapshot de operaciones para un programador (orden de producción).
-     * Copia cada ProductSheetOperation del product_sheet del programador a ProductionOrderOperation
-     * con los valores congelados del momento.
+     * Crea una orden de producción automáticamente al crear una ficha de producto.
      */
-    public function createSnapshotForProgrammer(Programmer $programmer): Collection
+    public function createFromSample(ProductSheet $productSheet): ProductionOrder
     {
-        $productSheetId = $programmer->product_sheet_id;
-        if (!$productSheetId) {
+        Log::info('production_order.auto_create.start', [
+            'product_sheet_id' => $productSheet->id,
+            'type' => $productSheet->type,
+            'timestamp' => now()->toIso8601String(),
+        ]);
+
+        $destinationId = $this->resolveDestinationId();
+        $season = $this->resolveSeasonFromCreationMonth($productSheet);
+
+        $order = ProductionOrder::create([
+            'product_sheet_id' => $productSheet->id,
+            'season' => $season,
+            'destination_id' => $destinationId,
+            'priority' => null,
+            'units' => null,
+            'estimated_delivery_date' => null,
+            'ecommerce_units' => null,
+            'status' => self::STATUS_INCOMPLETE,
+            'current_process' => config('product-sheet.batch_control_processes.0', 'I&D'),
+            'source' => 'auto',
+        ]);
+
+        $order->op_code = $this->nextOpCode($productSheet->type, (bool) $productSheet->woven_product);
+        $order->save();
+
+        $this->createSnapshotForOrder($order);
+
+        Log::info('production_order.auto_create.completed', [
+            'product_sheet_id' => $productSheet->id,
+            'order_id' => $order->id,
+            'op_code' => $order->op_code,
+            'timestamp' => now()->toIso8601String(),
+        ]);
+
+        return $order;
+    }
+
+    // ─── Estado ───────────────────────────────────────────────────────
+
+    /**
+     * Resuelve el estado de una orden auto-generada.
+     */
+    public function resolveStatus(?int $units, ?string $estimatedDeliveryDate): string
+    {
+        return $units !== null && $units > 0 && filled($estimatedDeliveryDate)
+            ? self::STATUS_COMPLETE
+            : self::STATUS_INCOMPLETE;
+    }
+
+    // ─── Snapshots (TechnicalSheet + TechnicalSheetOperation) ─────────
+
+    /**
+     * Crea o reemplaza el snapshot de operaciones para una orden de producción.
+     *
+     * 1. Crea/reutiliza un TechnicalSheet vinculado a la orden.
+     * 2. Elimina TechnicalSheetOperations previas y recrea desde el listado operacional.
+     */
+    public function createSnapshotForOrder(ProductionOrder $order): Collection
+    {
+        $productSheetId = $order->product_sheet_id;
+        if (! $productSheetId) {
             return collect();
         }
 
         $operations = $this->listService->listBySheet($productSheetId);
-        $quantityLote = max(1, (int) ($programmer->units ?? 1));
+        $quantityLote = max(1, (int) ($order->units ?? 1));
 
-        return DB::transaction(function () use ($programmer, $operations, $quantityLote) {
-            ProductionOrderOperation::where('programmer_id', $programmer->id)->forceDelete();
+        return DB::transaction(function () use ($order, $operations, $quantityLote) {
+            // Crear o reutilizar la ficha técnica
+            $technicalSheet = TechnicalSheet::firstOrCreate(
+                ['production_order_id' => $order->id],
+                ['status' => TechnicalSheet::STATUS_DRAFT],
+            );
 
-            return $operations->map(function ($psOp) use ($programmer, $quantityLote) {
+            // Reemplazar operaciones del snapshot previo
+            TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)->forceDelete();
+
+            return $operations->map(function ($psOp) use ($order, $technicalSheet, $quantityLote) {
                 $samTotalOperacion = (float) ($psOp->sam_total_operacion ?? $psOp->sam_total_unitario * ($psOp->quantity ?? 1));
                 $samTotalLote = round($samTotalOperacion * $quantityLote, 4);
 
-                return ProductionOrderOperation::create([
-                    'programmer_id' => $programmer->id,
+                return TechnicalSheetOperation::create([
+                    'technical_sheet_id' => $technicalSheet->id,
                     'product_sheet_operation_id' => $psOp->id,
                     'sequence' => $psOp->sequence,
                     'operation_id' => $psOp->operation_id,
@@ -66,34 +148,155 @@ class ProductionOrderService
     }
 
     /**
-     * Obtiene las operaciones (snapshot read-only) de un programador con relaciones cargadas.
+     * Obtiene las operaciones snapshot de una orden con relaciones cargadas.
      */
-    public function getOperationsByProgrammer(int $programmerId): Collection
+    public function getOperationsByOrder(int $orderId): Collection
     {
-        return ProductionOrderOperation::byOrder($programmerId)
-            ->with(['operation', 'machine', 'productSheetOperation'])
+        $technicalSheet = TechnicalSheet::where('production_order_id', $orderId)->first();
+
+        if (! $technicalSheet) {
+            return collect();
+        }
+
+        return TechnicalSheetOperation::byTechnicalSheet($technicalSheet->id)
+            ->with(['operation.section', 'machine', 'productSheetOperation.operationSection'])
             ->get();
     }
 
     /**
      * Actualiza SOLO el progreso de una operación del snapshot.
-     * Es la única modificación permitida en datos congelados.
      */
     public function updateProgressOnly(
-        ProductionOrderOperation $operation,
+        TechnicalSheetOperation $operation,
         int $quantityProgressed,
         string $motivo,
-    ): ProductionOrderOperation {
+    ): TechnicalSheetOperation {
         $operation->updateProgressOnly($quantityProgressed);
         return $operation->fresh();
     }
 
     /**
-     * SAM total del lote para un programador (suma de sam_total_lote de sus operaciones).
+     * SAM total del lote para una orden (suma de sam_total_lote de sus operaciones).
      */
-    public function getTotalSamLote(int $programmerId): float
+    public function getTotalSamLote(int $orderId): float
     {
-        return (float) ProductionOrderOperation::where('programmer_id', $programmerId)
+        $technicalSheet = TechnicalSheet::where('production_order_id', $orderId)->first();
+
+        if (! $technicalSheet) {
+            return 0.0;
+        }
+
+        return (float) TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)
             ->sum('sam_total_lote');
+    }
+
+    // ─── Op Code ──────────────────────────────────────────────────────
+
+    /**
+     * Genera el siguiente op_code según el tipo de ficha y si es tejido.
+     *
+     * Prefijos: MU (muestra), MUT (muestra tejido), MF (producto), MFT (producto tejido).
+     */
+    public function nextOpCode(string $type, bool $wovenProduct): string
+    {
+        $prefix = $this->resolveOpCodePrefix($type, $wovenProduct);
+
+        $codes = ProductionOrder::withTrashed()
+            ->where('op_code', 'like', "{$prefix}-%")
+            ->lockForUpdate()
+            ->pluck('op_code');
+
+        $nextSequence = $this->nextSequence($codes, $prefix);
+
+        return sprintf('%s-%04d', $prefix, $nextSequence);
+    }
+
+    /**
+     * Resuelve el prefijo del op_code basado en tipo y woven_product.
+     */
+    public function resolveOpCodePrefix(string $type, bool $wovenProduct): string
+    {
+        $isProduct = strtolower($type) === 'producto';
+
+        if ($isProduct) {
+            return $wovenProduct ? 'MFT' : 'MF';
+        }
+
+        return $wovenProduct ? 'MUT' : 'MU';
+    }
+
+    // ─── Helpers de mes / temporada ───────────────────────────────────
+
+    /**
+     * Convierte un número de mes (1-12) a su nombre en español.
+     */
+    public function getMonthName(int|string $monthNumber): string
+    {
+        $month = is_string($monthNumber) ? (int) $monthNumber : $monthNumber;
+
+        if ($month < 1 || $month > 12) {
+            return (string) $monthNumber;
+        }
+
+        return self::MONTH_NAMES[$month - 1] ?? (string) $monthNumber;
+    }
+
+    // ─── Private helpers ──────────────────────────────────────────────
+
+    private function resolveDestinationId(): int|string
+    {
+        $destination = $this->settingService
+            ->getCatalogOptions('destinations')
+            ->first(function (array $item) {
+                return strtoupper(trim((string) ($item['name'] ?? ''))) === self::DEFAULT_DESTINATION;
+            });
+
+        if (! $destination || ! array_key_exists('id', $destination)) {
+            throw new RuntimeException('No se encontró el destino OLAMTEX en parámetros.');
+        }
+
+        return $destination['id'];
+    }
+
+    private function resolveSeasonFromCreationMonth(ProductSheet $productSheet): string
+    {
+        $monthNumber = (int) $productSheet->created_at?->month ?: now()->month;
+        $months = $this->settingService->getCatalogOptions('months')->values();
+
+        if ($months->has($monthNumber - 1)) {
+            $option = $months->get($monthNumber - 1);
+            if (is_array($option)) {
+                return (string) ($option['id'] ?? $option['name'] ?? $this->fallbackSeasonName($monthNumber));
+            }
+        }
+
+        return $this->fallbackSeasonName($monthNumber);
+    }
+
+    private function fallbackSeasonName(int $monthNumber): string
+    {
+        return (string) $monthNumber;
+    }
+
+    private function nextSequence(Collection $codes, string $prefix): int
+    {
+        $pattern = '/^' . preg_quote($prefix, '/') . '-(\d+)$/';
+
+        $max = $codes
+            ->map(function (?string $code) use ($pattern): ?int {
+                if (! is_string($code)) {
+                    return null;
+                }
+
+                if (preg_match($pattern, $code, $matches) === 1) {
+                    return (int) $matches[1];
+                }
+
+                return null;
+            })
+            ->filter()
+            ->max();
+
+        return ($max ?? 0) + 1;
     }
 }

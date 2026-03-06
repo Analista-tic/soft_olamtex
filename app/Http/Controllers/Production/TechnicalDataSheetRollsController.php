@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
-use App\Models\Production\Programmer;
+use App\Models\Production\ProductionOrder;
 use App\Services\Production\TechnicalDataSheetRollsStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +19,7 @@ class TechnicalDataSheetRollsController extends Controller
 
     public function index(int $opId): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
         $payload = $this->store->read($opId);
         $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
 
@@ -34,7 +34,7 @@ class TechnicalDataSheetRollsController extends Controller
 
     public function saveAll(int $opId, Request $request): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate([
             'rolls' => ['required', 'array'],
@@ -131,7 +131,7 @@ class TechnicalDataSheetRollsController extends Controller
 
     public function saveParams(int $opId, Request $request): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate([
             'trazo' => ['required', 'numeric', 'gt:0.01', 'lte:1'],
@@ -150,7 +150,7 @@ class TechnicalDataSheetRollsController extends Controller
 
     public function upsertLine(int $opId, Request $request): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate([
             'id' => ['nullable', 'string', 'max:100'],
@@ -221,7 +221,7 @@ class TechnicalDataSheetRollsController extends Controller
 
     public function destroyLine(int $opId, string $lineId): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $payload = $this->store->read($opId);
         $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];

@@ -91,6 +91,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('ficha-tecnica.basicInfo');
         Route::get('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'operationalList'])
             ->name('ficha-tecnica.operational-list');
+        Route::get('ficha-tecnica/{opId}/listado-operacional-detallado', [TechnicalDataSheetController::class, 'operationalListDetail'])
+            ->name('ficha-tecnica.operational-list-detail');
         Route::get('ficha-tecnica/listados-operacionales/opciones', [TechnicalDataSheetController::class, 'operationalListOptions'])
             ->name('ficha-tecnica.operational-list-options');
         Route::post('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'assignOperationalList'])
@@ -101,6 +103,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('ficha-tecnica.processes.save');
         Route::get('ficha-tecnica/{opId}/costos', [TechnicalDataSheetController::class, 'costsSummary'])
             ->name('ficha-tecnica.costs-summary');
+        Route::get('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'rawMaterialsSummary'])
+            ->name('ficha-tecnica.raw-materials.index');
+        Route::put('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'saveRawMaterials'])
+            ->name('ficha-tecnica.raw-materials.save');
         Route::get('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'index'])
             ->name('ficha-tecnica.supplies.index');
         Route::get('ficha-tecnica/insumos/opciones', [TechnicalDataSheetSuppliesController::class, 'itemOptions'])
@@ -186,12 +192,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/', [ProductOperationListController::class, 'store'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('store');
+            Route::post('/bulk', [ProductOperationListController::class, 'storeBulk'])
+                ->middleware('permission:crear listados operacionales|crear sabana productos')
+                ->name('bulk');
             Route::put('/{listItem}', [ProductOperationListController::class, 'update'])
                 ->middleware('permission:editar listados operacionales|editar sabana productos')
                 ->name('update');
             Route::delete('/{listItem}', [ProductOperationListController::class, 'destroy'])
                 ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
                 ->name('destroy');
+            Route::post('/bulk-delete', [ProductOperationListController::class, 'destroyBulk'])
+                ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
+                ->name('destroy-bulk');
             Route::post('/copiar-desde-producto', [ProductOperationListController::class, 'copyFromProduct'])
                 ->middleware('permission:crear listados operacionales|crear sabana productos')
                 ->name('copy-from-product');
@@ -250,7 +262,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('produccion/ordenes-produccion', [ProductionOrderController::class, 'index'])
         ->middleware('permission:ver sabana productos')
         ->name('production.orders.index');
-    Route::get('produccion/ordenes-produccion/{programmer}/detalle', [ProductionOrderController::class, 'show'])
+    Route::get('produccion/ordenes-produccion/{order}/detalle', [ProductionOrderController::class, 'show'])
         ->middleware('permission:ver sabana productos')
         ->name('production.orders.show');
 
@@ -277,7 +289,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('control-de-lotes')->name('control-de-lotes.')->group(function () {
         Route::get('/', [BatchControlController::class, 'index'])->name('index');
         Route::get('/data', [BatchControlController::class, 'getData'])->name('data');
-        Route::patch('/{programmer}/proceso', [BatchControlController::class, 'updateProcess'])->name('update-process');
+        Route::post('/{order}/entregar', [BatchControlController::class, 'deliver'])->name('deliver');
+        Route::patch('/prioridades', [BatchControlController::class, 'updatePriorities'])->name('update-priorities');
+        Route::patch('/{order}/fecha-estimada', [BatchControlController::class, 'updateEstimatedDate'])->name('update-estimated-date');
+        Route::get('/{order}/historial', [BatchControlController::class, 'deliveryHistory'])->name('delivery-history');
+
+        // Novedades / Devoluciones
+        Route::post('/{order}/novedades', [BatchControlController::class, 'reportNovelty'])->name('report-novelty');
+        Route::patch('/{order}/novedades/{novelty}/resolver', [BatchControlController::class, 'resolveNovelty'])->name('resolve-novelty');
+        Route::get('/{order}/novedades', [BatchControlController::class, 'novelties'])->name('novelties');
     });
 
 
@@ -341,14 +361,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('roles.destroy');
 
     // === AUDITORÍA ===
-    Route::middleware(['auth', 'verified'])->group(function () {
-        Route::get('auditoria', [AuditLogController::class, 'index'])
-            ->name('auditoria.index')
-            ->middleware('permission:ver auditoria');
-        Route::get('auditoria/data', [AuditLogController::class, 'data'])
-            ->name('auditoria.data')
-            ->middleware('permission:ver auditoria');
-    });
+    Route::get('auditoria', [AuditLogController::class, 'index'])
+        ->name('auditoria.index')
+        ->middleware('permission:ver auditoria');
+    Route::get('auditoria/data', [AuditLogController::class, 'data'])
+        ->name('auditoria.data')
+        ->middleware('permission:ver auditoria');
 
     // === NOTIFICACIONES ===
     Route::prefix('configuracion/notificaciones')->name('notificaciones.')->group(function () {

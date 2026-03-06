@@ -151,6 +151,7 @@ class ProductSheetController extends Controller
             $data['fabric_base'] = $productSheet->fabric_base;
             $data['yarn_base'] = $productSheet->yarn_base;
             $data['flat_sketch_path'] = $this->resolveExistingFlatSketchPath($productSheet->flat_sketch_path);
+            $data['has_production_orders'] = $productSheet->hasProductionOrders();
 
             return response()->json([
                 'success' => true,
@@ -219,7 +220,7 @@ class ProductSheetController extends Controller
             $query->where('world_id', $request->world_id);
         }
 
-        $products_sheets = $query->orderBy('id', 'desc')->paginate(10);
+        $products_sheets = $query->withCount('productionOrders')->orderBy('id', 'desc')->paginate(10);
 
         $catalogs = $this->gatherCatalogs();
         $sections = $catalogs['sections']->keyBy('id');
@@ -238,6 +239,7 @@ class ProductSheetController extends Controller
             $product->fabric_base = $fabricBases->get($product->fabric_base_id, ['id' => $product->fabric_base_id, 'name' => 'N/A']);
             $product->yarn_base = $product->yarn_base_id ? $yarnBases->get($product->yarn_base_id, ['id' => $product->yarn_base_id, 'name' => 'N/A']) : null;
             $product->flat_sketch_path = $this->resolveExistingFlatSketchPath($product->flat_sketch_path);
+            $product->has_production_orders = ($product->production_orders_count ?? 0) > 0;
             return $product;
         });
 

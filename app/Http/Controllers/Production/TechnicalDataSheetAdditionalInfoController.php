@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
-use App\Models\Production\Programmer;
+use App\Models\Production\ProductionOrder;
 use App\Services\Production\TechnicalDataSheetAdditionalInfoStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,13 +17,13 @@ class TechnicalDataSheetAdditionalInfoController extends Controller
 
     public function show(int $opId): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
         return response()->json($this->store->read($opId));
     }
 
     public function store(int $opId, Request $request): JsonResponse
     {
-        Programmer::query()->findOrFail($opId);
+        ProductionOrder::query()->findOrFail($opId);
 
         $validated = $request->validate([
             'cutting' => ['required', 'array'],

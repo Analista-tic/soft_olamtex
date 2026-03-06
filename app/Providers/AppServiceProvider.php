@@ -23,9 +23,16 @@ use App\Models\MasterData\Parameter;
 use App\Models\Production\Machine;
 use App\Models\Production\Operation;
 use App\Models\Production\OperationSection;
-use App\Models\Production\Programmer;
+use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductOperationList;
 use App\Models\Production\ProductSheet;
+use App\Models\Production\TechnicalSheet;
+use App\Models\Production\TechnicalSheetOperation;
+use App\Models\Production\TechnicalSheetProcess;
+use App\Models\Production\TechnicalSheetRawMaterial;
+use App\Models\Production\TechnicalSheetRoll;
+use App\Models\Production\TechnicalSheetSupply;
+use App\Models\Production\TechnicalSheetThread;
 use App\Models\Settings\Area;
 use App\Models\Settings\User;
 use App\Models\Settings\Role;
@@ -59,7 +66,7 @@ class AppServiceProvider extends ServiceProvider
         Schema::defaultStringLength(191); // Limita las cadenas a 191 caracteres
 
         Route::model('purchaseDocument', PurchaseDocument::class);
-        Route::model('programador', Programmer::class);
+        Route::model('programador', ProductionOrder::class);
         Route::model('listItem', ProductOperationList::class);
         Route::model('operation', Operation::class);
 
@@ -104,7 +111,14 @@ class AppServiceProvider extends ServiceProvider
             Operation::class,
             OperationSection::class,
             Machine::class,
-            Programmer::class,
+            ProductionOrder::class,
+            TechnicalSheet::class,
+            TechnicalSheetOperation::class,
+            TechnicalSheetProcess::class,
+            TechnicalSheetRoll::class,
+            TechnicalSheetThread::class,
+            TechnicalSheetSupply::class,
+            TechnicalSheetRawMaterial::class,
             // Textil
             FabricRoll::class,
             FabricOrder::class,

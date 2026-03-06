@@ -7,11 +7,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Production\StoreProgrammerRequest;
 use App\Http\Requests\Production\UpdateProgrammerRequest;
 use App\Models\Production\ProductSheet;
-use App\Models\Production\Programmer;
-use App\Services\Production\ProgrammerService;
+use App\Models\Production\ProductionOrder;
+use App\Services\Production\ProductionOrderService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -33,7 +32,7 @@ class ProgrammerController extends Controller
 
     public function __construct(
         private SettingService $settingService,
-        private ProgrammerService $programmerService,
+        private ProductionOrderService $productionOrderService,
     ) {
     }
 
@@ -132,9 +131,8 @@ class ProgrammerController extends Controller
     {
         $validatedData = $request->validated();
         $requestId = $this->resolveRequestId($request);
-        $idempotencyUser = $request->user()?->id ?? 'guest';
 
-        Log::info('programmer.store.received', [
+        Log::info('production_order.store.received', [
             'request_id' => $requestId,
             'endpoint' => 'programador.store',
             'user_id' => $request->user()?->id,
@@ -145,41 +143,7 @@ class ProgrammerController extends Controller
             ],
         ]);
 
-        $responseCacheKey = null;
-        $lockKey = null;
-        $lockAcquired = false;
-
-        if ($requestId !== null) {
-            $responseCacheKey = $this->idempotencyResponseKey('store', $idempotencyUser, $requestId);
-            $lockKey = $this->idempotencyLockKey('store', $idempotencyUser, $requestId);
-
-            $cachedResponse = Cache::get($responseCacheKey);
-            if (is_array($cachedResponse)) {
-                Log::info('programmer.store.idempotent_replay', [
-                    'request_id' => $requestId,
-                    'endpoint' => 'programador.store',
-                    'user_id' => $request->user()?->id,
-                ]);
-
-                return response()->json($cachedResponse['body'] ?? [], (int) ($cachedResponse['status'] ?? 200));
-            }
-
-            $lockAcquired = Cache::add($lockKey, true, now()->addMinutes(2));
-            if (!$lockAcquired) {
-                Log::warning('programmer.store.idempotent_lock_rejected', [
-                    'request_id' => $requestId,
-                    'endpoint' => 'programador.store',
-                    'user_id' => $request->user()?->id,
-                ]);
-
-                return response()->json([
-                    'message' => 'La solicitud ya esta en proceso. Intenta nuevamente en unos segundos.',
-                ], 409);
-            }
-        }
-
-        try {
-            $programmers = DB::transaction(function () use ($validatedData) {
+        $orders = DB::transaction(function () use ($validatedData) {
                 return collect($validatedData['lots'])->map(function (array $lot) {
                     $productSheet = ProductSheet::findOrFail($lot['product_sheet_id']);
                     $ecommerceUnits = $this->normalizeEcommerceUnits($lot['ecommerce_units'] ?? null);
@@ -187,205 +151,83 @@ class ProgrammerController extends Controller
 
                     $status = $units !== null && $units > 0 ? 'complete' : 'incomplete';
 
-                    $programmer = Programmer::create([
+                    $order = ProductionOrder::create([
                         'product_sheet_id' => $lot['product_sheet_id'],
                         'season' => $lot['season'],
                         'destination_id' => $lot['destination_id'],
                         'priority' => $lot['priority'] ?? null,
                         'units' => $units,
-                        'estimated_delivery_date' => null,
+                        'estimated_delivery_date' => isset($lot['estimated_delivery_date']) ? $lot['estimated_delivery_date'] : null,
                         'ecommerce_units' => $ecommerceUnits,
                         'status' => $status,
                         'current_process' => config('product-sheet.batch_control_processes.0', 'I&D'),
                         'source' => 'manual',
                     ]);
 
-                    $programmer->op_code = $this->programmerService->nextOpCode(
+                    $order->op_code = $this->productionOrderService->nextOpCode(
                         $productSheet->type ?? 'muestra',
                         (bool) $productSheet->woven_product
                     );
-                    $programmer->save();
+                    $order->save();
 
-                    return $programmer;
+                    $this->productionOrderService->createSnapshotForOrder($order);
+
+                    return $order;
                 });
-            });
+        });
 
-            Log::info('programmer.store.completed', [
-                'request_id' => $requestId,
-                'endpoint' => 'programador.store',
-                'user_id' => $request->user()?->id,
-                'timestamp' => now()->toIso8601String(),
-                'created_count' => $programmers->count(),
-                'created_ids' => $programmers->pluck('id')->values()->all(),
-            ]);
+        Log::info('production_order.store.completed', [
+            'request_id' => $requestId,
+            'endpoint' => 'programador.store',
+            'user_id' => $request->user()?->id,
+            'timestamp' => now()->toIso8601String(),
+            'created_count' => $orders->count(),
+            'created_ids' => $orders->pluck('id')->values()->all(),
+        ]);
 
-            if ($requestId !== null && $responseCacheKey !== null) {
-                Cache::put($responseCacheKey, [
-                    'status' => 201,
-                    'body' => [
-                        'message' => 'Programmers created successfully.',
-                        'data' => $programmers->map(fn (Programmer $programmer) => $programmer->toArray())->values()->all(),
-                    ],
-                ], now()->addDay());
-            }
-
-            return response()->json([
-                'message' => 'Programmers created successfully.',
-                'data' => $programmers,
-            ], 201);
-        } finally {
-            if ($requestId !== null && $lockAcquired && $lockKey !== null) {
-                Cache::forget($lockKey);
-            }
-        }
+        return response()->json([
+            'message' => 'Programmers created successfully.',
+            'data' => $orders,
+        ], 201);
     }
 
-    public function show(Programmer $programmer)
+    public function show(ProductionOrder $programador)
     {
-        return response()->json(['data' => $programmer], 200);
+        return response()->json(['data' => $programador], 200);
     }
 
-    public function edit(Programmer $programmer)
+    public function edit(ProductionOrder $programador)
     {
         return response()->json(['message' => 'Edit method not implemented'], 501);
     }
 
     /**
      * Update the specified resource in storage.
-     * Auto-generated rows ignore priority and use estimated_delivery_date.
-     * Manual rows ignore estimated_delivery_date and use priority.
+     * Both auto-generated and manual rows can have estimated_delivery_date.
+     * Auto-generated rows do not have priority; manual rows do.
      */
-    public function update(UpdateProgrammerRequest $request, Programmer $programador)
+    public function update(UpdateProgrammerRequest $request, ProductionOrder $programador)
     {
         if ($programador->getKey() === null) {
             $routeProgrammer = $request->route('programador');
 
-            if ($routeProgrammer instanceof Programmer) {
+            if ($routeProgrammer instanceof ProductionOrder) {
                 $programador = $routeProgrammer;
             } elseif (is_numeric($routeProgrammer) || is_string($routeProgrammer)) {
-                $programador = Programmer::query()->findOrFail($routeProgrammer);
+                $programador = ProductionOrder::query()->findOrFail($routeProgrammer);
             }
         }
 
         $requestId = $this->resolveRequestId($request);
-        $idempotencyUser = $request->user()?->id ?? 'guest';
 
-        Log::info('programmer.update.received', [
+        Log::info('production_order.update.received', [
             'request_id' => $requestId,
             'endpoint' => 'programador.update',
-            'programmer_id' => $programador->id,
+            'order_id' => $programador->id,
             'user_id' => $request->user()?->id,
             'timestamp' => now()->toIso8601String(),
             'payload_summary' => $this->summarizeLot($request->all()),
         ]);
-
-        $responseCacheKey = null;
-        $lockKey = null;
-        $lockAcquired = false;
-
-        if ($requestId !== null) {
-            $responseCacheKey = $this->idempotencyResponseKey('update:' . $programador->id, $idempotencyUser, $requestId);
-            $lockKey = $this->idempotencyLockKey('update:' . $programador->id, $idempotencyUser, $requestId);
-
-            $cachedResponse = Cache::get($responseCacheKey);
-            if (is_array($cachedResponse)) {
-                Log::info('programmer.update.idempotent_replay', [
-                    'request_id' => $requestId,
-                    'endpoint' => 'programador.update',
-                    'programmer_id' => $programador->id,
-                    'user_id' => $request->user()?->id,
-                ]);
-
-                // Si existe una respuesta cacheada, sincronizar el cuerpo con el estado actual
-                // en base de datos para evitar devolver datos obsoletos.
-                try {
-                    $current = Programmer::find($programador->id);
-                    if ($current !== null && isset($cachedResponse['body']['data'])) {
-                        // If DB differs from cached body, try to apply request values to DB
-                        $cachedData = $cachedResponse['body']['data'];
-
-                        // Normalize cachedData to a single item (update case)
-                        $single = null;
-                        if (is_array($cachedData) && array_key_exists(0, $cachedData)) {
-                            foreach ($cachedData as $item) {
-                                if (isset($item['id']) && (int) $item['id'] === $current->id) {
-                                    $single = $item;
-                                    break;
-                                }
-                            }
-                        } else {
-                            $single = $cachedData;
-                        }
-
-                        // Fields to ensure consistency
-                        $checkFields = ['priority', 'units', 'season', 'destination_id', 'estimated_delivery_date', 'ecommerce_units', 'status'];
-
-                        $shouldSave = false;
-                        foreach ($checkFields as $f) {
-                            $cachedVal = $single[$f] ?? null;
-                            $currentVal = $current->{$f} ?? null;
-                            // Normalize arrays to json compare
-                            if (is_array($cachedVal) || is_array($currentVal)) {
-                                $cachedNorm = is_array($cachedVal) ? json_encode($cachedVal) : (string) $cachedVal;
-                                $currentNorm = is_array($currentVal) ? json_encode($currentVal) : (string) $currentVal;
-                                if ($cachedNorm !== $currentNorm) {
-                                    // Apply request input if present, otherwise apply cached value
-                                    if ($request->has($f)) {
-                                        $current->{$f} = $request->input($f);
-                                    } else {
-                                        $current->{$f} = $cachedVal;
-                                    }
-                                    $shouldSave = true;
-                                }
-                            } else {
-                                if ((string) $cachedVal !== (string) $currentVal) {
-                                    if ($request->has($f)) {
-                                        $current->{$f} = $request->input($f);
-                                    } else {
-                                        $current->{$f} = $cachedVal;
-                                    }
-                                    $shouldSave = true;
-                                }
-                            }
-                        }
-
-                        if ($shouldSave) {
-                            $current->save();
-                        }
-
-                        // Update cached body to reflect current DB state
-                        if (is_array($cachedResponse['body']['data']) && array_key_exists(0, $cachedResponse['body']['data'])) {
-                            $cachedResponse['body']['data'] = array_map(function ($item) use ($current) {
-                                if (isset($item['id']) && (int) $item['id'] === $current->id) {
-                                    return $current->toArray();
-                                }
-                                return $item;
-                            }, $cachedResponse['body']['data']);
-                        } else {
-                            $cachedResponse['body']['data'] = $current->toArray();
-                        }
-                    }
-                } catch (\Throwable $e) {
-                    Log::warning('programmer.update.idempotent_replay.sync_failed', ['error' => $e->getMessage()]);
-                }
-
-                return response()->json($cachedResponse['body'] ?? [], (int) ($cachedResponse['status'] ?? 200));
-            }
-
-            $lockAcquired = Cache::add($lockKey, true, now()->addMinutes(2));
-            if (!$lockAcquired) {
-                Log::warning('programmer.update.idempotent_lock_rejected', [
-                    'request_id' => $requestId,
-                    'endpoint' => 'programador.update',
-                    'programmer_id' => $programador->id,
-                    'user_id' => $request->user()?->id,
-                ]);
-
-                return response()->json([
-                    'message' => 'La solicitud ya esta en proceso. Intenta nuevamente en unos segundos.',
-                ], 409);
-            }
-        }
 
         $isAutoGenerated = $programador->isAutoGenerated();
         $validatedData = $request->validatedWithCleanup();
@@ -411,13 +253,12 @@ class ProgrammerController extends Controller
             $estimatedDeliveryDate = array_key_exists('estimated_delivery_date', $validatedData)
                 ? $validatedData['estimated_delivery_date']
                 : ($programador->estimated_delivery_date ? $programador->estimated_delivery_date->toDateString() : null);
-            $validatedData['status'] = $this->programmerService->resolveStatus($units, $estimatedDeliveryDate);
+            $validatedData['status'] = $this->productionOrderService->resolveStatus($units, $estimatedDeliveryDate);
         } else {
             $validatedData['status'] = $units !== null && $units > 0 ? 'complete' : 'incomplete';
         }
 
-        try {
-            // Aplicar explÃƒÆ’Ã‚Â­citamente los campos validados para evitar dependencias
+        // Aplicar explÃƒÆ’Ã‚Â­citamente los campos validados para evitar dependencias
             // en el comportamiento de mass-assignment en entornos de test.
             $updatable = [
                 'product_sheet_id',
@@ -453,47 +294,32 @@ class ProgrammerController extends Controller
                     }
                 }
 
-                DB::table('programmers')->where('id', $programador->id)->update($dbValues);
+                DB::table('production_orders')->where('id', $programador->id)->update($dbValues);
                 $programador->refresh();
             } catch (\Throwable $e) {
-                Log::warning('programmer.update.force_db_update_failed', ['error' => $e->getMessage()]);
+                Log::warning('production_order.update.force_db_update_failed', ['error' => $e->getMessage()]);
             }
 
-            Log::info('programmer.update.completed', [
-                'request_id' => $requestId,
-                'endpoint' => 'programador.update',
-                'programmer_id' => $programador->id,
-                'user_id' => $request->user()?->id,
-                'timestamp' => now()->toIso8601String(),
-                'updated_count' => 1,
-            ]);
+        Log::info('production_order.update.completed', [
+            'request_id' => $requestId,
+            'endpoint' => 'programador.update',
+            'order_id' => $programador->id,
+            'user_id' => $request->user()?->id,
+            'timestamp' => now()->toIso8601String(),
+            'updated_count' => 1,
+        ]);
 
-            if ($requestId !== null && $responseCacheKey !== null) {
-                Cache::put($responseCacheKey, [
-                    'status' => 200,
-                    'body' => [
-                        'message' => 'Programmer updated successfully.',
-                        'data' => $programador->toArray(),
-                    ],
-                ], now()->addDay());
-            }
-
-            return response()->json([
-                'message' => 'Programmer updated successfully.',
-                'data' => $programador,
-            ]);
-        } finally {
-            if ($requestId !== null && $lockAcquired && $lockKey !== null) {
-                Cache::forget($lockKey);
-            }
-        }
+        return response()->json([
+            'message' => 'Production order updated successfully.',
+            'data' => $programador,
+        ]);
     }
 
-    public function destroy(Programmer $programador)
+    public function destroy(ProductionOrder $programador)
     {
         $programador->delete();
 
-        return response()->json(['message' => 'Programmer deleted successfully'], 200);
+        return response()->json(['message' => 'Production order deleted successfully'], 200);
     }
 
     /**
@@ -506,9 +332,9 @@ class ProgrammerController extends Controller
         $page = $request->input('page', 1);
         $requestId = $this->resolveRequestId($request);
 
-        Log::info('programmer.list.received', [
+        Log::info('production_order.list.received', [
             'request_id' => $requestId,
-            'endpoint' => 'programmers.getData',
+            'endpoint' => 'production_orders.getData',
             'user_id' => $request->user()?->id,
             'timestamp' => now()->toIso8601String(),
             'filters' => [
@@ -523,7 +349,7 @@ class ProgrammerController extends Controller
             ],
         ]);
 
-        $query = Programmer::with([
+        $query = ProductionOrder::with([
             'productSheet:id,type,sample_reference,product_reference,section_id,group_id,world_id,brand_id,fabric_base_id,yarn_base_id,billing_price,selling_price,sizes,description,status,flat_sketch_path,deleted_at',
         ]);
 
@@ -569,78 +395,78 @@ class ProgrammerController extends Controller
         }
 
         $query->latest();
-        $programmers = $query->paginate($perPage, ['*'], 'page', $page);
+        $orders = $query->paginate($perPage, ['*'], 'page', $page);
 
         $catalogs = $this->loadCatalogs(['destinations', 'sections', 'groups']);
         $destinations = $catalogs['destinations']->keyBy('id');
         $sections = $catalogs['sections']->keyBy('id');
         $groups = $catalogs['groups']->keyBy('id');
 
-        $programmers->getCollection()->transform(function ($programmer) use ($destinations, $sections, $groups) {
-            $isAuto = $programmer->isAutoGenerated();
+        $orders->getCollection()->transform(function ($order) use ($destinations, $sections, $groups) {
+            $isAuto = $order->isAutoGenerated();
 
-            $programmer->destination = $destinations->get($programmer->destination_id, ['id' => $programmer->destination_id, 'name' => 'N/A']);
+            $order->destination = $destinations->get($order->destination_id, ['id' => $order->destination_id, 'name' => 'N/A']);
 
             if ($isAuto) {
-                $programmer->is_pending_completion = !$programmer->units || !$programmer->estimated_delivery_date;
-                $programmer->pending_fields = collect([
-                    !$programmer->units ? 'unidades' : null,
-                    !$programmer->estimated_delivery_date ? 'fecha de entrega' : null,
+                $order->is_pending_completion = !$order->units || !$order->estimated_delivery_date;
+                $order->pending_fields = collect([
+                    !$order->units ? 'unidades' : null,
+                    !$order->estimated_delivery_date ? 'fecha de entrega' : null,
                 ])->filter()->values()->all();
             } else {
-                $programmer->is_pending_completion = !$programmer->units;
-                $programmer->pending_fields = collect([
-                    !$programmer->units ? 'unidades' : null,
+                $order->is_pending_completion = !$order->units;
+                $order->pending_fields = collect([
+                    !$order->units ? 'unidades' : null,
                 ])->filter()->values()->all();
             }
 
-            $season = $programmer->season;
+            $season = $order->season;
             if (is_numeric($season)) {
-                $programmer->season_display = $this->programmerService->getMonthName((int) $season);
+                $order->season_display = $this->productionOrderService->getMonthName((int) $season);
             } else {
-                $programmer->season_display = $season;
+                $order->season_display = $season;
             }
 
-            $programmer->temporada_label = MonthLabel::fromNumber($programmer->season);
+            $order->temporada_label = MonthLabel::fromNumber($order->season);
 
-            if ($programmer->productSheet) {
-                $sectionId = $programmer->productSheet->section_id ?? null;
-                $groupId = $programmer->productSheet->group_id ?? null;
-                $type = $programmer->productSheet->type === 'producto' ? 'producto' : 'muestra';
+            if ($order->productSheet) {
+                $sectionId = $order->productSheet->section_id ?? null;
+                $groupId = $order->productSheet->group_id ?? null;
+                $type = $order->productSheet->type === 'producto' ? 'producto' : 'muestra';
                 $displayReference = $type === 'producto'
-                    ? trim((string) ($programmer->productSheet->product_reference ?? ''))
-                    : trim((string) ($programmer->productSheet->sample_reference ?? ''));
+                    ? trim((string) ($order->productSheet->product_reference ?? ''))
+                    : trim((string) ($order->productSheet->sample_reference ?? ''));
 
-                $programmer->productSheet->section = $sectionId
+                $order->productSheet->section = $sectionId
                     ? $sections->get($sectionId, ['id' => $sectionId, 'name' => 'N/A'])
                     : null;
-                $programmer->productSheet->group = $groupId
+                $order->productSheet->group = $groupId
                     ? $groups->get($groupId, ['id' => $groupId, 'name' => 'N/A'])
                     : null;
-                $programmer->productSheet->display_reference = $displayReference;
-                $programmer->productSheet->reference = $displayReference;
+                $order->productSheet->display_reference = $displayReference;
+                $order->productSheet->reference = $displayReference;
             }
 
-            return $programmer;
+            return $order;
         });
 
-        Log::info('programmer.list.completed', [
+        Log::info('production_order.list.completed', [
             'request_id' => $requestId,
-            'endpoint' => 'programmers.getData',
+            'endpoint' => 'production_orders.getData',
             'user_id' => $request->user()?->id,
             'timestamp' => now()->toIso8601String(),
-            'returned_count' => count($programmers->items()),
-            'total' => $programmers->total(),
-            'page' => $programmers->currentPage(),
-            'per_page' => $programmers->perPage(),
+            'returned_count' => count($orders->items()),
+            'total' => $orders->total(),
+            'page' => $orders->currentPage(),
+            'per_page' => $orders->perPage(),
         ]);
 
         return response()->json([
-            'data' => $programmers->items(),
-            'total' => $programmers->total(),
-            'current_page' => $programmers->currentPage(),
-            'last_page' => $programmers->lastPage(),
-            'per_page' => $programmers->perPage(),
+            'data' => $orders->items(),
+            'total' => $orders->total(),
+            'current_page' => $orders->currentPage(),
+            'last_page' => $orders->lastPage(),
+            'per_page' => $orders->perPage(),
         ]);
     }
 
@@ -697,16 +523,6 @@ class ProgrammerController extends Controller
         $trimmed = trim($requestId);
 
         return $trimmed !== '' ? $trimmed : null;
-    }
-
-    private function idempotencyResponseKey(string $action, int|string $userId, string $requestId): string
-    {
-        return sprintf('programmer:idempotency:response:%s:%s:%s', $action, (string) $userId, $requestId);
-    }
-
-    private function idempotencyLockKey(string $action, int|string $userId, string $requestId): string
-    {
-        return sprintf('programmer:idempotency:lock:%s:%s:%s', $action, (string) $userId, $requestId);
     }
 
     private function summarizeLot(?array $lot): array

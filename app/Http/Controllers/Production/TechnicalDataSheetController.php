@@ -4,15 +4,15 @@ namespace App\Http\Controllers\Production;
 
 use App\Helpers\MonthLabel;
 use App\Http\Controllers\Controller;
-use App\Models\Settings\Setting;
+use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductOperationList;
-use App\Models\Production\Programmer;
-use App\Services\Production\TechnicalDataSheetRollsStore;
+use App\Services\Production\OperationSectionService;
+use App\Services\Production\ProductionOrderService;
 use App\Services\Production\TechnicalDataSheetProcessesStore;
-use App\Services\Production\TechnicalDataSheetSuppliesStore;
-use App\Services\Production\TechnicalDataSheetThreadsStore;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use App\Services\Production\TechnicalDataSheetRawMaterialsStore;
+use App\Services\Production\TechnicalSheetService;
 use App\Services\Settings\SettingService;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection as SupportCollection;
@@ -22,24 +22,26 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * Controlador de Ficha Técnica de Orden de Producción.
+ *
+ * Delega toda la lógica de costos y procesos a TechnicalSheetService.
+ * Mantiene solo responsabilidades HTTP (validación, serialización, respuestas).
+ */
 class TechnicalDataSheetController extends Controller
 {
-    private const DEFAULT_COST_CUT = 350.0;
-    private const DEFAULT_COST_MINUTE = 0.0;
-    private const COST_CUT_KEY = 'cutting_cost';
+    private const COST_CUT_KEY    = 'cutting_cost';
     private const COST_MINUTE_KEY = 'minute_cost';
-    private const FIXED_COST_RATE = 0.1458; // 14,58%
     private const FIXED_PROCESS_TYPES = ['CORTE', 'CONFECCION', 'TERMINACION'];
-    private const DEFAULT_PROCESS_TYPES = ['CORTE', 'CONFECCION', 'TERMINACION', 'ESTAMPADO', 'BORDADO', 'LAVANDERIA', 'OTRO'];
 
     public function __construct(
         private SettingService $settingService,
-        private TechnicalDataSheetSuppliesStore $suppliesStore,
-        private TechnicalDataSheetRollsStore $rollsStore,
-        private TechnicalDataSheetThreadsStore $threadsStore,
+        private OperationSectionService $sectionService,
+        private ProductionOrderService $productionOrderService,
+        private TechnicalSheetService $technicalSheetService,
         private TechnicalDataSheetProcessesStore $processesStore,
-    ) {
-    }
+        private TechnicalDataSheetRawMaterialsStore $rawMaterialsStore,
+    ) {}
 
     /**
      * Muestra la vista principal de Ficha Técnica.
@@ -53,13 +55,12 @@ class TechnicalDataSheetController extends Controller
 
     /**
      * Retorna las opciones de OP disponibles para el selector.
-     * Formato: [{ id, name, groupLabel }]
      */
     public function options(Request $request): JsonResponse
     {
         $search = $request->query('search', '');
 
-        $query = Programmer::query()
+        $query = ProductionOrder::query()
             ->with('productSheet:id,sample_reference,product_reference')
             ->whereNotNull('op_code')
             ->orderByDesc('created_at')
@@ -76,22 +77,22 @@ class TechnicalDataSheetController extends Controller
             });
         }
 
-        $programmers = $query->get();
+        $orders = $query->get();
 
-        $options = $programmers->map(function (Programmer $programmer) {
-            $opCode = $programmer->op_code ?? '';
-            $reference = $this->buildReference($programmer);
-            $type = $this->extractOpType($opCode);
+        $options = $orders->map(function (ProductionOrder $order) {
+            $opCode     = $order->op_code ?? '';
+            $reference  = $this->buildReference($order);
+            $type       = $this->extractOpType($opCode);
             $groupLabel = in_array($type, ['MU', 'MUT']) ? 'Muestras' : 'Productos';
-            $priority = $this->nullableText($programmer->priority);
+            $priority   = $this->nullableText($order->priority);
 
             return [
-                'id' => $programmer->id,
-                'name' => "{$opCode} - {$reference}",
-                'groupLabel' => $groupLabel,
-                'op_code' => $opCode,
+                'id'              => $order->id,
+                'name'            => "{$opCode} - {$reference}",
+                'groupLabel'      => $groupLabel,
+                'op_code'         => $opCode,
                 'reference_label' => $reference,
-                'priority' => $priority,
+                'priority'        => $priority,
             ];
         });
 
@@ -100,7 +101,6 @@ class TechnicalDataSheetController extends Controller
 
     /**
      * Retorna opciones de parámetros de settings por llaves.
-     * Formato: { data: { key: [{ id, name }] } }
      */
     public function settingsParameters(Request $request): JsonResponse
     {
@@ -136,137 +136,134 @@ class TechnicalDataSheetController extends Controller
 
     /**
      * Retorna la información básica de una OP específica.
-     * Reutiliza la misma lógica del módulo Órdenes de Producción.
      */
     public function basicInfo(int $opId): JsonResponse
     {
-        $programmer = Programmer::with([
+        $order = ProductionOrder::with([
             'productSheet:id,type,sample_reference,product_reference,section_id,group_id,world_id,brand_id,fabric_base_id,yarn_base_id,billing_price,selling_price,sizes,description,status,flat_sketch_path,created_at',
         ])->findOrFail($opId);
 
         $destinations = $this->settingService->getCatalogOptions('destinations')->keyBy('id');
-        $sections = $this->settingService->getCatalogOptions('sections')->keyBy('id');
-        $groups = $this->settingService->getCatalogOptions('groups')->keyBy('id');
-        $brands = $this->settingService->getCatalogOptions('brands')->keyBy('id');
-        $worlds = $this->settingService->getCatalogOptions('worlds')->keyBy('id');
-        $fabricBases = $this->settingService->getCatalogOptions('fabric_bases')->keyBy('id');
-        $yarnBases = $this->settingService->getCatalogOptions('yarn_bases')->keyBy('id');
+        $sections     = $this->settingService->getCatalogOptions('sections')->keyBy('id');
+        $groups       = $this->settingService->getCatalogOptions('groups')->keyBy('id');
+        $brands       = $this->settingService->getCatalogOptions('brands')->keyBy('id');
+        $worlds       = $this->settingService->getCatalogOptions('worlds')->keyBy('id');
+        $fabricBases  = $this->settingService->getCatalogOptions('fabric_bases')->keyBy('id');
+        $yarnBases    = $this->settingService->getCatalogOptions('yarn_bases')->keyBy('id');
 
-        $destination = $destinations->get($programmer->destination_id);
-        $productSheet = $programmer->productSheet;
+        $destination  = $destinations->get($order->destination_id);
+        $productSheet = $order->productSheet;
 
-        $section = null;
-        $group = null;
-        $brand = null;
-        $world = null;
-        $base = null;
-        $baseYarn = null;
+        $section = $group = $brand = $world = $base = $baseYarn = null;
 
         if ($productSheet) {
-            $section = $productSheet->section_id
-                ? $sections->get($productSheet->section_id)
-                : null;
-            $group = $productSheet->group_id
-                ? $groups->get($productSheet->group_id)
-                : null;
-            $brand = $productSheet->brand_id
-                ? $brands->get($productSheet->brand_id)
-                : null;
-            $world = $productSheet->world_id
-                ? $worlds->get($productSheet->world_id)
-                : null;
-            $base = $productSheet->fabric_base_id
-                ? $fabricBases->get($productSheet->fabric_base_id)
-                : null;
-            $baseYarn = $productSheet->yarn_base_id
-                ? $yarnBases->get($productSheet->yarn_base_id)
-                : null;
+            $section  = $productSheet->section_id   ? $sections->get($productSheet->section_id)       : null;
+            $group    = $productSheet->group_id     ? $groups->get($productSheet->group_id)           : null;
+            $brand    = $productSheet->brand_id     ? $brands->get($productSheet->brand_id)           : null;
+            $world    = $productSheet->world_id     ? $worlds->get($productSheet->world_id)           : null;
+            $base     = $productSheet->fabric_base_id ? $fabricBases->get($productSheet->fabric_base_id) : null;
+            $baseYarn = $productSheet->yarn_base_id ? $yarnBases->get($productSheet->yarn_base_id)     : null;
         }
 
-        $season = $programmer->season;
-        $seasonDisplay = is_numeric($season)
-            ? MonthLabel::fromNumber((int) $season)
-            : $season;
-
-        $priority = $this->nullableText($programmer->priority);
-        $rawPath = $productSheet?->flat_sketch_path;
+        $season        = $order->season;
+        $seasonDisplay = is_numeric($season) ? MonthLabel::fromNumber((int) $season) : $season;
+        $priority      = $this->nullableText($order->priority);
+        $rawPath       = $productSheet?->flat_sketch_path;
         $flatDrawingUrl = $this->resolveFlatDrawingUrl($rawPath);
 
         return response()->json([
-            'id' => $programmer->id,
-            'opCode' => $programmer->op_code,
-            'reference' => $this->buildReference($programmer),
-            'units' => $programmer->units !== null ? (int) $programmer->units : null,
-            'date' => $productSheet?->created_at?->toDateString(),
-            'flatDrawingUrl' => $flatDrawingUrl,
+            'id'              => $order->id,
+            'opCode'          => $order->op_code,
+            'reference'       => $this->buildReference($order),
+            'units'           => $order->units !== null ? (int) $order->units : null,
+            'date'            => $productSheet?->created_at?->toDateString(),
+            'flatDrawingUrl'  => $flatDrawingUrl,
             'flat_sketch_path' => $flatDrawingUrl ? null : $rawPath,
-            'destination' => $destination['name'] ?? null,
-            'section' => $section['name'] ?? null,
-            'group' => $group['name'] ?? null,
-            'priority' => $priority,
-            'brand' => $brand['name'] ?? null,
-            'world' => $world['name'] ?? null,
-            'base' => $base['name'] ?? null,
-            'baseYarn' => $baseYarn['name'] ?? null,
-            'season' => $seasonDisplay,
-            'sizes' => $this->normalizeSizes($productSheet?->sizes),
+            'destination'     => $destination['name'] ?? null,
+            'section'         => $section['name'] ?? null,
+            'group'           => $group['name'] ?? null,
+            'priority'        => $priority,
+            'brand'           => $brand['name'] ?? null,
+            'world'           => $world['name'] ?? null,
+            'base'            => $base['name'] ?? null,
+            'baseYarn'        => $baseYarn['name'] ?? null,
+            'season'          => $seasonDisplay,
+            'sizes'           => $this->normalizeSizes($productSheet?->sizes),
+            'priceBilling'    => $productSheet?->billing_price !== null ? (float) $productSheet->billing_price : null,
+            'priceSale'       => $productSheet?->selling_price !== null ? (float) $productSheet->selling_price : null,
+            'description'     => $productSheet?->description ?? null,
         ]);
     }
 
     /**
-     * Resuelve una URL pública de dibujo plano solo si el archivo existe.
-     * Evita exponer rutas rotas que terminan en 403/404 en el frontend.
+     * Retorna el listado operacional detallado (snapshot TechnicalSheetOperation) para la OP.
      */
-    private function resolveFlatDrawingUrl(?string $rawPath): ?string
+    public function operationalListDetail(int $opId): JsonResponse
     {
-        if (!is_string($rawPath) || trim($rawPath) === '') {
-            return null;
-        }
+        ProductionOrder::findOrFail($opId);
 
-        $path = str_replace('\\', '/', trim($rawPath));
-        if (preg_match('/^https?:\/\//i', $path)) {
-            return $path;
-        }
+        $operations         = $this->productionOrderService->getOperationsByOrder($opId);
+        $sectionsCollection = $this->sectionService->options();
+        $operationCost      = $this->settingService->getNumericParameter('operation_cost', 406.0);
+        $yarnCost           = $this->settingService->getNumericParameter('yarn_cost', 0);
 
-        $normalized = ltrim($path, '/');
-        if (Str::startsWith($normalized, 'storage/')) {
-            $normalized = Str::after($normalized, 'storage/');
-        }
+        $data = $operations->map(function ($op) {
+            $section = $op->productSheetOperation?->operationSection ?? $op->operation?->section;
 
-        $candidates = [$normalized];
-        if (Str::startsWith($normalized, 'product-sheets/flat-sketches/')) {
-            $candidates[] = Str::replaceFirst('product-sheets/flat-sketches/', 'product_sheets/', $normalized);
-        }
-        if (Str::startsWith($normalized, 'product_sheets/')) {
-            $candidates[] = Str::replaceFirst('product_sheets/', 'product-sheets/flat-sketches/', $normalized);
-        }
+            return [
+                'id'                         => $op->id,
+                'sequence'                   => $op->sequence,
+                'quantity'                   => $op->quantity ?? 1,
+                'sam_base'                   => round((float) ($op->sam_base ?? 0), 4),
+                'sam_total_unitario'         => round((float) ($op->sam_total_unitario ?? 0), 4),
+                'sam_total_operacion'        => round((float) ($op->sam_total_operacion ?? 0), 4),
+                'machine_supplement_factor'  => round((float) ($op->machine_supplement_factor ?? 1), 2),
+                'fabric_base_factor'         => round((float) ($op->fabric_base_factor ?? 1), 4),
+                'operator_efficiency_factor' => round((float) ($op->operator_efficiency_factor ?? 1), 2),
+                'operation'                  => $op->operation ? [
+                    'id'           => $op->operation->id,
+                    'name'         => $op->operation->name,
+                    'action'       => $op->operation->action ?? '',
+                    'garment_part' => $op->operation->garment_part ?? '',
+                ] : null,
+                'machine' => $op->machine ? [
+                    'id'   => $op->machine->id,
+                    'code' => $op->machine->code,
+                    'name' => $op->machine->name ?? null,
+                ] : null,
+                'operation_section' => $section ? [
+                    'id'   => $section->id,
+                    'name' => $section->name ?? '',
+                    'type' => $section->type ?? '',
+                ] : null,
+                'operation_section_id' => $section?->id,
+            ];
+        })->values()->all();
 
-        foreach ($candidates as $candidate) {
-            if ($candidate !== '' && Storage::disk('public')->exists($candidate)) {
-                return Storage::disk('public')->url($candidate);
-            }
-        }
-
-        return null;
+        return response()->json([
+            'data'     => $data,
+            'sections' => $sectionsCollection->map(fn($s) => ['id' => $s->id, 'name' => $s->name ?? '', 'type' => $s->type ?? ''])->values()->all(),
+            'costParameters' => [
+                'operation_cost' => round($operationCost, 4),
+                'yarn_cost'      => round($yarnCost, 4),
+            ],
+        ]);
     }
 
     /**
-     * Retorna el listado operacional asignado a la OP seleccionada.
+     * Retorna el listado operacional asignado a la OP seleccionada (formato legacy/catálogo).
      */
     public function operationalList(int $opId): JsonResponse
     {
-        $programmer = Programmer::with('productSheet:id,operational_list_id')
+        $order = ProductionOrder::with('productSheet:id,operational_list_id')
             ->findOrFail($opId);
 
-        $productSheet = $programmer->productSheet;
+        $productSheet = $order->productSheet;
         if (!$productSheet || !$productSheet->operational_list_id) {
-            return response()->json([
-                'hasList' => false,
-                'list' => null,
-            ]);
+            return response()->json(['hasList' => false, 'list' => null]);
         }
 
-        $catalogs = $this->settingService->getCatalogOptions('operational_lists');
+        $catalogs     = $this->settingService->getCatalogOptions('operational_lists');
         $assignedList = $this->findCatalogById($catalogs, $productSheet->operational_list_id);
 
         $rows = ProductOperationList::query()
@@ -278,22 +275,22 @@ class TechnicalDataSheetController extends Controller
         return response()->json([
             'hasList' => true,
             'list' => [
-                'id' => $productSheet->operational_list_id,
-                'name' => $assignedList['name'] ?? null,
+                'id'        => $productSheet->operational_list_id,
+                'name'      => $assignedList['name'] ?? null,
                 'reference' => isset($assignedList['id']) ? (string) $assignedList['id'] : null,
-                'items' => $rows->map(function (ProductOperationList $row) {
-                    $action = trim((string) ($row->operation?->action ?? ''));
-                    $garmentPart = trim((string) ($row->operation?->garment_part ?? ''));
+                'items'     => $rows->map(function (ProductOperationList $row) {
+                    $action       = trim((string) ($row->operation?->action ?? ''));
+                    $garmentPart  = trim((string) ($row->operation?->garment_part ?? ''));
                     $operationName = trim("{$action} {$garmentPart}");
-                    $sectionType = $row->operationSection?->type;
-                    $sectionName = $row->operationSection?->name;
+                    $sectionType  = $row->operationSection?->type;
+                    $sectionName  = $row->operationSection?->name;
 
                     return [
-                        'order' => $row->sequence_order,
-                        'process' => $operationName !== '' ? $operationName : null,
+                        'order'       => $row->sequence_order,
+                        'process'     => $operationName !== '' ? $operationName : null,
                         'description' => $row->notes ?: null,
-                        'minutes' => $row->optimal_time !== null ? (float) $row->optimal_time : null,
-                        'type' => $sectionType ?: $sectionName,
+                        'minutes'     => $row->optimal_time !== null ? (float) $row->optimal_time : null,
+                        'type'        => $sectionType ?: $sectionName,
                     ];
                 })->values(),
             ],
@@ -302,7 +299,6 @@ class TechnicalDataSheetController extends Controller
 
     /**
      * Retorna opciones de listados operacionales para selección.
-     * Formato: [{ value, label }]
      */
     public function operationalListOptions(Request $request): JsonResponse
     {
@@ -315,7 +311,7 @@ class TechnicalDataSheetController extends Controller
                     return true;
                 }
 
-                $id = mb_strtolower((string) ($option['id'] ?? ''));
+                $id   = mb_strtolower((string) ($option['id'] ?? ''));
                 $name = mb_strtolower((string) ($option['name'] ?? ''));
                 $term = mb_strtolower($search);
 
@@ -323,8 +319,8 @@ class TechnicalDataSheetController extends Controller
             })
             ->take(50)
             ->map(function (array $option) {
-                $id = $option['id'] ?? null;
-                $name = (string) ($option['name'] ?? '');
+                $id        = $option['id'] ?? null;
+                $name      = (string) ($option['name'] ?? '');
                 $reference = (string) $id;
 
                 return [
@@ -346,454 +342,282 @@ class TechnicalDataSheetController extends Controller
             'list_id' => ['required', 'integer'],
         ]);
 
-        $programmer = Programmer::with('productSheet')->findOrFail($opId);
-        $productSheet = $programmer->productSheet;
+        $order        = ProductionOrder::with('productSheet')->findOrFail($opId);
+        $productSheet = $order->productSheet;
 
         if (!$productSheet) {
-            return response()->json([
-                'message' => 'La OP no tiene sábana de producto asociada.',
-            ], 422);
+            return response()->json(['message' => 'La OP no tiene sábana de producto asociada.'], 422);
         }
 
-        $catalogs = $this->settingService->getCatalogOptions('operational_lists');
+        $catalogs     = $this->settingService->getCatalogOptions('operational_lists');
         $assignedList = $this->findCatalogById($catalogs, $validated['list_id']);
         if (!$assignedList) {
-            return response()->json([
-                'message' => 'El listado operacional seleccionado no existe.',
-            ], 422);
+            return response()->json(['message' => 'El listado operacional seleccionado no existe.'], 422);
         }
 
-        $productSheet->update([
-            'operational_list_id' => (int) $validated['list_id'],
-        ]);
+        $productSheet->update(['operational_list_id' => (int) $validated['list_id']]);
 
-        return response()->json([
-            'ok' => true,
-        ]);
+        return response()->json(['ok' => true]);
     }
 
     /**
-     * Retorna los procesos configurados por OP, parámetros y minutos base.
+     * Retorna los procesos configurados por OP, parámetros y costos desde listado operacional.
+        * Solo usuarios con permiso "editar procesos ficha tecnica" pueden editar procesos por defecto.
      */
-    public function processesSummary(int $opId): JsonResponse
+    public function processesSummary(Request $request, int $opId): JsonResponse
     {
-        $programmer = Programmer::with('productSheet:id,operational_list_id')
-            ->findOrFail($opId);
-
-        $productSheet = $programmer->productSheet;
-        $processes = $this->buildProcessesPayload($opId, $productSheet?->id, (bool) ($productSheet?->operational_list_id));
-
-        return response()->json($processes);
-    }
-
-    /**
-     * Guarda los procesos configurados por OP.
-     */
-    public function saveProcesses(Request $request, int $opId): JsonResponse
-    {
-        $programmer = Programmer::with('productSheet:id,operational_list_id')
-            ->findOrFail($opId);
-        $allowedProcessTypes = $this->getConfiguredProcessTypes();
-
-        $validated = $request->validate([
-            'processes' => ['required', 'array'],
-            'processes.*.id' => ['nullable', 'string', 'max:100'],
-            'processes.*.order' => ['required', 'integer', 'min:1'],
-            'processes.*.type' => ['required', Rule::in($allowedProcessTypes)],
-            'processes.*.supplier' => ['nullable', 'string', 'max:150'],
-            'processes.*.manualPrice' => ['nullable', 'numeric', 'min:0'],
-        ]);
-
-        $normalized = $this->normalizeProcessesRows($validated['processes'], $allowedProcessTypes);
-        $this->processesStore->write($opId, $normalized);
-
-        $productSheet = $programmer->productSheet;
-        $payload = $this->buildProcessesPayload($opId, $productSheet?->id, (bool) ($productSheet?->operational_list_id));
+        $order        = ProductionOrder::with('productSheet:id,operational_list_id')->findOrFail($opId);
+        $productSheet = $order->productSheet;
+        $payload      = $this->technicalSheetService->buildProcessesPayload($opId, $productSheet?->id);
+        $payload['canEditProcesses'] = $this->canEditFixedProcesses($request);
 
         return response()->json($payload);
     }
 
     /**
-     * Actualiza parámetros de procesos.
+        * Guarda los procesos configurados por OP.
+        * Sin permiso especial, protege CORTE/CONFECCION/TERMINACION y solo permite cambios en procesos no fijos.
+     */
+    public function saveProcesses(Request $request, int $opId): JsonResponse
+    {
+        $order              = ProductionOrder::with('productSheet:id,operational_list_id')->findOrFail($opId);
+        $allowedProcessTypes = $this->technicalSheetService->getConfiguredProcessTypes();
+        $canEditFixedProcesses = $this->canEditFixedProcesses($request);
+
+        $validated = $request->validate([
+            'processes'              => ['required', 'array'],
+            'processes.*.id'         => ['nullable', 'string', 'max:100'],
+            'processes.*.order'      => ['required', 'integer', 'min:1'],
+            'processes.*.type'       => ['required', Rule::in($allowedProcessTypes)],
+            'processes.*.supplier'   => ['nullable', 'string', 'max:150'],
+            'processes.*.manualPrice' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $rowsToSave = $validated['processes'];
+
+        if (!$canEditFixedProcesses) {
+            $rowsToSave = $this->protectFixedProcessesRows(
+                $opId,
+                $order->productSheet?->id,
+                $rowsToSave,
+            );
+        }
+
+        $this->technicalSheetService->saveProcessesToDb(
+            $opId,
+            $rowsToSave,
+            $order->productSheet?->id,
+        );
+
+        $payload      = $this->technicalSheetService->buildProcessesPayload($opId, $order->productSheet?->id);
+        $payload['canEditProcesses'] = $canEditFixedProcesses;
+
+        return response()->json($payload);
+    }
+
+    private function canEditFixedProcesses(Request $request): bool
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return false;
+        }
+
+        return $user->can('editar procesos ficha tecnica');
+    }
+
+    /**
+     * Protege filas fijas (CORTE, CONFECCION, TERMINACION) para usuarios sin permiso.
+     * Mantiene esas filas desde el estado actual y solo permite cambios en procesos no fijos.
+     */
+    private function protectFixedProcessesRows(int $opId, ?int $productSheetId, array $submittedRows): array
+    {
+        $currentPayload = $this->technicalSheetService->buildProcessesPayload($opId, $productSheetId);
+
+        $fixedFromCurrent = collect($currentPayload['processes'] ?? [])
+            ->filter(function ($row) {
+                $type = strtoupper(trim((string) ($row['type'] ?? '')));
+                return in_array($type, self::FIXED_PROCESS_TYPES, true);
+            })
+            ->map(function ($row) {
+                return [
+                    'id' => trim((string) ($row['id'] ?? '')) !== '' ? (string) $row['id'] : (string) Str::uuid(),
+                    'order' => (int) ($row['order'] ?? 0),
+                    'type' => strtoupper(trim((string) ($row['type'] ?? 'OTRO'))),
+                    'supplier' => isset($row['supplier']) ? (string) $row['supplier'] : null,
+                    'manualPrice' => null,
+                ];
+            })
+            ->values();
+
+        if ($fixedFromCurrent->isEmpty()) {
+            $fixedFromCurrent = collect($submittedRows)
+                ->filter(function ($row) {
+                    $type = strtoupper(trim((string) ($row['type'] ?? '')));
+                    return in_array($type, self::FIXED_PROCESS_TYPES, true);
+                })
+                ->map(function ($row) {
+                    return [
+                        'id' => trim((string) ($row['id'] ?? '')) !== '' ? (string) $row['id'] : (string) Str::uuid(),
+                        'order' => (int) ($row['order'] ?? 0),
+                        'type' => strtoupper(trim((string) ($row['type'] ?? 'OTRO'))),
+                        'supplier' => isset($row['supplier']) ? (string) $row['supplier'] : null,
+                        'manualPrice' => null,
+                    ];
+                })
+                ->values();
+        }
+
+        $nonFixedSubmitted = collect($submittedRows)
+            ->filter(function ($row) {
+                $type = strtoupper(trim((string) ($row['type'] ?? '')));
+                return !in_array($type, self::FIXED_PROCESS_TYPES, true);
+            })
+            ->values();
+
+        return $fixedFromCurrent
+            ->concat($nonFixedSubmitted)
+            ->values()
+            ->map(function ($row, $index) {
+                $row['order'] = $index + 1;
+                return $row;
+            })
+            ->all();
+    }
+
+    /**
+     * Actualiza parámetros de procesos. Delegado a TechnicalSheetService.
      */
     public function updateProcessParameters(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'costCut' => ['required', 'numeric', 'min:0'],
+            'costCut'    => ['required', 'numeric', 'min:0'],
             'costMinute' => ['required', 'numeric', 'min:0'],
         ]);
 
-        $costCut = (float) $validated['costCut'];
+        $costCut    = (float) $validated['costCut'];
         $costMinute = (float) $validated['costMinute'];
 
-        $this->upsertNumericParameter(self::COST_CUT_KEY, 'Costo corte (producción)', $costCut);
-        $this->upsertNumericParameter(self::COST_MINUTE_KEY, 'Costo minuto (producción)', $costMinute);
+        $this->technicalSheetService->upsertNumericParameter(self::COST_CUT_KEY, 'Costo corte (producción)', $costCut);
+        $this->technicalSheetService->upsertNumericParameter(self::COST_MINUTE_KEY, 'Costo minuto (producción)', $costMinute);
 
         return response()->json([
-            'ok' => true,
-            'parameters' => [
-                'costCut' => $costCut,
-                'costMinute' => $costMinute,
-            ],
+            'ok'         => true,
+            'parameters' => ['costCut' => $costCut, 'costMinute' => $costMinute],
         ]);
     }
 
     /**
-     * Retorna el resumen consolidado de costos por OP.
+     * Retorna el resumen consolidado de costos por OP. Delegado a TechnicalSheetService.
      */
     public function costsSummary(int $opId): JsonResponse
     {
-        $programmer = Programmer::with('productSheet:id,operational_list_id,billing_price,selling_price')
-            ->findOrFail($opId);
-
-        $productSheet = $programmer->productSheet;
-        $priceInvoicing = $this->toNullableNumber($productSheet?->billing_price);
-        $priceSale = $this->toNullableNumber($productSheet?->selling_price);
-        $units = $this->toNullableNumber($programmer->units);
-
-        $processes = $this->calculateProcessesForSheet($opId, $productSheet?->id, (bool) ($productSheet?->operational_list_id));
-
-        $rawMaterial = $this->calculateRollsTotal($opId, $units ?? 0.0)
-            + $this->calculateThreadsTotal($opId, $units ?? 0.0);
-        $supplies = $this->calculateSuppliesTotal($opId);
-        $processesTotal = $processes['total'];
-        $total = $rawMaterial + $supplies + $processesTotal;
-
-        $fixedCost = null;
-        $olamtexValue = null;
-        $olamtexPercent = null;
-        if ($priceInvoicing !== null) {
-            $fixedCost = $priceInvoicing * self::FIXED_COST_RATE;
-            $olamtexValue = $priceInvoicing - $fixedCost;
-            $olamtexPercent = $priceInvoicing > 0
-                ? ($olamtexValue / $priceInvoicing) * 100
-                : 0.0;
-        }
-
-        $clientValue = null;
-        $clientPercent = null;
-        if ($priceSale !== null && $priceSale > 0 && $priceInvoicing !== null) {
-            $clientValue = $priceSale - $priceInvoicing;
-            $clientPercent = ($clientValue / $priceSale) * 100;
-        }
-
-        return response()->json([
-            'prices' => [
-                'invoicing' => $priceInvoicing,
-                'fixedCost' => $fixedCost !== null ? round($fixedCost, 4) : null,
-                'sale' => $priceSale,
-                'historicInvoicing' => null,
-            ],
-            'units' => $units,
-            'costs' => [
-                'rawMaterial' => round($rawMaterial, 4),
-                'supplies' => round($supplies, 4),
-                'processes' => round($processesTotal, 4),
-                'cut' => round($processes['cut'], 4),
-                'confection' => round($processes['confection'], 4),
-                'finishing' => round($processes['finishing'], 4),
-                'total' => round($total, 4),
-            ],
-            'profitability' => [
-                'olamtex' => [
-                    'value' => $olamtexValue !== null ? round($olamtexValue, 4) : null,
-                    'percent' => $olamtexPercent !== null ? round($olamtexPercent, 4) : null,
-                ],
-                'client' => [
-                    'value' => $clientValue !== null ? round($clientValue, 4) : null,
-                    'percent' => $clientPercent !== null ? round($clientPercent, 4) : null,
-                ],
-            ],
-            'breakdownAvailable' => [
-                'rawMaterial' => $this->hasRollsData($opId) || $this->hasThreadsData($opId),
-                'supplies' => $this->hasSuppliesData($opId),
-                'processes' => ($processes['rowsCount'] ?? 0) > 0,
-            ],
-        ]);
+        return response()->json($this->technicalSheetService->costsSummary($opId));
     }
 
     /**
-     * Construye la referencia a partir del product_sheet.
+     * GET materia prima de la ficha técnica (desde BD).
      */
-    private function buildReference(Programmer $programmer): string
+    public function rawMaterialsSummary(int $opId): JsonResponse
     {
-        $sampleRef = trim($programmer->productSheet?->sample_reference ?? '');
-        $productRef = trim($programmer->productSheet?->product_reference ?? '');
+        ProductionOrder::query()->findOrFail($opId);
+        return response()->json(['rows' => $this->rawMaterialsStore->read($opId)]);
+    }
+
+    /**
+     * PUT materia prima de la ficha técnica (persiste en BD).
+     */
+    public function saveRawMaterials(Request $request, int $opId): JsonResponse
+    {
+        ProductionOrder::query()->findOrFail($opId);
+        $validated = $request->validate([
+            'rows' => ['required', 'array'],
+            'rows.*.uid' => ['nullable', 'string', 'max:100'],
+            'rows.*.telaItemId' => ['nullable', 'integer'],
+            'rows.*.tela' => ['nullable', 'string', 'max:255'],
+            'rows.*.supplierId' => ['nullable', 'integer'],
+            'rows.*.lastSupplierName' => ['nullable', 'string', 'max:255'],
+            'rows.*.lastUnitPriceCop' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.ancho' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.anchoUnit' => ['nullable', 'in:m,cm'],
+            'rows.*.promTrazo' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.largoTrazo' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.largoLiq' => ['nullable', 'numeric', 'min:0'],
+            'rows.*.consumo' => ['nullable', 'numeric', 'min:0'],
+        ]);
+        $this->rawMaterialsStore->write($opId, $validated['rows']);
+        return response()->json(['rows' => $this->rawMaterialsStore->read($opId)]);
+    }
+
+    // ─── Helpers privados (solo presentación) ─────────────
+
+    private function buildReference(ProductionOrder $order): string
+    {
+        $sampleRef  = trim($order->productSheet?->sample_reference ?? '');
+        $productRef = trim($order->productSheet?->product_reference ?? '');
 
         if ($sampleRef && $productRef) {
             return $sampleRef === $productRef ? $sampleRef : "{$sampleRef} - {$productRef}";
         }
-        if ($sampleRef) {
-            return $sampleRef;
-        }
-        if ($productRef) {
-            return $productRef;
-        }
 
-        return 'Sin referencia';
+        return $sampleRef ?: ($productRef ?: 'Sin referencia');
     }
 
-    /**
-     * Extrae el tipo de OP desde el cÃ³digo.
-     */
     private function extractOpType(string $opCode): string
     {
         $code = strtoupper(trim($opCode));
 
-        if (str_starts_with($code, 'MUT')) {
-            return 'MUT';
-        }
-        if (str_starts_with($code, 'MU')) {
-            return 'MU';
-        }
-        if (str_starts_with($code, 'MFT')) {
-            return 'MFT';
-        }
-        if (str_starts_with($code, 'MF')) {
-            return 'MF';
-        }
+        if (str_starts_with($code, 'MUT')) return 'MUT';
+        if (str_starts_with($code, 'MU'))  return 'MU';
+        if (str_starts_with($code, 'MFT')) return 'MFT';
 
         return 'MF';
     }
 
     private function findCatalogById(EloquentCollection|SupportCollection $catalogs, mixed $id): ?array
     {
-        return $catalogs->first(function (array $item) use ($id) {
-            return (string) ($item['id'] ?? '') === (string) $id;
-        });
+        return $catalogs->first(fn(array $item) => (string) ($item['id'] ?? '') === (string) $id);
     }
 
-    private function getNumericParameterValue(string $key, float $default): float
+    private function resolveFlatDrawingUrl(?string $rawPath): ?string
     {
-        $setting = Setting::parameters()
-            ->where('key', $key)
-            ->where('status', true)
-            ->first();
-
-        if (!$setting) {
-            return $default;
+        if (!is_string($rawPath) || trim($rawPath) === '') {
+            return null;
         }
 
-        $raw = $setting->getAttribute('value');
-        if (is_array($raw)) {
-            $raw = $raw['value'] ?? $raw[0] ?? null;
+        $path = str_replace('\\', '/', trim($rawPath));
+        if (preg_match('/^https?:\/\//i', $path) || preg_match('/^(data:|blob:)/i', $path)) {
+            return $path;
         }
 
-        if (is_numeric($raw)) {
-            return (float) $raw;
+        $normalized = ltrim($path, '/');
+        if (Str::startsWith($normalized, 'storage/')) {
+            $normalized = Str::after($normalized, 'storage/');
         }
 
-        return $default;
-    }
-
-    private function upsertNumericParameter(string $key, string $label, float $value): void
-    {
-        Setting::updateOrCreate(
-            [
-                'kind' => Setting::KIND_PARAMETER,
-                'key' => $key,
-            ],
-            [
-                'label' => $label,
-                'description' => null,
-                'value' => $value,
-                'status' => true,
-            ],
-        );
-    }
-
-    private function resolveProcessBucket(?string $sectionType, ?string $sectionName): ?string
-    {
-        $type = $this->normalizeText($sectionType ?? '');
-        $name = $this->normalizeText($sectionName ?? '');
-        $value = trim("{$type} {$name}");
-
-        if (str_contains($value, 'confeccion')) {
-            return 'confection';
+        $candidates = [$normalized];
+        if (Str::startsWith($normalized, 'product-sheets/flat-sketches/')) {
+            $candidates[] = Str::replaceFirst('product-sheets/flat-sketches/', 'product_sheets/', $normalized);
         }
-        if (str_contains($value, 'terminacion') || str_contains($value, 'presentacion')) {
-            return 'finishing';
+        if (Str::startsWith($normalized, 'product_sheets/')) {
+            $candidates[] = Str::replaceFirst('product_sheets/', 'product-sheets/flat-sketches/', $normalized);
         }
 
-        return null;
-    }
-
-    private function normalizeText(string $value): string
-    {
-        $normalized = mb_strtolower(trim($value));
-        $replacements = [
-            'Ã¡' => 'a',
-            'Ã©' => 'e',
-            'Ã­' => 'i',
-            'Ã³' => 'o',
-            'Ãº' => 'u',
-            'Ã±' => 'n',
-        ];
-
-        return strtr($normalized, $replacements);
-    }
-
-    private function buildProcessesPayload(int $opId, ?int $productSheetId, bool $hasOperationalList): array
-    {
-        [$minutesConfeccion, $minutesTerminacion] = $this->resolveOperationalMinutes($productSheetId, $hasOperationalList);
-
-        $params = [
-            'cuttingCost' => round($this->getNumericParameterValue(self::COST_CUT_KEY, self::DEFAULT_COST_CUT), 4),
-            'minuteCost' => round($this->getNumericParameterValue(self::COST_MINUTE_KEY, self::DEFAULT_COST_MINUTE), 4),
-        ];
-
-        $rows = $this->normalizeProcessesRows($this->processesStore->read($opId), $this->getConfiguredProcessTypes());
-
-        return [
-            'hasOperationalList' => $hasOperationalList,
-            'params' => $params,
-            'minutes' => [
-                'confeccion' => round($minutesConfeccion, 4),
-                'terminacion' => round($minutesTerminacion, 4),
-            ],
-            'processes' => array_values($rows),
-        ];
-    }
-
-    private function resolveOperationalMinutes(?int $productSheetId, bool $hasOperationalList): array
-    {
-        $minutesConfeccion = 0.0;
-        $minutesTerminacion = 0.0;
-
-        if (!$hasOperationalList || !$productSheetId) {
-            return [$minutesConfeccion, $minutesTerminacion];
-        }
-
-        $rows = ProductOperationList::query()
-            ->with(['operationSection:id,name,type'])
-            ->where('product_sheet_id', $productSheetId)
-            ->get();
-
-        foreach ($rows as $row) {
-            $minutes = (float) ($row->optimal_time ?? 0);
-            if ($minutes <= 0) {
-                continue;
-            }
-
-            $bucket = $this->resolveProcessBucket($row->operationSection?->type, $row->operationSection?->name);
-            if ($bucket === 'confection') {
-                $minutesConfeccion += $minutes;
-            } elseif ($bucket === 'finishing') {
-                $minutesTerminacion += $minutes;
+        foreach ($candidates as $candidate) {
+            if ($candidate !== '' && Storage::disk('public')->exists($candidate)) {
+                return $this->storageUrl($candidate);
             }
         }
 
-        return [$minutesConfeccion, $minutesTerminacion];
+        return $this->storageUrl($normalized);
     }
 
-    private function normalizeProcessesRows(array $rows, ?array $allowedTypes = null): array
+    private function storageUrl(string $path): string
     {
-        $normalizedAllowedTypes = collect($allowedTypes ?? $this->getConfiguredProcessTypes())
-            ->map(fn ($value) => strtoupper(trim((string) $value)))
-            ->filter(fn (string $value) => $value !== '')
-            ->values()
-            ->all();
+        $path = ltrim(str_replace('\\', '/', $path), '/');
+        $base = request()->getSchemeAndHttpHost();
 
-        if (empty($normalizedAllowedTypes)) {
-            $normalizedAllowedTypes = self::DEFAULT_PROCESS_TYPES;
-        }
-
-        $normalized = [];
-
-        foreach ($rows as $index => $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
-            $type = strtoupper(trim((string) ($row['type'] ?? 'OTRO')));
-            if (!in_array($type, $normalizedAllowedTypes, true)) {
-                $type = 'OTRO';
-            }
-
-            $supplier = $this->nullableText($row['supplier'] ?? null);
-            if (in_array($type, self::FIXED_PROCESS_TYPES, true) && $supplier === null) {
-                $supplier = 'OLAMTEX';
-            }
-
-            $manualPrice = null;
-            if (!in_array($type, self::FIXED_PROCESS_TYPES, true) && is_numeric($row['manualPrice'] ?? null)) {
-                $manualPrice = (float) $row['manualPrice'];
-            }
-
-            $normalized[] = [
-                'id' => trim((string) ($row['id'] ?? '')) !== '' ? trim((string) $row['id']) : (string) Str::uuid(),
-                'order' => is_numeric($row['order'] ?? null) ? (int) $row['order'] : ($index + 1),
-                'type' => $type,
-                'supplier' => $supplier,
-                'manualPrice' => $manualPrice,
-            ];
-        }
-
-        if (empty($normalized)) {
-            $normalized = [
-                ['id' => (string) Str::uuid(), 'order' => 1, 'type' => 'CORTE', 'supplier' => 'OLAMTEX', 'manualPrice' => null],
-                ['id' => (string) Str::uuid(), 'order' => 2, 'type' => 'CONFECCION', 'supplier' => 'OLAMTEX', 'manualPrice' => null],
-                ['id' => (string) Str::uuid(), 'order' => 3, 'type' => 'TERMINACION', 'supplier' => 'OLAMTEX', 'manualPrice' => null],
-            ];
-        }
-
-        usort($normalized, fn (array $a, array $b) => ((int) $a['order']) <=> ((int) $b['order']));
-        foreach ($normalized as $idx => &$row) {
-            $row['order'] = $idx + 1;
-        }
-        unset($row);
-
-        return $normalized;
-    }
-
-    private function getConfiguredProcessTypes(): array
-    {
-        $configured = $this->settingService
-            ->getCatalogOptions('process_types')
-            ->map(fn (array $option) => strtoupper(trim((string) ($option['name'] ?? ''))))
-            ->filter(fn (string $name) => $name !== '')
-            ->values()
-            ->all();
-
-        if (empty($configured)) {
-            return self::DEFAULT_PROCESS_TYPES;
-        }
-
-        $merged = array_merge($configured, self::DEFAULT_PROCESS_TYPES);
-        $unique = [];
-
-        foreach ($merged as $type) {
-            $normalized = strtoupper(trim((string) $type));
-            if ($normalized === '' || in_array($normalized, $unique, true)) {
-                continue;
-            }
-            $unique[] = $normalized;
-        }
-
-        return $unique;
-    }
-
-    private function resolveProcessCost(array $row, array $params, array $minutes, bool $hasOperationalList): float
-    {
-        $type = strtoupper((string) ($row['type'] ?? ''));
-        $cuttingCost = (float) ($params['cuttingCost'] ?? 0);
-        $minuteCost = (float) ($params['minuteCost'] ?? 0);
-
-        if ($type === 'CORTE') {
-            return $cuttingCost;
-        }
-
-        if ($type === 'CONFECCION') {
-            $confeccion = $hasOperationalList ? (float) ($minutes['confeccion'] ?? 0) : 0.0;
-            return $confeccion * $minuteCost;
-        }
-
-        if ($type === 'TERMINACION') {
-            $terminacion = $hasOperationalList ? (float) ($minutes['terminacion'] ?? 0) : 0.0;
-            return $terminacion * $minuteCost;
-        }
-
-        return is_numeric($row['manualPrice'] ?? null) ? (float) $row['manualPrice'] : 0.0;
+        return rtrim($base, '/') . '/storage/' . ltrim($path, '/');
     }
 
     private function nullableText(mixed $value): ?string
@@ -801,8 +625,8 @@ class TechnicalDataSheetController extends Controller
         if (!is_string($value)) {
             return null;
         }
-
         $text = trim($value);
+
         return $text !== '' ? $text : null;
     }
 
@@ -813,16 +637,18 @@ class TechnicalDataSheetController extends Controller
         }
 
         $extractFromArray = function (array $value): array {
+            // Si es un array asociativo (objeto JSON con keys => valores booleanos)
             if (array_keys($value) !== range(0, count($value) - 1)) {
                 return array_values(array_filter(
-                    array_map(static fn ($key) => is_string($key) ? trim($key) : '', array_keys($value)),
-                    static fn ($key) => $key !== '' && ($value[$key] ?? false) === true
+                    array_map(static fn($key) => trim((string) $key), array_keys($value)),
+                    static fn($key) => $key !== '' && !empty($value[$key])
                 ));
             }
 
+            // Si es un array secuencial simple
             return array_values(array_filter(
-                array_map(static fn ($item) => is_string($item) ? trim($item) : '', $value),
-                static fn ($item) => $item !== ''
+                array_map(static fn($item) => is_string($item) || is_numeric($item) ? trim((string) $item) : '', $value),
+                static fn($item) => $item !== ''
             ));
         };
 
@@ -843,138 +669,10 @@ class TechnicalDataSheetController extends Controller
 
             return array_values(array_filter(
                 array_map('trim', explode(',', $trimmed)),
-                static fn ($item) => $item !== ''
+                static fn($item) => $item !== ''
             ));
         }
 
         return [];
-    }
-
-    private function calculateProcessesForSheet(int $opId, ?int $productSheetId, bool $hasOperationalList): array
-    {
-        $payload = $this->buildProcessesPayload($opId, $productSheetId, $hasOperationalList);
-        $rows = $payload['processes'] ?? [];
-
-        $cut = 0.0;
-        $confection = 0.0;
-        $finishing = 0.0;
-        $total = 0.0;
-
-        foreach ($rows as $row) {
-            $cost = $this->resolveProcessCost($row, $payload['params'], $payload['minutes'], $payload['hasOperationalList']);
-            $total += $cost;
-
-            if (($row['type'] ?? '') === 'CORTE') {
-                $cut += $cost;
-            } elseif (($row['type'] ?? '') === 'CONFECCION') {
-                $confection += $cost;
-            } elseif (($row['type'] ?? '') === 'TERMINACION') {
-                $finishing += $cost;
-            }
-        }
-
-        return [
-            'hasOperationalList' => (bool) ($payload['hasOperationalList'] ?? false),
-            'rowsCount' => count($rows),
-            'cut' => $cut,
-            'confection' => $confection,
-            'finishing' => $finishing,
-            'total' => $total,
-        ];
-    }
-
-    private function toNullableNumber(mixed $value): ?float
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        return is_numeric($value) ? (float) $value : null;
-    }
-
-    private function calculateSuppliesTotal(int $opId): float
-    {
-        $items = $this->suppliesStore->read($opId);
-        if (empty($items)) {
-            return 0.0;
-        }
-
-        $total = 0.0;
-        foreach ($items as $item) {
-            $qtyPerUnit = is_numeric($item['qtyPerUnit'] ?? null) ? (float) $item['qtyPerUnit'] : 0.0;
-            $unitCost = is_numeric($item['unitCost'] ?? null) ? (float) $item['unitCost'] : 0.0;
-            // En Costos se usa el costo prenda directo de la tabla de Insumos: cantidad * precio.
-            $total += $qtyPerUnit * $unitCost;
-        }
-
-        return $total;
-    }
-
-    private function hasSuppliesData(int $opId): bool
-    {
-        return count($this->suppliesStore->read($opId)) > 0;
-    }
-
-    private function calculateRollsTotal(int $opId, float $units): float
-    {
-        $state = $this->rollsStore->read($opId);
-        $params = is_array($state['params'] ?? null) ? $state['params'] : [];
-        $trazo = is_numeric($params['trazo'] ?? null) ? (float) $params['trazo'] : 0.8;
-        if ($trazo <= 0.01) {
-            $trazo = 0.8;
-        }
-
-        $lines = is_array($state['lines'] ?? null) ? $state['lines'] : [];
-        if (empty($lines) || $units <= 0) {
-            return 0.0;
-        }
-
-        $total = 0.0;
-        foreach ($lines as $line) {
-            $base = is_numeric($line['consumptionBase'] ?? null) ? (float) $line['consumptionBase'] : 0.0;
-            $extra = is_numeric($line['extraMeters'] ?? null) ? (float) $line['extraMeters'] : 0.0;
-            $price = is_numeric($line['pricePerMeter'] ?? null) ? (float) $line['pricePerMeter'] : 0.0;
-            $programmedMeters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : null;
-
-            if ($programmedMeters !== null) {
-                $total += $programmedMeters * $price;
-                continue;
-            }
-
-            $consumoAjustado = ($base / $trazo) + $extra;
-            $metros = $consumoAjustado * $units;
-            $total += $metros * $price;
-        }
-
-        return $total;
-    }
-
-    private function hasRollsData(int $opId): bool
-    {
-        $state = $this->rollsStore->read($opId);
-        return count($state['lines'] ?? []) > 0;
-    }
-
-    private function calculateThreadsTotal(int $opId, float $units): float
-    {
-        $state = $this->threadsStore->read($opId);
-        $lines = is_array($state['lines'] ?? null) ? $state['lines'] : [];
-        if (empty($lines) || $units <= 0) {
-            return 0.0;
-        }
-
-        $total = 0.0;
-        foreach ($lines as $line) {
-            $costPerGarment = is_numeric($line['costPerGarment'] ?? null) ? (float) $line['costPerGarment'] : 0.0;
-            $total += $costPerGarment * $units;
-        }
-
-        return $total;
-    }
-
-    private function hasThreadsData(int $opId): bool
-    {
-        $state = $this->threadsStore->read($opId);
-        return count($state['lines'] ?? []) > 0;
     }
 }

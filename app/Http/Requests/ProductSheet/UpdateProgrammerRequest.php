@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\ProductSheet;
 
-use App\Models\Production\Programmer;
+use App\Models\Production\ProductionOrder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -20,7 +20,7 @@ class UpdateProgrammerRequest extends FormRequest
     private const PRIORITIES = ['A', 'B', 'C', 'D'];
     private const STATUSES = ['complete', 'incomplete'];
 
-    private ?Programmer $programmerModel = null;
+    private ?ProductionOrder $programmerModel = null;
 
     public function authorize(): bool
     {
@@ -28,17 +28,17 @@ class UpdateProgrammerRequest extends FormRequest
     }
 
     /**
-     * Obtiene el modelo Programmer de la ruta.
+     * Obtiene el modelo ProductionOrder de la ruta.
      */
-    protected function getProgrammer(): ?Programmer
+    protected function getProgrammer(): ?ProductionOrder
     {
         if ($this->programmerModel === null) {
             $routeParam = $this->route('programador');
 
-            if ($routeParam instanceof Programmer) {
+            if ($routeParam instanceof ProductionOrder) {
                 $this->programmerModel = $routeParam;
             } elseif (is_numeric($routeParam) || is_string($routeParam)) {
-                $this->programmerModel = Programmer::find($routeParam);
+                $this->programmerModel = ProductionOrder::find($routeParam);
             } else {
                 $this->programmerModel = null;
             }

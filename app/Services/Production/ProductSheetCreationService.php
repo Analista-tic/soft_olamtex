@@ -10,7 +10,7 @@ class ProductSheetCreationService
 {
     private const TYPE_SAMPLE = 'muestra';
 
-    public function __construct(private ProgrammerService $programmerService)
+    public function __construct(private ProductionOrderService $productionOrderService)
     {
     }
 
@@ -22,7 +22,7 @@ class ProductSheetCreationService
         $productSheet = ProductSheet::create($attributes);
 
         if ($productSheet->type === self::TYPE_SAMPLE) {
-            $this->programmerService->createFromSample($productSheet);
+            $this->productionOrderService->createFromSample($productSheet);
         }
 
         return $productSheet;
