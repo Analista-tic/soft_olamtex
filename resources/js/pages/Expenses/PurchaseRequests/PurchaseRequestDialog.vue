@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import type { PurchaseRequestForm } from '@/domain/Expenses';
 import axios from 'axios';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -35,17 +35,21 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     form: Partial<PurchaseRequestDialogForm>;
     readonly?: boolean;
+    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh', message?: string): void;
     (e: 'error', message?: string): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<PurchaseRequestDialogForm>(createDefaultForm());
 const isLoading = ref(false);
+const isInitializingDialog = ref(false);
+const isSubmittingDialog = ref(false);
 const nextRequestId = ref<number | null>(null);
 const isLoadingRequestId = ref(false);
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
@@ -59,6 +63,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 
 // Base URL for purchase requests API endpoint
 const PURCHASE_REQUESTS_BASE_URL = '/gastos/solicitudes-compra';
+const shouldEmitLoadingState = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
 
 // Computed para determinar si se puede editar
 const canEdit = computed(() => {
@@ -221,10 +226,16 @@ function resetForm() {
 }
 
 async function initializeDialog() {
-    resetForm();
-    if (props.dialogType === 'create') {
-        nextRequestId.value = null;
-        await fetchNextRequestId();
+    isInitializingDialog.value = true;
+    try {
+        await nextTick();
+        resetForm();
+        if (props.dialogType === 'create') {
+            nextRequestId.value = null;
+            await fetchNextRequestId();
+        }
+    } finally {
+        isInitializingDialog.value = false;
     }
 }
 
@@ -330,6 +341,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
     }
 
     isLoading.value = true;
+    isSubmittingDialog.value = true;
 
     try {
         const formData = new FormData();
@@ -449,6 +461,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
         console.error('Error guardando solicitud:', e);
     } finally {
         isLoading.value = false;
+        isSubmittingDialog.value = false;
     }
 }
 
@@ -469,6 +482,7 @@ async function handleSendToApproval() {
     }
 
     isLoading.value = true;
+    isSubmittingDialog.value = true;
     try {
         await axios.post(`${PURCHASE_REQUESTS_BASE_URL}/${localForm.value.id}/send-to-approval`);
         const msg = 'Solicitud enviada a aprobación correctamente.';
@@ -484,6 +498,7 @@ async function handleSendToApproval() {
         console.error('Error enviando a aprobación:', e);
     } finally {
         isLoading.value = false;
+        isSubmittingDialog.value = false;
     }
 }
 
@@ -522,13 +537,30 @@ watch(
     () => props.isOpen,
     async (isOpen) => {
         dialogOpen.value = isOpen;
-        if (isOpen) await initializeDialog();
+        if (isOpen) {
+            await initializeDialog();
+        } else {
+            isInitializingDialog.value = false;
+            isSubmittingDialog.value = false;
+        }
     },
 );
 
 watch(dialogOpen, (isOpen) => {
-    if (!isOpen) emit('close');
+    if (!isOpen) {
+        isInitializingDialog.value = false;
+        isSubmittingDialog.value = false;
+        emit('close');
+    }
 });
+
+watch(
+    shouldEmitLoadingState,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
+);
 
 
 watch(
@@ -544,7 +576,7 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[95vw] w-full max-h-[95vh] h-[95vh] flex flex-col p-0">
+        <DialogContent v-if="!props.deferContent" class="max-w-[95vw] w-full max-h-[95vh] h-[95vh] flex flex-col p-0">
             <DialogHeader class="px-4 pt-4 pb-3">
                 <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
                 <DialogDescription>

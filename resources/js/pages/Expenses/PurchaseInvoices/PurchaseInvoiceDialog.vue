@@ -24,11 +24,13 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     form: Partial<PurchaseInvoice>;
     readOnly?: boolean;
+    deferContent?: boolean;
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh', message?: string): void;
     (e: 'error', message?: string): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
@@ -36,6 +38,8 @@ type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_nam
 const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const isLoading = ref(false);
+const isInitializingDialog = ref(false);
+const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
 const isLoadingInvoiceId = ref(false);
@@ -54,6 +58,7 @@ const differenceEvidenceData = ref<string | null>(null);
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
+const shouldEmitLoadingState = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -243,12 +248,17 @@ function resetForm() {
 }
 
 async function initializeDialog() {
-    await fetchContacts();
-    resetForm();
-    await fetchPendingPurchaseOrders();
-    if (props.dialogType === 'create') {
-        nextInvoiceId.value = null;
-        await fetchNextInvoiceId();
+    isInitializingDialog.value = true;
+    try {
+        await fetchContacts();
+        resetForm();
+        await fetchPendingPurchaseOrders();
+        if (props.dialogType === 'create') {
+            nextInvoiceId.value = null;
+            await fetchNextInvoiceId();
+        }
+    } finally {
+        isInitializingDialog.value = false;
     }
 }
 
@@ -426,6 +436,7 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
         return;
     }
     isLoading.value = true;
+    isSubmittingDialog.value = true;
     isSendingMail.value = sendMail;
     const formToSend: PurchaseInvoiceWithProviderName = { ...localForm.value };
     // Asegurar que provider_name sea string y corresponda al proveedor seleccionado
@@ -484,6 +495,7 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     } finally {
         isLoading.value = false;
         isSendingMail.value = false;
+        isSubmittingDialog.value = false;
     }
 }
 
@@ -575,18 +587,33 @@ watch(
         dialogOpen.value = isOpen;
         if (isOpen) {
             await initializeDialog();
+        } else {
+            isInitializingDialog.value = false;
+            isSubmittingDialog.value = false;
         }
     },
 );
 
 watch(dialogOpen, (isOpen) => {
-    if (!isOpen) emit('close');
+    if (!isOpen) {
+        isInitializingDialog.value = false;
+        isSubmittingDialog.value = false;
+        emit('close');
+    }
 });
+
+watch(
+    shouldEmitLoadingState,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+        <DialogContent v-if="!props.deferContent" class="max-w-[95vw] w-full max-h-[95vh] h-[95vh] flex flex-col p-0">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -596,15 +623,15 @@ watch(dialogOpen, (isOpen) => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <DialogHeader class="flex-shrink-0 px-4 pt-4 pb-4 pr-12">
+            <DialogHeader class="flex-shrink-0 px-4 pt-4 pb-3 pr-12">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 w-full">
                     <div class="flex flex-col gap-1 min-w-0">
                         <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
                         <DialogDescription>
-                            Completa los campos y añade los ítems de la factura.
+                            {{ isReadOnly ? 'Visualiza los campos y los ítems de la factura.' : 'Completa los campos y añade los ítems de la factura.' }}
                         </DialogDescription>
                     </div>
-                    <div class="w-full sm:w-[280px] shrink-0">
+                    <div v-if="!isReadOnly" class="w-full sm:w-[280px] shrink-0">
                         <SelectField
                             v-model="selectedPurchaseOrderValue"
                             :options="pendingPurchaseOrderOptions"
@@ -620,7 +647,7 @@ watch(dialogOpen, (isOpen) => {
                 <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form
                     @submit.prevent="handleSubmit()"
-                    :class="{'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly}"
+                    :class="{'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId}"
                     class="space-y-6"
                 >
                     <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4 mt-8">
@@ -697,7 +724,7 @@ watch(dialogOpen, (isOpen) => {
                             </div>
                             <div class="flex flex-col gap-1">
                                 <label class="text-sm font-medium"># factura proveedor</label>
-                                <InputField v-model="localForm.supplier_invoice_number" label="" />
+                                <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" />
                             </div>
                         </div>
 
@@ -795,14 +822,16 @@ watch(dialogOpen, (isOpen) => {
                                 v-model="localForm.description"
                                 label=""
                                 placeholder="Agrega aquí observaciones adicionales para la factura de compra"
+                                :readonly="isReadOnly"
                             />
                         </div>
                     </div>
-                    <DialogFooter class="flex justify-end gap-2">
+                    <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-2 px-4 pb-4">
                         <Button variant="outline" size="pill" @click="dialogOpen = false">
                             Cancelar
                         </Button>
                         <button
+                            v-if="!isReadOnly"
                             type="button"
                             :disabled="isLoading || isSendingMail"
                             class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -811,6 +840,7 @@ watch(dialogOpen, (isOpen) => {
                             {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                         </button>
                         <button
+                            v-if="!isReadOnly"
                             type="button"
                             :disabled="isLoading || isSendingMail"
                             class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"

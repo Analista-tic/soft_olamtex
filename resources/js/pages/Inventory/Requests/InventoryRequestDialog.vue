@@ -46,6 +46,7 @@ const props = defineProps<{
     dialogType: 'create' | 'edit' | 'view';
     requestId: number | null;
     initialDraft?: InitialDraftPayload | null;
+    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -75,7 +76,7 @@ let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isReadonly = computed(() => props.dialogType === 'view');
 const shouldShowOverlayRaw = computed(
-    () => dialogOpen.value && (isSubmittingDialog.value || isInitializingDialog.value),
+    () => dialogOpen.value && !props.deferContent && (isSubmittingDialog.value || isInitializingDialog.value),
 );
 const footerContainerClass = 'mt-4 flex flex-shrink-0 flex-wrap justify-end gap-2 border-t px-4 pb-4 pt-4';
 const primaryPillButtonClass =
@@ -472,7 +473,7 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+        <DialogContent v-if="!props.deferContent" class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
             <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                 <div class="flex flex-col gap-1">
                     <DialogTitle>

@@ -14,6 +14,7 @@ const props = withDefaults(
         dialogType: DialogType;
         form: Partial<Item>;
         showAdvancedLink?: boolean;
+        deferContent?: boolean;
     }>(),
     {
         showAdvancedLink: true,
@@ -34,7 +35,7 @@ const previousBodyOverflow = ref<string | null>(null);
 let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
 const OVERLAY_DELAY_MS = 150;
 const allowOverlay = computed(() => props.dialogType === 'edit' || props.dialogType === 'view');
-const showOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value);
+const showOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value && !props.deferContent);
 
 const clearOverlayDelay = () => {
     if (overlayDelayTimer) {
@@ -174,7 +175,7 @@ function handleFormLoadingState(value: boolean) {
             </div>
         </div>
 
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[180vh] px-2 py-2" :scrollable="false">
+        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[180vh] px-2 py-2" :scrollable="false">
             <ItemFormContent
                 :is-open="dialogOpen"
                 :dialog-type="props.dialogType"

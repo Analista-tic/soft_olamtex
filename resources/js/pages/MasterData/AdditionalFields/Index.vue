@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { BreadcrumbItem } from '@/domain/shared';
 import type { AdditionalField, AdditionalFieldPayload } from '@/domain/MasterData';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import {
     Pagination,
     PaginationEllipsis,
@@ -57,6 +58,16 @@ const additionalFields = ref<AdditionalField[]>([]);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<AdditionalField>({ ...defaultForm });
 const isDialogOpen = ref(false);
+const isPreparingDialog = ref(false);
+const isDialogBootstrapping = ref(false);
+const hasDialogLoadingStarted = ref(false);
+const DIALOG_PREPARE_FALLBACK_MS = 1500;
+const DIALOG_PREPARE_FINISH_DELAY_MS = 180;
+let dialogPrepareToken = 0;
+let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+let dialogPrepareFinishTimer: ReturnType<typeof setTimeout> | null = null;
+let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
+const smartLoading = useSmartLoading();
 const isDeleteDialogOpen = ref(false);
 const fieldToDelete = ref<AdditionalField | null>(null);
 const isSubmitting = ref(false);
@@ -109,17 +120,109 @@ function setError(message: string, type: 'success' | 'error' | 'info' | 'warning
     errorType.value = type;
 }
 
-function openDialog(type: 'create' | 'edit', field: AdditionalField | null = null) {
+function clearDialogPrepareFallbackTimer() {
+    if (dialogPrepareFallbackTimer) {
+        clearTimeout(dialogPrepareFallbackTimer);
+        dialogPrepareFallbackTimer = null;
+    }
+}
+
+function startDialogPreparationLoading() {
+    if (dialogPreparationLoadingId) return;
+    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
+}
+
+function stopDialogPreparationLoading() {
+    if (!dialogPreparationLoadingId) return;
+    smartLoading.stop(dialogPreparationLoadingId);
+    dialogPreparationLoadingId = null;
+}
+
+function clearDialogPrepareFinishTimer() {
+    if (dialogPrepareFinishTimer) {
+        clearTimeout(dialogPrepareFinishTimer);
+        dialogPrepareFinishTimer = null;
+    }
+}
+
+function finishDialogPreparation(token: number) {
+    if (token !== dialogPrepareToken) return;
+    isPreparingDialog.value = false;
+    isDialogBootstrapping.value = false;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFinishTimer();
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
+}
+
+async function startDialogPreparationContext() {
+    if (isPreparingDialog.value) return null;
+
+    const token = ++dialogPrepareToken;
+    isPreparingDialog.value = true;
+    isDialogBootstrapping.value = true;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFallbackTimer();
+    startDialogPreparationLoading();
+
+    return token;
+}
+
+function armDialogPreparationFallback(token: number) {
+    clearDialogPrepareFallbackTimer();
+    dialogPrepareFallbackTimer = setTimeout(() => {
+        finishDialogPreparation(token);
+    }, DIALOG_PREPARE_FALLBACK_MS);
+}
+
+function scheduleDialogPreparationFinish(token: number) {
+    clearDialogPrepareFinishTimer();
+    dialogPrepareFinishTimer = setTimeout(() => {
+        dialogPrepareFinishTimer = null;
+        finishDialogPreparation(token);
+    }, DIALOG_PREPARE_FINISH_DELAY_MS);
+}
+
+async function openDialog(type: 'create' | 'edit', field: AdditionalField | null = null) {
+    const token = await startDialogPreparationContext();
+    if (token === null) return;
+
     dialogType.value = type;
     form.value = type === 'edit' && field
         ? { ...field }
         : { ...defaultForm };
-    isDialogOpen.value = true;
     clearMessages();
+
+    await nextTick();
+    if (token !== dialogPrepareToken) return;
+
+    isDialogOpen.value = true;
+    armDialogPreparationFallback(token);
 }
 
 function closeDialog() {
     isDialogOpen.value = false;
+    finishDialogPreparation(dialogPrepareToken);
+}
+
+function handleDialogOpenChange(value: boolean) {
+    if (value) {
+        isDialogOpen.value = true;
+        return;
+    }
+    closeDialog();
+}
+
+function handleDialogLoadingState(value: boolean) {
+    if (!isDialogBootstrapping.value) return;
+
+    if (value) {
+        hasDialogLoadingStarted.value = true;
+        return;
+    }
+
+    if (!hasDialogLoadingStarted.value) return;
+    scheduleDialogPreparationFinish(dialogPrepareToken);
 }
 
 async function handleDialogSubmit(fieldData: AdditionalFieldPayload) {
@@ -312,6 +415,12 @@ watch([typeFilter, statusFilter], () => {
 onMounted(() => {
     fetchAdditionalFields();
 });
+
+onBeforeUnmount(() => {
+    clearDialogPrepareFinishTimer();
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
+});
 </script>
 
 <template>
@@ -337,6 +446,7 @@ onMounted(() => {
                 <div class="flex items-center justify-end pt-2 lg:pt-0">
                     <button
                         type="button"
+                        :disabled="isPreparingDialog"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="openDialog('create')"
                     >
@@ -474,9 +584,11 @@ onMounted(() => {
             :dialogType="dialogType"
             :form="form"
             :loading="isSubmitting"
-            @update:open="isDialogOpen = $event"
+            :defer-content="isPreparingDialog"
+            @update:open="handleDialogOpenChange"
             @submit="handleDialogSubmit"
             @cancel="closeDialog"
+            @loading-state="handleDialogLoadingState"
         />
 
         <ConfirmDialog

@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { AdditionalField, AdditionalFieldPayload, AdditionalFieldType } from '@/domain/MasterData';
 import { Plus } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 type AdditionalFieldForm = Omit<AdditionalField, 'default_value'> & {
     default_value: string;
@@ -32,12 +32,14 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     form: AdditionalField;
     loading?: boolean;
+    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:open', value: boolean): void;
     (e: 'submit', value: AdditionalFieldPayload): void;
     (e: 'cancel'): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const defaultForm: AdditionalFieldForm = {
@@ -56,6 +58,7 @@ const localForm = ref<AdditionalFieldForm>({
     ...(props.form ?? ({} as Partial<AdditionalFieldForm>)),
     default_value: String((props.form as Partial<AdditionalField>)?.default_value ?? ''),
 });
+const isInitializingDialog = ref(false);
 const localOptions = ref<string[]>([]);
 const newOptionInput = ref('');
 
@@ -73,6 +76,7 @@ const hasDuplicateOptions = computed(() => {
     const normalized = localOptions.value.map((value) => normalizeOptionEntry(value)).filter(Boolean);
     return new Set(normalized).size !== normalized.length;
 });
+const shouldEmitLoadingState = computed(() => props.open && isInitializingDialog.value);
 
 const isSelectField = computed(() => localForm.value.field_type === 'select');
 const defaultValueOptions = computed(() => {
@@ -128,6 +132,31 @@ watch(
         }
     },
     { deep: true },
+);
+
+watch(
+    () => props.open,
+    async (isOpen) => {
+        if (!isOpen) {
+            isInitializingDialog.value = false;
+            return;
+        }
+
+        isInitializingDialog.value = true;
+        try {
+            await nextTick();
+        } finally {
+            isInitializingDialog.value = false;
+        }
+    },
+);
+
+watch(
+    shouldEmitLoadingState,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
 );
 
 function addOptionFromInput() {
@@ -207,7 +236,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex max-h-[85vh] max-w-[550px] flex-col px-2 py-2">
+        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[85vh] max-w-[550px] flex-col px-2 py-2">
             <TooltipProvider>
                 <FormHeader
                     :title="dialogType === 'create' ? 'Crear campo adicional' : 'Editar campo adicional'"
@@ -430,4 +459,3 @@ function handleSubmit() {
     border: 0;
 }
 </style>
-

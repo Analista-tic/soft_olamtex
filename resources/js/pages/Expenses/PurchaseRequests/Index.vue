@@ -17,7 +17,7 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Eye, PlusCircle, Search, MoreVertical, CheckCircle, XCircle, Send, X } from 'lucide-vue-next';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
@@ -33,6 +33,7 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseRequest } from '@/domain/Expenses';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 
 const breadcrumbs = [
     { title: 'Solicitud de compra', href: '/solicitudes-compra' },
@@ -164,31 +165,106 @@ const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const dialogForm = ref<Partial<PurchaseRequest>>({});
 const dialogReadonly = ref(false);
+const isPreparingDialog = ref(false);
+const isDialogBootstrapping = ref(false);
+const hasDialogLoadingStarted = ref(false);
 const isDeleteDialogOpen = ref(false);
 const requestToDelete = ref<PurchaseRequest | null>(null);
 const isRejectDialogOpen = ref(false);
 const requestToReject = ref<PurchaseRequest | null>(null);
+const DIALOG_PREPARE_FALLBACK_MS = 1500;
+let dialogPrepareToken = 0;
+let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
+const smartLoading = useSmartLoading();
+
+function clearDialogPrepareFallbackTimer() {
+    if (dialogPrepareFallbackTimer) {
+        clearTimeout(dialogPrepareFallbackTimer);
+        dialogPrepareFallbackTimer = null;
+    }
+}
+
+function startDialogPreparationLoading() {
+    if (dialogPreparationLoadingId) return;
+    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
+}
+
+function stopDialogPreparationLoading() {
+    if (!dialogPreparationLoadingId) return;
+    smartLoading.stop(dialogPreparationLoadingId);
+    dialogPreparationLoadingId = null;
+}
+
+function finishDialogPreparation(token: number) {
+    if (token !== dialogPrepareToken) return;
+    isPreparingDialog.value = false;
+    isDialogBootstrapping.value = false;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
+}
+
+async function startDialogPreparationContext() {
+    if (isPreparingDialog.value) return null;
+
+    const token = ++dialogPrepareToken;
+    isPreparingDialog.value = true;
+    isDialogBootstrapping.value = true;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFallbackTimer();
+    startDialogPreparationLoading();
+
+    return token;
+}
+
+function armDialogPreparationFallback(token: number) {
+    clearDialogPrepareFallbackTimer();
+    dialogPrepareFallbackTimer = setTimeout(() => {
+        finishDialogPreparation(token);
+    }, DIALOG_PREPARE_FALLBACK_MS);
+}
 
 function closeDialog() {
     isDialogOpen.value = false;
+    finishDialogPreparation(dialogPrepareToken);
 }
 
-function openCreateRequest() {
+async function openCreateRequest() {
+    const token = await startDialogPreparationContext();
+    if (token === null) return;
+
     dialogType.value = 'create';
     dialogForm.value = {};
     dialogReadonly.value = false;
+
+    await nextTick();
+    if (token !== dialogPrepareToken) return;
+
     isDialogOpen.value = true;
+    armDialogPreparationFallback(token);
 }
 
 async function viewRequest(request: PurchaseRequest) {
     if (!request.id) return;
+
+    const token = await startDialogPreparationContext();
+    if (token === null) return;
+
     dialogType.value = 'edit';
     try {
         const response = await axios.get(`/gastos/solicitudes-compra/${request.id}`);
+        if (token !== dialogPrepareToken) return;
         dialogForm.value = response.data?.data || {};
         dialogReadonly.value = true;
+
+        await nextTick();
+        if (token !== dialogPrepareToken) return;
+
         isDialogOpen.value = true;
+        armDialogPreparationFallback(token);
     } catch (error) {
+        finishDialogPreparation(token);
         showError('No se pudo cargar la solicitud para edición.');
         console.error('Error al obtener solicitud', error);
     }
@@ -196,16 +272,39 @@ async function viewRequest(request: PurchaseRequest) {
 
 async function editRequest(request: PurchaseRequest) {
     if (!request.id) return;
+
+    const token = await startDialogPreparationContext();
+    if (token === null) return;
+
     dialogType.value = 'edit';
     try {
         const response = await axios.get(`/gastos/solicitudes-compra/${request.id}`);
+        if (token !== dialogPrepareToken) return;
         dialogForm.value = response.data?.data || {};
         dialogReadonly.value = false;
+
+        await nextTick();
+        if (token !== dialogPrepareToken) return;
+
         isDialogOpen.value = true;
+        armDialogPreparationFallback(token);
     } catch (error) {
+        finishDialogPreparation(token);
         showError('No se pudo cargar la solicitud para edición.');
         console.error('Error al obtener solicitud', error);
     }
+}
+
+function handleDialogLoadingState(value: boolean) {
+    if (!isDialogBootstrapping.value) return;
+
+    if (value) {
+        hasDialogLoadingStarted.value = true;
+        return;
+    }
+
+    if (!hasDialogLoadingStarted.value) return;
+    finishDialogPreparation(dialogPrepareToken);
 }
 
 function confirmDeleteRequest(request: PurchaseRequest) {
@@ -400,6 +499,11 @@ watch(searchQuery, () => {
 onMounted(() => {
     fetchRequests();
 });
+
+onBeforeUnmount(() => {
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
+});
 </script>
 
 <template>
@@ -422,6 +526,7 @@ onMounted(() => {
                 </div>
                 <button
                     type="button"
+                    :disabled="isPreparingDialog"
                     class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="openCreateRequest"
                 >
@@ -570,8 +675,10 @@ onMounted(() => {
                 :dialogType="dialogType"
                 :form="dialogForm"
                 :readonly="dialogReadonly"
+                :defer-content="isPreparingDialog"
                 @close="closeDialog"
                 @refresh="handleDialogRefresh"
+                @loading-state="handleDialogLoadingState"
             />
         </div>
     </AppLayout>

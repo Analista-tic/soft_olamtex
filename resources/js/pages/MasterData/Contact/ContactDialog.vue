@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { AdditionalContact, Contact } from '@/domain/MasterData';
 import type { Branch } from '@/domain/shared';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import AdditionalContactsList from './AdditionalContactsList.vue';
 import ContactForm from './ContactForm.vue';
 import AlertBox from '@/components/AlertBox.vue';
@@ -26,16 +26,19 @@ const props = defineProps<{
     contactData: Partial<ExtendedContact>;
     externalError?: string;
     externalErrorType?: 'success' | 'error' | 'info' | 'warning';
+    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'submit', contactData: Partial<Contact>): void;
     (e: 'update:contactData', updatedContact: Partial<Contact>): void; // Agregar este evento
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 // Estado interno del diálogo
 const internalIsOpen = ref(props.isOpen);
+const isInitializingDialog = ref(false);
 const additionalContactsListRef = ref<InstanceType<typeof AdditionalContactsList> | null>(null);
 const branchesListRef = ref<InstanceType<typeof BranchesList> | null>(null);
 
@@ -48,23 +51,24 @@ const form = ref<Partial<ExtendedContact>>({
 
 // Título del diálogo basado en el tipo
 const dialogTitle = computed(() => (props.dialogType === 'create' ? 'Crear Contacto' : 'Editar Contacto'));
+const shouldEmitLoadingState = computed(() => internalIsOpen.value && isInitializingDialog.value);
 
 // Watchers para sincronización
 watch(
     () => props.isOpen,
-    (newValue) => {
+    async (newValue) => {
         internalIsOpen.value = newValue;
         if (newValue) {
-            resetForm();
-            showEmptyAlert.value = false;
-            alertMessage.value = '';
-            errors.value = {};
+            await initializeDialog();
+            return;
         }
+        isInitializingDialog.value = false;
     },
 );
 
 watch(internalIsOpen, (newValue) => {
     if (!newValue) {
+        isInitializingDialog.value = false;
         emit('close');
     }
 });
@@ -76,6 +80,19 @@ const resetForm = () => {
         additional_contacts: props.contactData.additional_contacts ?? [],
     };
 };
+
+async function initializeDialog() {
+    isInitializingDialog.value = true;
+    try {
+        await nextTick();
+        resetForm();
+        showEmptyAlert.value = false;
+        alertMessage.value = '';
+        errors.value = {};
+    } finally {
+        isInitializingDialog.value = false;
+    }
+}
 
 const closeDialog = () => {
     internalIsOpen.value = false;
@@ -147,6 +164,14 @@ watch(
             dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
         }
     },
+);
+
+watch(
+    shouldEmitLoadingState,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
 );
 
 const areRequiredFieldsEmpty = () => {
@@ -287,7 +312,7 @@ const updateBranches = (branches: any[]) => {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[150vh] px-2 py-2">
+        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[150vh] px-2 py-2">
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription class="pb-4">

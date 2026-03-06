@@ -13,7 +13,7 @@ import type { Item } from '@/domain/MasterData';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText, CheckCircle } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -22,6 +22,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 
 const breadcrumbs = [{ title: 'Órdenes de Compra', href: '/ordenes-compra' }];
 
@@ -29,6 +30,9 @@ const orders = ref<PurchaseOrder[]>([]);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<Partial<PurchaseOrder>>({});
+const isPreparingDialog = ref(false);
+const isDialogBootstrapping = ref(false);
+const hasDialogLoadingStarted = ref(false);
 const orderToDelete = ref<PurchaseOrder | null>(null);
 const isDeleteDialogOpen = ref(false);
 const searchQuery = ref('');
@@ -65,6 +69,11 @@ const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
+const DIALOG_PREPARE_FALLBACK_MS = 10000;
+let dialogPrepareToken = 0;
+let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
+const smartLoading = useSmartLoading();
 
 const formatDate = (value?: string | null) => {
     if (!value) return '-';
@@ -122,17 +131,85 @@ async function fetchProviders() {
     providers.value = response.data.data;
 }
 
-function openDialog(type: 'create' | 'edit', order: PurchaseOrder | null = null) {
+function clearDialogPrepareFallbackTimer() {
+    if (dialogPrepareFallbackTimer) {
+        clearTimeout(dialogPrepareFallbackTimer);
+        dialogPrepareFallbackTimer = null;
+    }
+}
+
+function startDialogPreparationLoading() {
+    if (dialogPreparationLoadingId) return;
+    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
+}
+
+function stopDialogPreparationLoading() {
+    if (!dialogPreparationLoadingId) return;
+    smartLoading.stop(dialogPreparationLoadingId);
+    dialogPreparationLoadingId = null;
+}
+
+function finishDialogPreparation(token: number) {
+    if (token !== dialogPrepareToken) return;
+    isPreparingDialog.value = false;
+    isDialogBootstrapping.value = false;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
+}
+
+async function startDialogPreparationContext() {
+    if (isPreparingDialog.value) return null;
+
+    const token = ++dialogPrepareToken;
+    isPreparingDialog.value = true;
+    isDialogBootstrapping.value = true;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFallbackTimer();
+    startDialogPreparationLoading();
+
+    return token;
+}
+
+function armDialogPreparationFallback(token: number) {
+    clearDialogPrepareFallbackTimer();
+    dialogPrepareFallbackTimer = setTimeout(() => {
+        finishDialogPreparation(token);
+    }, DIALOG_PREPARE_FALLBACK_MS);
+}
+
+async function openDialog(type: 'create' | 'edit', order: PurchaseOrder | null = null) {
+    const token = await startDialogPreparationContext();
+    if (token === null) return;
+
     dialogType.value = type;
-    isDialogOpen.value = true;
     form.value = order ? { ...order } : {};
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
+
+    await nextTick();
+    if (token !== dialogPrepareToken) return;
+
+    isDialogOpen.value = true;
+    armDialogPreparationFallback(token);
 }
 
 function closeDialog() {
     isDialogOpen.value = false;
+    finishDialogPreparation(dialogPrepareToken);
+}
+
+function handleDialogLoadingState(value: boolean) {
+    if (!isDialogBootstrapping.value) return;
+
+    if (value) {
+        hasDialogLoadingStarted.value = true;
+        return;
+    }
+
+    if (!hasDialogLoadingStarted.value) return;
+    finishDialogPreparation(dialogPrepareToken);
 }
 
 function confirmDeleteOrder(order: PurchaseOrder) {
@@ -193,6 +270,11 @@ watch(searchQuery, (newQuery) => {
 onMounted(() => {
     fetchOrders();
     fetchProviders();
+});
+
+onBeforeUnmount(() => {
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
 });
 
 function openPrintDialog(order: PurchaseOrder) {
@@ -277,7 +359,7 @@ function handleDialogRefresh(message?: string) {
         errorType.value = 'error';
     }
     fetchOrders(currentPage.value, searchQuery.value);
-    isDialogOpen.value = false;
+    closeDialog();
 }
 
 function handleDialogError(message?: string) {
@@ -304,6 +386,7 @@ function handleDialogError(message?: string) {
                 </div>
                 <button
                     type="button"
+                    :disabled="isPreparingDialog"
                     class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openDialog('create')"
                 >
@@ -483,9 +566,11 @@ function handleDialogError(message?: string) {
             :isOpen="isDialogOpen"
             :dialogType="dialogType"
             :form="form"
+            :defer-content="isPreparingDialog"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
             @error="handleDialogError"
+            @loading-state="handleDialogLoadingState"
         />
         <PurchaseOrderPrintDialog :isOpen="isPrintDialogOpen" :order="orderToPrint" @close="isPrintDialogOpen = false" />
         <ConfirmDialog

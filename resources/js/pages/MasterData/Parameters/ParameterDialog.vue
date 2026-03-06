@@ -7,7 +7,7 @@ import SwitchField from '@/components/SwitchField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Plus } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 export type ParameterDialogModel = {
     id?: number | string;
@@ -23,12 +23,14 @@ const props = defineProps<{
     dialogType: 'create' | 'edit' | 'view';
     form: ParameterDialogModel | null;
     loading?: boolean;
+    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:open', value: boolean): void;
     (e: 'submit', value: ParameterDialogModel): void;
     (e: 'cancel'): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const defaultForm = {
@@ -41,9 +43,11 @@ const defaultForm = {
 const localForm = ref({ ...defaultForm });
 const valueList = ref<string[]>([]);
 const newValueInput = ref('');
+const isInitializingDialog = ref(false);
 // const hasValues = computed(() => valueList.value.length > 0);
 const hasDuplicateOptions = computed(() => false);
 const isViewMode = computed(() => props.dialogType === 'view');
+const shouldEmitLoadingState = computed(() => props.open && isInitializingDialog.value);
 
 watch(
     () => props.form,
@@ -68,11 +72,30 @@ watch(
 );
 watch(
     () => props.open,
-    (isOpen) => {
-        if (isOpen && props.dialogType === 'create' && !props.form) {
-            localForm.value = { ...defaultForm };
+    async (isOpen) => {
+        if (!isOpen) {
+            isInitializingDialog.value = false;
+            return;
+        }
+
+        isInitializingDialog.value = true;
+        try {
+            await nextTick();
+            if (props.dialogType === 'create' && !props.form) {
+                localForm.value = { ...defaultForm };
+            }
+        } finally {
+            isInitializingDialog.value = false;
         }
     },
+);
+
+watch(
+    shouldEmitLoadingState,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
 );
 
 function parseValueList(value: unknown): string[] {
@@ -150,7 +173,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[550px] flex-col px-2 py-2">
+        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-[550px] flex-col px-2 py-2">
             <FormHeader
                 :title="dialogType === 'create' ? 'Crear parámetro' : dialogType === 'edit' ? 'Editar parámetro' : 'Ver parámetro'"
                 :description="

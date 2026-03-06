@@ -25,11 +25,13 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     form: Partial<PurchaseOrder>;
     readonly?: boolean;
+    deferContent?: boolean;
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh', message?: string): void;
     (e: 'error', message?: string): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
@@ -39,12 +41,15 @@ const purchaseRequests = ref<any[]>([]);
 const selectedPurchaseRequestId = ref<number | null>(null);
 const selectedPurchaseRequest = ref<any | null>(null); // Solicitud completa seleccionada para mostrar sugerencia
 const isLoading = ref(false);
+const isInitializingDialog = ref(false);
+const isSubmittingDialog = ref(false);
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
 const isSendingMail = ref(false);
 const { successMessage, errorMessage, errorType, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref<string>('');
 const itemsTableRef = ref<{ addItem: () => void; validateFabricFields: () => string | null } | null>(null);
+const shouldEmitLoadingState = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
 
 // Computed para determinar si la orden puede editarse
 const canEdit = computed(() => {
@@ -173,17 +178,22 @@ const orderDocumentNumber = computed(() => {
 });
 
 async function initializeDialog() {
-    // Limpiar solicitud asociada al abrir en modo creación
-    if (props.dialogType === 'create') {
-        selectedPurchaseRequest.value = null;
-        selectedPurchaseRequestId.value = null;
-    }
-    resetForm();
-    await fetchContacts();
-    await fetchPendingPurchaseRequests();
-    if (props.dialogType === 'create') {
-        nextOrderId.value = null;
-        await fetchNextOrderId();
+    isInitializingDialog.value = true;
+    try {
+        // Limpiar solicitud asociada al abrir en modo creacion
+        if (props.dialogType === 'create') {
+            selectedPurchaseRequest.value = null;
+            selectedPurchaseRequestId.value = null;
+        }
+        resetForm();
+        await fetchContacts();
+        await fetchPendingPurchaseRequests();
+        if (props.dialogType === 'create') {
+            nextOrderId.value = null;
+            await fetchNextOrderId();
+        }
+    } finally {
+        isInitializingDialog.value = false;
     }
 }
 
@@ -423,6 +433,7 @@ async function handleSubmit(sendMail = false) {
         return;
     }
     isLoading.value = true;
+    isSubmittingDialog.value = true;
     isSendingMail.value = sendMail;
     const formToSend: any = { ...localForm.value };
     // Asegurar que todos los campos se incluyan, incluso los readonly
@@ -478,6 +489,7 @@ async function handleSubmit(sendMail = false) {
     } finally {
         isLoading.value = false;
         isSendingMail.value = false;
+        isSubmittingDialog.value = false;
     }
 }
 
@@ -556,11 +568,20 @@ watch(
     () => props.isOpen,
     async (isOpen) => {
         dialogOpen.value = isOpen;
-        if (isOpen) await initializeDialog();
+        if (isOpen) {
+            await initializeDialog();
+        } else {
+            isInitializingDialog.value = false;
+            isSubmittingDialog.value = false;
+        }
     },
 );
 watch(dialogOpen, (isOpen) => {
-    if (!isOpen) emit('close');
+    if (!isOpen) {
+        isInitializingDialog.value = false;
+        isSubmittingDialog.value = false;
+        emit('close');
+    }
 });
 
 watch(selectedPurchaseRequestId, async (requestId) => {
@@ -572,11 +593,19 @@ watch(selectedPurchaseRequestId, async (requestId) => {
         await loadRequestToOrder(requestId);
     }
 });
+
+watch(
+    shouldEmitLoadingState,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+        <DialogContent v-if="!props.deferContent" class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
             <AlertStack
                 v-show="successMessage || errorMessage"
                 class="z-50 fixed top-4 left-1/2 -translate-x-1/2 w-full max-w-lg"
@@ -812,7 +841,7 @@ watch(selectedPurchaseRequestId, async (requestId) => {
                             <TextareaField
                                 v-model="localForm.description"
                                 label=""
-                                placeholder="Agrega aqui observaciones adicionales para la orden de compra"
+                                placeholder="Agrega aquí observaciones adicionales para la orden de compra"
                             />
                         </div>
                     </div>

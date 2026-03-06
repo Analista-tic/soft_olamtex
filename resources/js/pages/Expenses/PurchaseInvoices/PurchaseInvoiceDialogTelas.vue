@@ -23,11 +23,13 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     form: Partial<PurchaseInvoice>;
     readOnly?: boolean;
+    deferContent?: boolean;
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh', message?: string): void;
     (e: 'error', message?: string): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
@@ -35,6 +37,8 @@ type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_nam
 const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
 const contacts = ref<Contact[]>([]);
 const isLoading = ref(false);
+const isInitializingDialog = ref(false);
+const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
 const nextInvoiceId = ref<number | null>(null);
 const isLoadingInvoiceId = ref(false);
@@ -48,6 +52,7 @@ const originalFormSnapshot = ref<string>('');
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
+const shouldEmitLoadingState = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -188,12 +193,17 @@ function resetForm() {
 }
 
 async function initializeDialog() {
-    await fetchContacts();
-    resetForm();
-    await fetchPendingPurchaseOrders();
-    if (props.dialogType === 'create') {
-        nextInvoiceId.value = null;
-        await fetchNextInvoiceId();
+    isInitializingDialog.value = true;
+    try {
+        await fetchContacts();
+        resetForm();
+        await fetchPendingPurchaseOrders();
+        if (props.dialogType === 'create') {
+            nextInvoiceId.value = null;
+            await fetchNextInvoiceId();
+        }
+    } finally {
+        isInitializingDialog.value = false;
     }
 }
 
@@ -357,6 +367,7 @@ async function handleSubmit(sendMail = false) {
         return;
     }
     isLoading.value = true;
+    isSubmittingDialog.value = true;
     isSendingMail.value = sendMail;
     const formToSend: PurchaseInvoiceWithProviderName = { ...localForm.value };
     const selectedContact = contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id));
@@ -407,6 +418,7 @@ async function handleSubmit(sendMail = false) {
     } finally {
         isLoading.value = false;
         isSendingMail.value = false;
+        isSubmittingDialog.value = false;
     }
 }
 
@@ -506,18 +518,33 @@ watch(
         dialogOpen.value = isOpen;
         if (isOpen) {
             await initializeDialog();
+        } else {
+            isInitializingDialog.value = false;
+            isSubmittingDialog.value = false;
         }
     },
 );
 
 watch(dialogOpen, (isOpen) => {
-    if (!isOpen) emit('close');
+    if (!isOpen) {
+        isInitializingDialog.value = false;
+        isSubmittingDialog.value = false;
+        emit('close');
+    }
 });
+
+watch(
+    shouldEmitLoadingState,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+        <DialogContent v-if="!props.deferContent" class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"

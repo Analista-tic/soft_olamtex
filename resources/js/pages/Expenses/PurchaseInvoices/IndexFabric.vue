@@ -10,7 +10,7 @@ import type { PurchaseInvoice } from '@/domain/Expenses';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialogTelas from './PurchaseInvoiceDialogTelas.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -26,6 +26,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 
 const breadcrumbs = [
     { title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' },
@@ -36,6 +37,9 @@ const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const isDialogReadOnly = ref(false);
 const form = ref<Partial<PurchaseInvoice>>({});
+const isPreparingDialog = ref(false);
+const isDialogBootstrapping = ref(false);
+const hasDialogLoadingStarted = ref(false);
 const invoiceToDelete = ref<PurchaseInvoice | null>(null);
 const isDeleteDialogOpen = ref(false);
 const searchQuery = ref('');
@@ -83,6 +87,11 @@ const isDateToActive = computed(() => Boolean(dateTo.value));
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
+const DIALOG_PREPARE_FALLBACK_MS = 10000;
+let dialogPrepareToken = 0;
+let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
+const smartLoading = useSmartLoading();
 
 const formatDate = (value?: string | null) => {
     if (!value) return '-';
@@ -158,18 +167,85 @@ async function fetchSubgroups() {
     }
 }
 
-function openDialog(type: 'create' | 'edit', invoice: PurchaseInvoice | null = null, readOnly = false) {
+function clearDialogPrepareFallbackTimer() {
+    if (dialogPrepareFallbackTimer) {
+        clearTimeout(dialogPrepareFallbackTimer);
+        dialogPrepareFallbackTimer = null;
+    }
+}
+
+function startDialogPreparationLoading() {
+    if (dialogPreparationLoadingId) return;
+    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
+}
+
+function stopDialogPreparationLoading() {
+    if (!dialogPreparationLoadingId) return;
+    smartLoading.stop(dialogPreparationLoadingId);
+    dialogPreparationLoadingId = null;
+}
+
+function finishDialogPreparation(token: number) {
+    if (token !== dialogPrepareToken) return;
+    isPreparingDialog.value = false;
+    isDialogBootstrapping.value = false;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
+}
+
+async function startDialogPreparationContext() {
+    if (isPreparingDialog.value) return null;
+
+    const token = ++dialogPrepareToken;
+    isPreparingDialog.value = true;
+    isDialogBootstrapping.value = true;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFallbackTimer();
+    startDialogPreparationLoading();
+
+    return token;
+}
+
+function armDialogPreparationFallback(token: number) {
+    clearDialogPrepareFallbackTimer();
+    dialogPrepareFallbackTimer = setTimeout(() => {
+        finishDialogPreparation(token);
+    }, DIALOG_PREPARE_FALLBACK_MS);
+}
+
+async function openDialogWithPreparation(type: 'create' | 'edit', invoice: PurchaseInvoice | null = null, readOnly = false) {
+    const token = await startDialogPreparationContext();
+    if (token === null) return;
+
     dialogType.value = type;
     isDialogReadOnly.value = readOnly;
-    isDialogOpen.value = true;
-    // Asegura el tipado correcto y evita referencias reactivas no deseadas
     form.value = invoice ? JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice> : {};
     clearAlerts();
+
+    await nextTick();
+    if (token !== dialogPrepareToken) return;
+
+    isDialogOpen.value = true;
+    armDialogPreparationFallback(token);
 }
 
 function closeDialog() {
     isDialogReadOnly.value = false;
     isDialogOpen.value = false;
+    finishDialogPreparation(dialogPrepareToken);
+}
+
+function handleDialogLoadingState(value: boolean) {
+    if (!isDialogBootstrapping.value) return;
+
+    if (value) {
+        hasDialogLoadingStarted.value = true;
+        return;
+    }
+
+    if (!hasDialogLoadingStarted.value) return;
+    finishDialogPreparation(dialogPrepareToken);
 }
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
@@ -272,6 +348,11 @@ onMounted(() => {
     fetchSubgroups();
 });
 
+onBeforeUnmount(() => {
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
+});
+
 function openPrintDialog(invoice: PurchaseInvoice) {
     invoiceToPrint.value = invoice;
     isPrintDialogOpen.value = true;
@@ -300,7 +381,7 @@ function goToReception(invoice: PurchaseInvoice) {
 
 function viewInvoiceDetails(invoice: PurchaseInvoice) {
     // Abrir el dialog de edición en modo solo lectura
-    openDialog('edit', invoice, true);
+    openDialogWithPreparation('edit', invoice, true);
 }
 
 async function handleDialogRefresh(message?: string) {
@@ -308,7 +389,7 @@ async function handleDialogRefresh(message?: string) {
         clearError();
         showSuccess(message);
     }
-    isDialogOpen.value = false;
+    closeDialog();
     await fetchInvoices(currentPage.value, searchQuery.value);
 }
 
@@ -349,8 +430,9 @@ function handleDialogError(message?: string) {
                     </button>
                     <button
                         type="button"
+                        :disabled="isPreparingDialog"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="openDialog('create')"
+                        @click="openDialogWithPreparation('create')"
                     >
                         <PlusCircle class="h-4 w-4" />
                         Nueva Factura
@@ -461,7 +543,7 @@ function handleDialogError(message?: string) {
                                     >
                                         <Eye class="h-4 w-4" />
                                     </button>
-                                    <EditButton :onClick="() => openDialog('edit', invoice)" />
+                                    <EditButton :onClick="() => openDialogWithPreparation('edit', invoice)" />
                                     <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
                                          y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
                                     <DeleteButton
@@ -511,9 +593,11 @@ function handleDialogError(message?: string) {
             :dialogType="dialogType"
             :form="form"
             :readOnly="isDialogReadOnly"
+            :defer-content="isPreparingDialog"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
             @error="handleDialogError"
+            @loading-state="handleDialogLoadingState"
         />
         <PurchaseInvoicePrintDialog
             v-if="isPrintDialogOpen"

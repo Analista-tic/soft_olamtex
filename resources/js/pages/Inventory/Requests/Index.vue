@@ -27,6 +27,7 @@ import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import InventoryRequestDialog from './InventoryRequestDialog.vue';
 import InventoryRequestDeliveryDialog from './InventoryRequestDeliveryDialog.vue';
 import InventoryRequestRejectDialog from './InventoryRequestRejectDialog.vue';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 
 type InventoryRequestRow = {
     id: number;
@@ -78,6 +79,8 @@ const actionIconClass = 'h-4 w-4';
 const DIALOG_PREPARE_FALLBACK_MS = 10000;
 let requestDialogPrepareToken = 0;
 let requestDialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+let requestDialogPreparationLoadingId: SmartLoadingTaskId | null = null;
+const smartLoading = useSmartLoading();
 
 const statusLabels: Record<string, string> = {
     solicitado: 'Solicitado',
@@ -105,11 +108,23 @@ function clearRequestDialogPrepareFallbackTimer() {
     }
 }
 
+function startRequestDialogPreparationLoading() {
+    if (requestDialogPreparationLoadingId) return;
+    requestDialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
+}
+
+function stopRequestDialogPreparationLoading() {
+    if (!requestDialogPreparationLoadingId) return;
+    smartLoading.stop(requestDialogPreparationLoadingId);
+    requestDialogPreparationLoadingId = null;
+}
+
 function finishRequestDialogPreparation(token: number) {
     if (token !== requestDialogPrepareToken) return;
     isPreparingRequestDialog.value = false;
     isRequestDialogBootstrapping.value = false;
     clearRequestDialogPrepareFallbackTimer();
+    stopRequestDialogPreparationLoading();
 }
 
 function formatDate(value?: string | null) {
@@ -160,6 +175,7 @@ async function openCreateRequest() {
     const token = ++requestDialogPrepareToken;
     isPreparingRequestDialog.value = true;
     isRequestDialogBootstrapping.value = true;
+    startRequestDialogPreparationLoading();
 
     dialogType.value = 'create';
     selectedRequestId.value = null;
@@ -181,6 +197,7 @@ async function openEditRequest(request: InventoryRequestRow) {
     const token = ++requestDialogPrepareToken;
     isPreparingRequestDialog.value = true;
     isRequestDialogBootstrapping.value = true;
+    startRequestDialogPreparationLoading();
 
     dialogType.value = 'edit';
     selectedRequestId.value = request.id;
@@ -202,6 +219,7 @@ async function openViewRequest(request: InventoryRequestRow) {
     const token = ++requestDialogPrepareToken;
     isPreparingRequestDialog.value = true;
     isRequestDialogBootstrapping.value = true;
+    startRequestDialogPreparationLoading();
 
     dialogType.value = 'view';
     selectedRequestId.value = request.id;
@@ -271,6 +289,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     clearRequestDialogPrepareFallbackTimer();
+    stopRequestDialogPreparationLoading();
 });
 </script>
 
@@ -278,20 +297,6 @@ onBeforeUnmount(() => {
     <Head title="Solicitudes internas" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div
-            v-if="isPreparingRequestDialog"
-            class="fixed inset-0 z-[3000] grid place-items-center bg-background/60 backdrop-blur-sm"
-            role="status"
-            aria-live="polite"
-        >
-            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
-                <div class="flex items-center gap-3">
-                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
-                </div>
-            </div>
-        </div>
-
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
                 :success-message="successMessage"
@@ -473,6 +478,7 @@ onBeforeUnmount(() => {
             :is-open="isRequestDialogOpen"
             :dialog-type="dialogType"
             :request-id="selectedRequestId"
+            :defer-content="isPreparingRequestDialog"
             @close="closeRequestDialog"
             @saved="handleRequestSaved"
             @loading-state="handleRequestDialogLoadingState"

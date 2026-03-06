@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import axios from 'axios';
-import { ref, watch } from 'vue'; // Asegurar que watch esté importado
+import { computed, nextTick, ref, watch } from 'vue'; // Asegurar que watch esté importado
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -19,20 +19,29 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     subGroupData: Partial<CategorySubGroup>;
     groups: CategoryGroup[];
+    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'submit', payload: Partial<CategorySubGroup> & { subgroups?: Partial<CategorySubGroup>[] }): void;
     (e: 'notify', payload: { type: 'success' | 'error'; message: string }): void;
+    (e: 'loading-state', value: boolean): void;
 }>();
 
 const internalIsOpen = ref(props.isOpen);
+const isInitializingDialog = ref(false);
+const shouldEmitLoadingState = computed(() => internalIsOpen.value && isInitializingDialog.value);
 
 watch(
     () => props.isOpen,
-    (newValue) => {
+    async (newValue) => {
         internalIsOpen.value = newValue;
+        if (newValue) {
+            await initializeDialog();
+            return;
+        }
+        isInitializingDialog.value = false;
     }
 );
 
@@ -40,6 +49,7 @@ watch(
     () => internalIsOpen.value,
     (newValue) => {
         if (!newValue) {
+            isInitializingDialog.value = false;
             emit('close');
         }
     }
@@ -116,6 +126,18 @@ function closeDialog() {
     internalIsOpen.value = false;
 }
 
+async function initializeDialog() {
+    isInitializingDialog.value = true;
+    try {
+        await nextTick();
+        form.value = { ...props.subGroupData };
+        subGroupName.value = '';
+        subGroupList.value = [];
+    } finally {
+        isInitializingDialog.value = false;
+    }
+}
+
 const subGroupName = ref('');
 const subGroupList = ref<Partial<CategorySubGroup>[]>([]);
 
@@ -156,11 +178,19 @@ async function confirmDeleteGroup() {
     }
     closeDeleteDialog();
 }
+
+watch(
+    shouldEmitLoadingState,
+    (value) => {
+        emit('loading-state', value);
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
   <Dialog v-model:open="internalIsOpen">
-         <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
+         <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
                <TooltipProvider>
             <DialogHeader class="flex-shrink-0">
                 <DialogTitle>{{ dialogType === 'create' ? 'Crear Subgrupo' : 'Editar Subgrupo' }}</DialogTitle>

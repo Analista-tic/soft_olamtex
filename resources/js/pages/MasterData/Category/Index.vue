@@ -20,7 +20,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { ref, onMounted, watch, computed } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
@@ -29,6 +29,7 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { Option } from '@/domain/shared';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -57,6 +58,16 @@ const form = ref<Partial<CategorySubGroup>>({
     name: '',
     category_group_id: undefined,
 });
+const isPreparingDialog = ref(false);
+const isDialogBootstrapping = ref(false);
+const hasDialogLoadingStarted = ref(false);
+const DIALOG_PREPARE_FALLBACK_MS = 1500;
+const DIALOG_PREPARE_FINISH_DELAY_MS = 180;
+let dialogPrepareToken = 0;
+let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+let dialogPrepareFinishTimer: ReturnType<typeof setTimeout> | null = null;
+let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
+const smartLoading = useSmartLoading();
 const currentPage = ref<number>(1);
 const itemsPerPage = 10;
 const totalItems = ref<number>(0);
@@ -77,19 +88,103 @@ const normalizedGroupId = computed<Option['id'] | null>(() =>
     selectedGroup.value === '' ? null : selectedGroup.value,
 );
 
+function clearDialogPrepareFallbackTimer() {
+    if (dialogPrepareFallbackTimer) {
+        clearTimeout(dialogPrepareFallbackTimer);
+        dialogPrepareFallbackTimer = null;
+    }
+}
+
+function startDialogPreparationLoading() {
+    if (dialogPreparationLoadingId) return;
+    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
+}
+
+function stopDialogPreparationLoading() {
+    if (!dialogPreparationLoadingId) return;
+    smartLoading.stop(dialogPreparationLoadingId);
+    dialogPreparationLoadingId = null;
+}
+
+function clearDialogPrepareFinishTimer() {
+    if (dialogPrepareFinishTimer) {
+        clearTimeout(dialogPrepareFinishTimer);
+        dialogPrepareFinishTimer = null;
+    }
+}
+
+function finishDialogPreparation(token: number) {
+    if (token !== dialogPrepareToken) return;
+    isPreparingDialog.value = false;
+    isDialogBootstrapping.value = false;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFinishTimer();
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
+}
+
+async function startDialogPreparationContext() {
+    if (isPreparingDialog.value) return null;
+
+    const token = ++dialogPrepareToken;
+    isPreparingDialog.value = true;
+    isDialogBootstrapping.value = true;
+    hasDialogLoadingStarted.value = false;
+    clearDialogPrepareFallbackTimer();
+    startDialogPreparationLoading();
+
+    return token;
+}
+
+function armDialogPreparationFallback(token: number) {
+    clearDialogPrepareFallbackTimer();
+    dialogPrepareFallbackTimer = setTimeout(() => {
+        finishDialogPreparation(token);
+    }, DIALOG_PREPARE_FALLBACK_MS);
+}
+
+function scheduleDialogPreparationFinish(token: number) {
+    clearDialogPrepareFinishTimer();
+    dialogPrepareFinishTimer = setTimeout(() => {
+        dialogPrepareFinishTimer = null;
+        finishDialogPreparation(token);
+    }, DIALOG_PREPARE_FINISH_DELAY_MS);
+}
+
 // Funciones con tipado explícito
-function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): void {
+async function openDialog(type: 'create' | 'edit', subGroup: CategorySubGroup | null = null): Promise<void> {
+    const token = await startDialogPreparationContext();
+    if (token === null) return;
+
     dialogType.value = type;
-    isDialogOpen.value = true;
     if (type === 'edit' && subGroup) {
         form.value = { ...subGroup };
     } else {
         form.value = { id: undefined, name: '', category_group_id: undefined };
     }
+
+    await nextTick();
+    if (token !== dialogPrepareToken) return;
+
+    isDialogOpen.value = true;
+    armDialogPreparationFallback(token);
 }
 
 function closeDialog(): void {
     isDialogOpen.value = false;
+    finishDialogPreparation(dialogPrepareToken);
+}
+
+function handleDialogLoadingState(value: boolean): void {
+    if (!isDialogBootstrapping.value) return;
+
+    if (value) {
+        hasDialogLoadingStarted.value = true;
+        return;
+    }
+
+    if (!hasDialogLoadingStarted.value) return;
+    scheduleDialogPreparationFinish(dialogPrepareToken);
 }
 
 function confirmDeleteSubGroup(subGroup: CategorySubGroup): void {
@@ -168,6 +263,12 @@ watch([searchQuery, normalizedGroupId], ([newQuery, newGroup]) => {
 onMounted(() => {
     fetchSubGroups();
 });
+
+onBeforeUnmount(() => {
+    clearDialogPrepareFinishTimer();
+    clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
+});
 </script>
 
 <template>
@@ -183,6 +284,7 @@ onMounted(() => {
                 </div>
                 <button
                     type="button"
+                    :disabled="isPreparingDialog"
                     class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="openDialog('create')"
                 >
@@ -279,8 +381,10 @@ onMounted(() => {
         :dialogType="dialogType"
         :subGroupData="form"
         :groups="props.groups"
+        :defer-content="isPreparingDialog"
         @close="closeDialog"
         @submit="submitForm"
+        @loading-state="handleDialogLoadingState"
         @notify="(payload) => { if (payload.type === 'success') { successMessage = payload.message; errorMessage = ''; } else { errorMessage = payload.message; successMessage = ''; } }"
     />
     <ConfirmDialog
@@ -293,4 +397,3 @@ onMounted(() => {
         @confirm="deleteSubGroup"
     />
 </template>
-

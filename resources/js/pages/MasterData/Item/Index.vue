@@ -50,6 +50,7 @@ import ItemDialog from './ItemDialog.vue';
 import BulkUploadDialog from './BulkUploadDialog.vue';
 
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
@@ -102,6 +103,8 @@ const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const DIALOG_PREPARE_FALLBACK_MS = 10000;
 let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
+const smartLoading = useSmartLoading();
 
 function getEmptyForm(): Partial<Item> {
     return {
@@ -135,11 +138,23 @@ function clearDialogPrepareFallbackTimer() {
     }
 }
 
+function startDialogPreparationLoading() {
+    if (dialogPreparationLoadingId) return;
+    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
+}
+
+function stopDialogPreparationLoading() {
+    if (!dialogPreparationLoadingId) return;
+    smartLoading.stop(dialogPreparationLoadingId);
+    dialogPreparationLoadingId = null;
+}
+
 function finishDialogPreparation(token: number) {
     if (token !== dialogPrepareToken) return;
     isPreparingDialog.value = false;
     isDialogBootstrapping.value = false;
     clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
 }
 
 function getErrorMessage(err: unknown, fallback: string) {
@@ -252,6 +267,7 @@ async function openDialog(type: DialogType, item: Item | null = null) {
     const token = ++dialogPrepareToken;
     isPreparingDialog.value = true;
     isDialogBootstrapping.value = true;
+    startDialogPreparationLoading();
 
     dialogType.value = type;
     form.value = item ? { ...item } : getEmptyForm();
@@ -335,26 +351,13 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
     clearDialogPrepareFallbackTimer();
+    stopDialogPreparationLoading();
 });
 </script>
 
 <template>
     <Head title="Catálogo de ítem" />
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div
-            v-if="isPreparingDialog"
-            class="fixed inset-0 z-[3000] grid place-items-center bg-background/60 backdrop-blur-sm"
-            role="status"
-            aria-live="polite"
-        >
-            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
-                <div class="flex items-center gap-3">
-                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
-                </div>
-            </div>
-        </div>
-
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
                 :success-message="successMessage"
@@ -580,6 +583,7 @@ onBeforeUnmount(() => {
             :isOpen="isDialogOpen"
             :dialogType="dialogType"
             :form="form"
+            :defer-content="isPreparingDialog"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
             @loading-state="handleDialogLoadingState"

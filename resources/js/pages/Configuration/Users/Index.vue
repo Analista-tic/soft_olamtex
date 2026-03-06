@@ -25,12 +25,13 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import { useAuthStore } from '@/stores/auth';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import ViewButton from '@/components/common/ViewButton.vue';
+import { useSmartLoading } from '@/composables/useSmartLoading';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -66,6 +67,7 @@ const totalItems = ref(0);
 const searchSnapshot = ref('');
 const searchTouched = ref(false);
 const selectedAreaId = ref<number | string | null>('');
+const isPageReady = ref(false);
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 
 const isAreaFilterActive = computed(() => selectedAreaId.value !== '' && selectedAreaId.value !== null);
@@ -134,6 +136,7 @@ const canEdit = computed(() => authStore.can('editar usuarios'));
 const canDelete = computed(() => authStore.can('eliminar usuarios'));
 const canView = computed(() => authStore.can('ver usuarios'));
 const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
+const smartLoading = useSmartLoading();
 
 function resolveApiMessage(error: unknown, fallback: string): string {
     if (axios.isAxiosError(error)) {
@@ -149,18 +152,22 @@ function resolveApiMessage(error: unknown, fallback: string): string {
     return fallback;
 }
 
-function openDialog(type: 'create' | 'edit' | 'view', user: User | null = null) {
-    dialogType.value = type;
-    searchSnapshot.value = searchQuery.value.trim();
-    searchTouched.value = false;
-    if (type === 'edit' && user) {
-        form.value = { ...user, password: '' }; // No se muestra la contraseÃ±a existente
-    } else if (type === 'view' && user) {
-        form.value = { ...user, password: '' };
-    } else {
-        form.value = { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
-    }
-    isDialogOpen.value = true;
+async function openDialog(type: 'create' | 'edit' | 'view', user: User | null = null) {
+    await smartLoading.run(
+        async () => {
+            dialogType.value = type;
+            searchSnapshot.value = searchQuery.value.trim();
+            searchTouched.value = false;
+            if ((type === 'edit' || type === 'view') && user) {
+                form.value = { ...user, password: '' };
+            } else {
+                form.value = { id: null, name: '', email: '', password: '', roles: [] };
+            }
+            await nextTick();
+            isDialogOpen.value = true;
+        },
+        { label: 'Preparando formulario...' },
+    );
 }
 
 function closeDialog() {
@@ -265,7 +272,7 @@ watch(selectedAreaId, () => {
 watch(isDialogOpen, (newValue) => {
     if (newValue) {
         form.value = (dialogType.value === 'edit' || dialogType.value === 'view') && form.value.id
-            ? { ...form.value, password: '' } // Limpiar solo el campo de contraseÃ±a al editar
+            ? { ...form.value, password: '' } // Limpiar solo el campo de contraseña al editar
             : { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
     }
 });
@@ -278,8 +285,16 @@ onMounted(async () => {
             console.error('Error al cargar permisos del usuario:', error);
         }
     }
-    fetchAreas();
-    fetchUsers();
+    try {
+        await smartLoading.run(
+            async () => {
+                await Promise.all([fetchAreas(), fetchUsers()]);
+            },
+            { label: 'Cargando usuarios...' },
+        );
+    } finally {
+        isPageReady.value = true;
+    }
 });
 </script>
 
@@ -294,7 +309,7 @@ onMounted(async () => {
             @close-success="clearSuccess"
             @close-error="clearError"
         />
-        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+        <div v-if="isPageReady" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
                     <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
@@ -408,7 +423,7 @@ onMounted(async () => {
         @submit="submitForm"
     />
 
-    <!-- Dialog para Confirmar EliminaciÃ³n -->
+    <!-- Dialog para Confirmar Eliminación -->
     <ConfirmDialog
         v-model:open="isDeleteDialogOpen"
         title="Confirmar eliminación"
@@ -419,9 +434,6 @@ onMounted(async () => {
         @confirm="deleteUser"
     />
 </template>
-
-
-
 
 
 

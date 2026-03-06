@@ -1,14 +1,16 @@
 import '../css/app.css';
 
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createPinia } from 'pinia'; // Importar Pinia
 import type { DefineComponent } from 'vue';
-import { createApp, h } from 'vue';
+import { Fragment, createApp, h } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
 import { initAccentColor } from './composables/useAccentColor';
 import { initializeTheme } from './composables/useAppearance';
+import GlobalLoadingOverlay from './components/common/GlobalLoadingOverlay.vue';
+import { useSmartLoading } from './composables/useSmartLoading';
 
 // ImportMeta declarations are provided in resources/js/env.d.ts
 
@@ -102,8 +104,16 @@ createInertiaApp({
     resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob<DefineComponent>('./pages/**/*.vue')),
     setup({ el, App, props, plugin }) {
         const pinia = createPinia(); // Crear instancia de Pinia
+        const smartLoading = useSmartLoading();
+        smartLoading.bindSmartLoadingToInertia(router);
 
-        createApp({ render: () => h(App, props) })
+        createApp({
+            render: () =>
+                h(Fragment, [
+                    h(App, props),
+                    h(GlobalLoadingOverlay),
+                ]),
+        })
             .use(plugin)
             .use(pinia) // Usar Pinia
             .use(ZiggyVue)

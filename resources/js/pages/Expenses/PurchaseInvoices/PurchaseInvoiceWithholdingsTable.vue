@@ -223,8 +223,6 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                             <DeleteButton
                                 v-if="!isReadOnly"
                                 type="button"
-                                size="sm"
-                                variant="destructive"
                                 @click="removeWithholding(idx)"
                             />
                         </td>
