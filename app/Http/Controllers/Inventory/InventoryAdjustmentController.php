@@ -8,7 +8,6 @@ use App\Models\Inventory\InventoryAdjustment;
 use App\Models\MasterData\Item;
 use App\Services\Inventory\InventoryAdjustmentService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -142,49 +141,6 @@ class InventoryAdjustmentController extends Controller
         throw ValidationException::withMessages([
             'lines' => ["No hay bodegas configuradas. Crea una bodega o envía warehouse_id."],
         ]);
-    }
-
-    /**
-     * Aplica el movimiento de inventario en la tabla pivot `warehouse_items`.
-     */
-    private function applyStockMovement(Item $item, int $warehouseId, int $quantity, string $type): void
-    {
-        $quantity = abs($quantity);
-        $sign = $type === 'entrada' ? 1 : -1;
-
-        $row = DB::table('warehouse_items')
-            ->where('item_id', $item->id)
-            ->where('warehouse_id', $warehouseId)
-            ->lockForUpdate()
-            ->first();
-
-        $currentQty = $row ? (int) $row->quantity : 0;
-        $newQty = $currentQty + ($sign * $quantity);
-
-        if ($newQty < 0 && !$item->negative_movement) {
-            $item->negative_movement = 1;
-            $item->save();
-        }
-
-        $quantityToStore = $item->negative_movement ? $newQty : max($newQty, 0);
-
-        $payload = [
-            'quantity'   => $quantityToStore,
-            'stock_min'  => $row ? $row->stock_min : 0,
-            'stock_max'  => $row ? $row->stock_max : 0,
-            'updated_at' => now(),
-        ];
-
-        if ($row) {
-            DB::table('warehouse_items')
-                ->where('id', $row->id)
-                ->update($payload);
-        } else {
-            $payload['item_id'] = $item->id;
-            $payload['warehouse_id'] = $warehouseId;
-            $payload['created_at'] = now();
-            DB::table('warehouse_items')->insert($payload);
-        }
     }
 
     /**

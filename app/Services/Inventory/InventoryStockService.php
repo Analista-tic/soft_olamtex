@@ -36,8 +36,8 @@ class InventoryStockService
     }
 
     /**
-     * @deprecated No manipular stock directamente. Usar InventoryMovementService::createMovement
-     *             para todos los movimientos (ajustes, compras, traslados, etc.).
+     * @deprecated 4UTEX: No manipular stock directamente. Usar InventoryMovementService::createMovement
+     *             para todos los movimientos. Los movimientos son inmutables; para corregir use reverseMovement().
      */
     public function applyStockMovement(Item $item, int $warehouseId, int $quantity, string $type): void
     {

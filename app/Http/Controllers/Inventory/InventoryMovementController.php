@@ -110,6 +110,10 @@ class InventoryMovementController extends Controller
             return response()->json([
                 'message' => $e->getMessage(),
             ], 422);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error al registrar el movimiento: ' . $e->getMessage(),
@@ -136,7 +140,8 @@ class InventoryMovementController extends Controller
     }
 
     /**
-     * Eliminar un movimiento (soft delete).
+     * Revertir un movimiento. Los movimientos son inmutables; la reversión crea
+     * un movimiento contrapartida que deshace el efecto del original.
      */
     public function destroy(int $id): JsonResponse
     {
@@ -149,14 +154,20 @@ class InventoryMovementController extends Controller
                 ], 404);
             }
 
-            $this->service->delete($movement);
+            $reversed = $this->service->reverseMovement(
+                $movement,
+                (string) request('notes', '')
+            );
 
             return response()->json([
-                'message' => 'Movimiento eliminado correctamente.',
+                'message' => 'Movimiento revertido correctamente.',
+                'data' => $reversed->load(['item', 'warehouse', 'createdBy']),
             ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Error al eliminar el movimiento: ' . $e->getMessage(),
+                'message' => 'Error al revertir el movimiento: ' . $e->getMessage(),
             ], 500);
         }
     }

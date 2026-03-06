@@ -9,15 +9,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class InventoryMovement extends Model implements HasAuditLabel
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     protected $table = 'inventory_movements';
 
-    public array $auditIgnore = ['created_at', 'updated_at', 'deleted_at'];
+    public array $auditIgnore = ['created_at', 'updated_at'];
 
     public static function auditLabel(): string
     {

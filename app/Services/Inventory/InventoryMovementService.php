@@ -3,6 +3,7 @@
 namespace App\Services\Inventory;
 
 use App\Models\Inventory\InventoryMovement;
+use App\Models\Inventory\InventoryPeriodLock;
 use App\Models\MasterData\Item;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
@@ -43,6 +44,20 @@ class InventoryMovementService
     public function createMovement(array $data): InventoryMovement
     {
         return DB::transaction(function () use ($data) {
+            // Validar período cerrado
+            $movementDate = $data['date'] ?? now()->toDateString();
+            $dt = \Carbon\Carbon::parse($movementDate);
+            if (InventoryPeriodLock::isPeriodClosed((int) $dt->year, (int) $dt->month)) {
+                throw new \RuntimeException('No se pueden registrar movimientos: el período ' . $dt->format('Y-m') . ' está cerrado.');
+            }
+
+            // Lock warehouse_items para evitar condiciones de carrera
+            DB::table('warehouse_items')
+                ->where('item_id', $data['item_id'])
+                ->where('warehouse_id', $data['warehouse_id'])
+                ->lockForUpdate()
+                ->first();
+
             // Validaciones básicas
             if (empty($data['item_id']) || empty($data['warehouse_id'])) {
                 throw new \InvalidArgumentException('item_id y warehouse_id son requeridos');
@@ -144,11 +159,8 @@ class InventoryMovementService
                 'created_by_user_id' => $userId,
             ]);
 
-            // Actualizar stock en warehouse_items
-            $this->updateWarehouseStock($data['item_id'], $data['warehouse_id'], $newStock);
-
-            // Actualizar precio ponderado en caché del item
-            $this->updateItemWeightedPrice($data['item_id'], $newWeightedPrice);
+            // Actualizar stock y PP en warehouse_items (estado derivado por bodega)
+            $this->updateWarehouseStock($data['item_id'], $data['warehouse_id'], $newStock, $newWeightedPrice);
 
             return $movement->load(['item', 'warehouse', 'createdBy']);
         });
@@ -207,6 +219,11 @@ class InventoryMovementService
         // Calcular nuevo stock total
         $newStock = $previousStock + $quantity;
 
+        // División por cero: si nuevo stock es 0, PP = 0
+        if ($newStock == 0) {
+            return 0.0;
+        }
+
         // Si no hay stock anterior, el precio ponderado es directamente el precio de la primera compra
         if ($previousStock <= 0) {
             return $effectivePrice;
@@ -246,37 +263,47 @@ class InventoryMovementService
     }
 
     /**
-     * Obtener precio ponderado actual de un item.
-     * Prioriza el campo cacheado en items, si no existe consulta último movimiento.
+     * Obtener precio ponderado actual de un item en una bodega.
+     *
+     * El precio ponderado es por item+bodega. items.weighted_average_price es solo
+     * un caché global; cuando se especifica bodega se usa el historial de movimientos
+     * de esa bodega para evitar mezclar precios de bodegas distintas.
      */
     protected function getWeightedPrice(int $itemId, int $warehouseId): float
     {
-        // Opción 1: Obtener del caché en items
-        $item = Item::find($itemId);
-        if ($item && $item->weighted_average_price > 0) {
-            return (float) $item->weighted_average_price;
+        // Prioridad 1: warehouse_items.weighted_average_price (PP por bodega)
+        if (Schema::hasColumn('warehouse_items', 'weighted_average_price')) {
+            $pp = DB::table('warehouse_items')
+                ->where('item_id', $itemId)
+                ->where('warehouse_id', $warehouseId)
+                ->whereNotNull('weighted_average_price')
+                ->where('weighted_average_price', '>', 0)
+                ->value('weighted_average_price');
+            if ($pp !== null) {
+                return (float) $pp;
+            }
         }
 
-        // Opción 2: Consultar último movimiento de entrada
+        // Prioridad 2: Último movimiento de esta item+bodega
         $lastMovement = InventoryMovement::where('item_id', $itemId)
             ->where('warehouse_id', $warehouseId)
-            ->where('type', 'entrada')
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->first();
 
-        if ($lastMovement) {
+        if ($lastMovement && $lastMovement->new_weighted_price > 0) {
             return (float) $lastMovement->new_weighted_price;
         }
 
-        // Opción 3: Usar cost_price del item como fallback
-        return $item ? (float) $item->cost_price : 0;
+        // Prioridad 3: cost_price del item como fallback
+        $item = Item::find($itemId);
+        return $item ? (float) ($item->cost_price ?? 0) : 0;
     }
 
     /**
-     * Actualizar stock en warehouse_items.
+     * Actualizar stock y PP en warehouse_items (estado derivado por bodega).
      */
-    protected function updateWarehouseStock(int $itemId, int $warehouseId, float $newStock): void
+    protected function updateWarehouseStock(int $itemId, int $warehouseId, float $newStock, ?float $weightedPrice = null): void
     {
         $row = DB::table('warehouse_items')
             ->where('item_id', $itemId)
@@ -287,6 +314,10 @@ class InventoryMovementService
             'quantity' => $newStock,
             'updated_at' => now(),
         ];
+
+        if (Schema::hasColumn('warehouse_items', 'weighted_average_price') && $weightedPrice !== null) {
+            $payload['weighted_average_price'] = $weightedPrice;
+        }
 
         if ($row) {
             DB::table('warehouse_items')
@@ -300,23 +331,6 @@ class InventoryMovementService
             $payload['created_at'] = now();
             DB::table('warehouse_items')->insert($payload);
         }
-    }
-
-    /**
-     * Actualizar precio ponderado en caché del item.
-     */
-    protected function updateItemWeightedPrice(int $itemId, float $weightedPrice): void
-    {
-        if (!Schema::hasColumn('items', 'weighted_average_price')) {
-            return;
-        }
-
-        DB::table('items')
-            ->where('id', $itemId)
-            ->update([
-                'weighted_average_price' => $weightedPrice,
-                'updated_at' => now(),
-            ]);
     }
 
     /**
@@ -416,14 +430,39 @@ class InventoryMovementService
     }
 
     /**
-     * Eliminar movimiento (soft delete).
-     * ADVERTENCIA: No recalcula precio ponderado, usar con precaución.
+     * Los movimientos son inmutables. No se eliminan.
+     * Para corregir un movimiento, usar reverseMovement().
+     *
+     * @throws \RuntimeException Siempre. Use reverseMovement() en su lugar.
      */
     public function delete(InventoryMovement $movement): void
     {
-        DB::transaction(function () use ($movement) {
-            $movement->delete();
-        });
+        throw new \RuntimeException(
+            'Los movimientos de inventario no se eliminan. Use reverseMovement() para revertir un movimiento.'
+        );
+    }
+
+    /**
+     * Revertir un movimiento creando uno contrapartida.
+     * Mantiene el libro auditable e inmutable.
+     */
+    public function reverseMovement(InventoryMovement $movement, string $notes = ''): InventoryMovement
+    {
+        $reverseType = $movement->type === 'entrada' ? 'salida' : 'entrada';
+        // Para reversión de salida → entrada: usar el unit_price original (PP al momento de la salida)
+        $unitPrice = ($reverseType === 'entrada') ? $movement->unit_price : null;
+
+        return $this->createMovement([
+            'item_id' => $movement->item_id,
+            'warehouse_id' => $movement->warehouse_id,
+            'type' => $reverseType,
+            'quantity' => $movement->quantity,
+            'unit_price' => $unitPrice,
+            'date' => now()->toDateString(),
+            'source_type' => null,
+            'source_id' => null,
+            'notes' => $notes ?: ("Reversión de movimiento #{$movement->id}"),
+        ]);
     }
 
     /**
@@ -443,11 +482,32 @@ class InventoryMovementService
             return $this->getWeightedPrice($itemId, $warehouseId);
         }
 
-        // Si no hay warehouse, obtener el precio global del item
-        $item = Item::find($itemId);
-        return $item && $item->weighted_average_price > 0 
-            ? (float) $item->weighted_average_price 
-            : 0;
+        // Sin bodega: PP global ponderado desde warehouse_items
+        if (!Schema::hasColumn('warehouse_items', 'weighted_average_price')) {
+            $item = Item::find($itemId);
+            return $item ? (float) ($item->cost_price ?? 0) : 0;
+        }
+        $rows = DB::table('warehouse_items')
+            ->where('item_id', $itemId)
+            ->whereNotNull('weighted_average_price')
+            ->where('weighted_average_price', '>', 0)
+            ->where('quantity', '>', 0)
+            ->get(['quantity', 'weighted_average_price']);
+
+        if ($rows->isEmpty()) {
+            $item = Item::find($itemId);
+            return $item ? (float) ($item->cost_price ?? 0) : 0;
+        }
+
+        $totalCost = 0.0;
+        $totalQty = 0.0;
+        foreach ($rows as $r) {
+            $q = (float) $r->quantity;
+            $p = (float) $r->weighted_average_price;
+            $totalCost += $q * $p;
+            $totalQty += $q;
+        }
+        return $totalQty > 0 ? ($totalCost / $totalQty) : 0;
     }
 
     /**
