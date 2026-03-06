@@ -14,7 +14,10 @@ class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             RolesAndPermissionsSeeder::class,
             ExampleDataSeeder::class,
+            BatchControlModuleSeeder::class,
             OperationsSeeder::class,
+            FabricItemsDemoSeeder::class,
+            SupplyItemsDemoSeeder::class,
         ]);
     }
 }

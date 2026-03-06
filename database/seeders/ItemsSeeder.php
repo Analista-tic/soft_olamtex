@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ItemsSeeder extends Seeder
 {
@@ -110,7 +111,7 @@ class ItemsSeeder extends Seeder
                     continue; // Skip si no existe el subgrupo
                 }
 
-                $itemId = DB::table('items')->insertGetId([
+                $payload = [
                     'category_sub_group_id' => $subGroupId,
                     'tax_id' => $tax19,
                     'name' => $it['name'],
@@ -121,12 +122,15 @@ class ItemsSeeder extends Seeder
                     'description' => $it['description'],
                     'extra_fields' => $it['extra_fields'] ?? null,
                     'unit_measure' => $it['unit_measure'],
-                    'weighted_average_price' => 0,
                     'status' => true,
                     'item_type' => 'product',
                     'created_at' => $now,
                     'updated_at' => $now,
-                ]);
+                ];
+                if (Schema::hasColumn('items', 'weighted_average_price')) {
+                    $payload['weighted_average_price'] = 0;
+                }
+                $itemId = DB::table('items')->insertGetId($payload);
 
                 // Vincular a bodega principal con stock inicial
                 $warehouseId = DB::table('warehouses')->where('name', 'Principal')->value('id')

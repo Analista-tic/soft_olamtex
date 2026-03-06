@@ -6,7 +6,7 @@ use App\Models\Settings\User;
 use App\Models\Settings\Setting;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\WarehouseTransferService;
-use App\Services\Production\ProgrammerService;
+use App\Services\Production\ProductionOrderService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -503,12 +503,12 @@ class ExampleDataSeeder extends Seeder
         $worldId = $this->getParameterFirstId('worlds');
         $fabricBaseId = $this->getParameterFirstId('fabric_bases');
 
-        // ========== PRODUCT SHEETS Y PROGRAMMERS ==========
+        // ========== PRODUCT SHEETS Y PRODUCTION ORDERS ==========
         // Se crean escenarios consistentes con la lógica del ERP:
-        // - Muestras (type=muestra) generan Programmers AUTO con OP MU-xxxx o MUT-xxxx
-        // - Productos (type=producto) pueden tener Programmers MANUALES con OP MF-xxxx o MFT-xxxx
+        // - Muestras (type=muestra) generan ProductionOrders AUTO con OP MU-xxxx o MUT-xxxx
+        // - Productos (type=producto) pueden tener ProductionOrders MANUALES con OP MF-xxxx o MFT-xxxx
         
-        $programmerService = app(ProgrammerService::class);
+        $orderService = app(ProductionOrderService::class);
 
         // Escenario A: ProductSheet tipo 'muestra', woven_product=false OP MU-xxxx (auto)
         DB::table('product_sheets')->updateOrInsert(
@@ -593,11 +593,11 @@ class ExampleDataSeeder extends Seeder
         // Obtener mes actual para temporada (ej: FEBRERO)
         $seasonLabel = strtoupper(now()->locale('es')->monthName);
 
-        // Programmer AUTO para muestra (MU-xxxx) - simula creación desde Sábana de Productos
+        // ProductionOrder AUTO para muestra (MU-xxxx) - simula creación desde Sábana de Productos
         // type=muestra, woven_product=false → MU
-        $opCodeMuestra = $programmerService->nextOpCode('muestra', false); // MU-0001
+        $opCodeMuestra = $orderService->nextOpCode('muestra', false); // MU-0001
         
-        DB::table('programmers')->updateOrInsert(
+        DB::table('production_orders')->updateOrInsert(
             ['product_sheet_id' => $muestraSheetId, 'source' => 'auto'],
             [
                 'op_code' => $opCodeMuestra,
@@ -614,11 +614,11 @@ class ExampleDataSeeder extends Seeder
             ]
         );
 
-        // Programmer MANUAL para producto (MFT-xxxx) - creado desde formulario Programador
+        // ProductionOrder MANUAL para producto (MFT-xxxx) - creado desde formulario Programador
         // type=producto, woven_product=true → MFT
-        $opCodeProducto = $programmerService->nextOpCode('producto', true); // MFT-0001
+        $opCodeProducto = $orderService->nextOpCode('producto', true); // MFT-0001
         
-        DB::table('programmers')->updateOrInsert(
+        DB::table('production_orders')->updateOrInsert(
             ['product_sheet_id' => $productoSheetId, 'source' => 'manual'],
             [
                 'op_code' => $opCodeProducto,
@@ -636,7 +636,7 @@ class ExampleDataSeeder extends Seeder
         );
 
         // Fixture explícito para Ficha técnica: MF-0001 con prioridad A
-        DB::table('programmers')->updateOrInsert(
+        DB::table('production_orders')->updateOrInsert(
             ['op_code' => 'MF-0001'],
             [
                 'product_sheet_id' => $productoMfSheetId,

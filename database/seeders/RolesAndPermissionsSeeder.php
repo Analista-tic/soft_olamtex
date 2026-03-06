@@ -48,6 +48,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'crear sabana productos',
             'editar sabana productos',
             'eliminar sabana productos',
+            'editar procesos ficha tecnica',
             'ver pedidos telas',
             'crear pedidos telas',
             'editar pedidos telas',
