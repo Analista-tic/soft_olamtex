@@ -2,26 +2,102 @@
 
 namespace App\Services\Expenses;
 
+use App\Enums\PurchaseInvoiceStatus;
 use App\Models\Expenses\PurchaseDocument;
+use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseDocumentInvoiceService extends PurchaseDocumentService
 {
+    /**
+     * Estado oficial para que una nota impacte saldo en CxP.
+     */
+    private const NOTE_BALANCE_IMPACT_STATUS = 'approved';
+
+    public function paginateAccountsPayable(array $filters = [], int $perPage = 20): LengthAwarePaginator
+    {
+        $query = PurchaseDocument::query()
+            ->with([
+                'supplier:id,full_name,id_number,phone,email',
+                'items:id,purchase_document_id,total,total_tax',
+                'children' => fn ($childQuery) => $childQuery
+                    ->whereIn('document_type', [PurchaseDocument::TYPE_CREDIT_NOTE, PurchaseDocument::TYPE_DEBIT_NOTE])
+                    ->with([
+                        'items:id,purchase_document_id,total,total_tax',
+                        'parent:id,document_type',
+                    ]),
+            ])
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->whereIn('status', [
+                PurchaseInvoiceStatus::PENDING_RECEIPT->value,
+                PurchaseInvoiceStatus::RECEIVED->value,
+            ]);
+
+        $search = trim((string) ($filters['search'] ?? ''));
+        if ($search !== '') {
+            $query->where(function ($builder) use ($search) {
+                $builder
+                    ->where('document_number', 'like', "%{$search}%")
+                    ->orWhere('supplier_invoice_number', 'like', "%{$search}%")
+                    ->orWhere('provider_name', 'like', "%{$search}%")
+                    ->orWhereHas('supplier', fn ($supplierQuery) =>
+                        $supplierQuery
+                            ->where('full_name', 'like', "%{$search}%")
+                            ->orWhere('id_number', 'like', "%{$search}%")
+                    );
+            });
+        }
+
+        $contactId = (int) ($filters['contact_id'] ?? ($filters['provider_id'] ?? 0));
+        if ($contactId > 0) {
+            $query->where('contact_id', $contactId);
+        }
+
+        if (!empty($filters['date_from'])) {
+            $query->whereDate('date', '>=', $filters['date_from']);
+        }
+
+        if (!empty($filters['date_to'])) {
+            $query->whereDate('date', '<=', $filters['date_to']);
+        }
+
+        if (!empty($filters['due_date_from'])) {
+            $query->whereDate('delivery_date', '>=', $filters['due_date_from']);
+        }
+
+        if (!empty($filters['due_date_to'])) {
+            $query->whereDate('delivery_date', '<=', $filters['due_date_to']);
+        }
+
+        $paginator = $query
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->paginate(max(1, $perPage));
+
+        $paginator->setCollection(
+            $paginator->getCollection()
+                ->map(fn (PurchaseDocument $invoice) => $this->mapAccountsPayableRow($invoice))
+                ->values()
+        );
+
+        return $paginator;
+    }
+
     public function getInvoiceNotesSummary(PurchaseDocument $invoice): array
     {
         $creditTotal = 0.0;
         $debitTotal = 0.0;
 
-        $notes = $invoice->children()
-            ->whereIn('document_type', [PurchaseDocument::TYPE_CREDIT_NOTE, PurchaseDocument::TYPE_DEBIT_NOTE])
-            ->with(['items:id,purchase_document_id,total,total_tax'])
-            ->get(['id', 'document_type']);
+        $notes = $this->resolveInvoiceNotes($invoice);
 
         foreach ($notes as $note) {
-            $noteTotal = (float) $note->items->sum(function ($item) {
-                return ((float) ($item->total ?? 0)) + ((float) ($item->total_tax ?? 0));
-            });
+            if (!$this->noteAffectsBalance($note, (int) $invoice->id)) {
+                continue;
+            }
+
+            $noteTotal = $this->noteApplicableAmount($note);
 
             if ($note->document_type === PurchaseDocument::TYPE_DEBIT_NOTE) {
                 $debitTotal += $noteTotal;
@@ -31,7 +107,7 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             $creditTotal += $noteTotal;
         }
 
-        $invoiceTotal = (float) $invoice->items()->sum(DB::raw('COALESCE(total, 0) + COALESCE(total_tax, 0)'));
+        $invoiceTotal = $this->invoiceTotal($invoice);
         $netAdjustment = $debitTotal - $creditTotal;
         $balanceAfterNotes = $invoiceTotal + $netAdjustment;
 
@@ -46,16 +122,14 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
 
     public function getLinkedCreditDebitNotes(PurchaseDocument $invoice): Collection
     {
-        return $invoice->children()
-            ->whereIn('document_type', [PurchaseDocument::TYPE_CREDIT_NOTE, PurchaseDocument::TYPE_DEBIT_NOTE])
-            ->with(['items:id,purchase_document_id,total,total_tax'])
-            ->orderByDesc('date')
-            ->orderByDesc('id')
-            ->get(['id', 'document_number', 'document_type', 'date', 'reason', 'status'])
+        return $this->resolveInvoiceNotes($invoice)
+            ->sortByDesc(fn (PurchaseDocument $note) => sprintf('%s#%010d', $note->date?->format('Y-m-d') ?? '0000-00-00', (int) $note->id))
             ->map(function (PurchaseDocument $note) {
-                $total = (float) $note->items->sum(function ($item) {
-                    return ((float) ($item->total ?? 0)) + ((float) ($item->total_tax ?? 0));
-                });
+                $applicableAmount = $this->noteApplicableAmount($note);
+                $affectsBalance = $this->noteAffectsBalance($note, (int) ($note->parent_document_id ?? 0));
+                $signedApplicableAmount = $note->document_type === PurchaseDocument::TYPE_CREDIT_NOTE
+                    ? -$applicableAmount
+                    : $applicableAmount;
 
                 return [
                     'id' => $note->id,
@@ -64,7 +138,10 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
                     'date' => $note->date?->format('Y-m-d'),
                     'reason' => $note->reason,
                     'status' => $note->status,
-                    'total' => round($total, 2),
+                    'total' => round($applicableAmount, 2),
+                    'applicable_amount' => round($applicableAmount, 2),
+                    'signed_applicable_amount' => round($signedApplicableAmount, 2),
+                    'affects_balance' => $affectsBalance,
                 ];
             })
             ->values();
@@ -140,5 +217,155 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
 
             return $this->loadWithRelations($invoice);
         });
+    }
+
+    protected function resolveInvoiceNotes(PurchaseDocument $invoice): Collection
+    {
+        if ($invoice->relationLoaded('children')) {
+            $notes = $invoice->children
+                ->filter(fn (PurchaseDocument $document) =>
+                    in_array($document->document_type, [PurchaseDocument::TYPE_CREDIT_NOTE, PurchaseDocument::TYPE_DEBIT_NOTE], true)
+                )
+                ->values();
+
+            if ($notes->isNotEmpty()) {
+                $notes->loadMissing([
+                    'items:id,purchase_document_id,total,total_tax',
+                    'parent:id,document_type',
+                ]);
+            }
+
+            return $notes;
+        }
+
+        return $invoice->children()
+            ->whereIn('document_type', [PurchaseDocument::TYPE_CREDIT_NOTE, PurchaseDocument::TYPE_DEBIT_NOTE])
+            ->with([
+                'items:id,purchase_document_id,total,total_tax',
+                'parent:id,document_type',
+            ])
+            ->get(['id', 'document_number', 'document_type', 'date', 'reason', 'status', 'parent_document_id']);
+    }
+
+    protected function noteAffectsBalance(PurchaseDocument $note, int $invoiceId): bool
+    {
+        if (!in_array($note->document_type, [PurchaseDocument::TYPE_CREDIT_NOTE, PurchaseDocument::TYPE_DEBIT_NOTE], true)) {
+            return false;
+        }
+
+        if ($note->status !== self::NOTE_BALANCE_IMPACT_STATUS) {
+            return false;
+        }
+
+        if ((int) ($note->parent_document_id ?? 0) !== $invoiceId) {
+            return false;
+        }
+
+        if ($note->trashed()) {
+            return false;
+        }
+
+        $parentType = $note->parent?->document_type;
+        if ($parentType !== null && $parentType !== PurchaseDocument::TYPE_INVOICE) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected function noteApplicableAmount(PurchaseDocument $note): float
+    {
+        if ($note->relationLoaded('items')) {
+            $amount = (float) $note->items->sum(function ($item) {
+                return ((float) ($item->total ?? 0)) + ((float) ($item->total_tax ?? 0));
+            });
+
+            return round($amount, 2);
+        }
+
+        $amount = (float) $note->items()->sum(DB::raw('COALESCE(total, 0) + COALESCE(total_tax, 0)'));
+        return round($amount, 2);
+    }
+
+    protected function invoiceTotal(PurchaseDocument $invoice): float
+    {
+        if ($invoice->relationLoaded('items')) {
+            $amount = (float) $invoice->items->sum(function ($item) {
+                return ((float) ($item->total ?? 0)) + ((float) ($item->total_tax ?? 0));
+            });
+
+            return round($amount, 2);
+        }
+
+        $amount = (float) $invoice->items()->sum(DB::raw('COALESCE(total, 0) + COALESCE(total_tax, 0)'));
+        return round($amount, 2);
+    }
+
+    protected function mapAccountsPayableRow(PurchaseDocument $invoice): array
+    {
+        $summary = $this->getInvoiceNotesSummary($invoice);
+        $dueDate = $invoice->delivery_date?->format('Y-m-d') ?? $invoice->date?->format('Y-m-d');
+        $debtStatus = $this->resolveDebtStatus((float) ($summary['balance_after_notes'] ?? 0), $dueDate);
+
+        return [
+            'id' => $invoice->id,
+            'invoice_id' => $invoice->id,
+            'document_number' => $invoice->document_number,
+            'supplier_name' => $invoice->supplier?->full_name ?? $invoice->provider_name ?? 'Sin proveedor',
+            'contact_id' => $invoice->contact_id,
+            'invoice_date' => $invoice->date?->format('Y-m-d'),
+            'due_date' => $dueDate,
+            'invoice_total' => (float) ($summary['invoice_total'] ?? 0),
+            'credit_notes_total' => (float) ($summary['credit_total'] ?? 0),
+            'debit_notes_total' => (float) ($summary['debit_total'] ?? 0),
+            'current_balance' => (float) ($summary['balance_after_notes'] ?? 0),
+            'debt_status' => $debtStatus['code'],
+            'debt_status_label' => $debtStatus['label'],
+            'debt_status_tone' => $debtStatus['tone'],
+            'invoice_status' => $invoice->status,
+            'invoice_status_label' => $this->resolveInvoiceStatusLabel($invoice->status),
+        ];
+    }
+
+    protected function resolveDebtStatus(float $balance, ?string $dueDate): array
+    {
+        if ($balance <= 0) {
+            return [
+                'code' => 'settled',
+                'label' => 'Saldada',
+                'tone' => 'green',
+            ];
+        }
+
+        if ($dueDate !== null) {
+            try {
+                $due = CarbonImmutable::parse($dueDate)->startOfDay();
+                if ($due->lt(CarbonImmutable::today())) {
+                    return [
+                        'code' => 'overdue',
+                        'label' => 'Vencida',
+                        'tone' => 'red',
+                    ];
+                }
+            } catch (\Throwable) {
+                // Si la fecha no es parseable, se mantiene como pendiente sin bloquear CxP.
+            }
+        }
+
+        return [
+            'code' => 'pending',
+            'label' => 'Pendiente',
+            'tone' => 'yellow',
+        ];
+    }
+
+    protected function resolveInvoiceStatusLabel(?string $status): string
+    {
+        if (!is_string($status) || trim($status) === '') {
+            return 'Sin estado';
+        }
+
+        $enum = PurchaseInvoiceStatus::tryFrom($status);
+        return $enum?->label() ?? $status;
     }
 }

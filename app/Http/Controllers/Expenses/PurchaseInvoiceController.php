@@ -7,6 +7,7 @@ use App\Models\Expenses\PurchaseDocument;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 
 class PurchaseInvoiceController extends PurchaseDocumentController
 {
@@ -61,6 +62,11 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         return $this->indexView('Expenses/PurchaseInvoices/Index');
     }
 
+    public function accountsPayableIndex()
+    {
+        return Inertia::render('Expenses/AccountsPayable/Index');
+    }
+
     public function getData(Request $request)
     {
         $filters = $this->buildFilters($request);
@@ -75,6 +81,35 @@ class PurchaseInvoiceController extends PurchaseDocumentController
             'data' => $documents->items(),
             'total' => $documents->total(),
             'current_page' => $documents->currentPage(),
+        ]);
+    }
+
+    public function getAccountsPayableData(Request $request)
+    {
+        $filters = $request->only([
+            'search',
+            'contact_id',
+            'provider_id',
+            'date_from',
+            'date_to',
+            'due_date_from',
+            'due_date_to',
+        ]);
+
+        if (!$request->filled('contact_id') && $request->filled('provider_id')) {
+            $filters['contact_id'] = $request->input('provider_id');
+        }
+
+        $documents = $this->invoiceService->paginateAccountsPayable(
+            $filters,
+            (int) $request->input('per_page', 20)
+        );
+
+        return response()->json([
+            'data' => $documents->items(),
+            'total' => $documents->total(),
+            'current_page' => $documents->currentPage(),
+            'last_page' => $documents->lastPage(),
         ]);
     }
 

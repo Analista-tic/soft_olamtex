@@ -89,7 +89,7 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Cartera proveedores',
                 items: [
-                    { title: 'Cuentas por pagar', href: underConstructionHref('Cuentas por pagar') },
+                    { title: 'Cuentas por pagar', href: '/gastos/cuentas-por-pagar' },
                     { title: 'Pagos', href: underConstructionHref('Pagos') },
                 ],
             },

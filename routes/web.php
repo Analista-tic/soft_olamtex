@@ -508,6 +508,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject');
         });
 
+        // === CUENTAS POR PAGAR (CXP) ===
+        Route::prefix('cuentas-por-pagar')->name('accounts-payable.')->group(function () {
+            Route::get('/', [PurchaseInvoiceController::class, 'accountsPayableIndex'])->name('index');
+            Route::get('/data', [PurchaseInvoiceController::class, 'getAccountsPayableData'])->name('getData');
+        });
+
         // === FACTURAS DE COMPRA TELAS ===
         Route::prefix('facturas-compra-tela')->name('purchase-invoices-fabric.')->group(function () {
             Route::get('/', [PurchaseInvoiceTelaController::class, 'indexFabric'])->name('index');
