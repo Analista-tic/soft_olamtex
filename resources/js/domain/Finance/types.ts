@@ -179,6 +179,9 @@ export interface ExpenseVoucherRecord {
         payment_date: string | null;
         reference: string | null;
         withholdings_total?: number | null;
+        invoice_total?: number | null;
+        document_pending_balance?: number | null;
+        document_payments_total?: number | null;
     }>;
 }
 
@@ -237,5 +240,9 @@ export interface ExpenseVoucherDetailItem extends ExpenseVoucherListItem {
         payment_date: string | null;
         reference: string | null;
         withholdings_total?: number | null;
+        invoice_total?: number | null;
+        document_pending_balance?: number | null;
+        document_payments_total?: number | null;
     }>;
+    editable_documents?: TreasuryOpenDocument[];
 }

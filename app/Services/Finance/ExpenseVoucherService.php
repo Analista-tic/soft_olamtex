@@ -4,6 +4,7 @@ namespace App\Services\Finance;
 
 use App\Models\Inventory\InventoryPeriodLock;
 use App\Models\Finance\ExpenseVoucher;
+use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchasePayment;
 use App\Services\Expenses\PurchasePaymentService;
 use Illuminate\Support\Collection;
@@ -110,7 +111,7 @@ class ExpenseVoucherService
     {
         $payment = PurchasePayment::query()
             ->with([
-                'invoice:id,document_number,contact_id,date',
+                'invoice:id,document_number,contact_id,date,delivery_date,withholdings',
                 'invoice.supplier:id,full_name',
                 'creator:id,name',
             ])
@@ -131,7 +132,7 @@ class ExpenseVoucherService
 
         $payments = PurchasePayment::query()
             ->with([
-                'invoice:id,document_number,contact_id,date',
+                'invoice:id,document_number,contact_id,date,delivery_date,withholdings',
                 'invoice.supplier:id,full_name',
                 'creator:id,name',
             ])
@@ -170,10 +171,7 @@ class ExpenseVoucherService
             ]);
         }
 
-        $availableDocs = collect($this->treasuryVoucherService->getPendingPayableDocuments($contactId))
-            ->keyBy(fn (array $doc) => (int) ($doc['id'] ?? 0));
-
-        return DB::transaction(function () use ($id, $payload, $contactId, $date, $applications, $availableDocs) {
+        return DB::transaction(function () use ($id, $payload, $contactId, $date, $applications) {
             $basePayment = PurchasePayment::query()
                 ->whereKey($id)
                 ->lockForUpdate()
@@ -186,6 +184,7 @@ class ExpenseVoucherService
             $voucherNumber = $basePayment->voucher_number ?? (int) $basePayment->id;
 
             $existingPayments = PurchasePayment::query()
+                ->with(['invoice:id,document_number,contact_id,date,delivery_date,withholdings'])
                 ->when(
                     $basePayment->voucher_number !== null,
                     fn ($query) => $query->where('voucher_number', $basePayment->voucher_number),
@@ -201,6 +200,9 @@ class ExpenseVoucherService
             }
 
             $this->assertVoucherIsEditable($existingPayments);
+            $availableDocs = collect($this->resolveEditablePayableDocuments($contactId, $existingPayments))
+                ->keyBy(fn (array $doc) => (int) ($doc['id'] ?? 0));
+
             $voucherHeader = $this->upsertVoucherHeader(
                 voucherNumber: (int) $voucherNumber,
                 payload: $payload,
@@ -224,7 +226,7 @@ class ExpenseVoucherService
                     ]);
                 }
 
-                $pending = (float) ($doc['current_balance'] ?? 0);
+                $pending = (float) ($doc['pending_balance'] ?? 0);
                 if ($amount > ($pending + 0.0001)) {
                     throw ValidationException::withMessages([
                         'applications' => "El monto aplicado en la factura {$documentId} supera el saldo pendiente.",
@@ -249,6 +251,7 @@ class ExpenseVoucherService
                     'payment_date' => $payment->payment_date?->format('Y-m-d'),
                     'reference' => $payment->reference,
                     'voucher_number' => (string) $payment->voucher_number,
+                    'withholdings_total' => isset($doc['withholdings_total']) ? round((float) $doc['withholdings_total'], 2) : null,
                 ];
             })->values();
 
@@ -341,6 +344,7 @@ class ExpenseVoucherService
                     'payment_date' => $payment->payment_date?->format('Y-m-d'),
                     'reference' => $payment->reference,
                     'voucher_number' => (string) $payment->voucher_number,
+                    'withholdings_total' => isset($doc['withholdings_total']) ? round((float) $doc['withholdings_total'], 2) : null,
                 ];
             })->values();
 
@@ -467,7 +471,6 @@ class ExpenseVoucherService
 
         $details = collect([
             $invoiceNumber ? "Factura: {$invoiceNumber}" : null,
-            $reference ? "Ref: {$reference}" : null,
         ])
             ->filter()
             ->implode(' · ');
@@ -510,7 +513,6 @@ class ExpenseVoucherService
             $applicationsCount > 1
                 ? "Facturas: {$applicationsCount}"
                 : ($invoiceNumber ? "Factura: {$invoiceNumber}" : null),
-            $reference ? "Ref: {$reference}" : null,
             $paymentMethodLabel ? "Medio: {$paymentMethodLabel}" : null,
         ])
             ->filter()
@@ -547,6 +549,7 @@ class ExpenseVoucherService
     {
         $rows = collect($payments);
         $primary = $rows->first() ?: $fallbackPayment;
+        $financialByDocumentId = $this->buildFinancialSnapshotByDocumentId($rows);
 
         $voucherNumber = (int) ($primary->voucher_number ?? $fallbackPayment->id);
         if ($voucherHeader === null && $primary->voucher_number !== null) {
@@ -570,7 +573,6 @@ class ExpenseVoucherService
 
         $details = collect([
             $invoiceNumber ? "Factura: {$invoiceNumber}" : null,
-            $reference ? "Ref: {$reference}" : null,
             $paymentMethodLabel ? "Medio: {$paymentMethodLabel}" : null,
         ])
             ->filter()
@@ -602,16 +604,166 @@ class ExpenseVoucherService
             'status_label' => 'Registrado',
             'status_tone' => 'green',
             'created_by' => $primary->creator?->name,
-            'applications' => $rows->map(fn (PurchasePayment $row) => [
-                'payment_id' => (int) $row->id,
-                'document_id' => (int) $row->purchase_invoice_id,
-                'document_number' => $row->invoice?->document_number,
-                'document_date' => $row->invoice?->date?->format('Y-m-d'),
-                'amount' => round((float) $row->amount, 2),
-                'payment_date' => $row->payment_date?->format('Y-m-d'),
-                'reference' => $row->reference,
-            ])->values()->all(),
+            'applications' => $rows->map(function (PurchasePayment $row) use ($financialByDocumentId) {
+                $documentId = (int) $row->purchase_invoice_id;
+                $financial = $financialByDocumentId->get($documentId, []);
+
+                return [
+                    'payment_id' => (int) $row->id,
+                    'document_id' => $documentId,
+                    'document_number' => $row->invoice?->document_number,
+                    'document_date' => $row->invoice?->date?->format('Y-m-d'),
+                    'amount' => round((float) $row->amount, 2),
+                    'payment_date' => $row->payment_date?->format('Y-m-d'),
+                    'reference' => $row->reference,
+                    'withholdings_total' => $this->resolveInvoiceWithholdingsTotal($row->invoice),
+                    'invoice_total' => $financial['invoice_total'] ?? null,
+                    'document_pending_balance' => $financial['current_balance'] ?? null,
+                    'document_payments_total' => $financial['payments_total'] ?? null,
+                ];
+            })->values()->all(),
+            'editable_documents' => $this->resolveEditablePayableDocuments($contactId, $rows),
         ];
+    }
+
+    private function buildFinancialSnapshotByDocumentId(Collection $voucherPayments): Collection
+    {
+        return $voucherPayments
+            ->map(fn (PurchasePayment $payment) => $payment->invoice)
+            ->filter(fn ($invoice) =>
+                $invoice instanceof PurchaseDocument
+                && $invoice->document_type === PurchaseDocument::TYPE_INVOICE
+            )
+            ->unique(fn (PurchaseDocument $invoice) => (int) $invoice->id)
+            ->mapWithKeys(fn (PurchaseDocument $invoice) => [
+                (int) $invoice->id => $this->resolveInvoiceFinancialSnapshot($invoice),
+            ]);
+    }
+
+    private function resolveInvoiceFinancialSnapshot(PurchaseDocument $invoice): array
+    {
+        $summary = $this->purchasePaymentService->getInvoicePaymentSummary($invoice);
+
+        return [
+            'invoice_total' => round((float) ($summary['invoice_total'] ?? 0), 2),
+            'payments_total' => round((float) ($summary['payments_total'] ?? 0), 2),
+            'current_balance' => round((float) ($summary['current_balance'] ?? 0), 2),
+        ];
+    }
+
+    private function resolveEditablePayableDocuments(int $contactId, Collection $voucherPayments): array
+    {
+        if ($contactId <= 0) {
+            return [];
+        }
+
+        $pendingRows = collect($this->treasuryVoucherService->getPendingPayableDocuments(
+            $contactId,
+            max(200, $voucherPayments->count() * 4),
+        ))
+            ->map(fn (array $row) => $this->mapEditablePayableDocumentRow($row))
+            ->keyBy(fn (array $row) => (int) ($row['id'] ?? 0));
+
+        $appliedByDocument = $voucherPayments
+            ->groupBy(fn (PurchasePayment $payment) => (int) $payment->purchase_invoice_id)
+            ->map(fn (Collection $rows) => round((float) $rows->sum(fn (PurchasePayment $row) => (float) $row->amount), 2));
+
+        foreach ($appliedByDocument as $documentIdRaw => $appliedAmountRaw) {
+            $documentId = (int) $documentIdRaw;
+            $appliedAmount = round((float) $appliedAmountRaw, 2);
+            if ($documentId <= 0 || $appliedAmount <= 0) {
+                continue;
+            }
+
+            /** @var PurchasePayment|null $sample */
+            $sample = $voucherPayments->first(
+                fn (PurchasePayment $payment) => (int) $payment->purchase_invoice_id === $documentId,
+            );
+            $invoice = $sample?->invoice;
+
+            if ($invoice && (int) ($invoice->contact_id ?? 0) > 0 && (int) $invoice->contact_id !== $contactId) {
+                continue;
+            }
+
+            $current = $pendingRows->get($documentId);
+            if (is_array($current)) {
+                $current['pending_balance'] = round((float) ($current['pending_balance'] ?? 0) + $appliedAmount, 2);
+                $current['applied_total'] = max(0, round((float) ($current['applied_total'] ?? 0) - $appliedAmount, 2));
+                $current['withholdings_total'] = max(
+                    (float) ($current['withholdings_total'] ?? 0),
+                    $this->resolveInvoiceWithholdingsTotal($invoice),
+                );
+                $pendingRows->put($documentId, $current);
+                continue;
+            }
+
+            $invoiceDate = $invoice?->date?->format('Y-m-d');
+            $pendingRows->put($documentId, [
+                'id' => $documentId,
+                'document_number' => $invoice?->document_number ?: "Documento #{$documentId}",
+                'invoice_date' => $invoiceDate,
+                'due_date' => $invoice?->delivery_date?->format('Y-m-d') ?? $invoiceDate,
+                'invoice_total' => $appliedAmount,
+                'withholdings_total' => $this->resolveInvoiceWithholdingsTotal($invoice),
+                'credit_notes_total' => 0.0,
+                'debit_notes_total' => 0.0,
+                'applied_total' => 0.0,
+                'pending_balance' => $appliedAmount,
+                'status' => null,
+                'status_label' => null,
+            ]);
+        }
+
+        return $pendingRows->values()->all();
+    }
+
+    private function mapEditablePayableDocumentRow(array $row): array
+    {
+        return [
+            'id' => (int) ($row['id'] ?? 0),
+            'document_number' => $row['document_number'] ?? null,
+            'invoice_date' => $row['invoice_date'] ?? null,
+            'due_date' => $row['due_date'] ?? null,
+            'invoice_total' => (float) ($row['invoice_total'] ?? 0),
+            'withholdings_total' => (float) ($row['withholdings_total'] ?? 0),
+            'credit_notes_total' => (float) ($row['credit_notes_total'] ?? 0),
+            'debit_notes_total' => (float) ($row['debit_notes_total'] ?? 0),
+            'applied_total' => (float) ($row['payments_total'] ?? $row['applied_total'] ?? 0),
+            'pending_balance' => (float) ($row['current_balance'] ?? $row['pending_balance'] ?? 0),
+            'status' => $row['debt_status'] ?? $row['status'] ?? null,
+            'status_label' => $row['debt_status_label'] ?? $row['status_label'] ?? null,
+        ];
+    }
+
+    private function resolveInvoiceWithholdingsTotal(mixed $invoice): float
+    {
+        if (!$invoice) {
+            return 0.0;
+        }
+
+        $withholdings = $invoice->withholdings;
+        if (!is_array($withholdings)) {
+            return 0.0;
+        }
+
+        $total = collect($withholdings)->sum(function ($item) {
+            $row = is_array($item) ? $item : (array) $item;
+            $baseAmount = (float) ($row['base_amount'] ?? 0);
+            $percentage = (float) ($row['percentage'] ?? $row['percent'] ?? 0);
+            $fixedValue = (float) ($row['value'] ?? $row['amount'] ?? 0);
+
+            if ($fixedValue > 0) {
+                return $fixedValue;
+            }
+
+            if ($baseAmount > 0 && $percentage > 0) {
+                return ($baseAmount * $percentage) / 100;
+            }
+
+            return 0.0;
+        });
+
+        return round((float) $total, 2);
     }
 
     private function assertVoucherIsEditable(Collection $voucherPayments): void

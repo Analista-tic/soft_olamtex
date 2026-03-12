@@ -16,12 +16,14 @@ import {
     fetchTreasuryPayableDocuments,
     fetchTreasurySuppliers,
     type ExpenseVoucherDetailItem,
+    type TreasuryOpenDocument,
+    updateExpenseVoucher,
 } from '@/domain/Finance';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, router } from '@inertiajs/vue3';
 import { Info, Pencil, Plus } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import RetentionExpenseVoucherDialog from './RetentionExpenseVoucherDialog.vue';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -107,8 +109,31 @@ function parsePositiveInteger(value: string | null): number | null {
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
-    const message = (error as { response?: { data?: { message?: unknown } } })
-        ?.response?.data?.message;
+    const responseData = (error as {
+        response?: {
+            data?: {
+                message?: unknown;
+                errors?: Record<string, string[] | string | null | undefined>;
+            };
+        };
+    })?.response?.data;
+
+    const validationErrors = responseData?.errors;
+    if (validationErrors && typeof validationErrors === 'object') {
+        for (const value of Object.values(validationErrors)) {
+            if (Array.isArray(value)) {
+                const first = value.find((item) => typeof item === 'string' && item.trim());
+                if (first) return first;
+                continue;
+            }
+
+            if (typeof value === 'string' && value.trim()) {
+                return value;
+            }
+        }
+    }
+
+    const message = responseData?.message;
     return typeof message === 'string' && message.trim() ? message : fallback;
 }
 
@@ -132,6 +157,7 @@ const mode = computed<PageMode>(() => props.mode ?? 'create');
 const isCreateMode = computed(() => mode.value === 'create');
 const isShowMode = computed(() => mode.value === 'show');
 const isEditMode = computed(() => mode.value === 'edit');
+const isFormMode = computed(() => isCreateMode.value || isEditMode.value);
 
 const breadcrumbs = computed(() => {
     if (isCreateMode.value) {
@@ -145,7 +171,7 @@ const breadcrumbs = computed(() => {
         return [
             { title: 'Comprobante de egreso', href: ROUTES.index },
             { title: voucher.value.voucher_number, href: ROUTES.detail(voucher.value.id) },
-            { title: 'Editar', href: ROUTES.edit(voucher.value.id) },
+            { title: 'Editar comprobante', href: ROUTES.edit(voucher.value.id) },
         ];
     }
 
@@ -170,6 +196,52 @@ const voucherApplications = computed(() => voucher.value?.applications ?? []);
 const showVoucherWithholdings = computed(() =>
     voucherApplications.value.some((application) => application.withholdings_total != null),
 );
+const showVoucherInvoiceTotals = computed(() =>
+    voucherApplications.value.some((application) => application.invoice_total != null),
+);
+const showVoucherPendingBalances = computed(() =>
+    voucherApplications.value.some((application) => application.document_pending_balance != null),
+);
+
+const voucherFinancialSummary = computed(() => {
+    const seenDocumentIds = new Set<number>();
+    let invoiceTotal = 0;
+    let pendingTotal = 0;
+    let hasInvoiceTotals = false;
+    let hasPendingBalances = false;
+
+    voucherApplications.value.forEach((application) => {
+        const documentId = Number(application.document_id ?? 0);
+        if (documentId <= 0 || seenDocumentIds.has(documentId)) return;
+        seenDocumentIds.add(documentId);
+
+        if (application.invoice_total != null) {
+            invoiceTotal += Number(application.invoice_total || 0);
+            hasInvoiceTotals = true;
+        }
+
+        if (application.document_pending_balance != null) {
+            pendingTotal += Number(application.document_pending_balance || 0);
+            hasPendingBalances = true;
+        }
+    });
+
+    const appliedTotal = voucherApplications.value.reduce((acc, application) => acc + Number(application.amount || 0), 0);
+    const withholdingsTotal = voucherApplications.value.reduce(
+        (acc, application) => acc + Number(application.withholdings_total ?? 0),
+        0,
+    );
+
+    return {
+        documents_count: seenDocumentIds.size || voucherApplications.value.length,
+        applied_total: appliedTotal,
+        withholdings_total: withholdingsTotal,
+        invoice_total: invoiceTotal,
+        pending_total: pendingTotal,
+        has_invoice_totals: hasInvoiceTotals,
+        has_pending_balances: hasPendingBalances,
+    };
+});
 
 function formatVoucherApplicationDocument(application: ExpenseVoucherDetailItem['applications'][number]): string {
     const number = application.document_number?.trim();
@@ -178,6 +250,16 @@ function formatVoucherApplicationDocument(application: ExpenseVoucherDetailItem[
 
 function formatVoucherApplicationDate(application: ExpenseVoucherDetailItem['applications'][number]): string {
     return formatDate(application.document_date ?? application.payment_date);
+}
+
+function formatVoucherApplicationInvoiceTotal(application: ExpenseVoucherDetailItem['applications'][number]): string {
+    if (application.invoice_total == null) return '-';
+    return formatCurrency(Number(application.invoice_total || 0));
+}
+
+function formatVoucherApplicationPendingBalance(application: ExpenseVoucherDetailItem['applications'][number]): string {
+    if (application.document_pending_balance == null) return '-';
+    return formatCurrency(Number(application.document_pending_balance || 0));
 }
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────
@@ -241,6 +323,14 @@ const focusedAmountDocumentId = ref<number | null>(null);
 function hasAmountValue(documentId: number): boolean {
     const parsed = parseIntegerAmountInput(String(applicationAmounts.value[documentId] ?? ''));
     return parsed != null;
+}
+
+function getCurrentApplicationAmount(documentId: number): number {
+    return parseIntegerAmountInput(String(applicationAmounts.value[documentId] ?? '')) ?? 0;
+}
+
+function getRemainingPendingBalance(documentId: number): number {
+    return Math.max(0, getAdjustedPendingBalance(documentId) - getCurrentApplicationAmount(documentId));
 }
 
 function shouldShowAmountSuggestion(documentId: number): boolean {
@@ -450,7 +540,7 @@ function getRequiredFieldErrorMessage(field: RequiredFieldKey): string {
 }
 
 const canSubmit = computed(() =>
-    isCreateMode.value &&
+    isFormMode.value &&
     !hasMissingRequiredFields.value &&
     baseCanSubmit.value &&
     !hasRetentionAdjustedErrors.value,
@@ -485,14 +575,33 @@ async function submitVoucher(): Promise<void> {
 
     submitting.value = true;
     try {
-        const saved = await createExpenseVoucher({
+        const payload = {
             ...form.value,
             applications: [...form.value.applications],
-        });
+        };
+
+        if (isEditMode.value) {
+            if (!voucher.value) {
+                showError('No fue posible identificar el comprobante a actualizar.');
+                return;
+            }
+
+            const saved = await updateExpenseVoucher(voucher.value.id, payload);
+            showSuccess(`Comprobante ${saved.voucher_number} actualizado correctamente.`);
+            goToModeRoute('show');
+            return;
+        }
+
+        const saved = await createExpenseVoucher(payload);
         showSuccess(`Comprobante ${saved.voucher_number} registrado correctamente.`);
         goToIndex();
     } catch (error: unknown) {
-        showError(getErrorMessage(error, 'No fue posible registrar el comprobante de egreso.'));
+        showError(getErrorMessage(
+            error,
+            isEditMode.value
+                ? 'No fue posible actualizar el comprobante de egreso.'
+                : 'No fue posible registrar el comprobante de egreso.',
+        ));
     } finally {
         submitting.value = false;
     }
@@ -509,15 +618,6 @@ function goToModeRoute(targetMode: ExpenseVoucherRouteMode): void {
     router.visit(targetMode === 'show' ? ROUTES.detail(voucher.value.id) : ROUTES.edit(voucher.value.id));
 }
 
-function openCloneCreate(): void {
-    if (!voucher.value) return;
-    const params = new URLSearchParams();
-    if (voucher.value.provider_id) params.set('supplier_id', String(voucher.value.provider_id));
-    if (voucher.value.invoice_id) params.set('invoice_id', String(voucher.value.invoice_id));
-    const query = params.toString();
-    router.visit(query ? `${ROUTES.create}?${query}` : ROUTES.create);
-}
-
 // ─── Initialisation ───────────────────────────────────────────────────────────
 
 function applyIncomingContextFromQuery(): void {
@@ -530,6 +630,140 @@ function applyIncomingContextFromQuery(): void {
     }
 
     pendingInvoiceSelectionId.value = invoiceId;
+}
+
+function normalizeEditableDocumentRow(row: TreasuryOpenDocument): TreasuryOpenDocument {
+    return {
+        id: Number(row.id),
+        document_number: String(row.document_number ?? ''),
+        invoice_date: row.invoice_date ?? null,
+        due_date: row.due_date ?? null,
+        invoice_total: Number(row.invoice_total ?? 0),
+        withholdings_total: Number(row.withholdings_total ?? 0),
+        credit_notes_total: Number(row.credit_notes_total ?? 0),
+        debit_notes_total: Number(row.debit_notes_total ?? 0),
+        applied_total: Number(row.applied_total ?? 0),
+        pending_balance: Number(row.pending_balance ?? 0),
+        status: row.status ?? null,
+        status_label: row.status_label ?? null,
+    };
+}
+
+function createFallbackEditableDocument(application: ExpenseVoucherDetailItem['applications'][number]): TreasuryOpenDocument {
+    const amount = Number(application.amount ?? 0);
+
+    return {
+        id: Number(application.document_id),
+        document_number: application.document_number?.trim() || `Documento #${application.document_id}`,
+        invoice_date: application.document_date ?? application.payment_date ?? null,
+        due_date: application.document_date ?? application.payment_date ?? null,
+        invoice_total: Math.max(0, amount),
+        withholdings_total: Number(application.withholdings_total ?? 0),
+        credit_notes_total: 0,
+        debit_notes_total: 0,
+        applied_total: 0,
+        pending_balance: Math.max(0, amount),
+        status: null,
+        status_label: null,
+    };
+}
+
+function buildEditableDocumentsForEdit(currentVoucher: ExpenseVoucherDetailItem): TreasuryOpenDocument[] {
+    const byId = new Map<number, TreasuryOpenDocument>();
+    const hasEditableDocuments = Array.isArray(currentVoucher.editable_documents) && currentVoucher.editable_documents.length > 0;
+
+    documents.value.forEach((row) => {
+        byId.set(Number(row.id), normalizeEditableDocumentRow(row));
+    });
+
+    (currentVoucher.editable_documents ?? []).forEach((row) => {
+        byId.set(Number(row.id), normalizeEditableDocumentRow(row));
+    });
+
+    currentVoucher.applications.forEach((application) => {
+        const documentId = Number(application.document_id);
+        const appliedAmount = Math.max(0, Number(application.amount ?? 0));
+        const current = byId.get(documentId);
+
+        if (!current) {
+            byId.set(documentId, createFallbackEditableDocument(application));
+            return;
+        }
+
+        const next = { ...current };
+        if (!hasEditableDocuments) {
+            next.pending_balance = Math.max(0, Number(next.pending_balance ?? 0) + appliedAmount);
+            next.applied_total = Math.max(0, Number(next.applied_total ?? 0) - appliedAmount);
+        }
+
+        if (application.withholdings_total != null) {
+            next.withholdings_total = Number(application.withholdings_total);
+        }
+
+        byId.set(documentId, normalizeEditableDocumentRow(next));
+    });
+
+    return Array.from(byId.values());
+}
+
+async function waitForDocumentsLoad(): Promise<void> {
+    if (!loadingDocuments.value) return;
+
+    await new Promise<void>((resolve) => {
+        const stop = watch(
+            loadingDocuments,
+            (value) => {
+                if (value) return;
+                stop();
+                resolve();
+            },
+            { flush: 'post' },
+        );
+    });
+}
+
+async function preloadEditVoucherData(): Promise<void> {
+    if (!voucher.value) {
+        showError('No fue posible cargar el comprobante para edición.');
+        return;
+    }
+
+    form.value.contact_id = voucher.value.contact_id ? Number(voucher.value.contact_id) : null;
+    form.value.account_id = voucher.value.account_id != null ? Number(voucher.value.account_id) : null;
+    form.value.payment_method = voucher.value.payment_method ?? null;
+    form.value.currency = String(form.value.currency ?? 'COP').trim() || 'COP';
+    form.value.date = voucher.value.date ?? voucher.value.payment_date ?? form.value.date;
+    form.value.reference = voucher.value.reference ?? '';
+    form.value.notes = voucher.value.notes ?? '';
+
+    await nextTick();
+    await waitForDocumentsLoad();
+
+    const editDocuments = buildEditableDocumentsForEdit(voucher.value);
+    documents.value = editDocuments;
+
+    const seededAmounts: Record<number, string> = {};
+    editDocuments.forEach((doc) => {
+        seededAmounts[doc.id] = '';
+    });
+
+    voucher.value.applications.forEach((application) => {
+        const amount = Math.max(0, Math.trunc(Number(application.amount ?? 0)));
+        seededAmounts[application.document_id] = amount > 0 ? String(amount) : '';
+    });
+
+    applicationAmounts.value = seededAmounts;
+    form.value.applications = [...applications.value];
+    initializeWithholdingMaps();
+
+    voucher.value.applications.forEach((application) => {
+        const withholding = Number(application.withholdings_total ?? 0);
+        if (Number.isFinite(withholding) && withholding > 0) {
+            setWithholdingValue(application.document_id, withholding);
+        }
+    });
+
+    form.value.applications = [...applications.value];
 }
 
 watch(
@@ -554,7 +788,7 @@ watch(
 );
 
 onMounted(async () => {
-    if (!isCreateMode.value) return;
+    if (isShowMode.value) return;
 
     try {
         await loadInitialLookups();
@@ -564,7 +798,12 @@ onMounted(async () => {
         return;
     }
 
-    applyIncomingContextFromQuery();
+    if (isCreateMode.value) {
+        applyIncomingContextFromQuery();
+        return;
+    }
+
+    await preloadEditVoucherData();
 });
 </script>
 
@@ -574,12 +813,18 @@ onMounted(async () => {
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
 
-            <!-- ─── Create mode ─────────────────────────────────────────────── -->
-            <template v-if="isCreateMode">
+            <!-- ─── Create / Edit form mode ─────────────────────────────────── -->
+            <template v-if="isFormMode">
                 <div class="flex flex-col gap-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">Nuevo comprobante de egreso</h1>
+                    <h1 :class="uiPatterns.typography.pageTitle">
+                        {{ isEditMode ? 'Editar comprobante de egreso' : 'Nuevo comprobante de egreso' }}
+                    </h1>
                     <p :class="uiPatterns.typography.pageSubtitle">
-                        Indica los detalles generales asociados a este egreso
+                        {{
+                            isEditMode
+                                ? 'Actualiza los datos generales y aplicaciones del comprobante.'
+                                : 'Indica los detalles generales asociados a este egreso.'
+                        }}
                     </p>
                 </div>
 
@@ -677,17 +922,15 @@ onMounted(async () => {
                         </section>
 
                         <!-- Pending documents table -->
-                        <section class="rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-sidebar-border/60 px-3 py-2 dark:border-sidebar-border">
-                                <div>
-                                    <h3 :class="uiPatterns.typography.sectionTitle">Documentos pendientes</h3>
-                                    <p :class="uiPatterns.typography.sectionSubtitle">
-                                        Asigna el monto a pagar a cada factura de compra pendiente en este egreso.
-                                    </p>
-                                </div>
+                        <section class="border-t border-sidebar-border/40 pt-5 dark:border-sidebar-border">
+                            <div class="mb-3">
+                                <h3 :class="uiPatterns.typography.sectionTitle">Documentos pendientes</h3>
+                                <p :class="uiPatterns.typography.sectionSubtitle">
+                                    Asigna el monto a pagar a cada factura de compra pendiente en este egreso.
+                                </p>
                             </div>
 
-                            <div class="max-h-[360px] overflow-auto">
+                            <div class="max-h-[360px] overflow-auto rounded-lg border border-sidebar-border/50 dark:border-sidebar-border">
                                 <Table>
                                     <TableHeader>
                                         <TableRow :class="uiPatterns.typography.tableHead">
@@ -747,29 +990,33 @@ onMounted(async () => {
                                             </TableCell>
 
                                             <!-- Retentions -->
-                                            <TableCell class="w-[260px]">
+                                            <TableCell class="w-[220px]">
                                                 <div class="flex min-h-[84px] items-center justify-end">
-                                                    <div class="flex items-center justify-end gap-2">
+                                                    <div class="flex items-center justify-end">
                                                         <template v-if="getWithholdingValue(doc.id) > 0">
-                                                            <div class="inline-flex h-9 min-w-[100px] items-center justify-end rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground tabular-nums">
-                                                                {{ formatCurrency(getWithholdingValue(doc.id)) }}
+                                                            <div class="inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-muted/20 p-1">
+                                                                <div class="inline-flex h-8 min-w-[112px] items-center justify-end rounded-md border border-border/70 bg-background px-2.5 text-sm font-semibold text-foreground tabular-nums">
+                                                                    {{ formatCurrency(getWithholdingValue(doc.id)) }}
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                                                    aria-label="Editar retención"
+                                                                    title="Editar retención"
+                                                                    @click="openWithholdingDialog(doc.id)"
+                                                                >
+                                                                    <Pencil class="h-3.5 w-3.5" />
+                                                                </button>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
-                                                                aria-label="Editar retención"
-                                                                @click="openWithholdingDialog(doc.id)"
-                                                            >
-                                                                <Pencil class="h-4 w-4" />
-                                                            </button>
                                                         </template>
                                                         <button
                                                             v-else
                                                             type="button"
-                                                            class="inline-flex h-9 items-center gap-2 rounded-full border border-primary/30 px-4 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                                            class="inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/80 bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                                                            aria-label="Agregar retención"
                                                             @click="openWithholdingDialog(doc.id)"
                                                         >
-                                                            <Plus class="h-4 w-4" />
+                                                            <Plus class="h-3.5 w-3.5" />
                                                             Agregar retención
                                                         </button>
                                                     </div>
@@ -779,7 +1026,7 @@ onMounted(async () => {
                                             <!-- Pending balance -->
                                             <TableCell class="align-middle text-right font-semibold">
                                                 <div class="flex min-h-[84px] items-center justify-end">
-                                                    {{ formatCurrency(getAdjustedPendingBalance(doc.id)) }}
+                                                    {{ formatCurrency(getRemainingPendingBalance(doc.id)) }}
                                                 </div>
                                             </TableCell>
 
@@ -856,14 +1103,21 @@ onMounted(async () => {
                         </section>
 
                         <!-- Submit row -->
-                        <div class="flex justify-end gap-2 border-t border-sidebar-border/60 pt-4 dark:border-sidebar-border">
+                        <div class="flex justify-end gap-2 pt-2">
+                            <Button type="button" variant="outline" size="pill" :disabled="submitting" @click="goToIndex">
+                                Cancelar
+                            </Button>
                             <Button
                                 type="button"
                                 size="pill"
                                 :disabled="submitting"
                                 @click="submitVoucher"
                             >
-                                {{ submitting ? 'Guardando comprobante...' : 'Guardar comprobante de egreso' }}
+                                {{
+                                    submitting
+                                        ? (isEditMode ? 'Guardando cambios...' : 'Guardando comprobante...')
+                                        : (isEditMode ? 'Guardar cambios' : 'Guardar comprobante de egreso')
+                                }}
                             </Button>
                         </div>
                     </div>
@@ -883,148 +1137,152 @@ onMounted(async () => {
                 />
             </template>
 
-            <!-- ─── Show / Edit mode ────────────────────────────────────────── -->
+            <!-- ─── Show mode ───────────────────────────────────────────────── -->
             <template v-else>
-                <section class="rounded-xl border border-sidebar-border/70 bg-background p-4 dark:border-sidebar-border">
-                    <header class="mb-4">
-                        <h1 :class="uiPatterns.typography.pageTitle">
-                            {{ isEditMode ? 'Editar comprobante de egreso' : 'Detalle de comprobante de egreso' }}
-                        </h1>
-                        <p :class="uiPatterns.typography.pageSubtitle">
-                            {{
-                                isEditMode
-                                    ? 'Flujo de edición directa queda preparado para fase siguiente; puedes registrar un ajuste clonado.'
-                                    : 'Consulta información del comprobante registrado y sus datos contables base.'
-                            }}
-                        </p>
-                    </header>
 
-                    <dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Número</dt>
-                            <dd class="text-sm font-semibold text-foreground">{{ voucher?.voucher_number || '-' }}</dd>
+                <!-- Card único: todo el contenido del comprobante -->
+                <div class="overflow-hidden rounded-xl border border-sidebar-border/60 bg-background dark:border-sidebar-border">
+
+                    <!-- Header: fondo tintado, título a la izq, total a la der -->
+                    <div class="border-b border-sidebar-border/60 bg-muted/25 px-6 py-5 dark:border-sidebar-border">
+                        <div class="flex flex-wrap items-start justify-between gap-4">
+                            <div class="space-y-1.5">
+                                <p :class="uiPatterns.typography.sectionSubtitle">Comprobante de egreso</p>
+                                <h1 class="text-xl font-semibold text-foreground">
+                                    {{ voucher?.voucher_number || '-' }}
+                                </h1>
+                                <p :class="uiPatterns.typography.pageSubtitle">
+                                    Registro de egreso aplicado a obligaciones de proveedor.
+                                </p>
+                                <div class="flex flex-wrap items-center gap-2 pt-0.5">
+                                    <TableStatusBadge
+                                        :label="voucher?.status_label || 'Sin estado'"
+                                        :tone="voucher?.status_tone || 'neutral'"
+                                    />
+                                    <TableStatusBadge
+                                        :label="voucher?.reconciled_label || 'No conciliado'"
+                                        :tone="voucher?.reconciled_tone || 'neutral'"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="text-right">
+                                <p :class="uiPatterns.typography.metricLabel">Total aplicado</p>
+                                <p class="mt-0.5 text-3xl font-bold tracking-tight text-foreground tabular-nums">
+                                    {{ formatCurrency(voucher?.total_applied || 0) }}
+                                </p>
+                                <p :class="['mt-1', uiPatterns.typography.helperText]">
+                                    Fecha: {{ formatDate(voucher?.date || voucher?.payment_date) }}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Contacto</dt>
-                            <dd class="text-sm text-foreground">{{ voucher?.supplier_name || '-' }}</dd>
+                    </div>
+
+                    <!-- Franja de metadatos: 4 columnas divididas por líneas verticales -->
+                    <dl class="grid grid-cols-2 divide-x divide-y divide-sidebar-border/50 border-b border-sidebar-border/60 xl:grid-cols-4 xl:divide-y-0 dark:divide-sidebar-border dark:border-sidebar-border">
+                        <div class="px-5 py-3.5">
+                            <dt :class="uiPatterns.typography.metricLabel">Contacto</dt>
+                            <dd class="mt-0.5 truncate text-sm font-medium text-foreground">{{ voucher?.supplier_name || '-' }}</dd>
                         </div>
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Detalles</dt>
-                            <dd class="text-sm text-foreground">{{ voucher?.details || '-' }}</dd>
+                        <div class="px-5 py-3.5">
+                            <dt :class="uiPatterns.typography.metricLabel">Cuenta bancaria</dt>
+                            <dd class="mt-0.5 truncate text-sm font-medium text-foreground">{{ voucher?.account_label || '-' }}</dd>
                         </div>
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Creado</dt>
-                            <dd class="text-sm text-foreground">
-                                {{ formatDate(voucher?.created_at || voucher?.payment_date) }}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Cuenta</dt>
-                            <dd class="text-sm text-foreground">{{ voucher?.account_label || '-' }}</dd>
-                        </div>
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Forma de pago</dt>
-                            <dd class="text-sm text-foreground">
+                        <div class="px-5 py-3.5">
+                            <dt :class="uiPatterns.typography.metricLabel">Forma de pago</dt>
+                            <dd class="mt-0.5 truncate text-sm font-medium text-foreground">
                                 {{ voucher?.payment_method_label || voucher?.payment_method || '-' }}
                             </dd>
                         </div>
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Monto</dt>
-                            <dd class="text-sm font-semibold text-foreground">{{ formatCurrency(voucher?.total_applied || 0) }}</dd>
-                        </div>
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Conciliado</dt>
-                            <dd class="mt-1">
-                                <TableStatusBadge
-                                    :label="voucher?.reconciled_label || 'No'"
-                                    :tone="voucher?.reconciled_tone || 'neutral'"
-                                />
+                        <div class="px-5 py-3.5">
+                            <dt :class="uiPatterns.typography.metricLabel">Creado</dt>
+                            <dd class="mt-0.5 text-sm font-medium text-foreground">
+                                {{ formatDate(voucher?.created_at || voucher?.payment_date) }}
                             </dd>
-                        </div>
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Estado</dt>
-                            <dd class="mt-1">
-                                <TableStatusBadge
-                                    :label="voucher?.status_label || 'Sin estado'"
-                                    :tone="voucher?.status_tone || 'neutral'"
-                                />
-                            </dd>
-                        </div>
-                        <div>
-                            <dt :class="uiPatterns.typography.fieldLabel">Referencia</dt>
-                            <dd class="text-sm text-foreground">{{ voucher?.reference || '-' }}</dd>
-                        </div>
-                        <div class="sm:col-span-2 lg:col-span-3">
-                            <dt :class="uiPatterns.typography.fieldLabel">Observación</dt>
-                            <dd class="text-sm text-foreground">{{ voucher?.notes || '-' }}</dd>
                         </div>
                     </dl>
 
-                    <section class="mt-6 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <div class="border-b border-sidebar-border/60 px-3 py-2 dark:border-sidebar-border">
-                            <h3 :class="uiPatterns.typography.sectionTitle">Aplicaciones del comprobante</h3>
-                            <p :class="uiPatterns.typography.sectionSubtitle">
-                                Este comprobante se aplicó a {{ voucherApplications.length }}
-                                {{ voucherApplications.length === 1 ? 'documento' : 'documentos' }}.
+                    <!-- Cuerpo del comprobante -->
+                    <div class="space-y-6 p-6">
+
+                        <!-- Observación (solo si existe) -->
+                        <div v-if="voucher?.notes?.trim()">
+                            <p :class="uiPatterns.typography.fieldLabel">Observación</p>
+                            <p class="mt-0.5 text-sm text-foreground">{{ voucher.notes }}</p>
+                        </div>
+
+                        <!-- Tabla de aplicaciones -->
+                        <section>
+                            <p :class="['mb-3', uiPatterns.typography.sectionTitle]">
+                                Aplicaciones del comprobante
+                                <span class="ml-1.5 text-sm font-normal text-muted-foreground">
+                                    · {{ voucherFinancialSummary.documents_count }} {{ voucherFinancialSummary.documents_count === 1 ? 'documento' : 'documentos' }}
+                                </span>
                             </p>
-                        </div>
 
-                        <div class="overflow-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow :class="uiPatterns.typography.tableHead">
-                                        <TableHead>Documento</TableHead>
-                                        <TableHead>Fecha</TableHead>
-                                        <TableHead v-if="showVoucherWithholdings" class="text-right">Retenciones</TableHead>
-                                        <TableHead class="text-right">Monto aplicado</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    <template v-if="voucherApplications.length === 0">
-                                        <TableRow>
-                                            <TableCell
-                                                :colspan="showVoucherWithholdings ? 4 : 3"
-                                                class="py-6 text-center text-sm text-muted-foreground"
+                            <!-- Tabla -->
+                            <div class="overflow-auto rounded-t-lg border border-sidebar-border/50 dark:border-sidebar-border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow class="border-b border-sidebar-border/50 bg-muted/40 hover:bg-muted/40 dark:border-sidebar-border">
+                                            <TableHead class="py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Documento</TableHead>
+                                            <TableHead class="py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fecha</TableHead>
+                                            <TableHead v-if="showVoucherInvoiceTotals" class="py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Total doc.</TableHead>
+                                            <TableHead v-if="showVoucherWithholdings" class="py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Retenciones</TableHead>
+                                            <TableHead class="py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Monto aplicado</TableHead>
+                                            <TableHead v-if="showVoucherPendingBalances" class="py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saldo pendiente</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <template v-if="voucherApplications.length === 0">
+                                            <TableRow>
+                                                <TableCell
+                                                    :colspan="3 + (showVoucherInvoiceTotals ? 1 : 0) + (showVoucherWithholdings ? 1 : 0) + (showVoucherPendingBalances ? 1 : 0)"
+                                                    class="py-8 text-center text-sm text-muted-foreground"
+                                                >
+                                                    Este comprobante no tiene aplicaciones registradas.
+                                                </TableCell>
+                                            </TableRow>
+                                        </template>
+                                        <template v-else>
+                                            <TableRow
+                                                v-for="application in voucherApplications"
+                                                :key="application.payment_id"
+                                                class="border-b border-sidebar-border/30 align-middle last:border-0 dark:border-sidebar-border"
                                             >
-                                                Este comprobante no tiene aplicaciones registradas.
-                                            </TableCell>
-                                        </TableRow>
-                                    </template>
-                                    <template v-else>
-                                        <TableRow
-                                            v-for="application in voucherApplications"
-                                            :key="application.payment_id"
-                                            class="align-middle"
-                                        >
-                                            <TableCell class="font-medium text-foreground">
-                                                {{ formatVoucherApplicationDocument(application) }}
-                                            </TableCell>
-                                            <TableCell>{{ formatVoucherApplicationDate(application) }}</TableCell>
-                                            <TableCell v-if="showVoucherWithholdings" class="text-right">
-                                                {{ formatCurrency(application.withholdings_total ?? 0) }}
-                                            </TableCell>
-                                            <TableCell class="text-right font-semibold">
-                                                {{ formatCurrency(application.amount) }}
-                                            </TableCell>
-                                        </TableRow>
-                                    </template>
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </section>
-                </section>
+                                                <TableCell class="py-3.5">
+                                                    <p class="text-sm font-semibold text-foreground">{{ formatVoucherApplicationDocument(application) }}</p>
+                                                    <p class="text-xs text-muted-foreground">{{ voucher?.supplier_name || '' }}</p>
+                                                </TableCell>
+                                                <TableCell class="py-3.5 text-sm text-muted-foreground">
+                                                    {{ formatVoucherApplicationDate(application) }}
+                                                </TableCell>
+                                                <TableCell v-if="showVoucherInvoiceTotals" class="py-3.5 text-right text-sm text-foreground">
+                                                    {{ formatVoucherApplicationInvoiceTotal(application) }}
+                                                </TableCell>
+                                                <TableCell v-if="showVoucherWithholdings" class="py-3.5 text-right text-sm text-foreground">
+                                                    {{ formatCurrency(application.withholdings_total ?? 0) }}
+                                                </TableCell>
+                                                <TableCell class="py-3.5 text-right text-sm font-semibold text-foreground">
+                                                    {{ formatCurrency(application.amount) }}
+                                                </TableCell>
+                                                <TableCell v-if="showVoucherPendingBalances" class="py-3.5 text-right text-sm text-muted-foreground">
+                                                    {{ formatVoucherApplicationPendingBalance(application) }}
+                                                </TableCell>
+                                            </TableRow>
+                                        </template>
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </section>
 
-                <div
-                    v-if="isEditMode"
-                    class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
-                >
-                    Edición directa pendiente: por ahora puedes generar un ajuste desde este comprobante con los mismos datos base.
+                    </div>
                 </div>
 
+                <!-- Acciones fuera del card -->
                 <div class="flex flex-wrap justify-end gap-2">
                     <Button type="button" variant="outline" size="pill" @click="goToIndex">Volver al listado</Button>
-                    <Button v-if="isShowMode" type="button" size="pill" @click="goToModeRoute('edit')">Editar</Button>
-                    <Button v-if="isEditMode" type="button" size="pill" @click="openCloneCreate">Crear ajuste</Button>
+                    <Button type="button" size="pill" @click="goToModeRoute('edit')">Editar comprobante</Button>
                 </div>
             </template>
 

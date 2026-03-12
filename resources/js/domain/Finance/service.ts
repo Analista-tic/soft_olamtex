@@ -237,6 +237,15 @@ export async function createExpenseVoucher(payload: TreasuryVoucherDraft): Promi
     return mapExpenseVoucherRecordFromApi(raw);
 }
 
+export async function updateExpenseVoucher(id: number, payload: TreasuryVoucherDraft): Promise<ExpenseVoucherRecord> {
+    const res = await axios.put<{ data?: ExpenseVoucherRecordDto } | ExpenseVoucherRecordDto>(
+        `${EXPENSE_VOUCHERS_ENDPOINT}/${id}`,
+        mapExpenseVoucherPayloadToApi(payload),
+    );
+    const raw = (res.data as { data?: ExpenseVoucherRecordDto })?.data ?? (res.data as ExpenseVoucherRecordDto);
+    return mapExpenseVoucherRecordFromApi(raw);
+}
+
 export async function fetchExpenseVouchersPage(params: ExpenseVoucherListQuery = {}): Promise<{
     data: ExpenseVoucherListItem[];
     total: number;

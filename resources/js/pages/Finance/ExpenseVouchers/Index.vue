@@ -207,7 +207,7 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                         <div class="relative">
                             <Input
                                 v-model="searchQuery"
-                                placeholder="Buscar por número, referencia o proveedor"
+                                placeholder="Buscar por número o proveedor"
                                 class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm focus:border-primary focus:ring-0"
                             />
                             <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -276,7 +276,7 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                         <TableRow v-for="row in rows" v-else :key="row.id" class="text-center">
                             <TableCell :class="uiPatterns.typography.bodyStrong">{{ row.voucher_number }}</TableCell>
                             <TableCell>{{ row.supplier_name || '-' }}</TableCell>
-                            <TableCell>{{ row.details || row.invoice_number || row.reference || '-' }}</TableCell>
+                            <TableCell>{{ row.details || row.invoice_number || '-' }}</TableCell>
                             <TableCell>{{ formatDate(row.created_at || row.payment_date) }}</TableCell>
                             <TableCell>{{ row.account_label || '-' }}</TableCell>
                             <TableCell>
