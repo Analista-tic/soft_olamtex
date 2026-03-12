@@ -28,6 +28,7 @@ import InventoryRequestDialog from './InventoryRequestDialog.vue';
 import InventoryRequestDeliveryDialog from './InventoryRequestDeliveryDialog.vue';
 import InventoryRequestRejectDialog from './InventoryRequestRejectDialog.vue';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 type InventoryRequestRow = {
     id: number;
@@ -309,8 +310,8 @@ onBeforeUnmount(() => {
 
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Solicitudes internas</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Solicitudes internas</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Solicitudes de insumos o materiales con entrega controlada por logistica.
                     </p>
                 </div>
@@ -435,7 +436,7 @@ onBeforeUnmount(() => {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="requests.length === 0">
-                            <TableCell colspan="7" class="text-center text-gray-400">No hay solicitudes registradas.</TableCell>
+                            <TableCell colspan="7" class="text-center text-muted-foreground">No hay solicitudes registradas.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
@@ -497,3 +498,6 @@ onBeforeUnmount(() => {
         />
     </AppLayout>
 </template>
+
+
+

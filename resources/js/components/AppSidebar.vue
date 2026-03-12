@@ -62,7 +62,7 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Pedidos', href: underConstructionHref('Pedidos') },
                     { title: 'Facturas de venta', href: underConstructionHref('Facturas de venta') },
                     { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=sale' },
-                    { title: 'Recaudos / Pagos recibidos', href: underConstructionHref('Recaudos / Pagos recibidos') },
+                    { title: 'Recibo de caja', href: '/finanzas/recibos-caja' },
                 ],
             },
             {
@@ -80,7 +80,7 @@ const moduleSections: ModuleSection[] = [
                 items: [
                     { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra', permission: 'ver telas' },
                     { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver telas' },
-                    { title: 'Recepciones', href: underConstructionHref('Recepciones') },
+                    { title: 'Recepciones', href: '/kardex-telas/recepcion' },
                     { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver telas' },
                     { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver telas' },
                     { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=purchase', permission: 'ver telas' },
@@ -89,8 +89,8 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Cartera proveedores',
                 items: [
-                    { title: 'Cuentas por pagar', href: '/gastos/cuentas-por-pagar' },
-                    { title: 'Pagos', href: underConstructionHref('Pagos') },
+                    { title: 'Comprobante de egreso', href: '/finanzas/comprobantes-egreso' },
+                    // { title: 'Pagos', href: underConstructionHref('Pagos') },
                 ],
             },
         ],
@@ -455,7 +455,8 @@ watch(
 
 <style scoped>
 .active {
-    @apply font-semibold text-primary;
+    font-weight: 600;
+    color: hsl(var(--primary));
 }
 
 .group\/collapsible {

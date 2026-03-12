@@ -202,7 +202,7 @@ defineExpose({ addItem });
                         </TableCell>
                     </TableRow>
                     <TableRow v-if="localItems.length === 0">
-                        <TableCell colspan="6" class="text-center text-gray-400"> No hay items agregados. </TableCell>
+                        <TableCell colspan="6" class="text-center text-muted-foreground"> No hay items agregados. </TableCell>
                     </TableRow>
                 </TableBody>
             </Table>
@@ -212,4 +212,3 @@ defineExpose({ addItem });
         </datalist>
     </div>
 </template>
-

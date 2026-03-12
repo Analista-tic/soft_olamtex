@@ -52,3 +52,95 @@ export interface CreditDebitNoteDto {
     approval_status?: string | null;
     items: CreditDebitNoteItemDto[];
 }
+
+export interface TreasuryThirdPartyDto {
+    id: number;
+    full_name?: string | null;
+    name?: string | null;
+    id_number?: string | null;
+    party_type?: 'supplier' | 'customer' | null;
+}
+
+export interface TreasuryOpenDocumentDto {
+    id: number;
+    document_number?: string | null;
+    invoice_date?: string | null;
+    due_date?: string | null;
+    invoice_total?: number | string | null;
+    withholdings_total?: number | string | null;
+    credit_notes_total?: number | string | null;
+    debit_notes_total?: number | string | null;
+    payments_total?: number | string | null;
+    current_balance?: number | string | null;
+    debt_status?: string | null;
+    debt_status_label?: string | null;
+}
+
+export interface TreasurySelectOptionDto {
+    id: number | string;
+    name: string;
+}
+
+export interface ExpenseVoucherApplicationDto {
+    document_id: number;
+    amount: number;
+}
+
+export interface ExpenseVoucherPayloadDto {
+    contact_id: number;
+    date: string;
+    account_id?: number | null;
+    payment_method?: string | null;
+    reference?: string | null;
+    notes?: string | null;
+    applications: ExpenseVoucherApplicationDto[];
+}
+
+export interface ExpenseVoucherRecordDto {
+    voucher_number: string | number;
+    date: string;
+    contact_id: number;
+    account_id?: number | null;
+    account_label?: string | null;
+    payment_method?: string | null;
+    payment_method_label?: string | null;
+    reference?: string | null;
+    notes?: string | null;
+    total_applied: number;
+    applications: Array<{
+        payment_id: number;
+        document_id: number;
+        document_number?: string | null;
+        document_date?: string | null;
+        amount: number;
+        payment_date?: string | null;
+        reference?: string | null;
+        withholdings_total?: number | string | null;
+    }>;
+}
+
+export interface ExpenseVoucherListItemDto {
+    id: number;
+    voucher_number?: string | number | null;
+    payment_date?: string | null;
+    created_at?: string | null;
+    provider_id?: number | null;
+    supplier_name?: string | null;
+    details?: string | null;
+    invoice_id?: number | null;
+    invoice_number?: string | null;
+    account_id?: number | null;
+    account_label?: string | null;
+    payment_method?: string | null;
+    payment_method_label?: string | null;
+    reconciled?: boolean | null;
+    reconciled_label?: string | null;
+    reconciled_tone?: 'green' | 'yellow' | 'red' | 'gray' | null;
+    reference?: string | null;
+    notes?: string | null;
+    total_applied?: number | string | null;
+    status?: string | null;
+    status_label?: string | null;
+    status_tone?: 'green' | 'yellow' | 'red' | 'gray' | null;
+    created_by?: string | null;
+}

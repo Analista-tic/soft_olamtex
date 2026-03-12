@@ -80,18 +80,18 @@ function saveProfileInfo() {
     <form class="space-y-6" @submit.prevent="saveProfileInfo">
         <div class="flex items-start gap-4">
             <div class="space-y-1">
-                <h2 class="text-2xl font-semibold text-slate-900">Perfil del usuario</h2>
-                <p class="text-sm text-slate-500">Edita el nombre de usuario, el correo y la contraseña que están en la tabla users.</p>
+                <h2 class="text-2xl font-semibold text-foreground">Perfil del usuario</h2>
+                <p class="text-sm text-muted-foreground">Edita el nombre de usuario, el correo y la contraseña que están en la tabla users.</p>
             </div>
         </div>
 
         <div class="space-y-2">
-            <label class="text-sm font-medium text-slate-700">Nombre de usuario</label>
+            <label class="text-sm font-medium text-foreground">Nombre de usuario</label>
             <Input v-model="profileInfo.username" placeholder="Nombre de usuario" />
         </div>
 
         <div class="space-y-2">
-            <label class="text-sm font-medium text-slate-700">Correo electrónico</label>
+            <label class="text-sm font-medium text-foreground">Correo electrónico</label>
             <Input v-model="profileInfo.email" placeholder="correo@dominio.com" />
         </div>
 
@@ -116,7 +116,7 @@ function saveProfileInfo() {
             <div class="flex flex-wrap items-center gap-3">
                 <button
                     type="submit"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="profileSaving"
                 >
                     {{ profileSaving ? 'Guardando...' : 'Guardar cambios' }}

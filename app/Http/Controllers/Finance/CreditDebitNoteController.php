@@ -47,6 +47,36 @@ class CreditDebitNoteController extends Controller
         ]);
     }
 
+    public function nextNumber(Request $request)
+    {
+        $validated = $request->validate([
+            'document_type' => ['required', Rule::in($this->noteTypes())],
+        ]);
+
+        $documentNumber = $this->service->getNextDocumentNumberPreview($validated['document_type']);
+
+        return response()->json([
+            'data' => [
+                'document_number' => $documentNumber,
+            ],
+        ]);
+    }
+
+    public function eligiblePurchaseInvoices(Request $request)
+    {
+        $validated = $request->validate([
+            'contact_id' => ['nullable', 'integer', 'min:1'],
+            'provider_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $contactId = (int) ($validated['contact_id'] ?? ($validated['provider_id'] ?? 0));
+        $rows = $this->service->listEligiblePurchaseInvoices($contactId > 0 ? $contactId : null);
+
+        return response()->json([
+            'data' => $rows,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $this->validatePayload($request);

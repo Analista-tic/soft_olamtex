@@ -17,6 +17,7 @@ import RawMaterialTab from './tabs/RawMaterialTab.vue';
 import RollsTab from './tabs/RollsTab.vue';
 import SuppliesTab from './tabs/SuppliesTab.vue';
 import ThreadsTab from './tabs/ThreadsTab.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const props = defineProps<{
     initialOpId: string | number | null;
@@ -326,7 +327,7 @@ onBeforeUnmount(() => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <h1 class="text-lg font-bold">Ficha Tecnica</h1>
+            <h1 :class="uiPatterns.typography.pageTitle">Ficha Tecnica</h1>
             <p class="max-w-4xl text-sm text-muted-foreground">
                 Selecciona una orden de produccion para consultar su informacion basica y revisar el dibujo plano de referencia en vista ampliada.
             </p>
@@ -534,3 +535,5 @@ onBeforeUnmount(() => {
         </div>
     </AppLayout>
 </template>
+
+

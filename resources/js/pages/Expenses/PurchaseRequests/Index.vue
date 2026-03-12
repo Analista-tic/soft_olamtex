@@ -18,14 +18,12 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Eye, PlusCircle, Search, MoreVertical, CheckCircle, XCircle, Send, X } from 'lucide-vue-next';
+import { Eye, PlusCircle, Search, CheckCircle, XCircle, Send, X, Trash2 } from 'lucide-vue-next';
 import EditButton from '@/components/common/EditButton.vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
+import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuTrigger,
+    DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { useAlertStack } from '@/composables/useAlert';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
@@ -34,6 +32,7 @@ import type { PurchaseRequest } from '@/domain/Expenses';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs = [
     { title: 'Solicitud de compra', href: '/solicitudes-compra' },
@@ -438,6 +437,18 @@ const canCancel = (request: PurchaseRequest): boolean => {
     return status === 'draft' || status === 'pending';
 };
 
+const canDeleteRequest = (request: PurchaseRequest): boolean => {
+    return canEditRequest(request) || request.status === 'cancelled';
+};
+
+const hasSecondaryActions = (request: PurchaseRequest): boolean => {
+    return canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request);
+};
+
+const hasMenuActions = (request: PurchaseRequest): boolean => {
+    return hasSecondaryActions(request) || canDeleteRequest(request);
+};
+
 async function fetchRequests() {
     isLoading.value = true;
     const params: Record<string, unknown> = {};
@@ -519,15 +530,15 @@ onBeforeUnmount(() => {
         <div class="flex flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="space-y-1">
-                    <h1 class="text-lg font-bold">Solicitud de Compra y Servicios</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Solicitud de Compra y Servicios</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.
                     </p>
                 </div>
                 <button
                     type="button"
                     :disabled="isPreparingDialog"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="openCreateRequest"
                 >
                     <PlusCircle class="h-4 w-4" />
@@ -568,34 +579,34 @@ onBeforeUnmount(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead># Solicitud</TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead>Item</TableHead>
-                            <TableHead>Total estimado</TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead"># Solicitud</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Fecha</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Item</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Total estimado</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Descripción</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
+                            <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <template v-if="isLoading">
                             <TableRow>
                                 <TableCell colspan="8">
-                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando solicitudes...</div>
+                                    <div :class="`py-6 text-center ${uiPatterns.typography.bodyMuted}`">Cargando solicitudes...</div>
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else-if="!requests.length">
                             <TableRow>
                                 <TableCell colspan="8">
-                                    <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron solicitudes.</div>
+                                    <div :class="`py-6 text-center ${uiPatterns.typography.bodyMuted}`">No se encontraron solicitudes.</div>
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else>
                             <TableRow v-for="request in requests" :key="request.id" class="text-center">
-                                <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
+                                <TableCell :class="uiPatterns.typography.bodyStrong">{{ request.request_number || request.id }}</TableCell>
                                 <TableCell>{{ formatDate(request.date) }}</TableCell>
                                 <TableCell class="max-w-[180px] truncate">{{ request.provider_name || '-' }}</TableCell>
                                 <TableCell>{{ getRequestItemsPreview(request) }}</TableCell>
@@ -617,23 +628,7 @@ onBeforeUnmount(() => {
                                         :onClick="() => editRequest(request)" 
                                         title="Editar solicitud"
                                     />
-                                    <DeleteButton 
-                                        v-if="canEditRequest(request) || request.status === 'cancelled'"
-                                        :onClick="() => confirmDeleteRequest(request)" 
-                                        title="Eliminar solicitud"
-                                    />
-                                    <DropdownMenu
-                                        v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
-                                    >
-                                        <DropdownMenuTrigger as-child>
-                                            <button
-                                                class="flex items-center text-gray-500 hover:text-gray-700 transition-colors duration-200"
-                                                title="Más acciones"
-                                            >
-                                                <MoreVertical class="w-4 h-4" />
-                                            </button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" class="w-48">
+                                    <TableActionsMenu v-if="hasMenuActions(request)" content-class="w-48">
                                             <DropdownMenuItem
                                                 v-if="canSendToApproval(request)"
                                                 class="cursor-pointer gap-2"
@@ -662,8 +657,15 @@ onBeforeUnmount(() => {
                                             >
                                                 <X class="h-4 w-4" /> Cancelar
                                             </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                            <DropdownMenuSeparator v-if="hasSecondaryActions(request) && canDeleteRequest(request)" />
+                                            <DropdownMenuItem
+                                                v-if="canDeleteRequest(request)"
+                                                class="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                                                @click="confirmDeleteRequest(request)"
+                                            >
+                                                <Trash2 class="h-4 w-4" /> Eliminar
+                                            </DropdownMenuItem>
+                                        </TableActionsMenu>
                                 </TableCell>
                             </TableRow>
                         </template>
@@ -706,3 +708,4 @@ onBeforeUnmount(() => {
         @confirm="handleReject"
     />
 </template>
+

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import HelpTooltip from '@/components/HelpTooltip.vue';
-import { Badge } from '@/components/ui/badge';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { cn } from '@/lib/utils';
 import { computed } from 'vue';
 
@@ -37,10 +37,10 @@ const defaultBadgeText = computed(() => {
     return 'Calculado';
 });
 
-const defaultBadgeClass = computed(() => {
-    if (props.badgeStatus === 'sin_datos') return 'border-slate-200 bg-slate-50 text-slate-600';
-    if (props.badgeStatus === 'pendiente') return 'border-amber-200 bg-amber-50 text-amber-700';
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+const defaultBadgeTone = computed(() => {
+    if (props.badgeStatus === 'sin_datos') return 'slate';
+    if (props.badgeStatus === 'pendiente') return 'amber';
+    return 'emerald';
 });
 </script>
 
@@ -52,9 +52,9 @@ const defaultBadgeClass = computed(() => {
                     <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ label }}</p>
                     <HelpTooltip v-if="tooltipText" :text="tooltipText" :aria-label="`Ayuda sobre ${label}`" />
                 </div>
-                <Badge v-if="showBadge" variant="outline" :class="cn('shrink-0', defaultBadgeClass, badgeClass)">
+                <TableStatusBadge v-if="showBadge" :label="badgeText ?? defaultBadgeText" :tone="defaultBadgeTone" :class="cn('shrink-0', badgeClass)">
                     {{ badgeText ?? defaultBadgeText }}
-                </Badge>
+                </TableStatusBadge>
             </div>
 
             <div class="mt-2 flex flex-col gap-2">
@@ -65,9 +65,14 @@ const defaultBadgeClass = computed(() => {
         </template>
 
         <template v-else>
-            <Badge v-if="showBadge" variant="outline" :class="cn('absolute right-3 top-3', defaultBadgeClass, badgeClass)">
+            <TableStatusBadge
+                v-if="showBadge"
+                :label="badgeText ?? defaultBadgeText"
+                :tone="defaultBadgeTone"
+                :class="cn('absolute right-3 top-3', badgeClass)"
+            >
                 {{ badgeText ?? defaultBadgeText }}
-            </Badge>
+            </TableStatusBadge>
 
             <div :class="cn('flex h-full min-h-[124px] flex-col justify-between gap-4', showBadge ? 'pr-20' : '')">
                 <div class="flex items-center gap-1.5">

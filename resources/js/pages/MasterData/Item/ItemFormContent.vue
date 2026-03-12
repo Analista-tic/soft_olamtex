@@ -1447,7 +1447,7 @@ onBeforeUnmount(() => {
                                     </div>
                                 </div>
 
-                                <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">
+                                <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-muted-foreground">
                                     No hay bodegas asociadas.
                                 </div>
                             </div>
@@ -1486,22 +1486,22 @@ onBeforeUnmount(() => {
                                                 />
                                                 <button
                                                     type="button"
-                                                    class="absolute top-2 right-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-black"
+                                                    class="absolute top-2 right-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-primary-foreground shadow-md transition hover:bg-black"
                                                     @click.stop="openImageZoom"
                                                     aria-label="Ver imagen ampliada"
                                                 >
                                                     Ver imagen
                                                 </button>
                                             </div>
-                                            <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
+                                            <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-primary-foreground">
                                                 {{ isViewMode ? 'Imagen del ítem' : 'Cambiar imagen' }}
                                             </div>
                                         </template>
 
                                         <template v-else>
                                             <div class="z-10 flex h-full w-full flex-col items-center justify-center">
-                                                <Image class="mb-2 h-12 w-12 text-gray-400" />
-                                                <span class="text-sm text-gray-500">
+                                                <Image class="mb-2 h-12 w-12 text-muted-foreground" />
+                                                <span class="text-sm text-muted-foreground">
                                                     {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
                                                 </span>
                                             </div>
@@ -1729,7 +1729,7 @@ onBeforeUnmount(() => {
                 />
                 <button
                     type="button"
-                    class="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white transition hover:bg-black"
+                    class="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-primary-foreground transition hover:bg-black"
                     @click="closeImageZoom"
                 >
                     Cerrar

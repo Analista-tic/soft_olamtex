@@ -1323,7 +1323,7 @@ function handleClose() {
                                     <Button
                                         variant="default"
                                         size="sm"
-                                        class="shrink-0 rounded-full bg-emerald-700 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-800"
+                                        class="shrink-0 rounded-full bg-emerald-700 px-4 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-emerald-800"
                                         :disabled="isReadonly || operationListOptionsLoading"
                                         @click="openOperationListDialog"
                                     >
@@ -1389,8 +1389,8 @@ function handleClose() {
                                             </template>
                                             <template v-else>
                                                 <div class="pointer-events-none z-10 flex h-full w-full flex-col items-center justify-center">
-                                                    <ImageIcon class="mb-2 h-12 w-12 text-gray-400" />
-                                                    <span class="text-sm text-gray-500">
+                                                    <ImageIcon class="mb-2 h-12 w-12 text-muted-foreground" />
+                                                    <span class="text-sm text-muted-foreground">
                                                         {{ isReadonly ? 'Sin imagen' : 'Haz clic para subir imagen' }}
                                                     </span>
                                                 </div>

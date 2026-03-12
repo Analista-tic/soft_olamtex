@@ -14,6 +14,7 @@ import SelectField from '@/components/SelectField.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -29,6 +30,7 @@ import type { InventoryMovement, Warehouse } from '@/domain/Inventory';
 import type { Item } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
 import { useAlertStack } from '@/composables/useAlert';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs = [
     { title: 'Inventario', href: '/inventario' },
@@ -97,10 +99,10 @@ const typeLabelMap: Record<string, string> = {
     ajuste: 'Ajuste',
 };
 
-const typeBadgeStyles: Record<string, string> = {
-    entrada: 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400',
-    salida: 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400',
-    ajuste: 'bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400',
+const typeBadgeTones: Record<string, 'green' | 'red' | 'blue' | 'gray'> = {
+    entrada: 'green',
+    salida: 'red',
+    ajuste: 'blue',
 };
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
@@ -250,8 +252,8 @@ onMounted(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Movimientos de Inventario</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Movimientos de Inventario</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Consulta el historial completo de movimientos de inventario generados por ajustes, facturas de compra, descargues y otros módulos.
                     </p>
                 </div>
@@ -351,14 +353,10 @@ onMounted(() => {
                                 {{ movement.warehouse?.name || '-' }}
                             </TableCell>
                             <TableCell>
-                                <span
-                                    :class="[
-                                        'px-2 py-1 rounded-full text-xs font-semibold',
-                                        typeBadgeStyles[movement.type] || 'bg-muted text-foreground',
-                                    ]"
-                                >
-                                    {{ typeLabelMap[movement.type] || movement.type }}
-                                </span>
+                                <TableStatusBadge
+                                    :label="typeLabelMap[movement.type] || movement.type"
+                                    :tone="typeBadgeTones[movement.type] || 'gray'"
+                                />
                             </TableCell>
                             <TableCell class="text-xs text-muted-foreground">
                                 {{ getSourceLabel(movement) }}
@@ -470,14 +468,10 @@ onMounted(() => {
                         <div>
                             <label class="text-sm font-medium text-muted-foreground">Tipo</label>
                             <p class="text-sm">
-                                <span
-                                    :class="[
-                                        'px-2 py-1 rounded-full text-xs font-semibold',
-                                        typeBadgeStyles[selectedMovement.type] || 'bg-muted text-foreground',
-                                    ]"
-                                >
-                                    {{ typeLabelMap[selectedMovement.type] || selectedMovement.type }}
-                                </span>
+                                <TableStatusBadge
+                                    :label="typeLabelMap[selectedMovement.type] || selectedMovement.type"
+                                    :tone="typeBadgeTones[selectedMovement.type] || 'gray'"
+                                />
                             </p>
                         </div>
                         <div>
@@ -587,3 +581,6 @@ onMounted(() => {
         </Dialog>
     </AppLayout>
 </template>
+
+
+

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Pencil } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 
@@ -58,9 +58,11 @@ watch(localOpen, (v) => {
             <DialogHeader>
                 <DialogTitle class="flex items-center gap-2">
                     Detalle de operación
-                    <Badge v-if="operation" :variant="operation.is_active ? 'default' : 'secondary'" class="text-[10px]">
-                        {{ operation.is_active ? 'Activa' : 'Inactiva' }}
-                    </Badge>
+                    <TableStatusBadge
+                        v-if="operation"
+                        :label="operation.is_active ? 'Activa' : 'Inactiva'"
+                        :tone="operation.is_active ? 'green' : 'red'"
+                    />
                 </DialogTitle>
                 <DialogDescription v-if="operation">
                     {{ operation.name }}

@@ -29,6 +29,7 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Contactos', href: '/contactos' },
@@ -343,8 +344,8 @@ onBeforeUnmount(() => {
             </div>
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Gestión de Contactos</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Gestión de Contactos</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Administra contactos de proveedores y clientes, controla su información de contacto
                         y el tipo asignado.
                     </p>
@@ -352,7 +353,7 @@ onBeforeUnmount(() => {
                 <button
                     type="button"
                     :disabled="isPreparingDialog"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="openDialog('create')"
                 >
                     <PlusCircle class="w-4 h-4" />
@@ -395,12 +396,12 @@ onBeforeUnmount(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Id</TableHead>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Teléfono</TableHead>
-                            <TableHead>Tipo</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Id</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Nombre</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Email</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Teléfono</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Tipo</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -476,3 +477,5 @@ onBeforeUnmount(() => {
         @confirm="deleteContact"
     />
 </template>
+
+

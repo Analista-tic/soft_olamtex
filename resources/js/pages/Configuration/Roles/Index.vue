@@ -29,6 +29,7 @@ import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import RoleDialog from './RoleDialog.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 type RolePayload = {
     id?: number | null;
@@ -248,8 +249,8 @@ onMounted(async () => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Gestión de Roles</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Gestión de Roles</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Administra los roles y sus permisos para controlar el acceso a los modulos del sistema.
                     </p>
                 </div>
@@ -347,3 +348,6 @@ onMounted(async () => {
 
     <RoleDialog :isOpen="isEditDialogOpen" :role="roleToEdit" :permissions="formattedPermissions" @close="closeDialog" @submit="handleRoleSubmit" />
 </template>
+
+
+

@@ -2,7 +2,9 @@
 
 namespace App\Services\Finance;
 
+use App\Enums\PurchaseInvoiceStatus;
 use App\Models\Expenses\PurchaseDocument;
+use App\Models\Expenses\PurchaseDocumentItem;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Expenses\PurchaseDocumentService;
 use App\Services\Settings\SettingService;
@@ -13,6 +15,23 @@ use Illuminate\Validation\ValidationException;
 
 class CreditDebitNoteService
 {
+    /**
+     * @var array<string, string>
+     */
+    private const NOTE_PREFIX_BY_TYPE = [
+        PurchaseDocument::TYPE_CREDIT_NOTE => 'NC',
+        PurchaseDocument::TYPE_DEBIT_NOTE => 'ND',
+    ];
+
+    /**
+     * @var array<int, string>
+     */
+    private const ELIGIBLE_PARENT_INVOICE_STATUSES = [
+        'received',
+        'approved',
+        'verified',
+    ];
+
     /**
      * @var array<int, string>
      */
@@ -59,27 +78,71 @@ class CreditDebitNoteService
         return $query->orderByDesc('date')->orderByDesc('id')->paginate($perPage);
     }
 
+    public function getNextDocumentNumberPreview(?string $documentType): string
+    {
+        $this->ensureAllowedType($documentType);
+
+        return $this->buildNoteDocumentNumber((string) $documentType, false);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function listEligiblePurchaseInvoices(?int $contactId = null): array
+    {
+        $query = PurchaseDocument::query()
+            ->with([
+                'supplier:id,full_name',
+                'items:id,purchase_document_id,item_id,item_name,total,total_tax',
+                'items.item:id,name,category_sub_group_id',
+                'items.item.categorySubGroup:id,name',
+            ])
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->whereIn('status', self::ELIGIBLE_PARENT_INVOICE_STATUSES);
+
+        if (($contactId ?? 0) > 0) {
+            $query->where('contact_id', (int) $contactId);
+        }
+
+        return $query
+            ->orderByDesc('date')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('id')
+            ->map(fn (PurchaseDocument $invoice) => $this->mapEligiblePurchaseInvoice($invoice))
+            ->values()
+            ->all();
+    }
+
     public function create(array $payload): PurchaseDocument
     {
         $this->ensureScopeIsExpenses($payload);
         $this->ensureAllowedType($payload['document_type'] ?? null);
         $this->ensureItemsPayload($payload);
 
-        $parentInvoice = $this->resolveParentInvoice((int) ($payload['parent_document_id'] ?? 0));
-        $contactId = $payload['contact_id'] ?? $parentInvoice->contact_id;
+        $requestedContactId = isset($payload['contact_id']) ? (int) $payload['contact_id'] : null;
+        if (($requestedContactId ?? 0) <= 0) {
+            $requestedContactId = null;
+        }
+
+        $parentInvoice = $this->resolveParentInvoice((int) ($payload['parent_document_id'] ?? 0), $requestedContactId);
+        $contactId = isset($payload['contact_id']) ? (int) $payload['contact_id'] : (int) ($parentInvoice->contact_id ?? 0);
         $reasonCode = $this->resolveReasonCode($payload);
         $this->ensureReasonCodeIsAllowed($payload['document_type'], $reasonCode);
 
-        if (empty($contactId)) {
+        if ($contactId <= 0) {
             throw ValidationException::withMessages([
                 'contact_id' => 'No se pudo resolver el proveedor desde el payload ni desde la factura base.',
             ]);
         }
 
         return DB::transaction(function () use ($payload, $parentInvoice, $contactId, $reasonCode) {
+            $documentType = $payload['document_type'];
+            $generatedDocumentNumber = $this->generateNoteDocumentNumber($documentType);
+
             $note = PurchaseDocument::create([
-                'document_number' => $payload['document_number'] ?? null,
-                'document_type' => $payload['document_type'],
+                'document_number' => $generatedDocumentNumber,
+                'document_type' => $documentType,
                 'parent_document_id' => $parentInvoice->id,
                 'contact_id' => (int) $contactId,
                 'provider_name' => $payload['provider_name'] ?? $parentInvoice->provider_name,
@@ -128,22 +191,38 @@ class CreditDebitNoteService
             ]);
         }
 
-        $parentInvoice = $this->resolveParentInvoice((int) ($payload['parent_document_id'] ?? $note->parent_document_id));
-        $contactId = $payload['contact_id'] ?? $note->contact_id ?? $parentInvoice->contact_id;
+        $expectedContactId = isset($payload['contact_id']) ? (int) $payload['contact_id'] : (int) ($note->contact_id ?? 0);
+        if ($expectedContactId <= 0) {
+            $expectedContactId = null;
+        }
+
+        $parentInvoice = $this->resolveParentInvoice(
+            (int) ($payload['parent_document_id'] ?? $note->parent_document_id),
+            $expectedContactId
+        );
+        $contactId = isset($payload['contact_id'])
+            ? (int) $payload['contact_id']
+            : (int) ($note->contact_id ?? $parentInvoice->contact_id ?? 0);
         $documentType = $payload['document_type'] ?? $note->document_type;
         $reasonCode = $this->resolveReasonCode($payload);
         $this->ensureReasonCodeIsAllowed($documentType, $reasonCode);
 
-        if (empty($contactId)) {
+        if ($contactId <= 0) {
             throw ValidationException::withMessages([
                 'contact_id' => 'No se pudo resolver el proveedor desde el payload ni desde la factura base.',
             ]);
         }
 
         return DB::transaction(function () use ($note, $payload, $parentInvoice, $contactId, $reasonCode) {
+            $targetDocumentType = $payload['document_type'] ?? $note->document_type;
+            $currentDocumentNumber = trim((string) $note->document_number);
+            $mustGenerateDocumentNumber = $currentDocumentNumber === '' || $targetDocumentType !== $note->document_type;
+
             $note->fill([
-                'document_number' => $payload['document_number'] ?? $note->document_number,
-                'document_type' => $payload['document_type'] ?? $note->document_type,
+                'document_number' => $mustGenerateDocumentNumber
+                    ? $this->generateNoteDocumentNumber($targetDocumentType)
+                    : $note->document_number,
+                'document_type' => $targetDocumentType,
                 'parent_document_id' => $parentInvoice->id,
                 'contact_id' => (int) $contactId,
                 'provider_name' => $payload['provider_name'] ?? $note->provider_name ?? $parentInvoice->provider_name,
@@ -169,6 +248,93 @@ class CreditDebitNoteService
 
             return $updatedNote;
         });
+    }
+
+    private function generateNoteDocumentNumber(string $documentType): string
+    {
+        return $this->buildNoteDocumentNumber($documentType, true);
+    }
+
+    private function buildNoteDocumentNumber(string $documentType, bool $lockForUpdate): string
+    {
+        $prefix = $this->resolvePrefixByDocumentType($documentType);
+        $maxSequence = $this->resolveMaxSequence($documentType, $prefix, $lockForUpdate);
+        $nextSequence = ((int) $maxSequence) + 1;
+
+        return sprintf('%s-%03d', $prefix, $nextSequence);
+    }
+
+    private function resolveMaxSequence(string $documentType, string $prefix, bool $lockForUpdate): ?int
+    {
+        $prefixedQuery = PurchaseDocument::withTrashed()
+            ->where('document_type', $documentType)
+            ->whereNotNull('document_number')
+            ->where('document_number', 'like', $prefix . '-%');
+
+        if ($lockForUpdate) {
+            $prefixedQuery->lockForUpdate();
+        }
+
+        $maxSequence = $prefixedQuery
+            ->get(['document_number'])
+            ->map(function (PurchaseDocument $document) use ($prefix): ?int {
+                return $this->extractSequenceFromDocumentNumber((string) $document->document_number, $prefix);
+            })
+            ->filter(static fn (?int $sequence): bool => $sequence !== null)
+            ->max();
+
+        if ($maxSequence === null) {
+            $fallbackQuery = PurchaseDocument::withTrashed()
+                ->where('document_type', $documentType)
+                ->whereNotNull('document_number');
+
+            if ($lockForUpdate) {
+                $fallbackQuery->lockForUpdate();
+            }
+
+            $maxSequence = $fallbackQuery
+                ->get(['document_number'])
+                ->map(function (PurchaseDocument $document) use ($prefix): ?int {
+                    return $this->extractSequenceFromDocumentNumber((string) $document->document_number, $prefix);
+                })
+                ->filter(static fn (?int $sequence): bool => $sequence !== null)
+                ->max();
+        }
+
+        return $maxSequence;
+    }
+
+    private function resolvePrefixByDocumentType(string $documentType): string
+    {
+        $prefix = self::NOTE_PREFIX_BY_TYPE[$documentType] ?? null;
+        if ($prefix === null) {
+            throw ValidationException::withMessages([
+                'document_type' => 'Tipo de nota no permitido para consecutivo.',
+            ]);
+        }
+
+        return $prefix;
+    }
+
+    private function extractSequenceFromDocumentNumber(string $documentNumber, string $prefix): ?int
+    {
+        $normalized = strtoupper(trim($documentNumber));
+        $expectedPrefix = strtoupper($prefix) . '-';
+
+        if (!str_starts_with($normalized, $expectedPrefix)) {
+            if (!preg_match('/(\d+)$/', $normalized, $matches)) {
+                return null;
+            }
+
+            return (int) $matches[1];
+        }
+
+        $sequencePart = substr($normalized, strlen($expectedPrefix));
+        if ($sequencePart === '' || !ctype_digit($sequencePart)) {
+            return null;
+        }
+
+        return (int) $sequencePart;
     }
 
     public function delete(PurchaseDocument $note): void
@@ -221,7 +387,7 @@ class CreditDebitNoteService
         }
     }
 
-    private function resolveParentInvoice(int $parentId): PurchaseDocument
+    private function resolveParentInvoice(int $parentId, ?int $expectedContactId = null): PurchaseDocument
     {
         $parent = PurchaseDocument::query()->find($parentId);
 
@@ -237,7 +403,77 @@ class CreditDebitNoteService
             ]);
         }
 
+        if (!$this->isEligibleParentInvoiceStatus((string) $parent->status)) {
+            throw ValidationException::withMessages([
+                'parent_document_id' => 'La factura seleccionada no esta en un estado valido para registrar una nota.',
+            ]);
+        }
+
+        if (($expectedContactId ?? 0) > 0 && (int) ($parent->contact_id ?? 0) !== (int) $expectedContactId) {
+            throw ValidationException::withMessages([
+                'parent_document_id' => 'La factura seleccionada no pertenece al proveedor indicado.',
+            ]);
+        }
+
         return $parent;
+    }
+
+    private function isEligibleParentInvoiceStatus(string $status): bool
+    {
+        return in_array(trim($status), self::ELIGIBLE_PARENT_INVOICE_STATUSES, true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapEligiblePurchaseInvoice(PurchaseDocument $invoice): array
+    {
+        $isFabric = $this->isFabricInvoice($invoice);
+        $status = trim((string) ($invoice->status ?? ''));
+        $total = (float) $invoice->items->sum(function (PurchaseDocumentItem $item) {
+            return ((float) ($item->total ?? 0)) + ((float) ($item->total_tax ?? 0));
+        });
+
+        return [
+            'id' => (int) $invoice->id,
+            'invoice_scope' => $isFabric ? 'fabric' : 'general',
+            'source_type' => PurchaseDocument::TYPE_INVOICE,
+            'document_type' => PurchaseDocument::TYPE_INVOICE,
+            'document_number' => $invoice->document_number,
+            'provider_id' => (int) ($invoice->contact_id ?? 0),
+            'provider_name' => $invoice->supplier?->full_name ?? $invoice->provider_name ?? null,
+            'status' => $status,
+            'status_label' => $this->resolveInvoiceStatusLabel($status),
+            'date' => $invoice->date?->format('Y-m-d'),
+            'total' => round($total, 2),
+        ];
+    }
+
+    private function resolveInvoiceStatusLabel(string $status): string
+    {
+        $enum = PurchaseInvoiceStatus::tryFrom($status);
+        if ($enum !== null) {
+            return $enum->label();
+        }
+
+        return match ($status) {
+            'approved' => 'Aprobada',
+            'verified' => 'Verificada',
+            default => $status !== '' ? ucfirst($status) : 'Sin estado',
+        };
+    }
+
+    private function isFabricInvoice(PurchaseDocument $invoice): bool
+    {
+        return $invoice->items->contains(function (PurchaseDocumentItem $item): bool {
+            $subgroupName = mb_strtolower(trim((string) ($item->item?->categorySubGroup?->name ?? '')));
+            if ($subgroupName !== '') {
+                return str_contains($subgroupName, 'tela');
+            }
+
+            $fallbackName = mb_strtolower(trim((string) ($item->item_name ?? $item->item?->name ?? '')));
+            return $fallbackName !== '' && str_contains($fallbackName, 'tela');
+        });
     }
 
     private function resolveReasonCode(array $payload): ?string

@@ -54,7 +54,7 @@ function closeDialog() {
                         <div class="mt-3 space-y-2">
                             <div v-for="row in detailRows" :key="row.label" class="flex items-center justify-between">
                                 <p class="text-xs text-muted-foreground">{{ row.label }}</p>
-                                <p class="text-sm font-medium text-slate-900">{{ row.value }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ row.value }}</p>
                             </div>
                         </div>
                     </div>
@@ -64,19 +64,19 @@ function closeDialog() {
                         <div class="mt-3 grid gap-3">
                             <div class="flex items-center justify-between">
                                 <p class="text-xs text-muted-foreground">Rollo</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.roll }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.roll }}</p>
                             </div>
                             <div class="flex items-center justify-between">
                                 <p class="text-xs text-muted-foreground">Tela</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.fabric }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.fabric }}</p>
                             </div>
                             <div class="flex items-center justify-between">
                                 <p class="text-xs text-muted-foreground">Color</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.color }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.color }}</p>
                             </div>
                             <div class="flex items-center justify-between">
                                 <p class="text-xs text-muted-foreground">Ubicación</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.location }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.location }}</p>
                             </div>
                         </div>
                     </div>
@@ -86,27 +86,27 @@ function closeDialog() {
                         <div class="mt-3 grid gap-4 md:grid-cols-3">
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Ancho</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.width }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.width }}</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Cant. rollo</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.roll_qty }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.roll_qty }}</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Salida parcial</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.partial_output }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.partial_output }}</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Disponibilidad parcial</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.partial_availability }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.partial_availability }}</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Cantidad salida</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.exit_quantity }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.exit_quantity }}</p>
                             </div>
                             <div class="text-center">
                                 <p class="text-xs text-muted-foreground">Disponibilidad real</p>
-                                <p class="text-sm font-medium text-slate-900">{{ props.roll.real_availability }}</p>
+                                <p class="text-sm font-medium text-foreground">{{ props.roll.real_availability }}</p>
                             </div>
                         </div>
                     </div>

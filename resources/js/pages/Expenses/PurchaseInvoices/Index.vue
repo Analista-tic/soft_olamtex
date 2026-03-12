@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import Input from '@/components/ui/input/Input.vue';
@@ -9,7 +9,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { MoreVertical, PlusCircle, Printer, Search, Mail, Package, Eye, MinusCircle } from 'lucide-vue-next';
+import { PlusCircle, Printer, Search, Mail, Package, Eye, MinusCircle, Trash2 } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
@@ -24,15 +24,14 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuTrigger,
+    DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { formatDateDDMMYYYY, toIsoDateString } from '@/lib/date';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs = [
     { title: 'Facturas de Compra', href: '/facturas-compra' },
@@ -93,9 +92,6 @@ const isDateToActive = computed(() => Boolean(dateTo.value));
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
-const actionButtonClass =
-    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-const actionIconClass = 'h-4 w-4';
 const DIALOG_PREPARE_FALLBACK_MS = 10000;
 let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -104,14 +100,14 @@ const smartLoading = useSmartLoading();
 const facturasRoute = '/gastos/facturas-compra';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
-const receptionInvoiceTypeParam = 'invoice_type';
-const receptionInvoiceTypeValue = 'general';
+const receptionScopeParam = 'scope';
+const receptionScopeValue = 'general';
 
 function buildReceptionUrl(invoiceId?: number | string) {
     const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
     const query = new URLSearchParams({
         [receptionReturnParam]: facturasRoute,
-        [receptionInvoiceTypeParam]: receptionInvoiceTypeValue,
+        [receptionScopeParam]: receptionScopeValue,
     });
     return `${basePath}?${query.toString()}`;
 }
@@ -175,6 +171,14 @@ function getInvoiceStatusTone(status?: string): 'yellow' | 'green' | 'red' | 'gr
     if (status === 'approved' || status === 'received') return 'green';
     if (status === 'rejected') return 'red';
     return 'gray';
+}
+
+function isPendingInvoiceStatus(status?: string | null): boolean {
+    return status === 'pending' || status === 'pending_receipt';
+}
+
+function canMutateInvoice(invoice: PurchaseInvoice): boolean {
+    return isPendingInvoiceStatus(invoice.status);
 }
 
 async function fetchProviders() {
@@ -281,8 +285,8 @@ function handleDialogLoadingState(value: boolean) {
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
     // Evitar petición al servidor si la factura ya está aprobada
-    if (invoice.status === 'received') {
-        showError('No se puede eliminar una factura que ya fue recibida.');
+    if (!canMutateInvoice(invoice)) {
+        showError('Solo se pueden eliminar facturas en estado pendiente.');
         return;
     }
     invoiceToDelete.value = invoice;
@@ -342,7 +346,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     }
 }
 
-// Watcher Ãºnico para filtros y bÃºsqueda
+// Watcher unico para filtros y búsqueda
 watch(
     [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
     ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
@@ -592,8 +596,8 @@ function handleDialogError(message?: string) {
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Facturas de Compras y Servicios</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Facturas de Compras y Servicios</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Registra facturas para llevar la trazabilidad de la recepción y la aprobación.
                     </p>
                 </div>
@@ -609,7 +613,7 @@ function handleDialogError(message?: string) {
                     <button
                         type="button"
                         :disabled="isPreparingDialog"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="openDialogWithPreparation('create')"
                     >
                         <PlusCircle class="h-4 w-4" />
@@ -666,20 +670,20 @@ function handleDialogError(message?: string) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>#Factura</TableHead>
-                            <TableHead>Fecha de creación</TableHead>
-                            <TableHead>Fecha de entrega</TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead>Item</TableHead>
-                            <TableHead>Total</TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">#Factura</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Fecha de creación</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Fecha de entrega</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Item</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Total</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Descripción</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
+                            <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                            <TableCell class="font-medium">
+                            <TableCell :class="uiPatterns.typography.bodyStrong">
                                 {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
                             </TableCell>
                             <TableCell>{{ formatDate(invoice.date) }}</TableCell>
@@ -703,34 +707,12 @@ function handleDialogError(message?: string) {
                                       >
                                         <Eye class="h-4 w-4" />
                                       </button>
-                                    <EditButton :onClick="() => openDialogWithPreparation('edit', invoice)" />
-                                    <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
-                                         y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
-                                    <DeleteButton
-                                        :onClick="() => {
-                                            if (invoice.status === 'received') {
-                                                showError('No se puede eliminar una factura que ya fue recibida.');
-                                            } else {
-                                                confirmDeleteInvoice(invoice);
-                                            }
-                                        }"
-                                        :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
+                                    <EditButton
+                                        :onClick="() => canMutateInvoice(invoice) && openDialogWithPreparation('edit', invoice)"
+                                        :disabled="!canMutateInvoice(invoice)"
+                                        :class="!canMutateInvoice(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
                                     />
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                title="Acciones"
-                                                @click.stop
-                                                @pointerdown.stop
-                                            >
-                                                <MoreVertical :class="actionIconClass" />
-                                                <span class="sr-only">Acciones</span>
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" class="w-48">
+                                    <TableActionsMenu content-class="w-48">
                                             <DropdownMenuItem class="cursor-pointer gap-2" @select="handlePrintAction(invoice, $event)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
@@ -754,8 +736,16 @@ function handleDialogError(message?: string) {
                                             >
                                                 <Mail class="h-4 w-4" /> Enviar al correo
                                             </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                class="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                                                :class="!canMutateInvoice(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
+                                                :disabled="!canMutateInvoice(invoice)"
+                                                @select="confirmDeleteInvoice(invoice)"
+                                            >
+                                                <Trash2 class="h-4 w-4" /> Eliminar
+                                            </DropdownMenuItem>
+                                    </TableActionsMenu>
                                 </div>
                             </TableCell>
                         </TableRow>
@@ -802,3 +792,4 @@ function handleDialogError(message?: string) {
     />
     </AppLayout>
 </template>
+

@@ -197,7 +197,7 @@ function handleCheckboxChange(event: Event, module: string): void {
                         <div class="mb-4">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-2">
-                                    <label class="mb-2 block text-sm font-medium text-gray-700">Permisos</label>
+                                    <label class="mb-2 block text-sm font-medium text-foreground">Permisos</label>
                                     <HelpTooltip
                                         text="Selecciona los permisos que tendrá este rol. Los usuarios con este rol podrán realizar solo las acciones permitidas."
                                         aria-label="Ayuda sobre permisos"
@@ -205,14 +205,14 @@ function handleCheckboxChange(event: Event, module: string): void {
                                 </div>
                                 <div class="flex items-center">
                                     <input type="checkbox" id="global-select-all" v-model="globalSelectAll" class="mr-1" />
-                                    <label for="global-select-all" class="text-xs text-gray-700">Seleccionar todos los módulos</label>
+                                    <label for="global-select-all" class="text-xs text-foreground">Seleccionar todos los módulos</label>
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-5">
                                 <Card v-for="(permissions, module) in permissionsByModule" :key="module" class="rounded-lg shadow-md">
                                     <CardHeader class="p-2">
                                         <CardDescription class="flex items-center justify-between">
-                                            <CardTitle class="text-center text-base font-semibold text-gray-600">{{ module }}</CardTitle>
+                                            <CardTitle class="text-center text-base font-semibold text-muted-foreground">{{ module }}</CardTitle>
                                             <div class="flex items-center">
                                                 <input
                                                     type="checkbox"
@@ -220,7 +220,7 @@ function handleCheckboxChange(event: Event, module: string): void {
                                                     @change="handleCheckboxChange($event, module)"
                                                     class="mr-1"
                                                 />
-                                                <label :for="`select-all-${module}`" class="text-xs text-gray-700">Seleccionar todos</label>
+                                                <label :for="`select-all-${module}`" class="text-xs text-foreground">Seleccionar todos</label>
                                             </div>
                                         </CardDescription>
                                     </CardHeader>
@@ -228,7 +228,7 @@ function handleCheckboxChange(event: Event, module: string): void {
                                         <div class="grid grid-cols-1 gap-1 sm:grid-cols-2">
                                             <div v-for="permission in permissions" :key="permission" class="flex items-center">
                                                 <input type="checkbox" :id="permission" :value="permission" v-model="form.permissions" class="mr-1" />
-                                                <label :for="permission" class="text-sm text-gray-600">{{ permission }}</label>
+                                                <label :for="permission" class="text-sm text-muted-foreground">{{ permission }}</label>
                                             </div>
                                         </div>
                                     </CardContent>

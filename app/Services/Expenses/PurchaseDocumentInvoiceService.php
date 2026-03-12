@@ -18,10 +18,43 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
 
     public function paginateAccountsPayable(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
+        $rawDebtStatus = trim((string) ($filters['debt_status'] ?? 'all'));
+        $debtStatus = in_array($rawDebtStatus, ['all', 'pending', 'overdue', 'settled'], true)
+            ? $rawDebtStatus
+            : 'all';
+        $includeSettled = filter_var($filters['include_settled'] ?? false, FILTER_VALIDATE_BOOLEAN) || $debtStatus === 'settled';
+        $today = CarbonImmutable::today()->toDateString();
+
+        $invoiceTotalSql = "(SELECT COALESCE(SUM(COALESCE(pdi.total, 0) + COALESCE(pdi.total_tax, 0)), 0)
+            FROM purchase_document_items pdi
+            WHERE pdi.purchase_document_id = purchase_documents.id)";
+
+        $creditNotesTotalSql = "(SELECT COALESCE(SUM(COALESCE(pdni.total, 0) + COALESCE(pdni.total_tax, 0)), 0)
+            FROM purchase_documents pdn
+            INNER JOIN purchase_document_items pdni ON pdni.purchase_document_id = pdn.id
+            WHERE pdn.parent_document_id = purchase_documents.id
+              AND pdn.document_type = '" . PurchaseDocument::TYPE_CREDIT_NOTE . "'
+              AND pdn.status = '" . self::NOTE_BALANCE_IMPACT_STATUS . "'
+              AND pdn.deleted_at IS NULL)";
+
+        $debitNotesTotalSql = "(SELECT COALESCE(SUM(COALESCE(pdni.total, 0) + COALESCE(pdni.total_tax, 0)), 0)
+            FROM purchase_documents pdn
+            INNER JOIN purchase_document_items pdni ON pdni.purchase_document_id = pdn.id
+            WHERE pdn.parent_document_id = purchase_documents.id
+              AND pdn.document_type = '" . PurchaseDocument::TYPE_DEBIT_NOTE . "'
+              AND pdn.status = '" . self::NOTE_BALANCE_IMPACT_STATUS . "'
+              AND pdn.deleted_at IS NULL)";
+        $paymentsTotalSql = "(SELECT COALESCE(SUM(COALESCE(pp.amount, 0)), 0)
+            FROM purchase_payments pp
+            WHERE pp.purchase_invoice_id = purchase_documents.id)";
+        $balanceSql = "(({$invoiceTotalSql}) + ({$debitNotesTotalSql}) - ({$creditNotesTotalSql}) - ({$paymentsTotalSql}))";
+        $dueDateSql = "COALESCE(purchase_documents.delivery_date, purchase_documents.date)";
+
         $query = PurchaseDocument::query()
             ->with([
                 'supplier:id,full_name,id_number,phone,email',
                 'items:id,purchase_document_id,total,total_tax',
+                'payments:id,purchase_invoice_id,amount',
                 'children' => fn ($childQuery) => $childQuery
                     ->whereIn('document_type', [PurchaseDocument::TYPE_CREDIT_NOTE, PurchaseDocument::TYPE_DEBIT_NOTE])
                     ->with([
@@ -34,6 +67,10 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
                 PurchaseInvoiceStatus::PENDING_RECEIPT->value,
                 PurchaseInvoiceStatus::RECEIVED->value,
             ]);
+
+        if (!$includeSettled) {
+            $query->whereRaw("{$balanceSql} > 0");
+        }
 
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
@@ -55,20 +92,22 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             $query->where('contact_id', $contactId);
         }
 
-        if (!empty($filters['date_from'])) {
-            $query->whereDate('date', '>=', $filters['date_from']);
-        }
-
-        if (!empty($filters['date_to'])) {
-            $query->whereDate('date', '<=', $filters['date_to']);
-        }
-
         if (!empty($filters['due_date_from'])) {
-            $query->whereDate('delivery_date', '>=', $filters['due_date_from']);
+            $query->whereRaw("{$dueDateSql} >= ?", [$filters['due_date_from']]);
         }
 
         if (!empty($filters['due_date_to'])) {
-            $query->whereDate('delivery_date', '<=', $filters['due_date_to']);
+            $query->whereRaw("{$dueDateSql} <= ?", [$filters['due_date_to']]);
+        }
+
+        if ($debtStatus === 'settled') {
+            $query->whereRaw("{$balanceSql} <= 0");
+        } elseif ($debtStatus === 'overdue') {
+            $query->whereRaw("{$balanceSql} > 0")
+                ->whereRaw("{$dueDateSql} < ?", [$today]);
+        } elseif ($debtStatus === 'pending') {
+            $query->whereRaw("{$balanceSql} > 0")
+                ->whereRaw("{$dueDateSql} >= ?", [$today]);
         }
 
         $paginator = $query
@@ -304,8 +343,10 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
     protected function mapAccountsPayableRow(PurchaseDocument $invoice): array
     {
         $summary = $this->getInvoiceNotesSummary($invoice);
+        $paymentsTotal = $this->invoicePaymentsTotal($invoice);
+        $currentBalance = round(((float) ($summary['balance_after_notes'] ?? 0)) - $paymentsTotal, 2);
         $dueDate = $invoice->delivery_date?->format('Y-m-d') ?? $invoice->date?->format('Y-m-d');
-        $debtStatus = $this->resolveDebtStatus((float) ($summary['balance_after_notes'] ?? 0), $dueDate);
+        $debtStatus = $this->resolveDebtStatus($currentBalance, $dueDate);
 
         return [
             'id' => $invoice->id,
@@ -318,13 +359,28 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             'invoice_total' => (float) ($summary['invoice_total'] ?? 0),
             'credit_notes_total' => (float) ($summary['credit_total'] ?? 0),
             'debit_notes_total' => (float) ($summary['debit_total'] ?? 0),
-            'current_balance' => (float) ($summary['balance_after_notes'] ?? 0),
+            'payments_total' => $paymentsTotal,
+            'current_balance' => $currentBalance,
             'debt_status' => $debtStatus['code'],
             'debt_status_label' => $debtStatus['label'],
             'debt_status_tone' => $debtStatus['tone'],
             'invoice_status' => $invoice->status,
             'invoice_status_label' => $this->resolveInvoiceStatusLabel($invoice->status),
         ];
+    }
+
+    protected function invoicePaymentsTotal(PurchaseDocument $invoice): float
+    {
+        if ($invoice->relationLoaded('payments')) {
+            $amount = (float) $invoice->payments->sum(function ($payment) {
+                return (float) ($payment->amount ?? 0);
+            });
+
+            return round($amount, 2);
+        }
+
+        $amount = (float) $invoice->payments()->sum(DB::raw('COALESCE(amount, 0)'));
+        return round($amount, 2);
     }
 
     protected function resolveDebtStatus(float $balance, ?string $dueDate): array

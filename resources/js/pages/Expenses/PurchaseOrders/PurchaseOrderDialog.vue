@@ -61,6 +61,14 @@ const canEdit = computed(() => {
 });
 
 const isReadOnly = computed(() => props.readonly || !canEdit.value);
+const dialogTitleText = computed(() => {
+    if (isReadOnly.value) return 'Detalle de orden de compra';
+    return props.dialogType === 'edit' ? 'Editar Orden de Compra' : 'Nueva Orden de Compra';
+});
+const dialogDescriptionText = computed(() => {
+    if (isReadOnly.value) return 'Consulta la informacion general y el detalle de items de la orden.';
+    return 'Completa los campos y anade los items de la orden.';
+});
 
 const subtotal = computed(() =>
     (localForm.value.items || []).reduce((acc, item) => acc + Math.max(Number(item.total) || 0, 0), 0),
@@ -423,6 +431,7 @@ const stableStringify = (value: any): string => {
 };
 
 function handleAddLine() {
+    if (isReadOnly.value) return;
     itemsTableRef.value?.addItem();
 }
 
@@ -620,9 +629,9 @@ watch(
             <TooltipProvider>
             <DialogHeader class="relative flex-shrink-0 px-4 pt-4 pb-7">
                     <div class="flex flex-col gap-1">
-                        <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Orden de Compra</DialogTitle>
+                        <DialogTitle>{{ dialogTitleText }}</DialogTitle>
                         <DialogDescription>
-                            Completa los campos y añade los ítems de la orden.
+                            {{ dialogDescriptionText }}
                         </DialogDescription>
                     </div>
                     <div class="absolute right-12 top-4 flex w-full max-w-[520px] items-end justify-end gap-2">
@@ -632,7 +641,7 @@ watch(
                                 :options="pendingPurchaseRequestOptions"
                                 label="Cargar desde solicitud aprobada"
                                 placeholder="Selecciona una solicitud aprobada para autocompletar"
-                                :disabled="!pendingPurchaseRequestOptions.length || dialogType === 'edit'"
+                                :disabled="isReadOnly || !pendingPurchaseRequestOptions.length || dialogType === 'edit'"
                                 :searchable="pendingPurchaseRequestOptions.length >= 6"
                                 search-placeholder="Buscar solicitud..."
                             />
@@ -641,6 +650,7 @@ watch(
                 </DialogHeader>
                 <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
                 <form
+                    id="purchase-order-form"
                     @submit.prevent="handleSubmit()"
                     :class="{'pointer-events-none opacity-50':dialogType === 'create' && isLoadingOrderId}"
                     class="space-y-6"
@@ -668,7 +678,7 @@ watch(
                         </div>
                     </div>
                     
-                    <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border space-y-4">
+                    <div class="space-y-4">
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
                                 <InputField
@@ -797,7 +807,12 @@ watch(
                         </div>
 
                         <!-- Items -->
-                        <InventoryDetailTableLayout @create-line="handleAddLine">
+                        <InventoryDetailTableLayout
+                            title="Items"
+                            description="Agrega los items necesarios para esta orden de compra"
+                            :show-create-line-button="!isReadOnly"
+                            @create-line="handleAddLine"
+                        >
                             <PurchaseOrderItemsTable
                                 ref="itemsTableRef"
                                 :items="localForm.items || []"
@@ -842,16 +857,19 @@ watch(
                                 v-model="localForm.description"
                                 label=""
                                 placeholder="Agrega aquí observaciones adicionales para la orden de compra"
+                                :readonly="isReadOnly"
                             />
                         </div>
                     </div>
 
-                    <!-- Botones -->
-                    <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4 px-4 pb-4">
+                </form>
+                </div>
+                <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4 px-4 pb-4">
                     <Button variant="outline" size="pill" @click="dialogOpen = false">
-                        Cancelar
+                        {{ isReadOnly ? 'Cerrar' : 'Cancelar' }}
                     </Button>
                     <button
+                        v-if="!isReadOnly"
                         type="button"
                         :disabled="isLoading || isSendingMail"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
@@ -860,6 +878,7 @@ watch(
                         {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                     </button>
                     <button
+                        v-if="!isReadOnly"
                         type="button"
                         :disabled="isLoading || isSendingMail"
                         class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
@@ -867,9 +886,7 @@ watch(
                     >
                         {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
                     </button>
-                    </DialogFooter>
-                </form>
-                </div>
+                </DialogFooter>
             </TooltipProvider>
         </DialogContent>
     </Dialog>

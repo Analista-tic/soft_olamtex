@@ -90,10 +90,10 @@ class PurchaseInvoiceController extends PurchaseDocumentController
             'search',
             'contact_id',
             'provider_id',
-            'date_from',
-            'date_to',
             'due_date_from',
             'due_date_to',
+            'debt_status',
+            'include_settled',
         ]);
 
         if (!$request->filled('contact_id') && $request->filled('provider_id')) {

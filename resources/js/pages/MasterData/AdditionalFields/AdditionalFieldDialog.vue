@@ -299,7 +299,7 @@ function handleSubmit() {
                                         option-value="id"
                                         placeholder="Selecciona un valor"
                                     />
-                                    <p v-if="defaultValueOptions.length === 0" class="text-xs text-slate-500">
+                                    <p v-if="defaultValueOptions.length === 0" class="text-xs text-muted-foreground">
                                         Agrega opciones para habilitar un valor por defecto
                                     </p>
                                 </div>
@@ -328,7 +328,7 @@ function handleSubmit() {
                                 />
                                 <button
                                     type="button"
-                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-slate-500 transition hover:border-primary hover:bg-primary hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground transition hover:border-primary hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                                     @click="addOptionFromInput"
                                     aria-label="Agregar valor"
                                 >
@@ -345,7 +345,7 @@ function handleSubmit() {
                                     <button
                                         v-if="localOptions.length > 1"
                                         type="button"
-                                        class="text-slate-400 hover:text-slate-600"
+                                        class="text-muted-foreground hover:text-muted-foreground"
                                         @click="removeOption(index)"
                                         aria-label="Eliminar valor"
                                     >
@@ -353,7 +353,7 @@ function handleSubmit() {
                                     </button>
                                 </span>
                             </div>
-                            <p v-else class="text-xs text-slate-500">Sin valores registrados.</p>
+                            <p v-else class="text-xs text-muted-foreground">Sin valores registrados.</p>
                             <p v-if="hasDuplicateOptions" class="text-xs text-red-600">Cada opción debe ser única.</p>
                         </div>
 
@@ -396,7 +396,7 @@ function handleSubmit() {
                     <button
                         type="button"
                         :disabled="loading || hasDuplicateOptions"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         @click="handleSubmit"
                     >
                         {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}

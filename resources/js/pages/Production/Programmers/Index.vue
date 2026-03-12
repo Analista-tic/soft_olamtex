@@ -3,6 +3,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -13,7 +14,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import Badge from '@/components/ui/badge/Badge.vue';
 import Button from '@/components/ui/button/Button.vue';
 import { Calendar } from '@/components/ui/calendar';
 import Input from '@/components/ui/input/Input.vue';
@@ -45,6 +45,7 @@ import { Calendar as CalendarIcon, Eye, Pencil, Search, Trash, X } from 'lucide-
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import CreateProgrammerDialog from './Create.vue';
 import EditProgrammerDialog from './Edit.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const authStore = useAuthStore();
 
@@ -439,8 +440,8 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
             </transition>
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Lista Programador</h1>
-                    <p class="text-sm text-muted-foreground">Gestiona programadores, referencias y su estado de diseño.</p>
+                    <h1 :class="uiPatterns.typography.pageTitle">Lista Programador</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">Gestiona programadores, referencias y su estado de diseño.</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <CreateProgrammerDialog
@@ -611,17 +612,11 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
                                     </template>
                                 </TableCell>
                                 <TableCell>
-                                    <Badge
-                                        :variant="'outline'"
+                                    <TableStatusBadge
                                         :title="(programmer.is_pending_completion ?? false) ? getPendingMessage(programmer) : 'Registro completo.'"
-                                        :class="
-                                            (programmer.is_pending_completion ?? false)
-                                                ? 'border-amber-500 text-amber-600'
-                                                : 'border-green-500 text-green-500'
-                                        "
-                                    >
-                                        {{ (programmer.is_pending_completion ?? false) ? 'Pendiente' : 'Completo' }}
-                                    </Badge>
+                                        :tone="(programmer.is_pending_completion ?? false) ? 'yellow' : 'green'"
+                                        :label="(programmer.is_pending_completion ?? false) ? 'Pendiente' : 'Completo'"
+                                    />
                                 </TableCell>
                                 <TableCell class="text-center">
                                     <div class="flex items-center justify-center gap-2">
@@ -736,3 +731,6 @@ function formatEstimatedDeliveryDate(raw: unknown): string {
         </AlertDialogContent>
     </AlertDialog>
 </template>
+
+
+

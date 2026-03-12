@@ -89,6 +89,12 @@ class PurchaseDocument extends Model implements HasAuditLabel
     {
         return $this->hasMany(self::class, 'parent_document_id');
     }
+
+    // Pagos aplicados a la factura
+    public function payments()
+    {
+        return $this->hasMany(PurchasePayment::class, 'purchase_invoice_id');
+    }
     
     // Solicitud de compra relacionada (para órdenes creadas desde solicitudes)
     public function purchaseRequest()

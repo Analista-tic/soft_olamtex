@@ -92,15 +92,15 @@ const handleSubmit = async () => {
                 </DialogHeader>
                 <fieldset class="space-y-4">
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-700">Contraseña actual</label>
+                        <label class="text-sm font-medium text-foreground">Contraseña actual</label>
                         <Input v-model="form.current_password" type="password" placeholder="Contraseña actual" required />
                     </div>
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-700">Nueva contraseña</label>
+                        <label class="text-sm font-medium text-foreground">Nueva contraseña</label>
                         <Input v-model="form.new_password" type="password" placeholder="Nueva contraseña" required />
                     </div>
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-slate-700">Confirmar contraseña</label>
+                        <label class="text-sm font-medium text-foreground">Confirmar contraseña</label>
                         <Input v-model="form.confirm_password" type="password" placeholder="Repite la contraseña" required />
                     </div>
                     <p v-if="message" :class="messageType === 'success' ? 'text-emerald-600' : 'text-red-600'" class="text-sm font-medium">

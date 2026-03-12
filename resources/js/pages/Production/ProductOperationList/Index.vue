@@ -20,6 +20,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import ProductOperationListDialog from './ProductOperationListDialog.vue';
 import ProductOperationListView from './ProductOperationListView.vue';
 import SamSummaryCard from './SamSummaryCard.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const page = usePage<ProductOperationListPageProps>();
 
@@ -459,8 +460,8 @@ watch(productSheets, () => {
         <div class="relative flex h-full flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="space-y-1">
-                    <h1 class="text-lg font-bold text-foreground">Listados operacionales</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Listados operacionales</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Registra operaciones, máquinas y tiempos en una sola tabla para referencias de muestra y productivas.
                     </p>
                 </div>
@@ -630,3 +631,5 @@ watch(productSheets, () => {
         </div>
     </AppLayout>
 </template>
+
+

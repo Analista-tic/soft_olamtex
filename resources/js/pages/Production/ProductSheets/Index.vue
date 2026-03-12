@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -14,7 +15,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import Badge from '@/components/ui/badge/Badge.vue';
 import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import {
@@ -30,6 +30,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useGlobalAlert } from '@/composables/useGlobalAlert';
+import { uiPatterns } from '@/lib/ui-patterns';
 import {
     convertSampleToProduct,
     deleteProductSheet as deleteProductSheetRequest,
@@ -357,7 +358,7 @@ onUnmounted(() => {
                 @close-error="clear"
             />
             <div class="flex items-center justify-between">
-                <h1 class="text-lg font-bold">Lista Sabana de Productos</h1>
+                <h1 :class="uiPatterns.typography.pageTitle">Lista Sabana de Productos</h1>
                 <Button
                     v-if="canCreate"
                     variant="default"
@@ -424,12 +425,10 @@ onUnmounted(() => {
                                 <TableCell>{{ formatCopCurrency(product.billing_price) }}</TableCell>
                                 <TableCell>{{ formatCopCurrency(product.selling_price) }}</TableCell>
                                 <TableCell>
-                                    <Badge
-                                        :variant="'outline'"
-                                        :class="product.status === 'complete' ? 'border-green-500 text-green-500' : 'border-red-500 text-red-500'"
-                                    >
-                                        {{ product.status === 'complete' ? 'Completo' : 'Incompleto' }}
-                                    </Badge>
+                                    <TableStatusBadge
+                                        :label="product.status === 'complete' ? 'Completo' : 'Incompleto'"
+                                        :tone="product.status === 'complete' ? 'green' : 'red'"
+                                    />
                                 </TableCell>
                                 <TableCell class="text-center">
                                     <div class="flex items-center justify-center gap-2">
@@ -583,3 +582,6 @@ onUnmounted(() => {
         </AlertDialogContent>
     </AlertDialog>
 </template>
+
+
+

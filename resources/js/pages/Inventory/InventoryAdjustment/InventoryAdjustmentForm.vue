@@ -682,7 +682,7 @@ async function handleSubmit() {
                   </TableRow>
 
                   <TableRow v-if="lines.length === 0">
-                    <TableCell colspan="8" class="text-center text-gray-400">
+                    <TableCell colspan="8" class="text-center text-muted-foreground">
                       No hay lineas agregadas.
                     </TableCell>
                   </TableRow>

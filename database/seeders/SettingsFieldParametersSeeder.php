@@ -394,6 +394,23 @@ class SettingsFieldParametersSeeder extends Seeder
             ],
             [
                 'kind' => 'parameter',
+                'key' => 'payment_methods',
+                'data' => [
+                    'label' => 'Formas de pago tesoreria',
+                    'description' => 'Metodos de pago disponibles para comprobantes y recibos de tesoreria.',
+                    'value' => [
+                        ['id' => 'cash', 'name' => 'Efectivo'],
+                        ['id' => 'bank_deposit', 'name' => 'Consignacion bancaria'],
+                        ['id' => 'bank_transfer', 'name' => 'Transferencia'],
+                        ['id' => 'check', 'name' => 'Cheque'],
+                        ['id' => 'credit_card', 'name' => 'Tarjeta credito'],
+                        ['id' => 'debit_card', 'name' => 'Tarjeta debito'],
+                    ],
+                    'status' => true,
+                ],
+            ],
+            [
+                'kind' => 'parameter',
                 'key' => 'calibre',
                 'data' => [
                     'label' => 'Calibre',

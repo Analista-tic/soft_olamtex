@@ -3,7 +3,7 @@ import AlertBox from '@/components/AlertBox.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
-import { Badge } from '@/components/ui/badge';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
@@ -200,9 +200,7 @@ const statusLabel = computed(() => {
     return value ? value : '-';
 });
 
-const statusBadgeClass = computed(() =>
-    statusLabel.value === 'Completo' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-amber-500 bg-amber-50 text-amber-700',
-);
+const statusTone = computed<'green' | 'yellow'>(() => (statusLabel.value === 'Completo' ? 'green' : 'yellow'));
 
 const orderKind = computed<'sample' | 'product' | 'unknown'>(() => {
     const opCode = String(productionOrder.value?.op_code ?? programmer.value?.op_code ?? '')
@@ -467,7 +465,7 @@ onUnmounted(() => {
                             <div class="flex min-w-0 flex-1 flex-col">
                                 <div class="mb-3 flex items-center justify-between gap-2">
                                     <p class="text-sm font-semibold text-foreground">Información básica</p>
-                                    <Badge variant="outline" :class="statusBadgeClass">{{ statusLabel }}</Badge>
+                                    <TableStatusBadge :label="statusLabel" :tone="statusTone" />
                                 </div>
                                 <p class="mb-3 text-xs text-muted-foreground">
                                     {{ normalizeText(productionOrder?.op_code ?? programmer?.op_code) }} - {{ normalizeReference(productSheet) }}

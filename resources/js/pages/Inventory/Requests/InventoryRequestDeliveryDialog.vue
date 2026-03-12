@@ -295,7 +295,7 @@ onMounted(() => {
                                     </TableCell>
                                 </TableRow>
                                 <TableRow v-if="items.length === 0">
-                                    <TableCell colspan="4" class="text-center text-gray-400">No hay items para entregar.</TableCell>
+                                    <TableCell colspan="4" class="text-center text-muted-foreground">No hay items para entregar.</TableCell>
                                 </TableRow>
                             </TableBody>
                         </Table>
@@ -313,7 +313,7 @@ onMounted(() => {
                 <button
                     type="button"
                     :disabled="isLoading || hasMissingItems"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     @click.prevent="handleSubmit"
                 >
                     {{ isLoading ? 'Guardando...' : 'Guardar' }}

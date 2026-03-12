@@ -102,3 +102,140 @@ export type CreditDebitNoteListQuery = {
     date_from?: string;
     date_to?: string;
 };
+
+export type TreasuryPartyType = 'supplier' | 'customer';
+export type TreasuryDirection = 'outflow' | 'inflow';
+
+export interface TreasuryThirdParty {
+    id: number;
+    name: string;
+    identification?: string | null;
+    party_type: TreasuryPartyType;
+}
+
+export interface TreasuryOpenDocument {
+    id: number;
+    document_number: string;
+    invoice_date: string | null;
+    due_date: string | null;
+    invoice_total: number;
+    withholdings_total: number;
+    credit_notes_total: number;
+    debit_notes_total: number;
+    applied_total: number;
+    pending_balance: number;
+    status: string | null;
+    status_label: string | null;
+}
+
+export interface TreasuryApplicationLine {
+    document_id: number;
+    amount: number;
+}
+
+export interface TreasuryVoucherDraft {
+    direction: TreasuryDirection;
+    party_type: TreasuryPartyType;
+    contact_id: number | null;
+    date: string;
+    account_id: number | null;
+    payment_method: string | null;
+    currency: string | null;
+    voucher_type: string | null;
+    reference: string;
+    notes: string;
+    applications: TreasuryApplicationLine[];
+}
+
+export interface TreasuryVoucherSummary {
+    pending_total: number;
+    applied_total: number;
+    remaining_total: number;
+    documents_count: number;
+}
+
+export interface TreasurySelectOption {
+    id: number | string;
+    name: string;
+}
+
+export interface ExpenseVoucherRecord {
+    voucher_number: string;
+    date: string;
+    contact_id: number;
+    account_id: number | null;
+    account_label?: string | null;
+    payment_method: string | null;
+    payment_method_label?: string | null;
+    reference: string | null;
+    notes: string | null;
+    total_applied: number;
+    applications: Array<{
+        payment_id: number;
+        document_id: number;
+        document_number?: string | null;
+        document_date?: string | null;
+        amount: number;
+        payment_date: string | null;
+        reference: string | null;
+        withholdings_total?: number | null;
+    }>;
+}
+
+export type TreasuryOpenDocumentsQuery = {
+    contact_id: number;
+};
+
+export type ExpenseVoucherListQuery = {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    provider_id?: number | string;
+    status?: string;
+    date_from?: string;
+    date_to?: string;
+};
+
+export interface ExpenseVoucherListItem {
+    id: number;
+    voucher_number: string;
+    payment_date: string | null;
+    created_at: string | null;
+    provider_id: number | null;
+    supplier_name: string;
+    details: string | null;
+    invoice_id: number | null;
+    invoice_number: string | null;
+    account_id?: number | null;
+    account_label: string | null;
+    payment_method?: string | null;
+    payment_method_label?: string | null;
+    reconciled: boolean;
+    reconciled_label: string;
+    reconciled_tone: 'green' | 'yellow' | 'red' | 'gray';
+    reference: string | null;
+    notes: string | null;
+    total_applied: number;
+    status: string;
+    status_label: string;
+    status_tone: 'green' | 'yellow' | 'red' | 'gray';
+    created_by: string | null;
+}
+
+export interface ExpenseVoucherDetailItem extends ExpenseVoucherListItem {
+    date: string | null;
+    contact_id: number;
+    account_id: number | null;
+    payment_method: string | null;
+    payment_method_label?: string | null;
+    applications: Array<{
+        payment_id: number;
+        document_id: number;
+        document_number?: string | null;
+        document_date?: string | null;
+        amount: number;
+        payment_date: string | null;
+        reference: string | null;
+        withholdings_total?: number | null;
+    }>;
+}

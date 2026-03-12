@@ -3,7 +3,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Badge } from '@/components/ui/badge';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Input from '@/components/ui/input/Input.vue';
@@ -31,10 +31,8 @@ import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ClipboardPen, Eye, PackageCheck, PackageSearch, Search } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
-// -----------------------------------------------------------------------------
-// Imports / props / breadcrumbs
-// -----------------------------------------------------------------------------
 type SectionScope = 'samples' | 'products';
 type StatusFilter = 'all' | 'complete' | 'incomplete';
 type TypeCode = 'MU' | 'MUT' | 'MF' | 'MFT' | 'N/A';
@@ -64,14 +62,14 @@ const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
 
-const STATUS_UI: Readonly<Record<StatusUiKey, { text: 'Pendiente' | 'Completo'; badgeClass: string }>> = {
+const STATUS_UI: Readonly<Record<StatusUiKey, { text: 'Pendiente' | 'Completo'; tone: 'yellow' | 'green' }>> = {
     pending: {
         text: 'Pendiente',
-        badgeClass: 'border-amber-500 text-amber-700 bg-amber-50',
+        tone: 'yellow',
     },
     complete: {
         text: 'Completo',
-        badgeClass: 'border-emerald-500 text-emerald-700 bg-emerald-50',
+        tone: 'green',
     },
 };
 
@@ -192,8 +190,8 @@ function getStatusText(row: Programmer): 'Pendiente' | 'Completo' {
     return STATUS_UI[getStatusKey(row)].text;
 }
 
-function getStatusBadgeClass(row: Programmer): string {
-    return STATUS_UI[getStatusKey(row)].badgeClass;
+function getStatusTone(row: Programmer): 'yellow' | 'green' {
+    return STATUS_UI[getStatusKey(row)].tone;
 }
 
 // -----------------------------------------------------------------------------
@@ -400,8 +398,8 @@ onUnmounted(() => {
 
         <div class="flex h-full flex-1 flex-col gap-6 rounded-xl px-3 py-4">
             <div class="flex flex-col gap-1.5">
-                <h1 class="text-xl font-bold tracking-tight text-foreground">Órdenes de producción</h1>
-                <p class="text-sm text-muted-foreground">Seguimiento y detalles de órdenes de producción (muestras y productos).</p>
+                <h1 :class="uiPatterns.typography.pageTitle">Órdenes de producción</h1>
+                <p :class="uiPatterns.typography.pageSubtitle">Seguimiento y detalles de órdenes de producción (muestras y productos).</p>
             </div>
 
             <div class="grid grid-cols-12 gap-6">
@@ -509,9 +507,7 @@ onUnmounted(() => {
                                                     <TableCell class="text-center">{{ row.destination?.name || '-' }}</TableCell>
                                                     <TableCell class="text-center">{{ row.units ?? '-' }}</TableCell>
                                                     <TableCell class="text-center">
-                                                        <Badge :class="getStatusBadgeClass(row)" variant="outline">
-                                                            {{ getStatusText(row) }}
-                                                        </Badge>
+                                                        <TableStatusBadge :label="getStatusText(row)" :tone="getStatusTone(row)" />
                                                     </TableCell>
                                                     <TableCell class="text-center">
                                                         <div class="flex items-center justify-center gap-2">
@@ -595,3 +591,6 @@ onUnmounted(() => {
         @create-tech-sheet="handleCreateTechSheetFromDialog"
     />
 </template>
+
+
+

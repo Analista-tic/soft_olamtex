@@ -20,6 +20,7 @@ import { ChevronLeft, ChevronRight, Database, Eye, Pencil, Plus, Search, Trash2 
 import { computed, onMounted, ref, watch } from 'vue';
 import OperationDetailDialog from './OperationDetailDialog.vue';
 import OperationFormDialog from './OperationFormDialog.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 type Section = { id: number; name: string; type?: string };
 type ProductSheetOption = { id: number; name: string };
@@ -215,11 +216,11 @@ onMounted(() => fetchPage(1));
             <!-- Header -->
             <div class="flex items-center justify-between">
                 <div class="space-y-1">
-                    <h1 class="flex items-center gap-2 text-lg font-bold text-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">
                         <Database class="h-5 w-5 text-primary" />
                         Base de datos de operaciones
                     </h1>
-                    <p class="text-sm text-muted-foreground">
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Gestiona todas las operaciones del sistema. Cada operación es única por acción + parte de prenda.
                     </p>
                 </div>
@@ -299,7 +300,7 @@ onMounted(() => fetchPage(1));
                                     <TableCell colspan="10" class="py-16 text-center">
                                         <div class="flex flex-col items-center gap-2">
                                             <Database class="h-10 w-10 text-muted-foreground/40" />
-                                            <p class="text-sm text-muted-foreground">No se encontraron operaciones.</p>
+                                            <p :class="uiPatterns.typography.pageSubtitle">No se encontraron operaciones.</p>
                                             <Button variant="outline" size="sm" class="mt-2" @click="openCreateDialog">
                                                 <Plus class="mr-1 h-4 w-4" /> Crear primera operación
                                             </Button>
@@ -432,3 +433,5 @@ onMounted(() => fetchPage(1));
         />
     </AppLayout>
 </template>
+
+

@@ -19,6 +19,7 @@ import { computed, onMounted, ref } from 'vue';
 import FabricRollAdjustDialog from './FabricRollAdjustDialog.vue';
 import FabricRollDownloadDialog from './FabricRollDownloadDialog.vue';
 import FabricRollInventoryDialog from './FabricRollInventoryDialog.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs = [{ title: 'Inventario Telas por Rollo', href: '/kardex-telas/inventario-rollos' }];
 
@@ -206,8 +207,8 @@ onMounted(fetchFabricRolls);
             />
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Inventario telas por rollo</h1>
-                    <p class="text-sm text-muted-foreground">Mantén el control preciso de cada rollo.</p>
+                    <h1 :class="uiPatterns.typography.pageTitle">Inventario telas por rollo</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">Mantén el control preciso de cada rollo.</p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <Button
@@ -360,3 +361,5 @@ onMounted(fetchFabricRolls);
         />
     </AppLayout>
 </template>
+
+

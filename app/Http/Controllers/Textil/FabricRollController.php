@@ -7,8 +7,11 @@ use App\Http\Requests\Textil\StoreFabricRollRequest;
 use App\Http\Requests\Textil\UpdateFabricRollOutputRequest;
 use App\Http\Requests\Textil\UpdateFabricRollRequest;
 use App\Http\Resources\Inventory\FabricRollResource;
+use App\Models\Expenses\PurchaseDocument;
+use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Production\ProductionOrder;
 use App\Models\Textil\FabricRoll;
+use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Textil\FabricRollService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -135,6 +138,65 @@ class FabricRollController extends Controller
     {
         return Inertia::render('Expenses/Reception/Reception', [
             'invoiceId' => $invoiceId
+        ]);
+    }
+
+    public function receptionData(Request $request, PurchaseDocumentInvoiceService $invoiceService): JsonResponse
+    {
+        $scope = $this->resolveReceptionScope($request->query('scope'));
+        $filters = $request->only([
+            'search',
+            'status',
+            'date_from',
+            'date_to',
+            'provider_id',
+            'contact_id',
+            'subgroup_id',
+        ]);
+
+        if (($filters['status'] ?? null) === 'pending') {
+            $filters['status'] = 'pending_receipt';
+        }
+
+        if ($scope === 'general') {
+            $filters['exclude_fabric'] = true;
+        } elseif ($scope === 'fabric') {
+            $filters['fabric_only'] = true;
+        }
+
+        $documents = $invoiceService->paginateDocuments(
+            PurchaseDocument::TYPE_INVOICE,
+            $filters,
+            (int) $request->input('per_page', 10)
+        );
+
+        return response()->json([
+            'data' => $documents->items(),
+            'total' => $documents->total(),
+            'current_page' => $documents->currentPage(),
+        ]);
+    }
+
+    public function receptionInvoice(Request $request, PurchaseDocument $purchaseDocument, PurchaseDocumentInvoiceService $invoiceService): JsonResponse
+    {
+        if ($purchaseDocument->document_type !== PurchaseDocument::TYPE_INVOICE) {
+            abort(404);
+        }
+
+        $scope = $this->resolveReceptionScope($request->query('scope'));
+        $purchaseDocument->loadMissing('items.item.categorySubGroup');
+        $isFabricInvoice = $this->isFabricInvoice($purchaseDocument);
+
+        if ($scope === 'general' && $isFabricInvoice) {
+            abort(404);
+        }
+
+        if ($scope === 'fabric' && !$isFabricInvoice) {
+            abort(404);
+        }
+
+        return response()->json([
+            'data' => $invoiceService->loadWithRelations($purchaseDocument),
         ]);
     }
 
@@ -341,5 +403,24 @@ class FabricRollController extends Controller
             'message' => 'La salida real no puede ser mayor que la cantidad del rollo',
             'errors' => ['actual_output' => ['La salida real no puede ser mayor que la cantidad del rollo']]
         ], 422);
+    }
+
+    protected function resolveReceptionScope(mixed $scope): string
+    {
+        $normalized = is_string($scope) ? strtolower(trim($scope)) : '';
+        return in_array($normalized, ['all', 'general', 'fabric'], true) ? $normalized : 'all';
+    }
+
+    protected function isFabricInvoice(PurchaseDocument $invoice): bool
+    {
+        return $invoice->items->contains(function (PurchaseDocumentItem $item): bool {
+            $subgroupName = mb_strtolower(trim((string) ($item->item?->categorySubGroup?->name ?? '')));
+            if ($subgroupName !== '') {
+                return str_contains($subgroupName, 'tela');
+            }
+
+            $fallbackName = mb_strtolower(trim((string) ($item->item_name ?? $item->item?->name ?? '')));
+            return $fallbackName !== '' && str_contains($fallbackName, 'tela');
+        });
     }
 }

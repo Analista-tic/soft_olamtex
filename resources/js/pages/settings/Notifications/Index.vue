@@ -12,6 +12,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import { Bell } from 'lucide-vue-next';
 import { computed, reactive, ref, watch } from 'vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 interface NotificationPayload {
     title?: string;
@@ -189,8 +190,8 @@ function handleOpen(notification: NotificationRow) {
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <!-- Encabezado -->
             <div class="mb-2 flex flex-col gap-1">
-                <h1 class="text-lg font-bold">Notificaciones</h1>
-                <p class="text-sm text-muted-foreground">
+                <h1 :class="uiPatterns.typography.pageTitle">Notificaciones</h1>
+                <p :class="uiPatterns.typography.pageSubtitle">
                     Consulta el historial de notificaciones generadas por el sistema para los distintos módulos y procesos operativos.
                 </p>
             </div>
@@ -317,3 +318,5 @@ function handleOpen(notification: NotificationRow) {
         </div>
     </AppLayout>
 </template>
+
+

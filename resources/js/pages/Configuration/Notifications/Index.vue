@@ -31,6 +31,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -315,8 +316,8 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
             <!-- Header -->
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Notificaciones</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Notificaciones</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Consulta el historial de notificaciones generadas por el sistema.
                     </p>
                 </div>
@@ -563,3 +564,6 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
         </div>
     </AppLayout>
 </template>
+
+
+

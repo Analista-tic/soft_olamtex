@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,8 +35,7 @@ import {
     XCircle,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
-
-/* ── Types ──────────────────────────────────────────────── */
+import { uiPatterns } from '@/lib/ui-patterns';
 
 type LastDelivery = {
     from_process: string;
@@ -112,19 +112,19 @@ const scopeOptions: ReadonlyArray<ScopeOption> = [
 ];
 
 const TAB_COLORS = [
-    'bg-red-100 text-red-800 data-[state=active]:bg-red-600 data-[state=active]:text-white data-[state=active]:shadow-md',
-    'bg-rose-100 text-rose-800 data-[state=active]:bg-rose-600 data-[state=active]:text-white data-[state=active]:shadow-md',
-    'bg-pink-100 text-pink-800 data-[state=active]:bg-pink-600 data-[state=active]:text-white data-[state=active]:shadow-md',
-    'bg-orange-100 text-orange-800 data-[state=active]:bg-orange-600 data-[state=active]:text-white data-[state=active]:shadow-md',
+    'bg-red-100 text-red-800 data-[state=active]:bg-red-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
+    'bg-rose-100 text-rose-800 data-[state=active]:bg-rose-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
+    'bg-pink-100 text-pink-800 data-[state=active]:bg-pink-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
+    'bg-orange-100 text-orange-800 data-[state=active]:bg-orange-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
     'bg-amber-100 text-amber-800 data-[state=active]:bg-amber-600 data-[state=active]:text-amber-100 data-[state=active]:shadow-md',
     'bg-yellow-100 text-yellow-800 data-[state=active]:bg-yellow-600 data-[state=active]:text-yellow-100 data-[state=active]:shadow-md',
-    'bg-lime-100 text-lime-800 data-[state=active]:bg-lime-600 data-[state=active]:text-white data-[state=active]:shadow-md',
-    'bg-green-100 text-green-800 data-[state=active]:bg-green-600 data-[state=active]:text-white data-[state=active]:shadow-md',
-    'bg-emerald-100 text-emerald-800 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md',
-    'bg-teal-100 text-teal-800 data-[state=active]:bg-teal-600 data-[state=active]:text-white data-[state=active]:shadow-md',
-    'bg-cyan-100 text-cyan-800 data-[state=active]:bg-cyan-600 data-[state=active]:text-white data-[state=active]:shadow-md',
-    'bg-blue-100 text-blue-800 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md',
-    'bg-indigo-100 text-indigo-800 data-[state=active]:bg-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md',
+    'bg-lime-100 text-lime-800 data-[state=active]:bg-lime-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
+    'bg-green-100 text-green-800 data-[state=active]:bg-green-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
+    'bg-emerald-100 text-emerald-800 data-[state=active]:bg-emerald-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
+    'bg-teal-100 text-teal-800 data-[state=active]:bg-teal-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
+    'bg-cyan-100 text-cyan-800 data-[state=active]:bg-cyan-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
+    'bg-blue-100 text-blue-800 data-[state=active]:bg-blue-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
+    'bg-indigo-100 text-indigo-800 data-[state=active]:bg-indigo-600 data-[state=active]:text-primary-foreground data-[state=active]:shadow-md',
 ];
 
 const toggleGroupBaseClass = 'inline-flex min-w-max items-center gap-1 rounded-full bg-muted/40 p-1';
@@ -534,8 +534,8 @@ onMounted(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl px-3 py-4">
             <!-- Header -->
             <div class="flex flex-col gap-1">
-                <h1 class="text-xl font-bold tracking-tight text-foreground">Control de lotes</h1>
-                <p class="text-sm text-muted-foreground">
+                <h1 :class="uiPatterns.typography.pageTitle">Control de lotes</h1>
+                <p :class="uiPatterns.typography.pageSubtitle">
                     Seguimiento de órdenes de producción por estado. Cuando el proceso esté listo, entrégalo al siguiente estado con observaciones.
                 </p>
             </div>
@@ -574,7 +574,7 @@ onMounted(() => {
                                         <span>{{ process }}</span>
                                         <span
                                             v-if="tabCounts[process] > 0"
-                                            class="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/80 px-1.5 text-xs font-bold text-gray-700"
+                                            class="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/80 px-1.5 text-xs font-bold text-foreground"
                                         >
                                             {{ tabCounts[process] }}
                                         </span>
@@ -855,7 +855,7 @@ onMounted(() => {
                                                                             >
                                                                                 <MessageSquareWarning :class="actionIconClass" />
                                                                                 <span
-                                                                                    class="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold text-white"
+                                                                                    class="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold text-primary-foreground"
                                                                                 >
                                                                                     {{ row.pending_novelties_count }}
                                                                                 </span>
@@ -1193,13 +1193,10 @@ onMounted(() => {
                     >
                         <div class="mb-2 flex items-center justify-between">
                             <div class="flex items-center gap-2 text-sm">
-                                <Badge
-                                    :variant="item.status === 'pending' ? 'destructive' : 'secondary'"
-                                    :class="item.status === 'pending' ? 'bg-orange-500 hover:bg-orange-600' : ''"
-                                    class="text-xs"
-                                >
-                                    {{ item.status === 'pending' ? 'Pendiente' : 'Resuelta' }}
-                                </Badge>
+                                <TableStatusBadge
+                                    :label="item.status === 'pending' ? 'Pendiente' : 'Resuelta'"
+                                    :tone="item.status === 'pending' ? 'amber' : 'green'"
+                                />
                                 <span class="text-muted-foreground">De</span>
                                 <Badge variant="outline" class="text-xs">{{ item.from_process }}</Badge>
                                 <span class="text-muted-foreground">→</span>
@@ -1275,3 +1272,6 @@ onMounted(() => {
         </Dialog>
     </AppLayout>
 </template>
+
+
+

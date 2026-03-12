@@ -40,7 +40,7 @@ const showAvatar = computed(() => avatarSrc.value !== '');
 <template>
     <Avatar class="h-8 w-8 overflow-hidden rounded-lg">
         <AvatarImage v-if="showAvatar" :src="avatarSrc" :alt="user.name" />
-        <AvatarFallback class="rounded-lg text-black dark:text-white">
+        <AvatarFallback class="rounded-lg text-foreground dark:text-foreground">
             {{ getInitials(user.name) }}
         </AvatarFallback>
     </Avatar>

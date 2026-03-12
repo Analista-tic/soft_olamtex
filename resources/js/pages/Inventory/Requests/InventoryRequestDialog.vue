@@ -10,6 +10,7 @@ import axios from 'axios';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import InventoryRequestItemsTable from './InventoryRequestItemsTable.vue';
 import { Image, Plus } from 'lucide-vue-next';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 type RequestItem = {
     item_id: number | null;
@@ -78,7 +79,7 @@ const isReadonly = computed(() => props.dialogType === 'view');
 const shouldShowOverlayRaw = computed(
     () => dialogOpen.value && !props.deferContent && (isSubmittingDialog.value || isInitializingDialog.value),
 );
-const footerContainerClass = 'mt-4 flex flex-shrink-0 flex-wrap justify-end gap-2 border-t px-4 pb-4 pt-4';
+const footerContainerClass = `${uiPatterns.dialogLarge.footerCompact} bg-background`;
 const primaryPillButtonClass =
     'shadow-sm';
 const secondaryPillButtonClass =
@@ -573,7 +574,7 @@ onUnmounted(() => {
                         </div>
 
                         <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border lg:sticky lg:top-4">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Imagen</label>
+                            <label class="block text-sm font-medium text-foreground dark:text-foreground mb-2">Imagen</label>
                             <input
                                 ref="fileInputRef"
                                 type="file"
@@ -597,54 +598,54 @@ onUnmounted(() => {
                                         alt="Previsualización"
                                         class="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
                                     />
-                                    <div class="absolute bottom-0 left-0 right-0 bg-black/50 py-1 text-xs text-white">
+                                    <div class="absolute bottom-0 left-0 right-0 bg-black/50 py-1 text-xs text-primary-foreground">
                                         {{ isReadonly ? 'Imagen de la solicitud' : 'Cambiar imagen' }}
                                     </div>
                                 </template>
                                 <template v-else>
-                                    <Image class="mb-2 h-12 w-12 text-gray-400" />
-                                    <span class="text-sm text-gray-500">
+                                    <Image class="mb-2 h-12 w-12 text-muted-foreground" />
+                                    <span class="text-sm text-muted-foreground">
                                         {{ isReadonly ? 'Sin imagen' : 'Haz clic para subir imagen' }}
                                     </span>
                                 </template>
                             </div>
                         </div>
                     </div>
-
-                    <DialogFooter :class="footerContainerClass">
-                        <template v-if="isReadonly">
-                            <Button
-                                type="button"
-                                size="pill"
-                                :class="primaryPillButtonClass"
-                                @click="dialogOpen = false"
-                            >
-                                Cerrar
-                            </Button>
-                        </template>
-                        <template v-else>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="pill"
-                                :class="secondaryPillButtonClass"
-                                @click="dialogOpen = false"
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                type="button"
-                                size="pill"
-                                :disabled="isLoading"
-                                :class="primaryPillButtonClass"
-                                @click.prevent="handleSubmit"
-                            >
-                                {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                            </Button>
-                        </template>
-                    </DialogFooter>
                 </form>
             </div>
+
+            <DialogFooter :class="footerContainerClass">
+                <template v-if="isReadonly">
+                    <Button
+                        type="button"
+                        size="pill"
+                        :class="primaryPillButtonClass"
+                        @click="dialogOpen = false"
+                    >
+                        Cerrar
+                    </Button>
+                </template>
+                <template v-else>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="pill"
+                        :class="secondaryPillButtonClass"
+                        @click="dialogOpen = false"
+                    >
+                        Cancelar
+                    </Button>
+                    <Button
+                        type="button"
+                        size="pill"
+                        :disabled="isLoading"
+                        :class="primaryPillButtonClass"
+                        @click.prevent="handleSubmit"
+                    >
+                        {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                    </Button>
+                </template>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
 </template>

@@ -154,7 +154,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                 <button
                     v-if="!isReadOnly"
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                     @click="addWithholding"
                 >
                     <CirclePlus class="h-4 w-4" />
@@ -230,7 +230,7 @@ async function handleRetentionSubmit(formData: RetentionForm) {
                 </tbody>
             </table>
         </div>
-        <div v-else class="text-xs text-gray-500 text-center py-4">
+        <div v-else class="py-4 text-center text-xs text-muted-foreground">
             No hay retenciones.
         </div>
 

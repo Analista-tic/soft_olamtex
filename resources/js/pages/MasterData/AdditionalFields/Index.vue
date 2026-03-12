@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { PlusCircle, Search } from 'lucide-vue-next';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Catálogo de ítem', href: '/inventario/item' },
@@ -438,8 +439,8 @@ onBeforeUnmount(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div class="flex flex-col gap-1 max-w-3xl">
-                    <h1 class="text-lg font-bold">Campos adicionales</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Campos adicionales</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Este módulo permite definir, ordenar y mantener los campos adicionales que enriquecen la información de ítems y productos, asegurando que cada área del negocio capture los atributos obligatorios y opcionales que requiere su operación.
                     </p>
                 </div>
@@ -447,7 +448,7 @@ onBeforeUnmount(() => {
                     <button
                         type="button"
                         :disabled="isPreparingDialog"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="openDialog('create')"
                     >
                         <PlusCircle class="w-4 h-4" />
@@ -497,12 +498,12 @@ onBeforeUnmount(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Nombre</TableHead>
-                            <TableHead>Tipo</TableHead>
-                            <TableHead>Requerido</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead>Opciones</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Nombre</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Tipo</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Requerido</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Opciones</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -537,7 +538,7 @@ onBeforeUnmount(() => {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="additionalFields.length === 0">
-                            <TableCell colspan="7" class="px-4 py-2 text-center text-gray-400">
+                            <TableCell colspan="7" class="px-4 py-2 text-center text-muted-foreground">
                                 No hay campos adicionales registrados.
                             </TableCell>
                         </TableRow>
@@ -602,3 +603,5 @@ onBeforeUnmount(() => {
         />
     </AppLayout>
 </template>
+
+

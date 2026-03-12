@@ -210,7 +210,7 @@ onMounted(() => {
                             <TableCell class="text-center">{{ formatCurrency(item.total) }}</TableCell>
                         </TableRow>
                         <TableRow v-if="items.length === 0">
-                            <TableCell :colspan="6" class="text-center text-gray-400">No hay ítems en el inventario.</TableCell>
+                            <TableCell :colspan="6" class="text-center text-muted-foreground">No hay ítems en el inventario.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>

@@ -5,6 +5,7 @@ import { Head } from '@inertiajs/vue3';
 import { Eye, PlusCircle, Search } from 'lucide-vue-next';
 
 import AppLayout from '@/layouts/AppLayout.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
@@ -29,6 +30,7 @@ import type { BreadcrumbItem } from '@/domain/shared';
 import type { ParameterDialogModel } from './ParameterDialog.vue';
 import ParameterDialog from './ParameterDialog.vue';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 
 type DialogType = 'create' | 'edit' | 'view';
 
@@ -84,12 +86,6 @@ const parameterToDelete = ref<ParameterItem | null>(null);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
-
-/**
- * Si tu SelectField espera button-class con clases,
- * mantenemos el composable original (sin cambiar rutas ni componentes).
- */
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 function toParameterItem(parameter: Parameter): ParameterItem {
@@ -443,8 +439,8 @@ onBeforeUnmount(() => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div class="flex flex-col gap-1 max-w-3xl">
-                    <h1 class="text-lg font-bold">Parámetros</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Parámetros</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Configura valores globales reutilizables por distintos módulos del sistema.
                     </p>
                 </div>
@@ -453,7 +449,7 @@ onBeforeUnmount(() => {
                     <button
                         type="button"
                         :disabled="isPreparingDialog"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="openDialog('create')"
                     >
                         <PlusCircle class="w-4 h-4" />
@@ -492,11 +488,11 @@ onBeforeUnmount(() => {
                     <Table class="text-center">
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Nombre</TableHead>
-                                <TableHead>Descripción</TableHead>
-                                <TableHead>Valor</TableHead>
-                                <TableHead class="w-[140px] text-center">Estado</TableHead>
-                                <TableHead class="w-[140px] text-center">Acciones</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Nombre</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Descripción</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Valor</TableHead>
+                                <TableHead :class="`${uiPatterns.typography.tableHead} w-[140px] text-center`">Estado</TableHead>
+                                <TableHead :class="`${uiPatterns.typography.tableHead} w-[140px] text-center`">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
 
@@ -575,3 +571,4 @@ onBeforeUnmount(() => {
         />
     </AppLayout>
 </template>
+

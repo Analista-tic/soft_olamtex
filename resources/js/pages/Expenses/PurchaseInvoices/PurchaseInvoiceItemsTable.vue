@@ -383,7 +383,7 @@ defineExpose({ addItem });
                                 @input="calcTotals(item)"
                                 :error="isPriceDifferent(item)"
                             />
-                            <div v-if="getSuggestedPrice(item) !== null" class="text-xs text-gray-500 mt-1">
+                            <div v-if="getSuggestedPrice(item) !== null" class="mt-1 text-xs text-muted-foreground">
                                 Valor en la orden: {{
                                     Number(getSuggestedPrice(item)).toLocaleString('es-CO', {
                                         style: 'currency',
@@ -418,7 +418,7 @@ defineExpose({ addItem });
                                 :disabled="isReadOnly"
                                 :error="isQuantityDifferent(item)"
                             />
-                            <div v-if="getSuggestedQuantity(item) !== null" class="text-xs text-gray-500 mt-1">
+                            <div v-if="getSuggestedQuantity(item) !== null" class="mt-1 text-xs text-muted-foreground">
                                 Cantidad real: {{
                                     Number(getSuggestedQuantity(item)).toLocaleString('es-CO')
                                 }}
@@ -476,7 +476,7 @@ defineExpose({ addItem });
                         </TableCell>
                     </TableRow>
                     <TableRow v-if="localItems.length === 0">
-                        <TableCell :colspan="totalColumns" class="text-center text-gray-400">
+                        <TableCell :colspan="totalColumns" class="text-center text-muted-foreground">
                             No hay items agregados.
                         </TableCell>
                     </TableRow>

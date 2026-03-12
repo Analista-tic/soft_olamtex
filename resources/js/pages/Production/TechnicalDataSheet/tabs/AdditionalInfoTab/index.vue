@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Badge } from '@/components/ui/badge';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import type { AdditionalInfo, Grain, OpBasicInfo, PieceType, Side } from '@/domain/Production';
 import { fetchOpAdditionalInfo, fetchOpProcesses, saveOpAdditionalInfo } from '@/domain/Production';
 import { ChevronRight, Scissors, Stamp, WashingMachine } from 'lucide-vue-next';
@@ -569,9 +569,11 @@ watch(
                         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                             <Scissors class="h-5 w-5" />
                         </div>
-                        <Badge :variant="isCuttingComplete ? 'default' : 'secondary'" class="shrink-0">
-                            {{ isCuttingComplete ? 'Completado' : 'Pendiente' }}
-                        </Badge>
+                        <TableStatusBadge
+                            class="shrink-0"
+                            :label="isCuttingComplete ? 'Completado' : 'Pendiente'"
+                            :tone="isCuttingComplete ? 'green' : 'yellow'"
+                        />
                     </div>
 
                     <div class="mt-4 flex-1">
@@ -597,9 +599,11 @@ watch(
                         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
                             <Stamp class="h-5 w-5" />
                         </div>
-                        <Badge :variant="isStampingComplete ? 'default' : 'secondary'" class="shrink-0">
-                            {{ isStampingComplete ? 'Completado' : 'Pendiente' }}
-                        </Badge>
+                        <TableStatusBadge
+                            class="shrink-0"
+                            :label="isStampingComplete ? 'Completado' : 'Pendiente'"
+                            :tone="isStampingComplete ? 'green' : 'yellow'"
+                        />
                     </div>
 
                     <div class="mt-4 flex-1">
@@ -625,9 +629,11 @@ watch(
                         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600">
                             <WashingMachine class="h-5 w-5" />
                         </div>
-                        <Badge :variant="isLaundryComplete ? 'default' : 'secondary'" class="shrink-0">
-                            {{ isLaundryComplete ? 'Completado' : 'Pendiente' }}
-                        </Badge>
+                        <TableStatusBadge
+                            class="shrink-0"
+                            :label="isLaundryComplete ? 'Completado' : 'Pendiente'"
+                            :tone="isLaundryComplete ? 'green' : 'yellow'"
+                        />
                     </div>
 
                     <div class="mt-4 flex-1">

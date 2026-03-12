@@ -13,44 +13,7 @@ import {
     Trash,
     Upload,
 } from 'lucide-vue-next';
-
-import AppLayout from '@/layouts/AppLayout.vue';
-import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-
-import FilterBar from '@/components/FilterBar.vue';
-import FilterField from '@/components/FilterField.vue';
-import SelectField from '@/components/SelectField.vue';
-
-import Button from '@/components/ui/button/Button.vue';
-import Input from '@/components/ui/input/Input.vue';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-
-import type { Item } from '@/domain/MasterData';
-import ItemDialog from './ItemDialog.vue';
-import BulkUploadDialog from './BulkUploadDialog.vue';
-
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
@@ -370,8 +333,8 @@ onBeforeUnmount(() => {
 
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Catálogo de ítem</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Catálogo de ítem</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Gestiona los ítems del inventario: categorías, stock y estado.
                     </p>
                 </div>
@@ -626,8 +589,8 @@ onBeforeUnmount(() => {
                             :class="[
                                 'mx-auto flex w-full max-w-[140px] items-center justify-center gap-1 rounded-full px-5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
                                 itemToToggleStatus?.status
-                                    ? 'border border-red-600 bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500'
-                                    : 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500',
+                                    ? 'border border-red-600 bg-red-600 text-primary-foreground hover:bg-red-700 focus-visible:ring-red-500'
+                                    : 'border border-emerald-600 bg-emerald-600 text-primary-foreground hover:bg-emerald-700 focus-visible:ring-emerald-500',
                             ]"
                             @click="toggleStatus"
                         >
@@ -643,4 +606,7 @@ onBeforeUnmount(() => {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
+
+
+
 

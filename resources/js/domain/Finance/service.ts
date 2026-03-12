@@ -3,21 +3,39 @@ import type {
     CreditDebitNote,
     CreditDebitNoteListQuery,
     CreditDebitNotePayload,
+    ExpenseVoucherListItem,
+    ExpenseVoucherListQuery,
+    ExpenseVoucherRecord,
     Retention,
     RetentionListQuery,
     RetentionPayload,
     Tax,
     TaxPayload,
+    TreasuryOpenDocument,
+    TreasurySelectOption,
+    TreasuryThirdParty,
+    TreasuryVoucherDraft,
 } from './types';
 import type {
     CreditDebitNoteDto,
+    ExpenseVoucherRecordDto,
+    ExpenseVoucherListItemDto,
     RetentionDto,
     TaxDto,
+    TreasuryOpenDocumentDto,
+    TreasurySelectOptionDto,
+    TreasuryThirdPartyDto,
 } from './dto';
 import {
     mapCreditDebitNoteFromApi,
     mapCreditDebitNoteToApi,
+    mapExpenseVoucherPayloadToApi,
+    mapExpenseVoucherListItemFromApi,
+    mapExpenseVoucherRecordFromApi,
     mapRetentionDto,
+    mapTreasuryOpenDocumentFromApi,
+    mapTreasuryOptionFromApi,
+    mapTreasuryThirdPartyFromApi,
     mapTaxDto,
 } from './mappers';
 
@@ -27,6 +45,14 @@ const RETENTION_ENDPOINT = '/retenciones';
 const RETENTION_DATA_ENDPOINT = '/retenciones/data';
 const CREDIT_DEBIT_NOTE_ENDPOINT = '/notas-credito-debito';
 const CREDIT_DEBIT_NOTE_DATA_ENDPOINT = '/notas-credito-debito/data';
+const TREASURY_SUPPLIERS_ENDPOINT = '/finanzas/tesoreria/proveedores';
+const TREASURY_CUSTOMERS_ENDPOINT = '/finanzas/tesoreria/clientes';
+const TREASURY_PAYABLE_DOCUMENTS_ENDPOINT = '/finanzas/tesoreria/documentos-por-pagar';
+const TREASURY_RECEIVABLE_DOCUMENTS_ENDPOINT = '/finanzas/tesoreria/documentos-por-cobrar';
+const TREASURY_ACCOUNTS_ENDPOINT = '/finanzas/tesoreria/cuentas';
+const TREASURY_PAYMENT_METHODS_ENDPOINT = '/finanzas/tesoreria/metodos-pago';
+const EXPENSE_VOUCHERS_ENDPOINT = '/finanzas/comprobantes-egreso';
+const EXPENSE_VOUCHERS_DATA_ENDPOINT = '/finanzas/comprobantes-egreso/data';
 
 export async function fetchTaxes(): Promise<Tax[]> {
     const res = await axios.get<{ data: TaxDto[] } | TaxDto[]>(TAX_DATA_ENDPOINT);
@@ -152,4 +178,82 @@ export async function update(id: number | string, payload: CreditDebitNotePayloa
 
 export async function remove(id: number | string): Promise<void> {
     await axios.delete(`${CREDIT_DEBIT_NOTE_ENDPOINT}/${id}`);
+}
+
+function pickRows<T>(raw: { data?: T[] } | T[] | undefined | null): T[] {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw;
+    return Array.isArray(raw.data) ? raw.data : [];
+}
+
+export async function fetchTreasurySuppliers(search = '', limit = 20): Promise<TreasuryThirdParty[]> {
+    const res = await axios.get<{ data?: TreasuryThirdPartyDto[] } | TreasuryThirdPartyDto[]>(TREASURY_SUPPLIERS_ENDPOINT, {
+        params: { search: search || undefined, limit },
+    });
+
+    return pickRows<TreasuryThirdPartyDto>(res.data).map(mapTreasuryThirdPartyFromApi);
+}
+
+export async function fetchTreasuryCustomers(search = '', limit = 20): Promise<TreasuryThirdParty[]> {
+    const res = await axios.get<{ data?: TreasuryThirdPartyDto[] } | TreasuryThirdPartyDto[]>(TREASURY_CUSTOMERS_ENDPOINT, {
+        params: { search: search || undefined, limit },
+    });
+
+    return pickRows<TreasuryThirdPartyDto>(res.data).map(mapTreasuryThirdPartyFromApi);
+}
+
+export async function fetchTreasuryPayableDocuments(contactId: number): Promise<TreasuryOpenDocument[]> {
+    const res = await axios.get<{ data?: TreasuryOpenDocumentDto[] } | TreasuryOpenDocumentDto[]>(TREASURY_PAYABLE_DOCUMENTS_ENDPOINT, {
+        params: { contact_id: contactId },
+    });
+
+    return pickRows<TreasuryOpenDocumentDto>(res.data).map(mapTreasuryOpenDocumentFromApi);
+}
+
+export async function fetchTreasuryReceivableDocuments(contactId: number): Promise<TreasuryOpenDocument[]> {
+    const res = await axios.get<{ data?: TreasuryOpenDocumentDto[] } | TreasuryOpenDocumentDto[]>(TREASURY_RECEIVABLE_DOCUMENTS_ENDPOINT, {
+        params: { contact_id: contactId },
+    });
+
+    return pickRows<TreasuryOpenDocumentDto>(res.data).map(mapTreasuryOpenDocumentFromApi);
+}
+
+export async function fetchTreasuryAccounts(): Promise<TreasurySelectOption[]> {
+    const res = await axios.get<{ data?: TreasurySelectOptionDto[] } | TreasurySelectOptionDto[]>(TREASURY_ACCOUNTS_ENDPOINT);
+    return pickRows<TreasurySelectOptionDto>(res.data).map(mapTreasuryOptionFromApi);
+}
+
+export async function fetchTreasuryPaymentMethods(): Promise<TreasurySelectOption[]> {
+    const res = await axios.get<{ data?: TreasurySelectOptionDto[] } | TreasurySelectOptionDto[]>(TREASURY_PAYMENT_METHODS_ENDPOINT);
+    return pickRows<TreasurySelectOptionDto>(res.data).map(mapTreasuryOptionFromApi);
+}
+
+export async function createExpenseVoucher(payload: TreasuryVoucherDraft): Promise<ExpenseVoucherRecord> {
+    const res = await axios.post<{ data?: ExpenseVoucherRecordDto } | ExpenseVoucherRecordDto>(
+        EXPENSE_VOUCHERS_ENDPOINT,
+        mapExpenseVoucherPayloadToApi(payload),
+    );
+    const raw = (res.data as { data?: ExpenseVoucherRecordDto })?.data ?? (res.data as ExpenseVoucherRecordDto);
+    return mapExpenseVoucherRecordFromApi(raw);
+}
+
+export async function fetchExpenseVouchersPage(params: ExpenseVoucherListQuery = {}): Promise<{
+    data: ExpenseVoucherListItem[];
+    total: number;
+    current_page: number;
+    per_page: number;
+}> {
+    const res = await axios.get<{
+        data?: ExpenseVoucherListItemDto[];
+        total?: number;
+        current_page?: number;
+        per_page?: number;
+    }>(EXPENSE_VOUCHERS_DATA_ENDPOINT, { params });
+
+    return {
+        data: Array.isArray(res.data.data) ? res.data.data.map(mapExpenseVoucherListItemFromApi) : [],
+        total: Number(res.data.total ?? 0),
+        current_page: Number(res.data.current_page ?? 1),
+        per_page: Number(res.data.per_page ?? 10),
+    };
 }

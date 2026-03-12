@@ -12,23 +12,7 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Mail, MoreVertical, PlusCircle, Printer, ReceiptText, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-
-import FilterBar from '@/components/FilterBar.vue';
-import FilterField from '@/components/FilterField.vue';
-import SelectField from '@/components/SelectField.vue';
-import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import InventoryAdjustmentForm from './InventoryAdjustmentForm.vue';
-import InventoryAdjustmentPrintDialog from './InventoryAdjustmentPrintDialog.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 type InventoryAdjustment = {
     id: number;
@@ -226,8 +210,8 @@ onMounted(() => {
 
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Ajuste de Inventario</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Ajuste de Inventario</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Controla los ajustes de stock para mantener el inventario alineado con las entradas o salidas físicas.
                     </p>
                 </div>
@@ -397,3 +381,6 @@ onMounted(() => {
         </Dialog>
     </AppLayout>
 </template>
+
+
+

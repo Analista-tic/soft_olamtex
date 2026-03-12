@@ -35,26 +35,26 @@ const props = withDefaults(
 );
 
 const toneClassMap: Record<TableStatusTone, string> = {
-    success: 'border-emerald-500 text-emerald-600 bg-emerald-50 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-200',
-    danger: 'border-red-500 text-red-600 bg-red-50 dark:border-red-400/40 dark:bg-red-400/10 dark:text-red-200',
-    warning: 'border-amber-500 text-amber-600 bg-amber-50 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200',
-    info: 'border-sky-500 text-sky-600 bg-sky-50 dark:border-sky-400/40 dark:bg-sky-400/10 dark:text-sky-200',
-    neutral: 'border-slate-400 text-slate-600 bg-slate-50 dark:border-slate-300/40 dark:bg-slate-300/10 dark:text-slate-200',
-    green: 'border-green-500 text-green-500 bg-green-50 dark:border-green-400/40 dark:bg-green-400/10 dark:text-green-200',
-    red: 'border-red-500 text-red-500 bg-red-50 dark:border-red-400/40 dark:bg-red-400/10 dark:text-red-200',
-    yellow: 'border-yellow-500 text-yellow-600 bg-yellow-50 dark:border-yellow-400/40 dark:bg-yellow-400/10 dark:text-yellow-200',
-    blue: 'border-blue-500 text-blue-500 bg-blue-50 dark:border-blue-400/40 dark:bg-blue-400/10 dark:text-blue-200',
-    sky: 'border-sky-500 text-sky-600 bg-sky-50 dark:border-sky-400/40 dark:bg-sky-400/10 dark:text-sky-200',
-    indigo: 'border-indigo-500 text-indigo-500 bg-indigo-50 dark:border-indigo-400/40 dark:bg-indigo-400/10 dark:text-indigo-200',
-    gray: 'border-gray-400 text-gray-500 bg-gray-50 dark:border-gray-300/40 dark:bg-gray-300/10 dark:text-gray-200',
-    amber: 'border-amber-500 text-amber-600 bg-amber-50 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200',
-    slate: 'border-slate-400 text-slate-600 bg-slate-50 dark:border-slate-300/40 dark:bg-slate-300/10 dark:text-slate-200',
-    emerald: 'border-emerald-500 text-emerald-500 bg-emerald-50 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-200',
+    success: 'border-emerald-300 bg-emerald-50/80 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-300',
+    danger: 'border-red-300 bg-red-50/80 text-red-700 dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-300',
+    warning: 'border-amber-300 bg-amber-50/80 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-300',
+    info: 'border-sky-300 bg-sky-50/80 text-sky-700 dark:border-sky-400/40 dark:bg-sky-500/10 dark:text-sky-300',
+    neutral: 'border-slate-300 bg-slate-50/80 text-slate-700 dark:border-slate-400/40 dark:bg-slate-500/10 dark:text-slate-300',
+    green: 'border-green-300 bg-green-50/80 text-green-700 dark:border-green-400/40 dark:bg-green-500/10 dark:text-green-300',
+    red: 'border-red-300 bg-red-50/80 text-red-700 dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-300',
+    yellow: 'border-yellow-300 bg-yellow-50/80 text-yellow-700 dark:border-yellow-400/40 dark:bg-yellow-500/10 dark:text-yellow-300',
+    blue: 'border-blue-300 bg-blue-50/80 text-blue-700 dark:border-blue-400/40 dark:bg-blue-500/10 dark:text-blue-300',
+    sky: 'border-sky-300 bg-sky-50/80 text-sky-700 dark:border-sky-400/40 dark:bg-sky-500/10 dark:text-sky-300',
+    indigo: 'border-indigo-300 bg-indigo-50/80 text-indigo-700 dark:border-indigo-400/40 dark:bg-indigo-500/10 dark:text-indigo-300',
+    gray: 'border-slate-300 bg-slate-50/80 text-slate-700 dark:border-slate-400/40 dark:bg-slate-500/10 dark:text-slate-300',
+    amber: 'border-amber-300 bg-amber-50/80 text-amber-700 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-300',
+    slate: 'border-slate-300 bg-slate-50/80 text-slate-700 dark:border-slate-400/40 dark:bg-slate-500/10 dark:text-slate-300',
+    emerald: 'border-emerald-300 bg-emerald-50/80 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-300',
 };
 
 const badgeClass = computed(() =>
     cn(
-        'inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-semibold leading-none whitespace-nowrap',
+        'inline-flex h-6 items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11px] font-medium leading-none',
         toneClassMap[props.tone],
         props.class,
     ),

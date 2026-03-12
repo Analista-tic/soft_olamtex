@@ -32,6 +32,7 @@ import axios from 'axios';
 import { ChevronDown, PlusCircle, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import CreditDebitNoteDialog from './CreditDebitNoteDialog.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 type NoteContext = 'purchase' | 'sale';
 
@@ -563,8 +564,8 @@ onMounted(async () => {
     <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div class="flex flex-col gap-1">
-          <h1 class="text-lg font-bold">{{ pageTitle }}</h1>
-          <p class="text-sm text-muted-foreground">{{ pageDescription }}</p>
+          <h1 :class="uiPatterns.typography.pageTitle">{{ pageTitle }}</h1>
+          <p :class="uiPatterns.typography.pageSubtitle">{{ pageDescription }}</p>
         </div>
 
         <DropdownMenu>
@@ -673,7 +674,7 @@ onMounted(async () => {
                   class="h-6 w-6 rounded border text-xs"
                   :class="
                     getPaginationValue(item) === currentPage
-                      ? 'bg-primary text-white border-primary'
+                      ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-background text-foreground border-border'
                   "
                   @click="handlePageChange(getPaginationValue(item))"
@@ -716,3 +717,6 @@ onMounted(async () => {
     />
   </AppLayout>
 </template>
+
+
+

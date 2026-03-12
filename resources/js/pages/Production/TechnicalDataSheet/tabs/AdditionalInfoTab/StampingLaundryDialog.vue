@@ -470,7 +470,7 @@ function handleDialogOpenChange(value: boolean): void {
                                             class="absolute inset-0 h-full w-full object-contain transition-transform duration-200 group-hover:scale-105"
                                         />
                                     </div>
-                                    <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
+                                    <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-primary-foreground">
                                         Cambiar imagen
                                     </div>
                                 </template>

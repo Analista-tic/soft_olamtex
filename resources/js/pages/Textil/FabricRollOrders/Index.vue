@@ -10,6 +10,7 @@ import { ArrowDownToLine, Search } from 'lucide-vue-next';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 import type { Programmer } from '@/domain/Production';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs = [
   { title: 'Descargue de tela por orden', href: '/kardex-telas/descargue-orden' },
@@ -108,8 +109,8 @@ onMounted(fetchProgrammers);
 
       <div class="flex items-center justify-between">
         <div class="flex flex-col gap-1">
-          <h1 class="text-lg font-bold">Descargue de tela por orden</h1>
-          <p class="text-sm text-muted-foreground">
+          <h1 :class="uiPatterns.typography.pageTitle">Descargue de tela por orden</h1>
+          <p :class="uiPatterns.typography.pageSubtitle">
             Registra el descargue de tela por orden de produccion, controlando el metraje utilizado y
             actualizando automaticamente el inventario con trazabilidad por rollo.
           </p>
@@ -194,6 +195,8 @@ onMounted(fetchProgrammers);
     </div>
   </AppLayout>
 </template>
+
+
 
 
 

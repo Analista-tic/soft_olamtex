@@ -2,6 +2,7 @@
 import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
 import {
     Dialog,
@@ -20,7 +21,8 @@ import { useAlertStack } from '@/composables/useAlert';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Upload, X, FileText, Plus } from 'lucide-vue-next';
+import { uiPatterns } from '@/lib/ui-patterns';
+import { Upload, X, FileText } from 'lucide-vue-next';
 
 // Tipo local que extiende PurchaseRequestForm para el formulario del di?logo
 type PurchaseRequestDialogForm = Omit<PurchaseRequestForm, 'items' | 'estimated_amount'> & {
@@ -576,10 +578,10 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent v-if="!props.deferContent" class="max-w-[95vw] w-full max-h-[95vh] h-[95vh] flex flex-col p-0">
-            <DialogHeader class="px-4 pt-4 pb-3">
-                <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
-                <DialogDescription>
+        <DialogContent v-if="!props.deferContent" :class="uiPatterns.dialogLarge.content">
+            <DialogHeader :class="uiPatterns.dialogLarge.header">
+                <DialogTitle :class="uiPatterns.typography.dialogTitle">{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
+                <DialogDescription :class="uiPatterns.typography.dialogSubtitle">
                     Completa los campos de la solicitud de compra.
                 </DialogDescription>
             </DialogHeader>
@@ -594,7 +596,7 @@ watch(
                 @close-error="clearError"
             />
 
-            <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
+            <div :class="uiPatterns.dialogLarge.body" style="scrollbar-width: thin;">
                 <TooltipProvider>
                     <form
                         @submit.prevent="handleSubmit()"
@@ -606,7 +608,7 @@ watch(
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium"># Solicitud</Label>
+                                            <Label :class="uiPatterns.typography.fieldLabel"># Solicitud</Label>
                                             <HelpTooltip
                                                 text="Número único de la solicitud de compra."
                                                 aria-label="Ayuda sobre número de solicitud"
@@ -618,14 +620,14 @@ watch(
                                             :placeholder="id ? `SOL-${id}` : 'SOL-001'"
                                             :readonly="true"
                                         />
-                                        <span v-if="dialogType === 'create' && isLoadingRequestId" class="text-xs text-muted-foreground">
+                                        <span v-if="dialogType === 'create' && isLoadingRequestId" :class="uiPatterns.typography.helperText">
                                             Generando número...
                                         </span>
                                     </div>
 
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Fecha</Label>
+                                            <Label :class="uiPatterns.typography.fieldLabel">Fecha</Label>
                                             <HelpTooltip
                                                 text="Fecha de la solicitud."
                                                 aria-label="Ayuda sobre fecha"
@@ -643,7 +645,7 @@ watch(
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Proveedor</Label>
+                                            <Label :class="uiPatterns.typography.fieldLabel">Proveedor</Label>
                                             <HelpTooltip
                                                 text="Escribe el nombre del proveedor para esta solicitud."
                                                 aria-label="Ayuda sobre proveedor"
@@ -660,7 +662,7 @@ watch(
 
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Destino</Label>
+                                            <Label :class="uiPatterns.typography.fieldLabel">Destino</Label>
                                             <HelpTooltip
                                                 text="Lugar o departamento de destino para los productos."
                                                 aria-label="Ayuda sobre destino"
@@ -678,7 +680,7 @@ watch(
 
                                 <div class="flex flex-col gap-1.5">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">
+                                        <Label :class="uiPatterns.typography.fieldLabel">
                                             Descripción <span class="text-red-500">*</span>
                                         </Label>
                                         <HelpTooltip
@@ -697,38 +699,27 @@ watch(
                                 </div>
                             </div>
 
-                            <div class="border-t border-border"></div>
-
-                            <div class="space-y-2">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <h3 class="text-sm font-semibold">Items</h3>
-                                        <p class="text-xs text-muted-foreground">Agrega los items necesarios para esta solicitud</p>
-                                    </div>
-                                    <button
-                                        v-if="!isReadOnly"
-                                        type="button"
-                                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                                        @click="itemsTableRef?.addItem()"
-                                    >
-                                        <Plus class="h-4 w-4" />
-                                        Agregar Item
-                                    </button>
-                                </div>
+                            <InventoryDetailTableLayout
+                                title="Items"
+                                description="Agrega los items necesarios para esta solicitud"
+                                button-label="Agregar item"
+                                :show-create-line-button="!isReadOnly"
+                                @create-line="itemsTableRef?.addItem()"
+                            >
                                 <PurchaseRequestItemsTable
                                     ref="itemsTableRef"
                                     :items="localForm.items || []"
                                     :readonly="isReadOnly"
                                     @update:items="localForm.items = $event"
                                 />
-                            </div>
+                            </InventoryDetailTableLayout>
                         </div>
 
                         <aside class="self-start lg:sticky lg:top-4">
                             <div class="rounded-lg border border-border bg-card p-4">
                                 <div class="mb-3">
-                                    <h3 class="text-sm font-semibold">Imagen</h3>
-                                    <p class="text-xs text-muted-foreground">Adjunta un documento o imagen relacionado con la solicitud (opcional)</p>
+                                    <h3 :class="uiPatterns.typography.sectionTitle">Imagen</h3>
+                                    <p :class="uiPatterns.typography.sectionSubtitle">Adjunta un documento o imagen relacionado con la solicitud (opcional)</p>
                                 </div>
 
                                 <input
@@ -741,7 +732,7 @@ watch(
 
                                 <div v-if="!hasDocument" class="flex min-h-[280px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30 p-4 text-center">
                                     <Upload class="mb-2 h-8 w-8 text-muted-foreground" />
-                                    <p class="mb-2 text-xs text-muted-foreground">
+                                    <p :class="['mb-2', uiPatterns.typography.helperText]">
                                         Haz clic para subir imagen
                                     </p>
                                     <Button
@@ -753,7 +744,7 @@ watch(
                                     >
                                         Seleccionar Archivo
                                     </Button>
-                                    <p class="mt-1 text-xs text-muted-foreground">
+                                    <p :class="['mt-1', uiPatterns.typography.helperText]">
                                         Formatos: JPEG, PNG, WebP, PDF (m?x. 10MB)
                                     </p>
                                 </div>
@@ -770,15 +761,15 @@ watch(
                                         <div v-else class="flex h-56 items-center justify-center rounded-md border border-border bg-muted/30">
                                             <div class="text-center">
                                                 <FileText class="mx-auto h-7 w-7 text-muted-foreground" />
-                                                <p class="mt-2 text-xs text-muted-foreground">Vista previa no disponible</p>
+                                                <p :class="['mt-2', uiPatterns.typography.helperText]">Vista previa no disponible</p>
                                             </div>
                                         </div>
 
                                         <div class="mt-2 min-w-0">
-                                            <p class="truncate text-sm font-medium">
+                                            <p :class="['truncate', uiPatterns.typography.bodyStrong]">
                                                 {{ documentFile?.name || 'Documento adjunto' }}
                                             </p>
-                                            <p class="text-xs text-muted-foreground">
+                                            <p :class="uiPatterns.typography.helperText">
                                                 {{ documentFile ? `${(documentFile.size / 1024).toFixed(2)} KB` : 'Archivo existente' }}
                                             </p>
                                         </div>
@@ -811,7 +802,7 @@ watch(
                 </TooltipProvider>
             </div>
 
-            <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4 px-4 pb-4">
+            <DialogFooter :class="uiPatterns.dialogLarge.footerSpaced">
                 <Button variant="outline" size="pill" @click="dialogOpen = false">
                     Cancelar
                 </Button>
@@ -819,7 +810,7 @@ watch(
                     v-if="!props.readonly && !isReadOnly"
                     type="button"
                     :disabled="isLoading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     @click="handleSubmit(false)"
                 >
                     {{ isLoading ? 'Guardando...' : 'Guardar' }}
@@ -828,7 +819,7 @@ watch(
                     v-if="!props.readonly && !isReadOnly && canSendToApproval"
                     type="button"
                     :disabled="isLoading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     @click="handleSubmit(true)"
                 >
                     {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobación' }}

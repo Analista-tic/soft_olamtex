@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { computed } from 'vue';
 
 const props = withDefaults(
@@ -40,6 +41,10 @@ const dialogOpen = computed({
                     draggable="false"
                 />
             </div>
+
+            <DialogFooter class="border-t border-sidebar-border/70 px-1 pt-3">
+                <Button variant="outline" size="pill" @click="dialogOpen = false">Cerrar</Button>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
 </template>

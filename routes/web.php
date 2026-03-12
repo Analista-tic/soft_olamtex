@@ -34,6 +34,9 @@ use App\Http\Controllers\MasterData\AdditionalFieldController;
 use App\Http\Controllers\Finance\RetentionController;
 use App\Http\Controllers\Finance\TaxController;
 use App\Http\Controllers\Finance\CreditDebitNoteController;
+use App\Http\Controllers\Finance\ExpenseVoucherController;
+use App\Http\Controllers\Finance\TreasuryLookupController;
+use App\Http\Controllers\Expenses\PurchasePaymentController;
 use App\Http\Controllers\Inventory\InventoryAdjustmentController;
 use App\Http\Controllers\Inventory\InventoryMovementController;
 use App\Http\Controllers\Inventory\ItemInventoryController;
@@ -41,8 +44,9 @@ use App\Http\Controllers\Inventory\WarehouseItemStockController;
 use App\Http\Controllers\Inventory\InventoryRequestController;
 use App\Http\Controllers\Inventory\WarehouseTransferController;
 use App\Http\Controllers\MasterData\ParameterController;
+use App\Models\Settings\User;
 
-// PÃ¡gina principal
+// Página principal
 Route::get('/', fn() => redirect('login'))->name('home');
 
 // Dashboard
@@ -50,12 +54,15 @@ Route::get('dashboard', fn() => Inertia::render('Dashboard'))
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-// Rutas protegidas por autenticaciÃ³n y verificaciÃ³n
+// Rutas protegidas por autenticación y verificación
 Route::middleware(['auth', 'verified'])->group(function () {
     
     // Usuario autenticado
     Route::get('user', function () {
         $user = Auth::user(); //CONSULTAR USUARIO LOGUEADO
+        if (!$user instanceof User) {
+            abort(401);
+        }
 
         return response()->json([
             'user' => $user,
@@ -69,7 +76,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('settings/parameters', [TechnicalDataSheetController::class, 'settingsParameters'])
         ->name('settings.parameters');
 
-    // MÃ³dulos en desarrollo
+    // Módulos en desarrollo
     Route::get('en-desarrollo/{modulo?}', function (?string $modulo = null) {
         $title = request('titulo');
         if (!$title && $modulo) {
@@ -249,7 +256,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->name('audit-log');
         });
 
-        // MÃ¡quinas
+        // Máquinas
         Route::prefix('maquinas')->name('maquinas.')->group(function () {
             Route::get('/data', [MachineController::class, 'data'])->name('data');
             Route::post('/', [MachineController::class, 'store'])
@@ -258,7 +265,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 
-    // === DISEÃ‘O ===
+    // === DISEÑO ===
     Route::get('produccion/ordenes-produccion', [ProductionOrderController::class, 'index'])
         ->middleware('permission:ver sabana productos')
         ->name('production.orders.index');
@@ -301,7 +308,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
 
-    // ===CONFIGURACIÃ“N ===
+    // ===CONFIGURACIÓN ===
     Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')
         ->name('configuracion');
@@ -472,7 +479,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update');
             Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
             
-            // Acciones de transiciÃ³n de estados
+            // Acciones de transición de estados
             Route::post('/{purchaseRequest}/send-to-approval', [PurchaseRequestController::class, 'sendToApproval'])->name('send-to-approval');
             Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])->name('approve');
             Route::post('/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
@@ -503,15 +510,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update');
             Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
             Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify');
-            // RecepciÃ³n de facturas NO tela
+            // Recepción de facturas NO tela
             Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive');
             Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject');
         });
 
-        // === CUENTAS POR PAGAR (CXP) ===
+        // === CUENTAS POR PAGAR (CXP - CONSULTA LEGACY TRANSITORIA) ===
         Route::prefix('cuentas-por-pagar')->name('accounts-payable.')->group(function () {
             Route::get('/', [PurchaseInvoiceController::class, 'accountsPayableIndex'])->name('index');
             Route::get('/data', [PurchaseInvoiceController::class, 'getAccountsPayableData'])->name('getData');
+        });
+
+        // === PAGOS DE FACTURAS (LEGACY TRANSITORIO) ===
+        // El flujo operativo principal fue migrado a /finanzas/comprobantes-egreso.
+        Route::prefix('pagos')->name('payments.')->group(function () {
+            Route::get('/facturas/{purchaseDocument}', [PurchasePaymentController::class, 'byInvoice'])->name('byInvoice');
+            Route::post('/', [PurchasePaymentController::class, 'store'])->name('store');
         });
 
         // === FACTURAS DE COMPRA TELAS ===
@@ -525,7 +539,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
     });
 
-    // === CatÃ¡logos para campos parametrizables ===
+    // === Catálogos para campos parametrizables ===
     Route::get('catalogos/sections', [SectionController::class, 'data']);
         // Rutas eliminadas: groups, brands, worlds, fabric-bases, yarn-bases (controllers no existen)
 
@@ -554,10 +568,35 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('notas-credito-debito')->group(function () {
         Route::get('/', [CreditDebitNoteController::class, 'index']);
         Route::get('/data', [CreditDebitNoteController::class, 'getData']);
+        Route::get('/next-number', [CreditDebitNoteController::class, 'nextNumber']);
+        Route::get('/eligible-purchase-invoices', [CreditDebitNoteController::class, 'eligiblePurchaseInvoices']);
         Route::post('/', [CreditDebitNoteController::class, 'store']);
         Route::get('/{id}', [CreditDebitNoteController::class, 'show']);
         Route::put('/{id}', [CreditDebitNoteController::class, 'update']);
         Route::delete('/{id}', [CreditDebitNoteController::class, 'destroy']);
+    });
+
+    // === FINANZAS: TESORERIA (FASE 1) ===
+    Route::prefix('finanzas')->name('finanzas.')->group(function () {
+        Route::get('/comprobantes-egreso', [ExpenseVoucherController::class, 'index'])->name('expense-vouchers.index');
+        Route::get('/comprobantes-egreso/data', [ExpenseVoucherController::class, 'data'])->name('expense-vouchers.data');
+        Route::get('/comprobantes-egreso/crear', [ExpenseVoucherController::class, 'create'])->name('expense-vouchers.create');
+        Route::get('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'show'])->name('expense-vouchers.show');
+        Route::get('/comprobantes-egreso/{voucher}/editar', [ExpenseVoucherController::class, 'edit'])->name('expense-vouchers.edit');
+        Route::post('/comprobantes-egreso', [ExpenseVoucherController::class, 'store'])->name('expense-vouchers.store');
+        Route::put('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'update'])->name('expense-vouchers.update');
+
+        Route::get('/recibos-caja', fn () => Inertia::render('Finance/CashReceipts/Index'))->name('cash-receipts.index');
+        Route::get('/recibos-caja/crear', fn () => Inertia::render('Finance/CashReceipts/CashReceiptForm'))->name('cash-receipts.create');
+
+        Route::prefix('tesoreria')->name('treasury.')->group(function () {
+            Route::get('/proveedores', [TreasuryLookupController::class, 'suppliers'])->name('suppliers');
+            Route::get('/clientes', [TreasuryLookupController::class, 'customers'])->name('customers');
+            Route::get('/documentos-por-pagar', [TreasuryLookupController::class, 'payableDocuments'])->name('payable-documents');
+            Route::get('/documentos-por-cobrar', [TreasuryLookupController::class, 'receivableDocuments'])->name('receivable-documents');
+            Route::get('/cuentas', [TreasuryLookupController::class, 'accounts'])->name('accounts');
+            Route::get('/metodos-pago', [TreasuryLookupController::class, 'paymentMethods'])->name('payment-methods');
+        });
     });
 
     // === KARDEX TELAS ===
@@ -570,6 +609,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
           Route::get('/exportar-rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'exportRolls'])->name('exportar-rollos');
         Route::prefix('recepcion')->name('reception.')->group(function () {
             Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'reception'])->name('index');
+            Route::get('/data', [App\Http\Controllers\Textil\FabricRollController::class, 'receptionData'])->name('data');
+            Route::get('/facturas/{purchaseDocument}', [App\Http\Controllers\Textil\FabricRollController::class, 'receptionInvoice'])->name('invoice');
             Route::get('/{invoice}', [App\Http\Controllers\Textil\FabricRollController::class, 'receptionShow'])->name('show');
             Route::patch('/{invoice}/aprobar', [App\Http\Controllers\Textil\FabricRollController::class, 'approveReception'])->name('approve');
             Route::patch('/{invoice}/rechazar', [App\Http\Controllers\Textil\FabricRollController::class, 'rejectReception'])->name('reject');

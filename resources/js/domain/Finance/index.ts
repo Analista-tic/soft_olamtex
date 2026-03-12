@@ -4,6 +4,12 @@ export type {
     RetentionDto,
     CreditDebitNoteDto,
     CreditDebitNoteItemDto,
+    TreasuryThirdPartyDto,
+    TreasuryOpenDocumentDto,
+    TreasurySelectOptionDto,
+    ExpenseVoucherPayloadDto,
+    ExpenseVoucherRecordDto,
+    ExpenseVoucherListItemDto,
 } from './dto';
 export {
     mapTaxDto,
@@ -15,6 +21,11 @@ export {
     normalizeRetention,
     createRetentionForm,
     mapRetentionFormToPayload,
+    mapTreasuryThirdPartyFromApi,
+    mapTreasuryOpenDocumentFromApi,
+    mapTreasuryOptionFromApi,
+    mapExpenseVoucherPayloadToApi,
+    mapExpenseVoucherRecordFromApi,
+    mapExpenseVoucherListItemFromApi,
 } from './mappers';
 export * from './service';
-export * from './types';

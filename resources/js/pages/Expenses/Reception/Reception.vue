@@ -19,6 +19,7 @@ import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 
 interface PageProps extends InertiaPageProps {
     invoiceId?: string | number;
@@ -27,27 +28,58 @@ interface PageProps extends InertiaPageProps {
 
 const props = usePage<PageProps>().props;
 
-const returnToUrl = computed(() => {
+type ReceptionScope = 'all' | 'general' | 'fabric';
+
+function getQueryParam(name: string): string {
     if (typeof window === 'undefined') return '';
     const params = new URLSearchParams(window.location.search);
-    return params.get('return_to') || '';
+    return params.get(name) || '';
+}
+
+function resolveReceptionScope(value: string): ReceptionScope {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'general' || normalized === 'fabric' || normalized === 'all') {
+        return normalized as ReceptionScope;
+    }
+    return 'all';
+}
+
+const returnToUrl = computed(() => {
+    return getQueryParam('return_to');
 });
 
-/** Breadcrumbs: enlazan a la lista de facturas correspondiente (telas o compra) según origen. */
-const isTelasList = computed(() => {
-    const r = returnToUrl.value;
-    return typeof r === 'string' && r.includes('facturas-compra-tela');
+const receptionScope = computed<ReceptionScope>(() => {
+    const scopeParam = getQueryParam('scope');
+    if (scopeParam) {
+        return resolveReceptionScope(scopeParam);
+    }
+
+    // Compatibilidad hacia atrás con enlaces antiguos.
+    const legacyInvoiceType = getQueryParam('invoice_type');
+    if (legacyInvoiceType === 'general' || legacyInvoiceType === 'fabric') {
+        return legacyInvoiceType;
+    }
+
+    return 'all';
 });
-const invoiceListHref = computed(() =>
-    isTelasList.value ? '/gastos/facturas-compra-tela' : '/gastos/facturas-compra'
-);
-const invoiceListTitle = computed(() =>
-    isTelasList.value ? 'Facturas (telas)' : 'Facturas compra'
-);
-const breadcrumbs = computed(() => [
-    { title: invoiceListTitle.value, href: invoiceListHref.value },
-    { title: 'Recepción', href: '/kardex-telas/recepcion' },
-]);
+
+const receptionScopeLabel = computed(() => {
+    if (receptionScope.value === 'general') return 'Solo facturas generales';
+    if (receptionScope.value === 'fabric') return 'Solo facturas de tela';
+    return 'Facturas generales y de tela';
+});
+
+const receptionIndexHref = computed(() => `/kardex-telas/recepcion?scope=${receptionScope.value}`);
+const receptionDataEndpoint = '/kardex-telas/recepcion/data';
+const receptionInvoiceEndpoint = '/kardex-telas/recepcion/facturas';
+
+const breadcrumbs = computed(() => {
+    return [
+        { title: 'Gastos', href: '/gastos/solicitudes-compra' },
+        { title: 'Compras', href: '/gastos/ordenes-compra' },
+        { title: 'Recepciones', href: receptionIndexHref.value },
+    ];
+});
 
 const invoices = ref<PurchaseInvoice[]>([]);
 const searchQuery = ref('');
@@ -114,7 +146,7 @@ function clearAlert() {
     showAlert.value = false;
 }
 
-const DEFAULT_STATUS_FILTER = 'all';
+const DEFAULT_STATUS_FILTER = 'pending';
 const DEFAULT_PROVIDER_FILTER = 'all';
 const DEFAULT_SUBGROUP_FILTER = 'all';
 const statusFilter = ref(DEFAULT_STATUS_FILTER);
@@ -139,6 +171,16 @@ const showInvoicesList = computed(() => {
 const showInvoiceDetail = computed(() => {
     return selectedInvoice.value !== null;
 });
+const pageTitle = computed(() =>
+    showInvoiceDetail.value
+        ? `Recepciones - Factura #${selectedInvoice.value?.id ?? specificInvoiceId.value ?? ''}`
+        : 'Recepciones'
+);
+const pageDescription = computed(() =>
+    showInvoiceDetail.value
+        ? 'Valida la informacion de la factura y decide si aprobar o rechazar su recepcion antes de pasar al siguiente estado.'
+        : 'Revisa las facturas pendientes de recepcion, valida su informacion y decide si aprobarlas o rechazarlas antes de su paso al siguiente estado.'
+);
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
@@ -172,7 +214,9 @@ async function fetchSpecificInvoice(invoiceId: number) {
     isLoadingSpecificInvoice.value = true;
     try {
         console.log('Cargando factura ID:', invoiceId);
-        const response = await axios.get(`/gastos/facturas-compra/${invoiceId}`);
+        const response = await axios.get(`${receptionInvoiceEndpoint}/${invoiceId}`, {
+            params: { scope: receptionScope.value },
+        });
         console.log('Respuesta de la factura:', response.data);
         
         if (response.data && response.data.data) {
@@ -207,7 +251,7 @@ function goBackToList() {
     }
     // Si vino por URL específica, navegar de vuelta
     if (specificInvoiceId.value) {
-        router.visit('/kardex-telas/recepcion');
+        router.visit(receptionIndexHref.value);
         return;
     }
     // Priorizar redirección a Facturas si la página de origen fue Facturas
@@ -295,6 +339,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         page,
         per_page: itemsPerPage,
         search,
+        scope: receptionScope.value,
         date_from: dateFrom.value,
         date_to: dateTo.value,
     };
@@ -306,7 +351,7 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         params.subgroup_id = isNaN(Number(subgroupFilter.value)) ? subgroupFilter.value : Number(subgroupFilter.value);
     }
     try {
-        const response = await axios.get('/gastos/facturas-compra/data', { params });
+        const response = await axios.get(receptionDataEndpoint, { params });
         invoices.value = Array.isArray(response.data.data)
             ? response.data.data
             : Array.isArray(response.data)
@@ -332,23 +377,25 @@ function calculateInvoiceTotal(invoice: PurchaseInvoice): number {
     return subtotal + iva - retenciones;
 }
 
-function getStatusBadge(status: string) {
-    switch (status) {
+function getStatusTone(status?: string | null): 'yellow' | 'green' | 'red' | 'gray' {
+    const normalized = String(status ?? '').toLowerCase();
+    switch (normalized) {
         case 'pending':
         case 'pending_receipt':
-            return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400';
+            return 'yellow';
         case 'approved':
         case 'received':
-            return 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400';
+            return 'green';
         case 'rejected':
-            return 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400';
+            return 'red';
         default:
-            return 'bg-muted text-foreground';
+            return 'gray';
     }
 }
 
-function getStatusText(status: string) {
-    switch (status) {
+function getStatusText(status?: string | null) {
+    const normalized = String(status ?? '').toLowerCase();
+    switch (normalized) {
         case 'pending':
             return 'Pendiente';
         case 'pending_receipt':
@@ -573,7 +620,7 @@ function onFabricRollSuccess() {
 </script>
 
 <template>
-    <Head :title="specificInvoiceId ? `Recepción - Factura #${specificInvoiceId}` : 'Recepción'" />
+    <Head :title="pageTitle" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div ref="pageContentRef" class="flex h-full flex-col gap-4 rounded-xl p-3">
             <transition name="fade">
@@ -591,25 +638,29 @@ function onFabricRollSuccess() {
                 </div>
             </transition>
             <!-- Header principal -->
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <!-- Botón de volver solo cuando se está viendo una factura -->
-                    <Button 
-                        v-if="showInvoiceDetail" 
-                        variant="ghost" 
-                        size="sm" 
-                        @click="goBackToList"
-                        class="flex items-center gap-2"
-                    >
-                        <ArrowLeft class="h-4 w-4" />
-                        Volver a la lista
-                    </Button>
-                    <h1 class="text-base font-bold">
-                        {{ showInvoiceDetail ? `Recepción - Factura #${selectedInvoice?.id}` : 'Recepción' }}
-                    </h1>
-                </div>
-                <div class="text-xs text-muted-foreground">
-                    {{ showInvoiceDetail ? 'Revisión y aprobación de factura' : 'Gestión de recepciones de facturas' }}
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-3">
+                        <Button
+                            v-if="showInvoiceDetail"
+                            variant="ghost"
+                            size="sm"
+                            @click="goBackToList"
+                            class="flex items-center gap-2"
+                        >
+                            <ArrowLeft class="h-4 w-4" />
+                            Volver a la lista
+                        </Button>
+                        <h1 class="text-2xl font-semibold tracking-tight text-foreground">
+                            {{ pageTitle }}
+                        </h1>
+                    </div>
+                    <p class="max-w-4xl text-sm text-muted-foreground">
+                        {{ pageDescription }}
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        Alcance actual: {{ receptionScopeLabel }}
+                    </p>
                 </div>
             </div>
 
@@ -697,11 +748,10 @@ function onFabricRollSuccess() {
                                     }}
                                 </TableCell>
                                 <TableCell>
-                                    <span 
-                                        :class="['px-2 py-1 rounded-full text-xs font-medium', getStatusBadge(invoice.status || 'pending')]"
-                                    >
-                                        {{ getStatusText(invoice.status || 'pending') }}
-                                    </span>
+                                    <TableStatusBadge
+                                        :label="getStatusText(invoice.status || 'pending')"
+                                        :tone="getStatusTone(invoice.status || 'pending')"
+                                    />
                                 </TableCell>
                                 <TableCell>{{ (invoice.items || []).length }} item(s)</TableCell>
                                 <TableCell class="flex justify-center gap-1">
@@ -763,11 +813,10 @@ function onFabricRollSuccess() {
                         </div>
                         <div>
                             <p class="text-sm font-medium text-muted-foreground">Estado</p>
-                            <span 
-                                :class="['px-2 py-1 rounded-full text-sm font-medium', getStatusBadge(selectedInvoice.status || 'pending')]"
-                            >
-                                {{ getStatusText(selectedInvoice.status || 'pending') }}
-                            </span>
+                            <TableStatusBadge
+                                :label="getStatusText(selectedInvoice.status || 'pending')"
+                                :tone="getStatusTone(selectedInvoice.status || 'pending')"
+                            />
                         </div>
                     </div>
 
@@ -1009,8 +1058,7 @@ function onFabricRollSuccess() {
                                         <div class="relative inline-flex">
                                             <Button
                                                 variant="default"
-                                                size="sm"
-                                                class="min-w-[120px]"
+                                                size="pill"
                                                 :disabled="approvalBlockersLoading || approvalBlockers.length > 0"
                                                 @click="approvalBlockers.length === 0 && approveReception(selectedInvoice)"
                                             >
@@ -1037,7 +1085,7 @@ function onFabricRollSuccess() {
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
-                            <Button variant="destructive" size="sm" class="min-w-[120px]" @click="showRejectDialog(selectedInvoice)">
+                            <Button variant="destructive" size="pill" @click="showRejectDialog(selectedInvoice)">
                                 <X class="h-4 w-4" /> Rechazar
                             </Button>
                         </template>
@@ -1047,9 +1095,10 @@ function onFabricRollSuccess() {
                         <div v-else class="flex flex-col items-end gap-1 text-right">
                             <div class="text-sm text-muted-foreground flex items-center gap-2">
                                 Estado:
-                                <span :class="['px-2 py-1 rounded-full text-xs font-medium', getStatusBadge(selectedInvoice.status)]">
-                                    {{ getStatusText(selectedInvoice.status) }}
-                                </span>
+                                <TableStatusBadge
+                                    :label="getStatusText(selectedInvoice.status)"
+                                    :tone="getStatusTone(selectedInvoice.status)"
+                                />
                             </div>
                             <p v-if="cannotApproveDescription" class="text-xs text-muted-foreground max-w-md">
                                 {{ cannotApproveDescription }}

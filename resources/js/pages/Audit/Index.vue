@@ -25,6 +25,7 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Eye } from 'lucide-vue-next';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 interface AuditLog {
     id: number;
@@ -643,8 +644,8 @@ watch(detailDialogOpen, (value) => {
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <!-- Encabezado -->
             <div class="mb-2 flex flex-col gap-1">
-                <h1 class="text-lg font-bold">Auditoría</h1>
-                <p class="text-sm text-muted-foreground">
+                <h1 :class="uiPatterns.typography.pageTitle">Auditoría</h1>
+                <p :class="uiPatterns.typography.pageSubtitle">
                     El módulo de auditoría documenta de forma detallada cada cambio realizado en el sistema: registra quién lo hizo, desde qué módulo
                     y qué recursos fueron impactados, facilitando la trazabilidad y el monitoreo operativo para la empresa.
                 </p>
@@ -881,3 +882,6 @@ watch(detailDialogOpen, (value) => {
         </Dialog>
     </AppLayout>
 </template>
+
+
+

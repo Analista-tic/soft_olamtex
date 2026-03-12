@@ -414,7 +414,7 @@ onMounted(() => {
                                 >
                                     <Avatar class="h-7 w-7 overflow-hidden rounded-md">
                                         <AvatarImage v-if="showAvatar" :src="avatarSrc" :alt="user.name" />
-                                        <AvatarFallback class="rounded-md text-black dark:text-white text-xs">
+                                        <AvatarFallback class="rounded-md text-foreground dark:text-foreground text-xs">
                                             {{ getInitials(user.name) }}
                                         </AvatarFallback>
                                     </Avatar>

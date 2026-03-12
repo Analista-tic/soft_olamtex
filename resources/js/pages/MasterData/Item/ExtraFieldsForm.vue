@@ -310,7 +310,7 @@ function isAddDisabled() {
                 class="flex flex-col gap-3 rounded-2xl border border-border bg-card/80 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
             >
                 <div class="flex-1 space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         {{ field }}
                         <span
                             v-if="additionalFieldsMetaMap[field]?.is_required"
@@ -343,14 +343,14 @@ function isAddDisabled() {
                 </div>
                 <DeleteButton
                     v-if="!props.readonly && !additionalFieldsMetaMap[field]?.is_required"
-                    class="pt-4 ml-auto text-gray-400 transition hover:text-red-500"
+                    class="pt-4 ml-auto text-muted-foreground transition hover:text-red-500"
                     @click="removeExtraField(field)"
                     title="Quitar"
                 />
             </div>
             <div
                 v-if="!hasExtraFields"
-                class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-center text-sm font-medium text-slate-500"
+                class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-center text-sm font-medium text-muted-foreground"
             >
                 No hay campos adicionales agregados.
             </div>

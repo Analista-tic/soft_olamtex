@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ViewButton from '@/components/common/ViewButton.vue';
+import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import type { PurchaseOrder } from '@/domain/Expenses';
 import type { Item } from '@/domain/MasterData';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { MoreVertical, PlusCircle, Printer, Search, Mail, ReceiptText, CheckCircle } from 'lucide-vue-next';
+import { PlusCircle, Printer, Search, Mail, ReceiptText, CheckCircle, Trash2 } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PurchaseOrderDialog from './PurchaseOrderDialog.vue';
 import PurchaseOrderPrintDialog from './PurchaseOrderPrintDialog.vue';
@@ -20,15 +21,17 @@ import SelectField from '@/components/SelectField.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs = [{ title: 'Órdenes de Compra', href: '/ordenes-compra' }];
 
 const orders = ref<PurchaseOrder[]>([]);
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
+const isDialogReadOnly = ref(false);
 const form = ref<Partial<PurchaseOrder>>({});
 const isPreparingDialog = ref(false);
 const isDialogBootstrapping = ref(false);
@@ -66,9 +69,6 @@ const isDateToActive = computed(() => Boolean(dateTo.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
-const actionButtonClass =
-    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-const actionIconClass = 'h-4 w-4';
 const DIALOG_PREPARE_FALLBACK_MS = 10000;
 let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -183,6 +183,7 @@ async function openDialog(type: 'create' | 'edit', order: PurchaseOrder | null =
     if (token === null) return;
 
     dialogType.value = type;
+    isDialogReadOnly.value = false;
     form.value = order ? { ...order } : {};
     successMessage.value = '';
     errorMessage.value = '';
@@ -196,6 +197,7 @@ async function openDialog(type: 'create' | 'edit', order: PurchaseOrder | null =
 }
 
 function closeDialog() {
+    isDialogReadOnly.value = false;
     isDialogOpen.value = false;
     finishDialogPreparation(dialogPrepareToken);
 }
@@ -285,6 +287,35 @@ function openPrintDialog(order: PurchaseOrder) {
     }, 400); // Espera breve para que el diálogo se renderice antes de imprimir
 }
 
+async function viewOrderDetails(order: PurchaseOrder) {
+    if (!order?.id) return;
+
+    const token = await startDialogPreparationContext();
+    if (token === null) return;
+
+    try {
+        const response = await axios.get(`/gastos/ordenes-compra/${order.id}`);
+        if (token !== dialogPrepareToken) return;
+
+        dialogType.value = 'edit';
+        isDialogReadOnly.value = true;
+        form.value = response.data?.data || {};
+        successMessage.value = '';
+        errorMessage.value = '';
+        errorType.value = 'error';
+
+        await nextTick();
+        if (token !== dialogPrepareToken) return;
+
+        isDialogOpen.value = true;
+        armDialogPreparationFallback(token);
+    } catch (e: any) {
+        finishDialogPreparation(token);
+        const serverMessage = e?.response?.data?.message || 'No se pudo cargar la orden para visualizar.';
+        setErrorMessage(serverMessage);
+    }
+}
+
 async function sendOrderByEmail(order: PurchaseOrder) {
     if (isSendingMail.value) return;
     isSendingMail.value = true;
@@ -301,6 +332,10 @@ async function sendOrderByEmail(order: PurchaseOrder) {
 
 function canApproveOrder(order: PurchaseOrder): boolean {
     return order.status === 'pending';
+}
+
+function canDeleteOrder(order: PurchaseOrder): boolean {
+    return order.status !== 'approved' && order.status !== 'invoiced' && order.status !== 'rejected';
 }
 
 function getOrderStatusLabel(status?: string): string {
@@ -381,13 +416,13 @@ function handleDialogError(message?: string) {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Órdenes de Compras y Servicios</h1>
-                    <p class="text-sm text-muted-foreground">Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.</p>
+                    <h1 :class="uiPatterns.typography.pageTitle">Órdenes de Compras y Servicios</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">Lleva el control de las órdenes emitidas a proveedores y su estado de facturación.</p>
                 </div>
                 <button
                     type="button"
                     :disabled="isPreparingDialog"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openDialog('create')"
                 >
                     <PlusCircle class="h-4 w-4" />
@@ -464,20 +499,20 @@ function handleDialogError(message?: string) {
                 <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>#Orden</TableHead>
-                                <TableHead>Fecha de creación</TableHead>
-                                <TableHead>Fecha de entrega</TableHead>
-                                <TableHead>Proveedor</TableHead>
-                                <TableHead>Item</TableHead>
-                                <TableHead>Total</TableHead>
-                                <TableHead>Descripción</TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead class="text-center">Acciones</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">#Orden</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Fecha de creación</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Fecha de entrega</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Item</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Total</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Descripción</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
+                                <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             <TableRow v-for="order in orders" :key="order.id" class="text-center">
-                                <TableCell class="font-medium">
+                                <TableCell :class="uiPatterns.typography.bodyStrong">
                                     {{ order.document_number || `ORD-${String(order.id).padStart(3, '0')}` }}
                                 </TableCell>
                                 <TableCell>{{ formatDate(order.date) }}</TableCell>
@@ -490,6 +525,7 @@ function handleDialogError(message?: string) {
                                     <TableStatusBadge :label="getOrderStatusLabel(order.status)" :tone="getOrderStatusTone(order.status)" />
                                 </TableCell>
                                 <TableCell class="flex justify-center gap-1">
+                                    <ViewButton :onClick="() => viewOrderDetails(order)" />
                                     <EditButton
                                         :onClick="() => openDialog('edit', order)"
                                         title="Editar orden"
@@ -500,31 +536,7 @@ function handleDialogError(message?: string) {
                                         "
                                         :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
                                     />
-                                    <DeleteButton
-                                        :onClick="() => confirmDeleteOrder(order)"
-                                        title="Eliminar orden"
-                                        :customClass="
-                                            order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'
-                                                ? 'opacity-60 cursor-not-allowed'
-                                                : ''
-                                        "
-                                        :disabled="order.status === 'approved' || order.status === 'invoiced' || order.status === 'rejected'"
-                                    />
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger as-child>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                :class="actionButtonClass"
-                                                title="Acciones"
-                                                @click.stop
-                                                @pointerdown.stop
-                                            >
-                                                <MoreVertical :class="actionIconClass" />
-                                                <span class="sr-only">Acciones</span>
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" class="w-48">
+                                    <TableActionsMenu content-class="w-48">
                                             <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(order)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
@@ -554,8 +566,16 @@ function handleDialogError(message?: string) {
                                             >
                                                 <ReceiptText class="h-4 w-4" /> Convertir en factura
                                             </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                class="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                                                :class="!canDeleteOrder(order) ? 'opacity-60 cursor-not-allowed' : ''"
+                                                :disabled="!canDeleteOrder(order)"
+                                                @click="canDeleteOrder(order) && confirmDeleteOrder(order)"
+                                            >
+                                                <Trash2 class="h-4 w-4" /> Eliminar
+                                            </DropdownMenuItem>
+                                    </TableActionsMenu>
                                 </TableCell>
                             </TableRow>
                         </TableBody>
@@ -566,6 +586,7 @@ function handleDialogError(message?: string) {
             :isOpen="isDialogOpen"
             :dialogType="dialogType"
             :form="form"
+            :readonly="isDialogReadOnly"
             :defer-content="isPreparingDialog"
             @close="closeDialog"
             @refresh="handleDialogRefresh"

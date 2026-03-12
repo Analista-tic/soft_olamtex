@@ -2,6 +2,7 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import type { BreadcrumbItem } from '@/domain/shared';
 import { Head, Link } from '@inertiajs/vue3';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -153,8 +154,8 @@ const modules = [
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="space-y-1">
-                    <h1 class="text-xl font-bold">Configuración</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Configuración</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Centraliza los parámetros clave de la empresa y define cómo funciona el sistema.
                     </p>
                 </div>
@@ -190,3 +191,5 @@ const modules = [
         </div>
     </AppLayout>
 </template>
+
+

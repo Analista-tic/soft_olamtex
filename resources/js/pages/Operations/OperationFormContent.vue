@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Badge } from '@/components/ui/badge';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -371,9 +371,7 @@ defineExpose({ submit, validate });
         <div v-if="isEditing" class="flex items-center gap-3 rounded-md border px-3 py-2.5">
             <input type="checkbox" id="op-active" v-model="form.is_active" class="h-4 w-4 rounded" />
             <label for="op-active" class="text-sm">Operación activa</label>
-            <Badge :variant="form.is_active ? 'default' : 'secondary'" class="ml-auto text-[10px]">{{
-                form.is_active ? 'Activa' : 'Inactiva'
-            }}</Badge>
+            <TableStatusBadge :label="form.is_active ? 'Activa' : 'Inactiva'" :tone="form.is_active ? 'green' : 'red'" class="ml-auto" />
         </div>
     </div>
 </template>

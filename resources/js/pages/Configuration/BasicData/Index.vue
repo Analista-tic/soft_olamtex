@@ -17,6 +17,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import AppearanceSection from './Appearance.vue';
 import AvatarCropDialog from './Profile/AvatarCropDialog.vue';
 import ProfileSection from './Profile.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 interface CompanyData {
     name: string;
@@ -191,7 +192,7 @@ const navSectionBaseClasses =
     'flex w-full items-start justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition-colors min-h-[58px] shadow-sm bg-card border-border dark:border-border';
 const navSectionActiveClasses = 'border-primary bg-primary/10 text-primary';
 const navSectionDefaultClasses =
-    'text-muted-foreground/80 hover:border-slate-300 hover:bg-slate-50 hover:text-card-foreground dark:text-muted-foreground/60 dark:hover:border-slate-600 dark:hover:bg-slate-900 dark:hover:text-white';
+    'text-muted-foreground/80 hover:border-slate-300 hover:bg-slate-50 hover:text-card-foreground dark:text-muted-foreground/60 dark:hover:border-slate-600 dark:hover:bg-slate-900 dark:hover:text-foreground';
 
 const defaultLogo =
     'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 120%22%3E%3Crect width=%22120%22 height=%22120%22 rx=%2216%22 ry=%2216%22 fill=%22%23f0f4f8%22/%3E%3Cpath d=%22M30 40h60v40H30z%22 fill=%22%23ffffff%22 stroke=%22%23d0d7e7%22 stroke-width=%222%22/%3E%3Cpath d=%22M38 48h44M38 56h44M38 64h24%22 stroke=%22%2393a3b8%22 stroke-width=%224%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%2286%22 cy=%2254%22 r=%226%22 fill=%22%23aac9ff%22/%3E%3Cpath d=%22M56 34h14a4 4 0 0 1 4 4v6h-22v-6a4 4 0 0 1 4-4z%22 fill=%22%23a5b6c8%22/%3E%3C/svg%3E';
@@ -619,7 +620,7 @@ onBeforeUnmount(() => {
         </transition>
         <div class="flex flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="space-y-1">
-                <h1 class="text-2xl font-semibold text-card-foreground">Datos Básicos</h1>
+                <h1 :class="uiPatterns.typography.pageTitle">Datos Básicos</h1>
                 <p class="max-w-2xl text-sm text-muted-foreground/70">
                     Centraliza la información corporativa que utiliza el sistema para identificar la empresa, comunicar con contactos y contextualizar
                     los reportes operativos.
@@ -635,7 +636,7 @@ onBeforeUnmount(() => {
                             <div class="relative inline-block h-28 w-28">
                                 <Avatar class="h-28 w-28 ring-4 ring-white shadow-lg">
                                     <AvatarImage v-if="currentAvatarUrl" :key="user.avatar_url ?? 'no-avatar'" :src="currentAvatarUrl" :alt="user.name" />
-                                    <AvatarFallback class="bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-semibold text-white">
+                                    <AvatarFallback class="bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-semibold text-primary-foreground">
                                         {{ userInitials }}
                                     </AvatarFallback>
                                 </Avatar>
@@ -644,7 +645,7 @@ onBeforeUnmount(() => {
                                     <DropdownMenuTrigger :as-child="true">
                                         <button
                                             type="button"
-                                            class="absolute bottom-0 right-0 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-primary text-white box-border shadow-md transition-colors hover:bg-primary/90 data-[state=open]:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                            class="absolute bottom-0 right-0 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-primary text-primary-foreground box-border shadow-md transition-colors hover:bg-primary/90 data-[state=open]:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                                             aria-label="Acciones de foto de perfil"
                                         >
                                             <Camera class="h-4 w-4" />
@@ -848,7 +849,7 @@ onBeforeUnmount(() => {
                                     >
                                         <template v-if="logoPreviewUrl">
                                             <img :src="companyLogo" alt="Logotipo de la empresa" class="h-full w-full object-cover" />
-                                            <div class="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-[10px] uppercase text-white">
+                                            <div class="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-[10px] uppercase text-primary-foreground">
                                                 {{ hasCustomLogo ? 'Listo para subir' : 'Sin cambios' }}
                                             </div>
                                         </template>
@@ -883,7 +884,7 @@ onBeforeUnmount(() => {
                                 <button
                                     type="submit"
                                     :disabled="isSaving || !canEditCompany"
-                                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                                 </button>
@@ -919,3 +920,5 @@ onBeforeUnmount(() => {
         />
     </AppLayout>
 </template>
+
+

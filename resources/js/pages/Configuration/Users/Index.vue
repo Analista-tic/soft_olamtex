@@ -32,6 +32,7 @@ import AlertStack from '@/components/common/AlertStack.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import ViewButton from '@/components/common/ViewButton.vue';
 import { useSmartLoading } from '@/composables/useSmartLoading';
+import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -312,8 +313,8 @@ onMounted(async () => {
         <div v-if="isPageReady" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
-                    <p class="text-sm text-muted-foreground">
+                    <h1 :class="uiPatterns.typography.pageTitle">Gestión de Usuarios</h1>
+                    <p :class="uiPatterns.typography.pageSubtitle">
                         Administra los usuarios y sus roles para el acceso a las funciones del sistema.
                     </p>
                 </div>
@@ -434,6 +435,9 @@ onMounted(async () => {
         @confirm="deleteUser"
     />
 </template>
+
+
+
 
 
 

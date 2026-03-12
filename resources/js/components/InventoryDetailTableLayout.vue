@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { Plus } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
+import { uiPatterns } from '@/lib/ui-patterns';
 import { toRefs } from 'vue';
 
 const props = withDefaults(
     defineProps<{
         title?: string;
+        description?: string;
         showCreateLineButton?: boolean;
         createLineButtonDisabled?: boolean;
         buttonLabel?: string;
@@ -27,20 +30,27 @@ const handleCreateLineClick = () => emit('create-line');
 </script>
 
 <template>
-    <div class="space-y-4 rounded-xl border border-sidebar-border/70 bg-card p-4">
+    <div class="border-t border-border"></div>
+    <div class="space-y-4">
         <div class="flex items-center justify-between">
-            <span class="text-sm font-semibold">{{ title }}</span>
+            <div class="space-y-0.5">
+                <h3 :class="uiPatterns.typography.sectionTitle">{{ title }}</h3>
+                <p v-if="props.description" :class="uiPatterns.typography.sectionSubtitle">{{ props.description }}</p>
+            </div>
+
             <slot name="actions">
-                <button
+                <Button
                     v-if="showCreateLineButton"
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+                    variant="outline"
+                    size="pill"
+                    class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
                     :disabled="createLineButtonDisabled"
                     @click="handleCreateLineClick"
                 >
-                    <Plus class="h-4 w-4" />
+                    <Plus class="h-2 w-2" />
                     {{ buttonLabel }}
-                </button>
+                </Button>
             </slot>
         </div>
         <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none">

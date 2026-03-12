@@ -18,10 +18,15 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import PurchaseInvoiceDialog from '@/pages/Expenses/PurchaseInvoices/PurchaseInvoiceDialog.vue';
+import PurchaseInvoiceDialogTelas from '@/pages/Expenses/PurchaseInvoices/PurchaseInvoiceDialogTelas.vue';
+import { uiPatterns } from '@/lib/ui-patterns';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Search } from 'lucide-vue-next';
+import { BanknoteArrowDown, Eye, History, Search } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 type AccountsPayableRow = {
@@ -35,6 +40,7 @@ type AccountsPayableRow = {
     invoice_total: number;
     credit_notes_total: number;
     debit_notes_total: number;
+    payments_total: number;
     current_balance: number;
     debt_status: 'pending' | 'overdue' | 'settled' | string;
     debt_status_label: string;
@@ -51,10 +57,8 @@ const isLoading = ref(false);
 
 const searchQuery = ref('');
 const providerFilter = ref<string | number>('all');
-const dateFrom = ref<string | null>(null);
-const dateTo = ref<string | null>(null);
-const dueDateFrom = ref<string | null>(null);
-const dueDateTo = ref<string | null>(null);
+const debtStatusFilter = ref<'all' | 'pending' | 'overdue' | 'settled'>('all');
+const dueDateFilter = ref<string | null>(null);
 
 const currentPage = ref(1);
 const totalItems = ref(0);
@@ -68,13 +72,27 @@ const providerOptions = computed(() => [
     })),
 ]);
 
+const debtStatusOptions = [
+    { id: 'all', name: 'Todos' },
+    { id: 'pending', name: 'Pendiente' },
+    { id: 'overdue', name: 'Vencida' },
+    { id: 'settled', name: 'Saldada' },
+];
+
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isProviderActive = computed(() => providerFilter.value !== 'all');
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
-const isDueDateFromActive = computed(() => Boolean(dueDateFrom.value));
-const isDueDateToActive = computed(() => Boolean(dueDateTo.value));
+const isDebtStatusActive = computed(() => debtStatusFilter.value !== 'all');
+const isDueDateActive = computed(() => Boolean(dueDateFilter.value));
 const providerButtonClasses = useFilterButtonClasses(isProviderActive);
+const debtStatusButtonClasses = useFilterButtonClasses(isDebtStatusActive);
+
+const invoiceViewDialogOpen = ref(false);
+const invoiceViewDialogKind = ref<'general' | 'fabric' | null>(null);
+const invoiceViewForm = ref<Partial<PurchaseInvoice>>({});
+
+const actionButtonClass =
+    'inline-flex h-8 w-8 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
@@ -116,14 +134,17 @@ async function fetchAccountsPayable(page = 1) {
             page,
             per_page: ITEMS_PER_PAGE,
             search: searchQuery.value.trim() || undefined,
-            date_from: dateFrom.value || undefined,
-            date_to: dateTo.value || undefined,
-            due_date_from: dueDateFrom.value || undefined,
-            due_date_to: dueDateTo.value || undefined,
+            due_date_from: dueDateFilter.value || undefined,
+            due_date_to: dueDateFilter.value || undefined,
+            debt_status: debtStatusFilter.value !== 'all' ? debtStatusFilter.value : undefined,
         };
 
         if (providerFilter.value !== 'all') {
             params.provider_id = Number(providerFilter.value);
+        }
+
+        if (debtStatusFilter.value === 'settled') {
+            params.include_settled = 1;
         }
 
         const response = await axios.get('/gastos/cuentas-por-pagar/data', { params });
@@ -137,6 +158,62 @@ async function fetchAccountsPayable(page = 1) {
     } finally {
         isLoading.value = false;
     }
+}
+
+function goToExpenseVoucher(row: AccountsPayableRow, action: 'register' | 'history'): void {
+    const params = new URLSearchParams({
+        source: 'accounts-payable',
+        action,
+        supplier_id: String(row.contact_id ?? ''),
+        invoice_id: String(row.invoice_id),
+    });
+
+    if (row.document_number) {
+        params.set('invoice_number', row.document_number);
+    }
+
+    router.visit(`/finanzas/comprobantes-egreso/crear?${params.toString()}`);
+}
+
+function registerPaymentFromFinance(row: AccountsPayableRow): void {
+    goToExpenseVoucher(row, 'register');
+}
+
+function showPaymentsFromFinance(row: AccountsPayableRow): void {
+    goToExpenseVoucher(row, 'history');
+}
+
+async function viewInvoice(row: AccountsPayableRow) {
+    invoiceViewDialogOpen.value = false;
+    invoiceViewDialogKind.value = null;
+    invoiceViewForm.value = {};
+
+    try {
+        const response = await axios.get(`/gastos/facturas-compra/${row.invoice_id}`);
+        invoiceViewForm.value = (response.data?.data ?? {}) as Partial<PurchaseInvoice>;
+        invoiceViewDialogKind.value = 'general';
+        invoiceViewDialogOpen.value = true;
+    } catch (error) {
+        const status = axios.isAxiosError(error) ? Number(error.response?.status ?? 0) : 0;
+        if (status === 404) {
+            try {
+                const fabricResponse = await axios.get(`/gastos/facturas-compra-tela/${row.invoice_id}`);
+                invoiceViewForm.value = (fabricResponse.data?.data ?? {}) as Partial<PurchaseInvoice>;
+                invoiceViewDialogKind.value = 'fabric';
+                invoiceViewDialogOpen.value = true;
+            } catch (fabricError) {
+                console.error('No fue posible cargar la factura de compra tela.', fabricError);
+            }
+        } else {
+            console.error('No fue posible cargar la factura de compra.', error);
+        }
+    }
+}
+
+function closeInvoiceViewDialog() {
+    invoiceViewDialogOpen.value = false;
+    invoiceViewDialogKind.value = null;
+    invoiceViewForm.value = {};
 }
 
 async function handlePageChange(page: number) {
@@ -154,7 +231,7 @@ watch(searchQuery, () => {
     }, 250);
 });
 
-watch([providerFilter, dateFrom, dateTo, dueDateFrom, dueDateTo], async () => {
+watch([providerFilter, debtStatusFilter, dueDateFilter], async () => {
     currentPage.value = 1;
     await fetchAccountsPayable(1);
 });
@@ -172,103 +249,160 @@ onBeforeUnmount(() => {
     <Head title="Cuentas por pagar" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
-            <div class="flex flex-col gap-1">
-                <h1 class="text-lg font-bold">Cuentas por pagar</h1>
-                <p class="text-sm text-muted-foreground">
-                    Saldo derivado por factura de compra (sin pagos aplicados).
+        <div :class="uiPatterns.pageIndex.page">
+            <div :class="uiPatterns.pageIndex.header">
+                <h1 :class="uiPatterns.pageIndex.title">Cuentas por pagar</h1>
+                <p :class="uiPatterns.pageIndex.subtitle">
+                    Saldo derivado por factura de compra, notas y pagos aplicados.
+                </p>
+                <p :class="uiPatterns.typography.helperText">
+                    Las acciones operativas de pago fueron migradas a Comprobante de egreso en Finanzas.
                 </p>
             </div>
 
-            <FilterBar>
-                <FilterField label="Buscar factura/proveedor" :active="isSearchActive" class="flex-1 min-w-[260px] p-0">
-                    <div class="relative">
-                        <Input
-                            v-model="searchQuery"
-                            placeholder="Buscar factura o proveedor"
-                            class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm focus:border-primary focus:ring-0"
+            <div :class="uiPatterns.pageIndex.filtersWrap">
+                <FilterBar no-margin>
+                    <FilterField label="Buscar factura/proveedor" :active="isSearchActive" class="flex-1 min-w-[260px] p-0">
+                        <div class="relative">
+                            <Input
+                                v-model="searchQuery"
+                                placeholder="Buscar factura o proveedor"
+                                class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm focus:border-primary focus:ring-0"
+                            />
+                            <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
+                                <Search :size="20" class="text-muted-foreground" />
+                            </span>
+                        </div>
+                    </FilterField>
+
+                    <FilterField label="Proveedor" :active="isProviderActive" class="min-w-[220px]">
+                        <SelectField
+                            v-model="providerFilter"
+                            :options="providerOptions"
+                            placeholder="Todos los proveedores"
+                            :button-class="providerButtonClasses"
                         />
-                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                            <Search :size="20" class="text-muted-foreground" />
-                        </span>
-                    </div>
-                </FilterField>
+                    </FilterField>
 
-                <FilterField label="Proveedor" :active="isProviderActive" class="min-w-[220px]">
-                    <SelectField
-                        v-model="providerFilter"
-                        :options="providerOptions"
-                        placeholder="Todos los proveedores"
-                        :button-class="providerButtonClasses"
-                    />
-                </FilterField>
+                    <FilterField label="Estado deuda" :active="isDebtStatusActive" class="min-w-[190px]">
+                        <SelectField
+                            v-model="debtStatusFilter"
+                            :options="debtStatusOptions"
+                            placeholder="Todos"
+                            :button-class="debtStatusButtonClasses"
+                        />
+                    </FilterField>
 
-                <FilterField label="Fecha factura desde" :active="isDateFromActive" class="min-w-[190px]">
-                    <InputDate v-model="dateFrom" placeholder="Desde" clearable />
-                </FilterField>
+                    <FilterField label="Fecha vencimiento" :active="isDueDateActive" class="min-w-[220px]">
+                        <InputDate v-model="dueDateFilter" placeholder="Seleccionar fecha" clearable />
+                    </FilterField>
+                </FilterBar>
+            </div>
 
-                <FilterField label="Fecha factura hasta" :active="isDateToActive" class="min-w-[190px]">
-                    <InputDate v-model="dateTo" placeholder="Hasta" clearable />
-                </FilterField>
+            <div :class="uiPatterns.pageIndex.tableWrap">
+                <TooltipProvider>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead :class="uiPatterns.typography.tableHead">Factura</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Fecha factura</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Fecha vencimiento</TableHead>
+                                <TableHead :class="`${uiPatterns.typography.tableHead} text-right`">Total factura</TableHead>
+                                <TableHead :class="`${uiPatterns.typography.tableHead} text-right`">Notas crédito</TableHead>
+                                <TableHead :class="`${uiPatterns.typography.tableHead} text-right`">Notas débito</TableHead>
+                                <TableHead :class="`${uiPatterns.typography.tableHead} text-right`">Saldo actual</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">Estado deuda</TableHead>
+                                <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
 
-                <FilterField label="Vencimiento desde" :active="isDueDateFromActive" class="min-w-[190px]">
-                    <InputDate v-model="dueDateFrom" placeholder="Desde" clearable />
-                </FilterField>
+                        <TableBody>
+                            <TableRow v-if="isLoading">
+                                <TableCell colspan="10" class="py-6 text-center text-sm text-muted-foreground">
+                                    Cargando cuentas por pagar...
+                                </TableCell>
+                            </TableRow>
 
-                <FilterField label="Vencimiento hasta" :active="isDueDateToActive" class="min-w-[190px]">
-                    <InputDate v-model="dueDateTo" placeholder="Hasta" clearable />
-                </FilterField>
-            </FilterBar>
+                            <TableRow v-else-if="rows.length === 0">
+                                <TableCell colspan="10" class="py-6 text-center text-sm text-muted-foreground">
+                                    No hay facturas con saldo para mostrar.
+                                </TableCell>
+                            </TableRow>
 
-            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Factura</TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead>Fecha factura</TableHead>
-                            <TableHead>Fecha vencimiento</TableHead>
-                            <TableHead class="text-right">Total factura</TableHead>
-                            <TableHead class="text-right">Notas crédito</TableHead>
-                            <TableHead class="text-right">Notas débito</TableHead>
-                            <TableHead class="text-right">Saldo actual</TableHead>
-                            <TableHead>Estado deuda</TableHead>
-                        </TableRow>
-                    </TableHeader>
+                            <TableRow v-for="row in rows" :key="row.id" class="text-center">
+                                <TableCell :class="uiPatterns.typography.bodyStrong">
+                                    {{ row.document_number || `FAC-${row.invoice_id}` }}
+                                </TableCell>
+                                <TableCell>{{ row.supplier_name || '-' }}</TableCell>
+                                <TableCell>{{ formatDate(row.invoice_date) }}</TableCell>
+                                <TableCell>{{ formatDate(row.due_date) }}</TableCell>
+                                <TableCell class="text-right">{{ formatCurrency(row.invoice_total) }}</TableCell>
+                                <TableCell class="text-right text-red-600">-{{ formatCurrency(row.credit_notes_total) }}</TableCell>
+                                <TableCell class="text-right text-emerald-600">+{{ formatCurrency(row.debit_notes_total) }}</TableCell>
+                                <TableCell class="text-right font-semibold">{{ formatCurrency(row.current_balance) }}</TableCell>
+                                <TableCell>
+                                    <TableStatusBadge :label="row.debt_status_label" :tone="debtTone(row.debt_status_tone)" />
+                                </TableCell>
+                                <TableCell class="text-center">
+                                    <div class="flex items-center justify-center gap-1">
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Ver factura"
+                                                    @click="viewInvoice(row)"
+                                                >
+                                                    <Eye :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Ver factura</TooltipContent>
+                                        </Tooltip>
 
-                    <TableBody>
-                        <TableRow v-if="isLoading">
-                            <TableCell colspan="9" class="py-6 text-center text-sm text-muted-foreground">
-                                Cargando cuentas por pagar...
-                            </TableCell>
-                        </TableRow>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    :disabled="Number(row.current_balance) <= 0"
+                                                    aria-label="Registrar pago"
+                                                    @click="registerPaymentFromFinance(row)"
+                                                >
+                                                    <BanknoteArrowDown :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Registrar pago en Finanzas</TooltipContent>
+                                        </Tooltip>
 
-                        <TableRow v-else-if="rows.length === 0">
-                            <TableCell colspan="9" class="py-6 text-center text-sm text-muted-foreground">
-                                No hay facturas con saldo para mostrar.
-                            </TableCell>
-                        </TableRow>
-
-                        <TableRow v-for="row in rows" :key="row.id" class="text-center">
-                            <TableCell class="font-medium">
-                                {{ row.document_number || `FAC-${row.invoice_id}` }}
-                            </TableCell>
-                            <TableCell>{{ row.supplier_name || '-' }}</TableCell>
-                            <TableCell>{{ formatDate(row.invoice_date) }}</TableCell>
-                            <TableCell>{{ formatDate(row.due_date) }}</TableCell>
-                            <TableCell class="text-right">{{ formatCurrency(row.invoice_total) }}</TableCell>
-                            <TableCell class="text-right text-red-600">-{{ formatCurrency(row.credit_notes_total) }}</TableCell>
-                            <TableCell class="text-right text-emerald-600">+{{ formatCurrency(row.debit_notes_total) }}</TableCell>
-                            <TableCell class="text-right font-semibold">{{ formatCurrency(row.current_balance) }}</TableCell>
-                            <TableCell>
-                                <TableStatusBadge :label="row.debt_status_label" :tone="debtTone(row.debt_status_tone)" />
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    :class="actionButtonClass"
+                                                    aria-label="Ver pagos"
+                                                    @click="showPaymentsFromFinance(row)"
+                                                >
+                                                    <History :class="actionIconClass" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Ver pagos en Finanzas</TooltipContent>
+                                        </Tooltip>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </TooltipProvider>
 
                 <Pagination
-                    class="mt-5 flex justify-center"
+                    :class="uiPatterns.pageIndex.pagination"
                     :items-per-page="ITEMS_PER_PAGE"
                     :total="totalItems"
                     :sibling-count="1"
@@ -301,6 +435,24 @@ onBeforeUnmount(() => {
                     </PaginationList>
                 </Pagination>
             </div>
+
+            <PurchaseInvoiceDialog
+                v-if="invoiceViewDialogOpen && invoiceViewDialogKind === 'general'"
+                :is-open="invoiceViewDialogOpen"
+                dialog-type="edit"
+                mode="view"
+                :form="invoiceViewForm"
+                @close="closeInvoiceViewDialog"
+            />
+
+            <PurchaseInvoiceDialogTelas
+                v-if="invoiceViewDialogOpen && invoiceViewDialogKind === 'fabric'"
+                :is-open="invoiceViewDialogOpen"
+                dialog-type="edit"
+                mode="view"
+                :form="invoiceViewForm"
+                @close="closeInvoiceViewDialog"
+            />
         </div>
     </AppLayout>
 </template>

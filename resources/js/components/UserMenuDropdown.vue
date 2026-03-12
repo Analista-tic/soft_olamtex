@@ -55,7 +55,7 @@ function logout() {
             >
                 <Avatar class="h-6 w-6 shrink-0 overflow-hidden rounded-full">
                     <AvatarImage v-if="showAvatar" :key="user.avatar_url ?? 'no-avatar'" :src="avatarSrc" :alt="user.name" />
-                    <AvatarFallback class="rounded-full bg-slate-100 text-sm font-semibold text-slate-500">
+                    <AvatarFallback class="rounded-full bg-slate-100 text-sm font-semibold text-muted-foreground">
                         {{ getInitials(user.name ?? '') }}
                     </AvatarFallback>
                 </Avatar>

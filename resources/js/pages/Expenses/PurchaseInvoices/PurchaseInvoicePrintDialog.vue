@@ -153,7 +153,7 @@ function print() {
                     <div class="flex flex-col items-end space-y-0 text-sm w-full mb-4 mt-2">
                         <div class="w-full max-w-xs bg-white rounded p-2 space-y-1">
                             <div class="flex justify-between items-center">
-                                <span class="font-semibold text-gray-700">Subtotal</span>
+                                <span class="font-semibold text-foreground">Subtotal</span>
                                 <span>{{
                                     Number(subtotal || 0).toLocaleString('es-CO', {
                                         style: 'currency',
@@ -164,7 +164,7 @@ function print() {
                                 }}</span>
                             </div>
                             <div class="flex justify-between items-center">
-                                <span class="font-semibold text-gray-700">IVA 19%</span>
+                                <span class="font-semibold text-foreground">IVA 19%</span>
                                 <span>{{
                                     Number(iva || 0).toLocaleString('es-CO', {
                                         style: 'currency',
@@ -175,8 +175,8 @@ function print() {
                                 }}</span>
                             </div>
                             <div class="flex justify-between items-center pt-1">
-                                <span class="font-bold text-gray-800">Total orden de compra</span>
-                                <span class="font-bold text-gray-800">{{
+                                <span class="font-bold text-foreground">Total orden de compra</span>
+                                <span class="font-bold text-foreground">{{
                                     Number(total || 0).toLocaleString('es-CO', {
                                         style: 'currency',
                                         currency: 'COP',
@@ -188,7 +188,7 @@ function print() {
                             <!-- Mostrar cada retención individual -->
                             <template v-for="(w, idx) in props.invoice?.withholdings || []" :key="idx">
                                 <div class="flex justify-between items-center">
-                                    <span class="text-gray-600">- {{ w.name }}</span>
+                                    <span class="text-muted-foreground">- {{ w.name }}</span>
                                     <span class="text-red-700">-{{
                                         getWithholdingAmount(w).toLocaleString('es-CO', {
                                             style: 'currency',
@@ -200,7 +200,7 @@ function print() {
                                 </div>
                             </template>
                             <div v-if="(props.invoice?.withholdings || []).length" class="flex justify-between items-center pt-1">
-                                <span class="font-semibold text-gray-700">Total retenciones</span>
+                                <span class="font-semibold text-foreground">Total retenciones</span>
                                 <span class="text-red-700">{{
                                     Number(retencionesTotal || 0).toLocaleString('es-CO', {
                                         style: 'currency',
@@ -245,7 +245,7 @@ function print() {
                     </Button>
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         @click="print"
                     >
                         Imprimir
@@ -302,4 +302,3 @@ function print() {
     * { -ms-overflow-style: none !important; scrollbar-width: none !important; }
 }
 </style>
-

@@ -15,6 +15,7 @@ import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/tax
 const props = defineProps<{ 
     items: PurchaseOrderItem[];
     suggestedItems?: any[];
+    readonly?: boolean;
 }>();
 const emit = defineEmits(['update:items']);
 
@@ -33,6 +34,7 @@ const itemDialogForm = ref<Partial<Item>>({
     negative_movement: false,
     status: true,
 });
+const isReadOnly = computed(() => !!props.readonly);
 
 const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
@@ -46,7 +48,7 @@ const taxOptions = computed(() => [
         })),
 ]);
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
-const showActionsColumn = computed(() => localItems.value.length > 1);
+const showActionsColumn = computed(() => !isReadOnly.value && localItems.value.length > 1);
 const totalColumns = computed(() => {
     let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripcion, Total
     if (shouldShowFabricColumns.value) {
@@ -94,11 +96,13 @@ onMounted(() => {
 });
 
 function openTaxDialog() {
+    if (isReadOnly.value) return;
     taxForm.value = { name: '', percentage: 0, status: true };
     isTaxDialogOpen.value = true;
 }
 
 function openItemDialog() {
+    if (isReadOnly.value) return;
     itemDialogForm.value = {
         reference: '',
         description: '',
@@ -147,6 +151,7 @@ function validateFabricFields(): string | null {
 }
 
 function addItem() {
+    if (isReadOnly.value) return;
     const newItem: PurchaseOrderItem = {
         item_id: null,
         price: 0,
@@ -164,6 +169,7 @@ function addItem() {
 }
 
 function removeItem(idx: number) {
+    if (isReadOnly.value) return;
     if (localItems.value.length <= 1) {
         // Mantener al menos un ítem obligatorio
         return;
@@ -267,6 +273,7 @@ function getSuggestedItemForRow(rowIdx: number) {
 }
 
 function applySuggestedItem(suggestedItem: any, targetIdx: number) {
+    if (isReadOnly.value) return;
     if (!suggestedItem || targetIdx >= localItems.value.length) return;
     
     const targetItem = localItems.value[targetIdx];
@@ -318,14 +325,17 @@ defineExpose({ addItem, validateFabricFields });
                                     :options="catalogItems.map((a) => ({ id: a.id, name: a.name }))"
                                     label=""
                                     class="w-full"
-                                    action-label="Nuevo item"
+                                    :disabled="isReadOnly"
+                                    :action-label="!isReadOnly ? 'Nuevo item' : undefined"
+                                    :action-disabled="isReadOnly"
                                     @action="openItemDialog"
                                 />
                                 <!-- Item sugerido de la solicitud para esta fila -->
                                 <div v-if="getSuggestedItemForRow(idx)" class="text-xs mt-1.5">
                                     <div 
-                                        class="flex items-center gap-1.5 text-xs bg-accent/30 rounded-md px-2 py-1 border border-border/40 cursor-pointer hover:bg-accent/50 transition-colors group"
-                                        @click="applySuggestedItem(getSuggestedItemForRow(idx), idx)"
+                                        class="flex items-center gap-1.5 text-xs bg-accent/30 rounded-md px-2 py-1 border border-border/40 transition-colors group"
+                                        :class="isReadOnly ? 'cursor-default opacity-70' : 'cursor-pointer hover:bg-accent/50'"
+                                        @click="!isReadOnly && applySuggestedItem(getSuggestedItemForRow(idx), idx)"
                                         title="Clic para aplicar este item sugerido de la solicitud"
                                     >
                                         <span class="text-[10px] opacity-60 group-hover:opacity-100">💡</span>
@@ -341,6 +351,8 @@ defineExpose({ addItem, validateFabricFields });
                                 label=""
                                 :decimals="2"
                                 :min="0"
+                                :readonly="isReadOnly"
+                                :disabled="isReadOnly"
                                 class="h-10 w-full"
                                 @input="calcTotals(item)"
                             />
@@ -351,7 +363,9 @@ defineExpose({ addItem, validateFabricFields });
                                 :options="taxOptions"
                                 label=""
                                 class="w-full"
-                                action-label="Nuevo impuesto"
+                                :disabled="isReadOnly"
+                                :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
+                                :action-disabled="isReadOnly"
                                 @action="openTaxDialog"
                                 @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
                             />
@@ -361,21 +375,47 @@ defineExpose({ addItem, validateFabricFields });
                                 v-model="item.quantity"
                                 type="number"
                                 label=""
+                                :readonly="isReadOnly"
+                                :disabled="isReadOnly"
                                 class="h-10 w-full"
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 160px;">
-                            <InputField v-model="item.description" label="" class="h-10 w-full" />
+                            <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
-                            <InputField v-model="item.supplier_code" label="" placeholder="Código proveedor" class="h-10 w-full" />
+                            <InputField
+                                v-model="item.supplier_code"
+                                label=""
+                                placeholder="Código proveedor"
+                                class="h-10 w-full"
+                                :readonly="isReadOnly || !isTela(item)"
+                                :disabled="isReadOnly || !isTela(item)"
+                            />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
-                            <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" class="h-10 w-full" />
+                            <InputField
+                                v-model="item.supplier_color"
+                                label=""
+                                placeholder="Color proveedor"
+                                class="h-10 w-full"
+                                :readonly="isReadOnly || !isTela(item)"
+                                :disabled="isReadOnly || !isTela(item)"
+                            />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
-                            <InputField v-model="item.order_width" type="number" label="" placeholder="Ancho pedido (cm) *" step="any" class="h-10 w-full" :required="true" />
+                            <InputField
+                                v-model="item.order_width"
+                                type="number"
+                                label=""
+                                placeholder="Ancho pedido (cm) *"
+                                step="any"
+                                class="h-10 w-full"
+                                :required="true"
+                                :readonly="isReadOnly || !isTela(item)"
+                                :disabled="isReadOnly || !isTela(item)"
+                            />
                         </TableCell>
                         <TableCell class="p-1 text-left" style="width: 90px;">
                             {{
