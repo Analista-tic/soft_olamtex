@@ -29,7 +29,7 @@ const ROUTES = {
 } as const;
 
 const FETCH_BATCH_SIZE = 200;
-const TREE_GRID_TEMPLATE = 'minmax(0, 1fr) 140px 120px 56px';
+const TREE_GRID_TEMPLATE = 'minmax(0, 1.05fr) minmax(240px, 0.95fr) 120px 56px';
 const TREE_INDENT_STEP = 12;
 const breadcrumbs = [{ title: 'Catalogo de cuentas', href: ROUTES.index }];
 
@@ -343,7 +343,9 @@ onMounted(() => void fetchData());
                         <div class="account-tree-grid__header-cell account-tree-grid__header-cell--account" role="columnheader">
                             Cuenta
                         </div>
-                        <div class="account-tree-grid__header-cell" role="columnheader">Movimientos</div>
+                        <div class="account-tree-grid__header-cell account-tree-grid__header-cell--description" role="columnheader">
+                            Descripcion
+                        </div>
                         <div class="account-tree-grid__header-cell" role="columnheader">Estado</div>
                         <div class="account-tree-grid__header-cell" role="columnheader" />
                     </div>
@@ -422,14 +424,16 @@ onMounted(() => void fetchData());
                                     </div>
                                 </div>
 
-                                <div class="account-tree-grid__cell account-tree-grid__cell--center" role="gridcell">
+                                <div class="account-tree-grid__cell account-tree-grid__cell--description" role="gridcell">
                                     <span
-                                        class="text-xs font-medium"
-                                        :class="row.allows_entries
-                                            ? 'text-emerald-600 dark:text-emerald-400'
-                                            : 'text-muted-foreground'"
+                                        class="account-description"
+                                        :class="row.description
+                                            ? row.level === 1
+                                                ? 'text-foreground/80'
+                                                : 'text-muted-foreground'
+                                            : 'text-muted-foreground/55'"
                                     >
-                                        {{ row.allows_entries ? 'Si' : 'No' }}
+                                        {{ row.description?.trim() || '—' }}
                                     </span>
                                 </div>
 
@@ -530,6 +534,10 @@ onMounted(() => void fetchData());
     padding-left: 0.75rem;
 }
 
+.account-tree-grid__header-cell--description {
+    justify-content: flex-start;
+}
+
 .account-tree-grid__feedback {
     display: flex;
     justify-content: center;
@@ -560,6 +568,12 @@ onMounted(() => void fetchData());
 .account-tree-grid__cell--account {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
+}
+
+.account-tree-grid__cell--description {
+    align-items: flex-start;
+    padding-right: 0.75rem;
+    padding-left: 0.5rem;
 }
 
 .account-tree-grid__cell--center {
@@ -625,6 +639,17 @@ onMounted(() => void fetchData());
     min-width: 0;
     overflow: hidden;
     line-height: 1.25rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    word-break: break-word;
+}
+
+.account-description {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    line-height: 1.25rem;
+    font-size: 0.875rem;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     word-break: break-word;
