@@ -23,6 +23,7 @@ import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import {
     fetchAccountingAccountMovements,
     fetchAccountingAccountOptions,
+    type AccountingAccountListItem,
     type AccountingAccountMovementQuery,
     type AccountingAccountMovementRow,
     type AccountingAccountMovementSummary,
@@ -31,6 +32,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, router } from '@inertiajs/vue3';
 import { Download, Eye, FileSearch, Printer } from 'lucide-vue-next';
+import type { Option } from '@/domain/shared';
 import { computed, onMounted, ref } from 'vue';
 
 type AccountProp = {
@@ -38,9 +40,17 @@ type AccountProp = {
     code: string;
     name: string;
     account_type: string;
+    parent_id: number | null;
+    level: number;
     allows_entries: boolean;
     is_active: boolean;
     parent?: { id: number; code: string; name: string } | null;
+};
+
+type AccountSelectOption = Option & {
+    code: string;
+    level: number;
+    allows_entries: boolean;
 };
 
 const props = defineProps<{
@@ -70,7 +80,7 @@ const currentPage = ref(1);
 const totalItems = ref(0);
 const isLoading = ref(false);
 
-const accountOptions = ref<Array<{ id: number | string; name: string }>>([]);
+const accountOptions = ref<AccountSelectOption[]>([]);
 
 const movements = ref<AccountingAccountMovementRow[]>([]);
 const summary = ref<AccountingAccountMovementSummary>({
@@ -98,7 +108,12 @@ const selectedPeriod = computed({
 const isAccountActive = computed(() => accountId.value !== props.account.id);
 const isPeriodActive = computed(() => Boolean(dateFrom.value || dateTo.value));
 
-const accountButtonClasses = useFilterButtonClasses(isAccountActive);
+const accountButtonClasses = useFilterButtonClasses(isAccountActive, {
+    baseClasses:
+        'h-10 w-full rounded-md border border-input bg-background px-3 pr-10 text-sm font-medium text-foreground shadow-sm transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+    activeClasses: 'border-primary/35 bg-primary/[0.04] text-foreground shadow-sm',
+    inactiveClasses: 'border-input bg-background text-foreground shadow-sm hover:border-border/80 hover:bg-background',
+});
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
@@ -150,15 +165,99 @@ async function fetchData(page = 1): Promise<void> {
 
 async function fetchAccounts(): Promise<void> {
     try {
-        const rows = await fetchAccountingAccountOptions(true);
-        accountOptions.value = rows.map((row) => ({
-            id: row.id,
-            name: `${row.code} - ${row.name}`,
-        }));
+        const rows = await fetchAccountingAccountOptions(false);
+        accountOptions.value = buildContextAccountOptions(rows);
     } catch (err) {
-        accountOptions.value = [{ id: props.account.id, name: `${props.account.code} - ${props.account.name}` }];
+        accountOptions.value = [{
+            id: props.account.id,
+            name: `${props.account.code} - ${props.account.name}`,
+            code: props.account.code,
+            level: 1,
+            allows_entries: props.account.allows_entries,
+        }];
         console.error('Error al cargar cuentas contables', err);
     }
+}
+
+function compareAccountCode(left: AccountingAccountListItem, right: AccountingAccountListItem): number {
+    return left.code.localeCompare(right.code, 'es-CO', { numeric: true, sensitivity: 'base' });
+}
+
+function buildContextAccountOptions(rows: AccountingAccountListItem[]): AccountSelectOption[] {
+    const rootLevel = props.account.level;
+    const rootOption: AccountingAccountListItem = rows.find((row) => row.id === props.account.id) ?? {
+        id: props.account.id,
+        code: props.account.code,
+        name: props.account.name,
+        account_type: props.account.account_type as AccountingAccountListItem['account_type'],
+        parent_id: props.account.parent_id,
+        parent_code: props.account.parent?.code ?? null,
+        parent_name: props.account.parent?.name ?? null,
+        level: props.account.level,
+        allows_entries: props.account.allows_entries,
+        is_active: props.account.is_active,
+        special_type: null,
+        description: null,
+    };
+
+    const childrenByParent = new Map<number | null, AccountingAccountListItem[]>();
+    rows.forEach((row) => {
+        const siblings = childrenByParent.get(row.parent_id) ?? [];
+        siblings.push(row);
+        childrenByParent.set(row.parent_id, siblings);
+    });
+
+    for (const siblings of childrenByParent.values()) {
+        siblings.sort(compareAccountCode);
+    }
+
+    const subtree: AccountingAccountListItem[] = [];
+    const visited = new Set<number>();
+
+    const appendBranch = (current: AccountingAccountListItem) => {
+        if (visited.has(current.id)) return;
+        visited.add(current.id);
+        subtree.push(current);
+
+        const children = childrenByParent.get(current.id) ?? [];
+        children.forEach(appendBranch);
+    };
+
+    appendBranch(rootOption);
+
+    return subtree.map((row) => ({
+        id: row.id,
+        name: `${row.code} - ${row.name}`,
+        code: row.code,
+        level: Math.max(1, row.level - rootLevel + 1),
+        allows_entries: row.allows_entries,
+    }));
+}
+
+function asAccountOption(option: Option): AccountSelectOption {
+    return option as AccountSelectOption;
+}
+
+function getAccountOptionRowClass(option: Option, state: { active: boolean; selected: boolean }): string {
+    const account = asAccountOption(option);
+    const levelPadding = account.level <= 1 ? 'pl-3' : account.level === 2 ? 'pl-6' : account.level === 3 ? 'pl-9' : 'pl-12';
+    const levelWeight = account.level === 1 ? 'py-3' : 'py-2.5';
+    const stateClass = state.selected && !state.active ? 'ring-1 ring-primary/15' : '';
+
+    return [levelPadding, levelWeight, stateClass].filter(Boolean).join(' ');
+}
+
+function getAccountOptionLabelClass(option: Option, state: { active: boolean; selected: boolean }): string {
+    const account = asAccountOption(option);
+    const levelClass = account.level === 1
+        ? 'text-foreground font-semibold'
+        : account.level === 2
+            ? 'text-foreground/90 font-medium'
+            : 'text-muted-foreground';
+
+    const selectedClass = state.selected ? 'text-primary font-semibold' : '';
+
+    return [levelClass, selectedClass].filter(Boolean).join(' ');
 }
 
 function handleConsult(): void {
@@ -247,6 +346,9 @@ onMounted(async () => {
                         placeholder="Selecciona una cuenta"
                         searchable
                         :button-class="accountButtonClasses"
+                        options-class="py-1.5"
+                        :get-option-class="getAccountOptionRowClass"
+                        :get-option-label-class="getAccountOptionLabelClass"
                     />
                 </FilterField>
 

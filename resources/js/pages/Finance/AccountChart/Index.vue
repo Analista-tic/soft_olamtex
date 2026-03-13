@@ -8,28 +8,17 @@ import Button from '@/components/ui/button/Button.vue';
 import { DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import {
-    Pagination,
-    PaginationEllipsis,
-    PaginationFirst,
-    PaginationLast,
-    PaginationList,
-    PaginationListItem,
-    PaginationNext,
-    PaginationPrev,
-} from '@/components/ui/pagination';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { useGlobalAlert } from '@/composables/useGlobalAlert';
-import {
     fetchAccountChartPage,
     toggleAccountingAccountStatus,
     type AccountingAccountListItem,
-    type AccountingAccountListQuery,
 } from '@/domain/Finance';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, router } from '@inertiajs/vue3';
 import { ChevronDown, ChevronRight, Eye, Pencil, Plus, Search, ToggleLeft, ToggleRight, Trash2 } from 'lucide-vue-next';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const ROUTES = {
     index: '/finanzas/catalogo-cuentas',
@@ -39,7 +28,7 @@ const ROUTES = {
     movements: (id: number) => `/finanzas/catalogo-cuentas/${id}/movimientos`,
 } as const;
 
-const ITEMS_PER_PAGE = 50;
+const FETCH_BATCH_SIZE = 200;
 const TREE_GRID_TEMPLATE = 'minmax(0, 1fr) 140px 120px 56px';
 const TREE_INDENT_STEP = 12;
 const breadcrumbs = [{ title: 'Catalogo de cuentas', href: ROUTES.index }];
@@ -70,36 +59,36 @@ const { successMessage, errorMessage, errorType, success, error, clear } = useGl
 
 const rows = ref<AccountingAccountListItem[]>([]);
 const isLoading = ref(false);
-const currentPage = ref(1);
-const totalItems = ref(0);
 
-async function fetchData(page = 1): Promise<void> {
+function compareAccountCode(left: AccountingAccountListItem, right: AccountingAccountListItem): number {
+    return left.code.localeCompare(right.code, 'es-CO', { numeric: true, sensitivity: 'base' });
+}
+
+async function fetchData(): Promise<void> {
     isLoading.value = true;
     try {
-        const params: AccountingAccountListQuery = {
-            page,
-            per_page: ITEMS_PER_PAGE,
-            search: searchQuery.value.trim() || undefined,
-            account_type: accountTypeFilter.value !== 'all' ? accountTypeFilter.value : undefined,
-            is_active: statusFilter.value !== 'all' ? statusFilter.value : undefined,
-            allows_entries: allowsEntriesFilter.value !== 'all' ? allowsEntriesFilter.value : undefined,
-        };
-        const response = await fetchAccountChartPage(params);
-        rows.value = response.data;
-        totalItems.value = response.total;
-        currentPage.value = response.current_page;
+        const collected: AccountingAccountListItem[] = [];
+        let page = 1;
+        let total = 0;
+
+        do {
+            const response = await fetchAccountChartPage({
+                page,
+                per_page: FETCH_BATCH_SIZE,
+            });
+
+            collected.push(...response.data);
+            total = response.total;
+            page += 1;
+        } while (collected.length < total);
+
+        rows.value = collected;
     } catch (err) {
         console.error('Error al cargar catalogo de cuentas', err);
         rows.value = [];
-        totalItems.value = 0;
     } finally {
         isLoading.value = false;
     }
-}
-
-async function handlePageChange(page: number): Promise<void> {
-    if (page === currentPage.value) return;
-    await fetchData(page);
 }
 
 const searchQuery = ref('');
@@ -118,6 +107,78 @@ const allowsEntriesButtonClasses = useFilterButtonClasses(isAllowsEntriesActive)
 
 const collapsedParents = ref<Set<number>>(new Set());
 
+const rowMap = computed(() => {
+    const map = new Map<number, AccountingAccountListItem>();
+    rows.value.forEach((row) => map.set(row.id, row));
+    return map;
+});
+
+const filteredRows = computed(() => {
+    const search = searchQuery.value.trim().toLowerCase();
+    const matched = new Set<number>();
+
+    rows.value.forEach((row) => {
+        const matchesSearch = !search
+            || row.code.toLowerCase().includes(search)
+            || row.name.toLowerCase().includes(search);
+        const matchesAccountType = accountTypeFilter.value === 'all' || row.account_type === accountTypeFilter.value;
+        const matchesStatus = statusFilter.value === 'all' || String(Number(row.is_active)) === statusFilter.value;
+        const matchesAllowsEntries = allowsEntriesFilter.value === 'all' || String(Number(row.allows_entries)) === allowsEntriesFilter.value;
+
+        if (matchesSearch && matchesAccountType && matchesStatus && matchesAllowsEntries) {
+            matched.add(row.id);
+        }
+    });
+
+    if (matched.size === 0) {
+        return [] as AccountingAccountListItem[];
+    }
+
+    const included = new Set<number>(matched);
+
+    for (const rowId of matched) {
+        let current = rowMap.value.get(rowId) ?? null;
+        while (current?.parent_id != null) {
+            const parent = rowMap.value.get(current.parent_id) ?? null;
+            if (!parent || included.has(parent.id)) break;
+            included.add(parent.id);
+            current = parent;
+        }
+    }
+
+    return rows.value.filter((row) => included.has(row.id));
+});
+
+const orderedRows = computed(() => {
+    const childrenByParent = new Map<number | null, AccountingAccountListItem[]>();
+    const ids = new Set(filteredRows.value.map((row) => row.id));
+
+    filteredRows.value.forEach((row) => {
+        const parentKey = row.parent_id !== null && ids.has(row.parent_id) ? row.parent_id : null;
+        const siblings = childrenByParent.get(parentKey) ?? [];
+        siblings.push(row);
+        childrenByParent.set(parentKey, siblings);
+    });
+
+    for (const siblings of childrenByParent.values()) {
+        siblings.sort(compareAccountCode);
+    }
+
+    const ordered: AccountingAccountListItem[] = [];
+
+    const appendBranch = (parentId: number | null) => {
+        const branch = childrenByParent.get(parentId) ?? [];
+        branch.forEach((row) => {
+            ordered.push(row);
+            appendBranch(row.id);
+        });
+    };
+
+    appendBranch(null);
+
+    return ordered;
+});
+
 function toggleCollapse(id: number): void {
     if (collapsedParents.value.has(id)) {
         collapsedParents.value.delete(id);
@@ -132,24 +193,23 @@ function isRowVisible(row: AccountingAccountListItem): boolean {
         return true;
     }
     if (row.parent_id === null) return true;
-    for (const candidate of rows.value) {
-        if (candidate.id === row.parent_id) {
-            if (collapsedParents.value.has(candidate.id)) return false;
-            return isRowVisible(candidate);
-        }
+    const parent = rowMap.value.get(row.parent_id) ?? null;
+    if (parent) {
+        if (collapsedParents.value.has(parent.id)) return false;
+        return isRowVisible(parent);
     }
     return true;
 }
 
 function hasChildren(id: number): boolean {
-    return rows.value.some((row) => row.parent_id === id);
+    return orderedRows.value.some((row) => row.parent_id === id);
 }
 
 function getIndentWidth(level: number): string {
     return `${Math.max(0, level - 1) * TREE_INDENT_STEP}px`;
 }
 
-const visibleRows = computed(() => rows.value.filter(isRowVisible));
+const visibleRows = computed(() => orderedRows.value.filter(isRowVisible));
 
 function openCreate(): void {
     router.visit(ROUTES.create);
@@ -181,29 +241,21 @@ async function handleToggleStatus(row: AccountingAccountListItem): Promise<void>
     try {
         await toggleAccountingAccountStatus(row.id);
         success(row.is_active ? 'Cuenta desactivada correctamente' : 'Cuenta activada correctamente');
-        await fetchData(currentPage.value);
+        await fetchData();
     } catch {
         error('Error al cambiar estado de la cuenta');
     }
 }
 
-let searchDebounce: number | undefined;
-
 watch(searchQuery, () => {
-    window.clearTimeout(searchDebounce);
-    searchDebounce = window.setTimeout(() => {
-        currentPage.value = 1;
-        void fetchData(1);
-    }, 250);
+    collapsedParents.value = new Set();
 });
 
 watch([accountTypeFilter, statusFilter, allowsEntriesFilter], () => {
-    currentPage.value = 1;
-    void fetchData(1);
+    collapsedParents.value = new Set();
 });
 
-onMounted(() => void fetchData(1));
-onBeforeUnmount(() => window.clearTimeout(searchDebounce));
+onMounted(() => void fetchData());
 </script>
 
 <template>
@@ -221,7 +273,7 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
 
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div :class="uiPatterns.pageIndex.header">
-                    <h1 :class="uiPatterns.pageIndex.title">Catalogo de cuentas</h1>
+                    <h1 :class="uiPatterns.pageIndex.title">Catálogo de cuentas</h1>
                     <p :class="uiPatterns.pageIndex.subtitle">
                         Configura y administra la estructura de cuentas contables de la empresa.
                     </p>
@@ -440,39 +492,6 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                     </template>
                 </div>
 
-                <Pagination
-                    :class="uiPatterns.pageIndex.pagination"
-                    :items-per-page="ITEMS_PER_PAGE"
-                    :total="totalItems"
-                    :sibling-count="1"
-                    show-edges
-                    v-model:current-page="currentPage"
-                    @page-changed="handlePageChange"
-                >
-                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
-                        <PaginationFirst />
-                        <PaginationPrev />
-
-                        <template
-                            v-for="(item, index) in items"
-                            :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`"
-                        >
-                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button
-                                    class="h-6 w-6 p-0"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
-                                    @click="handlePageChange(item.value as number)"
-                                >
-                                    {{ item.value }}
-                                </Button>
-                            </PaginationListItem>
-                            <PaginationEllipsis v-else />
-                        </template>
-
-                        <PaginationNext />
-                        <PaginationLast />
-                    </PaginationList>
-                </Pagination>
             </div>
         </div>
     </AppLayout>

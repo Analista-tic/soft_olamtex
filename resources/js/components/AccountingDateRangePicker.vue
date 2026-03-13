@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { DateRange, DateValue } from 'reka-ui';
+import type { RangeCalendarRootProps } from 'reka-ui';
 import { format as formatDateFn } from 'date-fns';
 import {
     endOfMonth,
@@ -13,16 +13,21 @@ import {
     startOfYear,
     subDays,
     subMonths,
+    subQuarters,
     subWeeks,
+    subYears,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getLocalTimeZone, parseDate } from '@internationalized/date';
 import { CalendarDays } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 
 import Button from '@/components/ui/button/Button.vue';
 import { RangeCalendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+
+type PickerDateRange = NonNullable<RangeCalendarRootProps['modelValue']>;
+type PickerDateValue = NonNullable<RangeCalendarRootProps['placeholder']>;
 
 type AccountingDateRangeValue = {
     from: string | null;
@@ -36,6 +41,7 @@ type AccountingPreset = {
 };
 
 const WEEK_STARTS_ON = 1;
+const SYSTEM_START_DATE = new Date(2000, 0, 1);
 
 const props = withDefaults(
     defineProps<{
@@ -54,87 +60,18 @@ const emit = defineEmits<{
 }>();
 
 const open = ref(false);
-const draftRange = ref<DateRange>({ start: undefined, end: undefined });
-const calendarPlaceholder = ref<DateValue>(getTodayDateValue());
+const draftRange = shallowRef<PickerDateRange>({ start: undefined, end: undefined });
+const calendarPlaceholder = shallowRef<PickerDateValue>(getTodayDateValue());
 
-const presets: AccountingPreset[] = [
-    {
-        id: 'today',
-        label: 'Hoy',
-        resolve: () => {
-            const today = startOfDay(new Date());
-            return { from: toIsoDate(today), to: toIsoDate(today) };
-        },
-    },
-    {
-        id: 'yesterday',
-        label: 'Ayer',
-        resolve: () => {
-            const date = startOfDay(subDays(new Date(), 1));
-            return { from: toIsoDate(date), to: toIsoDate(date) };
-        },
-    },
-    {
-        id: 'this-week',
-        label: 'Esta semana',
-        resolve: () => {
-            const now = new Date();
-            return {
-                from: toIsoDate(startOfWeek(now, { weekStartsOn: WEEK_STARTS_ON })),
-                to: toIsoDate(endOfWeek(now, { weekStartsOn: WEEK_STARTS_ON })),
-            };
-        },
-    },
-    {
-        id: 'previous-week',
-        label: 'Semana anterior',
-        resolve: () => {
-            const now = subWeeks(new Date(), 1);
-            return {
-                from: toIsoDate(startOfWeek(now, { weekStartsOn: WEEK_STARTS_ON })),
-                to: toIsoDate(endOfWeek(now, { weekStartsOn: WEEK_STARTS_ON })),
-            };
-        },
-    },
-    {
-        id: 'this-month',
-        label: 'Este mes',
-        resolve: () => {
-            const now = new Date();
-            return { from: toIsoDate(startOfMonth(now)), to: toIsoDate(endOfMonth(now)) };
-        },
-    },
-    {
-        id: 'previous-month',
-        label: 'Mes anterior',
-        resolve: () => {
-            const now = subMonths(new Date(), 1);
-            return { from: toIsoDate(startOfMonth(now)), to: toIsoDate(endOfMonth(now)) };
-        },
-    },
-    {
-        id: 'this-quarter',
-        label: 'Este trimestre',
-        resolve: () => {
-            const now = new Date();
-            return { from: toIsoDate(startOfQuarter(now)), to: toIsoDate(endOfQuarter(now)) };
-        },
-    },
-    {
-        id: 'current-year',
-        label: 'Ano actual',
-        resolve: () => {
-            const now = new Date();
-            return { from: toIsoDate(startOfYear(now)), to: toIsoDate(endOfYear(now)) };
-        },
-    },
-];
+function getBaseDate(): Date {
+    return startOfDay(new Date());
+}
 
-function getTodayDateValue(): DateValue {
+function getTodayDateValue(): PickerDateValue {
     return parseDate(formatDateFn(new Date(), 'yyyy-MM-dd'));
 }
 
-function parseIsoDate(value: string | null | undefined): DateValue | undefined {
+function parseIsoDate(value: string | null | undefined): PickerDateValue | undefined {
     if (!value) return undefined;
 
     try {
@@ -148,21 +85,119 @@ function toIsoDate(value: Date): string {
     return formatDateFn(value, 'yyyy-MM-dd');
 }
 
-function toRangeValue(range: DateRange | null | undefined): AccountingDateRangeValue {
+function buildRange(from: Date, to: Date): AccountingDateRangeValue {
+    return {
+        from: toIsoDate(from),
+        to: toIsoDate(to),
+    };
+}
+
+const presets: AccountingPreset[] = [
+    {
+        id: 'from-beginning',
+        label: 'Desde el inicio',
+        resolve: () => buildRange(SYSTEM_START_DATE, getBaseDate()),
+    },
+    {
+        id: 'today',
+        label: 'Hoy',
+        resolve: () => buildRange(getBaseDate(), getBaseDate()),
+    },
+    {
+        id: 'yesterday',
+        label: 'Ayer',
+        resolve: () => {
+            const baseDate = subDays(getBaseDate(), 1);
+            return buildRange(baseDate, baseDate);
+        },
+    },
+    {
+        id: 'this-week',
+        label: 'Esta semana',
+        resolve: () => {
+            const baseDate = getBaseDate();
+            return buildRange(
+                startOfWeek(baseDate, { weekStartsOn: WEEK_STARTS_ON }),
+                endOfWeek(baseDate, { weekStartsOn: WEEK_STARTS_ON }),
+            );
+        },
+    },
+    {
+        id: 'previous-week',
+        label: 'Semana anterior',
+        resolve: () => {
+            const baseDate = subWeeks(getBaseDate(), 1);
+            return buildRange(
+                startOfWeek(baseDate, { weekStartsOn: WEEK_STARTS_ON }),
+                endOfWeek(baseDate, { weekStartsOn: WEEK_STARTS_ON }),
+            );
+        },
+    },
+    {
+        id: 'this-month',
+        label: 'Este mes',
+        resolve: () => {
+            const baseDate = getBaseDate();
+            return buildRange(startOfMonth(baseDate), endOfMonth(baseDate));
+        },
+    },
+    {
+        id: 'previous-month',
+        label: 'Mes anterior',
+        resolve: () => {
+            const baseDate = subMonths(getBaseDate(), 1);
+            return buildRange(startOfMonth(baseDate), endOfMonth(baseDate));
+        },
+    },
+    {
+        id: 'this-quarter',
+        label: 'Este trimestre',
+        resolve: () => {
+            const baseDate = getBaseDate();
+            return buildRange(startOfQuarter(baseDate), endOfQuarter(baseDate));
+        },
+    },
+    {
+        id: 'previous-quarter',
+        label: 'Trimestre anterior',
+        resolve: () => {
+            const baseDate = subQuarters(getBaseDate(), 1);
+            return buildRange(startOfQuarter(baseDate), endOfQuarter(baseDate));
+        },
+    },
+    {
+        id: 'this-year',
+        label: 'Este año',
+        resolve: () => {
+            const baseDate = getBaseDate();
+            return buildRange(startOfYear(baseDate), endOfYear(baseDate));
+        },
+    },
+    {
+        id: 'previous-year',
+        label: 'Año anterior',
+        resolve: () => {
+            const baseDate = subYears(getBaseDate(), 1);
+            return buildRange(startOfYear(baseDate), endOfYear(baseDate));
+        },
+    },
+];
+
+function toRangeValue(range: PickerDateRange | null | undefined): AccountingDateRangeValue {
     return {
         from: range?.start?.toString() ?? null,
         to: range?.end?.toString() ?? null,
     };
 }
 
-function toDateRange(value: AccountingDateRangeValue | null | undefined): DateRange {
+function toDateRange(value: AccountingDateRangeValue | null | undefined): PickerDateRange {
     return {
         start: parseIsoDate(value?.from),
         end: parseIsoDate(value?.to),
     };
 }
 
-function resolvePlaceholder(value: AccountingDateRangeValue | null | undefined): DateValue {
+function resolvePlaceholder(value: AccountingDateRangeValue | null | undefined): PickerDateValue {
     return parseIsoDate(value?.from) ?? parseIsoDate(value?.to) ?? getTodayDateValue();
 }
 
@@ -251,25 +286,25 @@ watch(open, (isOpen) => {
         <PopoverContent
             align="start"
             :side-offset="8"
-            class="w-[min(760px,calc(100vw-2rem))] p-0"
+            class="w-[min(880px,calc(100vw-2rem))] p-0"
             @open-auto-focus.prevent
         >
-            <div class="grid gap-0 border-border md:grid-cols-[220px_minmax(0,1fr)]">
-                <div class="border-b border-border bg-muted/20 p-3 md:border-b-0 md:border-r">
-                    <div class="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        Presets
+            <div class="grid gap-0 border-border md:grid-cols-[200px_minmax(0,1fr)]">
+                <div class="border-b border-border/80 bg-muted/[0.14] p-3 md:border-b-0 md:border-r">
+                    <div class="mb-2 px-2 text-[14px] font-medium text-muted-foreground/90">
+                        Predefinidos
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2 md:grid-cols-1">
+                    <div class="grid grid-cols-2 gap-1.5 md:grid-cols-1">
                         <button
                             v-for="preset in presets"
                             :key="preset.id"
                             type="button"
-                            class="rounded-md border px-3 py-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-accent"
+                            class="rounded-md px-2 text-left text-[13px] font-medium leading-5 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-1"
                             :class="
                                 isPresetSelected(preset)
-                                    ? 'border-primary bg-primary/5 text-foreground'
-                                    : 'border-border bg-background text-muted-foreground'
+                                    ? 'bg-primary/10 text-primary shadow-sm ring-1 ring-primary/20 hover:bg-primary/15 hover:text-primary'
+                                    : 'bg-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                             "
                             @click="selectPreset(preset)"
                         >
@@ -282,8 +317,6 @@ watch(open, (isOpen) => {
                     <RangeCalendar
                         :model-value="draftRange"
                         :placeholder="calendarPlaceholder"
-                        :number-of-months="2"
-                        paged-navigation
                         initial-focus
                         locale="es-CO"
                         class="rounded-lg border border-border"
@@ -293,7 +326,7 @@ watch(open, (isOpen) => {
                 </div>
             </div>
 
-            <div class="flex items-center justify-between border-t border-border px-4 py-3">
+            <div class="flex items-center justify-between border-t border-border px-4 py-3.5">
                 <button
                     type="button"
                     class="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -302,11 +335,11 @@ watch(open, (isOpen) => {
                     Limpiar
                 </button>
 
-                <div class="flex items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" @click="open = false">
+                <div class="flex items-center gap-2.5">
+                    <Button type="button" variant="outline" size="pill" class="min-w-[90px]" @click="open = false">
                         Cerrar
                     </Button>
-                    <Button type="button" size="sm" @click="applyDraft">
+                    <Button type="button" size="pill" class="min-w-[90px]" @click="applyDraft">
                         Aplicar
                     </Button>
                 </div>

@@ -46,6 +46,9 @@ const props = withDefaults(
         actionSticky?: boolean;
         invalid?: boolean;
         errorMessage?: string;
+        optionsClass?: string;
+        getOptionClass?: (option: Option, state: { active: boolean; selected: boolean }) => string;
+        getOptionLabelClass?: (option: Option, state: { active: boolean; selected: boolean }) => string;
     }>(),
     {
         required: false,
@@ -66,6 +69,7 @@ const props = withDefaults(
         actionSticky: true,
         invalid: false,
         errorMessage: '',
+        optionsClass: '',
     },
 );
 
@@ -248,6 +252,14 @@ function isOptionSelected(option: Option) {
     return modelValue == option.id;
 }
 
+function resolveOptionClass(option: Option, state: { active: boolean; selected: boolean }): string {
+    return props.getOptionClass ? props.getOptionClass(option, state) : '';
+}
+
+function resolveOptionLabelClass(option: Option, state: { active: boolean; selected: boolean }): string {
+    return props.getOptionLabelClass ? props.getOptionLabelClass(option, state) : '';
+}
+
 function handleComboboxChange(value: Option | Option[] | null) {
     if (props.multiple) {
         const selected = Array.isArray(value) ? value : [];
@@ -414,7 +426,8 @@ watch(
                         <Teleport to="body">
                             <div v-if="open" ref="floatingRef" :style="floatingStyles" class="z-50" @pointerdown.stop @click.stop>
                                 <ComboboxOptions
-                                    class="relative max-h-52 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
+                                    class="relative max-h-60 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
+                                    :class="optionsClass"
                                 >
                                     <div
                                         v-if="hasAction"
@@ -447,18 +460,22 @@ watch(
                                         <template #default="{ active }">
                                             <div
                                                 :class="[
-                                                    'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
-                                                    active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                    'relative cursor-pointer select-none rounded-sm py-2.5 pl-3 pr-9 transition-colors',
+                                                    active
+                                                        ? 'bg-accent/70 text-foreground'
+                                                        : isOptionSelected(customOption)
+                                                          ? 'bg-primary/5 text-foreground'
+                                                          : 'text-popover-foreground',
                                                 ]"
                                             >
-                                                <span>
+                                                <span :class="isOptionSelected(customOption) ? 'font-medium text-primary' : ''">
                                                     {{ customOption?.name }}
                                                 </span>
                                                 <span
                                                     v-if="customOption && isOptionSelected(customOption)"
                                                     :class="[
                                                         'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
-                                                        active ? 'text-accent-foreground' : 'text-primary',
+                                                        active ? 'text-foreground' : 'text-primary',
                                                     ]"
                                                 >
                                                     <Check class="h-4 w-4" />
@@ -484,23 +501,39 @@ watch(
                                             </div>
                                             <ComboboxOption v-for="option in group.options" :key="String(option.id)" :value="option">
                                                 <template #default="{ active }">
-                                                    <div
-                                                        :class="[
-                                                            'cursor-pointer select-none relative py-2 pl-3 pr-9 transition-colors',
-                                                            active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
-                                                        ]"
-                                                    >
-                                                        <span>
-                                                            {{ labelOf(option) }}
-                                                        </span>
-                                                        <span
-                                                            v-if="isOptionSelected(option)"
-                                                            :class="[
-                                                                'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
-                                                                active ? 'text-accent-foreground' : 'text-primary',
-                                                            ]"
-                                                        >
-                                                            <Check class="h-4 w-4" />
+                                            <div
+                                                :class="[
+                                                    'relative cursor-pointer select-none rounded-sm py-2.5 pl-3 pr-9 transition-colors',
+                                                    active
+                                                        ? 'bg-accent/70 text-foreground'
+                                                        : isOptionSelected(option)
+                                                          ? 'bg-primary/5 text-foreground'
+                                                          : 'text-popover-foreground',
+                                                    resolveOptionClass(option, {
+                                                        active,
+                                                        selected: isOptionSelected(option),
+                                                    }),
+                                                ]"
+                                            >
+                                                <span
+                                                    :class="[
+                                                        isOptionSelected(option) ? 'font-medium text-primary' : '',
+                                                        resolveOptionLabelClass(option, {
+                                                            active,
+                                                            selected: isOptionSelected(option),
+                                                        }),
+                                                    ]"
+                                                >
+                                                    {{ labelOf(option) }}
+                                                </span>
+                                                <span
+                                                    v-if="isOptionSelected(option)"
+                                                    :class="[
+                                                        'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
+                                                        active ? 'text-foreground' : 'text-primary',
+                                                    ]"
+                                                >
+                                                    <Check class="h-4 w-4" />
                                                         </span>
                                                     </div>
                                                 </template>
