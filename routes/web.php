@@ -34,6 +34,7 @@ use App\Http\Controllers\MasterData\AdditionalFieldController;
 use App\Http\Controllers\Finance\RetentionController;
 use App\Http\Controllers\Finance\TaxController;
 use App\Http\Controllers\Finance\CreditDebitNoteController;
+use App\Http\Controllers\Finance\AccountingAccountController;
 use App\Http\Controllers\Finance\ExpenseVoucherController;
 use App\Http\Controllers\Finance\TreasuryLookupController;
 use App\Http\Controllers\Expenses\PurchasePaymentController;
@@ -588,6 +589,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('/recibos-caja', fn () => Inertia::render('Finance/CashReceipts/Index'))->name('cash-receipts.index');
         Route::get('/recibos-caja/crear', fn () => Inertia::render('Finance/CashReceipts/CashReceiptForm'))->name('cash-receipts.create');
+
+        // === CATÁLOGO DE CUENTAS ===
+        Route::prefix('catalogo-cuentas')->name('account-chart.')->group(function () {
+            Route::get('/', [AccountingAccountController::class, 'index'])->name('index');
+            Route::get('/data', [AccountingAccountController::class, 'data'])->name('data');
+            Route::get('/options', [AccountingAccountController::class, 'options'])->name('options');
+            Route::get('/crear', [AccountingAccountController::class, 'create'])->name('create');
+            Route::get('/{id}/movimientos', [AccountingAccountController::class, 'movements'])->name('movements');
+            Route::get('/{id}/movimientos/data', [AccountingAccountController::class, 'movementsData'])->name('movements.data');
+            Route::get('/{id}', [AccountingAccountController::class, 'show'])->name('show');
+            Route::get('/{id}/editar', [AccountingAccountController::class, 'edit'])->name('edit');
+            Route::post('/', [AccountingAccountController::class, 'store'])->name('store');
+            Route::put('/{id}', [AccountingAccountController::class, 'update'])->name('update');
+            Route::post('/{id}/toggle-status', [AccountingAccountController::class, 'toggleStatus'])->name('toggle-status');
+        });
 
         Route::prefix('tesoreria')->name('treasury.')->group(function () {
             Route::get('/proveedores', [TreasuryLookupController::class, 'suppliers'])->name('suppliers');

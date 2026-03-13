@@ -119,6 +119,53 @@ export interface ExpenseVoucherRecordDto {
     }>;
 }
 
+// ── Catálogo de cuentas ───────────────────────────────────────────────────────
+
+export interface AccountingAccountDto {
+    id: number;
+    code: string;
+    name: string;
+    account_type: string;
+    parent_id: number | null;
+    parent?: { id: number; code: string; name: string } | null;
+    level: number;
+    allows_entries: boolean;
+    is_active: boolean;
+    special_type: string | null;
+    description: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+}
+
+export interface AccountingAccountMovementSummaryDto {
+    opening_balance?: number | string | null;
+    total_debit?: number | string | null;
+    total_credit?: number | string | null;
+    net_movement?: number | string | null;
+    closing_balance?: number | string | null;
+}
+
+export interface AccountingAccountMovementRowDto {
+    id: number;
+    date?: string | null;
+    document_type?: string | null;
+    document_type_label?: string | null;
+    reference?: string | null;
+    entry_number?: number | string | null;
+    third_party_id?: number | null;
+    third_party_name?: string | null;
+    debit?: number | string | null;
+    credit?: number | string | null;
+    running_balance?: number | string | null;
+    description?: string | null;
+    source_type?: string | null;
+    source_id?: number | null;
+    source_url?: string | null;
+    can_view_source?: boolean | null;
+    entry_url?: string | null;
+    account_nature?: 'debit' | 'credit' | null;
+}
+
 export interface ExpenseVoucherListItemDto {
     id: number;
     voucher_number?: string | number | null;

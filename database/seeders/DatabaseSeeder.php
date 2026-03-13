@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             ExampleDataSeeder::class,
             BatchControlModuleSeeder::class,
             OperationsSeeder::class,
+            AccountingAccountSeeder::class,
             FabricItemsDemoSeeder::class,
             SupplyItemsDemoSeeder::class,
         ]);

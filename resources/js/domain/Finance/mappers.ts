@@ -1,6 +1,9 @@
 import type {
     CreditDebitNoteDto,
     CreditDebitNoteItemDto,
+    AccountingAccountDto,
+    AccountingAccountMovementRowDto,
+    AccountingAccountMovementSummaryDto,
     ExpenseVoucherListItemDto,
     ExpenseVoucherPayloadDto,
     ExpenseVoucherRecordDto,
@@ -14,6 +17,10 @@ import type {
     CreditDebitNote,
     CreditDebitNoteItem,
     CreditDebitNotePayload,
+    AccountingAccountListItem,
+    AccountingAccountMovementRow,
+    AccountingAccountMovementSummary,
+    AccountType,
     ExpenseVoucherListItem,
     ExpenseVoucherRecord,
     Retention,
@@ -285,5 +292,59 @@ export function mapExpenseVoucherListItemFromApi(dto: ExpenseVoucherListItemDto)
         status_label: String(dto.status_label ?? 'Registrado'),
         status_tone: statusTone === 'green' || statusTone === 'yellow' || statusTone === 'red' ? statusTone : 'gray',
         created_by: dto.created_by ?? null,
+    };
+}
+
+export function mapAccountingAccountFromApi(dto: AccountingAccountDto): AccountingAccountListItem {
+    return {
+        id: Number(dto.id),
+        code: String(dto.code),
+        name: String(dto.name),
+        account_type: dto.account_type as AccountType,
+        parent_id: dto.parent_id ?? null,
+        parent_code: dto.parent?.code ?? null,
+        parent_name: dto.parent?.name ?? null,
+        level: Number(dto.level ?? 1),
+        allows_entries: Boolean(dto.allows_entries),
+        is_active: Boolean(dto.is_active),
+        special_type: dto.special_type ?? null,
+        description: dto.description ?? null,
+    };
+}
+
+export function mapAccountingAccountMovementSummaryFromApi(
+    dto: AccountingAccountMovementSummaryDto,
+): AccountingAccountMovementSummary {
+    return {
+        opening_balance: Number(dto.opening_balance ?? 0),
+        total_debit: Number(dto.total_debit ?? 0),
+        total_credit: Number(dto.total_credit ?? 0),
+        net_movement: Number(dto.net_movement ?? 0),
+        closing_balance: Number(dto.closing_balance ?? 0),
+    };
+}
+
+export function mapAccountingAccountMovementRowFromApi(
+    dto: AccountingAccountMovementRowDto,
+): AccountingAccountMovementRow {
+    return {
+        id: Number(dto.id ?? 0),
+        date: String(dto.date ?? ''),
+        document_type: String(dto.document_type ?? ''),
+        document_type_label: String(dto.document_type_label ?? ''),
+        reference: dto.reference ?? null,
+        entry_number: Number(dto.entry_number ?? 0),
+        third_party_id: dto.third_party_id != null ? Number(dto.third_party_id) : null,
+        third_party_name: dto.third_party_name ?? null,
+        debit: Number(dto.debit ?? 0),
+        credit: Number(dto.credit ?? 0),
+        running_balance: Number(dto.running_balance ?? 0),
+        description: dto.description ?? null,
+        source_type: dto.source_type ?? null,
+        source_id: dto.source_id != null ? Number(dto.source_id) : null,
+        source_url: dto.source_url ?? null,
+        can_view_source: Boolean(dto.can_view_source),
+        entry_url: dto.entry_url ?? null,
+        account_nature: dto.account_nature === 'credit' ? 'credit' : 'debit',
     };
 }

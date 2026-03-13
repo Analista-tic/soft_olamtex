@@ -2,6 +2,7 @@
 
 namespace App\Services\Finance;
 
+use App\Models\Finance\AccountingAccount;
 use App\Models\MasterData\Contact;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Settings\SettingService;
@@ -114,10 +115,22 @@ class TreasuryVoucherService
 
     public function getAccountOptions(): array
     {
-        return [
-            ['id' => 1, 'name' => 'Caja general'],
-            ['id' => 2, 'name' => 'Banco principal'],
-        ];
+        // Obtener cuentas de caja y banco activas para selección en comprobantes
+        return AccountingAccount::query()
+            ->where('is_active', true)
+            ->where('allows_entries', true)
+            ->whereIn('special_type', [
+                AccountingAccount::SPECIAL_CASH,
+                AccountingAccount::SPECIAL_BANK,
+            ])
+            ->orderBy('code')
+            ->get(['id', 'code', 'name'])
+            ->map(fn (AccountingAccount $acc) => [
+                'id' => $acc->id,
+                'name' => "{$acc->code} - {$acc->name}",
+            ])
+            ->values()
+            ->all();
     }
 
     public function getPaymentMethodOptions(): array

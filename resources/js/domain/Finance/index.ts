@@ -4,6 +4,9 @@ export type {
     RetentionDto,
     CreditDebitNoteDto,
     CreditDebitNoteItemDto,
+    AccountingAccountDto,
+    AccountingAccountMovementSummaryDto,
+    AccountingAccountMovementRowDto,
     TreasuryThirdPartyDto,
     TreasuryOpenDocumentDto,
     TreasurySelectOptionDto,
@@ -27,5 +30,8 @@ export {
     mapExpenseVoucherPayloadToApi,
     mapExpenseVoucherRecordFromApi,
     mapExpenseVoucherListItemFromApi,
+    mapAccountingAccountFromApi,
+    mapAccountingAccountMovementSummaryFromApi,
+    mapAccountingAccountMovementRowFromApi,
 } from './mappers';
 export * from './service';

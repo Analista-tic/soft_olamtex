@@ -11,7 +11,7 @@ return new class extends Migration
     {
         Schema::create('purchase_payments', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->unsignedBigInteger('voucher_number')->nullable()->unique();
+            $table->unsignedBigInteger('voucher_number')->nullable()->index();
 
             $table->unsignedBigInteger('purchase_invoice_id')->index();
             $table->foreign('purchase_invoice_id')

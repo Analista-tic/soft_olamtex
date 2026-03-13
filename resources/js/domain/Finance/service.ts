@@ -3,6 +3,12 @@ import type {
     CreditDebitNote,
     CreditDebitNoteListQuery,
     CreditDebitNotePayload,
+    AccountingAccountListItem,
+    AccountingAccountListQuery,
+    AccountingAccountMovementQuery,
+    AccountingAccountMovementRow,
+    AccountingAccountMovementSummary,
+    AccountingAccountPayload,
     ExpenseVoucherListItem,
     ExpenseVoucherListQuery,
     ExpenseVoucherRecord,
@@ -18,6 +24,9 @@ import type {
 } from './types';
 import type {
     CreditDebitNoteDto,
+    AccountingAccountDto,
+    AccountingAccountMovementRowDto,
+    AccountingAccountMovementSummaryDto,
     ExpenseVoucherRecordDto,
     ExpenseVoucherListItemDto,
     RetentionDto,
@@ -32,6 +41,9 @@ import {
     mapExpenseVoucherPayloadToApi,
     mapExpenseVoucherListItemFromApi,
     mapExpenseVoucherRecordFromApi,
+    mapAccountingAccountFromApi,
+    mapAccountingAccountMovementRowFromApi,
+    mapAccountingAccountMovementSummaryFromApi,
     mapRetentionDto,
     mapTreasuryOpenDocumentFromApi,
     mapTreasuryOptionFromApi,
@@ -53,6 +65,8 @@ const TREASURY_ACCOUNTS_ENDPOINT = '/finanzas/tesoreria/cuentas';
 const TREASURY_PAYMENT_METHODS_ENDPOINT = '/finanzas/tesoreria/metodos-pago';
 const EXPENSE_VOUCHERS_ENDPOINT = '/finanzas/comprobantes-egreso';
 const EXPENSE_VOUCHERS_DATA_ENDPOINT = '/finanzas/comprobantes-egreso/data';
+const ACCOUNT_CHART_ENDPOINT = '/finanzas/catalogo-cuentas';
+const ACCOUNT_CHART_DATA_ENDPOINT = '/finanzas/catalogo-cuentas/data';
 
 export async function fetchTaxes(): Promise<Tax[]> {
     const res = await axios.get<{ data: TaxDto[] } | TaxDto[]>(TAX_DATA_ENDPOINT);
@@ -264,5 +278,82 @@ export async function fetchExpenseVouchersPage(params: ExpenseVoucherListQuery =
         total: Number(res.data.total ?? 0),
         current_page: Number(res.data.current_page ?? 1),
         per_page: Number(res.data.per_page ?? 10),
+    };
+}
+
+// ── Catálogo de cuentas contables ────────────────────────────────────────────
+
+export async function fetchAccountChartPage(params: AccountingAccountListQuery = {}): Promise<{
+    data: AccountingAccountListItem[];
+    total: number;
+    current_page: number;
+    per_page: number;
+}> {
+    const res = await axios.get<{
+        data?: AccountingAccountDto[];
+        total?: number;
+        current_page?: number;
+        per_page?: number;
+    }>(ACCOUNT_CHART_DATA_ENDPOINT, { params });
+
+    return {
+        data: Array.isArray(res.data.data) ? res.data.data.map(mapAccountingAccountFromApi) : [],
+        total: Number(res.data.total ?? 0),
+        current_page: Number(res.data.current_page ?? 1),
+        per_page: Number(res.data.per_page ?? 50),
+    };
+}
+
+export async function createAccountingAccount(payload: AccountingAccountPayload): Promise<AccountingAccountListItem> {
+    const res = await axios.post<{ data: AccountingAccountDto }>(ACCOUNT_CHART_ENDPOINT, payload);
+    return mapAccountingAccountFromApi(res.data.data);
+}
+
+export async function updateAccountingAccount(id: number, payload: AccountingAccountPayload): Promise<AccountingAccountListItem> {
+    const res = await axios.put<{ data: AccountingAccountDto }>(`${ACCOUNT_CHART_ENDPOINT}/${id}`, payload);
+    return mapAccountingAccountFromApi(res.data.data);
+}
+
+export async function toggleAccountingAccountStatus(id: number): Promise<void> {
+    await axios.post(`${ACCOUNT_CHART_ENDPOINT}/${id}/toggle-status`);
+}
+
+export async function fetchAccountingAccountOptions(allowsEntries = false): Promise<AccountingAccountListItem[]> {
+    const res = await axios.get<{ data?: AccountingAccountDto[] }>(`${ACCOUNT_CHART_ENDPOINT}/options`, {
+        params: {
+            allows_entries: allowsEntries ? 1 : undefined,
+        },
+    });
+
+    return Array.isArray(res.data.data) ? res.data.data.map(mapAccountingAccountFromApi) : [];
+}
+
+export async function fetchAccountingAccountMovements(
+    accountId: number,
+    params: AccountingAccountMovementQuery = {},
+): Promise<{
+    data: AccountingAccountMovementRow[];
+    summary: AccountingAccountMovementSummary;
+    document_type_options: Array<{ id: string; name: string }>;
+    total: number;
+    current_page: number;
+    per_page: number;
+}> {
+    const res = await axios.get<{
+        data?: AccountingAccountMovementRowDto[];
+        summary?: AccountingAccountMovementSummaryDto;
+        document_type_options?: Array<{ id: string; name: string }>;
+        total?: number;
+        current_page?: number;
+        per_page?: number;
+    }>(`${ACCOUNT_CHART_ENDPOINT}/${accountId}/movimientos/data`, { params });
+
+    return {
+        data: Array.isArray(res.data.data) ? res.data.data.map(mapAccountingAccountMovementRowFromApi) : [],
+        summary: mapAccountingAccountMovementSummaryFromApi(res.data.summary ?? {}),
+        document_type_options: Array.isArray(res.data.document_type_options) ? res.data.document_type_options : [],
+        total: Number(res.data.total ?? 0),
+        current_page: Number(res.data.current_page ?? 1),
+        per_page: Number(res.data.per_page ?? 25),
     };
 }

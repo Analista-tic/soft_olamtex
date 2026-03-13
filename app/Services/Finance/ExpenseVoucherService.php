@@ -20,6 +20,7 @@ class ExpenseVoucherService
         private TreasuryVoucherService $treasuryVoucherService,
         private PurchasePaymentService $purchasePaymentService,
         private ExpenseVoucherNumberSequenceService $expenseVoucherNumberSequenceService,
+        private AccountingPostingService $accountingPostingService,
     ) {
     }
 
@@ -255,6 +256,16 @@ class ExpenseVoucherService
                 ];
             })->values();
 
+            // Contabilización automática: reversar asiento activo y crear nuevo.
+            // Si falla, se revierte toda la transacción del comprobante.
+            $this->accountingPostingService->reverseEntry(
+                AccountingPostingService::SOURCE_EXPENSE_VOUCHER,
+                $voucherHeader->id,
+                'Actualización de comprobante de egreso'
+            );
+            $journalEntry = $this->accountingPostingService->postExpenseVoucher($voucherHeader);
+            $journalEntryNumber = $journalEntry->entry_number;
+
             return [
                 'voucher_number' => $voucherNumber,
                 'date' => $voucherHeader->payment_date?->format('Y-m-d') ?? $date,
@@ -267,6 +278,7 @@ class ExpenseVoucherService
                 'notes' => $voucherHeader->notes,
                 'total_applied' => round((float) $registeredApplications->sum('amount'), 2),
                 'applications' => $registeredApplications->all(),
+                'journal_entry_number' => $journalEntryNumber,
             ];
         });
     }
@@ -348,6 +360,11 @@ class ExpenseVoucherService
                 ];
             })->values();
 
+            // Contabilización automática obligatoria.
+            // Si falla, se revierte toda la transacción del comprobante.
+            $journalEntry = $this->accountingPostingService->postExpenseVoucher($voucherHeader);
+            $journalEntryNumber = $journalEntry->entry_number;
+
             return [
                 'voucher_number' => $voucherNumber,
                 'date' => $voucherHeader->payment_date?->format('Y-m-d') ?? $date,
@@ -360,6 +377,7 @@ class ExpenseVoucherService
                 'notes' => $voucherHeader->notes,
                 'total_applied' => round((float) $registeredApplications->sum('amount'), 2),
                 'applications' => $registeredApplications->all(),
+                'journal_entry_number' => $journalEntryNumber,
             ];
         });
     }

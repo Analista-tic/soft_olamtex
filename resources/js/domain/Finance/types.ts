@@ -225,6 +225,84 @@ export interface ExpenseVoucherListItem {
     created_by: string | null;
 }
 
+// ── Catálogo de cuentas ───────────────────────────────────────────────────────
+
+export type AccountType = 'asset' | 'liability' | 'equity' | 'income' | 'cost' | 'expense';
+
+export interface AccountingAccountListItem {
+    id: number;
+    code: string;
+    name: string;
+    account_type: AccountType;
+    parent_id: number | null;
+    parent_code: string | null;
+    parent_name: string | null;
+    level: number;
+    allows_entries: boolean;
+    is_active: boolean;
+    special_type: string | null;
+    description: string | null;
+}
+
+export type AccountingAccountPayload = {
+    code: string;
+    name: string;
+    account_type: AccountType;
+    parent_id: number | null;
+    allows_entries: boolean;
+    is_active: boolean;
+    special_type: string | null;
+    description: string | null;
+};
+
+export type AccountingAccountListQuery = {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    account_type?: string;
+    is_active?: string;
+    allows_entries?: string;
+};
+
+export type AccountingAccountMovementQuery = {
+    page?: number;
+    per_page?: number;
+    date_from?: string | null;
+    date_to?: string | null;
+    contact_id?: number | string | null;
+    document_type?: string | null;
+    search?: string;
+};
+
+export interface AccountingAccountMovementSummary {
+    opening_balance: number;
+    total_debit: number;
+    total_credit: number;
+    net_movement: number;
+    closing_balance: number;
+}
+
+export interface AccountingAccountMovementRow {
+    id: number;
+    date: string;
+    document_type: string;
+    document_type_label: string;
+    reference: string | null;
+    entry_number: number;
+    third_party_id: number | null;
+    third_party_name: string | null;
+    debit: number;
+    credit: number;
+    running_balance: number;
+    description: string | null;
+    source_type: string | null;
+    source_id: number | null;
+    source_url: string | null;
+    can_view_source: boolean;
+    entry_url: string | null;
+    account_nature: 'debit' | 'credit';
+}
+
 export interface ExpenseVoucherDetailItem extends ExpenseVoucherListItem {
     date: string | null;
     contact_id: number;

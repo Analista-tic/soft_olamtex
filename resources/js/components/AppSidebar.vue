@@ -110,7 +110,7 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Contabilidad',
                 items: [
-                    { title: 'Cuentas Contables', href: underConstructionHref('Cuentas Contables') },
+                    { title: 'Catálogo de cuentas', href: '/finanzas/catalogo-cuentas' },
                     { title: 'Bancos y cajas', href: underConstructionHref('Bancos y cajas') },
                 ],
             },
