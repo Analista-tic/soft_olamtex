@@ -579,7 +579,7 @@ onBeforeUnmount(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead"># Solicitud</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">N° Solicitud</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Fecha</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Item</TableHead>

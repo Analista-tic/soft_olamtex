@@ -1,4 +1,38 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import Input from '@/components/ui/input/Input.vue';
+import {
+    Pagination,
+    PaginationEllipsis,
+    PaginationFirst,
+    PaginationLast,
+    PaginationList,
+    PaginationListItem,
+    PaginationNext,
+    PaginationPrev,
+} from '@/components/ui/pagination';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -13,8 +47,13 @@ import {
     Trash,
     Upload,
 } from 'lucide-vue-next';
+import type { Item } from '@/domain/MasterData';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
-
+import BulkUploadDialog from './BulkUploadDialog.vue';
+import ItemDialog from './ItemDialog.vue';
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
 type DialogType = 'create' | 'edit';
@@ -319,7 +358,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head title="Catálogo de ítem" />
+    <Head title="Catálogo de Ítem" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
@@ -333,7 +372,7 @@ onBeforeUnmount(() => {
 
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">Catálogo de ítem</h1>
+                    <h1 :class="uiPatterns.typography.pageTitle">Catálogo de Ítem</h1>
                     <p :class="uiPatterns.typography.pageSubtitle">
                         Gestiona los ítems del inventario: categorías, stock y estado.
                     </p>
@@ -564,8 +603,8 @@ onBeforeUnmount(() => {
 
         <!-- Diálogo de confirmación para habilitar/deshabilitar -->
         <Dialog v-model:open="isStatusDialogOpen">
-            <DialogContent>
-                <DialogHeader>
+            <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>
                         {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} ítem
                     </DialogTitle>
@@ -606,6 +645,7 @@ onBeforeUnmount(() => {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
+
 
 
 

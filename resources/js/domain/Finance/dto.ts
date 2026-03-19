@@ -2,6 +2,8 @@ export interface TaxDto {
     id: number;
     name: string;
     percentage: number;
+    debit_account_id?: number | null;
+    credit_account_id?: number | null;
     status: boolean;
     created_at?: string | null;
     updated_at?: string | null;
@@ -12,6 +14,7 @@ export interface RetentionDto {
     name: string;
     percent: number;
     type: string;
+    account_id?: number | null;
     description?: string | null;
     status: 'active' | 'inactive';
     created_at?: string | null;
@@ -145,9 +148,30 @@ export interface AccountingAccountMovementSummaryDto {
     closing_balance?: number | string | null;
 }
 
+export interface AccountingAccountMovementChartSeriesDto {
+    key?: 'current' | 'previous' | null;
+    name?: string | null;
+    color?: 'primary' | 'muted' | null;
+    values?: Array<number | string | null> | null;
+    has_data?: boolean | null;
+}
+
+export interface AccountingAccountMovementChartDto {
+    has_query?: boolean | null;
+    has_data?: boolean | null;
+    granularity?: 'day' | 'week' | 'month' | null;
+    labels?: Array<string | null> | null;
+    current_period_label?: string | null;
+    previous_period_label?: string | null;
+    series?: AccountingAccountMovementChartSeriesDto[] | null;
+}
+
 export interface AccountingAccountMovementRowDto {
     id: number;
     date?: string | null;
+    account_id?: number | null;
+    account_code?: string | null;
+    account_name?: string | null;
     document_type?: string | null;
     document_type_label?: string | null;
     reference?: string | null;

@@ -54,8 +54,8 @@ watch(localOpen, (v) => {
 
 <template>
     <Dialog v-model:open="localOpen">
-        <DialogContent class="max-w-lg">
-            <DialogHeader>
+        <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle class="flex items-center gap-2">
                     Detalle de operación
                     <TableStatusBadge
@@ -151,8 +151,8 @@ watch(localOpen, (v) => {
             </div>
 
             <DialogFooter class="mt-4 border-t pt-4">
-                <Button variant="outline" size="sm" @click="emit('edit')"> <Pencil class="mr-1 h-4 w-4" /> Editar </Button>
-                <Button variant="outline" @click="localOpen = false">Cerrar</Button>
+                <Button variant="outline" size="pill" @click="emit('edit')"> <Pencil class="mr-1 h-4 w-4" /> Editar </Button>
+                <Button variant="outline" size="pill" @click="localOpen = false">Cerrar</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

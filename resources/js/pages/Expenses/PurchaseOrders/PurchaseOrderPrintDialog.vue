@@ -53,7 +53,7 @@ function print() {
                 <div>
                     <div class="mb-4 grid grid-cols-3 items-start gap-4">
                         <div>
-                            <div class="font-bold"># Orden de Compra</div>
+                            <div class="font-bold">N° Orden de Compra</div>
                             <div>{{ props.order?.id }}</div>
                         </div>
                         <div class="flex h-full items-center justify-center rounded p-4">

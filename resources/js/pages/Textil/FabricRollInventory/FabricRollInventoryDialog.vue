@@ -39,7 +39,7 @@ function closeDialog() {
 
 <template>
         <Dialog :open="props.modelValue" modal @openChange="handleOpenChange">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
             <FormHeader
                 title="Detalle del rollo"
                 description="Verifica medidas clave, origen y disponibilidad real."
@@ -124,4 +124,3 @@ function closeDialog() {
         </FormDialogContent>
     </Dialog>
 </template>
-

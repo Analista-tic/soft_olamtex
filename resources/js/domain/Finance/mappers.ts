@@ -2,6 +2,8 @@ import type {
     CreditDebitNoteDto,
     CreditDebitNoteItemDto,
     AccountingAccountDto,
+    AccountingAccountMovementChartDto,
+    AccountingAccountMovementChartSeriesDto,
     AccountingAccountMovementRowDto,
     AccountingAccountMovementSummaryDto,
     ExpenseVoucherListItemDto,
@@ -18,6 +20,8 @@ import type {
     CreditDebitNoteItem,
     CreditDebitNotePayload,
     AccountingAccountListItem,
+    AccountingAccountMovementChart,
+    AccountingAccountMovementChartSeries,
     AccountingAccountMovementRow,
     AccountingAccountMovementSummary,
     AccountType,
@@ -40,6 +44,7 @@ type RetentionLike = {
     name?: string;
     percent?: number;
     type?: string;
+    account_id?: number | null;
     description?: string | null;
     status?: RetentionStatus | null;
     created_at?: string | null;
@@ -51,6 +56,8 @@ export function mapTaxDto(dto: TaxDto): Tax {
         id: dto.id,
         name: dto.name,
         percentage: dto.percentage,
+        debit_account_id: dto.debit_account_id ?? null,
+        credit_account_id: dto.credit_account_id ?? null,
         status: dto.status,
         created_at: dto.created_at ?? undefined,
         updated_at: dto.updated_at ?? undefined,
@@ -67,6 +74,7 @@ export function normalizeRetention(retention: RetentionLike): Retention {
         name: retention.name ?? '',
         percent: Number(retention.percent ?? 0),
         type: retention.type ?? '',
+        account_id: retention.account_id ?? null,
         description: retention.description ?? undefined,
         status: normalizeRetentionStatus(retention.status),
         created_at: retention.created_at ?? undefined,
@@ -87,6 +95,7 @@ export function mapRetentionFormToPayload(form: RetentionForm): RetentionPayload
         name: form.name.trim(),
         percent: Number(form.percent) || 0,
         type: form.type.trim(),
+        account_id: form.account_id ?? null,
         description: form.description.trim(),
         status: form.status,
     };
@@ -98,6 +107,7 @@ export function mapRetentionDto(dto: RetentionDto): Retention {
         name: dto.name,
         percent: dto.percent,
         type: dto.type,
+        account_id: dto.account_id ?? null,
         description: dto.description ?? undefined,
         status: dto.status,
         created_at: dto.created_at ?? undefined,
@@ -324,12 +334,41 @@ export function mapAccountingAccountMovementSummaryFromApi(
     };
 }
 
+export function mapAccountingAccountMovementChartSeriesFromApi(
+    dto: AccountingAccountMovementChartSeriesDto,
+): AccountingAccountMovementChartSeries {
+    return {
+        key: dto.key === 'previous' ? 'previous' : 'current',
+        name: String(dto.name ?? ''),
+        color: dto.color === 'muted' ? 'muted' : 'primary',
+        values: Array.isArray(dto.values) ? dto.values.map((value) => Number(value ?? 0)) : [],
+        has_data: Boolean(dto.has_data),
+    };
+}
+
+export function mapAccountingAccountMovementChartFromApi(
+    dto: AccountingAccountMovementChartDto,
+): AccountingAccountMovementChart {
+    return {
+        has_query: Boolean(dto.has_query),
+        has_data: Boolean(dto.has_data),
+        granularity: dto.granularity === 'week' || dto.granularity === 'month' ? dto.granularity : 'day',
+        labels: Array.isArray(dto.labels) ? dto.labels.map((label) => String(label ?? '')) : [],
+        current_period_label: dto.current_period_label ?? null,
+        previous_period_label: dto.previous_period_label ?? null,
+        series: Array.isArray(dto.series) ? dto.series.map(mapAccountingAccountMovementChartSeriesFromApi) : [],
+    };
+}
+
 export function mapAccountingAccountMovementRowFromApi(
     dto: AccountingAccountMovementRowDto,
 ): AccountingAccountMovementRow {
     return {
         id: Number(dto.id ?? 0),
         date: String(dto.date ?? ''),
+        account_id: Number(dto.account_id ?? 0),
+        account_code: String(dto.account_code ?? ''),
+        account_name: String(dto.account_name ?? ''),
         document_type: String(dto.document_type ?? ''),
         document_type_label: String(dto.document_type_label ?? ''),
         reference: dto.reference ?? null,

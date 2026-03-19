@@ -98,8 +98,8 @@ function preventDrag(event: DragEvent) {
 
 <template>
     <Dialog v-model:open="isOpen">
-        <DialogContent class="flex max-h-[90vh] w-full max-w-4xl flex-col">
-            <DialogHeader class="flex-shrink-0 space-y-1">
+        <DialogContent class="flex max-h-[95vh] w-full max-w-2xl flex-col">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <div class="flex items-center gap-3">
                     <ClipboardList class="h-6 w-6 text-primary" />
                     <DialogTitle class="text-lg font-semibold">Importación de ítems</DialogTitle>

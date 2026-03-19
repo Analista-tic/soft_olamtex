@@ -312,8 +312,8 @@ const updateBranches = (branches: any[]) => {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[150vh] px-2 py-2">
-            <DialogHeader class="flex-shrink-0">
+        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>{{ dialogTitle }}</DialogTitle>
                 <DialogDescription class="pb-4">
                     Completa los campos para {{ dialogType === 'create' ? 'crear' : 'editar' }} un contacto. Haz

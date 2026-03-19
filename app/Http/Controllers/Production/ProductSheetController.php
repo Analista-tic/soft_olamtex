@@ -117,7 +117,7 @@ class ProductSheetController extends Controller
     }
 
     /**
-     * Obtiene un registro especÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­fico con datos enriquecidos.
+     * Obtiene un registro específico con datos enriquecidos.
      */
     public function show(string $id)
     {
@@ -273,7 +273,7 @@ class ProductSheetController extends Controller
     {
         $key = $request->query('key');
         if (!$key) {
-            return response()->json(['success' => false, 'message' => 'El parÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡metro key es requerido.'], 422);
+            return response()->json(['success' => false, 'message' => 'El parámetro key es requerido.'], 422);
         }
 
         $options = $this->settingService->getCatalogOptions($key);

@@ -5,6 +5,7 @@ namespace App\Services\Inventory;
 use App\Models\Inventory\InventoryAdjustment;
 use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\MasterData\Item;
+use App\Services\Finance\AccountingPostingService;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\InventoryStockService;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -16,9 +17,37 @@ use Illuminate\Support\Str;
 
 class InventoryAdjustmentService
 {
+    private const MOVEMENT_REASON_OPTIONS = [
+        [
+            'id' => 'entry_regularization',
+            'name' => 'Regularizacion positiva / sobrante',
+            'direction' => 'entrada',
+            'description' => 'Se usa para diferencias positivas por conteo, sobrantes o regularizaciones a favor del inventario.',
+        ],
+        [
+            'id' => 'entry_reclassification',
+            'name' => 'Correccion / reclasificacion de entrada',
+            'direction' => 'entrada',
+            'description' => 'Se usa cuando el inventario entra por correccion o reclasificacion interna.',
+        ],
+        [
+            'id' => 'exit_regularization',
+            'name' => 'Regularizacion negativa / faltante',
+            'direction' => 'salida',
+            'description' => 'Se usa para faltantes, merma, dano o regularizaciones negativas de inventario.',
+        ],
+        [
+            'id' => 'exit_reclassification',
+            'name' => 'Correccion / reclasificacion de salida',
+            'direction' => 'salida',
+            'description' => 'Se usa cuando el inventario sale por correccion o reclasificacion interna.',
+        ],
+    ];
+
     public function __construct(
         protected InventoryStockService $stockService,
         protected InventoryMovementService $movementService,
+        protected AccountingPostingService $accountingPostingService,
     ) {}
     public function paginate(array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
@@ -77,15 +106,20 @@ class InventoryAdjustmentService
 
     public function movementReasons(): array
     {
-        return [
-            'entrada' => 'entrada',
-            'salida' => 'salida',
-        ];
+        return collect(self::MOVEMENT_REASON_OPTIONS)
+            ->mapWithKeys(fn (array $reason) => [$reason['id'] => $reason['direction']])
+            ->all();
+    }
+
+    public function movementReasonOptions(): array
+    {
+        return self::MOVEMENT_REASON_OPTIONS;
     }
 
     public function preparePayload(array $data): array
     {
         $movementReasons = $this->movementReasons();
+        $data['movement_reason'] = $this->normalizeMovementReason($data['movement_reason'] ?? null);
         $data['type'] = $movementReasons[$data['movement_reason']] ?? $data['type'];
         $data['document_number'] = $data['document_number'] ?: null;
 
@@ -147,6 +181,7 @@ class InventoryAdjustmentService
         $adjustment = InventoryAdjustment::findOrFail($id);
 
         DB::transaction(function () use ($adjustment) {
+            $this->reversePostedAdjustmentEntryIfNeeded($adjustment, 'Eliminación de ajuste de inventario');
             $this->createReversalMovements($adjustment);
             $adjustment->delete(); // soft delete
         });
@@ -172,6 +207,7 @@ class InventoryAdjustmentService
                     'total'            => $data['total'],
                 ]);
             } else {
+                $this->reversePostedAdjustmentEntryIfNeeded($adjustment, 'Actualización de ajuste de inventario');
                 $this->revertStockForAdjustment($adjustment, $items);
 
                 $adjustment->update([
@@ -189,13 +225,25 @@ class InventoryAdjustmentService
                 $adjustment->lines()->delete();
             }
 
-            $this->syncLinesAndStock($adjustment, $data['lines'], $items, $movementReasons);
+            $createdMovements = $this->syncLinesAndStock($adjustment, $data['lines'], $items, $movementReasons);
+
+            if ($adjustment->type === 'salida') {
+                $this->accountingPostingService->postInventoryAdjustmentOutflow(
+                    $adjustment->fresh('lines.item'),
+                    $createdMovements,
+                );
+            } elseif ($adjustment->movement_reason === 'entry_regularization') {
+                $this->accountingPostingService->postInventoryAdjustmentEntryRegularization(
+                    $adjustment->fresh('lines.item'),
+                    $createdMovements,
+                );
+            }
 
             return $adjustment->load('lines.item');
         });
     }
 
-    private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $items, array $movementReasons): void
+    private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $items, array $movementReasons): Collection
     {
         $observation = trim((string) ($adjustment->observation ?? ''));
         $userId = Auth::id();
@@ -205,6 +253,8 @@ class InventoryAdjustmentService
             ]);
         }
 
+        $createdMovements = collect();
+
         foreach ($lines as $line) {
             $item = $items[$line['item_id']] ?? null;
             if (!$item) {
@@ -213,9 +263,28 @@ class InventoryAdjustmentService
                 ]);
             }
 
+            if (! $item->tracks_inventory) {
+                throw ValidationException::withMessages([
+                    'lines' => ['Los ajustes de inventario solo permiten items que controlan inventario.'],
+                ]);
+            }
+
             $warehouseId = $this->stockService->resolveWarehouseId($item, $line['warehouse_id'] ?? null);
             $lineMovementReason = $line['movement_reason'] ?? $adjustment->movement_reason ?? $adjustment->type;
+            $lineMovementReason = $this->normalizeMovementReason($lineMovementReason);
             $lineType = $movementReasons[$lineMovementReason] ?? $lineMovementReason ?? 'entrada';
+
+            if ($lineMovementReason !== $adjustment->movement_reason) {
+                throw ValidationException::withMessages([
+                    'lines' => ['Todas las lineas del ajuste deben usar el mismo motivo economico del documento.'],
+                ]);
+            }
+
+            if ($lineType !== $adjustment->type) {
+                throw ValidationException::withMessages([
+                    'lines' => ['Todas las lineas del ajuste deben coincidir con el tipo del documento.'],
+                ]);
+            }
 
             $price = (float) ($line['price'] ?? 0);
             $qty   = (int) ($line['quantity'] ?? 0);
@@ -261,8 +330,11 @@ class InventoryAdjustmentService
                 $payload['unit_price'] = $price;
             }
 
-            $this->movementService->createMovement($payload);
+            $movement = $this->movementService->createMovement($payload);
+            $createdMovements->push($movement);
         }
+
+        return $createdMovements;
     }
 
     private function revertStockForAdjustment(InventoryAdjustment $adjustment, Collection $items): void
@@ -318,5 +390,27 @@ class InventoryAdjustmentService
 
             $this->movementService->createMovement($payload);
         }
+    }
+
+    private function reversePostedAdjustmentEntryIfNeeded(InventoryAdjustment $adjustment, string $reason): void
+    {
+        if ($adjustment->id <= 0) {
+            return;
+        }
+
+        $this->accountingPostingService->reverseEntry(
+            AccountingPostingService::SOURCE_INVENTORY_ADJUSTMENT,
+            (int) $adjustment->id,
+            $reason . ' ' . ($adjustment->document_number ?? ''),
+        );
+    }
+
+    public function normalizeMovementReason(?string $reason): string
+    {
+        return match ($reason) {
+            'entrada' => 'entry_regularization',
+            'salida' => 'exit_regularization',
+            default => (string) $reason,
+        };
     }
 }

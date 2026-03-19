@@ -44,7 +44,7 @@ function openCreate(): void {
                 </Button>
             </div>
 
-            <div :class="uiPatterns.pageIndex.filtersWrap">
+            <div class="rounded-xl border border-sidebar-border/70 bg-card/70 p-3 shadow-sm dark:border-sidebar-border">
                 <FilterBar no-margin>
                     <FilterField label="Buscar" :active="isSearchActive" class="flex-1 min-w-[260px] p-0">
                         <div class="relative">

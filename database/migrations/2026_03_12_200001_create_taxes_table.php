@@ -12,6 +12,14 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->decimal('percentage', 5, 2);
+            $table->foreignId('debit_account_id')
+                ->nullable()
+                ->constrained('accounting_accounts')
+                ->nullOnDelete();
+            $table->foreignId('credit_account_id')
+                ->nullable()
+                ->constrained('accounting_accounts')
+                ->nullOnDelete();
             $table->boolean('status')->default(true);
             $table->timestamps();
             $table->softDeletes();

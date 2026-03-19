@@ -862,8 +862,8 @@ onUnmounted(() => {
 
 <template>
   <Dialog :open="dialogOpen && !isInitializing" @update:open="(value) => (dialogOpen = value)">
-    <FormDialogContent class="flex max-h-[95vh] max-w-[190vh] flex-col px-2 py-2">
-      <DialogHeader class="border-b pb-3">
+    <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+      <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
         <div>
           <DialogTitle>{{ dialogTitle }}</DialogTitle>
           <DialogDescription>Completa los datos de la nota y sus items asociados.</DialogDescription>
@@ -894,7 +894,7 @@ onUnmounted(() => {
 
           <div class="space-y-3">
             <InputField
-              label="# Nota"
+              label="N° Nota"
               :modelValue="noteNumberDisplay"
               readonly
             />

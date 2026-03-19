@@ -173,7 +173,7 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="open" @update:open="emit('update:open', $event)">
-        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-[550px] flex-col px-2 py-2">
+        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
             <FormHeader
                 :title="dialogType === 'create' ? 'Crear parámetro' : dialogType === 'edit' ? 'Editar parámetro' : 'Ver parámetro'"
                 :description="

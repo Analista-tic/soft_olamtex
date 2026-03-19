@@ -311,6 +311,51 @@ class ExpenseVoucherService
             ->keyBy(fn (array $doc) => (int) ($doc['id'] ?? 0));
 
         return DB::transaction(function () use ($payload, $date, $applications, $availableDocs, $contactId) {
+            // Proteccion contra doble envio: verificar si existe un comprobante
+            // identico creado en los ultimos 10 segundos para el mismo proveedor
+            // con las mismas facturas
+            $applicationDocumentIds = $applications
+                ->pluck('document_id')
+                ->sort()
+                ->values()
+                ->all();
+
+            $recentDuplicate = ExpenseVoucher::query()
+                ->where('contact_id', $contactId)
+                ->where('created_at', '>=', now()->subSeconds(10))
+                ->lockForUpdate()
+                ->first();
+
+            if ($recentDuplicate) {
+                $recentPayments = PurchasePayment::query()
+                    ->where('voucher_number', $recentDuplicate->voucher_number)
+                    ->pluck('purchase_invoice_id')
+                    ->sort()
+                    ->values()
+                    ->all();
+
+                if ($recentPayments === $applicationDocumentIds) {
+                    // Retornar el comprobante existente en lugar de crear uno nuevo
+                    \Illuminate\Support\Facades\Log::warning(
+                        'ExpenseVoucherService: duplicate submission detected, returning existing voucher',
+                        [
+                            'contact_id' => $contactId,
+                            'voucher_number' => $recentDuplicate->voucher_number,
+                            'document_ids' => $applicationDocumentIds,
+                        ]
+                    );
+
+                    $existingPayment = PurchasePayment::query()
+                        ->where('voucher_number', $recentDuplicate->voucher_number)
+                        ->orderBy('id')
+                        ->first();
+
+                    if ($existingPayment) {
+                        return $this->findOrFail((int) $existingPayment->id);
+                    }
+                }
+            }
+
             $voucherNumber = $this->expenseVoucherNumberSequenceService->reserveNextNumber();
             $voucherHeader = $this->upsertVoucherHeader(
                 voucherNumber: (int) $voucherNumber,

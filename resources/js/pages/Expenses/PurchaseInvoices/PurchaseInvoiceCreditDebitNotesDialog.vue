@@ -143,8 +143,8 @@ function canOpenNote(documentType: string): boolean {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[150vh] flex-col overflow-hidden p-0">
-            <DialogHeader class="border-b border-sidebar-border/70 px-4 py-3 dark:border-sidebar-border">
+        <FormDialogContent class="flex max-h-[95vh] max-w-2xl flex-col overflow-hidden p-0">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle :class="uiPatterns.typography.dialogTitle">Notas asociadas</DialogTitle>
                 <DialogDescription :class="uiPatterns.typography.dialogSubtitle">
                     Factura:
@@ -176,7 +176,7 @@ function canOpenNote(documentType: string): boolean {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead"># Nota</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">N° Nota</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Tipo</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Fecha</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Motivo</TableHead>
@@ -230,7 +230,7 @@ function canOpenNote(documentType: string): boolean {
             </div>
             </div>
             <DialogFooter class="border-t border-sidebar-border/70 px-4 py-3 dark:border-sidebar-border">
-                <Button type="button" variant="outline" size="sm" @click="dialogOpen = false">Cerrar</Button>
+                <Button type="button" variant="outline" size="pill" @click="dialogOpen = false">Cerrar</Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>

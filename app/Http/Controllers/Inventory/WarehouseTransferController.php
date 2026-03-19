@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Http\Controllers\Concerns\HandlesValidationErrors;
 use App\Http\Controllers\Controller;
 use App\Models\Inventory\WarehouseTransfer;
 use App\Services\Inventory\WarehouseTransferService;
@@ -11,6 +12,8 @@ use Inertia\Inertia;
 
 class WarehouseTransferController extends Controller
 {
+    use HandlesValidationErrors;
+
     public function __construct(protected WarehouseTransferService $service) {}
 
     public function index()
@@ -139,11 +142,5 @@ class WarehouseTransferController extends Controller
         return $request->validate($rules);
     }
 
-    private function validationErrorResponse(ValidationException $exception)
-    {
-        return response()->json([
-            'message' => 'Errores de validacion',
-            'errors' => $exception->errors(),
-        ], 422);
-    }
+
 }

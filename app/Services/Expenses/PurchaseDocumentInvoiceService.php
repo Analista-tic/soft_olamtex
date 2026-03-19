@@ -4,10 +4,14 @@ namespace App\Services\Expenses;
 
 use App\Enums\PurchaseInvoiceStatus;
 use App\Models\Expenses\PurchaseDocument;
+use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\Inventory\InventoryMovement;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class PurchaseDocumentInvoiceService extends PurchaseDocumentService
 {
@@ -15,6 +19,12 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
      * Estado oficial para que una nota impacte saldo en CxP.
      */
     private const NOTE_BALANCE_IMPACT_STATUS = 'approved';
+
+    public function __construct(
+        private \App\Services\Finance\AccountingPostingService $accountingPostingService,
+        private \App\Services\Inventory\InventoryMovementService $inventoryMovementService,
+        private \App\Services\Inventory\InventoryStockService $inventoryStockService,
+    ) {}
 
     public function paginateAccountsPayable(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
@@ -256,6 +266,184 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
 
             return $this->loadWithRelations($invoice);
         });
+    }
+
+    public function receiveInvoice(PurchaseDocument $invoice, ?int $userId = null): PurchaseDocument
+    {
+        if (! $invoice->isInvoice()) {
+            throw new \InvalidArgumentException('Solo se pueden recibir facturas de compra.');
+        }
+
+        return DB::transaction(function () use ($invoice, $userId) {
+            /** @var PurchaseDocument $lockedInvoice */
+            $lockedInvoice = PurchaseDocument::query()
+                ->with(['items.item'])
+                ->lockForUpdate()
+                ->findOrFail($invoice->id);
+
+            $currentStatus = trim((string) ($lockedInvoice->status ?? ''));
+            if ($currentStatus === PurchaseInvoiceStatus::REJECTED->value) {
+                throw ValidationException::withMessages([
+                    'status' => 'No se puede recibir una factura rechazada.',
+                ]);
+            }
+
+            if (! in_array($currentStatus, [
+                PurchaseInvoiceStatus::PENDING_RECEIPT->value,
+                PurchaseInvoiceStatus::RECEIVED->value,
+            ], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'La factura no está en un estado válido para recepción.',
+                ]);
+            }
+
+            $responsibleUserId = $userId
+                ?? Auth::id()
+                ?? $lockedInvoice->approved_by_user_id
+                ?? $lockedInvoice->created_by_user_id;
+
+            if (! $responsibleUserId) {
+                throw new \RuntimeException('No se pudo resolver el usuario responsable de la recepción.');
+            }
+
+            $lockedInvoice->status = PurchaseInvoiceStatus::RECEIVED->value;
+            $lockedInvoice->approval_status = 'approved';
+            $lockedInvoice->approved_by_user_id = $lockedInvoice->approved_by_user_id ?: (int) $responsibleUserId;
+            $lockedInvoice->approved_at = $lockedInvoice->approved_at ?? now();
+
+            if ($lockedInvoice->isDirty()) {
+                $lockedInvoice->save();
+            }
+
+            $this->createInventoryEntriesForReceivedInvoiceIfNeeded($lockedInvoice, (int) $responsibleUserId);
+            $this->accountingPostingService->postPurchaseInvoice($lockedInvoice);
+
+            return $this->loadWithRelations($lockedInvoice);
+        });
+    }
+
+    private function createInventoryEntriesForReceivedInvoiceIfNeeded(PurchaseDocument $invoice, int $userId): void
+    {
+        $invoice->loadMissing(['items.item']);
+
+        $inventoryLines = $invoice->items
+            ->filter(fn (PurchaseDocumentItem $line) => $this->invoiceLineRequiresInventoryReception($line))
+            ->values();
+
+        if ($inventoryLines->isEmpty()) {
+            return;
+        }
+
+        $date = $invoice->date?->toDateString() ?? now()->toDateString();
+        $expectedMovements = $inventoryLines
+            ->map(function (PurchaseDocumentItem $line) use ($invoice, $date) {
+                $item = $line->item;
+                if (! $item) {
+                    return null;
+                }
+
+                return [
+                    'item_id' => (int) $line->item_id,
+                    'warehouse_id' => $this->inventoryStockService->resolveWarehouseId($item, null),
+                    'type' => 'entrada',
+                    'quantity' => (float) $line->quantity,
+                    'unit_price' => (float) $line->price,
+                    'notes' => $this->buildInventoryReceptionNote($invoice, $line),
+                    'date' => $date,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        if ($expectedMovements->isEmpty()) {
+            return;
+        }
+
+        $existingSignatures = InventoryMovement::query()
+            ->where('source_type', PurchaseDocument::class)
+            ->where('source_id', $invoice->id)
+            ->lockForUpdate()
+            ->get(['item_id', 'warehouse_id', 'type', 'quantity', 'unit_price', 'notes'])
+            ->map(fn (InventoryMovement $movement) => $this->buildInventoryReceptionSignature([
+                'item_id' => (int) $movement->item_id,
+                'warehouse_id' => (int) $movement->warehouse_id,
+                'type' => (string) $movement->type,
+                'quantity' => (float) $movement->quantity,
+                'unit_price' => $movement->unit_price !== null ? (float) $movement->unit_price : null,
+                'notes' => (string) ($movement->notes ?? ''),
+            ]))
+            ->sort()
+            ->values();
+
+        $expectedSignatures = $expectedMovements
+            ->map(fn (array $movement) => $this->buildInventoryReceptionSignature($movement))
+            ->sort()
+            ->values();
+
+        if ($existingSignatures->isNotEmpty()) {
+            if ($existingSignatures->all() === $expectedSignatures->all()) {
+                return;
+            }
+
+            throw new \RuntimeException(
+                "La factura {$invoice->document_number} tiene movimientos de inventario existentes que no coinciden con la recepcion esperada. "
+                .'Se requiere regularizacion manual antes de volver a recibirla.'
+            );
+        }
+
+        foreach ($expectedMovements as $movement) {
+            $this->inventoryMovementService->createMovement([
+                'item_id' => $movement['item_id'],
+                'warehouse_id' => $movement['warehouse_id'],
+                'type' => $movement['type'],
+                'quantity' => $movement['quantity'],
+                'unit_price' => $movement['unit_price'],
+                'date' => $movement['date'],
+                'source_type' => PurchaseDocument::class,
+                'source_id' => $invoice->id,
+                'notes' => $movement['notes'],
+                'created_by_user_id' => $userId,
+            ]);
+        }
+    }
+
+    private function buildInventoryReceptionNote(PurchaseDocument $invoice, PurchaseDocumentItem $line): string
+    {
+        return 'Recepción factura de compra '
+            .($invoice->document_number ?? '')
+            .' [line:'
+            .(int) $line->id
+            .']';
+    }
+
+    private function buildInventoryReceptionSignature(array $movement): string
+    {
+        return implode('|', [
+            (string) ($movement['item_id'] ?? ''),
+            (string) ($movement['warehouse_id'] ?? ''),
+            (string) ($movement['type'] ?? ''),
+            number_format((float) ($movement['quantity'] ?? 0), 4, '.', ''),
+            number_format((float) ($movement['unit_price'] ?? 0), 4, '.', ''),
+            (string) ($movement['notes'] ?? ''),
+        ]);
+    }
+
+    private function invoiceLineRequiresInventoryReception(PurchaseDocumentItem $line): bool
+    {
+        if (empty($line->item_id)) {
+            return false;
+        }
+
+        $item = $line->item;
+        if (! $item) {
+            return false;
+        }
+
+        if (! $item->tracks_inventory) {
+            return false;
+        }
+
+        return (float) $line->quantity > 0;
     }
 
     protected function resolveInvoiceNotes(PurchaseDocument $invoice): Collection

@@ -228,6 +228,10 @@ function displayValue(item: Option | Option[] | null): string {
     return selected ? labelOf(selected) : '';
 }
 
+function displayValueFromUnknown(item: unknown): string {
+    return displayValue(item as Option | Option[] | null);
+}
+
 function getOptionId(option: Option | null | undefined) {
     const id = option?.id ?? option;
     if (id === undefined || id === null) return undefined;
@@ -412,7 +416,7 @@ watch(
                             :aria-invalid="invalid ? 'true' : undefined"
                             :data-invalid="invalid ? 'true' : undefined"
                             :placeholder="placeholderText"
-                            :display-value="displayValue as (item: unknown) => string"
+                            :display-value="displayValueFromUnknown"
                             :disabled="disabled"
                             @input="handleInput"
                         />

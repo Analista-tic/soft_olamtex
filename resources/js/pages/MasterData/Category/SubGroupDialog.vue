@@ -190,9 +190,9 @@ watch(
 
 <template>
   <Dialog v-model:open="internalIsOpen">
-         <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
+         <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
                <TooltipProvider>
-            <DialogHeader class="flex-shrink-0">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>{{ dialogType === 'create' ? 'Crear Subgrupo' : 'Editar Subgrupo' }}</DialogTitle>
                 <DialogDescription>
                     Completa los campos para {{ dialogType === 'create' ? 'crear un nuevo subgrupo' : 'editar el subgrupo' }}.

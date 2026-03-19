@@ -82,7 +82,11 @@ export function mapItemDto(dto: ItemDto): Item {
         extra_fields: parseExtraFields(dto.extra_fields ?? undefined),
         status: dto.status,
         item_type: dto.item_type,
+        tracks_inventory: dto.tracks_inventory ?? dto.item_type !== 'service',
         unit_measure: dto.unit_measure,
+        income_account_id: dto.income_account_id ?? null,
+        inventory_account_id: dto.inventory_account_id ?? null,
+        cost_of_sale_account_id: dto.cost_of_sale_account_id ?? null,
         created_at: dto.created_at,
         updated_at: dto.updated_at,
     };

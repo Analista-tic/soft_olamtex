@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\MasterData;
 
+use App\Http\Controllers\Concerns\HandlesValidationErrors;
 use App\Http\Controllers\Controller;
 use App\Models\Finance\Tax;
 use App\Models\Inventory\Warehouse;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Arr;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -20,6 +22,8 @@ use Illuminate\Support\Facades\Log;
 
 class ItemController extends Controller
 {
+    use HandlesValidationErrors;
+
     public function __construct(protected ItemService $service) {}
 
     public function index()
@@ -638,6 +642,35 @@ class ItemController extends Controller
         $itemName = $this->service->computeName((int) ($subGroupId ?? 0), $extraFields);
         $this->service->assertUniqueReferenceAndName($reference, $itemName, $item?->id);
 
+        $itemType = ($data['item_type'] ?? ($item?->item_type ?? 'product')) === 'service'
+            ? 'service'
+            : 'product';
+        $tracksInventoryInput = Arr::exists($data, 'tracks_inventory')
+            ? $data['tracks_inventory']
+            : ($item?->tracks_inventory ?? ($itemType !== 'service'));
+        $tracksInventory = $itemType === 'service'
+            ? false
+            : filter_var($tracksInventoryInput, FILTER_VALIDATE_BOOLEAN);
+
+        $data['item_type'] = $itemType;
+        $data['tracks_inventory'] = $tracksInventory;
+
+        if ($tracksInventory && empty($data['inventory_account_id'])) {
+            throw ValidationException::withMessages([
+                'inventory_account_id' => ['La cuenta de inventario es obligatoria cuando el item controla inventario.'],
+            ]);
+        }
+
+        if (! $tracksInventory && empty($data['cost_of_sale_account_id'])) {
+            throw ValidationException::withMessages([
+                'cost_of_sale_account_id' => ['La cuenta de costo/gasto directo es obligatoria cuando el item no controla inventario.'],
+            ]);
+        }
+
+        if (!$tracksInventory) {
+            $data['negative_movement'] = false;
+        }
+
         $this->handleImageUploadIfPresent($request, $data, 'items');
         $warehouses = $this->resolveWarehouses($request);
 
@@ -662,7 +695,11 @@ class ItemController extends Controller
             'reference' => ['required', 'string'],
             'status' => 'sometimes|boolean',
             'item_type' => 'required|string|in:product,service',
+            'tracks_inventory' => 'sometimes|boolean',
             'unit_measure' => 'nullable|string',
+            'income_account_id' => 'nullable|integer|exists:accounting_accounts,id',
+            'inventory_account_id' => 'nullable|integer|exists:accounting_accounts,id',
+            'cost_of_sale_account_id' => 'nullable|integer|exists:accounting_accounts,id',
         ];
 
         // Reference unique rule: ignore current item on update
@@ -670,7 +707,7 @@ class ItemController extends Controller
         if ($isUpdate && $item) {
             $uniqueRule = $uniqueRule->ignore($item->id);
         }
-        $rules['reference'] = [$uniqueRule];
+        $rules['reference'] = ['required', 'string', $uniqueRule];
 
         return $rules;
     }
@@ -852,18 +889,12 @@ class ItemController extends Controller
     }
     
 
-    private function validationErrorResponse(ValidationException $exception)
-    {
-        return response()->json([
-            'message' => 'Errores de validacion',
-            'errors' => $exception->errors(),
-        ], 422);
-    }
+
 
     private function unexpectedErrorResponse()
     {
         return response()->json([
-            'message' => 'Ocurrio un error inesperado al procesar la solicitud.',
+            'message' => 'Ocurrió un error inesperado al procesar la solicitud.',
             'errors' => [],
         ], 500);
     }

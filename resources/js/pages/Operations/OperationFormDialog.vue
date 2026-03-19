@@ -138,8 +138,8 @@ function handleSubmit(payload: Record<string, unknown>) {
         </div>
     </div>
     <Dialog v-model:open="localOpen">
-        <DialogContent class="flex max-h-[90vh] max-w-2xl flex-col p-4">
-            <DialogHeader>
+        <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>{{ isEditing ? 'Editar operación' : 'Nueva operación' }}</DialogTitle>
                 <DialogDescription>
                     {{

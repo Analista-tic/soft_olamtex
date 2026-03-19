@@ -96,10 +96,11 @@ export interface Item extends Timestamps {
     extra_fields?: ExtraFields | string;
     status: boolean;
     item_type: 'product' | 'service';
+    tracks_inventory?: boolean;
     unit_measure?: string;
-    income_account?: string | null;
-    inventory_account?: string | null;
-    cost_of_sale_account?: string | null;
+    income_account_id?: number | null;
+    inventory_account_id?: number | null;
+    cost_of_sale_account_id?: number | null;
     export_tariff_code?: string | null;
     export_brand?: string | null;
     export_model?: string | null;

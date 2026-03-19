@@ -22,9 +22,6 @@ class AccountingAccountController extends Controller
     {
         return Inertia::render('Finance/AccountChart/AccountChartForm', [
             'mode' => 'create',
-            'accountTypeOptions' => AccountingAccount::getAccountTypeOptions(),
-            'parentOptions' => $this->getParentOptions(),
-            'specialTypeOptions' => $this->getSpecialTypeOptions(),
         ]);
     }
 
@@ -35,9 +32,6 @@ class AccountingAccountController extends Controller
         return Inertia::render('Finance/AccountChart/AccountChartForm', [
             'mode' => 'show',
             'account' => $account,
-            'accountTypeOptions' => AccountingAccount::getAccountTypeOptions(),
-            'parentOptions' => $this->getParentOptions(),
-            'specialTypeOptions' => $this->getSpecialTypeOptions(),
         ]);
     }
 
@@ -57,9 +51,6 @@ class AccountingAccountController extends Controller
         return Inertia::render('Finance/AccountChart/AccountChartForm', [
             'mode' => 'edit',
             'account' => $account,
-            'accountTypeOptions' => AccountingAccount::getAccountTypeOptions(),
-            'parentOptions' => $this->getParentOptions($id),
-            'specialTypeOptions' => $this->getSpecialTypeOptions(),
         ]);
     }
 
@@ -106,6 +97,15 @@ class AccountingAccountController extends Controller
             'total' => $paginator->total(),
             'current_page' => $paginator->currentPage(),
             'per_page' => $paginator->perPage(),
+        ]);
+    }
+
+    public function item(int $id): JsonResponse
+    {
+        $account = AccountingAccount::with('parent:id,code,name')->findOrFail($id);
+
+        return response()->json([
+            'data' => $account,
         ]);
     }
 
@@ -158,12 +158,14 @@ class AccountingAccountController extends Controller
             'description' => ['nullable', 'string', 'max:500'],
         ]);
 
-        // Evitar que una cuenta sea su propio padre
-        if (isset($validated['parent_id']) && $validated['parent_id'] === $account->id) {
-            return response()->json([
-                'message' => 'Una cuenta no puede ser su propia cuenta padre.',
-                'errors' => ['parent_id' => ['Una cuenta no puede ser su propia cuenta padre.']],
-            ], 422);
+        if (isset($validated['parent_id']) && $validated['parent_id'] !== null) {
+            if ($validated['parent_id'] === $account->id ||
+                $this->wouldCreateCycle($account->id, $validated['parent_id'])) {
+                return response()->json([
+                    'message' => 'La cuenta padre seleccionada crearía una referencia circular en el catálogo.',
+                    'errors' => ['parent_id' => ['La cuenta padre seleccionada crearía una referencia circular en el catálogo.']],
+                ], 422);
+            }
         }
 
         $validated['level'] = $this->resolveLevel($validated['parent_id'] ?? null);
@@ -189,7 +191,14 @@ class AccountingAccountController extends Controller
             ->orderBy('code');
 
         if ($request->filled('allows_entries')) {
-            $query->where('allows_entries', true);
+            $allowsEntries = filter_var(
+                $request->input('allows_entries'),
+                FILTER_VALIDATE_BOOLEAN,
+                FILTER_NULL_ON_FAILURE
+            );
+            if ($allowsEntries !== null) {
+                $query->where('allows_entries', $allowsEntries);
+            }
         }
 
         return response()->json(['data' => $query->get()]);
@@ -205,42 +214,17 @@ class AccountingAccountController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:200'],
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'table_date' => ['nullable', 'date'],
+            'table_account_id' => ['nullable', 'integer', 'exists:accounting_accounts,id'],
             'contact_id' => ['nullable', 'integer', 'exists:contacts,id'],
             'document_type' => ['nullable', 'string', 'max:80'],
             'search' => ['nullable', 'string', 'max:120'],
+            'entry_reference' => ['nullable', 'string', 'max:120'],
         ]);
 
         $account = AccountingAccount::findOrFail($id);
 
         return response()->json($movementService->getMovements($account, $validated));
-    }
-
-    private function getParentOptions(?int $excludeId = null): array
-    {
-        $query = AccountingAccount::query()
-            ->select('id', 'code', 'name', 'account_type', 'level')
-            ->active()
-            ->orderBy('code');
-
-        if ($excludeId !== null) {
-            $query->where('id', '!=', $excludeId);
-        }
-
-        return $query->get()->map(fn (AccountingAccount $a) => [
-            'id' => $a->id,
-            'name' => "{$a->code} - {$a->name}",
-        ])->toArray();
-    }
-
-    private function getSpecialTypeOptions(): array
-    {
-        return [
-            ['id' => '', 'name' => 'Ninguno'],
-            ['id' => AccountingAccount::SPECIAL_CASH, 'name' => 'Caja'],
-            ['id' => AccountingAccount::SPECIAL_BANK, 'name' => 'Banco'],
-            ['id' => AccountingAccount::SPECIAL_ACCOUNTS_PAYABLE, 'name' => 'Cuentas por pagar'],
-            ['id' => AccountingAccount::SPECIAL_ACCOUNTS_RECEIVABLE, 'name' => 'Cuentas por cobrar'],
-        ];
     }
 
     private function resolveLevel(?int $parentId): int
@@ -252,5 +236,28 @@ class AccountingAccountController extends Controller
         $parent = AccountingAccount::find($parentId);
 
         return $parent ? $parent->level + 1 : 1;
+    }
+
+    private function wouldCreateCycle(int $accountId, int $newParentId): bool
+    {
+        $visited = [];
+        $currentId = $newParentId;
+
+        while ($currentId !== null) {
+            if ($currentId === $accountId) {
+                return true;
+            }
+
+            if (isset($visited[$currentId])) {
+                break;
+            }
+
+            $visited[$currentId] = true;
+            $parent = AccountingAccount::select('parent_id')
+                ->find($currentId);
+            $currentId = $parent?->parent_id;
+        }
+
+        return false;
     }
 }

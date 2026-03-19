@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
@@ -100,12 +100,19 @@ type ItemFormSource = Partial<Item> & {
 
 type ItemForm = Omit<Partial<Item>, 'tax_id'> & {
     tax_id?: Item['tax_id'] | 'none';
-    income_account?: string;
-    inventory_account?: string;
-    cost_of_sale_account?: string;
+    tracks_inventory?: boolean;
+    income_account_id?: number | null;
+    inventory_account_id?: number | null;
+    cost_of_sale_account_id?: number | null;
     export_tariff_code?: string;
     export_brand?: string;
     export_model?: string;
+};
+
+type AccountingAccountOption = {
+    id: number;
+    code: string;
+    name: string;
 };
 
 const normalizeItemType = (value?: string | null): ItemType =>
@@ -121,20 +128,31 @@ const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce((acc, 
     return acc;
 }, {} as Record<ItemType, string>);
 
+const normalizeAccountId = (value: unknown): number | null => {
+    if (value === undefined || value === null || value === '') {
+        return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
 function prepareLocalForm(source: ItemFormSource): ItemForm {
     const resolvedTaxId =
         source.tax_id ??
         (typeof source.tax === 'object' && source.tax !== null ? source.tax.id : undefined);
+    const itemType = normalizeItemType(source.item_type);
 
     return {
         ...source,
         reference: source.reference || '',
         bar_code: source.bar_code ?? '',
         tax_id: resolvedTaxId,
-        item_type: normalizeItemType(source.item_type),
-        income_account: source.income_account || '',
-        inventory_account: source.inventory_account || '',
-        cost_of_sale_account: source.cost_of_sale_account || '',
+        item_type: itemType,
+        tracks_inventory: source.tracks_inventory ?? itemType !== 'service',
+        income_account_id: normalizeAccountId(source.income_account_id),
+        inventory_account_id: normalizeAccountId(source.inventory_account_id),
+        cost_of_sale_account_id: normalizeAccountId(source.cost_of_sale_account_id),
         export_tariff_code: source.export_tariff_code || '',
         export_brand: source.export_brand || '',
         export_model: source.export_model || '',
@@ -192,6 +210,7 @@ type WarehouseStockEntry = {
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
 
 const taxes = ref<Tax[]>([]);
+const accountOptions = ref<Option[]>([]);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
 type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
@@ -234,6 +253,13 @@ const unitMeasure = ref(getInitialUnitMeasure(props.form));
 
 const isViewMode = computed(() => props.dialogType === 'view');
 const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
+const tracksInventoryBool = computed(() =>
+    currentItemType.value === 'service' ? false : Boolean(localForm.value.tracks_inventory),
+);
+const showInventorySection = computed(() => currentItemType.value === 'product' && tracksInventoryBool.value);
+const inventoryAccountInvalid = computed(() =>
+    props.dialogType !== 'view' && tracksInventoryBool.value && !localForm.value.inventory_account_id,
+);
 
 const groupOptions = computed(() =>
     categoryGroups.value.map((group) => ({
@@ -313,20 +339,6 @@ const additionalFieldOrder = computed(() => {
     });
     return map;
 });
-
-const accountingIncomeOptions = [
-    { id: 'ventas', name: 'Ventas' },
-    { id: 'servicios', name: 'Servicios' },
-    { id: 'otros_ingresos', name: 'Otros ingresos' },
-];
-const accountingInventoryOptions = [
-    { id: 'inventarios', name: 'Inventarios' },
-    { id: 'inventario_ropa', name: 'Inventario Telas' },
-];
-const accountingCostOptions = [
-    { id: 'costos_inventario', name: 'Costos del inventario' },
-    { id: 'costo_venta', name: 'Costo de venta' },
-];
 
 function resetErrors() {
     errors.value = {};
@@ -492,6 +504,26 @@ async function fetchTaxes() {
     taxes.value = (data.data ?? []).filter((t: any) => t.status);
 }
 
+async function fetchAccountingAccounts() {
+    const response = await axios.get<{ data?: AccountingAccountOption[] } | AccountingAccountOption[]>(
+        '/finanzas/catalogo-cuentas/options',
+        {
+            params: { allows_entries: true },
+        },
+    );
+
+    const payload = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data.data)
+          ? response.data.data
+          : [];
+
+    accountOptions.value = payload.map((account) => ({
+        id: account.id,
+        name: `${account.code} - ${account.name}`,
+    }));
+}
+
 async function fetchAdditionalFields() {
     try {
         const { data } = await axios.get('/campos-adicionales/options');
@@ -550,7 +582,6 @@ async function fetchWarehouseStocks(itemId: number) {
             stock_max: w.pivot.stock_max,
         }));
     } catch (e) {
-        console.log(e);
         warehouseStocks.value = [];
     }
 }
@@ -714,6 +745,14 @@ watch(
 );
 
 watch(currentItemType, (type, prevType) => {
+    if (type === 'service') {
+        localForm.value.tracks_inventory = false;
+        localForm.value.negative_movement = 0;
+        localForm.value.inventory_account_id = null;
+    } else if (localForm.value.tracks_inventory === undefined) {
+        localForm.value.tracks_inventory = true;
+    }
+
     if (type === 'service' && unitMeasure.value !== serviceUnitId) {
         unitMeasure.value = serviceUnitId;
         return;
@@ -722,6 +761,15 @@ watch(currentItemType, (type, prevType) => {
         unitMeasure.value = defaultProductUnitValue;
     }
 });
+
+watch(
+    () => localForm.value.tracks_inventory,
+    (value) => {
+        if (!value) {
+            localForm.value.negative_movement = 0;
+        }
+    },
+);
 
 const NEGATIVE_STOCK_WARNING =
     'Este ítem tiene cantidades negativas en una o más bodegas. ' +
@@ -739,7 +787,7 @@ const negativeMovementBool = computed(() =>
 );
 
 const negativeMovementToggleDisabled = computed(
-    () => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value),
+    () => isViewMode.value || !tracksInventoryBool.value || (!hasInventoryDetails.value && !negativeMovementBool.value),
 );
 
 function showNegativeMovementWarning() {
@@ -755,6 +803,10 @@ function showNegativeMovementInventoryWarning() {
 }
 
 function handleNegativeMovementChange(val: boolean) {
+    if (!tracksInventoryBool.value) {
+        localForm.value.negative_movement = 0;
+        return;
+    }
     if (val && !hasInventoryDetails.value) {
         showNegativeMovementInventoryWarning();
         return;
@@ -866,6 +918,14 @@ async function handleSubmit() {
         requiredErrors.push('Referencia');
     }
 
+    if (tracksInventoryBool.value && !localForm.value.inventory_account_id) {
+        requiredErrors.push('Cuenta de inventario');
+    }
+
+    if (!tracksInventoryBool.value && !localForm.value.cost_of_sale_account_id) {
+        requiredErrors.push('Cuenta de costo / gasto directo');
+    }
+
     missingRequiredAdditionalFieldNames.value.forEach((fieldName) => {
         requiredErrors.push(`Campo adicional: ${fieldName}`);
     });
@@ -931,6 +991,10 @@ async function handleSubmit() {
         name: nameField.value,
         unit_measure: unitMeasure.value,
         item_type: normalizeItemType(localForm.value.item_type),
+        tracks_inventory: tracksInventoryBool.value ? 1 : 0,
+        income_account_id: localForm.value.income_account_id ?? '',
+        inventory_account_id: tracksInventoryBool.value ? (localForm.value.inventory_account_id ?? '') : '',
+        cost_of_sale_account_id: localForm.value.cost_of_sale_account_id ?? '',
         status:
             typeof localForm.value.status === 'boolean'
                 ? localForm.value.status
@@ -945,10 +1009,20 @@ async function handleSubmit() {
 
     const formData = new FormData();
     const optionalStringFields = new Set(['bar_code', 'description']);
+    const nullableScalarFields = new Set([
+        'income_account_id',
+        'inventory_account_id',
+        'cost_of_sale_account_id',
+    ]);
 
     Object.entries(cleanForm).forEach(([key, value]) => {
-        if (key === 'negative_movement' || key === 'status') {
+        if (key === 'negative_movement' || key === 'status' || key === 'tracks_inventory') {
             formData.append(key, String(value === true || value === 1 || value === '1' || value === 'true' ? 1 : 0));
+            return;
+        }
+
+        if (nullableScalarFields.has(key)) {
+            formData.append(key, value === null || value === undefined ? '' : String(value));
             return;
         }
 
@@ -1137,6 +1211,7 @@ onMounted(() => {
             fetchCategorySubGroups(),
             fetchCategoryGroups(),
             fetchTaxes(),
+            fetchAccountingAccounts(),
             fetchAdditionalFields(),
         ]);
 
@@ -1226,6 +1301,27 @@ onBeforeUnmount(() => {
                                             {{ option.label }}
                                         </button>
                                     </div>
+                                </template>
+                            </div>
+
+                            <div>
+                                <template v-if="isViewMode">
+                                    <Label>Controla inventario</Label>
+                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
+                                        {{ tracksInventoryBool ? 'Sí' : 'No' }}
+                                    </div>
+                                </template>
+
+                                <template v-else>
+                                    <SwitchField
+                                        :model-value="tracksInventoryBool"
+                                        @update:modelValue="(value) => (localForm.tracks_inventory = currentItemType === 'service' ? false : value)"
+                                        label="Controla inventario"
+                                        :disabled="currentItemType === 'service'"
+                                        :tooltip-text="currentItemType === 'service'
+                                            ? 'Los servicios no controlan inventario.'
+                                            : 'Actívalo para productos inventariables. Desactívalo para consumibles o productos sin control de stock.'"
+                                    />
                                 </template>
                             </div>
 
@@ -1343,7 +1439,7 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div
-                                v-if="currentItemType !== 'service'"
+                                v-if="showInventorySection"
                                 class="mt-2 rounded-lg border border-border bg-card p-3"
                             >
                                 <div class="mb-2 flex items-center justify-between">
@@ -1582,39 +1678,36 @@ onBeforeUnmount(() => {
                     </div>
 
                     <section
-                        v-if="props.showAdvancedSections"
                         class="rounded-2xl border border-border bg-card p-4 shadow-sm"
                     >
                         <div class="flex items-center justify-between pb-2">
                             <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
                                 <span>Contabilidad</span>
-                                <HelpTooltip text="Indica las cuentas contables que deben usarse al vender o mover este ítem dentro del inventario." />
+                                <HelpTooltip text="Define las cuentas contables del item. Por ahora, los inventariables usan cuenta de inventario y los no inventariables o servicios usan cuenta de costo/gasto directo para compras." />
                             </p>
                         </div>
 
                         <div class="grid gap-4 md:grid-cols-2">
                             <SelectField
-                                v-model="localForm.income_account"
+                                v-model="localForm.income_account_id"
                                 label="Cuenta de ingreso"
-                                :options="accountingIncomeOptions"
-                                option-label="name"
-                                option-value="id"
+                                :options="accountOptions"
                                 clearable
                             />
                             <SelectField
-                                v-model="localForm.inventory_account"
+                                v-model="localForm.inventory_account_id"
                                 label="Cuenta de inventario"
-                                :options="accountingInventoryOptions"
-                                option-label="name"
-                                option-value="id"
+                                :options="accountOptions"
                                 clearable
+                                :required="tracksInventoryBool"
+                                :invalid="inventoryAccountInvalid"
+                                error-message="La cuenta de inventario es obligatoria cuando el ítem controla inventario."
+                                :disabled="!tracksInventoryBool"
                             />
                             <SelectField
-                                v-model="localForm.cost_of_sale_account"
-                                label="Cuenta de costo de venta"
-                                :options="accountingCostOptions"
-                                option-label="name"
-                                option-value="id"
+                                v-model="localForm.cost_of_sale_account_id"
+                                label="Cuenta de costo / gasto directo"
+                                :options="accountOptions"
                                 clearable
                             />
                         </div>

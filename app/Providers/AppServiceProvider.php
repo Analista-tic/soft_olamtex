@@ -42,7 +42,6 @@ use App\Models\Textil\FabricOrderItem;
 use App\Models\Textil\FabricProvider;
 use App\Models\Textil\FabricRoll;
 use App\Observers\AuditObserver;
-use App\Observers\PurchaseDocumentInventoryObserver;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -71,7 +70,6 @@ class AppServiceProvider extends ServiceProvider
         Route::model('operation', Operation::class);
 
         $this->registerAuditObservers();
-        PurchaseDocument::observe(PurchaseDocumentInventoryObserver::class);
     }
 
     private function registerAuditObservers(): void

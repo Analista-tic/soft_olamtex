@@ -2,6 +2,8 @@ export interface Tax {
     id: number;
     name: string;
     percentage: number;
+    debit_account_id?: number | null;
+    credit_account_id?: number | null;
     status: boolean;
     created_at?: string | null;
     updated_at?: string | null;
@@ -20,6 +22,7 @@ export interface Retention {
     name: string;
     percent: number;
     type: string;
+    account_id?: number | null;
     description?: string | null;
     status: RetentionStatus;
     created_at?: string;
@@ -32,6 +35,7 @@ export type RetentionPayload = {
     name: string;
     percent: number;
     type: string;
+    account_id?: number | null;
     description?: string | null;
     status?: RetentionStatus;
 };
@@ -269,9 +273,12 @@ export type AccountingAccountMovementQuery = {
     per_page?: number;
     date_from?: string | null;
     date_to?: string | null;
+    table_date?: string | null;
+    table_account_id?: number | string | null;
     contact_id?: number | string | null;
     document_type?: string | null;
     search?: string;
+    entry_reference?: string | null;
 };
 
 export interface AccountingAccountMovementSummary {
@@ -282,9 +289,32 @@ export interface AccountingAccountMovementSummary {
     closing_balance: number;
 }
 
+export type AccountingAccountMovementChartGranularity = 'day' | 'week' | 'month';
+
+export interface AccountingAccountMovementChartSeries {
+    key: 'current' | 'previous';
+    name: string;
+    color: 'primary' | 'muted';
+    values: number[];
+    has_data: boolean;
+}
+
+export interface AccountingAccountMovementChart {
+    has_query: boolean;
+    has_data: boolean;
+    granularity: AccountingAccountMovementChartGranularity;
+    labels: string[];
+    current_period_label: string | null;
+    previous_period_label: string | null;
+    series: AccountingAccountMovementChartSeries[];
+}
+
 export interface AccountingAccountMovementRow {
     id: number;
     date: string;
+    account_id: number;
+    account_code: string;
+    account_name: string;
     document_type: string;
     document_type_label: string;
     reference: string | null;

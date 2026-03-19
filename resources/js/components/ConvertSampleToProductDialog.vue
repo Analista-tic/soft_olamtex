@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputField from '@/components/InputField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
@@ -70,8 +69,8 @@ function confirmDialog() {
 
 <template>
     <Dialog v-model:open="internalOpen" @close="closeDialog">
-        <FormDialogContent class="flex max-w-md flex-col gap-4 p-4">
-            <DialogHeader>
+        <DialogContent class="max-w-md border border-border p-8">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>Convertir muestra a producto</DialogTitle>
                 <DialogDescription class="pb-2"> Ingresa la nueva referencia de producto. </DialogDescription>
             </DialogHeader>
@@ -87,8 +86,8 @@ function confirmDialog() {
             <DialogFooter class="flex justify-end gap-2">
                 <Button
                     variant="outline"
+                    size="pill"
                     type="button"
-                    class="flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold"
                     :disabled="isDisabled"
                     @click="closeDialog"
                 >
@@ -96,7 +95,8 @@ function confirmDialog() {
                 </Button>
                 <Button
                     variant="default"
-                    class="flex items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                    size="pill"
+                    class="shadow-sm"
                     :disabled="isDisabled"
                     @click="confirmDialog"
                 >
@@ -104,6 +104,6 @@ function confirmDialog() {
                     {{ props.loading ? 'Convirtiendo...' : 'Convertir' }}
                 </Button>
             </DialogFooter>
-        </FormDialogContent>
+        </DialogContent>
     </Dialog>
 </template>

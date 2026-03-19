@@ -13,8 +13,7 @@ const forwardedProps = useForwardProps(delegatedProps)
 </script>
 
 <template>
-  <CalendarHeader :class="cn('relative flex w-full items-center justify-between pt-1', props.class)" v-bind="forwardedProps">
+  <CalendarHeader :class="cn('grid w-full grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-2', props.class)" v-bind="forwardedProps">
     <slot />
   </CalendarHeader>
 </template>
-

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { RangeCalendarRootProps } from 'reka-ui';
+import type { DateValue } from '@internationalized/date';
+import type { DateRange } from 'reka-ui';
 import { format as formatDateFn } from 'date-fns';
 import {
     endOfMonth,
@@ -20,14 +21,11 @@ import {
 import { es } from 'date-fns/locale';
 import { getLocalTimeZone, parseDate } from '@internationalized/date';
 import { CalendarDays } from 'lucide-vue-next';
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import Button from '@/components/ui/button/Button.vue';
 import { RangeCalendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-
-type PickerDateRange = NonNullable<RangeCalendarRootProps['modelValue']>;
-type PickerDateValue = NonNullable<RangeCalendarRootProps['placeholder']>;
 
 type AccountingDateRangeValue = {
     from: string | null;
@@ -60,18 +58,18 @@ const emit = defineEmits<{
 }>();
 
 const open = ref(false);
-const draftRange = shallowRef<PickerDateRange>({ start: undefined, end: undefined });
-const calendarPlaceholder = shallowRef<PickerDateValue>(getTodayDateValue());
+const draftValue = ref<AccountingDateRangeValue>({ from: null, to: null });
+const calendarAnchorIso = ref(getTodayIsoDate());
 
 function getBaseDate(): Date {
     return startOfDay(new Date());
 }
 
-function getTodayDateValue(): PickerDateValue {
-    return parseDate(formatDateFn(new Date(), 'yyyy-MM-dd'));
+function getTodayIsoDate(): string {
+    return formatDateFn(new Date(), 'yyyy-MM-dd');
 }
 
-function parseIsoDate(value: string | null | undefined): PickerDateValue | undefined {
+function parseIsoDate(value: string | null | undefined): DateValue | undefined {
     if (!value) return undefined;
 
     try {
@@ -183,27 +181,30 @@ const presets: AccountingPreset[] = [
     },
 ];
 
-function toRangeValue(range: PickerDateRange | null | undefined): AccountingDateRangeValue {
+function toRangeValue(range: DateRange | null | undefined): AccountingDateRangeValue {
     return {
         from: range?.start?.toString() ?? null,
         to: range?.end?.toString() ?? null,
     };
 }
 
-function toDateRange(value: AccountingDateRangeValue | null | undefined): PickerDateRange {
+function toDateRange(value: AccountingDateRangeValue | null | undefined): DateRange {
     return {
         start: parseIsoDate(value?.from),
         end: parseIsoDate(value?.to),
     };
 }
 
-function resolvePlaceholder(value: AccountingDateRangeValue | null | undefined): PickerDateValue {
-    return parseIsoDate(value?.from) ?? parseIsoDate(value?.to) ?? getTodayDateValue();
+function resolveAnchorIso(value: AccountingDateRangeValue | null | undefined): string {
+    return value?.from ?? value?.to ?? getTodayIsoDate();
 }
 
 function syncDraftFromModel(value: AccountingDateRangeValue | null | undefined): void {
-    draftRange.value = toDateRange(value);
-    calendarPlaceholder.value = resolvePlaceholder(value);
+    draftValue.value = {
+        from: value?.from ?? null,
+        to: value?.to ?? null,
+    };
+    calendarAnchorIso.value = resolveAnchorIso(value);
 }
 
 function formatDisplayValue(value: string | null | undefined): string | null {
@@ -217,28 +218,44 @@ function formatDisplayValue(value: string | null | undefined): string | null {
 }
 
 function applyDraft(): void {
-    emit('update:modelValue', toRangeValue(draftRange.value));
+    emit('update:modelValue', {
+        from: draftValue.value.from,
+        to: draftValue.value.to,
+    });
     open.value = false;
 }
 
 function clearRange(): void {
-    draftRange.value = { start: undefined, end: undefined };
-    calendarPlaceholder.value = getTodayDateValue();
+    draftValue.value = { from: null, to: null };
+    calendarAnchorIso.value = getTodayIsoDate();
     emit('update:modelValue', { from: null, to: null });
     open.value = false;
 }
 
 function selectPreset(preset: AccountingPreset): void {
     const value = preset.resolve();
-    draftRange.value = toDateRange(value);
-    calendarPlaceholder.value = resolvePlaceholder(value);
+    draftValue.value = value;
+    calendarAnchorIso.value = resolveAnchorIso(value);
 }
 
 function isPresetSelected(preset: AccountingPreset): boolean {
-    const currentValue = toRangeValue(draftRange.value);
+    const currentValue = draftValue.value;
     const presetValue = preset.resolve();
 
     return currentValue.from === presetValue.from && currentValue.to === presetValue.to;
+}
+
+const calendarModelValue = computed<DateRange>({
+    get: () => toDateRange(draftValue.value),
+    set: (value) => {
+        draftValue.value = toRangeValue(value);
+    },
+});
+
+const calendarPlaceholder = computed<DateValue>(() => parseDate(calendarAnchorIso.value));
+
+function handleCalendarPlaceholderUpdate(value: DateValue): void {
+    calendarAnchorIso.value = value.toString();
 }
 
 const displayLabel = computed(() => {
@@ -315,13 +332,13 @@ watch(open, (isOpen) => {
 
                 <div class="p-3">
                     <RangeCalendar
-                        :model-value="draftRange"
+                        :model-value="calendarModelValue"
                         :placeholder="calendarPlaceholder"
                         initial-focus
                         locale="es-CO"
                         class="rounded-lg border border-border"
-                        @update:model-value="draftRange = $event"
-                        @update:placeholder="calendarPlaceholder = $event"
+                        @update:model-value="calendarModelValue = $event"
+                        @update:placeholder="handleCalendarPlaceholderUpdate"
                     />
                 </div>
             </div>

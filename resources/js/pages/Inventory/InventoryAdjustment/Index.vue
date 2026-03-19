@@ -2,17 +2,24 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Mail, MoreVertical, PlusCircle, Printer, ReceiptText, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import { getInventoryAdjustmentReasonLabel } from '@/lib/inventoryAdjustmentReasons';
 import { uiPatterns } from '@/lib/ui-patterns';
+import InventoryAdjustmentForm from './InventoryAdjustmentForm.vue';
+import InventoryAdjustmentPrintDialog from './InventoryAdjustmentPrintDialog.vue';
 
 type InventoryAdjustment = {
     id: number;
@@ -48,11 +55,6 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isTypeFilterActive = computed(() => typeFilter.value !== DEFAULT_TYPE_FILTER);
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
 
-const adjustmentTypeLabelMap: Record<string, 'Entrada' | 'Salida'> = {
-    entrada: 'Entrada',
-    salida: 'Salida',
-};
-
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -68,9 +70,7 @@ const formatDate = (value: string | null | undefined) => {
 };
 
 const getAdjustmentTypeLabel = (adjustment: InventoryAdjustment) => {
-    const reason = adjustment.movement_reason ?? adjustment.type;
-    const fallback = adjustment.type === 'salida' ? 'Salida' : 'Entrada';
-    return adjustmentTypeLabelMap[reason as string] ?? fallback;
+    return getInventoryAdjustmentReasonLabel(adjustment.movement_reason ?? adjustment.type);
 };
 
 async function fetchAdjustments(page = 1, search = '') {
@@ -258,7 +258,7 @@ onMounted(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead># Documento</TableHead>
+                            <TableHead>N° Documento</TableHead>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Observación</TableHead>
@@ -355,8 +355,8 @@ onMounted(() => {
         <InventoryAdjustmentPrintDialog :is-open="isPrintDialogOpen" :adjustment="adjustmentToPrint" @close="isPrintDialogOpen = false" />
 
         <Dialog v-model:open="isDeleteDialogOpen">
-            <DialogContent>
-                <DialogHeader>
+            <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>Confirmar eliminación</DialogTitle>
                     <DialogDescription> ¿Estás seguro de eliminar este ajuste? Esta acción no se puede deshacer. </DialogDescription>
                 </DialogHeader>

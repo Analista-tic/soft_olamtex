@@ -72,7 +72,54 @@ class RolesAndPermissionsSeeder extends Seeder
             Permission::firstOrCreate(['name' => $perm]);
         }
 
-        // Crear roles y asignar permisos
+        // Permisos de Finance
+        $financePermissions = [
+            // Catalogo de cuentas
+            'ver catalogo cuentas',
+            'crear catalogo cuentas',
+            'editar catalogo cuentas',
+
+            // Comprobantes de egreso
+            'ver comprobantes egreso',
+            'crear comprobantes egreso',
+            'editar comprobantes egreso',
+
+            // Notas credito / debito
+            'ver notas credito debito',
+            'crear notas credito debito',
+            'editar notas credito debito',
+            'eliminar notas credito debito',
+
+            // Impuestos
+            'ver impuestos',
+            'crear impuestos',
+            'editar impuestos',
+            'eliminar impuestos',
+
+            // Retenciones
+            'ver retenciones',
+            'crear retenciones',
+            'editar retenciones',
+            'eliminar retenciones',
+
+            // Ordenes de compra
+            'ver ordenes compra',
+            'crear ordenes compra',
+            'editar ordenes compra',
+            'eliminar ordenes compra',
+
+            // Facturas de compra
+            'ver facturas compra',
+            'crear facturas compra',
+            'editar facturas compra',
+            'eliminar facturas compra',
+        ];
+
+        foreach ($financePermissions as $permission) {
+            Permission::firstOrCreate(['name' => $permission]);
+        }
+
+        // Crear roles y asignar permisos base
         $admin = Role::firstOrCreate(['name' => 'admin']);
         $admin->givePermissionTo(Permission::all());
 
@@ -85,9 +132,50 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $contabilidad = Role::firstOrCreate(['name' => 'contabilidad']);
         $contabilidad->givePermissionTo([
+            // Permisos heredados
             'ver ingresos',
             'ver gastos',
             'ver financiero',
+
+            // Catalogo de cuentas
+            'ver catalogo cuentas',
+            'crear catalogo cuentas',
+            'editar catalogo cuentas',
+
+            // Comprobantes de egreso
+            'ver comprobantes egreso',
+            'crear comprobantes egreso',
+            'editar comprobantes egreso',
+
+            // Notas credito / debito
+            'ver notas credito debito',
+            'crear notas credito debito',
+            'editar notas credito debito',
+            'eliminar notas credito debito',
+
+            // Impuestos
+            'ver impuestos',
+            'crear impuestos',
+            'editar impuestos',
+            'eliminar impuestos',
+
+            // Retenciones
+            'ver retenciones',
+            'crear retenciones',
+            'editar retenciones',
+            'eliminar retenciones',
+
+            // Ordenes de compra
+            'ver ordenes compra',
+            'crear ordenes compra',
+            'editar ordenes compra',
+            'eliminar ordenes compra',
+
+            // Facturas de compra
+            'ver facturas compra',
+            'crear facturas compra',
+            'editar facturas compra',
+            'eliminar facturas compra',
         ]);
 
         // Rol Logistica: atender solicitudes de insumos
@@ -147,6 +235,22 @@ class RolesAndPermissionsSeeder extends Seeder
             'area_id' => $contabilidadAreaId,
         ])->save();
         $contabilidadUser->assignRole($contabilidad);
+
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        $admin->syncPermissions(Permission::all());
+
+        $superAdminUser = User::firstOrCreate(
+            ['email' => 'superadmin@softolamtex.local'],
+            [
+                'name' => 'Super Admin',
+                'password' => Hash::make('SoftOlamtex2026!'),
+            ]
+        );
+        $superAdminUser->forceFill([
+            'name' => 'Super Admin',
+            'area_id' => $adminAreaId,
+        ])->save();
+        $superAdminUser->syncRoles([$admin]);
     }
 
     /**

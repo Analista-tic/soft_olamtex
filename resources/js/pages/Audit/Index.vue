@@ -815,8 +815,8 @@ watch(detailDialogOpen, (value) => {
 
         <!-- Diálogo de detalle de cambios (igual que ya tenías) -->
         <Dialog v-model:open="detailDialogOpen">
-            <DialogContent class="flex max-h-[90vh] max-w-3xl flex-col rounded-2xl p-0">
-                <DialogHeader class="flex-shrink-0 space-y-1 border-b border-border px-6 py-4">
+            <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>Detalle de cambios</DialogTitle>
                     <DialogDescription v-if="detailLog">
                         {{ buildDetailHeader(detailLog) }}

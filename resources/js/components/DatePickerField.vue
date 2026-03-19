@@ -144,7 +144,7 @@ const calendarPlaceholderValue = computed(() => calendarPlaceholder.value as Dat
                     data-datepicker-popover="true"
                     :align="props.align"
                     :side-offset="8"
-                    class="z-[60] w-[320px] rounded-md border border-border bg-popover p-0 text-popover-foreground shadow-md outline-none"
+                    class="z-[60] w-auto min-w-[19rem] max-w-[calc(100vw-1rem)] rounded-md border border-border bg-popover p-0 text-popover-foreground shadow-md outline-none"
                     @open-auto-focus.prevent
                 >
                     <Calendar

@@ -356,7 +356,7 @@ onBeforeUnmount(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead># Solicitud</TableHead>
+                            <TableHead>N° Solicitud</TableHead>
                             <TableHead>Fecha solicitud</TableHead>
                             <TableHead>Fecha entrega</TableHead>
                             <TableHead>Estado</TableHead>

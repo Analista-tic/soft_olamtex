@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AccountChartDialog from '@/pages/Finance/AccountChart/AccountChartDialog.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -19,14 +20,14 @@ import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, router } from '@inertiajs/vue3';
 import { ChevronDown, ChevronRight, Eye, Pencil, Plus, Search, ToggleLeft, ToggleRight, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
+import { compareAccountingAccountCode } from '@/domain/Finance/accountHierarchy';
 
 const ROUTES = {
     index: '/finanzas/catalogo-cuentas',
-    create: '/finanzas/catalogo-cuentas/crear',
-    show: (id: number) => `/finanzas/catalogo-cuentas/${id}`,
-    edit: (id: number) => `/finanzas/catalogo-cuentas/${id}/editar`,
     movements: (id: number) => `/finanzas/catalogo-cuentas/${id}/movimientos`,
 } as const;
+
+type AccountDialogMode = 'create' | 'edit';
 
 const FETCH_BATCH_SIZE = 200;
 const TREE_GRID_TEMPLATE = 'minmax(0, 1.05fr) minmax(240px, 0.95fr) 120px 56px';
@@ -60,9 +61,27 @@ const { successMessage, errorMessage, errorType, success, error, clear } = useGl
 const rows = ref<AccountingAccountListItem[]>([]);
 const isLoading = ref(false);
 
-function compareAccountCode(left: AccountingAccountListItem, right: AccountingAccountListItem): number {
-    return left.code.localeCompare(right.code, 'es-CO', { numeric: true, sensitivity: 'base' });
+function createAccountDialogState(
+    mode: AccountDialogMode = 'create',
+    account: AccountingAccountListItem | null = null,
+    parentAccountId: number | null = null,
+) {
+    return {
+        open: false,
+        mode,
+        account,
+        accountId: account?.id ?? null,
+        parentAccountId,
+    };
 }
+
+const accountDialog = ref<{
+    open: boolean;
+    mode: AccountDialogMode;
+    account: AccountingAccountListItem | null;
+    accountId: number | null;
+    parentAccountId: number | null;
+}>(createAccountDialogState());
 
 async function fetchData(): Promise<void> {
     isLoading.value = true;
@@ -110,6 +129,20 @@ const collapsedParents = ref<Set<number>>(new Set());
 const rowMap = computed(() => {
     const map = new Map<number, AccountingAccountListItem>();
     rows.value.forEach((row) => map.set(row.id, row));
+    return map;
+});
+
+const childIdsByParent = computed(() => {
+    const map = new Map<number, number[]>();
+
+    rows.value.forEach((row) => {
+        if (row.parent_id === null) return;
+
+        const siblings = map.get(row.parent_id) ?? [];
+        siblings.push(row.id);
+        map.set(row.parent_id, siblings);
+    });
+
     return map;
 });
 
@@ -161,7 +194,7 @@ const orderedRows = computed(() => {
     });
 
     for (const siblings of childrenByParent.values()) {
-        siblings.sort(compareAccountCode);
+        siblings.sort(compareAccountingAccountCode);
     }
 
     const ordered: AccountingAccountListItem[] = [];
@@ -202,7 +235,7 @@ function isRowVisible(row: AccountingAccountListItem): boolean {
 }
 
 function hasChildren(id: number): boolean {
-    return orderedRows.value.some((row) => row.parent_id === id);
+    return (childIdsByParent.value.get(id)?.length ?? 0) > 0;
 }
 
 function getIndentWidth(level: number): string {
@@ -212,15 +245,15 @@ function getIndentWidth(level: number): string {
 const visibleRows = computed(() => orderedRows.value.filter(isRowVisible));
 
 function openCreate(): void {
-    router.visit(ROUTES.create);
+    accountDialog.value = { ...createAccountDialogState(), open: true };
 }
 
 function openEdit(row: AccountingAccountListItem): void {
-    router.visit(ROUTES.edit(row.id));
+    accountDialog.value = { ...createAccountDialogState('edit', row), open: true };
 }
 
 function openSubcreate(row: AccountingAccountListItem): void {
-    router.visit(`${ROUTES.create}?parent_id=${row.id}`);
+    accountDialog.value = { ...createAccountDialogState('create', null, row.id), open: true };
 }
 
 function openMovements(row: AccountingAccountListItem): void {
@@ -247,11 +280,22 @@ async function handleToggleStatus(row: AccountingAccountListItem): Promise<void>
     }
 }
 
-watch(searchQuery, () => {
-    collapsedParents.value = new Set();
-});
+function handleAccountDialogOpenChange(open: boolean): void {
+    if (open) {
+        accountDialog.value.open = true;
+        return;
+    }
 
-watch([accountTypeFilter, statusFilter, allowsEntriesFilter], () => {
+    accountDialog.value = createAccountDialogState();
+}
+
+async function handleAccountDialogSaved(payload: { mode: 'create' | 'edit'; account: AccountingAccountListItem }): Promise<void> {
+    success(payload.mode === 'create' ? 'Cuenta guardada correctamente' : 'Cuenta actualizada correctamente');
+    handleAccountDialogOpenChange(false);
+    await fetchData();
+}
+
+watch([searchQuery, accountTypeFilter, statusFilter, allowsEntriesFilter], () => {
     collapsedParents.value = new Set();
 });
 
@@ -269,6 +313,16 @@ onMounted(() => void fetchData());
                 :error-type="errorType"
                 @close-success="clear"
                 @close-error="clear"
+            />
+
+            <AccountChartDialog
+                :open="accountDialog.open"
+                :mode="accountDialog.mode"
+                :account="accountDialog.account"
+                :account-id="accountDialog.accountId"
+                :parent-account-id="accountDialog.parentAccountId"
+                @update:open="handleAccountDialogOpenChange"
+                @saved="handleAccountDialogSaved"
             />
 
             <div class="flex flex-wrap items-start justify-between gap-3">

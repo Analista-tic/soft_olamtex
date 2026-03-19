@@ -58,11 +58,11 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Ventas',
                 items: [
-                    { title: 'Cotizaciones', href: underConstructionHref('Cotizaciones') },
-                    { title: 'Pedidos', href: underConstructionHref('Pedidos') },
-                    { title: 'Facturas de venta', href: underConstructionHref('Facturas de venta') },
-                    { title: 'Notas Crédito / Débito', href: '/notas-credito-debito?context=sale' },
-                    { title: 'Recibo de caja', href: '/finanzas/recibos-caja' },
+                    { title: 'Cotizaciones', href: '/income/quotes' },
+                    { title: 'Pedidos', href: '/income/sales-orders' },
+                    { title: 'Facturas de venta', href: '/income/sales-invoices' },
+                    { title: 'Notas Crédito / Débito', href: '/income/credit-debit-notes' },
+                    { title: 'Recibo de caja', href: '/income/cash-receipts' },
                 ],
             },
             {

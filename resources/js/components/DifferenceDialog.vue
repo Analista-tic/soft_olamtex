@@ -192,8 +192,8 @@ function handleSave() {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="flex max-h-[90vh] max-w-2xl flex-col">
-            <DialogHeader class="flex-shrink-0">
+        <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>Valor diferente a la orden</DialogTitle>
                 <DialogDescription>
                     El total de la factura {{ formattedTotal }} no coincide con el valor de la orden {{ formattedOrderTotal }}.
@@ -254,8 +254,8 @@ function handleSave() {
                 </div>
             </div>
             <DialogFooter class="mt-4 flex-shrink-0 gap-2 border-t pt-4">
-                <Button variant="outline" type="button" @click="handleCancel">Cancelar</Button>
-                <Button variant="default" type="button" @click="handleSave">Guardar y continuar</Button>
+                <Button variant="outline" size="pill" type="button" @click="handleCancel">Cancelar</Button>
+                <Button variant="default" size="pill" class="shadow-sm" type="button" @click="handleSave">Guardar y continuar</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

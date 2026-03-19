@@ -11,6 +11,7 @@ class Retention extends Model implements \App\Contracts\HasAuditLabel
         'percent',
         'type',
         'description',
+        'account_id',
         'status',
     ];
 

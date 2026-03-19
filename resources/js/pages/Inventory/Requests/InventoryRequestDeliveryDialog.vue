@@ -223,8 +223,8 @@ onMounted(() => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="flex max-h-[90vh] max-w-[140vh] flex-col p-0">
-            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
+        <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <div class="flex flex-col gap-1">
                     <DialogTitle>Entrega de Solicitud</DialogTitle>
                     <DialogDescription class="pb-2"> Registra la entrega y descuenta stock en la bodega. </DialogDescription>

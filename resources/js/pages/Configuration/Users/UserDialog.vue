@@ -171,7 +171,7 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
             <TooltipProvider>
             <FormHeader
                 class="flex-shrink-0 pb-2"
@@ -322,7 +322,6 @@ function submitForm() {
 </template>
 
 \n
-
 
 
 

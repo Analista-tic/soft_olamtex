@@ -21,15 +21,10 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     public function receive(Request $request, PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
-        // Solo facturas NO tela
-        // Si ya está recibida, no hacer nada
-        if ($purchaseDocument->status === 'received') {
-            return response()->json(['data' => $purchaseDocument]);
-        }
-        $purchaseDocument->status = 'received';
-        $purchaseDocument->save();
-        // Aquí podrías disparar eventos, auditoría, etc.
-        return response()->json(['data' => $purchaseDocument]);
+
+        $invoice = $this->invoiceService->receiveInvoice($purchaseDocument, Auth::id());
+
+        return response()->json(['data' => $invoice]);
     }
 
     /**

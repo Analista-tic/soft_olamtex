@@ -5,6 +5,7 @@ import type {
     CreditDebitNotePayload,
     AccountingAccountListItem,
     AccountingAccountListQuery,
+    AccountingAccountMovementChart,
     AccountingAccountMovementQuery,
     AccountingAccountMovementRow,
     AccountingAccountMovementSummary,
@@ -25,6 +26,7 @@ import type {
 import type {
     CreditDebitNoteDto,
     AccountingAccountDto,
+    AccountingAccountMovementChartDto,
     AccountingAccountMovementRowDto,
     AccountingAccountMovementSummaryDto,
     ExpenseVoucherRecordDto,
@@ -42,6 +44,7 @@ import {
     mapExpenseVoucherListItemFromApi,
     mapExpenseVoucherRecordFromApi,
     mapAccountingAccountFromApi,
+    mapAccountingAccountMovementChartFromApi,
     mapAccountingAccountMovementRowFromApi,
     mapAccountingAccountMovementSummaryFromApi,
     mapRetentionDto,
@@ -309,6 +312,11 @@ export async function createAccountingAccount(payload: AccountingAccountPayload)
     return mapAccountingAccountFromApi(res.data.data);
 }
 
+export async function fetchAccountingAccount(id: number): Promise<AccountingAccountListItem> {
+    const res = await axios.get<{ data: AccountingAccountDto }>(`${ACCOUNT_CHART_ENDPOINT}/${id}/item`);
+    return mapAccountingAccountFromApi(res.data.data);
+}
+
 export async function updateAccountingAccount(id: number, payload: AccountingAccountPayload): Promise<AccountingAccountListItem> {
     const res = await axios.put<{ data: AccountingAccountDto }>(`${ACCOUNT_CHART_ENDPOINT}/${id}`, payload);
     return mapAccountingAccountFromApi(res.data.data);
@@ -334,6 +342,7 @@ export async function fetchAccountingAccountMovements(
 ): Promise<{
     data: AccountingAccountMovementRow[];
     summary: AccountingAccountMovementSummary;
+    chart: AccountingAccountMovementChart;
     document_type_options: Array<{ id: string; name: string }>;
     total: number;
     current_page: number;
@@ -342,6 +351,7 @@ export async function fetchAccountingAccountMovements(
     const res = await axios.get<{
         data?: AccountingAccountMovementRowDto[];
         summary?: AccountingAccountMovementSummaryDto;
+        chart?: AccountingAccountMovementChartDto;
         document_type_options?: Array<{ id: string; name: string }>;
         total?: number;
         current_page?: number;
@@ -351,6 +361,7 @@ export async function fetchAccountingAccountMovements(
     return {
         data: Array.isArray(res.data.data) ? res.data.data.map(mapAccountingAccountMovementRowFromApi) : [],
         summary: mapAccountingAccountMovementSummaryFromApi(res.data.summary ?? {}),
+        chart: mapAccountingAccountMovementChartFromApi(res.data.chart ?? {}),
         document_type_options: Array.isArray(res.data.document_type_options) ? res.data.document_type_options : [],
         total: Number(res.data.total ?? 0),
         current_page: Number(res.data.current_page ?? 1),

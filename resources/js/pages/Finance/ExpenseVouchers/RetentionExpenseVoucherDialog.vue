@@ -335,10 +335,10 @@ watch(
 
 <template>
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[55vw] flex-col overflow-hidden p-0">
+        <FormDialogContent class="flex max-h-[95vh] max-w-2xl flex-col overflow-hidden p-0">
 
             <!-- Header -->
-            <DialogHeader class="gap-1 border-b border-border/70 bg-background px-6 py-4">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle class="text-xl font-semibold tracking-tight text-foreground">
                     Retenciones aplicadas
                 </DialogTitle>

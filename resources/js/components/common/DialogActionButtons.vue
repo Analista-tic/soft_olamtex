@@ -26,19 +26,18 @@ const emit = defineEmits<{
     (e: 'submit'): void;
 }>();
 
-const buttonClass = 'rounded-full px-5 py-2 text-sm font-semibold';
 const effectiveSubmitLabel = computed(() => (props.loading ? props.loadingLabel : props.submitLabel));
 </script>
 
 <template>
     <div class="flex items-center justify-end gap-2">
-        <Button variant="outline" size="sm" :class="buttonClass" :disabled="props.loading" @click="emit('cancel')">
+        <Button variant="outline" size="pill" :disabled="props.loading" @click="emit('cancel')">
             {{ props.cancelLabel }}
         </Button>
         <Button
             :variant="props.submitVariant"
-            size="sm"
-            :class="[buttonClass, 'shadow-sm']"
+            size="pill"
+            class="shadow-sm"
             :disabled="props.disabled || props.loading"
             @click="emit('submit')"
         >

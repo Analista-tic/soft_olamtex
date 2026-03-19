@@ -68,8 +68,8 @@ watch(dialogOpen, (isOpen) => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="flex max-w-[80vh] flex-col p-0">
-            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
+        <DialogContent class="max-w-md border border-border p-8">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <div class="flex flex-col gap-1">
                     <DialogTitle>Rechazar Solicitud</DialogTitle>
                     <DialogDescription class="pb-2"> Indica el motivo del rechazo. </DialogDescription>

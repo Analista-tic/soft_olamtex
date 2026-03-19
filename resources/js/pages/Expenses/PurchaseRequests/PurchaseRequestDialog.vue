@@ -578,8 +578,8 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent v-if="!props.deferContent" :class="uiPatterns.dialogLarge.content">
-            <DialogHeader :class="uiPatterns.dialogLarge.header">
+        <DialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle :class="uiPatterns.typography.dialogTitle">{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
                 <DialogDescription :class="uiPatterns.typography.dialogSubtitle">
                     Completa los campos de la solicitud de compra.
@@ -608,7 +608,7 @@ watch(
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label :class="uiPatterns.typography.fieldLabel"># Solicitud</Label>
+                                            <Label :class="uiPatterns.typography.fieldLabel">N° Solicitud</Label>
                                             <HelpTooltip
                                                 text="Número único de la solicitud de compra."
                                                 aria-label="Ayuda sobre número de solicitud"

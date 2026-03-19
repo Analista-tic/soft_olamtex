@@ -43,10 +43,42 @@ return new class extends Migration
         });
 
         DB::table('finance_document_sequences')->insert([
-            'document_type' => 'expense_voucher',
-            'current_value' => 0,
-            'created_at' => now(),
-            'updated_at' => now(),
+            [
+                'document_type' => 'expense_voucher',
+                'current_value' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'document_type' => 'quote',
+                'current_value' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'document_type' => 'sales_order',
+                'current_value' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'document_type' => 'sales_invoice',
+                'current_value' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'document_type' => 'sale_credit_note',
+                'current_value' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'document_type' => 'sale_debit_note',
+                'current_value' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ]);
     }
 

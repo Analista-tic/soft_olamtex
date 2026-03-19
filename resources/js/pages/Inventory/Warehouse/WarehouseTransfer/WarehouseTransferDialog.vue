@@ -422,8 +422,8 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 
 <template>
 	<Dialog :open="open" @update:open="val => (val ? emit('update:open', val) : closeDialog())">
-		<FormDialogContent class="flex flex-col max-h-[98vh] max-w-[150vh] px-2 py-2">
-			<DialogHeader class="flex-shrink-0">
+		<FormDialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+			<DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
 				<DialogTitle>{{ dialogTitle }}</DialogTitle>
 				<DialogDescription class="pb-2">
 					{{ dialogDescription }}
@@ -622,4 +622,3 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 		</FormDialogContent>
 	</Dialog>
 </template>
-

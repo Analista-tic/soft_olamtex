@@ -83,8 +83,8 @@ function formatCurrency(value: number): string {
 
 <template>
     <Dialog :open="open" @update:open="(value) => (!value ? emit('close') : null)">
-        <DialogContent :class="uiPatterns.dialogMedium.content">
-            <DialogHeader :class="uiPatterns.dialogMedium.header">
+        <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle :class="uiPatterns.typography.dialogTitle">Registrar pago</DialogTitle>
                 <DialogDescription :class="uiPatterns.typography.dialogSubtitle">
                     {{ invoiceLabel }} - {{ invoiceSupplier || '-' }}

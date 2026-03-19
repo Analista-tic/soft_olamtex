@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import axios from 'axios';
+import { onMounted, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -7,13 +8,22 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import type { Tax } from '@/domain/Finance';
 
-type TaxDialogForm = Partial<Tax> & {
+type AccountOption = {
+    id: number;
+    name: string;
+};
+
+export type TaxDialogForm = Partial<Tax> & {
     name: string;
     percentage: number;
     status: boolean;
+    debit_account_id?: number | null;
+    credit_account_id?: number | null;
 };
 
-type TaxDialogSubmitPayload = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
+type TaxDialogSubmitPayload = Pick<Tax, 'name' | 'percentage' | 'status' | 'debit_account_id' | 'credit_account_id'> & {
+    id?: number;
+};
 
 const props = defineProps<{
     open: boolean;
@@ -34,14 +44,38 @@ const normalizeStatusValue = (value: unknown): boolean => {
     return true;
 };
 
+const normalizeAccountValue = (value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
 const normalizeForm = (source: Partial<TaxDialogForm> = {}): TaxDialogForm => ({
     id: source.id,
     name: String(source.name ?? ''),
     percentage: Number(source.percentage ?? 0),
     status: normalizeStatusValue(source.status),
+    debit_account_id: normalizeAccountValue(source.debit_account_id),
+    credit_account_id: normalizeAccountValue(source.credit_account_id),
 });
 
+const accountOptions = ref<AccountOption[]>([]);
 const localForm = ref<TaxDialogForm>(normalizeForm(props.form));
+
+onMounted(async () => {
+    const response = await axios.get<{ data?: AccountOption[] } | AccountOption[]>(
+        '/finanzas/catalogo-cuentas/options',
+        {
+            params: { allows_entries: true },
+        },
+    );
+
+    accountOptions.value = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data.data)
+          ? response.data.data
+          : [];
+});
 
 watch(
     () => props.form,
@@ -61,6 +95,8 @@ function handleSubmit() {
         name: String(localForm.value.name ?? '').trim(),
         percentage: Number(localForm.value.percentage ?? 0),
         status: localForm.value.status,
+        debit_account_id: localForm.value.debit_account_id ?? null,
+        credit_account_id: localForm.value.credit_account_id ?? null,
     };
     emit('submit', formToSend);
 }
@@ -68,8 +104,8 @@ function handleSubmit() {
 
 <template>
     <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
-            <DialogHeader>
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>
                     {{ props.dialogType === 'create' ? 'Crear Impuesto' : 'Editar Impuesto' }}
                 </DialogTitle>
@@ -80,6 +116,18 @@ function handleSubmit() {
             <div class="space-y-4 pt-2">
                 <InputField label="Nombre" v-model="localForm.name" placeholder="Nombre del impuesto" required />
                 <InputField label="Porcentaje" v-model="localForm.percentage" type="number" min="0" max="100" required />
+                <SelectField
+                    v-model="localForm.debit_account_id"
+                    label="Cuenta débito (IVA descontable)"
+                    :options="accountOptions"
+                    placeholder="Selecciona una cuenta contable"
+                />
+                <SelectField
+                    v-model="localForm.credit_account_id"
+                    label="Cuenta crédito (IVA por pagar)"
+                    :options="accountOptions"
+                    placeholder="Selecciona una cuenta contable"
+                />
                 <SelectField
                     v-model="localForm.status"
                     label="Estado"
@@ -104,4 +152,3 @@ function handleSubmit() {
     </FormDialogContent>
     </Dialog>
 </template>
-

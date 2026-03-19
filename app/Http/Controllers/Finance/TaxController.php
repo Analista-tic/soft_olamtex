@@ -59,6 +59,8 @@ class TaxController extends Controller
             'name' => 'required|string|max:255',
             'percentage' => 'required|numeric|min:0|max:100',
             'status' => 'boolean',
+            'debit_account_id' => 'nullable|exists:accounting_accounts,id',
+            'credit_account_id' => 'nullable|exists:accounting_accounts,id',
         ]);
         $tax = Tax::create($data);
         return response()->json($tax, 201);
@@ -71,6 +73,8 @@ class TaxController extends Controller
             'name' => 'required|string|max:255',
             'percentage' => 'required|numeric|min:0|max:100',
             'status' => 'boolean',
+            'debit_account_id' => 'nullable|exists:accounting_accounts,id',
+            'credit_account_id' => 'nullable|exists:accounting_accounts,id',
         ]);
         $tax->update($data);
         return response()->json($tax);

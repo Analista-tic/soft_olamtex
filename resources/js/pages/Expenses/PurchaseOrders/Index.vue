@@ -323,7 +323,6 @@ async function sendOrderByEmail(order: PurchaseOrder) {
         await axios.post(`/gastos/ordenes-compra/${order.id}/enviar-correo`);
         successMessage.value = 'Orden enviada por correo correctamente.';
     } catch (e) {
-        console.log('e', e);
         setErrorMessage('Error al enviar el correo.');
     } finally {
         isSendingMail.value = false;
@@ -499,7 +498,7 @@ function handleDialogError(message?: string) {
                 <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead :class="uiPatterns.typography.tableHead">#Orden</TableHead>
+                                <TableHead :class="uiPatterns.typography.tableHead">N° Orden</TableHead>
                                 <TableHead :class="uiPatterns.typography.tableHead">Fecha de creación</TableHead>
                                 <TableHead :class="uiPatterns.typography.tableHead">Fecha de entrega</TableHead>
                                 <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>

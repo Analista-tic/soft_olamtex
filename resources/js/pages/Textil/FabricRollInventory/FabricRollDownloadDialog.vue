@@ -78,7 +78,7 @@ function submitDownload() {
 
 <template>
     <Dialog :open="props.modelValue" modal @openChange="handleOpenChange">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
             <FormHeader
                 title="Descarga por rollo"
                 description="Registra los datos de la salida antes de procesarla."
@@ -110,7 +110,7 @@ function submitDownload() {
 
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div class="space-y-1">
-                        <p class="text-xs font-semibold text-muted-foreground"># Nota Crédito</p>
+                        <p class="text-xs font-semibold text-muted-foreground">N° Nota Crédito</p>
                         <Input v-model="form.creditNote" placeholder="NC-1234" />
                     </div>
                     <div class="space-y-1">
@@ -140,4 +140,3 @@ function submitDownload() {
         </FormDialogContent>
     </Dialog>
 </template>
-

@@ -205,7 +205,6 @@ async function fetchSubgroups() {
         const response = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
         subgroups.value = response.data.data || [];
     } catch (e: any) {
-        console.log('Error al cargar subgrupos:', e);
         subgroups.value = [];
     }
 }
@@ -213,23 +212,17 @@ async function fetchSubgroups() {
 async function fetchSpecificInvoice(invoiceId: number) {
     isLoadingSpecificInvoice.value = true;
     try {
-        console.log('Cargando factura ID:', invoiceId);
         const response = await axios.get(`${receptionInvoiceEndpoint}/${invoiceId}`, {
             params: { scope: receptionScope.value },
         });
-        console.log('Respuesta de la factura:', response.data);
         
         if (response.data && response.data.data) {
             selectedInvoice.value = response.data.data;
-            console.log('Items de la factura:', selectedInvoice.value?.items);
         } else {
-            console.error('Estructura de respuesta inesperada:', response.data);
             setAlert('Error: La respuesta del servidor no tiene el formato esperado', 'error');
         }
     } catch (e: any) {
-        console.error('Error al cargar factura específica:', e);
         if (e?.response) {
-            console.error('Respuesta del error:', e.response.data);
             setAlert(`Error al cargar la factura #${invoiceId}: ${e.response.data?.message || 'Error desconocido'}`, 'error');
         } else {
             setAlert(`Error al cargar la factura #${invoiceId}. Verifique que el ID sea válido.`, 'error');
@@ -291,7 +284,6 @@ async function approveReception(invoice: PurchaseInvoice) {
         }
         setAlert(`Recepción de factura #${invoice.id} aprobada. La factura queda en estado Aprobado.`, 'success');
     } catch (e: any) {
-        console.log('Error al aprobar recepción:', e);
         const detail =
             e?.response?.data?.errors?.general?.[0] ||
             e?.response?.data?.message ||
@@ -322,7 +314,6 @@ async function confirmRejectReception() {
         }
         setAlert(`Recepción de factura #${invoice.id} rechazada`, 'success');
     } catch (e: any) {
-        console.log('Error al rechazar recepción:', e);
         const detail =
             e?.response?.data?.errors?.general?.[0] ||
             e?.response?.data?.message ||
@@ -360,7 +351,6 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
         refreshBlockersForList();
     } catch (e: any) {
-        console.log('Error al cargar facturas:', e);
         invoices.value = [];
         totalItems.value = 0;
         setAlert('Error al cargar facturas. Verifique la conexión o consulte los registros del servidor.', 'error');
@@ -723,7 +713,7 @@ function onFabricRollSuccess() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>#Factura</TableHead>
+                                <TableHead>N° Factura</TableHead>
                                 <TableHead>Proveedor</TableHead>
                                 <TableHead>Fecha</TableHead>
                                 <TableHead>Total</TableHead>
@@ -1110,8 +1100,8 @@ function onFabricRollSuccess() {
 
             <!-- Diálogo de confirmación para rechazar recepción -->
             <Dialog v-model:open="isRejectDialogOpen">
-                <DialogContent>
-                    <DialogHeader>
+                <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+                    <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                         <DialogTitle>¿Está seguro de rechazar esta recepción?</DialogTitle>
                         <DialogDescription>
                             Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.

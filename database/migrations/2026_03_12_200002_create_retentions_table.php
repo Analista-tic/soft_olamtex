@@ -14,6 +14,10 @@ class CreateRetentionsTable extends Migration
             $table->decimal('percent', 5, 2);
             $table->string('type');
             $table->text('description')->nullable();
+            $table->foreignId('account_id')
+                ->nullable()
+                ->constrained('accounting_accounts')
+                ->nullOnDelete();
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
         });

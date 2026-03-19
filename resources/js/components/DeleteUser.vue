@@ -54,9 +54,9 @@ const closeModal = () => {
                 <DialogTrigger as-child>
                     <Button variant="destructive">Delete account</Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent class="max-w-md border border-border p-8">
                     <form class="space-y-6" @submit="deleteUser">
-                        <DialogHeader class="space-y-3">
+                        <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                             <DialogTitle>Are you sure you want to delete your account?</DialogTitle>
                             <DialogDescription>
                                 Once your account is deleted, all of its resources and data will also be permanently deleted. Please enter your
@@ -72,10 +72,10 @@ const closeModal = () => {
 
                         <DialogFooter class="gap-2">
                             <DialogClose as-child>
-                                <Button variant="secondary" @click="closeModal"> Cancel </Button>
+                                <Button variant="outline" size="pill" @click="closeModal"> Cancel </Button>
                             </DialogClose>
 
-                            <Button variant="destructive" :disabled="form.processing">
+                            <Button variant="destructive" size="pill" :disabled="form.processing">
                                 <button type="submit">Delete account</button>
                             </Button>
                         </DialogFooter>

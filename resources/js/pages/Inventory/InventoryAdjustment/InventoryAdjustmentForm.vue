@@ -19,6 +19,12 @@ import type { Tax } from '@/domain/Finance';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import {
+  getInventoryAdjustmentReasonLabel,
+  INVENTORY_ADJUSTMENT_REASON_OPTIONS,
+  normalizeInventoryAdjustmentReason,
+  resolveInventoryAdjustmentDirection,
+} from '@/lib/inventoryAdjustmentReasons';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -43,13 +49,10 @@ type Line = {
   description: string;
 };
 
-const defaultMovementReason: 'entrada' | 'salida' = 'entrada';
+const defaultMovementReason = 'entry_regularization';
 const { company, logoUrl } = useCompanyInfo();
 
-const adjustmentTypeOptions = [
-  { id: 'entrada', name: 'Entrada', direction: 'entrada' },
-  { id: 'salida', name: 'Salida', direction: 'salida' },
-];
+const adjustmentReasonOptions = ref(INVENTORY_ADJUSTMENT_REASON_OPTIONS);
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
   minimumFractionDigits: 2,
@@ -59,8 +62,11 @@ const currencyFormatter = new Intl.NumberFormat('es-CO', {
 const formatCurrency = (value: number | string | null | undefined) =>
   currencyFormatter.format(Number(value ?? 0));
 
-const resolveMovementReason = (value?: string): 'entrada' | 'salida' =>
-  value === 'salida' ? 'salida' : defaultMovementReason;
+const movementReason = ref<string>(defaultMovementReason);
+const movementDirection = computed<'entrada' | 'salida'>(() => resolveInventoryAdjustmentDirection(movementReason.value));
+const movementReasonDescription = computed(() =>
+  adjustmentReasonOptions.value.find((option) => option.id === normalizeInventoryAdjustmentReason(movementReason.value))?.description ?? '',
+);
 
 const documentNumber = ref<string>('Automatico');
 const date = ref<string | null>(null);
@@ -180,18 +186,32 @@ watch(
   (current) => {
     current.forEach(line => {
       if (!line.movementReason) {
-        line.movementReason = defaultMovementReason;
+        line.movementReason = normalizeInventoryAdjustmentReason(movementReason.value);
       }
     });
   },
   { deep: true },
 );
 
+watch(movementReason, (value) => {
+  const normalized = normalizeInventoryAdjustmentReason(value);
+  if (normalized !== movementReason.value) {
+    movementReason.value = normalized;
+    return;
+  }
+
+  lines.value = lines.value.map(line => ({
+    ...line,
+    movementReason: normalized,
+  }));
+});
+
 function resetForm() {
   documentNumber.value = 'Automatico';
   date.value = null;
   observation.value = '';
   productionOrder.value = '';
+  movementReason.value = defaultMovementReason;
   selectedWarehouseId.value = warehouses.value[0]?.id ?? null;
   lines.value = [{
     id: 1,
@@ -226,7 +246,8 @@ function fillFromAdjustment(data: any) {
   productionOrder.value = data.production_order || '';
   const firstLineWarehouse = Array.isArray(data.lines) && data.lines.length ? data.lines[0].warehouse_id ?? null : null;
   selectedWarehouseId.value = firstLineWarehouse ?? selectedWarehouseId.value ?? warehouses.value[0]?.id ?? null;
-  const resolvedMovementReason = resolveMovementReason(data.movement_reason || data.type);
+  const resolvedMovementReason = normalizeInventoryAdjustmentReason(data.movement_reason || data.type);
+  movementReason.value = resolvedMovementReason;
   lines.value = Array.isArray(data.lines)
     ? data.lines.map((line: any, idx: number) => ({
         id: idx + 1,
@@ -282,7 +303,7 @@ function addLine() {
   lines.value.push({
     id: nextId,
     itemId: null,
-    movementReason: lines.value[0]?.movementReason || defaultMovementReason,
+    movementReason: movementReason.value || defaultMovementReason,
     warehouseId: selectedWarehouseId.value,
     price: 0,
     taxId: null,
@@ -394,11 +415,11 @@ async function handleSubmit() {
     return;
   }
 
-  const primaryMovementReason = lines.value[0]?.movementReason || defaultMovementReason;
+  const primaryMovementReason = normalizeInventoryAdjustmentReason(movementReason.value);
   const payload = {
     document_number: documentNumber.value === 'Automatico' ? null : documentNumber.value,
     date: date.value,
-    type: primaryMovementReason,
+    type: movementDirection.value,
     movement_reason: primaryMovementReason,
     observation: observation.value || null,
     production_order: productionOrder.value || null,
@@ -408,7 +429,7 @@ async function handleSubmit() {
     lines: lines.value.map(line => ({
       item_id: line.itemId,
       warehouse_id: line.warehouseId || selectedWarehouseId.value,
-      movement_reason: line.movementReason || primaryMovementReason,
+      movement_reason: primaryMovementReason,
       price: line.price ?? 0,
       tax: line.tax ?? 0,
       tax_id: line.taxId ?? null,
@@ -463,8 +484,8 @@ async function handleSubmit() {
 
 <template>
   <Dialog :open="isOpen" @update:open="emit('close')">
-    <DialogContent class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
-      <DialogHeader class="pb-5 flex-shrink-0 px-4 pt-4">
+    <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+      <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
           <DialogTitle>{{ props.dialogType === 'edit' ? 'Editar ajuste de inventario' : 'Nuevo ajuste de inventario' }}</DialogTitle>
           <DialogDescription>
             Registra un movimiento de entrada o salida de inventario.
@@ -499,7 +520,7 @@ async function handleSubmit() {
           <div >
             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <Label># Documento</Label>
+                <Label>N° Documento</Label>
                 <Input
                   v-model="documentNumber"
                   class="mt-1 pointer-events-none select-none"
@@ -553,6 +574,18 @@ async function handleSubmit() {
                 />
               </div>
               <div>
+                <SelectField
+                  v-model="movementReason"
+                  label="Motivo economico"
+                  :options="adjustmentReasonOptions"
+                  placeholder="Selecciona motivo"
+                  helpText="Define la naturaleza economica del ajuste. La direccion del movimiento se deriva automaticamente de este motivo."
+                  required
+                />
+              </div>
+            </div>
+            <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3 items-end">
+              <div>
                 <Label class="flex items-center gap-1.5">
                   <span>Observación</span>
                   <HelpTooltip
@@ -563,6 +596,20 @@ async function handleSubmit() {
                   v-model="observation"
                   class="mt-1"
                   placeholder="Ingrese una observación"
+                />
+              </div>
+              <div>
+                <Label class="flex items-center gap-1.5">
+                  <span>Direccion del movimiento</span>
+                  <HelpTooltip
+                    :text="movementReasonDescription || 'La direccion del ajuste se determina por el motivo economico seleccionado.'"
+                  />
+                </Label>
+                <Input
+                  :model-value="movementDirection === 'entrada' ? 'Entrada' : 'Salida'"
+                  class="mt-1 pointer-events-none select-none"
+                  readonly
+                  tabindex="-1"
                 />
               </div>
             </div>
@@ -583,7 +630,7 @@ async function handleSubmit() {
                   <TableHeader>
                   <TableRow class="border-b border-border/60">
                     <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[160px] text-left">Tipo de ajuste <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[200px] text-left">Motivo del ajuste</TableHead>
                     <TableHead class="min-w-[160px] text-left">
                       Descripcion <span class="text-destructive">*</span>
                     </TableHead>
@@ -609,13 +656,12 @@ async function handleSubmit() {
                     </TableCell>
 
                     <TableCell class="p-1 text-left">
-                      <SelectField
-                        v-model="line.movementReason"
-                        :options="adjustmentTypeOptions"
-                        label=""
-                        placeholder="Selecciona"
-                        class="w-full"
-                      />
+                      <div class="text-sm leading-tight">
+                        <div class="font-medium">{{ getInventoryAdjustmentReasonLabel(movementReason) }}</div>
+                        <div class="text-xs text-muted-foreground">
+                          {{ movementDirection === 'entrada' ? 'Entrada' : 'Salida' }}
+                        </div>
+                      </div>
                     </TableCell>
 
                     <TableCell class="p-1">
@@ -719,5 +765,4 @@ async function handleSubmit() {
     </DialogContent>
   </Dialog>
 </template>
-
 

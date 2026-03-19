@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import FormDialogContent from '@/components/FormDialogContent.vue';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import InputField from '@/components/InputField.vue';
 import type { CategoryGroup } from '@/domain/MasterData';
 
@@ -47,8 +46,8 @@ function submitForm() {
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent class="flex flex-col h-[35vh] max-w-[95vh] px-2 py-2">
-            <DialogHeader class="flex-shrink-0">
+        <DialogContent class="max-w-md border border-border p-8">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>Crear Grupo</DialogTitle>
                 <DialogDescription>
                     Completa los campos para crear un nuevo grupo.
@@ -71,6 +70,6 @@ function submitForm() {
                     Crear
                 </button>
             </DialogFooter>
-        </FormDialogContent>
+        </DialogContent>
     </Dialog>
 </template>

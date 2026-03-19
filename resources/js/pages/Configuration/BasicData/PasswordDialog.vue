@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import axios from 'axios';
 import { reactive, ref, watch } from 'vue';
@@ -84,9 +83,9 @@ const handleSubmit = async () => {
 
 <template>
     <Dialog :open="modelValue" @update:open="close">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-[85vh] px-2 py-2">
+        <DialogContent class="max-w-md border border-border p-8">
             <form class="space-y-4" @submit.prevent="handleSubmit">
-                <DialogHeader>
+                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>Actualizar contraseña</DialogTitle>
                     <DialogDescription>Asegúrate de usar una contraseña larga y segura.</DialogDescription>
                 </DialogHeader>
@@ -123,6 +122,6 @@ const handleSubmit = async () => {
                     </Button>
                 </DialogFooter>
             </form>
-        </FormDialogContent>
+        </DialogContent>
     </Dialog>
 </template>

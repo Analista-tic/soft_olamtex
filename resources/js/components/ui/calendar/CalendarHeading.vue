@@ -100,11 +100,11 @@ function onYearChange(event: Event) {
 <template>
   <div
     v-bind="forwardedProps"
-    :class="cn('flex items-center gap-2', props.class)"
+    :class="cn('grid min-w-0 grid-cols-[minmax(0,1.15fr)_minmax(88px,0.85fr)] items-center gap-2', props.class)"
   >
     <slot :heading-value="headingValue">
       <select
-        class="h-8 rounded-md border bg-background px-2 text-sm font-semibold"
+        class="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium text-foreground shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40"
         :disabled="context.disabled?.value"
         :value="currentMonth"
         @change="onMonthChange"
@@ -114,7 +114,7 @@ function onYearChange(event: Event) {
         </option>
       </select>
       <select
-        class="h-8 rounded-md border bg-background px-2 text-sm font-semibold"
+        class="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm font-medium text-foreground shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40"
         :disabled="context.disabled?.value"
         :value="currentYear"
         @change="onYearChange"
@@ -126,4 +126,3 @@ function onYearChange(event: Event) {
     </slot>
   </div>
 </template>
-

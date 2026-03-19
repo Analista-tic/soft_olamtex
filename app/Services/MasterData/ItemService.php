@@ -787,19 +787,27 @@ class ItemService
     protected function buildCreatePayload(array $data): array
     {
         $extraFields = $this->normalizeExtraFields($data['extra_fields'] ?? []);
+        $itemType = $this->normalizeItemType($data['item_type'] ?? 'product');
+        $tracksInventory = $this->normalizeTracksInventory($data['tracks_inventory'] ?? null, $itemType);
         $payload = [
             'category_sub_group_id' => $data['category_sub_group_id'],
             'img' => $data['img'] ?? null,
             'tax_id' => $this->ensureTaxId($data['tax_id'] ?? null),
             'tax' => $data['tax'],
             'bar_code' => $data['bar_code'] ?? null,
-            'negative_movement' => filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+            'negative_movement' => $tracksInventory && filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
             'description' => isset($data['description']) ? (string) $data['description'] : '',
             'extra_fields' => $extraFields,
             'reference' => $data['reference'],
             'status' => array_key_exists('status', $data) ? (bool) $data['status'] : true,
-            'item_type' => $data['item_type'] ?? 'product',
+            'item_type' => $itemType,
+            'tracks_inventory' => $tracksInventory,
             'unit_measure' => $data['unit_measure'] ?? null,
+            'income_account_id' => $this->normalizeAccountId($data['income_account_id'] ?? null),
+            'inventory_account_id' => $tracksInventory
+                ? $this->normalizeAccountId($data['inventory_account_id'] ?? null)
+                : null,
+            'cost_of_sale_account_id' => $this->normalizeAccountId($data['cost_of_sale_account_id'] ?? null),
         ];
 
         $payload['name'] = $this->buildName($payload['category_sub_group_id'], $extraFields);
@@ -822,6 +830,9 @@ class ItemService
             'description',
             'reference',
             'unit_measure',
+            'income_account_id',
+            'inventory_account_id',
+            'cost_of_sale_account_id',
         ];
 
         foreach ($fields as $field) {
@@ -830,16 +841,35 @@ class ItemService
             }
         }
 
-        if (array_key_exists('negative_movement', $data)) {
-            $payload['negative_movement'] = filter_var($data['negative_movement'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+        foreach (['income_account_id', 'inventory_account_id', 'cost_of_sale_account_id'] as $accountField) {
+            if (array_key_exists($accountField, $payload)) {
+                $payload[$accountField] = $this->normalizeAccountId($payload[$accountField]);
+            }
         }
 
         if (array_key_exists('status', $data)) {
             $payload['status'] = (bool) $data['status'];
         }
 
-        if (array_key_exists('item_type', $data)) {
-            $payload['item_type'] = $data['item_type'];
+        $itemType = $this->normalizeItemType($data['item_type'] ?? $item->item_type ?? 'product');
+        $tracksInventory = $this->normalizeTracksInventory(
+            $data['tracks_inventory'] ?? $item->tracks_inventory ?? null,
+            $itemType
+        );
+
+        if (array_key_exists('item_type', $data) || $itemType !== $item->item_type) {
+            $payload['item_type'] = $itemType;
+        }
+
+        if (array_key_exists('tracks_inventory', $data) || $tracksInventory !== (bool) $item->tracks_inventory) {
+            $payload['tracks_inventory'] = $tracksInventory;
+        }
+
+        if (array_key_exists('negative_movement', $data) || !$tracksInventory) {
+            $payload['negative_movement'] = $tracksInventory
+                && filter_var($data['negative_movement'] ?? $item->negative_movement, FILTER_VALIDATE_BOOLEAN)
+                    ? 1
+                    : 0;
         }
 
         $extraFields = array_key_exists('extra_fields', $data)
@@ -854,7 +884,38 @@ class ItemService
             $payload['tax_id'] = $this->ensureTaxId($data['tax_id']);
         }
 
+        if (!$tracksInventory) {
+            $payload['inventory_account_id'] = null;
+        }
+
         return $payload;
+    }
+
+    protected function normalizeAccountId(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    protected function normalizeItemType(mixed $value): string
+    {
+        return (string) $value === 'service' ? 'service' : 'product';
+    }
+
+    protected function normalizeTracksInventory(mixed $value, string $itemType): bool
+    {
+        if ($itemType === 'service') {
+            return false;
+        }
+
+        if ($value === null || $value === '') {
+            return true;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
     }
 
     protected function ensureTaxId(?int $taxId): ?int

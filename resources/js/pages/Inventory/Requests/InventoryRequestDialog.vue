@@ -474,8 +474,8 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <DialogContent v-if="!props.deferContent" class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
-            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
+        <DialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <div class="flex flex-col gap-1">
                     <DialogTitle>
                         {{ dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva' }} Solicitud Interna
@@ -499,7 +499,7 @@ onUnmounted(() => {
                         <div class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
                                 <InputField
-                                    label="# Solicitud"
+                                    label="N° Solicitud"
                                     v-model="safeDocumentNumber"
                                     placeholder="SINT-001"
                                     :readonly="true"

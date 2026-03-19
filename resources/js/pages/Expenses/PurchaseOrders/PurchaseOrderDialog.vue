@@ -298,15 +298,8 @@ async function fetchPendingPurchaseRequests() {
             // Asegurar que solo sean 'approved' y no 'processed'
             return status === 'approved' && status !== 'processed';
         });
-        
-        console.log('Total solicitudes recibidas:', allRequests.length);
-        console.log('Solicitudes filtradas (approved, no processed):', purchaseRequests.value.length);
     } catch (e) {
         purchaseRequests.value = [];
-        console.error('Error fetching purchase requests:', e);
-        if ((e as any)?.response) {
-            console.error('Response error:', (e as any).response.data);
-        }
     }
 }
 
@@ -614,7 +607,7 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent v-if="!props.deferContent" class="max-w-[200vh] max-h-[90vh] flex flex-col p-0">
+        <DialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
             <AlertStack
                 v-show="successMessage || errorMessage"
                 class="z-50 fixed top-4 left-1/2 -translate-x-1/2 w-full max-w-lg"
@@ -627,7 +620,7 @@ watch(
                 @close-error="clearError"
             />
             <TooltipProvider>
-            <DialogHeader class="relative flex-shrink-0 px-4 pt-4 pb-7">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <div class="flex flex-col gap-1">
                         <DialogTitle>{{ dialogTitleText }}</DialogTitle>
                         <DialogDescription>
@@ -682,7 +675,7 @@ watch(
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
                                 <InputField
-                                    label="# Orden de Compra"
+                                    label="N° Orden de Compra"
                                     :modelValue="orderDocumentNumber"
                                     readonly
                                     v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingOrderId && orderDocumentNumber)"

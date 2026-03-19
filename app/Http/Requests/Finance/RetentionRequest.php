@@ -18,6 +18,7 @@ class RetentionRequest extends FormRequest
             'percent' => ['required', 'numeric', 'min:0', 'max:100'],
             'type' => ['required', 'string', 'max:100'],
             'description' => ['nullable', 'string'],
+            'account_id' => ['nullable', 'exists:accounting_accounts,id'],
             'status' => ['required', 'in:active,inactive'],
         ];
     }

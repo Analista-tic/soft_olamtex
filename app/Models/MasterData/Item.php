@@ -2,9 +2,11 @@
 
 namespace App\Models\MasterData;
 
+use App\Models\Finance\AccountingAccount;
 use App\Models\Finance\Tax;
 use App\Models\Inventory\Warehouse;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Item extends Model implements \App\Contracts\HasAuditLabel
@@ -21,13 +23,18 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
         'name',
         'reference',
         'item_type',
+        'tracks_inventory',
         'status',
         'unit_measure', // EN: unidad de medida
+        'income_account_id',
+        'inventory_account_id',
+        'cost_of_sale_account_id',
     ];
 
     protected $casts = [
         'extra_fields' => 'array',
         'negative_movement' => 'integer',
+        'tracks_inventory' => 'boolean',
         'status' => 'boolean',
     ];
 
@@ -87,6 +94,21 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
     public function tax()
     {
         return $this->belongsTo(Tax::class, 'tax_id');
+    }
+
+    public function incomeAccount(): BelongsTo
+    {
+        return $this->belongsTo(AccountingAccount::class, 'income_account_id');
+    }
+
+    public function inventoryAccount(): BelongsTo
+    {
+        return $this->belongsTo(AccountingAccount::class, 'inventory_account_id');
+    }
+
+    public function costOfSaleAccount(): BelongsTo
+    {
+        return $this->belongsTo(AccountingAccount::class, 'cost_of_sale_account_id');
     }
 
     /**

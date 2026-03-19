@@ -221,12 +221,9 @@ async function submitForm(userData: UserFormData) {
             ...userData, // Usar los datos recibidos del componente hijo
             roles: rolesPayload,
         };
-        console.log(payload);
 
         const response = await axios({ method, url, data: payload });
-        console.log(response);
 
-        console.log('Usuario guardado exitosamente:', response.data);
         showSuccess(dialogType.value === 'create' ? 'Usuario creado correctamente.' : 'Usuario actualizado correctamente.');
         fetchUsers(); // Refrescar la lista de usuarios
         closeDialog();

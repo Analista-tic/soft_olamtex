@@ -58,7 +58,7 @@ function submitAdjust() {
 
 <template>
     <Dialog :open="props.modelValue" modal @openChange="handleOpenChange">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
             <FormHeader
                 title="Ajustar salida del rollo"
                 description="Modifica la salida registrada antes de continuar con la descarga."

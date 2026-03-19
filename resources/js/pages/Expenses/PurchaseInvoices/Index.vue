@@ -186,7 +186,6 @@ async function fetchProviders() {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
         providers.value = response.data.data;
     } catch (e) {
-        console.log('Error al cargar proveedores:', e);
         providers.value = [];
     }
 }
@@ -196,7 +195,6 @@ async function fetchSubgroups() {
         const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
         subgroups.value = Array.isArray(data?.data) ? data.data : [];
     } catch (error) {
-        console.log('Error al cargar subgrupos:', error);
         subgroups.value = [];
     }
 }
@@ -300,7 +298,6 @@ async function deleteInvoice(): Promise<void> {
         showSuccess('Factura eliminada correctamente.');
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
-        console.log('Error al eliminar factura:', e);
         const serverMessage = (e as any)?.response?.data?.message;
         const status = (e as any)?.response?.status;
         if (serverMessage) {
@@ -340,7 +337,6 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
                 : [];
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
     } catch (e) {
-        console.log('Error al cargar facturas:', e);
         invoices.value = [];
         totalItems.value = 0;
     }
@@ -670,7 +666,7 @@ function handleDialogError(message?: string) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead">#Factura</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">N° Factura</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Fecha de creación</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Fecha de entrega</TableHead>
                             <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>
@@ -792,4 +788,3 @@ function handleDialogError(message?: string) {
     />
     </AppLayout>
 </template>
-

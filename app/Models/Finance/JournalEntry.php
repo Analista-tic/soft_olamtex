@@ -2,6 +2,8 @@
 
 namespace App\Models\Finance;
 
+use App\Enums\Finance\JournalEntryStatus;
+use App\Enums\Finance\JournalEntryType;
 use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +17,10 @@ class JournalEntry extends Model
     public const TYPE_STANDARD = 'standard';
     public const TYPE_EXPENSE_VOUCHER = 'expense_voucher';
     public const TYPE_CASH_RECEIPT = 'cash_receipt';
+    public const TYPE_PURCHASE_INVOICE = 'purchase_invoice';
+    public const TYPE_SALES_INVOICE = 'sales_invoice';
+    public const TYPE_CREDIT_NOTE = 'credit_note';
+    public const TYPE_DEBIT_NOTE = 'debit_note';
     public const TYPE_ADJUSTMENT = 'adjustment';
     public const TYPE_OPENING = 'opening';
     public const TYPE_CLOSING = 'closing';
@@ -54,7 +60,7 @@ class JournalEntry extends Model
     ];
 
     /**
-     * Líneas del asiento contable.
+     * Lineas del asiento contable.
      */
     public function lines(): HasMany
     {
@@ -62,7 +68,7 @@ class JournalEntry extends Model
     }
 
     /**
-     * Usuario que creó el asiento.
+     * Usuario que creo el asiento.
      */
     public function creator(): BelongsTo
     {
@@ -70,7 +76,7 @@ class JournalEntry extends Model
     }
 
     /**
-     * Asiento que reversó este asiento.
+     * Asiento que reverso este asiento.
      */
     public function reversedByEntry(): BelongsTo
     {
@@ -102,7 +108,7 @@ class JournalEntry extends Model
     }
 
     /**
-     * Scope por documento fuente específico.
+     * Scope por documento fuente especifico.
      */
     public function scopeForSource($query, string $sourceType, int $sourceId)
     {
@@ -110,7 +116,7 @@ class JournalEntry extends Model
     }
 
     /**
-     * Scope para asientos de reversión (los que revierten otro asiento).
+     * Scope para asientos de reversion.
      */
     public function scopeReversalEntries($query)
     {
@@ -118,7 +124,7 @@ class JournalEntry extends Model
     }
 
     /**
-     * Scope para asientos base (no son asientos de reversión).
+     * Scope para asientos base.
      */
     public function scopeBaseEntries($query)
     {
@@ -137,7 +143,7 @@ class JournalEntry extends Model
     }
 
     /**
-     * Verifica si el asiento está balanceado.
+     * Verifica si el asiento esta balanceado.
      */
     public function isBalanced(): bool
     {
@@ -145,7 +151,7 @@ class JournalEntry extends Model
     }
 
     /**
-     * Verifica si el asiento está contabilizado.
+     * Verifica si el asiento esta contabilizado.
      */
     public function isPosted(): bool
     {
@@ -160,8 +166,18 @@ class JournalEntry extends Model
         return $this->status === self::STATUS_REVERSED;
     }
 
+    public function statusEnum(): JournalEntryStatus
+    {
+        return JournalEntryStatus::from((string) $this->status);
+    }
+
+    public function typeEnum(): JournalEntryType
+    {
+        return JournalEntryType::from((string) $this->entry_type);
+    }
+
     /**
-     * Recalcula los totales desde las líneas.
+     * Recalcula los totales desde las lineas.
      */
     public function recalculateTotals(): void
     {
@@ -182,7 +198,7 @@ class JournalEntry extends Model
     }
 
     /**
-     * Busca el último asiento (de cualquier estado) asociado a una fuente.
+     * Busca el ultimo asiento asociado a una fuente.
      */
     public static function findLatestBySource(string $sourceType, int $sourceId): ?self
     {
@@ -208,12 +224,15 @@ class JournalEntry extends Model
     public static function getEntryTypeOptions(): array
     {
         return [
-            ['id' => self::TYPE_STANDARD, 'name' => 'Estándar'],
-            ['id' => self::TYPE_EXPENSE_VOUCHER, 'name' => 'Comprobante de egreso'],
-            ['id' => self::TYPE_CASH_RECEIPT, 'name' => 'Recibo de caja'],
-            ['id' => self::TYPE_ADJUSTMENT, 'name' => 'Ajuste'],
-            ['id' => self::TYPE_OPENING, 'name' => 'Apertura'],
-            ['id' => self::TYPE_CLOSING, 'name' => 'Cierre'],
+            ['id' => self::TYPE_STANDARD, 'name' => JournalEntryType::STANDARD->label()],
+            ['id' => self::TYPE_EXPENSE_VOUCHER, 'name' => JournalEntryType::EXPENSE_VOUCHER->label()],
+            ['id' => self::TYPE_CASH_RECEIPT, 'name' => JournalEntryType::CASH_RECEIPT->label()],
+            ['id' => self::TYPE_SALES_INVOICE, 'name' => JournalEntryType::SALES_INVOICE->label()],
+            ['id' => self::TYPE_CREDIT_NOTE, 'name' => JournalEntryType::CREDIT_NOTE->label()],
+            ['id' => self::TYPE_DEBIT_NOTE, 'name' => JournalEntryType::DEBIT_NOTE->label()],
+            ['id' => self::TYPE_ADJUSTMENT, 'name' => JournalEntryType::ADJUSTMENT->label()],
+            ['id' => self::TYPE_OPENING, 'name' => JournalEntryType::OPENING->label()],
+            ['id' => self::TYPE_CLOSING, 'name' => JournalEntryType::CLOSING->label()],
         ];
     }
 
@@ -223,9 +242,9 @@ class JournalEntry extends Model
     public static function getStatusOptions(): array
     {
         return [
-            ['id' => self::STATUS_DRAFT, 'name' => 'Borrador'],
-            ['id' => self::STATUS_POSTED, 'name' => 'Contabilizado'],
-            ['id' => self::STATUS_REVERSED, 'name' => 'Reversado'],
+            ['id' => self::STATUS_DRAFT, 'name' => JournalEntryStatus::DRAFT->label()],
+            ['id' => self::STATUS_POSTED, 'name' => JournalEntryStatus::POSTED->label()],
+            ['id' => self::STATUS_REVERSED, 'name' => JournalEntryStatus::REVERSED->label()],
         ];
     }
 }

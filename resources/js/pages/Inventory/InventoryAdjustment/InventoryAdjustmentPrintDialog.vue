@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { getInventoryAdjustmentReasonLabel } from '@/lib/inventoryAdjustmentReasons';
 import { computed, ref, watch } from 'vue';
 
 type AdjustmentLine = {
@@ -18,6 +19,7 @@ type InventoryAdjustment = {
     document_number: string | null;
     date: string;
     type: 'entrada' | 'salida';
+    movement_reason?: string | null;
     observation?: string | null;
     production_order?: string | null;
     subtotal?: number | string;
@@ -77,6 +79,8 @@ function formatCurrency(value: number | string | null | undefined) {
 function print() {
     window.print();
 }
+
+const movementReasonLabel = computed(() => getInventoryAdjustmentReasonLabel(props.adjustment?.movement_reason ?? props.adjustment?.type));
 </script>
 
 <template>
@@ -91,7 +95,7 @@ function print() {
                 <div>
                     <div class="mb-4 grid grid-cols-3 items-start gap-4">
                         <div>
-                            <div class="font-bold"># Documento</div>
+                            <div class="font-bold">N° Documento</div>
                             <div>{{ props.adjustment?.document_number || 'Sin número' }}</div>
                         </div>
                         <div class="flex h-full items-center justify-center rounded p-4">
@@ -120,8 +124,8 @@ function print() {
                             <div>{{ props.adjustment?.date }}</div>
                         </div>
                         <div>
-                            <div class="font-bold">Tipo</div>
-                            <div class="capitalize">{{ props.adjustment?.type }}</div>
+                            <div class="font-bold">Motivo economico</div>
+                            <div>{{ movementReasonLabel }}</div>
                         </div>
                         <div>
                             <div class="font-bold">Orden de producción</div>

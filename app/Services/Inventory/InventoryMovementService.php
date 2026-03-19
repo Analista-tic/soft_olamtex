@@ -106,11 +106,16 @@ class InventoryMovementService
             // Calcular nuevo precio ponderado
             // NOTA: Para salidas, el precio unitario puede ser null (no afecta el cálculo)
             // Para entradas, el precio unitario es obligatorio para recalcular el promedio
-            $unitPrice = isset($data['unit_price']) ? (float) $data['unit_price'] : null;
+            $hasUnitPrice = array_key_exists('unit_price', $data) && $data['unit_price'] !== null && $data['unit_price'] !== '';
+            $unitPrice = $hasUnitPrice ? (float) $data['unit_price'] : null;
             
             // Validar que las entradas tengan precio unitario
-            if ($data['type'] === 'entrada' && ($unitPrice === null || $unitPrice <= 0)) {
+            if ($data['type'] === 'entrada' && ! $hasUnitPrice) {
                 throw new \InvalidArgumentException('Las entradas de inventario requieren un precio unitario para calcular el costo promedio ponderado.');
+            }
+
+            if ($data['type'] === 'entrada' && $unitPrice !== null && $unitPrice < 0) {
+                throw new \InvalidArgumentException('Las entradas de inventario no permiten precio unitario negativo.');
             }
             
             $newWeightedPrice = $this->calculateWeightedAverage(
@@ -129,14 +134,14 @@ class InventoryMovementService
             // Calcular costo total del movimiento
             // Para entradas: cantidad × precio unitario
             // Para salidas: cantidad × precio ponderado vigente (para valorización)
-            if ($data['type'] === 'entrada' && $unitPrice) {
+            if ($data['type'] === 'entrada' && $unitPrice !== null) {
                 $totalCost = $quantity * $unitPrice;
             } elseif ($data['type'] === 'salida') {
                 // Las salidas se valorizan al costo promedio vigente
                 $totalCost = $quantity * $previousWeightedPrice;
             } else {
                 // Ajustes: usar precio unitario si está disponible, sino null
-                $totalCost = $unitPrice ? ($quantity * $unitPrice) : null;
+                $totalCost = $unitPrice !== null ? ($quantity * $unitPrice) : null;
             }
 
             // Crear movimiento
@@ -209,7 +214,7 @@ class InventoryMovementService
 
         // Para entradas y ajustes, necesitamos precio unitario válido
         // Si no hay precio unitario, mantener el precio actual
-        if (($type === 'entrada' || $type === 'ajuste') && ($unitPrice === null || $unitPrice <= 0)) {
+        if (($type === 'entrada' || $type === 'ajuste') && $unitPrice === null) {
             return $previousPrice;
         }
 

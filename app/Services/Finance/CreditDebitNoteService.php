@@ -44,6 +44,7 @@ class CreditDebitNoteService
         private PurchaseDocumentService $documentService,
         private PurchaseDocumentInvoiceService $invoiceService,
         private SettingService $settingService,
+        private \App\Services\Finance\AccountingPostingService $accountingPostingService,
     )
     {
     }
@@ -162,6 +163,7 @@ class CreditDebitNoteService
             }
 
             $updatedNote = $this->documentService->updateDocument($note, [], $payload['items']);
+            $this->accountingPostingService->postCreditNote($updatedNote);
 
             if ($note->document_type === PurchaseDocument::TYPE_CREDIT_NOTE) {
                 $this->ensureCreditNoteBalanceIsNonNegative($parentInvoice);

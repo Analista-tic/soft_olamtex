@@ -1,0 +1,365 @@
+<script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
+import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
+import ViewButton from '@/components/common/ViewButton.vue';
+import DatePickerField from '@/components/DatePickerField.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
+import TextareaField from '@/components/TextareaField.vue';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import Input from '@/components/ui/input/Input.vue';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Pagination,
+    PaginationEllipsis,
+    PaginationFirst,
+    PaginationLast,
+    PaginationList,
+    PaginationListItem,
+    PaginationNext,
+    PaginationPrev,
+} from '@/components/ui/pagination';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+    fetchIncomeCustomerOptions,
+    normalizeErrorMessage,
+    watchIncomeDocumentFilters,
+} from '@/composables/Income/useIncomeDocument';
+import { useSmartLoading } from '@/composables/useSmartLoading';
+import type { CashReceipt } from '@/domain/Income';
+import type { BreadcrumbItem, Option } from '@/domain/shared';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { uiPatterns } from '@/lib/ui-patterns';
+import { useIncomeStore } from '@/stores/income';
+import { Head } from '@inertiajs/vue3';
+import { Ban, PlusCircle, Search, Wallet } from 'lucide-vue-next';
+import { computed, onMounted, ref } from 'vue';
+import CashReceiptDialog from './CashReceiptDialog.vue';
+
+const incomeStore = useIncomeStore();
+const smartLoading = useSmartLoading();
+
+const breadcrumbs: BreadcrumbItem[] = [
+    { title: 'Ingresos', href: '/income/cash-receipts' },
+    { title: 'Recibos de caja', href: '/income/cash-receipts' },
+];
+
+const isDialogOpen = ref(false);
+const dialogMode = ref<'create' | 'view'>('create');
+const selectedReceiptId = ref<number | undefined>(undefined);
+const fromInvoiceId = ref<number | undefined>(undefined);
+const receiptToVoid = ref<CashReceipt | null>(null);
+const isVoidDialogOpen = ref(false);
+const voidReason = ref('');
+const successMessage = ref('');
+const errorMessage = ref('');
+const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
+const customerOptions = ref<Option[]>([]);
+
+const search = ref(incomeStore.cashReceiptFilters.search ?? '');
+const contactId = ref<number | 'all'>((incomeStore.cashReceiptFilters.contact_id as number | null | undefined) ?? 'all');
+const dateFrom = ref<string | null>(incomeStore.cashReceiptFilters.date_from ?? null);
+const dateTo = ref<string | null>(incomeStore.cashReceiptFilters.date_to ?? null);
+
+const cashReceipts = computed(() => incomeStore.cashReceipts);
+const cashReceiptsMeta = computed(() => incomeStore.cashReceiptsMeta);
+const currentPage = computed(() => cashReceiptsMeta.value.currentPage || 1);
+const totalPages = computed(() => cashReceiptsMeta.value.lastPage || 1);
+const hasCashReceipts = computed(() => cashReceipts.value.length > 0);
+const isSearchActive = computed(() => search.value.trim().length > 0);
+const isCustomerFilterActive = computed(() => contactId.value !== 'all');
+const isDateFromActive = computed(() => Boolean(dateFrom.value));
+const isDateToActive = computed(() => Boolean(dateTo.value));
+const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
+
+function formatDate(value?: string | null): string {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString('es-CO');
+}
+
+function formatCurrency(value: number): string {
+    return Number(value || 0).toLocaleString('es-CO', {
+        style: 'currency',
+        currency: 'COP',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    });
+}
+
+function formatReceiptNumber(receipt: CashReceipt): string {
+    if (!receipt.receipt_number) {
+        return '—';
+    }
+
+    return `RC-${String(receipt.receipt_number).padStart(4, '0')}`;
+}
+
+async function loadCustomerOptions(searchTerm = '') {
+    const options = await fetchIncomeCustomerOptions(searchTerm, searchTerm.trim() ? 30 : 100);
+    customerOptions.value = [{ id: 'all', name: 'Todos los clientes' }, ...options];
+}
+
+async function fetchCashReceipts(page = 1) {
+    const taskId = smartLoading.start({ label: 'Cargando recibos...' });
+    try {
+        await incomeStore.fetchCashReceipts({
+            page,
+            per_page: cashReceiptsMeta.value.perPage || 10,
+            search: search.value,
+            contact_id: contactId.value === 'all' ? undefined : contactId.value,
+            date_from: dateFrom.value || undefined,
+            date_to: dateTo.value || undefined,
+        });
+    } catch (error: unknown) {
+        errorType.value = 'error';
+        errorMessage.value = normalizeErrorMessage(error, 'No se pudieron cargar los recibos de caja.');
+    } finally {
+        smartLoading.stop(taskId);
+    }
+}
+
+function handlePageChange(page: number) {
+    if (page < 1 || page > totalPages.value || page === currentPage.value) return;
+    void fetchCashReceipts(page);
+}
+
+function openCreateDialog(invoiceId?: number) {
+    dialogMode.value = 'create';
+    selectedReceiptId.value = undefined;
+    fromInvoiceId.value = invoiceId;
+    isDialogOpen.value = true;
+}
+
+function openViewDialog(receipt: CashReceipt) {
+    dialogMode.value = 'view';
+    selectedReceiptId.value = receipt.id;
+    fromInvoiceId.value = undefined;
+    isDialogOpen.value = true;
+}
+
+function askVoidReceipt(receipt: CashReceipt) {
+    receiptToVoid.value = receipt;
+    voidReason.value = '';
+    isVoidDialogOpen.value = true;
+}
+
+async function confirmVoidReceipt() {
+    if (!receiptToVoid.value?.id) return;
+
+    try {
+        await incomeStore.voidCashReceipt(receiptToVoid.value.id, voidReason.value);
+        successMessage.value = 'Recibo de caja anulado correctamente.';
+        errorMessage.value = '';
+        await fetchCashReceipts(currentPage.value);
+    } catch (error: unknown) {
+        errorType.value = 'error';
+        errorMessage.value = normalizeErrorMessage(error, 'No se pudo anular el recibo de caja.');
+    } finally {
+        receiptToVoid.value = null;
+        voidReason.value = '';
+        isVoidDialogOpen.value = false;
+    }
+}
+
+async function handleDialogSaved() {
+    successMessage.value = dialogMode.value === 'create' ? 'Cobro registrado correctamente.' : 'Recibo de caja actualizado.';
+    errorMessage.value = '';
+    await fetchCashReceipts(currentPage.value);
+}
+
+function bootstrapFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const rawFromInvoiceId = params.get('fromInvoiceId');
+    const parsed = rawFromInvoiceId ? Number(rawFromInvoiceId) : NaN;
+    if (!Number.isNaN(parsed) && parsed > 0) {
+        openCreateDialog(parsed);
+    }
+}
+
+watchIncomeDocumentFilters([search, contactId, dateFrom, dateTo], () => {
+    void fetchCashReceipts(1);
+});
+
+onMounted(() => {
+    void fetchCashReceipts(currentPage.value);
+    void loadCustomerOptions();
+    bootstrapFromQuery();
+});
+</script>
+
+<template>
+    <Head title="Recibos de Caja" />
+
+    <AppLayout :breadcrumbs="breadcrumbs">
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
+
+        <div :class="uiPatterns.pageIndex.page">
+            <div class="flex items-center justify-between gap-4">
+                <div :class="uiPatterns.pageIndex.header">
+                    <h1 :class="uiPatterns.pageIndex.title">Recibos de caja</h1>
+                    <p :class="uiPatterns.pageIndex.subtitle">Registra cobros recibidos de clientes y aplica los pagos a las facturas de venta pendientes.</p>
+                </div>
+
+                <Button class="rounded-full" @click="openCreateDialog()">
+                    <PlusCircle class="mr-2 h-4 w-4" />
+                    Nuevo recibo
+                </Button>
+            </div>
+
+            <FilterBar align="start">
+                <FilterField label="Buscar" :active="isSearchActive" class="min-w-[220px] flex-1">
+                    <div class="relative">
+                        <Input v-model="search" class="h-10 w-full pl-10" placeholder="Buscar numero, cliente o referencia" />
+                        <span class="absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground">
+                            <Search class="h-4 w-4" />
+                        </span>
+                    </div>
+                </FilterField>
+
+                <FilterField label="Cliente" :active="isCustomerFilterActive" class="min-w-[220px]">
+                    <SelectField
+                        v-model="contactId"
+                        label=""
+                        :options="customerOptions"
+                        placeholder="Todos los clientes"
+                        searchable
+                        search-placeholder="Buscar cliente..."
+                        :button-class="customerButtonClasses"
+                        @search="loadCustomerOptions"
+                    />
+                </FilterField>
+
+                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
+                    <DatePickerField v-model="dateFrom" label="" placeholder-text="Desde" :clearable="true" />
+                </FilterField>
+
+                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
+                    <DatePickerField v-model="dateTo" label="" placeholder-text="Hasta" :clearable="true" />
+                </FilterField>
+
+            </FilterBar>
+
+            <div :class="uiPatterns.pageIndex.tableWrap">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead :class="uiPatterns.typography.tableHead">Numero</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Cliente</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Fecha</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Forma de pago</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Total cobrado</TableHead>
+                            <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
+                            <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                        <template v-if="smartLoading.isVisible.value">
+                            <TableRow v-for="i in 5" :key="`cash-receipt-skeleton-${i}`">
+                                <TableCell v-for="col in 7" :key="`cash-receipt-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <Skeleton class="h-4 w-full" />
+                                </TableCell>
+                            </TableRow>
+                        </template>
+
+                        <TableRow v-else-if="!hasCashReceipts">
+                            <TableCell colspan="7" class="py-10 text-center text-sm text-muted-foreground">No se encontraron recibos de caja con los filtros actuales.</TableCell>
+                        </TableRow>
+
+                        <TableRow v-for="receipt in cashReceipts" v-else :key="receipt.id">
+                            <TableCell class="font-medium">{{ formatReceiptNumber(receipt) }}</TableCell>
+                            <TableCell>{{ receipt.client?.full_name || receipt.contact?.full_name || '-' }}</TableCell>
+                            <TableCell>{{ formatDate(receipt.payment_date) }}</TableCell>
+                            <TableCell>{{ receipt.payment_method || '-' }}</TableCell>
+                            <TableCell>{{ formatCurrency(receipt.total) }}</TableCell>
+                            <TableCell>
+                                <Badge variant="outline" class="border-emerald-200 bg-emerald-100 text-emerald-700">Registrado</Badge>
+                            </TableCell>
+                            <TableCell class="text-center">
+                                <div class="flex items-center justify-center gap-1">
+                                    <ViewButton :onClick="() => openViewDialog(receipt)" />
+                                    <TableActionsMenu content-class="w-56">
+                                        <DropdownMenuItem class="cursor-pointer gap-2 text-destructive focus:text-destructive" @click="askVoidReceipt(receipt)">
+                                            <Ban class="h-4 w-4" />
+                                            Anular
+                                        </DropdownMenuItem>
+                                    </TableActionsMenu>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </div>
+
+            <div v-if="cashReceiptsMeta.total > 0" class="flex items-center justify-between gap-4">
+                <p class="text-sm text-muted-foreground">
+                    {{ cashReceiptsMeta.total }} recibos. Pagina {{ cashReceiptsMeta.currentPage }} de {{ cashReceiptsMeta.lastPage }}.
+                </p>
+
+                <Pagination
+                    :page="currentPage"
+                    :total="cashReceiptsMeta.total"
+                    :items-per-page="cashReceiptsMeta.perPage"
+                    :sibling-count="1"
+                    show-edges
+                    :class="uiPatterns.pageIndex.pagination"
+                >
+                    <PaginationList v-slot="{ items }" class="flex items-center gap-1">
+                        <PaginationFirst @click="handlePageChange(1)" />
+                        <PaginationPrev @click="handlePageChange(currentPage - 1)" />
+                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
+                            <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
+                                <Button type="button" class="h-9 w-9 p-0" :variant="item.value === currentPage ? 'default' : 'outline'" @click="handlePageChange(item.value)">
+                                    {{ item.value }}
+                                </Button>
+                            </PaginationListItem>
+                            <PaginationEllipsis v-else />
+                        </template>
+                        <PaginationNext @click="handlePageChange(currentPage + 1)" />
+                        <PaginationLast @click="handlePageChange(totalPages)" />
+                    </PaginationList>
+                </Pagination>
+            </div>
+        </div>
+
+        <CashReceiptDialog v-model:open="isDialogOpen" :mode="dialogMode" :receipt-id="selectedReceiptId" :from-invoice-id="fromInvoiceId" @saved="handleDialogSaved" />
+
+        <Dialog :open="isVoidDialogOpen" @update:open="isVoidDialogOpen = $event">
+            <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                    <DialogTitle>Anular recibo de caja</DialogTitle>
+                    <DialogDescription>Se revertira el asiento contable y se eliminaran los pagos aplicados a las facturas relacionadas.</DialogDescription>
+                </DialogHeader>
+
+                <div class="space-y-4">
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        Esta accion elimina el recibo y restaura el saldo pendiente de las facturas afectadas.
+                    </div>
+
+                    <TextareaField v-model="voidReason" label="Razon de anulacion" placeholder="Motivo de la anulacion (opcional)" />
+                </div>
+
+                <DialogFooter class="gap-2">
+                    <Button variant="outline" size="pill" @click="isVoidDialogOpen = false">Cancelar</Button>
+                    <Button variant="destructive" size="pill" @click="confirmVoidReceipt">
+                        <Wallet class="mr-2 h-4 w-4" />
+                        Anular recibo
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    </AppLayout>
+</template>

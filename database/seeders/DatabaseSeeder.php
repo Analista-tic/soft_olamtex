@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             AccountingAccountSeeder::class,
             FabricItemsDemoSeeder::class,
             SupplyItemsDemoSeeder::class,
+            LegacyItemsSeeder::class,
         ]);
     }
 }

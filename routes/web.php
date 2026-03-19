@@ -469,6 +469,41 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Textil\FabricRollController::class, 'updateOutput'])->name('update-output');
     });
 
+    // === INGRESOS ===
+    Route::prefix('income')->name('income.')->group(function () {
+        Route::get('quotes', fn () => Inertia::render('Income/Quotes/Index'))->name('quotes.index');
+        Route::get('quotes/data', [\App\Http\Controllers\Income\QuoteController::class, 'index'])->name('quotes.data');
+        Route::post('quotes', [\App\Http\Controllers\Income\QuoteController::class, 'store'])->name('quotes.store');
+        Route::get('quotes/{saleDocument}', [\App\Http\Controllers\Income\QuoteController::class, 'show'])->name('quotes.show');
+        Route::put('quotes/{saleDocument}', [\App\Http\Controllers\Income\QuoteController::class, 'update'])->name('quotes.update');
+        Route::delete('quotes/{saleDocument}', [\App\Http\Controllers\Income\QuoteController::class, 'destroy'])->name('quotes.destroy');
+        Route::post('quotes/{quote}/convert', [\App\Http\Controllers\Income\QuoteController::class, 'convert'])->name('quotes.convert');
+        Route::get('sales-orders', fn () => Inertia::render('Income/SalesOrders/Index'))->name('sales-orders.index');
+        Route::get('sales-orders/data', [\App\Http\Controllers\Income\SalesOrderController::class, 'index'])->name('sales-orders.data');
+        Route::post('sales-orders', [\App\Http\Controllers\Income\SalesOrderController::class, 'store'])->name('sales-orders.store');
+        Route::get('sales-orders/{saleDocument}', [\App\Http\Controllers\Income\SalesOrderController::class, 'show'])->name('sales-orders.show');
+        Route::put('sales-orders/{saleDocument}', [\App\Http\Controllers\Income\SalesOrderController::class, 'update'])->name('sales-orders.update');
+        Route::delete('sales-orders/{saleDocument}', [\App\Http\Controllers\Income\SalesOrderController::class, 'destroy'])->name('sales-orders.destroy');
+        Route::post('sales-orders/{salesOrder}/convert', [\App\Http\Controllers\Income\SalesOrderController::class, 'convert'])->name('sales-orders.convert');
+        Route::get('sales-invoices', fn () => Inertia::render('Income/SalesInvoices/Index'))->name('sales-invoices.index');
+        Route::get('sales-invoices/data', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'index'])->name('sales-invoices.data');
+        Route::post('sales-invoices', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'store'])->name('sales-invoices.store');
+        Route::get('sales-invoices/{saleDocument}', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'show'])->name('sales-invoices.show');
+        Route::put('sales-invoices/{saleDocument}', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'update'])->name('sales-invoices.update');
+        Route::delete('sales-invoices/{saleDocument}', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'destroy'])->name('sales-invoices.destroy');
+        Route::post('sales-invoices/{salesInvoice}/emit', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'emit'])->name('sales-invoices.emit');
+        Route::post('sales-invoices/{salesInvoice}/void', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'void'])->name('sales-invoices.void');
+        Route::get('credit-debit-notes', fn () => Inertia::render('Income/CreditDebitNotes/Index'))->name('credit-debit-notes.index');
+        Route::get('credit-debit-notes/data', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'index'])->name('credit-debit-notes.data');
+        Route::post('credit-debit-notes', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'store'])->name('credit-debit-notes.store');
+        Route::get('credit-debit-notes/{saleDocument}', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'show'])->name('credit-debit-notes.show');
+        Route::put('credit-debit-notes/{saleDocument}', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'update'])->name('credit-debit-notes.update');
+        Route::delete('credit-debit-notes/{saleDocument}', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'destroy'])->name('credit-debit-notes.destroy');
+        Route::get('cash-receipts', fn () => Inertia::render('Income/CashReceipts/Index'))->name('cash-receipts.index');
+        Route::post('credit-debit-notes/{note}/emit', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'emit'])->name('credit-debit-notes.emit');
+        Route::post('credit-debit-notes/{note}/void', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'void'])->name('credit-debit-notes.void');
+    });
+
     // === GASTOS (AGRUPADO) ===
     Route::prefix('gastos')->name('gastos.')->group(function () {
         // === SOLICITUD DE COMPRA ===
@@ -488,32 +523,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
         });
         
         // === ORDENES DE COMPRA ===
-        Route::prefix('ordenes-compra')->name('purchase-orders.')->group(function () {
+        Route::prefix('ordenes-compra')->name('purchase-orders.')->middleware('permission:ver ordenes compra')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
             Route::get('/data', [PurchaseOrderController::class, 'getData'])->name('getData');
-            Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
+            Route::post('/', [PurchaseOrderController::class, 'store'])->name('store')->middleware('permission:crear ordenes compra');
             Route::get('/{purchaseDocument}', [PurchaseOrderController::class, 'show'])->name('show');
-            Route::put('/{purchaseDocument}', [PurchaseOrderController::class, 'update'])->name('update');
-            Route::delete('/{purchaseDocument}', [PurchaseOrderController::class, 'destroy'])->name('destroy');
-            Route::post('/{purchaseDocument}/enviar-correo-pdf', [PurchaseOrderController::class, 'sendOrderPdf']);
-            Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice']);
-            Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve']);
+            Route::put('/{purchaseDocument}', [PurchaseOrderController::class, 'update'])->name('update')->middleware('permission:editar ordenes compra');
+            Route::delete('/{purchaseDocument}', [PurchaseOrderController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar ordenes compra');
+            Route::post('/{purchaseDocument}/enviar-correo-pdf', [PurchaseOrderController::class, 'sendOrderPdf'])->middleware('permission:editar ordenes compra');
+            Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice'])->middleware('permission:editar ordenes compra');
+            Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve'])->middleware('permission:editar ordenes compra');
         });
 
         // === FACTURAS DE COMPRA ===
-        Route::prefix('facturas-compra')->name('purchase-invoices.')->group(function () {
+        Route::prefix('facturas-compra')->name('purchase-invoices.')->middleware('permission:ver facturas compra')->group(function () {
             Route::get('/', [PurchaseInvoiceController::class, 'index'])->name('index');
             Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
             Route::get('/{purchaseDocument}/notas-credito-debito', [PurchaseInvoiceController::class, 'creditDebitNotes'])->name('credit-debit-notes');
             Route::get('/{purchaseDocument}/notes-summary', [PurchaseInvoiceController::class, 'notesSummary'])->name('notes-summary');
-            Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store');
+            Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store')->middleware('permission:crear facturas compra');
             Route::get('/{purchaseDocument}', [PurchaseInvoiceController::class, 'show'])->name('show');
-            Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update');
-            Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy');
-            Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify');
+            Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update')->middleware('permission:editar facturas compra');
+            Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar facturas compra');
+            Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify')->middleware('permission:editar facturas compra');
             // Recepción de facturas NO tela
-            Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive');
-            Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject');
+            Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive')->middleware('permission:editar facturas compra');
+            Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject')->middleware('permission:editar facturas compra');
         });
 
         // === CUENTAS POR PAGAR (CXP - CONSULTA LEGACY TRANSITORIA) ===
@@ -545,64 +580,73 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Rutas eliminadas: groups, brands, worlds, fabric-bases, yarn-bases (controllers no existen)
 
     // === RETENCIONES ===
-    Route::prefix('retenciones')->name('retenciones.')->group(function () {
+    Route::prefix('retenciones')->name('retenciones.')->middleware('permission:ver retenciones')->group(function () {
         Route::get('/', [RetentionController::class, 'index'])->name('index');
         Route::get('/data', [RetentionController::class, 'data'])->name('data');
         Route::get('/{id}', [RetentionController::class, 'show'])->name('show');
-        Route::post('/', [RetentionController::class, 'store'])->name('store');
-        Route::put('/{id}', [RetentionController::class, 'update'])->name('update');
-        Route::delete('/{id}', [RetentionController::class, 'destroy'])->name('destroy');
+        Route::post('/', [RetentionController::class, 'store'])->name('store')->middleware('permission:crear retenciones');
+        Route::put('/{id}', [RetentionController::class, 'update'])->name('update')->middleware('permission:editar retenciones');
+        Route::delete('/{id}', [RetentionController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar retenciones');
     });
 
     // === TAXES ===
-    Route::prefix('impuestos')->name('impuestos.')->group(function () {
+    Route::prefix('impuestos')->name('impuestos.')->middleware('permission:ver impuestos')->group(function () {
         Route::get('/', [TaxController::class, 'index'])->name('index');
         Route::get('/data', [TaxController::class, 'data'])->name('data');
         Route::get('/{id}', [TaxController::class, 'show'])->name('show');
-        Route::post('/', [TaxController::class, 'store'])->name('store');
-        Route::put('/{id}', [TaxController::class, 'update'])->name('update');
-        Route::delete('/{id}', [TaxController::class, 'destroy'])->name('destroy');
-        Route::post('/{id}/toggle-status', [TaxController::class, 'toggleStatus'])->name('toggle-status');
+        Route::post('/', [TaxController::class, 'store'])->name('store')->middleware('permission:crear impuestos');
+        Route::put('/{id}', [TaxController::class, 'update'])->name('update')->middleware('permission:editar impuestos');
+        Route::delete('/{id}', [TaxController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar impuestos');
+        Route::post('/{id}/toggle-status', [TaxController::class, 'toggleStatus'])->name('toggle-status')->middleware('permission:editar impuestos');
     });
 
     // === NOTAS CRÉDITO / DÉBITO ===
-    Route::prefix('notas-credito-debito')->group(function () {
+    Route::prefix('notas-credito-debito')->middleware('permission:ver notas credito debito')->group(function () {
         Route::get('/', [CreditDebitNoteController::class, 'index']);
         Route::get('/data', [CreditDebitNoteController::class, 'getData']);
         Route::get('/next-number', [CreditDebitNoteController::class, 'nextNumber']);
         Route::get('/eligible-purchase-invoices', [CreditDebitNoteController::class, 'eligiblePurchaseInvoices']);
-        Route::post('/', [CreditDebitNoteController::class, 'store']);
+        Route::post('/', [CreditDebitNoteController::class, 'store'])->middleware('permission:crear notas credito debito');
         Route::get('/{id}', [CreditDebitNoteController::class, 'show']);
-        Route::put('/{id}', [CreditDebitNoteController::class, 'update']);
-        Route::delete('/{id}', [CreditDebitNoteController::class, 'destroy']);
+        Route::put('/{id}', [CreditDebitNoteController::class, 'update'])->middleware('permission:editar notas credito debito');
+        Route::delete('/{id}', [CreditDebitNoteController::class, 'destroy'])->middleware('permission:eliminar notas credito debito');
     });
 
     // === FINANZAS: TESORERIA (FASE 1) ===
     Route::prefix('finanzas')->name('finanzas.')->group(function () {
-        Route::get('/comprobantes-egreso', [ExpenseVoucherController::class, 'index'])->name('expense-vouchers.index');
-        Route::get('/comprobantes-egreso/data', [ExpenseVoucherController::class, 'data'])->name('expense-vouchers.data');
-        Route::get('/comprobantes-egreso/crear', [ExpenseVoucherController::class, 'create'])->name('expense-vouchers.create');
-        Route::get('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'show'])->name('expense-vouchers.show');
-        Route::get('/comprobantes-egreso/{voucher}/editar', [ExpenseVoucherController::class, 'edit'])->name('expense-vouchers.edit');
-        Route::post('/comprobantes-egreso', [ExpenseVoucherController::class, 'store'])->name('expense-vouchers.store');
-        Route::put('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'update'])->name('expense-vouchers.update');
+        Route::get('/comprobantes-egreso', [ExpenseVoucherController::class, 'index'])->name('expense-vouchers.index')->middleware('permission:ver comprobantes egreso');
+        Route::get('/comprobantes-egreso/data', [ExpenseVoucherController::class, 'data'])->name('expense-vouchers.data')->middleware('permission:ver comprobantes egreso');
+        Route::get('/comprobantes-egreso/crear', [ExpenseVoucherController::class, 'create'])->name('expense-vouchers.create')->middleware('permission:crear comprobantes egreso');
+        Route::get('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'show'])->name('expense-vouchers.show')->middleware('permission:ver comprobantes egreso');
+        Route::get('/comprobantes-egreso/{voucher}/editar', [ExpenseVoucherController::class, 'edit'])->name('expense-vouchers.edit')->middleware('permission:editar comprobantes egreso');
+        Route::post('/comprobantes-egreso', [ExpenseVoucherController::class, 'store'])->name('expense-vouchers.store')->middleware('permission:crear comprobantes egreso');
+        Route::put('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'update'])->name('expense-vouchers.update')->middleware('permission:editar comprobantes egreso');
 
         Route::get('/recibos-caja', fn () => Inertia::render('Finance/CashReceipts/Index'))->name('cash-receipts.index');
+        Route::get('/recibos-caja/data', [\App\Http\Controllers\Finance\CashReceiptController::class, 'index'])->name('cash-receipts.data');
         Route::get('/recibos-caja/crear', fn () => Inertia::render('Finance/CashReceipts/CashReceiptForm'))->name('cash-receipts.create');
+        Route::post('/recibos-caja', [\App\Http\Controllers\Finance\CashReceiptController::class, 'store'])->name('cash-receipts.store');
+        Route::get('/recibos-caja/pending-invoices', [\App\Http\Controllers\Finance\CashReceiptController::class, 'pendingInvoices'])->name('cash-receipts.pending-invoices');
+        Route::get('/recibos-caja/customers', [\App\Http\Controllers\Finance\CashReceiptController::class, 'customers'])->name('cash-receipts.customers');
+        Route::get('/recibos-caja/accounts', [\App\Http\Controllers\Finance\CashReceiptController::class, 'accounts'])->name('cash-receipts.accounts');
+        Route::get('/recibos-caja/payment-methods', [\App\Http\Controllers\Finance\CashReceiptController::class, 'paymentMethods'])->name('cash-receipts.payment-methods');
+        Route::get('/recibos-caja/{receipt}', [\App\Http\Controllers\Finance\CashReceiptController::class, 'show'])->name('cash-receipts.show');
+        Route::post('/recibos-caja/{receipt}/void', [\App\Http\Controllers\Finance\CashReceiptController::class, 'void'])->name('cash-receipts.void');
 
         // === CATÁLOGO DE CUENTAS ===
-        Route::prefix('catalogo-cuentas')->name('account-chart.')->group(function () {
+        Route::prefix('catalogo-cuentas')->name('account-chart.')->middleware('permission:ver catalogo cuentas')->group(function () {
             Route::get('/', [AccountingAccountController::class, 'index'])->name('index');
+            Route::get('/crear', [AccountingAccountController::class, 'create'])->name('create')->middleware('permission:crear catalogo cuentas');
             Route::get('/data', [AccountingAccountController::class, 'data'])->name('data');
             Route::get('/options', [AccountingAccountController::class, 'options'])->name('options');
-            Route::get('/crear', [AccountingAccountController::class, 'create'])->name('create');
+            Route::get('/{id}/data', [AccountingAccountController::class, 'item'])->name('item');
             Route::get('/{id}/movimientos', [AccountingAccountController::class, 'movements'])->name('movements');
             Route::get('/{id}/movimientos/data', [AccountingAccountController::class, 'movementsData'])->name('movements.data');
+            Route::get('/{id}/editar', [AccountingAccountController::class, 'edit'])->name('edit')->middleware('permission:editar catalogo cuentas');
             Route::get('/{id}', [AccountingAccountController::class, 'show'])->name('show');
-            Route::get('/{id}/editar', [AccountingAccountController::class, 'edit'])->name('edit');
-            Route::post('/', [AccountingAccountController::class, 'store'])->name('store');
-            Route::put('/{id}', [AccountingAccountController::class, 'update'])->name('update');
-            Route::post('/{id}/toggle-status', [AccountingAccountController::class, 'toggleStatus'])->name('toggle-status');
+            Route::post('/', [AccountingAccountController::class, 'store'])->name('store')->middleware('permission:crear catalogo cuentas');
+            Route::put('/{id}', [AccountingAccountController::class, 'update'])->name('update')->middleware('permission:editar catalogo cuentas');
+            Route::post('/{id}/toggle-status', [AccountingAccountController::class, 'toggleStatus'])->name('toggle-status')->middleware('permission:editar catalogo cuentas');
         });
 
         Route::prefix('tesoreria')->name('treasury.')->group(function () {
@@ -689,6 +733,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/data', [InventoryAdjustmentController::class, 'getData'])->name('data');   // para la tabla
         Route::get('/', [InventoryAdjustmentController::class, 'index'])->name('index');        // opcional
         Route::get('/next-number', [InventoryAdjustmentController::class, 'nextNumber'])->name('next-number'); // siguiente consecutivo
+        Route::get('/movement-reasons', [InventoryAdjustmentController::class, 'movementReasons'])->name('movement-reasons');
         Route::get('/{id}', [InventoryAdjustmentController::class, 'show'])->name('show');      // ver un ajuste
         Route::post('/', [InventoryAdjustmentController::class, 'store'])->name('store');       // guardar nuevo
         Route::put('/{id}', [InventoryAdjustmentController::class, 'update'])->name('update');  // actualizar

@@ -316,7 +316,7 @@ onMounted(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead># Documento</TableHead>
+                            <TableHead>N° Documento</TableHead>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Item</TableHead>
                             <TableHead>Bodega</TableHead>
@@ -439,8 +439,8 @@ onMounted(() => {
 
         <!-- Dialog de detalles -->
         <Dialog v-model:open="isDetailDialogOpen">
-            <DialogContent class="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+            <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>Detalles del Movimiento</DialogTitle>
                     <DialogDescription>
                         Información completa del movimiento de inventario
@@ -450,7 +450,7 @@ onMounted(() => {
                 <div v-if="selectedMovement" class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="text-sm font-medium text-muted-foreground"># Documento</label>
+                            <label class="text-sm font-medium text-muted-foreground">N° Documento</label>
                             <p class="text-sm font-semibold">{{ selectedMovement.document_number || '-' }}</p>
                         </div>
                         <div>
@@ -575,7 +575,7 @@ onMounted(() => {
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" @click="closeDetailDialog">Cerrar</Button>
+                    <Button variant="outline" size="pill" @click="closeDetailDialog">Cerrar</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

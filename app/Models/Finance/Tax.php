@@ -12,6 +12,8 @@ class Tax extends Model implements \App\Contracts\HasAuditLabel
     protected $fillable = [
         'name',
         'percentage',
+        'debit_account_id',
+        'credit_account_id',
         'status',
     ];
 

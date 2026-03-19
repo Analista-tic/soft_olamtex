@@ -557,7 +557,7 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent v-if="!props.deferContent" :class="uiPatterns.dialogLarge.content">
+        <DialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -567,7 +567,7 @@ watch(
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <DialogHeader :class="uiPatterns.dialogLarge.headerRelative">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <div class="flex flex-col gap-1">
                         <DialogTitle :class="uiPatterns.typography.dialogTitle">{{ dialogTitleText }}</DialogTitle>
                         <DialogDescription :class="uiPatterns.typography.dialogSubtitle">
@@ -609,7 +609,7 @@ watch(
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
                                 <InputField
-                                    label="# Factura de Compra Tela"
+                                    label="N° Factura de Compra Tela"
                                     :modelValue="id"
                                     readonly
                                     v-if="persistenceMode === 'edit' || (isCreateMode && !isLoadingInvoiceId && id)"

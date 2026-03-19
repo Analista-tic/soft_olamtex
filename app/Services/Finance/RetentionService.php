@@ -20,6 +20,14 @@ class RetentionService
             });
         }
 
+        if (!empty($filters['type'])) {
+            $query->where('type', $filters['type']);
+        }
+
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+
         return $query->orderByDesc('id')->paginate($perPage);
     }
 

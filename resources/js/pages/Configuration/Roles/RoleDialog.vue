@@ -171,9 +171,9 @@ function handleCheckboxChange(event: Event, module: string): void {
 
 <template>
     <Dialog v-model:open="localIsOpen">
-        <FormDialogContent class="flex max-h-[95vh] max-w-[150vh] flex-col px-2 py-2">
+        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
             <TooltipProvider>
-                <DialogHeader class="flex-shrink-0">
+                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>{{ role?.id ? 'Editar Rol' : 'Crear Rol' }}</DialogTitle>
                     <DialogDescription>
                         {{ role?.id ? 'Edita la información del rol.' : 'Completa la información para crear un nuevo rol.' }}

@@ -64,8 +64,8 @@ function handleConfirm() {
 
 <template>
     <Dialog :open="props.open" modal @update:open="handleOpenChange">
-        <DialogContent class="max-w-md">
-            <DialogHeader>
+        <DialogContent class="max-w-md border border-border p-8">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <DialogTitle>{{ props.title }}</DialogTitle>
                 <DialogDescription v-if="props.description">{{ props.description }}</DialogDescription>
             </DialogHeader>
@@ -79,13 +79,13 @@ function handleConfirm() {
                 />
             </div>
             <DialogFooter class="justify-end gap-2">
-                <Button variant="outline" size="sm" class="rounded-full px-5 py-2 text-sm font-semibold" @click="closeDialog">
+                <Button variant="outline" size="pill" @click="closeDialog">
                     {{ props.cancelText }}
                 </Button>
                 <Button
                     :variant="props.destructive ? 'destructive' : 'default'"
-                    size="sm"
-                    class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                    size="pill"
+                    class="shadow-sm"
                     :disabled="props.inputRequired && !inputValue.trim()"
                     @click="handleConfirm"
                 >

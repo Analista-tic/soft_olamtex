@@ -6,7 +6,8 @@ import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/Expenses';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
@@ -72,6 +73,7 @@ const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
 const shouldEmitLoadingState = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
+const showOverlay = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -626,7 +628,19 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent v-if="!props.deferContent" :class="uiPatterns.dialogLarge.content">
+        <div
+            v-if="showOverlay"
+            class="fixed inset-0 z-[2000] grid place-items-center bg-background/60 backdrop-blur-sm"
+        >
+            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
+                <div class="flex items-center gap-3">
+                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+                    <p class="text-sm font-medium text-foreground">Cargando informacion...</p>
+                </div>
+            </div>
+        </div>
+
+        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -636,7 +650,7 @@ watch(
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <DialogHeader :class="uiPatterns.dialogLarge.header">
+            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 w-full">
                     <div class="flex flex-col gap-1 min-w-0">
                         <DialogTitle :class="uiPatterns.typography.dialogTitle">{{ dialogTitleText }}</DialogTitle>
@@ -667,7 +681,7 @@ watch(
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
                                 <InputField
-                                    label="# Factura de Compra"
+                                    label="N° Factura de Compra"
                                     :modelValue="id"
                                     readonly
                                     v-if="persistenceMode === 'edit' || (isCreateMode && !isLoadingInvoiceId && id)"
@@ -682,7 +696,7 @@ watch(
                                 />
                             </div>
                             <div>
-                                <div :class="uiPatterns.typography.sectionTitle">Datos empresa</div>
+                                <div class="mb-1 text-sm font-semibold text-foreground">Datos empresa</div>
                                 <p class="text-xs">
                                     Razón Social:
                                     <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
@@ -869,7 +883,7 @@ watch(
                         {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
                     </button>
                 </DialogFooter>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
     <DifferenceDialog
         v-model:open="differenceDialogOpen"

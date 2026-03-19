@@ -11,6 +11,7 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import TaxDialog from './TaxDialog.vue';
+import type { TaxDialogForm } from './TaxDialog.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
@@ -33,7 +34,14 @@ const taxToDelete = ref<any | null>(null);
 const isDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
-const form = ref<any>({ id: undefined, name: '', percentage: 0, status: '' });
+const form = ref<TaxDialogForm>({
+    id: undefined,
+    name: '',
+    percentage: 0,
+    status: true,
+    debit_account_id: null,
+    credit_account_id: null,
+});
 const isSubmitting = ref(false);
 const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 
@@ -52,7 +60,14 @@ function openDialog(type: 'create' | 'edit', tax: any | null = null) {
     isDialogOpen.value = true;
     form.value = type === 'edit' && tax
         ? { ...tax }
-        : { id: undefined, name: '', percentage: 0, status: '' };
+        : {
+              id: undefined,
+              name: '',
+              percentage: 0,
+              status: true,
+              debit_account_id: null,
+              credit_account_id: null,
+          };
 }
 
 function closeDialog() { isDialogOpen.value = false; }

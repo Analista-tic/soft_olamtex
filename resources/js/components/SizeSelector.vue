@@ -82,8 +82,8 @@ function resetLocalModelValue() {
             >Seleccionar Tallas <SquareArrowOutUpRight
         /></Button>
         <Dialog v-model:open="isDialogOpen" @close="resetLocalModelValue">
-            <FormDialogContent class="flex max-h-[95vh] max-w-[100vh] flex-col px-2 py-2">
-                <DialogHeader class="flex-shrink-0">
+            <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>{{ props.disabled ? 'Ver Tallas' : 'Seleccionar Tallas' }}</DialogTitle>
                     <DialogDescription>
                         {{
