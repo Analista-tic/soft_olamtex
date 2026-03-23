@@ -508,7 +508,7 @@ function validateForm(): boolean {
         missingFields.push('Fecha de entrega');
     }
     if (!localForm.value.supplier_order_number || !localForm.value.supplier_order_number.toString().trim()) {
-        missingFields.push('# Pedido Proveedor');
+        missingFields.push('Número de orden de compra del proveedor');
     }
 
     if (missingFields.length) {
@@ -783,7 +783,7 @@ watch(
                             <div class="flex flex-col gap-1">
                                 <div class="flex items-center gap-2">
                                     <Label class="text-sm font-medium">
-                                        # orden de compra proveedor<span class="text-destructive">*</span>
+                                        Número de orden de compra del proveedor<span class="text-destructive">*</span>
                                     </Label>
                                     <HelpTooltip
                                         text="Número de orden de compra asignado por el proveedor para seguimiento."

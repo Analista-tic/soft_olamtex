@@ -34,7 +34,6 @@ import {
     resolveIncomePageChange,
     watchIncomeDocumentFilters,
 } from '@/composables/Income/useIncomeDocument';
-import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { Quote } from '@/domain/Income';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -47,7 +46,6 @@ import { computed, onMounted, ref } from 'vue';
 import QuoteDialog from './QuoteDialog.vue';
 
 const incomeStore = useIncomeStore();
-const smartLoading = useSmartLoading();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Ingresos', href: '/income/quotes' },
@@ -74,6 +72,7 @@ const customerOptions = ref<Option[]>([]);
 
 const quotes = computed(() => incomeStore.quotes);
 const quotesMeta = computed(() => incomeStore.quotesMeta);
+const isQuotesLoading = computed(() => incomeStore.quotesLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
 const isStatusFilterActive = computed(() => status.value !== 'all');
 const isCustomerFilterActive = computed(() => contactId.value !== 'all');
@@ -126,7 +125,6 @@ function canConvert(quote: Quote): boolean {
 }
 
 async function fetchQuotes(page = 1) {
-    const taskId = smartLoading.start({ label: 'Cargando cotizaciones...' });
     try {
         await incomeStore.fetchQuotes({
             page,
@@ -140,8 +138,6 @@ async function fetchQuotes(page = 1) {
     } catch (error: any) {
         errorType.value = 'error';
         errorMessage.value = normalizeErrorMessage(error, 'No se pudieron cargar las cotizaciones.');
-    } finally {
-        smartLoading.stop(taskId);
     }
 }
 
@@ -329,7 +325,7 @@ onMounted(() => {
                     </TableHeader>
 
                     <TableBody>
-                        <template v-if="smartLoading.isVisible.value">
+                        <template v-if="isQuotesLoading">
                             <TableRow v-for="i in 5" :key="`quote-skeleton-${i}`">
                                 <TableCell v-for="col in 7" :key="`quote-skeleton-${i}-${col}`" class="px-4 py-3">
                                     <Skeleton class="h-4 w-full" />
@@ -404,8 +400,8 @@ onMounted(() => {
                             <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
                                 <Button
                                     type="button"
-                                    class="h-9 w-9 p-0"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
+                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
+                                    :variant="item.value === currentPage ? 'default' : 'ghost'"
                                     @click="handlePageChange(item.value)"
                                 >
                                     {{ item.value }}

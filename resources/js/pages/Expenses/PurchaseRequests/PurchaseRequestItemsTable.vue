@@ -131,22 +131,22 @@ defineExpose({ addItem });
 </script>
 
 <template>
-    <div class="w-full" style="overflow: visible; max-height: none;">
-        <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none;">
-            <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
+    <div class="w-full overflow-x-auto rounded-lg border border-border bg-background">
+        <div style="overflow: visible; max-height: none;">
+            <Table class="min-w-full table-fixed text-sm">
                 <TableHeader>
-                    <TableRow class="text-center border-b border-border/60">
-                        <TableHead class="min-w-[150px] px-1 text-left">Item</TableHead>
-                        <TableHead class="min-w-[120px] px-1 text-left">Precio estimado</TableHead>
-                        <TableHead class="min-w-[110px] px-1 text-left">Cantidad</TableHead>
-                        <TableHead class="min-w-[160px] px-1 text-left">Descripción</TableHead>
-                        <TableHead class="min-w-[90px] px-1 text-left">Total</TableHead>
-                        <TableHead class="w-[60px]"></TableHead>
+                    <TableRow class="bg-muted/50 border-b border-border">
+                        <TableHead class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Item</TableHead>
+                        <TableHead class="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio estimado</TableHead>
+                        <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad</TableHead>
+                        <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripción</TableHead>
+                        <TableHead class="min-w-[90px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</TableHead>
+                        <TableHead class="w-[60px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"></TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell class="p-1 text-left min-w-[150px]">
+                    <TableRow v-for="(item, idx) in localItems" :key="idx" class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0">
+                        <TableCell class="p-2 text-left min-w-[150px]">
                             <InputField
                                 v-model="item.name"
                                 label=""
@@ -158,7 +158,7 @@ defineExpose({ addItem });
                                 @focus="$event.target.select()"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 120px;">
+                        <TableCell class="p-2 text-left" style="width: 120px;">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -171,7 +171,7 @@ defineExpose({ addItem });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 110px;">
+                        <TableCell class="p-2 text-left" style="width: 110px;">
                             <InputField
                                 v-model="item.quantity"
                                 type="number"
@@ -182,10 +182,10 @@ defineExpose({ addItem });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px;">
+                        <TableCell class="p-2 text-left" style="width: 160px;">
                             <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="props.readonly" :disabled="props.readonly" />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 90px;">
+                        <TableCell class="p-2 text-left" style="width: 90px;">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',
@@ -195,14 +195,14 @@ defineExpose({ addItem });
                                 })
                             }}
                         </TableCell>
-                        <TableCell class="p-1 text-center">
+                        <TableCell class="p-2 text-center">
                             <div class="flex justify-center">
                                 <DeleteButton v-if="!props.readonly && localItems.length > 1" @click="removeItem(idx)" />
                             </div>
                         </TableCell>
                     </TableRow>
                     <TableRow v-if="localItems.length === 0">
-                        <TableCell colspan="6" class="text-center text-muted-foreground"> No hay items agregados. </TableCell>
+                        <TableCell colspan="6" class="py-8 text-center text-sm italic text-muted-foreground"> No hay items agregados. </TableCell>
                     </TableRow>
                 </TableBody>
             </Table>

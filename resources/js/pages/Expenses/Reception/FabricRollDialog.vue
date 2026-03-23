@@ -485,7 +485,7 @@ onMounted(() => {
                                 <table class="w-full text-sm">
                                     <thead>
                                         <tr class="bg-muted/50">
-                                            <th class="px-4 py-3 text-left font-medium"># Rollo</th>
+                                            <th class="px-4 py-3 text-left font-medium">Número de rollo</th>
                                             <th class="px-4 py-3 text-right font-medium">Longitud</th>
                                             <th class="px-4 py-3 text-right font-medium">Ancho</th>
                                             <th class="px-4 py-3 text-left font-medium">Ubicación</th>

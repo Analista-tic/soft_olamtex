@@ -20,11 +20,21 @@ const delegatedProps = computed(() => {
 
 <template>
   <PaginationNext v-bind="delegatedProps">
-    <Button :class="cn('w-10 h-10 p-0', props.class)" variant="outline">
+    <Button
+      :class="
+        cn(
+          'h-8 w-8 rounded-md border border-border p-0',
+          'bg-background text-muted-foreground',
+          'hover:bg-accent hover:text-foreground',
+          'disabled:cursor-not-allowed disabled:opacity-40',
+          props.class,
+        )
+      "
+      variant="ghost"
+    >
       <slot>
         <ChevronRight class="h-4 w-4" />
       </slot>
     </Button>
   </PaginationNext>
 </template>
-

@@ -381,7 +381,7 @@ onMounted(async () => {
                     </TableBody>
                 </Table>
                 <Pagination
-                    class="mt-5 flex justify-center"
+                    class="flex justify-center pt-4 pb-2"
                     v-slot="{ page }"
                     :items-per-page="itemsPerPage"
                     :total="totalItems"
@@ -396,7 +396,7 @@ onMounted(async () => {
 
                         <template v-for="(item, index) in items">
                             <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button class="h-6 w-6 p-0" :variant="item.value === page ? 'default' : 'outline'">
+                                <Button class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === page ? 'default' : 'ghost'">
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>

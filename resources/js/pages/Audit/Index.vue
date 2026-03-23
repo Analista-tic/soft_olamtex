@@ -784,7 +784,7 @@ watch(detailDialogOpen, (value) => {
                     </p>
 
                     <Pagination
-                        class="flex justify-center"
+                        class="flex justify-center pt-4 pb-2"
                         :items-per-page="itemsPerPage"
                         :total="totalItems"
                         :sibling-count="1"
@@ -798,7 +798,7 @@ watch(detailDialogOpen, (value) => {
 
                             <template v-for="(item, index) in items" :key="index">
                                 <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                    <Button class="h-6 w-6 p-0 text-xs" :variant="item.value === currentPage ? 'default' : 'outline'">
+                                    <Button class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === currentPage ? 'default' : 'ghost'">
                                         {{ item.value }}
                                     </Button>
                                 </PaginationListItem>

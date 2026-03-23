@@ -5,7 +5,7 @@ namespace App\Observers;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Inventory\InventoryMovement;
 use App\Services\Inventory\InventoryMovementService;
-use App\Services\Inventory\InventoryStockService;
+use App\Services\Inventory\WarehouseResolver;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -17,7 +17,7 @@ class PurchaseDocumentInventoryObserver
 {
     public function __construct(
         protected InventoryMovementService $movementService,
-        protected InventoryStockService $stockService,
+        protected WarehouseResolver $warehouseResolver,
     ) {}
 
     public function updated(PurchaseDocument $document): void
@@ -71,7 +71,7 @@ class PurchaseDocumentInventoryObserver
                 }
 
                 try {
-                    $warehouseId = $this->stockService->resolveWarehouseId($item, null);
+                    $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, null);
                 } catch (\Throwable) {
                     continue;
                 }

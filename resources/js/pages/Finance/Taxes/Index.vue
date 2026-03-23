@@ -208,7 +208,7 @@ onMounted(() => fetchTaxes());
                     </TableBody>
                 </Table>
                 <Pagination
-                    class="mt-5 flex justify-center"
+                    class="flex justify-center pt-4 pb-2"
                     :items-per-page="itemsPerPage"
                     :total="totalItems"
                     :sibling-count="1"
@@ -221,7 +221,7 @@ onMounted(() => fetchTaxes());
                         <PaginationPrev />
                         <template v-for="item in items">
                             <PaginationListItem v-if="item.type === 'page'" :key="item.value" :value="item.value" as-child>
-                                <Button class="h-6 w-6 p-0" :variant="item.value === currentPage ? 'default' : 'outline'" @click="handlePageChange(item.value)">
+                                <Button class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === currentPage ? 'default' : 'ghost'" @click="handlePageChange(item.value)">
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>

@@ -115,7 +115,7 @@ function print() {
                                 <div>{{ props.invoice?.delivery_date }}</div>
                             </div>
                             <div>
-                                <div class="font-bold"># Factura proveedor</div>
+                                <div class="font-bold">Número de factura del proveedor</div>
                                 <div>{{ props.invoice?.supplier_invoice_number }}</div>
                             </div>
                         </div>

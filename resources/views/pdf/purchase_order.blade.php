@@ -61,7 +61,7 @@
         <div>
             <div class="grid grid-cols-3 items-start gap-4 mb-4">
                 <div>
-                    <div class="font-bold"># Orden de Compra</div>
+                    <div class="font-bold">N° Orden de Compra</div>
                     <div>{{ $order->id }}</div>
                 </div>
                 <div class="flex h-full items-center justify-center rounded p-4">
@@ -98,7 +98,7 @@
                     <div>{{ $order->delivery_date }}</div>
                 </div>
                 <div>
-                    <div class="font-bold"># pedido proveedor</div>
+                    <div class="font-bold">Número de orden de compra del proveedor</div>
                     <div>{{ $order->supplier_order_number }}</div>
                 </div>
             </div>

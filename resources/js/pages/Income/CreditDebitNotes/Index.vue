@@ -35,7 +35,6 @@ import {
     resolveIncomePageChange,
     watchIncomeDocumentFilters,
 } from '@/composables/Income/useIncomeDocument';
-import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { SaleCreditDebitNote } from '@/domain/Income';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -49,7 +48,6 @@ import SalesInvoiceDialog from '../SalesInvoices/SalesInvoiceDialog.vue';
 import CreditDebitNoteDialog from './CreditDebitNoteDialog.vue';
 
 const incomeStore = useIncomeStore();
-const smartLoading = useSmartLoading();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Ingresos', href: '/income/credit-debit-notes' },
@@ -83,6 +81,7 @@ const customerOptions = ref<Option[]>([]);
 
 const notes = computed(() => incomeStore.creditDebitNotes);
 const notesMeta = computed(() => incomeStore.notesMeta);
+const isNotesLoading = computed(() => incomeStore.creditDebitNotesLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
 const isTypeFilterActive = computed(() => type.value !== 'all');
 const isStatusFilterActive = computed(() => status.value !== 'all');
@@ -137,7 +136,6 @@ function getTypeClass(note: SaleCreditDebitNote): string {
 }
 
 async function fetchNotes(page = 1) {
-    const taskId = smartLoading.start({ label: 'Cargando notas...' });
     try {
         await incomeStore.fetchNotes({
             page,
@@ -152,8 +150,6 @@ async function fetchNotes(page = 1) {
     } catch (error: unknown) {
         errorType.value = 'error';
         errorMessage.value = normalizeErrorMessage(error, 'No se pudieron cargar las notas de venta.');
-    } finally {
-        smartLoading.stop(taskId);
     }
 }
 
@@ -373,7 +369,7 @@ onMounted(() => {
                     </TableHeader>
 
                     <TableBody>
-                        <template v-if="smartLoading.isVisible.value">
+                        <template v-if="isNotesLoading">
                             <TableRow v-for="i in 5" :key="`note-skeleton-${i}`">
                                 <TableCell v-for="col in 8" :key="`note-skeleton-${i}-${col}`" class="px-4 py-3">
                                     <Skeleton class="h-4 w-full" />
@@ -456,7 +452,7 @@ onMounted(() => {
                         <PaginationPrev @click="handlePageChange(currentPage - 1)" />
                         <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
                             <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button type="button" class="h-9 w-9 p-0" :variant="item.value === currentPage ? 'default' : 'outline'" @click="handlePageChange(item.value)">
+                                <Button type="button" class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === currentPage ? 'default' : 'ghost'" @click="handlePageChange(item.value)">
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>

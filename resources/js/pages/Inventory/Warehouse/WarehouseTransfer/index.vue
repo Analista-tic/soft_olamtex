@@ -510,7 +510,7 @@ onMounted(async () => {
                     </Table>
                 </TooltipProvider>
                 <Pagination
-                    class="mt-5 flex justify-center"
+                    class="flex justify-center pt-4 pb-2"
                     :items-per-page="ITEMS_PER_PAGE"
                     :total="totalItems"
                     :sibling-count="1"
@@ -522,7 +522,7 @@ onMounted(async () => {
                         <PaginationPrev />
                         <template v-for="(item, index) in items">
                             <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button class="h-6 w-6 p-0" :variant="item.value === currentPage ? 'default' : 'outline'">
+                                <Button class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === currentPage ? 'default' : 'ghost'">
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>

@@ -7,7 +7,7 @@ use App\Models\Inventory\InventoryAdjustmentLine;
 use App\Models\MasterData\Item;
 use App\Services\Finance\AccountingPostingService;
 use App\Services\Inventory\InventoryMovementService;
-use App\Services\Inventory\InventoryStockService;
+use App\Services\Inventory\WarehouseResolver;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +45,7 @@ class InventoryAdjustmentService
     ];
 
     public function __construct(
-        protected InventoryStockService $stockService,
+        protected WarehouseResolver $warehouseResolver,
         protected InventoryMovementService $movementService,
         protected AccountingPostingService $accountingPostingService,
     ) {}
@@ -269,7 +269,7 @@ class InventoryAdjustmentService
                 ]);
             }
 
-            $warehouseId = $this->stockService->resolveWarehouseId($item, $line['warehouse_id'] ?? null);
+            $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, $line['warehouse_id'] ?? null);
             $lineMovementReason = $line['movement_reason'] ?? $adjustment->movement_reason ?? $adjustment->type;
             $lineMovementReason = $this->normalizeMovementReason($lineMovementReason);
             $lineType = $movementReasons[$lineMovementReason] ?? $lineMovementReason ?? 'entrada';
@@ -362,7 +362,7 @@ class InventoryAdjustmentService
                 continue;
             }
 
-            $warehouseId = $this->stockService->resolveWarehouseId($item, $line->warehouse_id);
+            $warehouseId = $this->warehouseResolver->resolveWarehouseId($item, $line->warehouse_id);
             $reverseType = $adjustment->type === 'entrada' ? 'salida' : 'entrada';
             $qty = (int) $line->quantity;
             if ($qty <= 0) {

@@ -2,7 +2,8 @@
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import axios from 'axios';
-import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
+import { ExternalLink, Image, Plus } from 'lucide-vue-next';
+import DeleteButton from '@/components/common/DeleteButton.vue';
 
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
@@ -1463,7 +1464,7 @@ onBeforeUnmount(() => {
                                 <div
                                     v-for="(ws, idx) in warehouseStocks"
                                     :key="idx"
-                                    class="mb-2 rounded-md bg-muted/50 p-2"
+                                    class="mb-2 rounded-md border border-border/40 bg-muted/20 p-2 transition-colors hover:bg-muted/30 last:mb-0"
                                 >
                                     <div class="grid grid-cols-1 gap-2 sm:grid-cols-[220px,1fr,1fr,1fr,auto] sm:items-end">
                                         <div class="flex h-full flex-col justify-between gap-1">
@@ -1530,20 +1531,16 @@ onBeforeUnmount(() => {
                                         </div>
 
                                         <div class="flex items-base justify-end">
-                                            <button
-                                                v-if="!isViewMode"
-                                                type="button"
-                                                class="rounded-full p-3 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                            <DeleteButton
+                                                v-if="!isViewMode && warehouseStocks.length > 1"
                                                 @click="removeWarehouseStock(idx)"
                                                 title="Quitar"
-                                            >
-                                                <Trash class="h-4 w-4 text-red-500" />
-                                            </button>
+                                            />
                                         </div>
                                     </div>
                                 </div>
 
-                                <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-muted-foreground">
+                                <div v-if="warehouseStocks.length === 0" class="py-8 text-center text-sm italic text-muted-foreground">
                                     No hay bodegas asociadas.
                                 </div>
                             </div>

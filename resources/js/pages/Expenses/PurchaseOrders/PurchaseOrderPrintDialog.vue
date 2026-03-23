@@ -99,7 +99,7 @@ function print() {
                             <div>{{ props.order?.delivery_date }}</div>
                         </div>
                         <div>
-                            <div class="font-bold"># pedido proveedor</div>
+                            <div class="font-bold">Número de orden de compra del proveedor</div>
                             <div>{{ props.order?.supplier_order_number }}</div>
                         </div>
                     </div>

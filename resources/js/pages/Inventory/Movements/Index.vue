@@ -400,7 +400,7 @@ onMounted(() => {
 
                 <Pagination
                     v-if="totalItems > itemsPerPage"
-                    class="mt-5 flex justify-center"
+                    class="flex justify-center pt-4 pb-2"
                     :items-per-page="itemsPerPage"
                     :total="totalItems"
                     :sibling-count="1"
@@ -421,8 +421,8 @@ onMounted(() => {
                                 as-child
                             >
                                 <Button
-                                    class="h-6 w-6 p-0"
-                                    :variant="item.value === currentPage ? 'default' : 'outline'"
+                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
+                                    :variant="item.value === currentPage ? 'default' : 'ghost'"
                                     @click="handlePageChange(item.value as number)"
                                 >
                                     {{ item.value }}

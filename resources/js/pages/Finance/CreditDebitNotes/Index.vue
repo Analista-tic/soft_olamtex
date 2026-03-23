@@ -655,7 +655,7 @@ onMounted(async () => {
         </Table>
 
         <Pagination
-          class="mt-5 flex justify-center"
+          class="flex justify-center pt-4 pb-2"
           :items-per-page="itemsPerPage"
           :total="totalItems"
           :sibling-count="1"
@@ -671,7 +671,7 @@ onMounted(async () => {
               <PaginationListItem v-if="isPaginationPage(item)" :value="getPaginationValue(item)" as-child>
                 <button
                   type="button"
-                  class="h-6 w-6 rounded border text-xs"
+                  class="h-8 w-8 rounded-md p-0 text-xs font-medium"
                   :class="
                     getPaginationValue(item) === currentPage
                       ? 'bg-primary text-primary-foreground border-primary'

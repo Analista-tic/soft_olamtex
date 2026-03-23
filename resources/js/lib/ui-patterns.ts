@@ -21,7 +21,7 @@ export const uiPatterns = {
         title: 'text-lg font-semibold text-foreground',
         subtitle: 'text-sm text-muted-foreground',
         tableWrap: 'relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min',
-        pagination: 'mt-5 flex justify-center',
+        pagination: 'flex justify-center pt-4 pb-2',
     },
     dialogLarge: {
         content: 'max-w-[95vw] w-full max-h-[95vh] h-[95vh] flex flex-col p-0',

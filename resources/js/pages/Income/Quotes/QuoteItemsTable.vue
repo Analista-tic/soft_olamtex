@@ -208,23 +208,23 @@ defineExpose({ addItem });
 </script>
 
 <template>
-    <div class="w-full overflow-x-auto rounded-lg border border-border">
-        <Table class="min-w-full table-fixed border-separate border-spacing-x-2 border-spacing-y-1 text-center">
+    <div class="w-full overflow-x-auto rounded-lg border border-border bg-background">
+        <Table class="min-w-full table-fixed text-sm">
             <TableHeader>
-                <TableRow class="border-b border-border/60">
-                    <TableHead class="min-w-[210px] text-left">Producto / Servicio</TableHead>
-                    <TableHead class="min-w-[110px] text-left">Cantidad</TableHead>
-                    <TableHead class="min-w-[140px] text-left">Precio unit.</TableHead>
-                    <TableHead class="min-w-[110px] text-left">Desc. %</TableHead>
-                    <TableHead class="min-w-[160px] text-left">Impuesto</TableHead>
-                    <TableHead class="min-w-[140px] text-left">Subtotal</TableHead>
-                    <TableHead class="min-w-[180px] text-left">Descripcion</TableHead>
-                    <TableHead v-if="!isReadOnly" class="w-[60px]"></TableHead>
+                <TableRow class="bg-muted/50 border-b border-border">
+                    <TableHead class="min-w-[210px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Producto / Servicio</TableHead>
+                    <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad</TableHead>
+                    <TableHead class="min-w-[140px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio unit.</TableHead>
+                    <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Desc. %</TableHead>
+                    <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto</TableHead>
+                    <TableHead class="min-w-[140px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Subtotal</TableHead>
+                    <TableHead class="min-w-[180px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripcion</TableHead>
+                    <TableHead v-if="!isReadOnly" class="w-[60px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"></TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
-                <TableRow v-for="(item, index) in localItems" :key="`${index}-${item.item_id ?? 'new'}`">
-                    <TableCell class="p-1 text-left">
+                <TableRow v-for="(item, index) in localItems" :key="`${index}-${item.item_id ?? 'new'}`" class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0">
+                    <TableCell class="p-2 text-left">
                         <SelectField
                             v-model="item.item_id"
                             :options="itemOptions"
@@ -236,16 +236,16 @@ defineExpose({ addItem });
                             @update:modelValue="handleItemSelection(item)"
                         />
                     </TableCell>
-                    <TableCell class="p-1 text-left">
+                    <TableCell class="p-2 text-left">
                         <InputField v-model="item.quantity" type="number" min="0.01" step="0.01" label="" :readonly="isReadOnly" @input="handleItemInput(item)" />
                     </TableCell>
-                    <TableCell class="p-1 text-left">
+                    <TableCell class="p-2 text-left">
                         <InputField v-model="item.unit_price" type="currency" min="0" step="0.01" :decimals="2" label="" :readonly="isReadOnly" @input="handleItemInput(item)" />
                     </TableCell>
-                    <TableCell class="p-1 text-left">
+                    <TableCell class="p-2 text-left">
                         <InputField v-model="item.discount" type="number" min="0" max="100" step="0.01" label="" :readonly="isReadOnly" @input="handleItemInput(item)" />
                     </TableCell>
-                    <TableCell class="p-1 text-left">
+                    <TableCell class="p-2 text-left">
                         <SelectField
                             v-model="item.tax_rate"
                             :options="taxOptions"
@@ -254,7 +254,7 @@ defineExpose({ addItem });
                             @update:modelValue="handleTaxSelection(item, $event)"
                         />
                     </TableCell>
-                    <TableCell class="p-1 text-left">
+                    <TableCell class="p-2 text-left">
                         {{
                             Number(item.subtotal || 0).toLocaleString('es-CO', {
                                 style: 'currency',
@@ -264,12 +264,12 @@ defineExpose({ addItem });
                             })
                         }}
                     </TableCell>
-                    <TableCell class="p-1 text-left">
+                    <TableCell class="p-2 text-left">
                         <InputField v-model="item.description" label="" :readonly="isReadOnly" @input="emitItems" />
                     </TableCell>
-                    <TableCell v-if="!isReadOnly" class="p-1 text-center">
+                    <TableCell v-if="!isReadOnly" class="p-2 text-center">
                         <div class="flex justify-center">
-                            <DeleteButton @click="removeItem(index)" />
+                            <DeleteButton v-if="localItems.length > 1" @click="removeItem(index)" />
                         </div>
                     </TableCell>
                 </TableRow>

@@ -750,7 +750,7 @@ watch(
                                 <DateField v-model="deliveryDate" label="" :disabled="isReadOnly" :clearable="true" :show-today="true" required />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label :class="uiPatterns.typography.fieldLabel"># factura proveedor</label>
+                                <label :class="uiPatterns.typography.fieldLabel">Número de factura del proveedor</label>
                                 <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" />
                             </div>
                         </div>

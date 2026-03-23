@@ -41,6 +41,10 @@ const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const confirmConvertOpen = ref(false);
 const quoteItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const previousBodyOverflow = ref<string | null>(null);
+const showOverlay = ref(false);
+
+let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
+const OVERLAY_DELAY_MS = 150;
 
 function getToday(): string {
     const today = new Date();
@@ -137,7 +141,7 @@ const dialogOpen = computed({
     get: () => props.open,
     set: (value: boolean) => emit('update:open', value),
 });
-const showOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value);
+const shouldShowOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value);
 
 const isViewMode = computed(() => props.mode === 'view');
 const quoteStatus = computed(() => localQuote.value.status ?? 'draft');
@@ -207,6 +211,18 @@ function formatCurrency(value: number): string {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
     });
+}
+
+function clearOverlayDelay() {
+    if (overlayDelayTimer) {
+        clearTimeout(overlayDelayTimer);
+        overlayDelayTimer = null;
+    }
+}
+
+function hideOverlay() {
+    clearOverlayDelay();
+    showOverlay.value = false;
 }
 
 function handleLoadingState(state: boolean) {
@@ -400,9 +416,29 @@ watch(
             errorMessage.value = '';
             confirmConvertOpen.value = false;
             allowOverlay.value = false;
-            handleLoadingState(false);
+            isLoading.value = false;
+            hideOverlay();
             loadingCounter.value = 0;
         }
+    },
+    { immediate: true },
+);
+
+watch(
+    shouldShowOverlay,
+    (value) => {
+        if (!value) {
+            hideOverlay();
+            return;
+        }
+
+        clearOverlayDelay();
+        overlayDelayTimer = setTimeout(() => {
+            overlayDelayTimer = null;
+            if (shouldShowOverlay.value) {
+                showOverlay.value = true;
+            }
+        }, OVERLAY_DELAY_MS);
     },
     { immediate: true },
 );
@@ -427,6 +463,7 @@ watch(showOverlay, (value) => {
 });
 
 onBeforeUnmount(() => {
+    clearOverlayDelay();
     if (typeof document !== 'undefined') {
         document.body.style.overflow = previousBodyOverflow.value ?? '';
     }
@@ -447,7 +484,7 @@ watch(
     <Dialog v-model:open="dialogOpen">
         <div
             v-if="showOverlay"
-            class="fixed inset-0 z-[2000] grid place-items-center bg-background/60 backdrop-blur-sm"
+            class="fixed inset-0 z-[2000] grid cursor-wait place-items-center bg-background/60 backdrop-blur-sm"
         >
             <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
                 <div class="flex items-center gap-3">

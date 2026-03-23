@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputDate from '@/components/InputDate.vue';
 import InputField from '@/components/InputField.vue';
@@ -21,7 +22,7 @@ import type {
 import { create as createCreditDebitNote, update as updateCreditDebitNote } from '@/domain/Finance';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
-import { PlusCircle, Trash } from 'lucide-vue-next';
+import { PlusCircle } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 type RuntimeDocumentType = CreditDebitNoteType | 'sale_credit_note' | 'sale_debit_note';
@@ -937,23 +938,27 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <div class="overflow-auto rounded-lg border border-sidebar-border/60">
-            <Table>
+          <div class="w-full overflow-x-auto rounded-lg border border-border bg-background">
+            <Table class="min-w-full table-fixed text-sm">
               <TableHeader>
-                <TableRow>
-                  <TableHead class="min-w-[260px]">Concepto</TableHead>
-                  <TableHead class="min-w-[110px]">Precio</TableHead>
-                  <TableHead class="min-w-[110px]">Impuesto %</TableHead>
-                  <TableHead class="min-w-[100px]">Cantidad</TableHead>
-                  <TableHead class="min-w-[200px]">Observaciones</TableHead>
-                  <TableHead class="min-w-[130px] text-right">Total</TableHead>
-                  <TableHead class="w-[60px] text-center">-</TableHead>
+                <TableRow class="bg-muted/50 border-b border-border">
+                  <TableHead class="min-w-[260px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Concepto</TableHead>
+                  <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio</TableHead>
+                  <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto %</TableHead>
+                  <TableHead class="min-w-[100px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad</TableHead>
+                  <TableHead class="min-w-[200px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Observaciones</TableHead>
+                  <TableHead class="min-w-[130px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</TableHead>
+                  <TableHead class="w-[60px] px-3 py-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">-</TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
-                <TableRow v-for="(item, index) in localForm.items" :key="`row-${index}-${item.id ?? 'new'}`">
-                  <TableCell class="text-left">
+                <TableRow
+                  v-for="(item, index) in localForm.items"
+                  :key="`row-${index}-${item.id ?? 'new'}`"
+                  class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0"
+                >
+                  <TableCell class="p-2 text-left">
                     <SelectField
                       v-model="item.item_id"
                       :options="itemsCatalog"
@@ -962,7 +967,7 @@ onUnmounted(() => {
                     />
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell class="p-2">
                     <Input
                       :modelValue="item.price ?? 0"
                       @update:modelValue="(value) => updateItemNumericField(item, 'price', value)"
@@ -973,7 +978,7 @@ onUnmounted(() => {
                     />
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell class="p-2">
                     <Input
                       :modelValue="item.tax ?? 0"
                       @update:modelValue="(value) => updateItemNumericField(item, 'tax', value)"
@@ -984,7 +989,7 @@ onUnmounted(() => {
                     />
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell class="p-2">
                     <Input
                       :modelValue="item.quantity ?? 0"
                       @update:modelValue="(value) => updateItemNumericField(item, 'quantity', value)"
@@ -995,7 +1000,7 @@ onUnmounted(() => {
                     />
                   </TableCell>
 
-                  <TableCell class="text-left">
+                  <TableCell class="p-2 text-left">
                     <Input
                       :modelValue="item.description ?? ''"
                       @update:modelValue="(value) => updateItemDescription(item, value)"
@@ -1004,18 +1009,16 @@ onUnmounted(() => {
                     />
                   </TableCell>
 
-                  <TableCell class="text-right font-medium">
+                  <TableCell class="p-2 text-right font-medium">
                     {{ formatMoney(lineTotal(item)) }}
                   </TableCell>
 
-                  <TableCell class="text-center">
-                    <button
-                      type="button"
-                      class="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-600 transition hover:bg-red-50"
+                  <TableCell class="p-2 text-center">
+                    <DeleteButton
+                      v-if="localForm.items.length > 1"
+                      class="mx-auto"
                       @click="removeItem(index)"
-                    >
-                      <Trash class="h-4 w-4" />
-                    </button>
+                    />
                   </TableCell>
                 </TableRow>
               </TableBody>

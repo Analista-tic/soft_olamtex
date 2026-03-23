@@ -623,28 +623,33 @@ async function handleSubmit() {
             </div>
 
             <InventoryDetailTableLayout @create-line="addLine">
+              <div class="w-full overflow-x-auto rounded-lg border border-border bg-background">
+                <div style="overflow: visible; max-height: none;">
               <Table
-                class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed"
-                style="overflow: visible; max-height: none;"
+                class="min-w-full table-fixed text-sm"
               >
                   <TableHeader>
-                  <TableRow class="border-b border-border/60">
-                    <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[200px] text-left">Motivo del ajuste</TableHead>
-                    <TableHead class="min-w-[160px] text-left">
+                  <TableRow class="bg-muted/50 border-b border-border">
+                    <TableHead class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Item <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[200px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Motivo del ajuste</TableHead>
+                    <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Descripcion <span class="text-destructive">*</span>
                     </TableHead>
-                    <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[140px] text-left">Impuesto</TableHead>
-                    <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-destructive">*</span></TableHead>
-                    <TableHead class="min-w-[90px] text-left">Total</TableHead>
-                    <TableHead class="w-[60px]"></TableHead>
+                    <TableHead class="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[140px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto</TableHead>
+                    <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad <span class="text-destructive">*</span></TableHead>
+                    <TableHead class="min-w-[90px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</TableHead>
+                    <TableHead class="w-[60px] px-3 py-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground"></TableHead>
                   </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                  <TableRow v-for="(line, idx) in lines" :key="line.id">
-                    <TableCell class="p-1 text-left">
+                  <TableRow
+                    v-for="(line, idx) in lines"
+                    :key="line.id"
+                    class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0"
+                  >
+                    <TableCell class="p-2 text-left">
                       <SelectField
                         v-model="line.itemId"
                         :options="itemSelectOptions"
@@ -655,7 +660,7 @@ async function handleSubmit() {
                       />
                     </TableCell>
 
-                    <TableCell class="p-1 text-left">
+                    <TableCell class="p-2 text-left">
                       <div class="text-sm leading-tight">
                         <div class="font-medium">{{ getInventoryAdjustmentReasonLabel(movementReason) }}</div>
                         <div class="text-xs text-muted-foreground">
@@ -664,7 +669,7 @@ async function handleSubmit() {
                       </div>
                     </TableCell>
 
-                    <TableCell class="p-1">
+                    <TableCell class="p-2">
                       <Input
                         v-model="line.description"
                         placeholder="Descripcion"
@@ -673,7 +678,7 @@ async function handleSubmit() {
                       />
                     </TableCell>
 
-                    <TableCell class="p-1">
+                    <TableCell class="p-2">
                       <InputField
                         label=""
                         v-model.number="line.price"
@@ -687,7 +692,7 @@ async function handleSubmit() {
                       />
                     </TableCell>
 
-                    <TableCell class="p-1">
+                    <TableCell class="p-2">
                       <SelectField
                         v-model="line.taxId"
                         :options="taxSelectOptions"
@@ -702,7 +707,7 @@ async function handleSubmit() {
                       />
                     </TableCell>
 
-                    <TableCell class="p-1">
+                    <TableCell class="p-2">
                       <Input
                         v-model.number="line.quantity"
                         type="number"
@@ -713,13 +718,13 @@ async function handleSubmit() {
                       />
                     </TableCell>
 
-                    <TableCell class="p-1">
+                    <TableCell class="p-2">
                       {{ formatCurrency(lineTotal(line)) }}
                     </TableCell>
 
-                    <TableCell class="p-1 text-center">
+                    <TableCell class="p-2 text-center">
                       <DeleteButton
-                        v-if="lines.length > 1 && idx > 0"
+                        v-if="lines.length > 1"
                         class="mx-auto"
                         title="Eliminar"
                         @click="removeLine(line.id)"
@@ -728,12 +733,14 @@ async function handleSubmit() {
                   </TableRow>
 
                   <TableRow v-if="lines.length === 0">
-                    <TableCell colspan="8" class="text-center text-muted-foreground">
+                    <TableCell colspan="8" class="py-8 text-center text-sm italic text-muted-foreground">
                       No hay lineas agregadas.
                     </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
+                </div>
+              </div>
             </InventoryDetailTableLayout>
 
             <div class="mt-4 flex flex-col items-end gap-1 text-sm">

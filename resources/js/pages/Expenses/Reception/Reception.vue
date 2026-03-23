@@ -173,14 +173,30 @@ const showInvoiceDetail = computed(() => {
 });
 const pageTitle = computed(() =>
     showInvoiceDetail.value
-        ? `Recepciones - Factura #${selectedInvoice.value?.id ?? specificInvoiceId.value ?? ''}`
+        ? 'Detalle de recepción'
         : 'Recepciones'
 );
 const pageDescription = computed(() =>
     showInvoiceDetail.value
-        ? 'Valida la informacion de la factura y decide si aprobar o rechazar su recepcion antes de pasar al siguiente estado.'
+        ? 'Revisa el documento, valida la informacion clave y define si la recepcion puede aprobarse o debe rechazarse.'
         : 'Revisa las facturas pendientes de recepcion, valida su informacion y decide si aprobarlas o rechazarlas antes de su paso al siguiente estado.'
 );
+const selectedInvoiceContact = computed(() => getInvoiceContact(selectedInvoice.value));
+const detailDocumentTitle = computed(() =>
+    selectedInvoice.value ? `Factura N° ${selectedInvoice.value.id}` : 'Detalle de recepción',
+);
+const detailDocumentSubtitle = computed(() => {
+    if (!selectedInvoice.value) {
+        return pageDescription.value;
+    }
+
+    const supplierName = selectedInvoiceContact.value?.full_name ?? 'Proveedor sin identificar';
+    const supplierInvoice = selectedInvoice.value.supplier_invoice_number
+        ? `Factura del proveedor: ${selectedInvoice.value.supplier_invoice_number}.`
+        : 'Sin número de factura del proveedor registrado.';
+
+    return `Valida la recepción registrada para ${supplierName}. ${supplierInvoice}`;
+});
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
@@ -628,31 +644,81 @@ function onFabricRollSuccess() {
                 </div>
             </transition>
             <!-- Header principal -->
-            <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="space-y-1">
-                    <div class="flex items-center gap-3">
-                        <Button
-                            v-if="showInvoiceDetail"
-                            variant="ghost"
-                            size="sm"
-                            @click="goBackToList"
-                            class="flex items-center gap-2"
-                        >
-                            <ArrowLeft class="h-4 w-4" />
-                            Volver a la lista
-                        </Button>
-                        <h1 class="text-2xl font-semibold tracking-tight text-foreground">
-                            {{ pageTitle }}
-                        </h1>
-                    </div>
-                    <p class="max-w-4xl text-sm text-muted-foreground">
-                        {{ pageDescription }}
-                    </p>
-                    <p class="text-xs text-muted-foreground">
-                        Alcance actual: {{ receptionScopeLabel }}
-                    </p>
+            <template v-if="showInvoiceDetail">
+                <div class="space-y-4 rounded-2xl border border-border/70 bg-card px-5 py-5 shadow-sm">
+                    <div class="flex flex-wrap items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="pill"
+                        @click="goBackToList"
+                        class="gap-2"
+                    >
+                        <ArrowLeft class="h-4 w-4" />
+                        Volver a la lista
+                    </Button>
                 </div>
-            </div>
+
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div class="space-y-3">
+                        <div class="space-y-2">
+                            <p
+                                class="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground"
+                            >
+                                Recepción de factura
+                            </p>
+                            <h1 class="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+                                {{ detailDocumentTitle }}
+                            </h1>
+                            <p class="max-w-3xl text-sm leading-6 text-muted-foreground">
+                                {{ detailDocumentSubtitle }}
+                            </p>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span class="inline-flex items-center rounded-full border border-border bg-muted/50 px-3 py-1">
+                                Alcance: {{ receptionScopeLabel }}
+                            </span>
+                            <span
+                                v-if="selectedInvoiceContact?.full_name"
+                                class="inline-flex items-center rounded-full border border-border bg-muted/50 px-3 py-1"
+                            >
+                                Proveedor: {{ selectedInvoiceContact.full_name }}
+                            </span>
+                            <span
+                                class="inline-flex items-center rounded-full border border-border bg-muted/50 px-3 py-1"
+                            >
+                                Factura proveedor: {{ selectedInvoice?.supplier_invoice_number || 'Sin referencia' }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="flex shrink-0 items-center">
+                        <TableStatusBadge
+                            :label="getStatusText(selectedInvoice.status || 'pending')"
+                            :tone="getStatusTone(selectedInvoice.status || 'pending')"
+                            class="h-8 px-3 text-xs"
+                        />
+                    </div>
+                    </div>
+                </div>
+            </template>
+            <template v-else>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-3">
+                            <h1 class="text-2xl font-semibold tracking-tight text-foreground">
+                                {{ pageTitle }}
+                            </h1>
+                        </div>
+                        <p class="max-w-4xl text-sm text-muted-foreground">
+                            {{ pageDescription }}
+                        </p>
+                        <p class="text-xs text-muted-foreground">
+                            Alcance actual: {{ receptionScopeLabel }}
+                        </p>
+                    </div>
+                </div>
+            </template>
 
             <!-- Vista de lista de facturas -->
             <template v-if="showInvoicesList">
@@ -788,43 +854,48 @@ function onFabricRollSuccess() {
                 <div class="space-y-6">
 
                     <!-- Información general -->
-                    <div class="grid grid-cols-2 gap-4 p-3 bg-muted/40 rounded-lg">
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Fecha de factura</p>
-                            <p class="text-sm">{{ formatInvoiceDate(selectedInvoice.date) }}</p>
+                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div class="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Fecha de factura</p>
+                            <p class="mt-3 text-lg font-semibold text-foreground">{{ formatInvoiceDate(selectedInvoice.date) }}</p>
                         </div>
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Fecha de entrega</p>
-                            <p class="text-sm">{{ selectedInvoice.delivery_date }}</p>
+                        <div class="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Fecha de entrega</p>
+                            <p class="mt-3 text-lg font-semibold text-foreground">{{ formatInvoiceDate(selectedInvoice.delivery_date) }}</p>
                         </div>
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground"># Factura proveedor</p>
-                            <p class="text-sm">{{ selectedInvoice.supplier_invoice_number || 'N/A' }}</p>
+                        <div class="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+                            <p class="text-sm font-medium text-muted-foreground">Número de factura del proveedor</p>
+                            <p class="mt-3 text-lg font-semibold text-foreground">{{ selectedInvoice.supplier_invoice_number || 'Sin referencia' }}</p>
                         </div>
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Estado</p>
+                        <div class="rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Estado</p>
                             <TableStatusBadge
                                 :label="getStatusText(selectedInvoice.status || 'pending')"
                                 :tone="getStatusTone(selectedInvoice.status || 'pending')"
+                                class="mt-3"
                             />
                         </div>
                     </div>
 
                     <!-- Header de empresa -->
-                    <div class="grid grid-cols-3 items-start gap-4 p-3 bg-card border border-border rounded-lg">
-                        <div>
-                            <div class="text-sm font-semibold">Factura #{{ selectedInvoice.id }}</div>
+                    <div class="grid gap-6 rounded-2xl border border-border/70 bg-card p-5 shadow-sm xl:grid-cols-[1fr_220px_1fr]">
+                        <div class="space-y-2">
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Documento base</p>
+                            <div class="text-lg font-semibold text-foreground">Factura N° {{ selectedInvoice.id }}</div>
                             <p class="text-sm text-muted-foreground">{{ selectedInvoice.supplier_invoice_number || 'Sin número de proveedor' }}</p>
                         </div>
-                        <div class="relative flex h-full items-center justify-center rounded p-2">
+                        <div class="relative flex h-full items-center justify-center rounded-xl border border-border/60 bg-muted/20 p-3">
                             <img
                                 :src="logoUrl"
                                 alt="Logotipo de la empresa"
                                 class="max-h-24 max-w-[160px] w-auto object-contain"
                             />
                         </div>
-                        <div>
-                            <div class="text-sm font-semibold">Datos empresa</div>
+                        <div class="space-y-3">
+                            <div>
+                                <div class="text-sm font-semibold text-foreground">Datos empresa</div>
+                                <p class="mt-1 text-sm text-muted-foreground">Empresa receptora responsable del registro y validación.</p>
+                            </div>
                             <p class="text-sm">
                                 Razón Social:
                                 <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
@@ -841,66 +912,81 @@ function onFabricRollSuccess() {
                     </div>
 
                     <!-- Información del proveedor -->
-                    <div class="grid grid-cols-3 gap-4 p-3 bg-muted/40 rounded-lg">
-                        <div>
-                            <p class="text-sm font-medium text-muted-foreground">Proveedor</p>
-                            <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.full_name ?? 'N/A' }}</p>
+                    <div class="grid gap-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm md:grid-cols-2 xl:grid-cols-4">
+                        <div class="rounded-xl border border-border/60 bg-muted/20 p-4">
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Proveedor</p>
+                            <p class="mt-2 text-sm font-medium text-foreground">{{ selectedInvoiceContact?.full_name ?? 'N/A' }}</p>
                         </div>
-                        <div>
+                        <div class="rounded-xl border border-border/60 bg-muted/20 p-4">
                             <p class="text-sm font-medium text-muted-foreground">Número de identificación</p>
-                            <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.id_number ?? 'N/A' }}</p>
+                            <p class="mt-2 text-sm font-medium text-foreground">{{ selectedInvoiceContact?.id_number ?? 'N/A' }}</p>
                         </div>
-                        <div>
+                        <div class="rounded-xl border border-border/60 bg-muted/20 p-4">
                             <p class="text-sm font-medium text-muted-foreground">Número de contacto</p>
-                            <p class="text-sm">{{ getInvoiceContact(selectedInvoice)?.phone ?? 'N/A' }}</p>
+                            <p class="mt-2 text-sm font-medium text-foreground">{{ selectedInvoiceContact?.phone ?? 'N/A' }}</p>
+                        </div>
+                        <div class="rounded-xl border border-border/60 bg-muted/20 p-4">
+                            <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Correo electrónico</p>
+                            <p class="mt-2 text-sm font-medium text-foreground">{{ selectedInvoiceContact?.email ?? 'N/A' }}</p>
                         </div>
                     </div>
 
                     <!-- Descripción -->
-                    <div v-if="selectedInvoice.description" class="p-3 bg-muted/40 rounded-lg">
-                        <p class="text-sm font-medium text-muted-foreground mb-1">Observaciones</p>
-                        <p class="text-sm">{{ selectedInvoice.description }}</p>
+                    <div class="space-y-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+                        <div class="mb-4">
+                            <p class="text-sm font-semibold text-foreground">Observaciones</p>
+                            <p class="mt-1 text-sm text-muted-foreground">Comentarios complementarios asociados a la recepción.</p>
+                        </div>
+                        <div class="rounded-xl border border-border/60 bg-muted/20 px-4 py-4 text-sm leading-6 text-foreground">
+                            {{ selectedInvoice.description || 'Sin observaciones registradas.' }}
+                        </div>
                     </div>
 
                     <!-- Items -->
-                    <div>
-                        <h3 class="text-sm font-medium mb-2">Items de la Factura</h3>
-                        <div class="border border-border rounded-xl overflow-hidden bg-card">
+                    <div class="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+                        <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <h3 class="text-sm font-semibold text-foreground">Items de la factura</h3>
+                                <p class="mt-1 text-sm text-muted-foreground">Revisa cada línea del documento y registra rollos cuando el ítem corresponda a tela.</p>
+                            </div>
+                            <p class="text-xs text-muted-foreground">{{ (selectedInvoice.items || []).length }} item(s) registrados</p>
+                        </div>
+                        <div class="overflow-hidden rounded-xl border border-border bg-background">
                             <Table>
                                 <TableHeader>
-                                    <TableRow class="text-xs text-muted-foreground">
-                                        <TableHead class="py-2">Item</TableHead>
+                                    <TableRow class="bg-muted/50">
+                                        <TableHead class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Item</TableHead>
                                         <TableHead class="py-2">Código</TableHead>
                                         <TableHead class="py-2">Descripción</TableHead>
-                                        <TableHead class="py-2">Proveedor</TableHead>
-                                        <TableHead class="py-2">Cantidad</TableHead>
-                                        <TableHead class="py-2">Precio</TableHead>
-                                        <TableHead class="py-2">IVA</TableHead>
-                                        <TableHead class="py-2">Total</TableHead>
-                                        <TableHead class="py-2">Acciones</TableHead>
+                                        <TableHead class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Proveedor</TableHead>
+                                        <TableHead class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad</TableHead>
+                                        <TableHead class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio</TableHead>
+                                        <TableHead class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">IVA</TableHead>
+                                        <TableHead class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</TableHead>
+                                        <TableHead class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    <TableRow v-for="item in selectedInvoice.items" :key="item.id" class="text-xs text-center">
-                                        <TableCell class="py-2">{{ item.item?.name || 'N/A' }}</TableCell>
-                                        <TableCell class="py-2">{{ item.item?.code || 'N/A' }}</TableCell>
-                                        <TableCell class="py-2">{{ item.description || '-' }}</TableCell>
-                                        <TableCell class="py-2">{{ item.supplier_code || '-' }}</TableCell>
-                                        <TableCell class="py-2">{{ `${item.quantity} ${(item.item && 'unit' in item.item ? item.item.unit : 'mts')}` }}</TableCell>
-                                        <TableCell class="py-2">
+                                    <TableRow v-for="item in selectedInvoice.items" :key="item.id" class="border-b border-border/40 text-sm transition-colors last:border-0 hover:bg-muted/20">
+                                        <TableCell class="px-4 py-3">{{ item.item?.name || 'N/A' }}</TableCell>
+                                        <TableCell class="px-4 py-3">{{ item.item?.code || 'N/A' }}</TableCell>
+                                        <TableCell class="px-4 py-3">{{ item.description || '-' }}</TableCell>
+                                        <TableCell class="px-4 py-3">{{ item.supplier_code || '-' }}</TableCell>
+                                        <TableCell class="px-4 py-3">{{ `${item.quantity} ${(item.item && 'unit' in item.item ? item.item.unit : 'mts')}` }}</TableCell>
+                                        <TableCell class="px-4 py-3">
                                             {{ Number(item.price || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}
                                         </TableCell>
-                                        <TableCell class="py-2">
+                                        <TableCell class="px-4 py-3">
                                             {{ Number(item.total_tax || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}
                                         </TableCell>
-                                        <TableCell class="py-2">
+                                        <TableCell class="px-4 py-3 font-medium">
                                             {{ Number(item.total || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}
                                         </TableCell>
-                                        <TableCell class="py-2">
+                                        <TableCell class="px-4 py-3">
                                             <template v-if="isFabricItem(item)">
                                                 <button
-                                                    class="flex h-full items-center justify-center text-muted-foreground transition-colors duration-200"
-                                                    :class="isInvoiceReceptionApproved(selectedInvoice) ? 'cursor-not-allowed opacity-50' : 'hover:text-primary'"
+                                                    class="flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition-colors duration-200"
+                                                    :class="isInvoiceReceptionApproved(selectedInvoice) ? 'cursor-not-allowed opacity-50' : 'hover:border-primary/40 hover:bg-primary/5 hover:text-primary'"
                                                     :disabled="isInvoiceReceptionApproved(selectedInvoice)"
                                                     :title="isInvoiceReceptionApproved(selectedInvoice) ? 'La factura ya está aprobada; no se puede registrar más rollos' : 'Registrar rollo'"
                                                     @click="!isInvoiceReceptionApproved(selectedInvoice) && openFabricRollDialog(item)"
@@ -916,10 +1002,13 @@ function onFabricRollSuccess() {
                     </div>
 
                     <!-- Retenciones y Totales detallados -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start pt-4">
+                    <div class="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                         <!-- Retenciones a la izquierda -->
-                        <div v-if="selectedInvoice.withholdings && selectedInvoice.withholdings.length > 0" class="bg-muted/40 rounded-lg p-4 border border-border">
-                            <h3 class="text-xs font-semibold mb-2 text-muted-foreground">Retenciones</h3>
+                        <div v-if="selectedInvoice.withholdings && selectedInvoice.withholdings.length > 0" class="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+                            <div class="mb-4">
+                                <h3 class="text-sm font-semibold text-foreground">Retenciones</h3>
+                                <p class="mt-1 text-sm text-muted-foreground">Ajustes que reducen el valor neto a pagar de la factura.</p>
+                            </div>
                             <ul class="divide-y divide-border">
                                 <li v-for="(withholding, index) in selectedInvoice.withholdings" :key="index" class="flex justify-between py-1 text-xs">
                                     <span>{{ withholding.name || 'N/A' }}</span>
@@ -933,13 +1022,18 @@ function onFabricRollSuccess() {
                                 <span class="text-red-700">-{{ ((selectedInvoice.withholdings || []).reduce((acc, w) => acc + ((Number(w.base_amount) || 0) * (Number(w.percentage) || 0) / 100), 0)).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</span>
                             </div>
                         </div>
-                        <div v-else>
+                        <div v-else class="rounded-2xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm italic text-muted-foreground">
+                            Esta factura no registra retenciones.
                             <!-- Espacio vacío cuando no hay retenciones -->
                         </div>
 
                         <!-- Totales detallados a la derecha -->
-                        <div class="flex justify-end">
-                            <div class="w-full max-w-xs space-y-1 p-4 bg-muted/40 rounded-lg">
+                        <div class="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+                            <div class="mb-4">
+                                <h3 class="text-sm font-semibold text-foreground">Resumen financiero</h3>
+                                <p class="mt-1 text-sm text-muted-foreground">Consolidado del documento para validar el monto final antes de decidir.</p>
+                            </div>
+                            <div class="w-full space-y-1 rounded-xl border border-border/60 bg-muted/20 p-4">
                                 <div class="flex justify-between items-center">
                                     <span class="font-medium text-muted-foreground text-sm">Subtotal</span>
                                     <span class="text-sm">{{
@@ -1022,7 +1116,7 @@ function onFabricRollSuccess() {
                     <!-- Descripción de validación: por qué no se puede aprobar -->
                     <div
                         v-if="(selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status) && (approvalBlockersLoading || approvalBlockers.length > 0)"
-                        class="mt-4 rounded-lg border p-3 text-sm"
+                        class="rounded-2xl border p-4 text-sm shadow-sm"
                         :class="approvalBlockersLoading ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30' : 'border-destructive/50 bg-destructive/5 dark:border-destructive/50 dark:bg-destructive/10'"
                     >
                         <p class="font-medium text-muted-foreground mb-1">
@@ -1040,8 +1134,14 @@ function onFabricRollSuccess() {
                     </div>
 
                     <!-- Botones de acción compactos y fijos -->
-                    <div class="flex gap-2 mt-4 justify-end sticky bottom-0 z-10 bg-background p-2 rounded-b-xl shadow-sm">
-                        <template v-if="selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status">
+                    <div class="space-y-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
+                        <div class="max-w-2xl space-y-2">
+                            <h3 class="text-sm font-semibold text-foreground">Acciones finales</h3>
+                            <p class="text-sm text-muted-foreground">
+                                Confirma el resultado de la revisión del documento. Estas acciones cierran el flujo operativo de recepción.
+                            </p>
+                        </div>
+                        <div v-if="selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger as-child>
@@ -1078,12 +1178,12 @@ function onFabricRollSuccess() {
                             <Button variant="destructive" size="pill" @click="showRejectDialog(selectedInvoice)">
                                 <X class="h-4 w-4" /> Rechazar
                             </Button>
-                        </template>
-                        <p v-if="selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status" class="text-xs text-muted-foreground mt-1 w-full text-right">
+                        </div>
+                        <p v-if="selectedInvoice.status === 'pending_receipt' || !selectedInvoice.status" class="text-xs text-muted-foreground">
                             Al aprobar la recepción la factura pasará a estado <strong>Aprobado</strong>; al rechazarla, a <strong>Rechazado</strong>.
                         </p>
-                        <div v-else class="flex flex-col items-end gap-1 text-right">
-                            <div class="text-sm text-muted-foreground flex items-center gap-2">
+                        <div v-else class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2 text-sm text-muted-foreground">
                                 Estado:
                                 <TableStatusBadge
                                     :label="getStatusText(selectedInvoice.status)"

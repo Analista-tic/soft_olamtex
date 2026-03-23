@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Button } from '@/components/ui/button';
+import DeleteButton from '@/components/common/DeleteButton.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
@@ -11,7 +12,6 @@ import TextareaField from '@/components/TextareaField.vue';
 import AlertBox from '@/components/AlertBox.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Trash } from 'lucide-vue-next';
 import type { Option } from '@/domain/shared';
 import type { Item } from '@/domain/MasterData';
 import axios from 'axios';
@@ -545,59 +545,63 @@ function handleItemSelection(item: TransferItem, value: Option['id'] | null | un
 							:create-line-button-disabled="isViewMode"
 							@create-line="handleAddLine"
 						>
-						<table class="min-w-full text-sm">
-							<thead>
-								<tr class="bg-muted">
-									<th class="p-2 font-normal">Ítem</th>
-									<th class="p-2 font-normal">Cantidad actual</th>
-									<th class="p-2 font-normal">Cantidad a transferir</th>
-									<th></th>
-								</tr>
-							</thead>
-							<tbody>
-								<tr v-for="(row, idx) in transferForm.items" :key="idx" :ref="setItemRowRef(idx)">
-									<td class="p-2">
-										<SelectField
-											:modelValue="getItemSelectionValue(row)"
-											:options="itemOptions"
-											label=""
-											placeholder="Selecciona un ítem"
-											:searchable="true"
-											:disabled="isViewMode || isLoadingItems"
-											class="w-full"
-											@update:modelValue="value => handleItemSelection(row, Array.isArray(value) ? value[0] ?? null : value)"
-											@focus="() => scrollItemRowIntoView(idx)"
-										/>
-									</td>
-									<td class="p-2">
-										<InputField
-											v-model="row.currentQty"
-											label=""
-											type="number"
-											:disabled="true"
-										/>
-									</td>
-									<td class="p-2">
-										<InputField
-											v-model="row.transferQty"
-											label=""
-											type="number"
-											:disabled="isViewMode"
-										/>
-									</td>
-									<td class="p-2">
-										<Button
-											v-if="transferForm.items.length > 1 && !isViewMode"
-											variant="ghost"
-											size="icon"
-											@click="removeTransferItem(idx)"
-										>
-											<Trash class="h-4 w-4" />
-										</Button>
-									</td>
-								</tr>
-							</tbody>
-						</table>
+						<div class="w-full overflow-x-auto rounded-lg border border-border bg-background">
+							<table class="min-w-full table-fixed text-sm">
+								<thead>
+									<tr class="bg-muted/50 border-b border-border">
+										<th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Ítem</th>
+										<th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad actual</th>
+										<th class="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad a transferir</th>
+										<th class="w-[60px] px-3 py-2 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground"></th>
+									</tr>
+								</thead>
+								<tbody>
+									<tr
+										v-for="(row, idx) in transferForm.items"
+										:key="idx"
+										:ref="setItemRowRef(idx)"
+										class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0"
+									>
+										<td class="p-2">
+											<SelectField
+												:modelValue="getItemSelectionValue(row)"
+												:options="itemOptions"
+												label=""
+												placeholder="Selecciona un ítem"
+												:searchable="true"
+												:disabled="isViewMode || isLoadingItems"
+												class="w-full"
+												@update:modelValue="value => handleItemSelection(row, Array.isArray(value) ? value[0] ?? null : value)"
+												@focus="() => scrollItemRowIntoView(idx)"
+											/>
+										</td>
+										<td class="p-2">
+											<InputField
+												v-model="row.currentQty"
+												label=""
+												type="number"
+												:disabled="true"
+											/>
+										</td>
+										<td class="p-2">
+											<InputField
+												v-model="row.transferQty"
+												label=""
+												type="number"
+												:disabled="isViewMode"
+											/>
+										</td>
+										<td class="p-2 text-center">
+											<DeleteButton
+												v-if="transferForm.items.length > 1 && !isViewMode"
+												class="mx-auto"
+												@click="removeTransferItem(idx)"
+											/>
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
 					</InventoryDetailTableLayout>
 					<div class="mt-2 text-right font-normal">Total transferido: {{ totalTransferred }}</div>
 				</div>

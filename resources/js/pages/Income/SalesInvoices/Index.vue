@@ -34,7 +34,6 @@ import {
     resolveIncomePageChange,
     watchIncomeDocumentFilters,
 } from '@/composables/Income/useIncomeDocument';
-import { useSmartLoading } from '@/composables/useSmartLoading';
 import type { SalesInvoice } from '@/domain/Income';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -47,7 +46,6 @@ import { computed, onMounted, ref } from 'vue';
 import SalesInvoiceDialog from './SalesInvoiceDialog.vue';
 
 const incomeStore = useIncomeStore();
-const smartLoading = useSmartLoading();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Ingresos', href: '/income/sales-invoices' },
@@ -78,6 +76,7 @@ const customerOptions = ref<Option[]>([]);
 
 const salesInvoices = computed(() => incomeStore.salesInvoices);
 const salesInvoicesMeta = computed(() => incomeStore.salesInvoicesMeta);
+const isSalesInvoicesLoading = computed(() => incomeStore.salesInvoicesLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
 const isStatusFilterActive = computed(() => status.value !== 'all');
 const isCustomerFilterActive = computed(() => contactId.value !== 'all');
@@ -149,7 +148,6 @@ function getPaymentStatusClass(statusValue?: string): string {
 }
 
 async function fetchSalesInvoices(page = 1) {
-    const taskId = smartLoading.start({ label: 'Cargando facturas...' });
     try {
         await incomeStore.fetchSalesInvoices({
             page,
@@ -164,8 +162,6 @@ async function fetchSalesInvoices(page = 1) {
     } catch (error: unknown) {
         errorType.value = 'error';
         errorMessage.value = normalizeErrorMessage(error, 'No se pudieron cargar las facturas de venta.');
-    } finally {
-        smartLoading.stop(taskId);
     }
 }
 
@@ -378,7 +374,7 @@ onMounted(() => {
                     </TableHeader>
 
                     <TableBody>
-                        <template v-if="smartLoading.isVisible.value">
+                        <template v-if="isSalesInvoicesLoading">
                             <TableRow v-for="i in 5" :key="`sales-invoice-skeleton-${i}`">
                                 <TableCell v-for="col in 9" :key="`sales-invoice-skeleton-${i}-${col}`" class="px-4 py-3">
                                     <Skeleton class="h-4 w-full" />
@@ -460,7 +456,7 @@ onMounted(() => {
                         <PaginationPrev @click="handlePageChange(currentPage - 1)" />
                         <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
                             <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
-                                <Button type="button" class="h-9 w-9 p-0" :variant="item.value === currentPage ? 'default' : 'outline'" @click="handlePageChange(item.value)">
+                                <Button type="button" class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === currentPage ? 'default' : 'ghost'" @click="handlePageChange(item.value)">
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>

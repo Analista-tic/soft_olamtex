@@ -666,7 +666,7 @@ watch(
                         <div class="grid grid-cols-3 gap-4">
                             <DateField v-model="invoiceDate" label="Fecha de factura" :disabled="isReadOnly" :clearable="true" :show-today="true" required />
                             <DateField v-model="deliveryDate" label="Fecha de entrega" :disabled="isReadOnly" :clearable="true" :show-today="true" required />
-                            <InputField v-model="localForm.supplier_invoice_number" label="# factura proveedor" :readonly="isReadOnly" />
+                            <InputField v-model="localForm.supplier_invoice_number" label="Número de factura del proveedor" :readonly="isReadOnly" />
                         </div>
                         <InventoryDetailTableLayout
                             title="Items"

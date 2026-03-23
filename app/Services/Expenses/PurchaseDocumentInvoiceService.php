@@ -23,7 +23,7 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
     public function __construct(
         private \App\Services\Finance\AccountingPostingService $accountingPostingService,
         private \App\Services\Inventory\InventoryMovementService $inventoryMovementService,
-        private \App\Services\Inventory\InventoryStockService $inventoryStockService,
+        private \App\Services\Inventory\WarehouseResolver $warehouseResolver,
     ) {}
 
     public function paginateAccountsPayable(array $filters = [], int $perPage = 20): LengthAwarePaginator
@@ -344,7 +344,7 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
 
                 return [
                     'item_id' => (int) $line->item_id,
-                    'warehouse_id' => $this->inventoryStockService->resolveWarehouseId($item, null),
+                    'warehouse_id' => $this->warehouseResolver->resolveWarehouseId($item, null),
                     'type' => 'entrada',
                     'quantity' => (float) $line->quantity,
                     'unit_price' => (float) $line->price,

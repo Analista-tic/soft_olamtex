@@ -294,31 +294,28 @@ defineExpose({ addItem, validateFabricFields });
 </script>
 
 <template>
-    <div
-        style="overflow: visible; max-height: none;"
-        class="w-full"
-    >
+    <div class="w-full overflow-x-auto rounded-lg border border-border bg-background">
 
-        <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none;">
-            <Table class="min-w-full text-center border-separate border-spacing-x-2 border-spacing-y-1 table-fixed" style="overflow: visible; max-height: none;">
+        <div style="overflow: visible; max-height: none;">
+            <Table class="min-w-full table-fixed text-sm">
                 <TableHeader>
-                    <TableRow class="text-center border-b border-border/60">
-                        <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[160px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Código proveedor</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Color proveedor</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Ancho pedido</TableHead>
-                        <TableHead class="min-w-[90px] text-left">Total</TableHead>
-                        <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
+                    <TableRow class="bg-muted/50 border-b border-border">
+                        <TableHead class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Item <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripción</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Código proveedor</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Color proveedor</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Ancho pedido</TableHead>
+                        <TableHead class="min-w-[90px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</TableHead>
+                        <TableHead v-if="showActionsColumn" class="w-[60px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"></TableHead>
                     </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                    <TableRow v-for="(item, idx) in localItems" :key="idx">
-                        <TableCell class="p-1 text-left min-w-[150px]">
+                    <TableRow v-for="(item, idx) in localItems" :key="idx" class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0">
+                        <TableCell class="p-2 text-left min-w-[150px]">
                             <div class="space-y-1.5">
                                 <SelectField
                                     v-model="item.item_id"
@@ -344,7 +341,7 @@ defineExpose({ addItem, validateFabricFields });
                                 </div>
                             </div>
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 120px;">
+                        <TableCell class="p-2 text-left" style="width: 120px;">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -357,7 +354,7 @@ defineExpose({ addItem, validateFabricFields });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px;">
+                        <TableCell class="p-2 text-left" style="width: 160px;">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
@@ -370,7 +367,7 @@ defineExpose({ addItem, validateFabricFields });
                                 @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 110px;">
+                        <TableCell class="p-2 text-left" style="width: 110px;">
                             <InputField
                                 v-model="item.quantity"
                                 type="number"
@@ -381,10 +378,10 @@ defineExpose({ addItem, validateFabricFields });
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 160px;">
+                        <TableCell class="p-2 text-left" style="width: 160px;">
                             <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
+                        <TableCell v-if="isTela(item)" class="p-2 text-left" style="width: 150px;">
                             <InputField
                                 v-model="item.supplier_code"
                                 label=""
@@ -394,7 +391,7 @@ defineExpose({ addItem, validateFabricFields });
                                 :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
+                        <TableCell v-if="isTela(item)" class="p-2 text-left" style="width: 150px;">
                             <InputField
                                 v-model="item.supplier_color"
                                 label=""
@@ -404,7 +401,7 @@ defineExpose({ addItem, validateFabricFields });
                                 :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px;">
+                        <TableCell v-if="isTela(item)" class="p-2 text-left" style="width: 150px;">
                             <InputField
                                 v-model="item.order_width"
                                 type="number"
@@ -417,7 +414,7 @@ defineExpose({ addItem, validateFabricFields });
                                 :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-1 text-left" style="width: 90px;">
+                        <TableCell class="p-2 text-left" style="width: 90px;">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',
@@ -427,7 +424,7 @@ defineExpose({ addItem, validateFabricFields });
                                 })
                             }}
                         </TableCell>
-                        <TableCell v-if="showActionsColumn" class="p-1 text-center">
+                        <TableCell v-if="showActionsColumn" class="p-2 text-center">
                             <div class="flex justify-center">
                                 <DeleteButton v-if="localItems.length > 1" @click="removeItem(idx)" />
                             </div>
@@ -435,7 +432,7 @@ defineExpose({ addItem, validateFabricFields });
                     </TableRow>
 
                     <TableRow v-if="localItems.length === 0">
-                        <TableCell :colspan="totalColumns" class="text-center text-muted-foreground"> No hay items agregados. </TableCell>
+                        <TableCell :colspan="totalColumns" class="py-8 text-center text-sm italic text-muted-foreground"> No hay items agregados. </TableCell>
                     </TableRow>
                 </TableBody>
             </Table>
