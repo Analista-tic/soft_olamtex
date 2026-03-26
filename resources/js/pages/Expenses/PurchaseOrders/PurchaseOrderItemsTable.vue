@@ -16,6 +16,7 @@ const props = defineProps<{
     items: PurchaseOrderItem[];
     suggestedItems?: any[];
     readonly?: boolean;
+    submitAttempted?: boolean;
 }>();
 const emit = defineEmits(['update:items']);
 
@@ -166,6 +167,18 @@ function addItem() {
     };
 
     localItems.value.push(newItem);
+}
+
+function isItemIdInvalid(item: PurchaseOrderItem): boolean {
+    return !!props.submitAttempted && (item.item_id == null || Number(item.item_id) <= 0);
+}
+
+function isPriceInvalid(item: PurchaseOrderItem): boolean {
+    return !!props.submitAttempted && (item.price === '' || Number(item.price) <= 0);
+}
+
+function isQuantityInvalid(item: PurchaseOrderItem): boolean {
+    return !!props.submitAttempted && (item.quantity === '' || Number(item.quantity) <= 0);
 }
 
 function removeItem(idx: number) {
@@ -322,6 +335,7 @@ defineExpose({ addItem, validateFabricFields });
                                     :options="catalogItems.map((a) => ({ id: a.id, name: a.name }))"
                                     label=""
                                     class="w-full"
+                                    :invalid="isItemIdInvalid(item)"
                                     :disabled="isReadOnly"
                                     :action-label="!isReadOnly ? 'Nuevo item' : undefined"
                                     :action-disabled="isReadOnly"
@@ -351,6 +365,7 @@ defineExpose({ addItem, validateFabricFields });
                                 :readonly="isReadOnly"
                                 :disabled="isReadOnly"
                                 class="h-10 w-full"
+                                :error="isPriceInvalid(item)"
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
@@ -375,6 +390,7 @@ defineExpose({ addItem, validateFabricFields });
                                 :readonly="isReadOnly"
                                 :disabled="isReadOnly"
                                 class="h-10 w-full"
+                                :error="isQuantityInvalid(item)"
                                 @input="calcTotals(item)"
                             />
                         </TableCell>

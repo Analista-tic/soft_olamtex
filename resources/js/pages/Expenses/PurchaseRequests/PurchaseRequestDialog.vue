@@ -17,6 +17,7 @@ import type { PurchaseRequestForm } from '@/domain/Expenses';
 import axios from 'axios';
 import { computed, nextTick, ref, watch } from 'vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import { useAlertStack } from '@/composables/useAlert';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import Label from '@/components/ui/label/Label.vue';
@@ -52,11 +53,13 @@ const localForm = ref<PurchaseRequestDialogForm>(createDefaultForm());
 const isLoading = ref(false);
 const isInitializingDialog = ref(false);
 const isSubmittingDialog = ref(false);
+const submitAttempted = ref(false);
 const nextRequestId = ref<number | null>(null);
 const isLoadingRequestId = ref(false);
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref('');
 const itemsTableRef = ref<InstanceType<typeof PurchaseRequestItemsTable> | null>(null);
+const showCancelConfirm = ref(false);
 
 // Archivo y preview
 const documentFile = ref<File | null>(null);
@@ -90,6 +93,19 @@ const id = computed(() => {
 
 const hasDocument = computed(() => {
     return Boolean(documentFile.value || localForm.value.document_path);
+});
+
+const hasUnsavedChanges = computed(() => {
+    if (props.dialogType !== 'create') return false;
+
+    const hasDescription = String(localForm.value.description ?? '').trim().length > 0;
+    const hasItems = (localForm.value.items || []).some(
+        (it) =>
+            Number(it.quantity) > 0 ||
+            String(it.name ?? (it as { item_name?: string | null }).item_name ?? '').trim().length > 0,
+    );
+
+    return hasDescription || hasItems;
 });
 
 const documentUrl = computed(() => {
@@ -221,6 +237,7 @@ function resetForm() {
     documentFile.value = null;
     documentPreview.value = null;
 
+    submitAttempted.value = false;
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
@@ -327,10 +344,20 @@ function triggerFileInput() {
     fileInputRef.value?.click();
 }
 
+function handleCancel(): void {
+    if (props.dialogType === 'create' && hasUnsavedChanges.value) {
+        showCancelConfirm.value = true;
+        return;
+    }
+
+    dialogOpen.value = false;
+}
+
 async function handleSubmit(sendToApproval: boolean = false) {
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
+    submitAttempted.value = true;
 
     if (!validateForm()) return;
     
@@ -362,19 +389,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
         }
 
         // A?adir items como JSON string
-        if (localForm.value.items && Array.isArray(localForm.value.items) && localForm.value.items.length > 0) {
-            formData.append('items', JSON.stringify(localForm.value.items));
-        } else {
-            // Asegurar que siempre haya al menos un item vac?o
-            formData.append('items', JSON.stringify([{
-                item_id: null,
-                name: '',
-                price: 0,
-                quantity: 1,
-                description: '',
-                total: 0,
-            }]));
-        }
+        formData.append('items', JSON.stringify(Array.isArray(localForm.value.items) ? localForm.value.items : []));
 
         // A?adir archivo si existe
         if (documentFile.value) {
@@ -516,8 +531,12 @@ function validateForm() {
         return false;
     }
 
-    const itemsCheck = (localForm.value.items || []).filter((it) => Number(it.quantity) > 0);
-    if (!itemsCheck.length) {
+    const validItems = (localForm.value.items || []).filter(
+        (it) =>
+            Number(it.quantity) > 0 &&
+            (it.item_id || String(it.name ?? (it as { item_name?: string | null }).item_name ?? '').trim()),
+    );
+    if (!validItems.length) {
         setErrorMessage('Debe agregar al menos un ítem con cantidad mayor a cero a la solicitud.', 'warning');
         return false;
     }
@@ -710,6 +729,7 @@ watch(
                                     ref="itemsTableRef"
                                     :items="localForm.items || []"
                                     :readonly="isReadOnly"
+                                    :submitAttempted="submitAttempted"
                                     @update:items="localForm.items = $event"
                                 />
                             </InventoryDetailTableLayout>
@@ -803,7 +823,7 @@ watch(
             </div>
 
             <DialogFooter :class="uiPatterns.dialogLarge.footerSpaced">
-                <Button variant="outline" size="pill" @click="dialogOpen = false">
+                <Button variant="outline" size="pill" @click="handleCancel">
                     Cancelar
                 </Button>
                 <button
@@ -826,5 +846,15 @@ watch(
                 </button>
             </DialogFooter>
         </DialogContent>
+
+        <ConfirmDialog
+            v-model:open="showCancelConfirm"
+            title="¿Descartar solicitud?"
+            description="Tienes datos ingresados que se perderán si cancelas."
+            confirm-text="Descartar"
+            cancel-text="Seguir editando"
+            :destructive="true"
+            @confirm="dialogOpen = false"
+        />
     </Dialog>
 </template>

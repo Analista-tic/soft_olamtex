@@ -10,7 +10,6 @@ import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,8 +41,8 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useIncomeStore } from '@/stores/income';
 import { Head } from '@inertiajs/vue3';
-import { Ban, ChevronDown, FileText, PlusCircle, Receipt, Search, Send, Trash2 } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { Ban, ChevronDown, PlusCircle, Receipt, Search, Send, Trash2 } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 import SalesInvoiceDialog from '../SalesInvoices/SalesInvoiceDialog.vue';
 import CreditDebitNoteDialog from './CreditDebitNoteDialog.vue';
 
@@ -62,11 +61,9 @@ const selectedInvoiceId = ref<number | undefined>(undefined);
 const isInvoiceDialogOpen = ref(false);
 const noteToDelete = ref<SaleCreditDebitNote | null>(null);
 const noteToEmit = ref<SaleCreditDebitNote | null>(null);
-const noteToVoid = ref<SaleCreditDebitNote | null>(null);
 const isDeleteDialogOpen = ref(false);
 const isEmitDialogOpen = ref(false);
-const isVoidDialogOpen = ref(false);
-const voidReason = ref('');
+const openVoidDialog = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
@@ -75,8 +72,7 @@ const search = ref(incomeStore.noteFilters.search ?? '');
 const type = ref<'all' | 'credit' | 'debit'>((incomeStore.noteFilters.type as 'credit' | 'debit' | undefined) ?? 'all');
 const status = ref(incomeStore.noteFilters.status ?? 'all');
 const contactId = ref<number | 'all'>((incomeStore.noteFilters.contact_id as number | null | undefined) ?? 'all');
-const dateFrom = ref<string | null>(incomeStore.noteFilters.date_from ?? null);
-const dateTo = ref<string | null>(incomeStore.noteFilters.date_to ?? null);
+const dateFilter = ref<string | null>(incomeStore.noteFilters.date_from ?? incomeStore.noteFilters.date_to ?? null);
 const customerOptions = ref<Option[]>([]);
 
 const notes = computed(() => incomeStore.creditDebitNotes);
@@ -86,8 +82,7 @@ const isSearchActive = computed(() => search.value.trim().length > 0);
 const isTypeFilterActive = computed(() => type.value !== 'all');
 const isStatusFilterActive = computed(() => status.value !== 'all');
 const isCustomerFilterActive = computed(() => contactId.value !== 'all');
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
@@ -144,8 +139,8 @@ async function fetchNotes(page = 1) {
             type: type.value === 'all' ? undefined : type.value,
             status: status.value,
             contact_id: contactId.value === 'all' ? undefined : contactId.value,
-            date_from: dateFrom.value || undefined,
-            date_to: dateTo.value || undefined,
+            date_from: dateFilter.value || undefined,
+            date_to: dateFilter.value || undefined,
         });
     } catch (error: unknown) {
         errorType.value = 'error';
@@ -206,8 +201,11 @@ function askEmit(note: SaleCreditDebitNote) {
 
 function askVoid(note: SaleCreditDebitNote) {
     if (!canVoid(note)) return;
-    noteToVoid.value = note;
-    isVoidDialogOpen.value = true;
+    dialogMode.value = 'view';
+    selectedNoteId.value = note.id;
+    selectedNoteType.value = note.note_type;
+    openVoidDialog.value = true;
+    isDialogOpen.value = true;
 }
 
 async function deleteNote() {
@@ -244,31 +242,19 @@ async function emitNote() {
     }
 }
 
-async function voidNote() {
-    if (!noteToVoid.value?.id) return;
-
-    try {
-        await incomeStore.voidNote(noteToVoid.value.id, voidReason.value);
-        successMessage.value = 'Nota anulada correctamente.';
-        errorMessage.value = '';
-        await fetchNotes(currentPage.value);
-    } catch (error: unknown) {
-        errorType.value = 'error';
-        errorMessage.value = normalizeErrorMessage(error, 'No se pudo anular la nota.');
-    } finally {
-        noteToVoid.value = null;
-        isVoidDialogOpen.value = false;
-        voidReason.value = '';
-    }
-}
-
 async function handleDialogSaved() {
     successMessage.value = dialogMode.value === 'create' ? 'Nota guardada correctamente.' : 'Nota actualizada correctamente.';
     errorMessage.value = '';
     await fetchNotes(currentPage.value);
 }
 
-watchIncomeDocumentFilters([search, type, status, contactId, dateFrom, dateTo], () => {
+watch(isDialogOpen, (open) => {
+    if (!open) {
+        openVoidDialog.value = false;
+    }
+});
+
+watchIncomeDocumentFilters([search, type, status, contactId, dateFilter], () => {
     void fetchNotes(1);
 });
 
@@ -343,12 +329,8 @@ onMounted(() => {
                     />
                 </FilterField>
 
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <DatePickerField v-model="dateFrom" label="" placeholder-text="Desde" :clearable="true" />
-                </FilterField>
-
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <DatePickerField v-model="dateTo" label="" placeholder-text="Hasta" :clearable="true" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <DatePickerField v-model="dateFilter" label="" placeholder-text="dd/mm/aaaa" :clearable="true" />
                 </FilterField>
 
             </FilterBar>
@@ -470,6 +452,7 @@ onMounted(() => {
             :mode="dialogMode"
             :note-id="selectedNoteId"
             :note-type="selectedNoteType"
+            :open-void-dialog="openVoidDialog"
             @saved="handleDialogSaved"
         />
 
@@ -494,28 +477,5 @@ onMounted(() => {
             @update:open="isEmitDialogOpen = $event"
             @confirm="emitNote"
         />
-
-        <Dialog v-model:open="isVoidDialogOpen">
-            <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
-                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                    <DialogTitle>Anular nota de venta</DialogTitle>
-                    <DialogDescription>Indica la razon antes de reversar el asiento contable.</DialogDescription>
-                </DialogHeader>
-
-                <textarea
-                    v-model="voidReason"
-                    class="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    placeholder="Motivo de anulacion"
-                />
-
-                <DialogFooter class="justify-end gap-2">
-                    <Button variant="outline" size="pill" @click="isVoidDialogOpen = false">Cancelar</Button>
-                    <Button variant="destructive" size="pill" @click="voidNote">
-                        <FileText class="mr-2 h-4 w-4" />
-                        Anular
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     </AppLayout>
 </template>

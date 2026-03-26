@@ -17,6 +17,7 @@ const props = defineProps<{
     isCreating?: boolean; 
     isReadOnly?: boolean;
     telaMode?: boolean | null;
+    submitAttempted?: boolean;
 }>();
 const emit = defineEmits(['update:items']);
 
@@ -87,8 +88,12 @@ function normalizeOrderWidth(value: string | number | null | undefined) {
 function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
     return {
         ...item,
-        price: props.isCreating ? '' : (item.price ?? ''),
-        quantity: props.isCreating ? '' : (item.quantity ?? ''),
+        price: props.isCreating
+            ? (item.original_order_item?.price != null ? item.original_order_item.price : '')
+            : (item.price ?? ''),
+        quantity: props.isCreating
+            ? (item.original_order_item?.quantity != null ? item.original_order_item.quantity : '')
+            : (item.quantity ?? ''),
         tax: Number(item.tax) || 0,
         supplier_code: item.supplier_code || '',
         supplier_color: item.supplier_color || '',
@@ -219,6 +224,18 @@ function removeItem(idx: number) {
     }
     localItems.value.splice(idx, 1);
     notifyParent();
+}
+
+function isItemIdInvalid(item: PurchaseInvoiceItem): boolean {
+    return !!props.submitAttempted && (item.item_id == null || Number(item.item_id) <= 0);
+}
+
+function isPriceInvalidRequired(item: PurchaseInvoiceItem): boolean {
+    return !!props.submitAttempted && (item.price === '' || Number(item.price) <= 0);
+}
+
+function isQuantityInvalidRequired(item: PurchaseInvoiceItem): boolean {
+    return !!props.submitAttempted && (item.quantity === '' || Number(item.quantity) <= 0);
 }
 
 function setTaxFromItem(invoiceItem: PurchaseInvoiceItem) {
@@ -353,7 +370,7 @@ defineExpose({ addItem });
 
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx" class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0">
-                        <TableCell class="p-2 text-left min-w-[150px]">
+                        <TableCell class="p-2 text-left min-w-[150px] align-top">
                             <SelectField
                                 v-model="item.item_id"
                                 :options="itemOptions"
@@ -361,12 +378,13 @@ defineExpose({ addItem });
                                 placeholder="Selecciona item"
                                 :disabled="isReadOnly"
                                 class="w-full"
+                                :invalid="isItemIdInvalid(item)"
                                 :action-label="!isReadOnly ? 'Nuevo item' : undefined"
                                 :action-disabled="isReadOnly"
                                 @action="openItemDialog"
                             />
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 120px;">
+                        <TableCell class="p-2 text-left align-top" style="width: 120px;">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -378,10 +396,18 @@ defineExpose({ addItem });
                                 :disabled="isReadOnly"
                                 class="h-10 w-full"
                                 @input="calcTotals(item)"
-                                :error="isPriceDifferent(item)"
+                                :error="isPriceDifferent(item) || isPriceInvalidRequired(item)"
                             />
-                            <div v-if="getSuggestedPrice(item) !== null" class="mt-1 text-xs text-muted-foreground">
-                                Valor en la orden: {{
+                            <div
+                                v-if="getSuggestedPrice(item) !== null"
+                                :class="[
+                                    'mt-1 text-xs',
+                                    isPriceDifferent(item)
+                                        ? 'text-amber-600 dark:text-amber-400'
+                                        : 'text-muted-foreground'
+                                ]"
+                            >
+                                Orden: {{
                                     Number(getSuggestedPrice(item)).toLocaleString('es-CO', {
                                         style: 'currency',
                                         currency: 'COP',
@@ -391,7 +417,7 @@ defineExpose({ addItem });
                                 }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 160px;">
+                        <TableCell class="p-2 text-left align-top" style="width: 160px;">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
@@ -404,7 +430,7 @@ defineExpose({ addItem });
                                 @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
                             />
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 110px;">
+                        <TableCell class="p-2 text-left align-top" style="width: 110px;">
                             <InputField
                                 v-model="item.quantity"
                                 type="number"
@@ -413,18 +439,26 @@ defineExpose({ addItem });
                                 @input="calcTotals(item)"
                                 :readonly="isReadOnly"
                                 :disabled="isReadOnly"
-                                :error="isQuantityDifferent(item)"
+                                :error="isQuantityDifferent(item) || isQuantityInvalidRequired(item)"
                             />
-                            <div v-if="getSuggestedQuantity(item) !== null" class="mt-1 text-xs text-muted-foreground">
-                                Cantidad real: {{
+                            <div
+                                v-if="getSuggestedQuantity(item) !== null"
+                                :class="[
+                                    'mt-1 text-xs',
+                                    isQuantityDifferent(item)
+                                        ? 'text-amber-600 dark:text-amber-400'
+                                        : 'text-muted-foreground'
+                                ]"
+                            >
+                                Orden: {{
                                     Number(getSuggestedQuantity(item)).toLocaleString('es-CO')
                                 }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 160px;">
+                        <TableCell class="p-2 text-left align-top" style="width: 160px;">
                             <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-2 text-left" style="width: 150px;">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-2 text-left align-top" style="width: 150px;">
                             <InputField
                                 v-model="item.supplier_code"
                                 label=""
@@ -434,7 +468,7 @@ defineExpose({ addItem });
                                 :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-2 text-left" style="width: 150px;">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-2 text-left align-top" style="width: 150px;">
                             <InputField
                                 v-model="item.supplier_color"
                                 label=""
@@ -444,7 +478,7 @@ defineExpose({ addItem });
                                 :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-2 text-left" style="width: 150px;">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-2 text-left align-top" style="width: 150px;">
                             <InputField
                                 v-model="item.order_width"
                                 type="text"
@@ -456,7 +490,7 @@ defineExpose({ addItem });
                                 :required="isTela(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 90px;">
+                        <TableCell class="p-2 text-left align-top" style="width: 90px;">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',
@@ -466,7 +500,7 @@ defineExpose({ addItem });
                                 })
                             }}
                         </TableCell>
-                        <TableCell v-if="showActionsColumn" class="p-2 text-center">
+                        <TableCell v-if="showActionsColumn" class="p-2 text-center align-top">
                             <div class="flex justify-center">
                                 <DeleteButton @click="removeItem(idx)" />
                             </div>

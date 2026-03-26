@@ -157,6 +157,10 @@ const mode = computed<PageMode>(() => props.mode ?? 'create');
 const isCreateMode = computed(() => mode.value === 'create');
 const isShowMode = computed(() => mode.value === 'show');
 const isEditMode = computed(() => mode.value === 'edit');
+const isVoucherEditable = computed(() => {
+    if (!isEditMode.value) return true;
+    return voucher.value?.status !== 'recorded';
+});
 const isFormMode = computed(() => isCreateMode.value || isEditMode.value);
 
 const breadcrumbs = computed(() => {
@@ -547,6 +551,13 @@ const canSubmit = computed(() =>
 );
 
 async function submitVoucher(): Promise<void> {
+    if (!isVoucherEditable.value) {
+        clearSuccess();
+        clearError();
+        showError('Este comprobante está registrado y no puede modificarse.');
+        return;
+    }
+
     clearSuccess();
     clearError();
     submitAttempted.value = true;
@@ -826,6 +837,13 @@ onMounted(async () => {
                                 : 'Indica los detalles generales asociados a este egreso.'
                         }}
                     </p>
+                </div>
+
+                <div
+                    v-if="isEditMode && !isVoucherEditable"
+                    class="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200"
+                >
+                    Este comprobante está registrado. Solo puede consultarse.
                 </div>
 
                 <section>
@@ -1110,7 +1128,7 @@ onMounted(async () => {
                             <Button
                                 type="button"
                                 size="pill"
-                                :disabled="submitting"
+                                :disabled="submitting || !isVoucherEditable"
                                 @click="submitVoucher"
                             >
                                 {{

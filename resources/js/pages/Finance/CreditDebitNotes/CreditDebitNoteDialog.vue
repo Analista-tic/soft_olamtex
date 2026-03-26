@@ -17,9 +17,10 @@ import type {
   CreditDebitNoteItem,
   CreditDebitNotePayload,
   NoteKind,
+  Tax,
   CreditDebitNoteType,
 } from '@/domain/Finance';
-import { create as createCreditDebitNote, update as updateCreditDebitNote } from '@/domain/Finance';
+import { create as createCreditDebitNote, fetchTaxes, update as updateCreditDebitNote } from '@/domain/Finance';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
 import { PlusCircle } from 'lucide-vue-next';
@@ -149,6 +150,7 @@ const itemsCatalog = ref<ItemOption[]>([]);
 const invoiceOptions = ref<InvoiceOption[]>([]);
 const parentSummary = ref<ParentSummary | null>(null);
 const reasonOptions = ref<Array<{ id: string; name: string }>>([]);
+const taxesCatalog = ref<Array<{ id: string | number; name: string }>>([]);
 const isSyncingParentApplication = ref(false);
 const nextDocumentNumberPreview = ref('');
 
@@ -512,6 +514,18 @@ async function fetchItemsCatalog(): Promise<void> {
   }));
 }
 
+async function fetchTaxesCatalog(): Promise<void> {
+  try {
+    const rows = await fetchTaxes();
+    taxesCatalog.value = rows.map((tax: Tax) => ({
+      id: tax.percentage,
+      name: `${tax.name} (${tax.percentage}%)`,
+    }));
+  } catch {
+    taxesCatalog.value = [];
+  }
+}
+
 function ensureCurrentReasonOption(): void {
   const current = trimText(localForm.value.reason_code ?? localForm.value.reason ?? '');
   if (!current) return;
@@ -527,9 +541,13 @@ async function fetchReasonOptions(): Promise<void> {
 
   const rows = Array.isArray(data?.data?.[reasonParameterKey.value]) ? (data!.data![reasonParameterKey.value] as any[]) : [];
 
-  reasonOptions.value = rows
+  const normalizedRows = rows
     .map((row) => ({ id: trimText(row?.id), name: trimText(row?.name) }))
     .filter((row) => row.id !== '' && row.name !== '');
+
+  reasonOptions.value = normalizedRows.length > 0
+    ? normalizedRows
+    : [{ id: 'otros', name: 'Otros' }];
 
   ensureCurrentReasonOption();
 }
@@ -678,7 +696,6 @@ async function handleSubmit(): Promise<void> {
   clearSuccess();
 
   if (!validateForm()) {
-    emit('error', errorMessage.value || 'Formulario incompleto.');
     return;
   }
 
@@ -701,14 +718,26 @@ async function handleSubmit(): Promise<void> {
 
     dialogOpen.value = false;
   } catch (error: any) {
+    const axiosError = error as any;
+    if (axiosError?.response?.status === 422) {
+      const errors = axiosError.response.data?.errors ?? {};
+      const messages = Object.values(errors)
+        .flat()
+        .map((message) => String(message).trim())
+        .filter(Boolean)
+        .join(' ');
+      const validationMessage = messages || 'Error de validación al guardar la nota.';
+      showError(validationMessage);
+      return;
+    }
+
     const serverMessage =
-      error?.response?.data?.message ||
-      Object.values(error?.response?.data?.errors || {})?.flat()?.[0] ||
-      error?.message ||
+      axiosError?.response?.data?.message ||
+      Object.values(axiosError?.response?.data?.errors || {})?.flat()?.[0] ||
+      axiosError?.message ||
       'No se pudo guardar la nota.';
 
     showError(String(serverMessage));
-    emit('error', String(serverMessage));
   } finally {
     isSubmitting.value = false;
   }
@@ -741,7 +770,7 @@ async function initializeDialog(): Promise<void> {
       ? Promise.resolve()
       : fetchInvoiceOptions(initialContactId > 0 ? initialContactId : null);
 
-    await Promise.all([fetchContacts(), fetchItemsCatalog(), invoiceOptionsPromise, fetchReasonOptions()]);
+    await Promise.all([fetchContacts(), fetchItemsCatalog(), fetchTaxesCatalog(), invoiceOptionsPromise, fetchReasonOptions()]);
 
     if (props.dialogType === 'create') {
       await fetchNextDocumentNumberPreview();
@@ -944,7 +973,7 @@ onUnmounted(() => {
                 <TableRow class="bg-muted/50 border-b border-border">
                   <TableHead class="min-w-[260px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Concepto</TableHead>
                   <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio</TableHead>
-                  <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto %</TableHead>
+                  <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto</TableHead>
                   <TableHead class="min-w-[100px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad</TableHead>
                   <TableHead class="min-w-[200px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Observaciones</TableHead>
                   <TableHead class="min-w-[130px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</TableHead>
@@ -968,24 +997,23 @@ onUnmounted(() => {
                   </TableCell>
 
                   <TableCell class="p-2">
-                    <Input
+                    <InputField
                       :modelValue="item.price ?? 0"
                       @update:modelValue="(value) => updateItemNumericField(item, 'price', value)"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      class="h-9 text-right"
+                      type="currency"
+                      label=""
+                      :decimals="2"
+                      :min="0"
+                      class="h-9 w-full text-right"
                     />
                   </TableCell>
 
                   <TableCell class="p-2">
-                    <Input
-                      :modelValue="item.tax ?? 0"
-                      @update:modelValue="(value) => updateItemNumericField(item, 'tax', value)"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      class="h-9 text-right"
+                    <SelectField
+                      :modelValue="asNumber(item.tax, 0) > 0 ? String(item.tax) : ''"
+                      :options="taxesCatalog"
+                      placeholder="Sin impuesto"
+                      @update:modelValue="(value) => updateItemNumericField(item, 'tax', value || 0)"
                     />
                   </TableCell>
 

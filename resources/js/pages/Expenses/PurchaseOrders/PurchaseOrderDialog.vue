@@ -46,10 +46,20 @@ const isSubmittingDialog = ref(false);
 const nextOrderId = ref<number | null>(null);
 const isLoadingOrderId = ref(false);
 const isSendingMail = ref(false);
+const submitAttempted = ref(false);
 const { successMessage, errorMessage, errorType, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref<string>('');
 const itemsTableRef = ref<{ addItem: () => void; validateFabricFields: () => string | null } | null>(null);
 const shouldEmitLoadingState = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
+const isInteractionBlocked = computed(
+    () =>
+        props.deferContent ||
+        isInitializingDialog.value ||
+        isSubmittingDialog.value ||
+        isLoading.value ||
+        isLoadingOrderId.value ||
+        isSendingMail.value,
+);
 
 // Computed para determinar si la orden puede editarse
 const canEdit = computed(() => {
@@ -188,6 +198,7 @@ const orderDocumentNumber = computed(() => {
 async function initializeDialog() {
     isInitializingDialog.value = true;
     try {
+        submitAttempted.value = false;
         // Limpiar solicitud asociada al abrir en modo creacion
         if (props.dialogType === 'create') {
             selectedPurchaseRequest.value = null;
@@ -242,6 +253,7 @@ function resetForm() {
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
     }
+    submitAttempted.value = false;
     clearAlerts();
     originalFormSnapshot.value = stableStringify(localForm.value);
 }
@@ -428,8 +440,17 @@ function handleAddLine() {
     itemsTableRef.value?.addItem();
 }
 
+function handleDialogOpenChange(value: boolean) {
+    if (!value && isInteractionBlocked.value) return;
+    dialogOpen.value = value;
+}
+
 async function handleSubmit(sendMail = false) {
+    if (isLoading.value || isSubmittingDialog.value || isInitializingDialog.value || isLoadingOrderId.value) {
+        return;
+    }
     clearAlerts();
+    submitAttempted.value = true;
     if (!validateForm()) return;
     if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value) {
         return;
@@ -606,8 +627,18 @@ watch(
 </script>
 
 <template>
-    <Dialog v-model:open="dialogOpen">
-        <DialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+    <Dialog :open="dialogOpen" @update:open="handleDialogOpenChange">
+        <DialogContent v-if="props.deferContent" class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
+            <div class="flex min-h-[420px] flex-1 items-center justify-center px-6 py-10">
+                <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
+                    <div class="flex items-center gap-3">
+                        <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+                        <p class="text-sm font-medium text-foreground">Cargando información de la orden...</p>
+                    </div>
+                </div>
+            </div>
+        </DialogContent>
+        <DialogContent v-else class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
             <AlertStack
                 v-show="successMessage || errorMessage"
                 class="z-50 fixed top-4 left-1/2 -translate-x-1/2 w-full max-w-lg"
@@ -634,7 +665,7 @@ watch(
                                 :options="pendingPurchaseRequestOptions"
                                 label="Cargar desde solicitud aprobada"
                                 placeholder="Selecciona una solicitud aprobada para autocompletar"
-                                :disabled="isReadOnly || !pendingPurchaseRequestOptions.length || dialogType === 'edit'"
+                                :disabled="isReadOnly || isInteractionBlocked || !pendingPurchaseRequestOptions.length || dialogType === 'edit'"
                                 :searchable="pendingPurchaseRequestOptions.length >= 6"
                                 search-placeholder="Buscar solicitud..."
                             />
@@ -645,7 +676,7 @@ watch(
                 <form
                     id="purchase-order-form"
                     @submit.prevent="handleSubmit()"
-                    :class="{'pointer-events-none opacity-50':dialogType === 'create' && isLoadingOrderId}"
+                    :class="{ 'pointer-events-none opacity-50': isInteractionBlocked }"
                     class="space-y-6"
                 >
                     <!-- Información de solicitud seleccionada -->
@@ -811,6 +842,7 @@ watch(
                                 :items="localForm.items || []"
                                 :suggested-items="getRequestItems()"
                                 :readonly="isReadOnly"
+                                :submitAttempted="submitAttempted"
                                 @update:items="(items) => (localForm.items = items)"
                             />
                         </InventoryDetailTableLayout>
@@ -858,7 +890,7 @@ watch(
                 </form>
                 </div>
                 <DialogFooter class="flex-shrink-0 border-t pt-4 mt-4 flex justify-end gap-4 px-4 pb-4">
-                    <Button variant="outline" size="pill" @click="dialogOpen = false">
+                    <Button variant="outline" size="pill" :disabled="isInteractionBlocked" @click="dialogOpen = false">
                         {{ isReadOnly ? 'Cerrar' : 'Cancelar' }}
                     </Button>
                     <button

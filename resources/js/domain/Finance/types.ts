@@ -354,3 +354,53 @@ export interface ExpenseVoucherDetailItem extends ExpenseVoucherListItem {
     }>;
     editable_documents?: TreasuryOpenDocument[];
 }
+
+// ── Bancos y Cajas ────────────────────────────────────────────────────────────
+
+export type BankAccountType = 'bank' | 'cash' | 'credit_card';
+
+export interface BankAccount {
+    id: number;
+    name: string;
+    type: BankAccountType;
+    bank_name: string | null;
+    account_number: string | null;
+    currency: string;
+    opening_balance: number;
+    opening_balance_date: string | null;
+    accounting_account_id: number | null;
+    is_active: boolean;
+    description: string | null;
+    current_balance: number;
+    created_by_user_id: number | null;
+}
+
+export interface BankAccountSummary {
+    totalBankCash: number;
+    totalCreditCardDebt: number;
+}
+
+export interface BankAccountFormData {
+    name: string;
+    type: BankAccountType;
+    bank_name: string;
+    account_number: string;
+    currency: string;
+    opening_balance: number | null;
+    opening_balance_date: string | null;
+    description: string;
+}
+
+export interface BankMovement {
+    id: number;
+    debit: number;
+    credit: number;
+    description: string | null;
+    line_reference: string | null;
+    entry_number: number;
+    entry_date: string;
+    entry_type: string;
+    entry_description: string | null;
+    source_type: string | null;
+    source_id: number | null;
+}

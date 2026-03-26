@@ -111,7 +111,7 @@ const moduleSections: ModuleSection[] = [
                 label: 'Contabilidad',
                 items: [
                     { title: 'Catálogo de cuentas', href: '/finanzas/catalogo-cuentas' },
-                    { title: 'Bancos y cajas', href: underConstructionHref('Bancos y cajas') },
+                    { title: 'Bancos y cajas', href: '/finanzas/bancos' },
                 ],
             },
         ],
@@ -417,7 +417,7 @@ watch(
                             </TooltipContent>
                         </Tooltip>
                     </div>
-                    
+
                     <!-- Contenido colapsable: solo visible en modo expandido -->
                     <CollapsibleContent
                         class="transition-all duration-200 overflow-hidden"

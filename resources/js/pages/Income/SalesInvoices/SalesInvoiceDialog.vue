@@ -47,6 +47,7 @@ const confirmEmitOpen = ref(false);
 const confirmVoidOpen = ref(false);
 const previousBodyOverflow = ref<string | null>(null);
 const showOverlay = ref(false);
+const isDialogReady = ref(false);
 
 let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
 const OVERLAY_DELAY_MS = 150;
@@ -162,7 +163,8 @@ const dialogOpen = computed({
     get: () => props.open,
     set: (value: boolean) => emit('update:open', value),
 });
-const shouldShowOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value);
+const shouldShowOverlay = computed(() => dialogOpen.value && allowOverlay.value && isLoading.value && isDialogReady.value);
+const isInteractionBlocked = computed(() => isLoading.value || isSaving.value);
 
 const isViewMode = computed(() => props.mode === 'view');
 const salesInvoiceStatus = computed(() => localSalesInvoice.value.status ?? 'draft');
@@ -292,31 +294,36 @@ function handleWithholdingsUpdate(withholdings: SalesInvoiceWithholding[]) {
 async function loadDialogData() {
     successMessage.value = '';
     errorMessage.value = '';
+    isDialogReady.value = false;
 
-    await trackLoading(async () => {
-        try {
-            await fetchContacts();
+    try {
+        await trackLoading(async () => {
+            try {
+                await fetchContacts();
 
-            if (props.mode === 'create') {
-                localSalesInvoice.value = createDefaultSalesInvoice();
-                originOrder.value = null;
+                if (props.mode === 'create') {
+                    localSalesInvoice.value = createDefaultSalesInvoice();
+                    originOrder.value = null;
 
-                if (props.fromOrderId) {
-                    preloadFromOrder(await incomeStore.fetchSalesOrder(props.fromOrderId));
+                    if (props.fromOrderId) {
+                        preloadFromOrder(await incomeStore.fetchSalesOrder(props.fromOrderId));
+                    }
+
+                    return;
                 }
 
-                return;
+                if (!props.salesInvoiceId) throw new Error('No se recibio el identificador de la factura de venta.');
+
+                const salesInvoice = await incomeStore.fetchSalesInvoice(props.salesInvoiceId);
+                localSalesInvoice.value = cloneSalesInvoice(salesInvoice);
+                originOrder.value = salesInvoice.parent?.document_type === 'sales_order' ? await incomeStore.fetchSalesOrder(salesInvoice.parent.id as number) : null;
+            } catch (error: unknown) {
+                setError(normalizeErrorMessage(error, 'No se pudo cargar la factura de venta.'));
             }
-
-            if (!props.salesInvoiceId) throw new Error('No se recibio el identificador de la factura de venta.');
-
-            const salesInvoice = await incomeStore.fetchSalesInvoice(props.salesInvoiceId);
-            localSalesInvoice.value = cloneSalesInvoice(salesInvoice);
-            originOrder.value = salesInvoice.parent?.document_type === 'sales_order' ? await incomeStore.fetchSalesOrder(salesInvoice.parent.id as number) : null;
-        } catch (error: unknown) {
-            setError(normalizeErrorMessage(error, 'No se pudo cargar la factura de venta.'));
-        }
-    });
+        });
+    } finally {
+        isDialogReady.value = true;
+    }
 }
 
 function validateForm(): boolean {
@@ -350,7 +357,7 @@ async function persistDraft(): Promise<SalesInvoice | null> {
 }
 
 async function saveSalesInvoice() {
-    if (isReadOnly.value || isSaving.value) return;
+    if (isReadOnly.value || isSaving.value || isLoading.value) return;
     isSaving.value = true;
     successMessage.value = '';
     errorMessage.value = '';
@@ -369,7 +376,7 @@ async function saveSalesInvoice() {
 }
 
 async function emitDraftInvoice() {
-    if (isSaving.value) return;
+    if (isSaving.value || isLoading.value) return;
     isSaving.value = true;
     successMessage.value = '';
     errorMessage.value = '';
@@ -398,7 +405,7 @@ async function emitDraftInvoice() {
 }
 
 async function voidInvoice() {
-    if (!props.salesInvoiceId || !canVoid.value || isSaving.value) return;
+    if (!props.salesInvoiceId || !canVoid.value || isSaving.value || isLoading.value) return;
     isSaving.value = true;
     successMessage.value = '';
     errorMessage.value = '';
@@ -416,6 +423,11 @@ async function voidInvoice() {
     }
 }
 
+function handleDialogOpenChange(value: boolean) {
+    if (!value && isInteractionBlocked.value) return;
+    dialogOpen.value = value;
+}
+
 watch(
     () => props.open,
     (open) => {
@@ -430,6 +442,7 @@ watch(
             allowOverlay.value = false;
             isLoading.value = false;
             hideOverlay();
+            isDialogReady.value = false;
             loadingCounter.value = 0;
         }
     },
@@ -491,7 +504,7 @@ watch(
 </script>
 
 <template>
-    <Dialog v-model:open="dialogOpen">
+    <Dialog :open="dialogOpen" @update:open="handleDialogOpenChange">
         <div
             v-if="showOverlay"
             class="fixed inset-0 z-[2000] grid cursor-wait place-items-center bg-background/60 backdrop-blur-sm"
@@ -518,7 +531,19 @@ watch(
                 <DialogDescription>{{ dialogDescription }}</DialogDescription>
             </DialogHeader>
 
-            <div class="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
+            <div
+                v-if="!isDialogReady"
+                class="flex min-h-[420px] flex-1 items-center justify-center px-6 py-10"
+            >
+                <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
+                    <div class="flex items-center gap-3">
+                        <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+                        <p class="text-sm font-medium text-foreground">Cargando información de la factura...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div v-else class="min-h-0 flex-1 space-y-6 overflow-y-auto p-5">
                 <div v-if="hasOriginOrder" class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
                     {{ originLabel }}
                 </div>
@@ -668,8 +693,8 @@ watch(
                 />
             </div>
 
-            <DialogFooter class="flex-shrink-0 justify-end gap-2 border-t border-sidebar-border/70 px-5 py-4 dark:border-sidebar-border">
-                <Button variant="outline" size="pill" @click="dialogOpen = false">{{ isViewMode ? 'Cerrar' : 'Cancelar' }}</Button>
+            <DialogFooter v-if="isDialogReady" class="flex-shrink-0 justify-end gap-2 border-t border-sidebar-border/70 px-5 py-4 dark:border-sidebar-border">
+                <Button variant="outline" size="pill" :disabled="isInteractionBlocked" @click="dialogOpen = false">{{ isViewMode ? 'Cerrar' : 'Cancelar' }}</Button>
 
                 <Button v-if="!isReadOnly" type="button" variant="outline" size="pill" :disabled="isSaving || isLoading" @click="saveSalesInvoice">
                     {{ isSaving ? 'Guardando...' : 'Guardar borrador' }}

@@ -66,8 +66,7 @@ const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const search = ref(incomeStore.quoteFilters.search ?? '');
 const status = ref(incomeStore.quoteFilters.status ?? 'all');
 const contactId = ref<number | 'all'>((incomeStore.quoteFilters.contact_id as number | null | undefined) ?? 'all');
-const dateFrom = ref<string | null>(incomeStore.quoteFilters.date_from ?? null);
-const dateTo = ref<string | null>(incomeStore.quoteFilters.date_to ?? null);
+const dateFilter = ref<string | null>(incomeStore.quoteFilters.date_from ?? incomeStore.quoteFilters.date_to ?? null);
 const customerOptions = ref<Option[]>([]);
 
 const quotes = computed(() => incomeStore.quotes);
@@ -76,8 +75,7 @@ const isQuotesLoading = computed(() => incomeStore.quotesLoading);
 const isSearchActive = computed(() => search.value.trim().length > 0);
 const isStatusFilterActive = computed(() => status.value !== 'all');
 const isCustomerFilterActive = computed(() => contactId.value !== 'all');
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
 
@@ -132,8 +130,8 @@ async function fetchQuotes(page = 1) {
             search: search.value,
             status: status.value,
             contact_id: contactId.value === 'all' ? undefined : contactId.value,
-            date_from: dateFrom.value || undefined,
-            date_to: dateTo.value || undefined,
+            date_from: dateFilter.value || undefined,
+            date_to: dateFilter.value || undefined,
         });
     } catch (error: any) {
         errorType.value = 'error';
@@ -239,7 +237,7 @@ async function handleDialogSaved() {
     await fetchQuotes(currentPage.value);
 }
 
-watchIncomeDocumentFilters([search, status, contactId, dateFrom, dateTo], () => {
+watchIncomeDocumentFilters([search, status, contactId, dateFilter], () => {
     void fetchQuotes(1);
 });
 
@@ -300,12 +298,8 @@ onMounted(() => {
                     />
                 </FilterField>
 
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <DatePickerField v-model="dateFrom" label="" placeholder-text="Desde" :clearable="true" />
-                </FilterField>
-
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <DatePickerField v-model="dateTo" label="" placeholder-text="Hasta" :clearable="true" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <DatePickerField v-model="dateFilter" label="" placeholder-text="dd/mm/aaaa" :clearable="true" />
                 </FilterField>
 
             </FilterBar>

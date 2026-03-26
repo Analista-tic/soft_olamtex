@@ -43,21 +43,33 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             FROM purchase_documents pdn
             INNER JOIN purchase_document_items pdni ON pdni.purchase_document_id = pdn.id
             WHERE pdn.parent_document_id = purchase_documents.id
-              AND pdn.document_type = '" . PurchaseDocument::TYPE_CREDIT_NOTE . "'
-              AND pdn.status = '" . self::NOTE_BALANCE_IMPACT_STATUS . "'
+              AND pdn.document_type = ?
+              AND pdn.status = ?
               AND pdn.deleted_at IS NULL)";
+        $creditNotesTotalBindings = [
+            PurchaseDocument::TYPE_CREDIT_NOTE,
+            self::NOTE_BALANCE_IMPACT_STATUS,
+        ];
 
         $debitNotesTotalSql = "(SELECT COALESCE(SUM(COALESCE(pdni.total, 0) + COALESCE(pdni.total_tax, 0)), 0)
             FROM purchase_documents pdn
             INNER JOIN purchase_document_items pdni ON pdni.purchase_document_id = pdn.id
             WHERE pdn.parent_document_id = purchase_documents.id
-              AND pdn.document_type = '" . PurchaseDocument::TYPE_DEBIT_NOTE . "'
-              AND pdn.status = '" . self::NOTE_BALANCE_IMPACT_STATUS . "'
+              AND pdn.document_type = ?
+              AND pdn.status = ?
               AND pdn.deleted_at IS NULL)";
+        $debitNotesTotalBindings = [
+            PurchaseDocument::TYPE_DEBIT_NOTE,
+            self::NOTE_BALANCE_IMPACT_STATUS,
+        ];
         $paymentsTotalSql = "(SELECT COALESCE(SUM(COALESCE(pp.amount, 0)), 0)
             FROM purchase_payments pp
             WHERE pp.purchase_invoice_id = purchase_documents.id)";
         $balanceSql = "(({$invoiceTotalSql}) + ({$debitNotesTotalSql}) - ({$creditNotesTotalSql}) - ({$paymentsTotalSql}))";
+        $balanceBindings = [
+            ...$debitNotesTotalBindings,
+            ...$creditNotesTotalBindings,
+        ];
         $dueDateSql = "COALESCE(purchase_documents.delivery_date, purchase_documents.date)";
 
         $query = PurchaseDocument::query()
@@ -79,7 +91,7 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             ]);
 
         if (!$includeSettled) {
-            $query->whereRaw("{$balanceSql} > 0");
+            $query->whereRaw("{$balanceSql} > 0", $balanceBindings);
         }
 
         $search = trim((string) ($filters['search'] ?? ''));
@@ -111,12 +123,12 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
         }
 
         if ($debtStatus === 'settled') {
-            $query->whereRaw("{$balanceSql} <= 0");
+            $query->whereRaw("{$balanceSql} <= 0", $balanceBindings);
         } elseif ($debtStatus === 'overdue') {
-            $query->whereRaw("{$balanceSql} > 0")
+            $query->whereRaw("{$balanceSql} > 0", $balanceBindings)
                 ->whereRaw("{$dueDateSql} < ?", [$today]);
         } elseif ($debtStatus === 'pending') {
-            $query->whereRaw("{$balanceSql} > 0")
+            $query->whereRaw("{$balanceSql} > 0", $balanceBindings)
                 ->whereRaw("{$dueDateSql} >= ?", [$today]);
         }
 

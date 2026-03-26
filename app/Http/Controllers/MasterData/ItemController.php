@@ -655,6 +655,12 @@ class ItemController extends Controller
         $data['item_type'] = $itemType;
         $data['tracks_inventory'] = $tracksInventory;
 
+        if (empty($data['income_account_id'])) {
+            throw ValidationException::withMessages([
+                'income_account_id' => ['La cuenta de ingreso es obligatoria para todos los ítems.'],
+            ]);
+        }
+
         if ($tracksInventory && empty($data['inventory_account_id'])) {
             throw ValidationException::withMessages([
                 'inventory_account_id' => ['La cuenta de inventario es obligatoria cuando el item controla inventario.'],

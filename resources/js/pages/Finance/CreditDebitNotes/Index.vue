@@ -611,7 +611,7 @@ onMounted(async () => {
         </FilterField>
 
         <FilterField label="Fecha de creación" :active="isCreatedDateActive" class="w-[180px] min-w-[170px]">
-          <InputDate v-model="createdDate" placeholder="Fecha de creación" />
+          <InputDate v-model="createdDate" placeholder="dd/mm/aaaa" />
         </FilterField>
       </FilterBar>
 
@@ -717,6 +717,5 @@ onMounted(async () => {
     />
   </AppLayout>
 </template>
-
 
 

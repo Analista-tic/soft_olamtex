@@ -35,6 +35,7 @@ use App\Http\Controllers\Finance\RetentionController;
 use App\Http\Controllers\Finance\TaxController;
 use App\Http\Controllers\Finance\CreditDebitNoteController;
 use App\Http\Controllers\Finance\AccountingAccountController;
+use App\Http\Controllers\Finance\BankAccountController;
 use App\Http\Controllers\Finance\ExpenseVoucherController;
 use App\Http\Controllers\Finance\TreasuryLookupController;
 use App\Http\Controllers\Expenses\PurchasePaymentController;
@@ -57,7 +58,7 @@ Route::get('dashboard', fn() => Inertia::render('Dashboard'))
 
 // Rutas protegidas por autenticación y verificación
 Route::middleware(['auth', 'verified'])->group(function () {
-    
+
     // Usuario autenticado
     Route::get('user', function () {
         $user = Auth::user(); //CONSULTAR USUARIO LOGUEADO
@@ -514,14 +515,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/{purchaseRequest}', [PurchaseRequestController::class, 'show'])->name('show');
             Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update');
             Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
-            
+
             // Acciones de transición de estados
             Route::post('/{purchaseRequest}/send-to-approval', [PurchaseRequestController::class, 'sendToApproval'])->name('send-to-approval');
             Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])->name('approve');
             Route::post('/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
             Route::post('/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('cancel');
         });
-        
+
         // === ORDENES DE COMPRA ===
         Route::prefix('ordenes-compra')->name('purchase-orders.')->middleware('permission:ver ordenes compra')->group(function () {
             Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
@@ -656,6 +657,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/documentos-por-cobrar', [TreasuryLookupController::class, 'receivableDocuments'])->name('receivable-documents');
             Route::get('/cuentas', [TreasuryLookupController::class, 'accounts'])->name('accounts');
             Route::get('/metodos-pago', [TreasuryLookupController::class, 'paymentMethods'])->name('payment-methods');
+        });
+
+        // === BANCOS Y CAJAS ===
+        Route::prefix('bancos')->name('bancos.')->group(function () {
+            Route::get('/', [BankAccountController::class, 'index'])->name('index');
+            Route::post('/', [BankAccountController::class, 'store'])->name('store');
+            Route::get('/{bankAccount}', [BankAccountController::class, 'show'])->name('show');
+            Route::put('/{bankAccount}', [BankAccountController::class, 'update'])->name('update');
+            Route::delete('/{bankAccount}', [BankAccountController::class, 'destroy'])->name('destroy');
         });
     });
 

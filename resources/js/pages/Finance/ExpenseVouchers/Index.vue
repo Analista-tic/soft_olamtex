@@ -292,6 +292,7 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                                 <div class="flex items-center justify-center gap-1">
                                     <ViewButton :onClick="() => openView(row)" />
                                     <Button
+                                        v-if="row.status !== 'recorded'"
                                         type="button"
                                         variant="ghost"
                                         size="icon"

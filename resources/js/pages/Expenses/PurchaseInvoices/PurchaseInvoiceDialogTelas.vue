@@ -42,6 +42,7 @@ const isLoading = ref(false);
 const isInitializingDialog = ref(false);
 const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
+const submitAttempted = ref(false);
 const nextInvoiceId = ref<number | null>(null);
 const isLoadingInvoiceId = ref(false);
 const dialogMode = computed<'create' | 'edit' | 'view'>(() => props.mode ?? (props.readOnly ? 'view' : props.dialogType));
@@ -195,6 +196,7 @@ function resetForm() {
   successMessage.value = '';
   errorMessage.value = '';
   errorType.value = 'error';
+  submitAttempted.value = false;
   const pid = props.form?.parent_document_id ?? props.form?.purchase_order_id;
   if (persistenceMode.value === 'edit' && localForm.value && pid != null) {
     localForm.value.purchase_order_id = Number(pid);
@@ -208,6 +210,7 @@ function resetForm() {
 async function initializeDialog() {
     isInitializingDialog.value = true;
     try {
+        submitAttempted.value = false;
         await fetchContacts();
         resetForm();
         await fetchPendingPurchaseOrders();
@@ -375,6 +378,7 @@ async function handleSubmit(sendMail = false) {
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
+    submitAttempted.value = true;
     if (!validateForm()) return;
     if (persistenceMode.value === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value) {
         return;
@@ -680,6 +684,7 @@ watch(
                                 :isCreating="isCreateMode"
                                 :isReadOnly="isReadOnly"
                                 :telaMode="true"
+                                :submitAttempted="submitAttempted"
                                 @update:items="(items) => (localForm.items = items)"
                             />
                         </InventoryDetailTableLayout>

@@ -64,21 +64,23 @@ function handleConfirm() {
 
 <template>
     <Dialog :open="props.open" modal @update:open="handleOpenChange">
-        <DialogContent class="max-w-md border border-border p-8">
-            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+        <DialogContent class="max-w-md gap-0 overflow-hidden border border-border p-0">
+            <DialogHeader class="space-y-1 px-5 py-4">
                 <DialogTitle>{{ props.title }}</DialogTitle>
-                <DialogDescription v-if="props.description">{{ props.description }}</DialogDescription>
             </DialogHeader>
-            <div class="py-4">
+            <div v-if="props.description" class="px-5 pb-1">
+                <DialogDescription>{{ props.description }}</DialogDescription>
+            </div>
+            <div class="px-5 py-3">
                 <TextareaField
                     v-model="inputValue"
                     :label="props.inputLabel"
                     :placeholder="props.inputPlaceholder"
                     :required="props.inputRequired"
-                    :rows="4"
+                    :rows="3"
                 />
             </div>
-            <DialogFooter class="justify-end gap-2">
+            <DialogFooter class="gap-2 px-5 py-4 pt-3 sm:justify-end">
                 <Button variant="outline" size="pill" @click="closeDialog">
                     {{ props.cancelText }}
                 </Button>

@@ -7,7 +7,7 @@ import axios from 'axios';
 import { onMounted, ref, watch } from 'vue';
 import type { PurchaseRequestItem } from '@/domain/Expenses';
 
-const props = defineProps<{ items: PurchaseRequestItem[]; readonly?: boolean }>();
+const props = defineProps<{ items: PurchaseRequestItem[]; readonly?: boolean; submitAttempted?: boolean }>();
 const emit = defineEmits(["update:items"]);
 
 const localItems = ref<PurchaseRequestItem[]>([]);
@@ -69,6 +69,14 @@ function addItem() {
         total: 0,
         name: '',
     });
+}
+
+function isNameInvalid(item: PurchaseRequestItem): boolean {
+    return !!props.submitAttempted && !String(item.name ?? '').trim();
+}
+
+function isQuantityInvalid(item: PurchaseRequestItem): boolean {
+    return !!props.submitAttempted && (item.quantity === '' || item.quantity == null || Number(item.quantity) <= 0);
 }
 
 function removeItem(idx: number) {
@@ -153,6 +161,7 @@ defineExpose({ addItem });
                                 placeholder="Escribir item"
                                 list="items-list"
                                 class="w-full"
+                                :error="isNameInvalid(item)"
                                 :readonly="props.readonly"
                                 :disabled="props.readonly"
                                 @focus="$event.target.select()"
@@ -177,6 +186,7 @@ defineExpose({ addItem });
                                 type="number"
                                 label=""
                                 class="h-10 w-full"
+                                :error="isQuantityInvalid(item)"
                                 :readonly="props.readonly"
                                 :disabled="props.readonly"
                                 @input="calcTotals(item)"

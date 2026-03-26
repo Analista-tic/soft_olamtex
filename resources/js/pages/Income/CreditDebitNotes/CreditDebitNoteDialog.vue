@@ -8,7 +8,7 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { mapToCreateSaleCreditDebitNoteDto, type SaleCreditDebitNote, type SaleNoteItem, type SalesInvoice } from '@/domain/Income';
 import { useIncomeStore } from '@/stores/income';
 import axios from 'axios';
@@ -20,6 +20,7 @@ const props = defineProps<{
     noteId?: number;
     noteType?: 'credit' | 'debit';
     fromInvoiceId?: number;
+    openVoidDialog?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -438,6 +439,16 @@ watch(
             syncType(type);
         }
     },
+);
+
+watch(
+    [() => props.open, () => props.openVoidDialog, canVoid, isLoading],
+    ([open, shouldOpenVoidDialog, noteCanVoid, loading]) => {
+        if (open && shouldOpenVoidDialog && noteCanVoid && !loading) {
+            confirmVoidOpen.value = true;
+        }
+    },
+    { immediate: true },
 );
 
 watch(

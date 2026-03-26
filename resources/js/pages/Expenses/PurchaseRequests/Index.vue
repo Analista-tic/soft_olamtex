@@ -25,6 +25,7 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 import { useAlertStack } from '@/composables/useAlert';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -42,8 +43,7 @@ const requests = ref<PurchaseRequest[]>([]);
 const searchQuery = ref('');
 const statusFilter = ref('all');
 const providerFilter = ref('');
-const dateFrom = ref('');
-const dateTo = ref('');
+const dateFilter = ref('');
 const isLoading = ref(false);
 
 const DEFAULT_STATUS_FILTER = 'all';
@@ -51,10 +51,16 @@ const DEFAULT_STATUS_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value.trim().length > 0);
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const hasActiveFilters = computed(() =>
+    isSearchActive.value ||
+    isStatusFilterActive.value ||
+    isProviderFilterActive.value ||
+    isDateFilterActive.value,
+);
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
+let isSyncingFilters = false;
 
 const {
     successMessage,
@@ -169,8 +175,12 @@ const isDialogBootstrapping = ref(false);
 const hasDialogLoadingStarted = ref(false);
 const isDeleteDialogOpen = ref(false);
 const requestToDelete = ref<PurchaseRequest | null>(null);
+const showSendToApprovalConfirm = ref(false);
+const requestToSendToApproval = ref<PurchaseRequest | null>(null);
 const isRejectDialogOpen = ref(false);
 const requestToReject = ref<PurchaseRequest | null>(null);
+const isCancelDialogOpen = ref(false);
+const requestToCancel = ref<PurchaseRequest | null>(null);
 const DIALOG_PREPARE_FALLBACK_MS = 1500;
 let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -331,9 +341,17 @@ async function handleDeleteRequest() {
 }
 
 async function handleSendToApproval(request: PurchaseRequest) {
-    if (!request.id) return;
+    requestToSendToApproval.value = request.id ? request : null;
+    showSendToApprovalConfirm.value = Boolean(requestToSendToApproval.value);
+}
+
+async function confirmSendToApproval() {
+    if (!requestToSendToApproval.value?.id) {
+        showSendToApprovalConfirm.value = false;
+        return;
+    }
     try {
-        await axios.post(`/gastos/solicitudes-compra/${request.id}/send-to-approval`);
+        await axios.post(`/gastos/solicitudes-compra/${requestToSendToApproval.value.id}/send-to-approval`);
         successMessage.value = 'Solicitud enviada a aprobación correctamente.';
         fetchRequests();
     } catch (err: any) {
@@ -384,16 +402,27 @@ async function handleReject(reason: string) {
 }
 
 async function handleCancel(request: PurchaseRequest) {
-    if (!request.id) return;
-    if (!confirm('¿Estás seguro de cancelar esta solicitud?')) return;
+    requestToCancel.value = request.id ? request : null;
+    isCancelDialogOpen.value = Boolean(requestToCancel.value);
+}
+
+async function confirmCancelRequest() {
+    if (!requestToCancel.value?.id) {
+        isCancelDialogOpen.value = false;
+        return;
+    }
+
     try {
-        await axios.post(`/gastos/solicitudes-compra/${request.id}/cancel`);
+        await axios.post(`/gastos/solicitudes-compra/${requestToCancel.value.id}/cancel`);
         successMessage.value = 'Solicitud cancelada correctamente.';
         fetchRequests();
     } catch (err: any) {
         const message = err?.response?.data?.message || 'No se pudo cancelar la solicitud.';
         showError(message);
         console.error('Error cancelando solicitud', err);
+    } finally {
+        isCancelDialogOpen.value = false;
+        requestToCancel.value = null;
     }
 }
 
@@ -461,11 +490,9 @@ async function fetchRequests() {
     if (providerFilter.value.trim()) {
         params.provider_name = providerFilter.value.trim();
     }
-    if (dateFrom.value) {
-        params.date_from = dateFrom.value;
-    }
-    if (dateTo.value) {
-        params.date_to = dateTo.value;
+    if (dateFilter.value) {
+        params.date_from = dateFilter.value;
+        params.date_to = dateFilter.value;
     }
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
@@ -499,12 +526,24 @@ async function fetchRequests() {
     }
 }
 
-watch([statusFilter, providerFilter, dateFrom, dateTo], () => {
-    fetchRequests();
-});
+function applyFilters() {
+    void fetchRequests();
+}
 
-watch(searchQuery, () => {
-    fetchRequests();
+function resetFilters() {
+    if (!hasActiveFilters.value) return;
+    isSyncingFilters = true;
+    searchQuery.value = '';
+    statusFilter.value = DEFAULT_STATUS_FILTER;
+    providerFilter.value = '';
+    dateFilter.value = '';
+    isSyncingFilters = false;
+    applyFilters();
+}
+
+watch([searchQuery, statusFilter, providerFilter, dateFilter], () => {
+    if (isSyncingFilters) return;
+    applyFilters();
 });
 
 onMounted(() => {
@@ -567,12 +606,19 @@ onBeforeUnmount(() => {
                 <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                     <Input v-model="providerFilter" placeholder="Nombre del proveedor" class="h-10 w-full" />
                 </FilterField>
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFrom" placeholder="Desde" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFilter" placeholder="dd/mm/aaaa" />
                 </FilterField>
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <InputDate v-model="dateTo" placeholder="Hasta" />
-                </FilterField>
+                <Button
+                    v-if="hasActiveFilters"
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="h-10"
+                    @click="resetFilters"
+                >
+                    Limpiar
+                </Button>
             </FilterBar>
 
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70">
@@ -695,6 +741,25 @@ onBeforeUnmount(() => {
         @confirm="handleDeleteRequest"
     />
 
+    <ConfirmDialog
+        v-model:open="showSendToApprovalConfirm"
+        title="Enviar a aprobación"
+        description="¿Confirmas que deseas enviar esta solicitud a aprobación?"
+        confirm-text="Enviar"
+        cancel-text="Cancelar"
+        @confirm="confirmSendToApproval"
+    />
+
+    <ConfirmDialog
+        v-model:open="isCancelDialogOpen"
+        title="Cancelar solicitud"
+        description="¿Estás seguro de cancelar esta solicitud?"
+        confirm-text="Cancelar solicitud"
+        cancel-text="Volver"
+        :destructive="true"
+        @confirm="confirmCancelRequest"
+    />
+
     <ConfirmWithInputDialog
         v-model:open="isRejectDialogOpen"
         title="Rechazar solicitud"
@@ -708,4 +773,3 @@ onBeforeUnmount(() => {
         @confirm="handleReject"
     />
 </template>
-

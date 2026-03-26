@@ -67,8 +67,7 @@ const errorType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 const search = ref(incomeStore.salesOrderFilters.search ?? '');
 const status = ref(incomeStore.salesOrderFilters.status ?? 'all');
 const contactId = ref<number | 'all'>((incomeStore.salesOrderFilters.contact_id as number | null | undefined) ?? 'all');
-const dateFrom = ref<string | null>(incomeStore.salesOrderFilters.date_from ?? null);
-const dateTo = ref<string | null>(incomeStore.salesOrderFilters.date_to ?? null);
+const dateFilter = ref<string | null>(incomeStore.salesOrderFilters.date_from ?? incomeStore.salesOrderFilters.date_to ?? null);
 const origin = ref<'all' | 'direct' | 'from_quote'>((incomeStore.salesOrderFilters.origin as 'direct' | 'from_quote' | undefined) ?? 'all');
 const customerOptions = ref<Option[]>([]);
 
@@ -79,8 +78,7 @@ const isSearchActive = computed(() => search.value.trim().length > 0);
 const isStatusFilterActive = computed(() => status.value !== 'all');
 const isCustomerFilterActive = computed(() => contactId.value !== 'all');
 const isOriginFilterActive = computed(() => origin.value !== 'all');
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
 const originButtonClasses = useFilterButtonClasses(isOriginFilterActive);
@@ -141,8 +139,8 @@ async function fetchSalesOrders(page = 1) {
             search: search.value,
             status: status.value,
             contact_id: contactId.value === 'all' ? undefined : contactId.value,
-            date_from: dateFrom.value || undefined,
-            date_to: dateTo.value || undefined,
+            date_from: dateFilter.value || undefined,
+            date_to: dateFilter.value || undefined,
             origin: origin.value === 'all' ? undefined : origin.value,
         });
     } catch (error: any) {
@@ -262,7 +260,7 @@ function bootstrapFromQuery() {
     }
 }
 
-watchIncomeDocumentFilters([search, status, contactId, dateFrom, dateTo, origin], () => {
+watchIncomeDocumentFilters([search, status, contactId, dateFilter, origin], () => {
     void fetchSalesOrders(1);
 });
 
@@ -329,12 +327,8 @@ onMounted(() => {
                     <SelectField v-model="origin" label="" :options="originOptions" :button-class="originButtonClasses" />
                 </FilterField>
 
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <DatePickerField v-model="dateFrom" label="" placeholder-text="Desde" :clearable="true" />
-                </FilterField>
-
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <DatePickerField v-model="dateTo" label="" placeholder-text="Hasta" :clearable="true" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <DatePickerField v-model="dateFilter" label="" placeholder-text="dd/mm/aaaa" :clearable="true" />
                 </FilterField>
 
             </FilterBar>

@@ -61,8 +61,7 @@ const customerOptions = ref<Option[]>([]);
 
 const search = ref(incomeStore.cashReceiptFilters.search ?? '');
 const contactId = ref<number | 'all'>((incomeStore.cashReceiptFilters.contact_id as number | null | undefined) ?? 'all');
-const dateFrom = ref<string | null>(incomeStore.cashReceiptFilters.date_from ?? null);
-const dateTo = ref<string | null>(incomeStore.cashReceiptFilters.date_to ?? null);
+const dateFilter = ref<string | null>(incomeStore.cashReceiptFilters.date_from ?? incomeStore.cashReceiptFilters.date_to ?? null);
 
 const cashReceipts = computed(() => incomeStore.cashReceipts);
 const cashReceiptsMeta = computed(() => incomeStore.cashReceiptsMeta);
@@ -72,8 +71,7 @@ const totalPages = computed(() => cashReceiptsMeta.value.lastPage || 1);
 const hasCashReceipts = computed(() => cashReceipts.value.length > 0);
 const isSearchActive = computed(() => search.value.trim().length > 0);
 const isCustomerFilterActive = computed(() => contactId.value !== 'all');
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
 const customerButtonClasses = useFilterButtonClasses(isCustomerFilterActive);
 
 function formatDate(value?: string | null): string {
@@ -112,8 +110,8 @@ async function fetchCashReceipts(page = 1) {
             per_page: cashReceiptsMeta.value.perPage || 10,
             search: search.value,
             contact_id: contactId.value === 'all' ? undefined : contactId.value,
-            date_from: dateFrom.value || undefined,
-            date_to: dateTo.value || undefined,
+            date_from: dateFilter.value || undefined,
+            date_to: dateFilter.value || undefined,
         });
     } catch (error: unknown) {
         errorType.value = 'error';
@@ -179,7 +177,7 @@ function bootstrapFromQuery() {
     }
 }
 
-watchIncomeDocumentFilters([search, contactId, dateFrom, dateTo], () => {
+watchIncomeDocumentFilters([search, contactId, dateFilter], () => {
     void fetchCashReceipts(1);
 });
 
@@ -238,12 +236,8 @@ onMounted(() => {
                     />
                 </FilterField>
 
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <DatePickerField v-model="dateFrom" label="" placeholder-text="Desde" :clearable="true" />
-                </FilterField>
-
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <DatePickerField v-model="dateTo" label="" placeholder-text="Hasta" :clearable="true" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <DatePickerField v-model="dateFilter" label="" placeholder-text="dd/mm/aaaa" :clearable="true" />
                 </FilterField>
 
             </FilterBar>

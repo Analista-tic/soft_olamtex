@@ -21,12 +21,6 @@ return [
         'login',
         'logout',
         'register',
-        'produccion/*',
-        'comercial/*',
-        'inventario/*',
-        'configuracion/*',
-        'maestros/*',
-        '*', // Permitir todas las rutas para Inertia + Vite HMR
     ],
 
     'allowed_methods' => ['*'],

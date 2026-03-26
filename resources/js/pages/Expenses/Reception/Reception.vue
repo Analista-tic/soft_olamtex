@@ -152,8 +152,7 @@ const DEFAULT_SUBGROUP_FILTER = 'all';
 const statusFilter = ref(DEFAULT_STATUS_FILTER);
 const providerFilter = ref(DEFAULT_PROVIDER_FILTER);
 const subgroupFilter = ref(DEFAULT_SUBGROUP_FILTER);
-const dateFrom = ref('');
-const dateTo = ref('');
+const dateFilter = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 
@@ -201,9 +200,18 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
 const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const hasActiveFilters = computed(() =>
+    isSearchActive.value ||
+    isStatusFilterActive.value ||
+    isProviderFilterActive.value ||
+    isSubgroupFilterActive.value ||
+    isDateFilterActive.value,
+);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
+let isSyncingFilters = false;
 
 async function fetchProviders() {
     try {
@@ -347,8 +355,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         per_page: itemsPerPage,
         search,
         scope: receptionScope.value,
-        date_from: dateFrom.value,
-        date_to: dateTo.value,
+        date_from: dateFilter.value,
+        date_to: dateFilter.value,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
@@ -432,35 +440,42 @@ function getCannotApproveDescription(invoice: PurchaseInvoice | null | undefined
     return '';
 }
 
-// Watchers y eventos solo para modo lista
-watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
-        if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
-        
-        if (
-            newStatus !== oldStatus ||
-            newProvider !== oldProvider ||
-            newSubgroup !== oldSubgroup ||
-            newFrom !== oldFrom ||
-            newTo !== oldTo ||
-            newSearch !== oldSearch
-        ) {
-            if (currentPage.value !== 1) {
-                currentPage.value = 1;
-            } else {
-                fetchInvoices(1, newSearch);
-            }
-        }
+function applyFilters() {
+    if (!showInvoicesList.value) return;
+    if (currentPage.value !== 1) {
+        currentPage.value = 1;
+        return;
     }
-);
+    void fetchInvoices(1, searchQuery.value);
+}
+
+function resetFilters() {
+    if (!hasActiveFilters.value) return;
+    isSyncingFilters = true;
+    searchQuery.value = '';
+    statusFilter.value = DEFAULT_STATUS_FILTER;
+    providerFilter.value = DEFAULT_PROVIDER_FILTER;
+    subgroupFilter.value = DEFAULT_SUBGROUP_FILTER;
+    dateFilter.value = '';
+    if (currentPage.value !== 1) {
+        currentPage.value = 1;
+    }
+    isSyncingFilters = false;
+    if (showInvoicesList.value) {
+        void fetchInvoices(1, '');
+    }
+}
+
+watch([statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery], () => {
+    if (isSyncingFilters) return;
+    applyFilters();
+});
 
 watch(currentPage, (newPage, oldPage) => {
     if (!showInvoicesList.value) return; // No ejecutar watchers en modo específico
-    
-    if (newPage !== oldPage) {
-        fetchInvoices(newPage, searchQuery.value);
-    }
+
+    if (isSyncingFilters || newPage === oldPage) return;
+    fetchInvoices(newPage, searchQuery.value);
 });
 
 onMounted(async () => {
@@ -766,12 +781,19 @@ function onFabricRollSuccess() {
                             :button-class="subgroupButtonClasses"
                         />
                     </FilterField>
-                    <FilterField label="Desde" :active="Boolean(dateFrom.valueOf)" class="min-w-[140px]">
-                        <InputDate v-model="dateFrom" label="" placeholder="Desde" />
+                    <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                        <InputDate v-model="dateFilter" label="" placeholder="dd/mm/aaaa" />
                     </FilterField>
-                    <FilterField label="Hasta" :active="Boolean(dateTo.valueOf)" class="min-w-[140px]">
-                        <InputDate v-model="dateTo" label="" placeholder="Hasta" />
-                    </FilterField>
+                    <Button
+                        v-if="hasActiveFilters"
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        class="h-10"
+                        @click="resetFilters"
+                    >
+                        Limpiar
+                    </Button>
                 </FilterBar>
                 
                 <!-- Tabla de facturas -->
@@ -1200,18 +1222,18 @@ function onFabricRollSuccess() {
 
             <!-- Diálogo de confirmación para rechazar recepción -->
             <Dialog v-model:open="isRejectDialogOpen">
-                <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
-                    <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <DialogContent class="max-w-sm gap-0 overflow-hidden border border-border p-0">
+                    <DialogHeader class="space-y-1 px-5 py-4">
                         <DialogTitle>¿Está seguro de rechazar esta recepción?</DialogTitle>
                         <DialogDescription>
                             Esta acción marcará la recepción como rechazada y no se podrá deshacer fácilmente.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
-                        <Button variant="outline" class="w-full md:w-auto" @click="isRejectDialogOpen = false">
+                    <DialogFooter class="gap-2 px-5 py-4 pt-3 sm:justify-end">
+                        <Button variant="outline" @click="isRejectDialogOpen = false">
                             Cancelar
                         </Button>
-                        <Button variant="destructive" class="w-full md:w-auto" @click="confirmRejectReception">
+                        <Button variant="destructive" @click="confirmRejectReception">
                             <X class="h-4 w-4" /> Rechazar
                         </Button>
                     </DialogFooter>

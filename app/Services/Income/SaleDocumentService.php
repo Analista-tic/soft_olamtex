@@ -12,6 +12,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class SaleDocumentService
 {
@@ -397,8 +398,26 @@ class SaleDocumentService
 
     protected function nextDocumentSequence(string $documentType): int
     {
-        return (int) SaleDocument::withTrashed()
-            ->where('document_type', $documentType)
-            ->max('id') + 1;
+        return DB::transaction(function () use ($documentType) {
+            $sequence = DB::table('finance_document_sequences')
+                ->where('document_type', $documentType)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $sequence) {
+                throw new RuntimeException("No existe la secuencia para documentos de venta tipo {$documentType}.");
+            }
+
+            $nextValue = (int) $sequence->current_value + 1;
+
+            DB::table('finance_document_sequences')
+                ->where('id', $sequence->id)
+                ->update([
+                    'current_value' => $nextValue,
+                    'updated_at' => now(),
+                ]);
+
+            return $nextValue;
+        });
     }
 }

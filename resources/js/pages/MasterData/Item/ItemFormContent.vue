@@ -919,6 +919,10 @@ async function handleSubmit() {
         requiredErrors.push('Referencia');
     }
 
+    if (!localForm.value.income_account_id) {
+        requiredErrors.push('Cuenta de ingreso');
+    }
+
     if (tracksInventoryBool.value && !localForm.value.inventory_account_id) {
         requiredErrors.push('Cuenta de inventario');
     }
@@ -1690,6 +1694,7 @@ onBeforeUnmount(() => {
                                 label="Cuenta de ingreso"
                                 :options="accountOptions"
                                 clearable
+                                :required="true"
                             />
                             <SelectField
                                 v-model="localForm.inventory_account_id"

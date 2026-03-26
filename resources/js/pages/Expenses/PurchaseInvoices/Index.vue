@@ -74,8 +74,7 @@ const {
 const statusFilter = ref('all');
 const providerFilter = ref('all');
 const subgroupFilter = ref('all');
-const dateFrom = ref<Date | null>(null);
-const dateTo = ref<Date | null>(null);
+const dateFilter = ref<Date | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 const DEFAULT_STATUS_FILTER = 'all';
@@ -86,12 +85,19 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
 const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
-const isDateFromActive = computed(() => Boolean(dateFrom.value));
-const isDateToActive = computed(() => Boolean(dateTo.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const hasActiveFilters = computed(() =>
+    isSearchActive.value ||
+    isStatusFilterActive.value ||
+    isProviderFilterActive.value ||
+    isSubgroupFilterActive.value ||
+    isDateFilterActive.value,
+);
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
+let isSyncingFilters = false;
 const DIALOG_PREPARE_FALLBACK_MS = 10000;
 let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -318,8 +324,8 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: toIsoDateString(dateFrom.value) || undefined,
-        date_to: toIsoDateString(dateTo.value) || undefined,
+        date_from: toIsoDateString(dateFilter.value) || undefined,
+        date_to: toIsoDateString(dateFilter.value) || undefined,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
@@ -342,33 +348,38 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     }
 }
 
-// Watcher unico para filtros y búsqueda
-watch(
-    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
-    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
-        if (
-            newStatus !== oldStatus ||
-            newProvider !== oldProvider ||
-            newSubgroup !== oldSubgroup ||
-            newFrom !== oldFrom ||
-            newTo !== oldTo ||
-            newSearch !== oldSearch
-        ) {
-            // Solo cambia la página, el watcher de currentPage hará el fetch
-            if (currentPage.value !== 1) {
-                currentPage.value = 1;
-            } else {
-                fetchInvoices(1, newSearch);
-            }
-        }
+function applyFilters() {
+    if (currentPage.value !== 1) {
+        currentPage.value = 1;
+        return;
     }
-);
+    void fetchInvoices(1, searchQuery.value);
+}
+
+function resetFilters() {
+    if (!hasActiveFilters.value) return;
+    isSyncingFilters = true;
+    searchQuery.value = '';
+    statusFilter.value = DEFAULT_STATUS_FILTER;
+    providerFilter.value = DEFAULT_PROVIDER_FILTER;
+    subgroupFilter.value = DEFAULT_SUBGROUP_FILTER;
+    dateFilter.value = null;
+    if (currentPage.value !== 1) {
+        currentPage.value = 1;
+    }
+    isSyncingFilters = false;
+    void fetchInvoices(1, '');
+}
+
+watch([statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery], () => {
+    if (isSyncingFilters) return;
+    applyFilters();
+});
 
 // Watcher para paginación
 watch(currentPage, (newPage, oldPage) => {
-    if (newPage !== oldPage) {
-        fetchInvoices(newPage, searchQuery.value);
-    }
+    if (isSyncingFilters || newPage === oldPage) return;
+    fetchInvoices(newPage, searchQuery.value);
 });
 
 onMounted(() => {
@@ -655,12 +666,19 @@ function handleDialogError(message?: string) {
                         :button-class="subgroupButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
-                    <DateField v-model="dateFrom" placeholder="Desde" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
+                    <DateField v-model="dateFilter" placeholder="dd/mm/aaaa" />
                 </FilterField>
-                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
-                    <DateField v-model="dateTo" placeholder="Hasta" />
-                </FilterField>
+                <Button
+                    v-if="hasActiveFilters"
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="h-10"
+                    @click="resetFilters"
+                >
+                    Limpiar
+                </Button>
             </FilterBar>
             <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">
                 <Table>
