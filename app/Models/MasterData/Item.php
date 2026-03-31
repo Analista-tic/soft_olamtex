@@ -8,10 +8,11 @@ use App\Models\Inventory\Warehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Item extends Model implements \App\Contracts\HasAuditLabel
 {
-    use \App\Models\Concerns\HasAuditLabel;
+    use \App\Models\Concerns\HasAuditLabel, SoftDeletes;
     protected $fillable = [
         'category_sub_group_id',
         'tax_id', // Nuevo campo
@@ -118,7 +119,12 @@ class Item extends Model implements \App\Contracts\HasAuditLabel
     {
         return $this->belongsToMany(Warehouse::class, 'warehouse_items', 'item_id', 'warehouse_id')
             ->withPivot(['quantity', 'stock_min', 'stock_max'])
-            ->withTimestamps();
+            ->withTimestamps()
+            ->withCasts([
+                'quantity' => 'decimal:4',
+                'stock_min' => 'decimal:4',
+                'stock_max' => 'decimal:4',
+            ]);
     }
 
     public function getImgUrlAttribute(): ?string

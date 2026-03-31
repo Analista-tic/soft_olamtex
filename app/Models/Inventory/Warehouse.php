@@ -21,6 +21,11 @@ class Warehouse extends Model implements \App\Contracts\HasAuditLabel
     {
         return $this->belongsToMany(Item::class, 'warehouse_items')
             ->withPivot(['quantity', 'stock_min', 'stock_max'])
-            ->withTimestamps();
+            ->withTimestamps()
+            ->withCasts([
+                'quantity' => 'decimal:4',
+                'stock_min' => 'decimal:4',
+                'stock_max' => 'decimal:4',
+            ]);
     }
 }

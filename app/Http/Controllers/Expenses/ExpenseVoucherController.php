@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\Finance;
+namespace App\Http\Controllers\Expenses;
 
 use App\Http\Controllers\Controller;
-use App\Services\Finance\ExpenseVoucherService;
+use App\Services\Expenses\ExpenseVoucherService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -15,19 +15,19 @@ class ExpenseVoucherController extends Controller
 
     public function index()
     {
-        return Inertia::render('Finance/ExpenseVouchers/Index');
+        return Inertia::render('Expenses/ExpenseVouchers/Index');
     }
 
     public function create()
     {
-        return Inertia::render('Finance/ExpenseVouchers/ExpenseVoucherForm', [
+        return Inertia::render('Expenses/ExpenseVouchers/ExpenseVoucherForm', [
             'mode' => 'create',
         ]);
     }
 
     public function show(int $voucher)
     {
-        return Inertia::render('Finance/ExpenseVouchers/ExpenseVoucherForm', [
+        return Inertia::render('Expenses/ExpenseVouchers/ExpenseVoucherForm', [
             'mode' => 'show',
             'voucher' => $this->expenseVoucherService->findOrFail($voucher),
         ]);
@@ -35,7 +35,7 @@ class ExpenseVoucherController extends Controller
 
     public function edit(int $voucher)
     {
-        return Inertia::render('Finance/ExpenseVouchers/ExpenseVoucherForm', [
+        return Inertia::render('Expenses/ExpenseVouchers/ExpenseVoucherForm', [
             'mode' => 'edit',
             'voucher' => $this->expenseVoucherService->findOrFail($voucher),
         ]);
@@ -106,5 +106,16 @@ class ExpenseVoucherController extends Controller
         return response()->json([
             'data' => $record,
         ]);
+    }
+
+    public function void(int $voucher, Request $request)
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'min:5', 'max:255'],
+        ]);
+
+        $this->expenseVoucherService->void($voucher, $validated['reason']);
+
+        return back()->with('success', 'Comprobante anulado correctamente.');
     }
 }

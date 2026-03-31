@@ -31,6 +31,7 @@ return new class extends Migration
                 ->on('users')
                 ->onDelete('set null');
 
+            $table->softDeletes();
             $table->timestamps();
         });
 

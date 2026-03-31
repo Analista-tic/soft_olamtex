@@ -5,7 +5,7 @@ namespace App\Services\Finance;
 use App\Enums\PurchaseInvoiceStatus;
 use App\Models\Finance\AccountingAccount;
 use App\Models\Finance\CashReceipt;
-use App\Models\Finance\ExpenseVoucher;
+use App\Models\Expenses\ExpenseVoucher;
 use App\Models\Finance\JournalEntry;
 use App\Models\Finance\JournalEntryLine;
 use App\Models\Finance\Retention;

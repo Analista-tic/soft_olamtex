@@ -3,6 +3,15 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
+import {
+    AlertDialog,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import ViewButton from '@/components/common/ViewButton.vue';
@@ -20,12 +29,13 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import Textarea from '@/components/ui/textarea/Textarea.vue';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import { fetchExpenseVouchersPage, fetchTreasurySuppliers, type ExpenseVoucherListItem } from '@/domain/Finance';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, router } from '@inertiajs/vue3';
-import { Copy, Pencil, Plus, Printer, Search } from 'lucide-vue-next';
+import { Ban, Copy, Eye, Plus, Printer, Search } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -71,6 +81,11 @@ const rows = ref<ExpenseVoucherListItem[]>([]);
 const isLoading = ref(false);
 const currentPage = ref(1);
 const totalItems = ref(0);
+const voidDialogOpen = ref(false);
+const voidReason = ref('');
+const voidReasonError = ref('');
+const isVoiding = ref(false);
+const voidTarget = ref<ExpenseVoucherListItem | null>(null);
 
 async function fetchExpenseVouchers(page = 1): Promise<void> {
     isLoading.value = true;
@@ -119,6 +134,14 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isProviderActive = computed(() => providerFilter.value !== 'all');
 const isStatusActive = computed(() => statusFilter.value !== 'all');
 const isCreatedDateActive = computed(() => Boolean(createdDateFilter.value));
+const hasActiveFilters = computed(() =>
+    isSearchActive.value || isProviderActive.value || isStatusActive.value || isCreatedDateActive.value,
+);
+const emptyStateMessage = computed(() =>
+    hasActiveFilters.value
+        ? 'No hay comprobantes registrados con los filtros actuales.'
+        : 'Aún no hay comprobantes de egreso registrados.',
+);
 
 const providerButtonClasses = useFilterButtonClasses(isProviderActive);
 const statusButtonClasses = useFilterButtonClasses(isStatusActive);
@@ -143,10 +166,6 @@ function openView(row: ExpenseVoucherListItem): void {
     router.visit(ROUTES.detail(row.id));
 }
 
-function openEdit(row: ExpenseVoucherListItem): void {
-    router.visit(ROUTES.edit(row.id));
-}
-
 function openClone(row: ExpenseVoucherListItem): void {
     const params = new URLSearchParams();
     if (row.provider_id) params.set('supplier_id', String(row.provider_id));
@@ -157,6 +176,54 @@ function openClone(row: ExpenseVoucherListItem): void {
 
 function openPrint(row: ExpenseVoucherListItem): void {
     window.open(ROUTES.detail(row.id), '_blank', 'noopener');
+}
+
+function resetVoidDialog(): void {
+    voidDialogOpen.value = false;
+    voidReason.value = '';
+    voidReasonError.value = '';
+    voidTarget.value = null;
+}
+
+function openVoidDialog(row: ExpenseVoucherListItem): void {
+    voidTarget.value = row;
+    voidReason.value = '';
+    voidReasonError.value = '';
+    voidDialogOpen.value = true;
+}
+
+function submitVoid(): void {
+    const target = voidTarget.value;
+    const reason = voidReason.value.trim();
+
+    if (!target) return;
+
+    if (reason.length < 5) {
+        voidReasonError.value = 'El motivo de anulación debe tener al menos 5 caracteres.';
+        return;
+    }
+
+    isVoiding.value = true;
+    voidReasonError.value = '';
+
+    router.post(`${ROUTES.detail(target.id)}/anular`, {
+        reason,
+    }, {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            resetVoidDialog();
+            void fetchExpenseVouchers(currentPage.value);
+        },
+        onError: (errors) => {
+            const reasonError = typeof errors.reason === 'string' ? errors.reason : null;
+            const voucherError = typeof errors.voucher === 'string' ? errors.voucher : null;
+            voidReasonError.value = reasonError ?? voucherError ?? 'No fue posible anular el comprobante.';
+        },
+        onFinish: () => {
+            isVoiding.value = false;
+        },
+    });
 }
 
 // ─── Watchers & lifecycle ─────────────────────────────────────────────────────
@@ -268,12 +335,17 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                         <!-- Empty state -->
                         <TableRow v-else-if="rows.length === 0">
                             <TableCell colspan="9" class="py-6 text-center text-sm text-muted-foreground">
-                                No hay comprobantes registrados con los filtros actuales.
+                                {{ emptyStateMessage }}
                             </TableCell>
                         </TableRow>
 
                         <!-- Data rows -->
-                        <TableRow v-for="row in rows" v-else :key="row.id" class="text-center">
+                        <TableRow
+                            v-for="row in rows"
+                            v-else
+                            :key="row.id"
+                            :class="['text-center', row.status === 'voided' ? 'opacity-50' : '']"
+                        >
                             <TableCell :class="uiPatterns.typography.bodyStrong">{{ row.voucher_number }}</TableCell>
                             <TableCell>{{ row.supplier_name || '-' }}</TableCell>
                             <TableCell>{{ row.details || row.invoice_number || '-' }}</TableCell>
@@ -291,18 +363,19 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                             <TableCell>
                                 <div class="flex items-center justify-center gap-1">
                                     <ViewButton :onClick="() => openView(row)" />
-                                    <Button
-                                        v-if="row.status !== 'recorded'"
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        class="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                        @click="openEdit(row)"
-                                    >
-                                        <Pencil class="h-4 w-4" />
-                                    </Button>
-
                                     <TableActionsMenu content-class="w-52">
+                                        <DropdownMenuItem class="cursor-pointer gap-2" @select="openView(row)">
+                                            <Eye class="h-4 w-4" />
+                                            Ver
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            v-if="row.status !== 'voided'"
+                                            class="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                                            @select="openVoidDialog(row)"
+                                        >
+                                            <Ban class="h-4 w-4" />
+                                            Anular
+                                        </DropdownMenuItem>
                                         <DropdownMenuItem class="cursor-pointer gap-2" @select="openClone(row)">
                                             <Copy class="h-4 w-4" />
                                             Clonar
@@ -355,4 +428,49 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
             </div>
         </div>
     </AppLayout>
+
+    <AlertDialog :open="voidDialogOpen" @update:open="(open) => { if (!open && !isVoiding) resetVoidDialog(); }">
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>
+                    Anular comprobante #{{ voidTarget?.voucher_number ?? '' }}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                    Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <div class="space-y-2">
+                <label for="void-reason" class="text-sm font-medium text-foreground">
+                    Motivo de anulación
+                </label>
+                <Textarea
+                    id="void-reason"
+                    v-model="voidReason"
+                    rows="3"
+                    :disabled="isVoiding"
+                    placeholder="Describe el motivo de la anulación"
+                />
+                <p v-if="voidReasonError" class="text-sm text-destructive">
+                    {{ voidReasonError }}
+                </p>
+            </div>
+
+            <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
+                <AlertDialogCancel as-child>
+                    <Button type="button" variant="outline" :disabled="isVoiding" @click="resetVoidDialog">
+                        Cancelar
+                    </Button>
+                </AlertDialogCancel>
+                <Button
+                    type="button"
+                    variant="destructive"
+                    :disabled="isVoiding || voidReason.trim().length < 5"
+                    @click="submitVoid"
+                >
+                    {{ isVoiding ? 'Anulando...' : 'Confirmar anulación' }}
+                </Button>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 </template>

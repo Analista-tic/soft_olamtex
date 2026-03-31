@@ -42,6 +42,7 @@ use App\Models\Textil\FabricOrderItem;
 use App\Models\Textil\FabricProvider;
 use App\Models\Textil\FabricRoll;
 use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -70,6 +71,13 @@ class AppServiceProvider extends ServiceProvider
         Route::model('operation', Operation::class);
 
         $this->registerAuditObservers();
+
+        Model::preventLazyLoading(! app()->isProduction());
+        Model::handleLazyLoadingViolationUsing(function ($model, $relation) {
+            $class = get_class($model);
+            info("N+1 detectado: relación [{$relation}] en modelo [{$class}]");
+            throw new \RuntimeException("N+1 detectado: relación [{$relation}] en modelo [{$class}]. Usa eager loading (->with()).");
+        });
     }
 
     private function registerAuditObservers(): void

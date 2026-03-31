@@ -15,6 +15,11 @@ class Retention extends Model implements \App\Contracts\HasAuditLabel
         'status',
     ];
 
+    protected $casts = [
+        'percent' => 'decimal:2',
+        'account_id' => 'integer',
+    ];
+
     public static function auditLabel(): string
     {
         return 'Retención';

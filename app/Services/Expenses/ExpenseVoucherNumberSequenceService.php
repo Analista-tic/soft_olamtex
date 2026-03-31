@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Finance;
+namespace App\Services\Expenses;
 
 use RuntimeException;
 use Illuminate\Support\Facades\DB;
