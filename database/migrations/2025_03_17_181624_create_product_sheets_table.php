@@ -2,14 +2,10 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('product_sheets', function (Blueprint $table) {
@@ -30,11 +26,24 @@ return new class extends Migration
             $table->string('flat_sketch_path')->nullable();
             $table->string('sample_reference')->nullable();
             $table->string('product_reference')->nullable();
+            $table->string('product_reference_2')->nullable();
             $table->json('processes');
             $table->unsignedBigInteger('operational_list_id')->nullable();
             $table->enum('status', ['complete', 'incomplete']);
+            // Versionamiento
+            $table->unsignedInteger('version')->default(1);
+            $table->unsignedBigInteger('parent_id')->nullable();
+            $table->boolean('is_enabled')->default(true);
             $table->softDeletes();
             $table->timestamps();
+
+            // FK para versionamiento (auto-referencial)
+            $table->foreign('parent_id')
+                ->references('id')
+                ->on('product_sheets')
+                ->nullOnDelete();
+
+            $table->index('parent_id', 'product_sheets_parent_id_index');
         });
 
         if (Schema::hasTable('operational_lists')) {
@@ -46,31 +55,10 @@ return new class extends Migration
                     ->nullOnDelete();
             });
         }
-
-        Schema::table('product_sheets', function (Blueprint $table) {
-            $table->unique('product_reference', 'product_sheets_product_ref_unique');
-            $table->unique('sample_reference', 'product_sheets_sample_ref_unique');
-        });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        if (Schema::hasTable('product_sheets')) {
-            Schema::table('product_sheets', function (Blueprint $table) {
-            $table->dropUnique('product_sheets_product_ref_unique');
-            $table->dropUnique('product_sheets_sample_ref_unique');
-            });
-
-            if (Schema::hasTable('operational_lists')) {
-                Schema::table('product_sheets', function (Blueprint $table) {
-                    $table->dropForeign(['operational_list_id']);
-                });
-            }
-        }
-
         Schema::dropIfExists('product_sheets');
     }
 };

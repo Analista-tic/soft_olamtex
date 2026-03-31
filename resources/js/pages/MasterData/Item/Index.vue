@@ -1,25 +1,21 @@
 <script setup lang="ts">
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Ban, CheckCircle, Download, FileSpreadsheet, Pencil, PlusCircle, Search, Trash, Upload } from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
+
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+
+import Button from '@/components/ui/button/Button.vue';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -33,27 +29,14 @@ import {
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import {
-    Ban,
-    CheckCircle,
-    Download,
-    FileSpreadsheet,
-    PlusCircle,
-    Pencil,
-    Search,
-    Trash,
-    Upload,
-} from 'lucide-vue-next';
+
 import type { Item } from '@/domain/MasterData';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { uiPatterns } from '@/lib/ui-patterns';
 import BulkUploadDialog from './BulkUploadDialog.vue';
 import ItemDialog from './ItemDialog.vue';
+
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
 type DialogType = 'create' | 'edit';
@@ -106,6 +89,7 @@ const DIALOG_PREPARE_FALLBACK_MS = 10000;
 let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
+let activeFetchController: AbortController | null = null;
 const smartLoading = useSmartLoading();
 
 function getEmptyForm(): Partial<Item> {
@@ -176,21 +160,48 @@ function getErrorMessage(err: unknown, fallback: string) {
 }
 
 async function fetchItems(page = 1) {
+    if (activeFetchController) {
+        activeFetchController.abort();
+    }
+
+    const controller = new AbortController();
+    activeFetchController = controller;
+
     const params: Record<string, unknown> = {
         page,
         per_page: ITEMS_PER_PAGE,
-        search: searchQuery.value,
     };
+
+    const normalizedSearch = searchQuery.value.trim();
+    if (normalizedSearch.length > 0) {
+        params.search = normalizedSearch;
+    }
 
     if (statusFilter.value !== 'all') {
         params.status = statusFilter.value; // boolean
     }
 
-    const response = await axios.get('/item/data', { params });
+    try {
+        const response = await axios.get('/item/data', {
+            params,
+            signal: controller.signal,
+        });
 
-    items.value = response.data.data;
-    totalItems.value = response.data.total;
-    currentPage.value = response.data.current_page;
+        if (activeFetchController !== controller) return;
+
+        items.value = response.data.data;
+        totalItems.value = response.data.total;
+        currentPage.value = response.data.current_page;
+    } catch (err) {
+        if (axios.isCancel(err)) {
+            return;
+        }
+        throw err;
+    } finally {
+        if (activeFetchController === controller) {
+            activeFetchController = null;
+        }
+    }
 }
 
 async function deleteItem() {
@@ -354,11 +365,15 @@ onMounted(async () => {
 onBeforeUnmount(() => {
     clearDialogPrepareFallbackTimer();
     stopDialogPreparationLoading();
+    if (activeFetchController) {
+        activeFetchController.abort();
+        activeFetchController = null;
+    }
 });
 </script>
 
 <template>
-    <Head title="Catálogo de Ítem" />
+    <Head title="Catálogo de ítem" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="relative flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
@@ -372,10 +387,8 @@ onBeforeUnmount(() => {
 
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">Catálogo de Ítem</h1>
-                    <p :class="uiPatterns.typography.pageSubtitle">
-                        Gestiona los ítems del inventario: categorías, stock y estado.
-                    </p>
+                    <h1 class="text-lg font-bold">Catálogo de ítem</h1>
+                    <p class="text-sm text-muted-foreground">Gestiona los ítems del inventario: categorías, stock y estado.</p>
                 </div>
 
                 <div class="flex items-center gap-2">
@@ -384,7 +397,7 @@ onBeforeUnmount(() => {
                         variant="default"
                         size="sm"
                         :disabled="isPreparingDialog"
-                        class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                        class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                     >
                         <PlusCircle class="h-4 w-4" /> Crear nuevo ítem
                     </Button>
@@ -411,7 +424,7 @@ onBeforeUnmount(() => {
                         >
                             <DropdownMenuItem
                                 class="cursor-pointer gap-2"
-                                :class="isTemplateDownloading ? 'opacity-60 cursor-not-allowed' : ''"
+                                :class="isTemplateDownloading ? 'cursor-not-allowed opacity-60' : ''"
                                 :disabled="isTemplateDownloading"
                                 @click="downloadTemplate"
                             >
@@ -432,11 +445,7 @@ onBeforeUnmount(() => {
 
             <!-- FILTROS -->
             <FilterBar>
-                <FilterField
-                    label="Buscar ítem"
-                    :active="searchQuery.trim().length > 0"
-                    class="flex-1 min-w-[220px] p-0"
-                >
+                <FilterField label="Buscar ítem" :active="searchQuery.trim().length > 0" class="min-w-[220px] flex-1 p-0">
                     <div class="relative">
                         <Input
                             v-model="searchQuery"
@@ -450,19 +459,11 @@ onBeforeUnmount(() => {
                 </FilterField>
 
                 <FilterField label="Estado" :active="statusFilter !== 'all'" class="min-w-[180px]">
-                    <SelectField
-                        v-model="statusFilter"
-                        label=""
-                        :options="statusOptions"
-                        placeholder="Estado"
-                        :button-class="statusButtonClasses"
-                    />
+                    <SelectField v-model="statusFilter" label="" :options="statusOptions" placeholder="Estado" :button-class="statusButtonClasses" />
                 </FilterField>
             </FilterBar>
 
-            <div
-                class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min"
-            >
+            <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
                     <Table>
                         <TableHeader>
@@ -525,9 +526,7 @@ onBeforeUnmount(() => {
                                                     size="icon"
                                                     :class="[
                                                         actionButtonClass,
-                                                        item.status
-                                                            ? 'text-red-600 hover:text-red-700'
-                                                            : 'text-emerald-600 hover:text-emerald-700',
+                                                        item.status ? 'text-red-600 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-700',
                                                     ]"
                                                     aria-label="Habilitar o deshabilitar"
                                                     @click="openStatusDialog(item)"
@@ -546,7 +545,7 @@ onBeforeUnmount(() => {
                 </TooltipProvider>
 
                 <Pagination
-                    class="flex justify-center pt-4 pb-2"
+                    class="mt-5 flex justify-center"
                     :items-per-page="ITEMS_PER_PAGE"
                     :total="totalItems"
                     :sibling-count="1"
@@ -558,14 +557,11 @@ onBeforeUnmount(() => {
                         <PaginationFirst />
                         <PaginationPrev />
 
-                        <template
-                            v-for="(item, index) in items"
-                            :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`"
-                        >
+                        <template v-for="(item, index) in items" :key="item.type === 'page' ? `page-${item.value}` : `ellipsis-${index}`">
                             <PaginationListItem v-if="item.type === 'page'" :value="item.value" as-child>
                                 <Button
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'ghost'"
+                                    class="h-6 w-6 p-0"
+                                    :variant="item.value === currentPage ? 'default' : 'outline'"
                                     @click="handlePageChange(item.value as number)"
                                 >
                                     {{ item.value }}
@@ -603,11 +599,9 @@ onBeforeUnmount(() => {
 
         <!-- Diálogo de confirmación para habilitar/deshabilitar -->
         <Dialog v-model:open="isStatusDialogOpen">
-            <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
-                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                    <DialogTitle>
-                        {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} ítem
-                    </DialogTitle>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle> {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} ítem </DialogTitle>
                     <DialogDescription>
                         ¿Estás seguro de que deseas
                         {{ itemToToggleStatus?.status ? 'deshabilitar' : 'habilitar' }}
@@ -617,7 +611,12 @@ onBeforeUnmount(() => {
 
                 <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                     <div class="w-full md:w-auto">
-                        <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="isStatusDialogOpen = false">
+                        <Button
+                            variant="outline"
+                            size="pill"
+                            class="mx-auto flex w-full max-w-[140px] justify-center"
+                            @click="isStatusDialogOpen = false"
+                        >
                             Cancelar
                         </Button>
                     </div>
@@ -628,8 +627,8 @@ onBeforeUnmount(() => {
                             :class="[
                                 'mx-auto flex w-full max-w-[140px] items-center justify-center gap-1 rounded-full px-5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
                                 itemToToggleStatus?.status
-                                    ? 'border border-red-600 bg-red-600 text-primary-foreground hover:bg-red-700 focus-visible:ring-red-500'
-                                    : 'border border-emerald-600 bg-emerald-600 text-primary-foreground hover:bg-emerald-700 focus-visible:ring-emerald-500',
+                                    ? 'border border-red-600 bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500'
+                                    : 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500',
                             ]"
                             @click="toggleStatus"
                         >
@@ -645,8 +644,3 @@ onBeforeUnmount(() => {
         <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="fetchItems" />
     </AppLayout>
 </template>
-
-
-
-
-

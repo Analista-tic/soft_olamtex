@@ -57,10 +57,12 @@ class TechnicalDataSheetAdditionalInfoStore
                 'generalNotes' => null,
             ],
             'stamping' => [
-                'designNotes' => null,
-                'attachments' => [],
+                'designNotes'        => null,
+                'attachments'        => [],
+                'drawingAttachments' => [],
             ],
             'laundry' => [
+                'type' => null,
                 'instructions' => null,
             ],
         ];
@@ -91,10 +93,12 @@ class TechnicalDataSheetAdditionalInfoStore
                 'generalNotes' => is_string($cuttingInput['generalNotes'] ?? null) ? trim((string) $cuttingInput['generalNotes']) ?: null : null,
             ],
             'stamping' => [
-                'designNotes' => is_string($stampingInput['designNotes'] ?? null) ? trim((string) $stampingInput['designNotes']) ?: null : null,
-                'attachments' => is_array($stampingInput['attachments'] ?? null) ? array_values($stampingInput['attachments']) : [],
+                'designNotes'        => is_string($stampingInput['designNotes'] ?? null) ? trim((string) $stampingInput['designNotes']) ?: null : null,
+                'attachments'        => is_array($stampingInput['attachments'] ?? null) ? array_values($stampingInput['attachments']) : [],
+                'drawingAttachments' => is_array($stampingInput['drawingAttachments'] ?? null) ? array_values($stampingInput['drawingAttachments']) : [],
             ],
             'laundry' => [
+                'type' => is_string($laundryInput['type'] ?? null) ? trim((string) $laundryInput['type']) ?: null : null,
                 'instructions' => is_string($laundryInput['instructions'] ?? null) ? trim((string) $laundryInput['instructions']) ?: null : null,
             ],
         ];

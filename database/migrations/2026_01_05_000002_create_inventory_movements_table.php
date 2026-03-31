@@ -52,7 +52,6 @@ return new class extends Migration
             $table->foreignId('created_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             
             $table->timestamps();
-            $table->softDeletes();
             
             // Índices compuestos para consultas frecuentes
             $table->index(['item_id', 'warehouse_id', 'date']);

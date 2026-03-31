@@ -1,91 +1,31 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
-import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import {
-    AlertTriangle,
-    ArrowDown,
-    ArrowUp,
-    Calendar,
-    CheckCircle2,
-    Clock,
-    Eye,
-    Flag,
-    History,
-    MessageSquareWarning,
-    PackageCheck,
-    PackageSearch,
-    Send,
-    XCircle,
-} from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { MessageSquareWarning, PackageCheck, PackageSearch } from 'lucide-vue-next';
 import { uiPatterns } from '@/lib/ui-patterns';
+import { computed, onMounted, ref, watch } from 'vue';
+import BatchControlTable from './BatchControlTable.vue';
+import {
+    CutFabricConsumptionDialog,
+    DeliverDialog,
+    EstimatedDateDialog,
+    LogisticsSupplyExitDialog,
+    OrderBasicInfoDialog,
+    OrderTimelineDialog,
+    ReportNoveltyDialog,
+    TechnicalSheetDialog,
+} from './components/dialogs';
+import type { BatchControlRow, CutCurves, CutFabricConsumptionLine, CutSizeCurves, LogisticsSupplyItem, TimelineEvent } from './types';
 
-type LastDelivery = {
-    from_process: string;
-    to_process: string;
-    observations: string | null;
-    delivered_at: string | null;
-};
-
-type DeliveryHistoryItem = {
-    id: number;
-    from_process: string;
-    to_process: string;
-    observations: string | null;
-    delivered_by_name: string;
-    delivered_at: string;
-};
-
-type NoveltyItem = {
-    id: number;
-    from_process: string;
-    to_process: string;
-    description: string;
-    status: 'pending' | 'resolved';
-    reported_by_name: string;
-    reported_at: string;
-    resolved_by_name: string | null;
-    resolved_at: string | null;
-    resolution_notes: string | null;
-};
-
-type BatchControlRow = {
-    id: number;
-    op_code: string;
-    current_process: string | null;
-    referencia: string;
-    temporada: string;
-    prioridad: string;
-    cant_programadas: number;
-    destino: string;
-    seccion: string;
-    grupo: string;
-    fecha: string;
-    product_sheet_type?: string;
-    batch_priority: number;
-    process_estimated_dates: Record<string, string>;
-    deadline_statuses: Record<string, 'none' | 'on_time' | 'due_soon' | 'overdue'>;
-    last_delivery: LastDelivery | null;
-    has_pending_novelties: boolean;
-    pending_novelties_count: number;
-};
+/* ── Types ──────────────────────────────────────────────── */
 
 type ScopeOption = {
     value: 'muestra' | 'producto';
@@ -100,6 +40,8 @@ const props = defineProps<{
 }>();
 
 /* ── Constants ──────────────────────────────────────────── */
+// UI: todos los procesos como tabs (consistencia visual). Futuro: filtrar por roles si se requiere.
+// El flujo real de cada orden viene de product_sheet_processes (backend).
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Producción', href: '/produccion' },
@@ -130,18 +72,34 @@ const TAB_COLORS = [
 const toggleGroupBaseClass = 'inline-flex min-w-max items-center gap-1 rounded-full bg-muted/40 p-1';
 const toggleItemBaseClass =
     'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition text-muted-foreground hover:text-foreground data-[state=on]:border-primary/30 data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:shadow-sm';
-const actionButtonClass =
-    'inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1';
-const actionIconClass = 'h-3.5 w-3.5';
 
 /* ── State ──────────────────────────────────────────────── */
 
-const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
 
 const allRows = ref<BatchControlRow[]>([]);
 const isLoading = ref(false);
-const activeProcess = ref(props.processes[0] ?? '');
 const activeType = ref<'muestra' | 'producto'>('muestra');
+
+// Procesos visibles en los tabs según el tipo activo (alineado con processes_allowed_by_type del config).
+// MUESTRA: todos los procesos hasta "Muestras" inclusive, excepto "Desarrollo de muestras".
+// PRODUCTO: todos los procesos excepto "Muestras".
+const visibleProcesses = computed(() => {
+    const muestrasIdx = props.processes.indexOf('Muestras');
+    if (activeType.value === 'muestra') {
+        const upToMuestras = muestrasIdx >= 0 ? props.processes.slice(0, muestrasIdx + 1) : props.processes;
+        return upToMuestras.filter((p) => p !== 'Desarrollo de muestras');
+    }
+    return props.processes.filter((p) => p !== 'Muestras');
+});
+
+const activeProcess = ref(visibleProcesses.value[0] ?? '');
+
+watch(activeType, () => {
+    if (!visibleProcesses.value.includes(activeProcess.value)) {
+        activeProcess.value = visibleProcesses.value[0] ?? '';
+    }
+});
 
 // Dialog: entregar al siguiente estado
 const deliverDialogOpen = ref(false);
@@ -154,12 +112,18 @@ const isDelivering = ref(false);
 const dateDialogOpen = ref(false);
 const dateRow = ref<BatchControlRow | null>(null);
 const editingDate = ref<string>('');
+/** Proceso que se está editando (siempre = activeProcess al abrir el dialog) */
+const editingProcess = ref<string>('');
+/** Fecha sugerida del proceso anterior (para filas deshabilitadas) */
+const suggestedDate = ref<string | null>(null);
 
-// Dialog: historial de entregas
-const historyDialogOpen = ref(false);
-const historyRow = ref<BatchControlRow | null>(null);
-const historyItems = ref<DeliveryHistoryItem[]>([]);
-const isLoadingHistory = ref(false);
+// Dialog: línea de tiempo (historial + novedades unificados)
+const timelineDialogOpen = ref(false);
+const timelineRow = ref<BatchControlRow | null>(null);
+const timelineEvents = ref<TimelineEvent[]>([]);
+const isLoadingTimeline = ref(false);
+const resolvingNoveltyId = ref<number | null>(null);
+const resolveNotes = ref<string>('');
 
 // Dialog: reportar novedad
 const noveltyDialogOpen = ref(false);
@@ -168,13 +132,33 @@ const noveltyToProcess = ref<string>('');
 const noveltyDescription = ref<string>('');
 const isReportingNovelty = ref(false);
 
-// Dialog: ver novedades
-const noveltiesListDialogOpen = ref(false);
-const noveltiesListRow = ref<BatchControlRow | null>(null);
-const noveltiesListItems = ref<NoveltyItem[]>([]);
-const isLoadingNovelties = ref(false);
-const resolvingNoveltyId = ref<number | null>(null);
-const resolveNotes = ref<string>('');
+// Dialog: ficha técnica
+const technicalSheetDialogOpen = ref(false);
+const technicalSheetRow = ref<BatchControlRow | null>(null);
+
+// Dialog: información básica de la orden
+const basicInfoDialogOpen = ref(false);
+const basicInfoRow = ref<BatchControlRow | null>(null);
+
+// Dialog: consumo de rollos en corte
+const cutConsumptionDialogOpen = ref(false);
+const cutConsumptionRow = ref<BatchControlRow | null>(null);
+const cutConsumptionLines = ref<CutFabricConsumptionLine[]>([]);
+const cutCurves = ref<CutCurves>(createEmptyCutCurves());
+/** Largo espiga (orden): usado para auto-calcular consumo por rollo */
+const cutLargoEspiga = ref<number | null>(null);
+/** true cuando la orden ya no está en Corte y el dialog se abre en modo solo lectura */
+const cutConsumptionViewOnly = ref(false);
+const isLoadingCutConsumption = ref(false);
+const isSavingCutConsumption = ref(false);
+
+// Dialog: salida de insumos (Logística)
+const logisticsExitDialogOpen = ref(false);
+const logisticsExitRow = ref<BatchControlRow | null>(null);
+const logisticsSupplyLines = ref<LogisticsSupplyItem[]>([]);
+const logisticsOpUnits = ref(0);
+const isLoadingLogisticsSupplies = ref(false);
+const isSavingLogisticsExit = ref(false);
 
 // Ordenación: por defecto fecha estimada (más urgente primero)
 const sortColumn = ref<string>('process_estimated_date');
@@ -187,16 +171,46 @@ const tabColor = (index: number) => TAB_COLORS[index % TAB_COLORS.length];
 function compareRows(a: BatchControlRow, b: BatchControlRow, col: string, dir: 'asc' | 'desc'): number {
     const mult = dir === 'asc' ? 1 : -1;
 
-    if (col === 'process_estimated_date' || col === 'fecha') {
+    if (col === 'process_estimated_date' || col === 'fecha' || col === 'current_process_arrived_at') {
+        if (col === 'process_estimated_date') {
+            const proc = activeProcess.value;
+            const severityRank = (status: 'none' | 'on_time' | 'due_soon' | 'overdue') => {
+                if (status === 'overdue') return 3;
+                if (status === 'due_soon') return 2;
+                if (status === 'on_time') return 1;
+                return 0;
+            };
+
+            const sa = severityRank(a.deadline_statuses?.[proc] ?? 'none');
+            const sb = severityRank(b.deadline_statuses?.[proc] ?? 'none');
+            const severityCmp = sb - sa;
+            if (severityCmp !== 0) return mult * severityCmp;
+        }
+
         const proc = activeProcess.value;
-        const da = col === 'process_estimated_date' ? (a.process_estimated_dates?.[proc] ?? null) : a.fecha;
-        const db = col === 'process_estimated_date' ? (b.process_estimated_dates?.[proc] ?? null) : b.fecha;
+        const da =
+            col === 'process_estimated_date'
+                ? (a.process_estimated_dates?.[proc] ?? null)
+                : col === 'fecha'
+                  ? a.fecha
+                  : (a.current_process_arrived_at ?? null);
+        const db =
+            col === 'process_estimated_date'
+                ? (b.process_estimated_dates?.[proc] ?? null)
+                : col === 'fecha'
+                  ? b.fecha
+                  : (b.current_process_arrived_at ?? null);
         const aEmpty = !da || da === '-';
         const bEmpty = !db || db === '-';
         if (aEmpty && bEmpty) return 0;
         if (aEmpty) return mult; // null va al final en asc
         if (bEmpty) return -mult;
-        const diff = new Date(da + 'T00:00:00').getTime() - new Date(db + 'T00:00:00').getTime();
+        const parseLocal = (s: string) => {
+            // Soporta "Y-m-d", "Y-m-d H:i" y "Y-m-dTH:i"
+            const clean = s.replace(' ', 'T');
+            return new Date(clean.length === 10 ? clean + 'T00:00' : clean).getTime();
+        };
+        const diff = parseLocal(da) - parseLocal(db);
         return mult * (diff || 0);
     }
 
@@ -210,10 +224,12 @@ function compareRows(a: BatchControlRow, b: BatchControlRow, col: string, dir: '
 }
 
 const filteredRows = computed(() => {
+    // Solo mostrar órdenes del tipo activo cuyo flujo incluye el proceso activo.
+    // Las que no están en ese proceso se muestran deshabilitadas (ya en otro proceso del flujo).
     const filtered = allRows.value.filter((r) => {
-        const processMatch = (r.current_process ?? '') === activeProcess.value;
         const typeMatch = (r.product_sheet_type ?? 'producto') === activeType.value;
-        return processMatch && typeMatch;
+        if (!typeMatch) return false;
+        return getFlowForRow(r).includes(activeProcess.value);
     });
 
     return [...filtered].sort((a, b) => {
@@ -235,19 +251,46 @@ function setSort(column: string) {
 }
 
 const emptyStateText = computed(() =>
-    activeType.value === 'muestra' ? 'No hay órdenes tipo muestra en este proceso.' : 'No hay órdenes tipo producto en este proceso.',
+    activeType.value === 'muestra' ? 'No hay órdenes tipo muestra.' : 'No hay órdenes tipo producto.',
 );
 
-const nextProcess = computed(() => {
-    if (!deliverRow.value) return null;
-    const currentIdx = props.processes.indexOf(deliverRow.value.current_process ?? '');
-    if (currentIdx >= 0 && currentIdx < props.processes.length - 1) {
-        return props.processes[currentIdx + 1];
-    }
-    return null;
-});
+/** Flujo real según ProductSheet; fallback a lista completa si no hay ficha. */
+function getFlowForRow(row: BatchControlRow): string[] {
+    const flow = row.product_sheet_processes ?? [];
+    return flow.length > 0 ? flow : [...props.processes];
+}
 
-const otherProcesses = computed(() => props.processes.filter((p) => p !== deliverRow.value?.current_process));
+/** Si orden tipo muestra está en Muestras → termina ahí, no hay siguiente. */
+function getNextProcessForRow(row: BatchControlRow): string | null {
+    const isSample = (row.product_sheet_type ?? 'producto') === 'muestra';
+    const current = row.current_process ?? '';
+    if (isSample && current === 'Muestras') return null;
+
+    const flow = getFlowForRow(row);
+    const idx = flow.indexOf(current);
+    if (idx >= 0 && idx < flow.length - 1) return flow[idx + 1];
+    return null;
+}
+
+/** Procesos válidos para entregar (flujo posterior al actual). Muestra en Muestras = ninguno. */
+function getOtherProcessesForRow(row: BatchControlRow): string[] {
+    const next = getNextProcessForRow(row);
+    if (!next) return [];
+
+    const flow = getFlowForRow(row);
+    const idx = flow.indexOf(row.current_process ?? '');
+    if (idx < 0) return [];
+    return flow.slice(idx + 1);
+}
+
+/** Indica si la orden puede entregarse al siguiente estado. */
+function canDeliverRow(row: BatchControlRow): boolean {
+    return getOtherProcessesForRow(row).length > 0;
+}
+
+const nextProcess = computed(() => (deliverRow.value ? getNextProcessForRow(deliverRow.value) : null));
+
+const otherProcesses = computed(() => (deliverRow.value ? getOtherProcessesForRow(deliverRow.value) : []));
 
 const tabCounts = computed(() => {
     const counts: Record<string, number> = {};
@@ -257,36 +300,110 @@ const tabCounts = computed(() => {
     return counts;
 });
 
+/** Órdenes con novedades pendientes (no aceptación de entrega) por proceso */
+const tabNoveltyCounts = computed(() => {
+    const counts: Record<string, number> = {};
+    for (const p of props.processes) {
+        counts[p] = allRows.value.filter(
+            (r) => (r.current_process ?? '') === p && (r.product_sheet_type ?? 'producto') === activeType.value && r.has_pending_novelties,
+        ).length;
+    }
+    return counts;
+});
+
 /* ── Helpers ────────────────────────────────────────────── */
 
 function formatDate(val: string): string {
     if (!val || val === '-') return val;
-    // Forzar hora local para evitar desfase de zona horaria (UTC → local = -1 día)
-    const d = new Date(val + 'T00:00:00');
+    const hasTime = val.length > 10 && (val.includes(':') || val.includes('T'));
+    // Normalizar a formato ISO para parsear como hora local
+    const clean = val.replace(' ', 'T');
+    const d = new Date(hasTime ? clean : clean + 'T00:00');
     if (Number.isNaN(d.getTime())) return val;
-    return d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const datePart = d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    if (hasTime) {
+        const timePart = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
+        return `${datePart} ${timePart}`;
+    }
+    return datePart;
+}
+
+function getDateSeverity(dateValue: string | null | undefined): 'none' | 'on_time' | 'due_soon' | 'overdue' {
+    if (!dateValue) return 'none';
+    const clean = dateValue.replace(' ', 'T');
+    const target = new Date(clean.length === 10 ? clean + 'T00:00' : clean);
+    if (Number.isNaN(target.getTime())) return 'none';
+
+    target.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return 'overdue';
+    if (diffDays <= 2) return 'due_soon';
+    return 'on_time';
+}
+
+function getDateDeltaText(dateValue: string | null | undefined): string {
+    if (!dateValue) return 'sin fecha estimada';
+    const clean = dateValue.replace(' ', 'T');
+    const target = new Date(clean.length === 10 ? clean + 'T00:00' : clean);
+    if (Number.isNaN(target.getTime())) return 'con fecha inválida';
+
+    target.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'vence hoy';
+    if (diffDays < 0) return `${Math.abs(diffDays)} día(s) vencida`;
+    return `faltan ${diffDays} día(s)`;
+}
+
+/** Indica si la orden no corresponde al proceso activo del tab (se muestra deshabilitada). */
+function isRowDisabled(row: BatchControlRow): boolean {
+    return (row.current_process ?? '') !== activeProcess.value;
 }
 
 function rowBorderClass(row: BatchControlRow): string {
-    // Novedades pendientes → fondo/borde naranja pulsante
+    // Filas deshabilitadas: sin borde de color (no están en este proceso)
+    if (isRowDisabled(row)) return '';
+    // Novedades pendientes → alto contraste
     if (row.has_pending_novelties) {
-        return 'border-l-4 border-l-orange-500 bg-orange-50/60';
+        return 'border-l-4 border-l-orange-600 bg-orange-100/80 shadow-sm';
     }
-    const proc = row.current_process ?? '';
-    const status = row.deadline_statuses?.[proc] ?? 'none';
+    const status = row.deadline_statuses?.[activeProcess.value] ?? 'none';
     if (status === 'overdue') return 'border-l-4 border-l-red-500';
     if (status === 'due_soon') return 'border-l-4 border-l-amber-400';
     return '';
 }
 
+/** Fecha estimada para el proceso activo del tab (aplica a activas y deshabilitadas). */
 function getRowEstimatedDate(row: BatchControlRow): string | null {
-    const proc = row.current_process ?? '';
-    return row.process_estimated_dates?.[proc] ?? null;
+    return row.process_estimated_dates?.[activeProcess.value] ?? null;
 }
 
+/** Estado de deadline para el proceso activo del tab. */
 function getRowDeadlineStatus(row: BatchControlRow): 'none' | 'on_time' | 'due_soon' | 'overdue' {
-    const proc = row.current_process ?? '';
-    return row.deadline_statuses?.[proc] ?? 'none';
+    return row.deadline_statuses?.[activeProcess.value] ?? 'none';
+}
+
+function getOrderDeadlineStatus(row: BatchControlRow): 'none' | 'on_time' | 'due_soon' | 'overdue' {
+    return row.order_deadline_status ?? 'none';
+}
+
+/** Fecha estimada sugerida para programar un proceso futuro: es la fecha estimada del proceso anterior en el flujo. */
+function getSuggestedDateForProcess(row: BatchControlRow, targetProcess: string): string | null {
+    const flow = getFlowForRow(row);
+    const targetIdx = flow.indexOf(targetProcess);
+    if (targetIdx <= 0) return null;
+    const prevProcess = flow[targetIdx - 1];
+    return row.process_estimated_dates?.[prevProcess] ?? null;
+}
+
+/** Fecha estimada del proceso anterior en el flujo (=posible recepción en el proceso activo). */
+function getPreviousProcessEstimatedDate(row: BatchControlRow): string | null {
+    return getSuggestedDateForProcess(row, activeProcess.value);
 }
 
 /* ── Data fetching ──────────────────────────────────────── */
@@ -308,15 +425,10 @@ async function fetchData() {
 /* ── Deliver (entregar) ─────────────────────────────────── */
 
 function openDeliverDialog(row: BatchControlRow) {
+    if (!canDeliverRow(row)) return;
     deliverRow.value = row;
     deliverObservations.value = '';
-    // Auto-seleccionar el siguiente proceso en el flujo
-    const currentIdx = props.processes.indexOf(row.current_process ?? '');
-    if (currentIdx >= 0 && currentIdx < props.processes.length - 1) {
-        deliverToProcess.value = props.processes[currentIdx + 1];
-    } else {
-        deliverToProcess.value = '';
-    }
+    deliverToProcess.value = getNextProcessForRow(row) ?? '';
     deliverDialogOpen.value = true;
 }
 
@@ -350,48 +462,65 @@ async function confirmDeliver() {
 
 function openDateDialog(row: BatchControlRow) {
     dateRow.value = row;
-    const proc = row.current_process ?? '';
-    editingDate.value = row.process_estimated_dates?.[proc] ?? '';
+    editingProcess.value = activeProcess.value;
+    // Convertir "Y-m-d H:i" → "Y-m-dTH:i" para input datetime-local; retrocompat con solo fecha
+    const stored = row.process_estimated_dates?.[activeProcess.value] ?? '';
+    editingDate.value = stored ? stored.replace(' ', 'T') : '';
+    suggestedDate.value = isRowDisabled(row) ? getSuggestedDateForProcess(row, activeProcess.value) : null;
     dateDialogOpen.value = true;
 }
 
 async function saveEstimatedDate() {
     if (!dateRow.value) return;
-    const proc = dateRow.value.current_process ?? '';
+    const proc = editingProcess.value;
+    // Convertir formato input "Y-m-dTH:i" → "Y-m-d H:i" para el backend
+    const dateToSave = editingDate.value ? editingDate.value.replace('T', ' ') : null;
     try {
         await axios.patch(route('control-de-lotes.update-estimated-date', { order: dateRow.value.id }), {
             process: proc,
-            estimated_date: editingDate.value || null,
+            estimated_date: dateToSave,
         });
 
-        // Actualizar local
+        // Actualizar local (usar formato "Y-m-d H:i" para consistencia)
         if (!dateRow.value.process_estimated_dates) {
             dateRow.value.process_estimated_dates = {};
         }
-        if (editingDate.value) {
-            dateRow.value.process_estimated_dates[proc] = editingDate.value;
+        if (dateToSave) {
+            dateRow.value.process_estimated_dates[proc] = dateToSave;
         } else {
             delete dateRow.value.process_estimated_dates[proc];
         }
 
-        // Recalcular deadline status localmente
+        // Recalcular deadline status localmente (comparar por días, ignorar hora)
         if (!dateRow.value.deadline_statuses) {
             dateRow.value.deadline_statuses = {};
         }
-        if (!editingDate.value) {
+        if (!dateToSave) {
             dateRow.value.deadline_statuses[proc] = 'none';
         } else {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const target = new Date(editingDate.value + 'T00:00:00');
-            const diffMs = target.getTime() - today.getTime();
-            const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+            const clean = dateToSave.replace(' ', 'T');
+            const target = new Date(clean.length === 10 ? clean + 'T00:00' : clean);
+            target.setHours(0, 0, 0, 0);
+            const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
             if (diffDays < 0) dateRow.value.deadline_statuses[proc] = 'overdue';
             else if (diffDays <= 2) dateRow.value.deadline_statuses[proc] = 'due_soon';
             else dateRow.value.deadline_statuses[proc] = 'on_time';
         }
 
-        showSuccess('Fecha estimada actualizada.');
+        const severity = getDateSeverity(dateToSave);
+        const deltaText = getDateDeltaText(dateToSave);
+
+        if (severity === 'overdue') {
+            showError(`Fecha estimada actualizada, pero quedó vencida (${deltaText}).`, 'error');
+        } else if (severity === 'due_soon') {
+            showWarning(`Fecha estimada actualizada. Atención: está próxima a vencer (${deltaText}).`);
+        } else if (severity === 'on_time') {
+            showSuccess(`Fecha estimada actualizada (${deltaText}).`);
+        } else {
+            showSuccess('Fecha estimada actualizada.');
+        }
         dateDialogOpen.value = false;
     } catch (e: unknown) {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -399,20 +528,31 @@ async function saveEstimatedDate() {
     }
 }
 
-/* ── Delivery history ───────────────────────────────────── */
+/* ── Línea de tiempo (historial + novedades) ────────────── */
 
-async function openHistoryDialog(row: BatchControlRow) {
-    historyRow.value = row;
-    historyItems.value = [];
-    historyDialogOpen.value = true;
-    isLoadingHistory.value = true;
+async function openTimelineDialog(row: BatchControlRow) {
+    timelineRow.value = row;
+    timelineEvents.value = [];
+    timelineDialogOpen.value = true;
+    isLoadingTimeline.value = true;
+    resolvingNoveltyId.value = null;
+    resolveNotes.value = '';
     try {
-        const { data } = await axios.get(route('control-de-lotes.delivery-history', { order: row.id }));
-        historyItems.value = Array.isArray(data?.data) ? data.data : [];
+        const [deliveriesRes, noveltiesRes] = await Promise.all([
+            axios.get(route('control-de-lotes.delivery-history', { order: row.id })),
+            axios.get(route('control-de-lotes.novelties', { order: row.id })),
+        ]);
+        const deliveries = (Array.isArray(deliveriesRes.data?.data) ? deliveriesRes.data.data : []).map(
+            (d: object) => ({ ...d, event_type: 'delivery' as const }),
+        );
+        const novelties = (Array.isArray(noveltiesRes.data?.data) ? noveltiesRes.data.data : []).map(
+            (n: object) => ({ ...n, event_type: 'novelty' as const }),
+        );
+        timelineEvents.value = [...deliveries, ...novelties];
     } catch {
-        showError('No se pudo cargar el historial.');
+        showError('No se pudo cargar la línea de tiempo.');
     } finally {
-        isLoadingHistory.value = false;
+        isLoadingTimeline.value = false;
     }
 }
 
@@ -454,7 +594,7 @@ async function confirmReportNovelty() {
             to_process: noveltyToProcess.value,
             description: noveltyDescription.value,
         });
-        showSuccess(`Novedad reportada a ${noveltyToProcess.value} para orden ${noveltyRow.value.op_code}.`);
+        showSuccess(`Novedad reportada a ${noveltyToProcess.value} para orden ${noveltyRow.value.op_code}. La orden ha pasado al proceso anterior.`);
         closeNoveltyDialog();
         await fetchData();
     } catch (e: unknown) {
@@ -462,23 +602,6 @@ async function confirmReportNovelty() {
         showError(msg ?? 'No se pudo reportar la novedad.');
     } finally {
         isReportingNovelty.value = false;
-    }
-}
-
-async function openNoveltiesListDialog(row: BatchControlRow) {
-    noveltiesListRow.value = row;
-    noveltiesListItems.value = [];
-    noveltiesListDialogOpen.value = true;
-    isLoadingNovelties.value = true;
-    resolvingNoveltyId.value = null;
-    resolveNotes.value = '';
-    try {
-        const { data } = await axios.get(route('control-de-lotes.novelties', { order: row.id }));
-        noveltiesListItems.value = Array.isArray(data?.data) ? data.data : [];
-    } catch {
-        showError('No se pudo cargar las novedades.');
-    } finally {
-        isLoadingNovelties.value = false;
     }
 }
 
@@ -493,19 +616,17 @@ function cancelResolveNovelty() {
 }
 
 async function confirmResolveNovelty(noveltyId: number) {
-    if (!noveltiesListRow.value) return;
+    if (!timelineRow.value) return;
     try {
-        await axios.patch(
-            route('control-de-lotes.resolve-novelty', { order: noveltiesListRow.value.id, novelty: noveltyId }),
-            { resolution_notes: resolveNotes.value || null },
-        );
+        await axios.patch(route('control-de-lotes.resolve-novelty', { order: timelineRow.value.id, novelty: noveltyId }), {
+            resolution_notes: resolveNotes.value || null,
+        });
         showSuccess('Novedad resuelta.');
         resolvingNoveltyId.value = null;
         resolveNotes.value = '';
-        // Recargar lista de novedades
-        const { data } = await axios.get(route('control-de-lotes.novelties', { order: noveltiesListRow.value.id }));
-        noveltiesListItems.value = Array.isArray(data?.data) ? data.data : [];
-        // Recargar datos generales para actualizar indicadores
+        // Recargar timeline completo para reflejar el cambio
+        await openTimelineDialog(timelineRow.value);
+        // Recargar tabla principal para actualizar indicadores de novedades
         await fetchData();
     } catch (e: unknown) {
         const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -514,6 +635,326 @@ async function confirmResolveNovelty(noveltyId: number) {
 }
 
 /* ── Lifecycle ──────────────────────────────────────────── */
+
+function openTechnicalSheetDialog(row: BatchControlRow) {
+    technicalSheetRow.value = row;
+    technicalSheetDialogOpen.value = true;
+}
+
+function openBasicInfoDialog(row: BatchControlRow) {
+    basicInfoRow.value = row;
+    basicInfoDialogOpen.value = true;
+}
+
+function createEmptyCutCurves(): CutCurves {
+    const s = (): CutSizeCurves => ({ S: null, M: null, L: null, XL: null });
+    return { principal: s(), liquidacion: s(), espiga: s() };
+}
+
+function normalizeCurves(raw: Partial<CutCurves>): CutCurves {
+    const s = (src: Partial<CutSizeCurves> | undefined): CutSizeCurves => ({
+        S: src?.S ?? null,
+        M: src?.M ?? null,
+        L: src?.L ?? null,
+        XL: src?.XL ?? null,
+    });
+    return {
+        principal: s(raw?.principal),
+        liquidacion: s(raw?.liquidacion),
+        espiga: s(raw?.espiga),
+    };
+}
+
+function inferColorFromText(value: string | null | undefined): string | null {
+    const text = String(value ?? '').trim();
+    if (!text) return null;
+
+    const inParenthesis = text.match(/\(([^)]+)\)\s*$/);
+    if (inParenthesis?.[1]) {
+        const c = inParenthesis[1].trim();
+        return c.length > 0 ? c : null;
+    }
+
+    const parts = text
+        .split(/[-|/]/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+
+    if (parts.length >= 2) {
+        const candidate = parts[parts.length - 1];
+        return candidate.length > 0 ? candidate : null;
+    }
+
+    return null;
+}
+
+function createEmptyCutConsumptionLine(): CutFabricConsumptionLine {
+    return {
+        id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        technical_roll_id: null,
+        roll_code: null,
+        fabric_reference: '',
+        color: null,
+        color_code: null,
+        fabric_type: null,
+        location: null,
+        roll_width_m: null,
+        meters_per_roll: null,
+        largo_trazo: null,
+        largo_liq: null,
+        layers_fabric: null,
+        layers_liquidation: null,
+        layers_herringbone: null,
+        total_consumption: null,
+        restante: null,
+        ultimo_descargue: false,
+        retazo_1: null,
+        retazo_2: null,
+        retazo_3: null,
+    };
+}
+
+function recalcCutLine(line: CutFabricConsumptionLine): CutFabricConsumptionLine {
+    const lt = line.largo_trazo ?? 0;
+    const ll = line.largo_liq ?? 0;
+    const le = cutLargoEspiga.value ?? 0;
+    const cp = line.layers_fabric ?? 0;
+    const cl = line.layers_liquidation ?? 0;
+    const ce = line.layers_herringbone ?? 0;
+    const total = Number(((cp * lt) + (cl * ll) + (ce * le)).toFixed(4));
+    const restante = Number(((line.meters_per_roll ?? 0) - total).toFixed(4));
+    return { ...line, total_consumption: total, restante };
+}
+
+function normalizeCutLine(raw: Partial<CutFabricConsumptionLine>): CutFabricConsumptionLine {
+    const inferredColor = inferColorFromText(raw.fabric_reference);
+
+    return recalcCutLine({
+        id: raw.id || createEmptyCutConsumptionLine().id,
+        technical_roll_id: raw.technical_roll_id ?? null,
+        roll_code: raw.roll_code ?? null,
+        fabric_reference: raw.fabric_reference ?? '',
+        color: raw.color ?? inferredColor,
+        color_code: raw.color_code ?? null,
+        fabric_type: raw.fabric_type ?? null,
+        location: raw.location ?? null,
+        roll_width_m: raw.roll_width_m ?? null,
+        meters_per_roll: raw.meters_per_roll ?? null,
+        largo_trazo: raw.largo_trazo ?? null,
+        largo_liq: raw.largo_liq ?? null,
+        layers_fabric: raw.layers_fabric ?? null,
+        layers_liquidation: raw.layers_liquidation ?? null,
+        layers_herringbone: raw.layers_herringbone ?? null,
+        total_consumption: raw.total_consumption ?? null,
+        restante: raw.restante ?? null,
+        ultimo_descargue: raw.ultimo_descargue ?? false,
+        retazo_1: raw.retazo_1 ?? null,
+        retazo_2: raw.retazo_2 ?? null,
+        retazo_3: raw.retazo_3 ?? null,
+    });
+}
+
+async function openCutConsumptionDialog(row: BatchControlRow) {
+    cutConsumptionRow.value = row;
+    cutConsumptionViewOnly.value = row.current_process !== 'Corte';
+    cutConsumptionDialogOpen.value = true;
+    isLoadingCutConsumption.value = true;
+    cutCurves.value = createEmptyCutCurves();
+
+    try {
+        const { data } = await axios.get(route('control-de-lotes.cut-fabric-consumption', { order: row.id }));
+        // Load largo_espiga before normalizing lines (recalcCutLine uses it)
+        cutLargoEspiga.value = typeof data?.data?.largo_espiga === 'number' ? data.data.largo_espiga : null;
+        const rawLines = Array.isArray(data?.data?.lines) ? data.data.lines : [];
+        const parsed = rawLines.map((line: Partial<CutFabricConsumptionLine>) => normalizeCutLine(line));
+        cutConsumptionLines.value = parsed.length > 0 ? parsed : [createEmptyCutConsumptionLine()];
+        if (data?.data?.curves) {
+            cutCurves.value = normalizeCurves(data.data.curves as Partial<CutCurves>);
+        }
+    } catch {
+        cutConsumptionLines.value = [createEmptyCutConsumptionLine()];
+        showError('No se pudo cargar el registro de consumo de rollos de corte.');
+    } finally {
+        isLoadingCutConsumption.value = false;
+    }
+}
+
+function addCutConsumptionCard() {
+    cutConsumptionLines.value = [...cutConsumptionLines.value, createEmptyCutConsumptionLine()];
+}
+
+function resetCutConsumptionLines() {
+    cutConsumptionLines.value = [createEmptyCutConsumptionLine()];
+    showWarning('Formulario reiniciado con una tarjeta vacía.');
+}
+
+function closeCutConsumptionDialog() {
+    cutConsumptionDialogOpen.value = false;
+    cutConsumptionRow.value = null;
+    cutConsumptionLines.value = [];
+    cutCurves.value = createEmptyCutCurves();
+    cutLargoEspiga.value = null;
+    cutConsumptionViewOnly.value = false;
+}
+
+function exportCutConsumptionCsv() {
+    if (!cutConsumptionLines.value.length) {
+        showWarning('No hay datos para exportar.');
+        return;
+    }
+
+    const headers = [
+        'Rollo',
+        'Tela',
+        'Color',
+        'Ubicación',
+        'Ancho (m)',
+        'Mt Rollo',
+        'Largo trazo',
+        'Largo liq',
+        'Capas principal',
+        'Capas liquidación',
+        'Capas espiga',
+        'Último descargue',
+        'Retazo 1',
+        'Retazo 2',
+        'Retazo 3',
+        'Restante',
+        'T. Consumo',
+    ];
+
+    const escapeCsv = (value: string | number | null | undefined) => {
+        if (value === null || value === undefined) return '';
+        const raw = String(value);
+        if (raw.includes(',') || raw.includes('"') || raw.includes('\n')) {
+            return `"${raw.replace(/"/g, '""')}"`;
+        }
+        return raw;
+    };
+
+    const rows = cutConsumptionLines.value.map((line, idx) => [
+        line.roll_code ?? `RL ${idx + 1}`,
+        line.fabric_reference,
+        line.color,
+        line.location,
+        line.roll_width_m,
+        line.meters_per_roll,
+        line.largo_trazo,
+        line.largo_liq,
+        line.layers_fabric,
+        line.layers_liquidation,
+        line.layers_herringbone,
+        line.ultimo_descargue ? 'SI' : 'NO',
+        line.retazo_1,
+        line.retazo_2,
+        line.retazo_3,
+        line.restante,
+        line.total_consumption,
+    ]);
+
+    const content = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const orderCode = cutConsumptionRow.value?.op_code ?? 'sin-op';
+    a.href = url;
+    a.download = `consumo_telas_corte_${orderCode}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    showSuccess('CSV exportado correctamente.');
+}
+
+async function saveCutConsumption() {
+    if (!cutConsumptionRow.value || cutConsumptionViewOnly.value) return;
+
+    isSavingCutConsumption.value = true;
+    try {
+        const payloadLines = cutConsumptionLines.value.map((line) => recalcCutLine(line));
+        await axios.put(route('control-de-lotes.save-cut-fabric-consumption', { order: cutConsumptionRow.value.id }), {
+            lines: payloadLines,
+            curves: cutCurves.value,
+            largo_espiga: cutLargoEspiga.value,
+        });
+        cutConsumptionLines.value = payloadLines;
+        showSuccess(`Registro de consumo guardado para la orden ${cutConsumptionRow.value.op_code}.`);
+    } catch (e: unknown) {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        showError(msg ?? 'No se pudo guardar el registro de consumo de telas.');
+    } finally {
+        isSavingCutConsumption.value = false;
+    }
+}
+
+/* ── Logística: salida de insumos ───────────────────── */
+
+async function openLogisticsExitDialog(row: BatchControlRow) {
+    logisticsExitRow.value = row;
+    logisticsSupplyLines.value = [];
+    logisticsOpUnits.value = row.cant_programadas ?? 0;
+    logisticsExitDialogOpen.value = true;
+    isLoadingLogisticsSupplies.value = true;
+
+    try {
+        const { data } = await axios.get(route('control-de-lotes.logistics-supplies', { order: row.id }));
+        const rawLines = Array.isArray(data?.data?.lines) ? data.data.lines : [];
+        logisticsOpUnits.value = data?.data?.op_units ?? row.cant_programadas ?? 0;
+
+        logisticsSupplyLines.value = rawLines.map((l: Omit<LogisticsSupplyItem, 'selected_warehouse_id' | 'exit_qty' | 'include'>) => ({
+            ...l,
+            selected_warehouse_id: l.warehouses.length > 0 ? l.warehouses[0].id : null,
+            exit_qty: l.suggested_qty,
+            include: l.warehouses.length > 0,
+        }));
+    } catch {
+        logisticsSupplyLines.value = [];
+        showError('No se pudieron cargar los insumos de la ficha técnica.');
+    } finally {
+        isLoadingLogisticsSupplies.value = false;
+    }
+}
+
+function closeLogisticsExitDialog() {
+    logisticsExitDialogOpen.value = false;
+    logisticsExitRow.value = null;
+    logisticsSupplyLines.value = [];
+}
+
+async function saveLogisticsExit() {
+    if (!logisticsExitRow.value) return;
+
+    const linesToProcess = logisticsSupplyLines.value.filter(
+        (l) => l.include && l.item_id && l.selected_warehouse_id && l.exit_qty > 0,
+    );
+    if (linesToProcess.length === 0) return;
+
+    isSavingLogisticsExit.value = true;
+    try {
+        const payload = linesToProcess.map((l) => ({
+            item_id: l.item_id,
+            warehouse_id: l.selected_warehouse_id,
+            quantity: l.exit_qty,
+            supply_name: l.display_label || l.name,
+        }));
+
+        const { data } = await axios.post(
+            route('control-de-lotes.logistics-supply-exit', { order: logisticsExitRow.value.id }),
+            { lines: payload },
+        );
+
+        if (data.errors && data.errors.length > 0) {
+            showWarning(data.message ?? `${data.processed} salida(s) registrada(s) con advertencias.`);
+        } else {
+            showSuccess(data.message ?? `${data.processed} salida(s) de inventario registradas.`);
+        }
+        closeLogisticsExitDialog();
+    } catch (e: unknown) {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        showError(msg ?? 'No se pudo procesar la salida de insumos.');
+    } finally {
+        isSavingLogisticsExit.value = false;
+    }
+}
 
 onMounted(() => {
     void fetchData();
@@ -564,381 +1005,66 @@ onMounted(() => {
 
                             <!-- Tabs de procesos -->
                             <Tabs v-model="activeProcess" class="w-full">
-                                <TabsList class="mb-4 flex h-auto flex-wrap gap-1 rounded-lg border bg-muted/30 p-1">
+                                <TabsList class="mb-4 flex h-auto flex-wrap items-center gap-1 rounded-lg border bg-muted/30 p-1">
                                     <TabsTrigger
-                                        v-for="(process, idx) in processes"
+                                        v-for="(process, idx) in visibleProcesses"
                                         :key="process"
                                         :value="process"
-                                        :class="['rounded-md border px-3 py-2 text-sm font-medium transition', tabColor(idx)]"
+                                        :class="[
+                                            'inline-flex h-9 min-h-9 items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium leading-none transition',
+                                            tabColor(idx),
+                                        ]"
                                     >
-                                        <span>{{ process }}</span>
-                                        <span
-                                            v-if="tabCounts[process] > 0"
-                                            class="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/80 px-1.5 text-xs font-bold text-foreground"
-                                        >
-                                            {{ tabCounts[process] }}
+                                        <span class="inline-flex items-center gap-1.5">
+                                            <span class="leading-none">{{ process }}</span>
+                                            <Badge
+                                                v-if="tabCounts[process] > 0"
+                                                variant="secondary"
+                                                class="inline-flex h-5 min-h-5 min-w-5 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/80 px-1.5 text-[11px] font-semibold leading-none text-muted-foreground shadow-none"
+                                            >
+                                                <span class="leading-none">{{ tabCounts[process] }}</span>
+                                            </Badge>
+                                            <Badge
+                                                v-if="(tabNoveltyCounts[process] ?? 0) > 0"
+                                                variant="outline"
+                                                class="inline-flex h-5 min-h-5 shrink-0 items-center justify-center gap-1 rounded-full border-amber-300/70 bg-amber-50/80 px-2 text-[11px] font-medium leading-none text-amber-700 shadow-none"
+                                                title="Hay órdenes con novedades pendientes"
+                                            >
+                                                <MessageSquareWarning class="h-3.5 w-3.5 shrink-0" />
+                                                <span class="leading-none">{{ tabNoveltyCounts[process] }} nov.</span>
+                                            </Badge>
                                         </span>
                                     </TabsTrigger>
                                 </TabsList>
 
-                                <TabsContent v-for="process in processes" :key="process" :value="process" class="mt-2">
-                                    <TooltipProvider>
-                                        <div class="min-w-0 overflow-x-auto rounded-lg border border-border/60">
-                                            <Table class="table-fixed">
-                                                <TableHeader>
-                                                    <TableRow class="hover:bg-transparent">
-                                                        <TableHead
-                                                            class="w-[5%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('op_code')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                Lote
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'op_code'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead
-                                                            class="w-[10%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('referencia')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                Referencia
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'referencia'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead
-                                                            class="w-[6%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('temporada')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                Temp.
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'temporada'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead
-                                                            class="w-[4%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('prioridad')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                Prio.
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'prioridad'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead
-                                                            class="w-[5%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('cant_programadas')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                Cant.
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'cant_programadas'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead
-                                                            class="w-[6%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('destino')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                Destino
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'destino'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead
-                                                            class="w-[6%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('seccion')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                Sección
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'seccion'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead
-                                                            class="w-[6%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('grupo')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                Grupo
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'grupo'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead
-                                                            class="w-[8%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('process_estimated_date')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                F. est.
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'process_estimated_date'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead
-                                                            class="w-[6%] cursor-pointer select-none px-1 py-1.5 text-center text-xs hover:bg-muted/50"
-                                                            @click="setSort('fecha')"
-                                                        >
-                                                            <span class="inline-flex items-center gap-0.5">
-                                                                Entrega
-                                                                <component
-                                                                    :is="sortDirection === 'asc' ? ArrowUp : ArrowDown"
-                                                                    v-if="sortColumn === 'fecha'"
-                                                                    class="h-3 w-3"
-                                                                />
-                                                            </span>
-                                                        </TableHead>
-                                                        <TableHead class="w-[15%] px-1 py-1.5 text-center text-xs">Últ. obs.</TableHead>
-                                                        <TableHead class="w-[13%] px-1 py-1.5 text-center text-xs">Acciones</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    <!-- Loading -->
-                                                    <template v-if="isLoading">
-                                                        <TableRow v-for="row in 5" :key="`sk-${row}`">
-                                                            <TableCell v-for="col in 12" :key="`sk-${row}-${col}`" class="px-1 py-2">
-                                                                <Skeleton class="h-4 w-full" />
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    </template>
-
-                                                    <!-- Empty -->
-                                                    <template v-else-if="filteredRows.length === 0">
-                                                        <TableRow>
-                                                            <TableCell colspan="12" class="py-8 text-center text-xs text-muted-foreground">
-                                                                {{ emptyStateText }}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    </template>
-
-                                                    <!-- Rows -->
-                                                    <template v-else>
-                                                        <TableRow
-                                                            v-for="row in filteredRows"
-                                                            :key="row.id"
-                                                            :class="['transition-colors hover:bg-muted/40', rowBorderClass(row)]"
-                                                        >
-                                                            <!-- Lote -->
-                                                            <TableCell class="px-1 py-2 text-center font-mono text-xs tabular-nums">{{
-                                                                row.op_code
-                                                            }}</TableCell>
-
-                                                            <!-- Referencia -->
-                                                            <TableCell
-                                                                class="max-w-0 truncate px-1 py-2 text-center text-xs font-medium"
-                                                                :title="row.referencia"
-                                                            >
-                                                                {{ row.referencia }}
-                                                            </TableCell>
-
-                                                            <!-- Temporada -->
-                                                            <TableCell class="truncate px-1 py-2 text-center text-xs">{{ row.temporada }}</TableCell>
-
-                                                            <!-- Prioridad -->
-                                                            <TableCell class="px-1 py-2 text-center text-xs">{{ row.prioridad }}</TableCell>
-
-                                                            <!-- Cant. prog -->
-                                                            <TableCell class="px-1 py-2 text-center text-xs tabular-nums">{{ row.cant_programadas }}</TableCell>
-
-                                                            <!-- Destino -->
-                                                            <TableCell class="truncate px-1 py-2 text-center text-xs">{{ row.destino }}</TableCell>
-
-                                                            <!-- Sección -->
-                                                            <TableCell class="truncate px-1 py-2 text-center text-xs">{{ row.seccion }}</TableCell>
-
-                                                            <!-- Grupo -->
-                                                            <TableCell class="truncate px-1 py-2 text-center text-xs">{{ row.grupo }}</TableCell>
-
-                                                            <!-- Fecha estimada (por proceso) -->
-                                                            <TableCell class="px-1 py-2 text-center">
-                                                                <button
-                                                                    type="button"
-                                                                    class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition hover:bg-muted/40"
-                                                                    @click="openDateDialog(row)"
-                                                                >
-                                                                    <template v-if="getRowEstimatedDate(row)">
-                                                                        <component
-                                                                            :is="
-                                                                                getRowDeadlineStatus(row) === 'overdue'
-                                                                                    ? XCircle
-                                                                                    : getRowDeadlineStatus(row) === 'due_soon'
-                                                                                      ? AlertTriangle
-                                                                                      : Clock
-                                                                            "
-                                                                            :class="[
-                                                                                'h-3 w-3 shrink-0',
-                                                                                getRowDeadlineStatus(row) === 'overdue'
-                                                                                    ? 'text-red-600'
-                                                                                    : getRowDeadlineStatus(row) === 'due_soon'
-                                                                                      ? 'text-amber-600'
-                                                                                      : 'text-emerald-600',
-                                                                            ]"
-                                                                        />
-                                                                        <span
-                                                                            :class="[
-                                                                                'tabular-nums',
-                                                                                getRowDeadlineStatus(row) === 'overdue'
-                                                                                    ? 'font-semibold text-red-700'
-                                                                                    : getRowDeadlineStatus(row) === 'due_soon'
-                                                                                      ? 'font-semibold text-amber-700'
-                                                                                      : 'text-foreground',
-                                                                            ]"
-                                                                        >
-                                                                            {{ formatDate(getRowEstimatedDate(row)!) }}
-                                                                        </span>
-                                                                    </template>
-                                                                    <template v-else>
-                                                                        <Calendar class="h-3 w-3 shrink-0 text-muted-foreground/50" />
-                                                                        <span class="text-muted-foreground">Asignar</span>
-                                                                    </template>
-                                                                </button>
-                                                            </TableCell>
-
-                                                            <!-- Entrega (delivery date) -->
-                                                            <TableCell class="px-1 py-2 text-center text-xs tabular-nums">
-                                                                {{ formatDate(row.fecha) }}
-                                                            </TableCell>
-
-                                                            <!-- Última observación -->
-                                                            <TableCell class="max-w-0 px-1 py-2 text-center">
-                                                                <div
-                                                                    v-if="row.last_delivery?.observations"
-                                                                    class="truncate text-xs text-muted-foreground"
-                                                                    :title="row.last_delivery.observations"
-                                                                >
-                                                                    {{ row.last_delivery.observations }}
-                                                                </div>
-                                                                <span v-else class="text-xs text-muted-foreground/50">—</span>
-                                                            </TableCell>
-
-                                                            <!-- Actions -->
-                                                            <TableCell class="px-1 py-2 text-center">
-                                                                <div class="flex flex-wrap items-center justify-center gap-0.5">
-                                                                    <!-- Ver novedades (si tiene pendientes) -->
-                                                                    <Tooltip v-if="row.has_pending_novelties">
-                                                                        <TooltipTrigger as-child>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                type="button"
-                                                                                :class="[actionButtonClass, 'relative text-orange-600 hover:text-orange-700']"
-                                                                                @click="openNoveltiesListDialog(row)"
-                                                                            >
-                                                                                <MessageSquareWarning :class="actionIconClass" />
-                                                                                <span
-                                                                                    class="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-bold text-primary-foreground"
-                                                                                >
-                                                                                    {{ row.pending_novelties_count }}
-                                                                                </span>
-                                                                            </Button>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>Ver novedades pendientes ({{ row.pending_novelties_count }})</TooltipContent>
-                                                                    </Tooltip>
-
-                                                                    <!-- Ver detalles -->
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger as-child>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                type="button"
-                                                                                :class="actionButtonClass"
-                                                                                @click="openNoveltiesListDialog(row)"
-                                                                            >
-                                                                                <Eye :class="actionIconClass" />
-                                                                            </Button>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>Ver novedades</TooltipContent>
-                                                                    </Tooltip>
-
-                                                                    <!-- Historial de entregas -->
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger as-child>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                type="button"
-                                                                                :class="actionButtonClass"
-                                                                                @click="openHistoryDialog(row)"
-                                                                            >
-                                                                                <History :class="actionIconClass" />
-                                                                            </Button>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>Historial de entregas</TooltipContent>
-                                                                    </Tooltip>
-
-                                                                    <!-- Reportar novedad -->
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger as-child>
-                                                                            <Button
-                                                                                variant="outline"
-                                                                                size="sm"
-                                                                                type="button"
-                                                                                class="gap-1.5 border-orange-300 text-xs text-orange-600 hover:bg-orange-50 hover:text-orange-700"
-                                                                                @click="openNoveltyDialog(row)"
-                                                                            >
-                                                                                <Flag class="h-3.5 w-3.5" />
-                                                                                Novedad
-                                                                            </Button>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>Reportar novedad al estado anterior</TooltipContent>
-                                                                    </Tooltip>
-
-                                                                    <!-- Entregar al siguiente estado -->
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger as-child>
-                                                                            <Button
-                                                                                variant="default"
-                                                                                size="sm"
-                                                                                type="button"
-                                                                                class="gap-1 px-2 text-xs"
-                                                                                @click="openDeliverDialog(row)"
-                                                                            >
-                                                                                <Send class="h-3 w-3" />
-                                                                                Entregar
-                                                                            </Button>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent
-                                                                            >Marcar como completado y entregar al siguiente estado</TooltipContent
-                                                                        >
-                                                                    </Tooltip>
-                                                                </div>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    </template>
-                                                </TableBody>
-                                            </Table>
-                                        </div>
-                                    </TooltipProvider>
+                                <TabsContent v-for="process in visibleProcesses" :key="process" :value="process" class="mt-2">
+                                    <div class="min-w-0 overflow-x-auto rounded-lg border border-border/60">
+                                        <BatchControlTable
+                                            :rows="filteredRows"
+                                            :is-loading="isLoading"
+                                            :empty-text="emptyStateText"
+                                            :sort-column="sortColumn"
+                                            :sort-direction="sortDirection"
+                                            :active-process="activeProcess"
+                                            :format-date="formatDate"
+                                            :get-row-estimated-date="getRowEstimatedDate"
+                                            :get-row-deadline-status="getRowDeadlineStatus"
+                                            :get-order-deadline-status="getOrderDeadlineStatus"
+                                            :row-border-class="rowBorderClass"
+                                            :can-deliver-row="canDeliverRow"
+                                            :is-row-disabled="isRowDisabled"
+                                            :get-previous-process-estimated-date="getPreviousProcessEstimatedDate"
+                                            @sort="setSort"
+                                            @open-date-dialog="openDateDialog"
+                                            @open-timeline="openTimelineDialog"
+                                            @open-novelty="openNoveltyDialog"
+                                            @open-deliver="openDeliverDialog"
+                                            @open-technical-sheet="openTechnicalSheetDialog"
+                                            @open-basic-info="openBasicInfoDialog"
+                                            @open-cut-consumption="openCutConsumptionDialog"
+                                            @open-logistics-supply-exit="openLogisticsExitDialog"
+                                        />
+                                    </div>
                                 </TabsContent>
                             </Tabs>
                         </CardContent>
@@ -947,331 +1073,110 @@ onMounted(() => {
             </div>
         </div>
 
-        <!-- ── Dialog: Entregar al siguiente estado ─────────── -->
-        <Dialog :open="deliverDialogOpen" @update:open="deliverDialogOpen = $event">
-            <DialogContent class="sm:max-w-lg">
-                <DialogHeader>
-                    <DialogTitle>Entregar orden</DialogTitle>
-                    <DialogDescription>
-                        Confirma la entrega de la orden
-                        <span class="font-mono font-semibold">{{ deliverRow?.op_code }}</span>
-                        — {{ deliverRow?.referencia }}.
-                        <br />
-                        Estado actual: <Badge variant="outline" class="ml-1">{{ deliverRow?.current_process }}</Badge>
-                    </DialogDescription>
-                </DialogHeader>
-                <div class="space-y-4 py-4">
-                    <!-- Proceso destino -->
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Entregar a</label>
-                        <Select v-model="deliverToProcess" required>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecciona el siguiente estado" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem v-for="p in otherProcesses" :key="p" :value="p">
-                                    {{ p }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p v-if="nextProcess && deliverToProcess === nextProcess" class="flex items-center gap-1 text-xs text-emerald-600">
-                            <CheckCircle2 class="h-3 w-3" />
-                            Siguiente proceso en el flujo
-                        </p>
-                    </div>
+        <DeliverDialog
+            :open="deliverDialogOpen"
+            :row="deliverRow"
+            :deliver-to-process="deliverToProcess"
+            :deliver-observations="deliverObservations"
+            :other-processes="otherProcesses"
+            :next-process="nextProcess"
+            :is-delivering="isDelivering"
+            @update:open="deliverDialogOpen = $event"
+            @update:deliver-to-process="deliverToProcess = $event"
+            @update:deliver-observations="deliverObservations = $event"
+            @confirm="confirmDeliver"
+            @close="closeDeliverDialog"
+        />
 
-                    <!-- Observaciones -->
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Observaciones / Novedades</label>
-                        <Textarea
-                            v-model="deliverObservations"
-                            placeholder="Escribe observaciones sobre el estado actual antes de entregar (opcional)..."
-                            :rows="4"
-                            class="resize-none"
-                        />
-                        <p class="text-xs text-muted-foreground">
-                            Describe el estado del proceso, novedades o lo que el siguiente responsable debe saber.
-                        </p>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" :disabled="isDelivering" @click="closeDeliverDialog">Cancelar</Button>
-                    <Button :disabled="!deliverToProcess || isDelivering" @click="confirmDeliver">
-                        <Send class="mr-1.5 h-4 w-4" />
-                        {{ isDelivering ? 'Entregando...' : 'Confirmar entrega' }}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <EstimatedDateDialog
+            :open="dateDialogOpen"
+            :row="dateRow"
+            :editing-date="editingDate"
+            :editing-process="editingProcess"
+            :is-disabled-row="dateRow ? isRowDisabled(dateRow) : false"
+            :suggested-date="suggestedDate"
+            :format-date="formatDate"
+            @update:open="dateDialogOpen = $event"
+            @update:editing-date="editingDate = $event"
+            @save="saveEstimatedDate"
+            @close="dateDialogOpen = false"
+        />
 
-        <!-- ── Dialog: Fecha estimada ───────────────────────── -->
-        <Dialog :open="dateDialogOpen" @update:open="dateDialogOpen = $event">
-            <DialogContent class="sm:max-w-sm">
-                <DialogHeader>
-                    <DialogTitle>Fecha estimada</DialogTitle>
-                    <DialogDescription>
-                        Establece la fecha estimada para que
-                        <span class="font-mono font-medium">{{ dateRow?.op_code }}</span>
-                        pase al siguiente estado.
-                    </DialogDescription>
-                </DialogHeader>
-                <div class="space-y-4 py-4">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Fecha estimada de cambio</label>
-                        <Input v-model="editingDate" type="date" :max="dateRow?.fecha !== '-' ? dateRow?.fecha : undefined" />
-                    </div>
-                    <div v-if="editingDate" class="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Calendar class="h-3.5 w-3.5" />
-                        <span>{{ formatDate(editingDate) }}</span>
-                    </div>
-                    <div v-if="dateRow?.fecha && dateRow.fecha !== '-'" class="text-xs text-muted-foreground">
-                        Fecha final de entrega de la orden: <span class="font-semibold">{{ formatDate(dateRow.fecha) }}</span>
-                    </div>
-                    <div
-                        v-if="editingDate && dateRow?.fecha && dateRow.fecha !== '-' && editingDate > dateRow.fecha"
-                        class="flex items-center gap-1.5 text-xs font-medium text-red-600"
-                    >
-                        <AlertTriangle class="h-3.5 w-3.5" />
-                        La fecha no puede ser posterior a la fecha final de entrega.
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" @click="dateDialogOpen = false">Cancelar</Button>
-                    <Button
-                        :disabled="!!(editingDate && dateRow?.fecha && dateRow.fecha !== '-' && editingDate > dateRow.fecha)"
-                        @click="saveEstimatedDate"
-                    >
-                        Guardar fecha
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <OrderTimelineDialog
+            :open="timelineDialogOpen"
+            :row="timelineRow"
+            :events="timelineEvents"
+            :is-loading="isLoadingTimeline"
+            :resolving-novelty-id="resolvingNoveltyId"
+            :resolve-notes="resolveNotes"
+            @update:open="timelineDialogOpen = $event"
+            @update:resolve-notes="resolveNotes = $event"
+            @start-resolve="startResolveNovelty"
+            @cancel-resolve="cancelResolveNovelty"
+            @confirm-resolve="confirmResolveNovelty"
+            @close="timelineDialogOpen = false"
+        />
 
-        <!-- ── Dialog: Historial de entregas ────────────────── -->
-        <Dialog :open="historyDialogOpen" @update:open="historyDialogOpen = $event">
-            <DialogContent class="sm:max-w-xl">
-                <DialogHeader>
-                    <DialogTitle>Historial de entregas</DialogTitle>
-                    <DialogDescription>
-                        Orden <span class="font-mono font-semibold">{{ historyRow?.op_code }}</span> — {{ historyRow?.referencia }}
-                    </DialogDescription>
-                </DialogHeader>
-                <div class="max-h-[400px] space-y-3 overflow-y-auto py-4">
-                    <!-- Loading -->
-                    <div v-if="isLoadingHistory" class="space-y-3">
-                        <Skeleton v-for="i in 3" :key="i" class="h-16 w-full rounded-lg" />
-                    </div>
+        <ReportNoveltyDialog
+            :open="noveltyDialogOpen"
+            :row="noveltyRow"
+            :novelty-to-process="noveltyToProcess"
+            :novelty-description="noveltyDescription"
+            :previous-processes="previousProcesses"
+            :is-reporting-novelty="isReportingNovelty"
+            @update:open="noveltyDialogOpen = $event"
+            @update:novelty-to-process="noveltyToProcess = $event"
+            @update:novelty-description="noveltyDescription = $event"
+            @confirm="confirmReportNovelty"
+            @close="closeNoveltyDialog"
+        />
 
-                    <!-- Empty -->
-                    <div v-else-if="historyItems.length === 0" class="py-8 text-center text-sm text-muted-foreground">
-                        No hay entregas registradas para esta orden.
-                    </div>
 
-                    <!-- Items -->
-                    <div v-for="item in historyItems" v-else :key="item.id" class="rounded-lg border border-border/40 bg-muted/10 p-4">
-                        <div class="mb-2 flex items-center justify-between">
-                            <div class="flex items-center gap-2 text-sm">
-                                <Badge variant="secondary" class="text-xs">{{ item.from_process }}</Badge>
-                                <span class="text-muted-foreground">→</span>
-                                <Badge variant="default" class="text-xs">{{ item.to_process }}</Badge>
-                            </div>
-                            <span class="text-xs text-muted-foreground">{{ item.delivered_at }}</span>
-                        </div>
-                        <div v-if="item.observations" class="mb-1 text-sm text-foreground">
-                            {{ item.observations }}
-                        </div>
-                        <div v-else class="mb-1 text-xs italic text-muted-foreground">Sin observaciones</div>
-                        <div class="text-xs text-muted-foreground">
-                            Entregado por: <span class="font-medium">{{ item.delivered_by_name }}</span>
-                        </div>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" @click="historyDialogOpen = false">Cerrar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <TechnicalSheetDialog
+            :open="technicalSheetDialogOpen"
+            :row="technicalSheetRow"
+            @update:open="technicalSheetDialogOpen = $event"
+            @close="technicalSheetDialogOpen = false"
+        />
 
-        <!-- ── Dialog: Reportar novedad ─────────────────────── -->
-        <Dialog :open="noveltyDialogOpen" @update:open="noveltyDialogOpen = $event">
-            <DialogContent class="sm:max-w-lg">
-                <DialogHeader>
-                    <DialogTitle class="flex items-center gap-2">
-                        <Flag class="h-5 w-5 text-orange-500" />
-                        Reportar novedad
-                    </DialogTitle>
-                    <DialogDescription>
-                        Reporta una novedad o devolución para la orden
-                        <span class="font-mono font-semibold">{{ noveltyRow?.op_code }}</span>.
-                        El estado seleccionado será notificado para corregir el problema.
-                    </DialogDescription>
-                </DialogHeader>
-                <div class="space-y-4 py-4">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Estado actual</label>
-                        <div>
-                            <Badge variant="outline">{{ noveltyRow?.current_process }}</Badge>
-                        </div>
-                    </div>
+        <OrderBasicInfoDialog
+            :open="basicInfoDialogOpen"
+            :row="basicInfoRow"
+            @update:open="basicInfoDialogOpen = $event"
+            @close="basicInfoDialogOpen = false"
+        />
 
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Reportar a (estado anterior)</label>
-                        <Select v-model="noveltyToProcess" required>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecciona el estado a notificar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem v-for="p in previousProcesses" :key="p" :value="p">
-                                    {{ p }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+        <CutFabricConsumptionDialog
+            :open="cutConsumptionDialogOpen"
+            :row="cutConsumptionRow"
+            :lines="cutConsumptionLines"
+            :curves="cutCurves"
+            :largo-espiga="cutLargoEspiga"
+            :is-loading="isLoadingCutConsumption"
+            :is-saving="isSavingCutConsumption"
+            :view-only="cutConsumptionViewOnly"
+            @update:open="cutConsumptionDialogOpen = $event"
+            @update:lines="cutConsumptionLines = $event"
+            @update:curves="cutCurves = $event"
+            @update:largo-espiga="cutLargoEspiga = $event"
+            @save="saveCutConsumption"
+            @add-card="addCutConsumptionCard"
+            @reset="resetCutConsumptionLines"
+            @export-csv="exportCutConsumptionCsv"
+            @close="closeCutConsumptionDialog"
+        />
 
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Descripción de la novedad <span class="text-red-500">*</span></label>
-                        <Textarea
-                            v-model="noveltyDescription"
-                            placeholder="Describe qué falta, qué debe corregirse o la razón de la devolución..."
-                            :rows="4"
-                            class="resize-none"
-                        />
-                        <p class="text-xs text-muted-foreground">
-                            Detalla claramente el problema para que el responsable del estado anterior pueda corregirlo.
-                        </p>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" :disabled="isReportingNovelty" @click="closeNoveltyDialog">Cancelar</Button>
-                    <Button
-                        variant="default"
-                        class="gap-1.5 bg-orange-600 hover:bg-orange-700"
-                        :disabled="!noveltyToProcess || !noveltyDescription.trim() || isReportingNovelty"
-                        @click="confirmReportNovelty"
-                    >
-                        <Flag class="h-4 w-4" />
-                        {{ isReportingNovelty ? 'Reportando...' : 'Reportar novedad' }}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-
-        <!-- ── Dialog: Lista de novedades ───────────────────── -->
-        <Dialog :open="noveltiesListDialogOpen" @update:open="noveltiesListDialogOpen = $event">
-            <DialogContent class="sm:max-w-2xl">
-                <DialogHeader>
-                    <DialogTitle class="flex items-center gap-2">
-                        <MessageSquareWarning class="h-5 w-5 text-orange-500" />
-                        Novedades
-                    </DialogTitle>
-                    <DialogDescription>
-                        Orden <span class="font-mono font-semibold">{{ noveltiesListRow?.op_code }}</span> — {{ noveltiesListRow?.referencia }}
-                    </DialogDescription>
-                </DialogHeader>
-                <div class="max-h-[450px] space-y-3 overflow-y-auto py-4">
-                    <!-- Loading -->
-                    <div v-if="isLoadingNovelties" class="space-y-3">
-                        <Skeleton v-for="i in 3" :key="i" class="h-20 w-full rounded-lg" />
-                    </div>
-
-                    <!-- Empty -->
-                    <div v-else-if="noveltiesListItems.length === 0" class="py-8 text-center text-sm text-muted-foreground">
-                        No hay novedades registradas para esta orden.
-                    </div>
-
-                    <!-- Items -->
-                    <div
-                        v-for="item in noveltiesListItems"
-                        v-else
-                        :key="item.id"
-                        :class="[
-                            'rounded-lg border p-4',
-                            item.status === 'pending'
-                                ? 'border-orange-200 bg-orange-50/50'
-                                : 'border-border/40 bg-muted/10',
-                        ]"
-                    >
-                        <div class="mb-2 flex items-center justify-between">
-                            <div class="flex items-center gap-2 text-sm">
-                                <TableStatusBadge
-                                    :label="item.status === 'pending' ? 'Pendiente' : 'Resuelta'"
-                                    :tone="item.status === 'pending' ? 'amber' : 'green'"
-                                />
-                                <span class="text-muted-foreground">De</span>
-                                <Badge variant="outline" class="text-xs">{{ item.from_process }}</Badge>
-                                <span class="text-muted-foreground">→</span>
-                                <Badge variant="outline" class="text-xs">{{ item.to_process }}</Badge>
-                            </div>
-                            <span class="text-xs text-muted-foreground">{{ item.reported_at }}</span>
-                        </div>
-
-                        <!-- Descripción -->
-                        <div class="mb-2 text-sm text-foreground">
-                            {{ item.description }}
-                        </div>
-
-                        <div class="text-xs text-muted-foreground">
-                            Reportado por: <span class="font-medium">{{ item.reported_by_name }}</span>
-                        </div>
-
-                        <!-- Resolución (si está resuelta) -->
-                        <div v-if="item.status === 'resolved'" class="mt-2 rounded-md border border-green-200 bg-green-50/50 p-2">
-                            <div class="flex items-center gap-1 text-xs font-medium text-green-700">
-                                <CheckCircle2 class="h-3.5 w-3.5" />
-                                Resuelta por {{ item.resolved_by_name }} el {{ item.resolved_at }}
-                            </div>
-                            <div v-if="item.resolution_notes" class="mt-1 text-xs text-green-800">
-                                {{ item.resolution_notes }}
-                            </div>
-                        </div>
-
-                        <!-- Acción resolver (si está pendiente) -->
-                        <div v-if="item.status === 'pending'" class="mt-3">
-                            <template v-if="resolvingNoveltyId === item.id">
-                                <div class="space-y-2">
-                                    <Textarea
-                                        v-model="resolveNotes"
-                                        placeholder="Notas de resolución (opcional)..."
-                                        :rows="2"
-                                        class="resize-none text-sm"
-                                    />
-                                    <div class="flex gap-2">
-                                        <Button
-                                            size="sm"
-                                            variant="default"
-                                            class="gap-1 bg-green-600 text-xs hover:bg-green-700"
-                                            @click="confirmResolveNovelty(item.id)"
-                                        >
-                                            <CheckCircle2 class="h-3.5 w-3.5" />
-                                            Confirmar resolución
-                                        </Button>
-                                        <Button size="sm" variant="outline" class="text-xs" @click="cancelResolveNovelty">
-                                            Cancelar
-                                        </Button>
-                                    </div>
-                                </div>
-                            </template>
-                            <template v-else>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    class="gap-1 border-green-300 text-xs text-green-600 hover:bg-green-50 hover:text-green-700"
-                                    @click="startResolveNovelty(item.id)"
-                                >
-                                    <CheckCircle2 class="h-3.5 w-3.5" />
-                                    Marcar como resuelta
-                                </Button>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" @click="noveltiesListDialogOpen = false">Cerrar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <LogisticsSupplyExitDialog
+            :open="logisticsExitDialogOpen"
+            :row="logisticsExitRow"
+            :lines="logisticsSupplyLines"
+            :op-units="logisticsOpUnits"
+            :is-loading="isLoadingLogisticsSupplies"
+            :is-saving="isSavingLogisticsExit"
+            @update:open="logisticsExitDialogOpen = $event"
+            @update:lines="logisticsSupplyLines = $event"
+            @save="saveLogisticsExit"
+            @close="closeLogisticsExitDialog"
+        />
     </AppLayout>
 </template>
-
-
-

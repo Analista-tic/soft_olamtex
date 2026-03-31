@@ -1,32 +1,32 @@
-﻿<script setup lang="ts">
-
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+<script setup lang="ts">
 import axios from 'axios';
-import { ExternalLink, Image, Plus } from 'lucide-vue-next';
-import DeleteButton from '@/components/common/DeleteButton.vue';
+import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import AlertBox from '@/components/AlertBox.vue';
+import FormHeader from '@/components/FormHeader.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
 import SwitchField from '@/components/SwitchField.vue';
 import TextareaField from '@/components/TextareaField.vue';
-import HelpTooltip from '@/components/HelpTooltip.vue';
-import FormHeader from '@/components/FormHeader.vue';
-import AlertBox from '@/components/AlertBox.vue';
 
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 
+import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
+import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
 import GroupDialog from '@/pages/MasterData/Category/GroupDialog.vue';
 import SubGroupDialog from '@/pages/MasterData/Category/SubGroupDialog.vue';
 import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
-import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
-import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 
+import type { Tax } from '@/domain/Finance';
+import type { Warehouse } from '@/domain/inventory';
 import type {
     AdditionalField,
     AdditionalFieldPayload,
@@ -36,8 +36,6 @@ import type {
     ExtraFields,
     Item,
 } from '@/domain/MasterData';
-import type { Tax } from '@/domain/Finance';
-import type { Warehouse } from '@/domain/Inventory';
 import type { Option } from '@/domain/shared/types';
 
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -101,59 +99,41 @@ type ItemFormSource = Partial<Item> & {
 
 type ItemForm = Omit<Partial<Item>, 'tax_id'> & {
     tax_id?: Item['tax_id'] | 'none';
-    tracks_inventory?: boolean;
-    income_account_id?: number | null;
-    inventory_account_id?: number | null;
-    cost_of_sale_account_id?: number | null;
+    income_account?: string;
+    inventory_account?: string;
+    cost_of_sale_account?: string;
     export_tariff_code?: string;
     export_brand?: string;
     export_model?: string;
 };
 
-type AccountingAccountOption = {
-    id: number;
-    code: string;
-    name: string;
-};
-
-const normalizeItemType = (value?: string | null): ItemType =>
-    value === 'service' ? 'service' : 'product';
+const normalizeItemType = (value?: string | null): ItemType => (value === 'service' ? 'service' : 'product');
 
 const itemTypeOptions: { value: ItemType; label: string }[] = [
     { value: 'product', label: 'Producto' },
     { value: 'service', label: 'Servicio' },
 ];
 
-const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce((acc, o) => {
-    acc[o.value] = o.label;
-    return acc;
-}, {} as Record<ItemType, string>);
-
-const normalizeAccountId = (value: unknown): number | null => {
-    if (value === undefined || value === null || value === '') {
-        return null;
-    }
-
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-};
+const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce(
+    (acc, o) => {
+        acc[o.value] = o.label;
+        return acc;
+    },
+    {} as Record<ItemType, string>,
+);
 
 function prepareLocalForm(source: ItemFormSource): ItemForm {
-    const resolvedTaxId =
-        source.tax_id ??
-        (typeof source.tax === 'object' && source.tax !== null ? source.tax.id : undefined);
-    const itemType = normalizeItemType(source.item_type);
+    const resolvedTaxId = source.tax_id ?? (typeof source.tax === 'object' && source.tax !== null ? source.tax.id : undefined);
 
     return {
         ...source,
         reference: source.reference || '',
         bar_code: source.bar_code ?? '',
         tax_id: resolvedTaxId,
-        item_type: itemType,
-        tracks_inventory: source.tracks_inventory ?? itemType !== 'service',
-        income_account_id: normalizeAccountId(source.income_account_id),
-        inventory_account_id: normalizeAccountId(source.inventory_account_id),
-        cost_of_sale_account_id: normalizeAccountId(source.cost_of_sale_account_id),
+        item_type: normalizeItemType(source.item_type),
+        income_account: source.income_account || '',
+        inventory_account: source.inventory_account || '',
+        cost_of_sale_account: source.cost_of_sale_account || '',
         export_tariff_code: source.export_tariff_code || '',
         export_brand: source.export_brand || '',
         export_model: source.export_model || '',
@@ -211,7 +191,6 @@ type WarehouseStockEntry = {
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
 
 const taxes = ref<Tax[]>([]);
-const accountOptions = ref<Option[]>([]);
 const isTaxDialogOpen = ref(false);
 const taxDialogLoading = ref(false);
 type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
@@ -236,31 +215,20 @@ const additionalFieldDialogForm = ref<AdditionalField>(createAdditionalFieldForm
 type UnitMeasureGroup = { label: string; options: Option[] };
 type UnitMeasureData = { unitMeasureGroups: UnitMeasureGroup[] };
 
-const unitMeasureGroups: UnitMeasureGroup[] =
-    (unitMeasureData as UnitMeasureData)?.unitMeasureGroups ?? [];
+const unitMeasureGroups: UnitMeasureGroup[] = (unitMeasureData as UnitMeasureData)?.unitMeasureGroups ?? [];
 
-const unitMeasures = unitMeasureGroups.flatMap((group) =>
-    group.options.map((option) => ({ ...option, groupLabel: group.label })),
-);
+const unitMeasures = unitMeasureGroups.flatMap((group) => group.options.map((option) => ({ ...option, groupLabel: group.label })));
 
 const serviceUnitId = 'servicio';
 const defaultProductUnitValue = String(unitMeasures[0]?.id ?? 'unidad');
 
 const getInitialUnitMeasure = (form: Partial<Item>): string =>
-    form.unit_measure ??
-    (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
+    form.unit_measure ?? (normalizeItemType(form.item_type) === 'service' ? serviceUnitId : defaultProductUnitValue);
 
 const unitMeasure = ref(getInitialUnitMeasure(props.form));
 
 const isViewMode = computed(() => props.dialogType === 'view');
 const currentItemType = computed<ItemType>(() => normalizeItemType(localForm.value.item_type));
-const tracksInventoryBool = computed(() =>
-    currentItemType.value === 'service' ? false : Boolean(localForm.value.tracks_inventory),
-);
-const showInventorySection = computed(() => currentItemType.value === 'product' && tracksInventoryBool.value);
-const inventoryAccountInvalid = computed(() =>
-    props.dialogType !== 'view' && tracksInventoryBool.value && !localForm.value.inventory_account_id,
-);
 
 const groupOptions = computed(() =>
     categoryGroups.value.map((group) => ({
@@ -281,9 +249,7 @@ const subGroupOptions = computed(() =>
     })),
 );
 
-const currentSubGroup = computed(() =>
-    categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id)),
-);
+const currentSubGroup = computed(() => categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id)));
 
 const currentGroup = computed(() => {
     if (currentSubGroup.value?.category_group) return currentSubGroup.value.category_group;
@@ -321,9 +287,7 @@ const displayedTaxLabel = computed(() => {
 });
 
 const requiredAdditionalFieldNames = computed(() =>
-    (additionalFieldsMeta.value ?? [])
-        .filter((field) => field?.name && field.is_required)
-        .map((field) => field.name),
+    (additionalFieldsMeta.value ?? []).filter((field) => field?.name && field.is_required).map((field) => field.name),
 );
 
 const missingRequiredAdditionalFieldNames = computed(() =>
@@ -340,6 +304,12 @@ const additionalFieldOrder = computed(() => {
     });
     return map;
 });
+
+type AccountingAccountOption = { id: number; code: string; name: string; account_type: string };
+
+const accountingIncomeOptions = ref<AccountingAccountOption[]>([]);
+const accountingInventoryOptions = ref<AccountingAccountOption[]>([]);
+const accountingCostOptions = ref<AccountingAccountOption[]>([]);
 
 function resetErrors() {
     errors.value = {};
@@ -414,9 +384,7 @@ function fillExtraFields(obj: unknown) {
 }
 
 function updateNameField(orderedFields?: Record<string, string>): void {
-    const subGroup = categorySubGroups.value.find(
-        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
-    );
+    const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id));
 
     const extrasObj: Record<string, string> =
         orderedFields ??
@@ -438,9 +406,7 @@ function updateNameField(orderedFields?: Record<string, string>): void {
 }
 
 function syncGroupFromSubgroup() {
-    const subGroup = categorySubGroups.value.find(
-        (sg) => String(sg.id) === String(localForm.value.category_sub_group_id),
-    );
+    const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id));
 
     if (subGroup && subGroup.category_group_id) {
         selectedGroupId.value = String(subGroup.category_group_id);
@@ -481,19 +447,18 @@ async function fetchWarehouses() {
     }
 }
 
-async function fetchCategoryGroups() {
-    try {
-        const { data } = await axios.get('/categorias/grupos');
-        categoryGroups.value = Array.isArray(data) ? data : [];
-    } catch (error) {
-        console.error('Error al obtener los grupos:', error);
-    }
-}
-
 async function fetchCategorySubGroups() {
     try {
         const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
         categorySubGroups.value = data.data;
+
+        // Derive groups from the eager-loaded relation — avoids a second HTTP request
+        const seen = new Set<number>();
+        categoryGroups.value = (data.data as any[])
+            .map((sg: any) => sg.category_group)
+            .filter((g: any) => g && !seen.has(g.id) && seen.add(g.id))
+            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+
         syncGroupFromSubgroup();
     } catch (error) {
         console.error('Error al obtener los subgrupos:', error);
@@ -506,23 +471,17 @@ async function fetchTaxes() {
 }
 
 async function fetchAccountingAccounts() {
-    const response = await axios.get<{ data?: AccountingAccountOption[] } | AccountingAccountOption[]>(
-        '/finanzas/catalogo-cuentas/options',
-        {
-            params: { allows_entries: true },
-        },
-    );
-
-    const payload = Array.isArray(response.data)
-        ? response.data
-        : Array.isArray(response.data.data)
-          ? response.data.data
-          : [];
-
-    accountOptions.value = payload.map((account) => ({
-        id: account.id,
-        name: `${account.code} - ${account.name}`,
-    }));
+    try {
+        const { data } = await axios.get('/catalogo-cuentas/options', {
+            params: { account_type: 'income,asset,cost', allows_entries: true },
+        });
+        const all: AccountingAccountOption[] = data.data ?? [];
+        accountingIncomeOptions.value    = all.filter((a) => a.account_type === 'income');
+        accountingInventoryOptions.value = all.filter((a) => a.account_type === 'asset');
+        accountingCostOptions.value      = all.filter((a) => a.account_type === 'cost');
+    } catch (error) {
+        console.error('Error al cargar cuentas contables:', error);
+    }
 }
 
 async function fetchAdditionalFields() {
@@ -583,6 +542,7 @@ async function fetchWarehouseStocks(itemId: number) {
             stock_max: w.pivot.stock_max,
         }));
     } catch (e) {
+        console.log(e);
         warehouseStocks.value = [];
     }
 }
@@ -746,14 +706,6 @@ watch(
 );
 
 watch(currentItemType, (type, prevType) => {
-    if (type === 'service') {
-        localForm.value.tracks_inventory = false;
-        localForm.value.negative_movement = 0;
-        localForm.value.inventory_account_id = null;
-    } else if (localForm.value.tracks_inventory === undefined) {
-        localForm.value.tracks_inventory = true;
-    }
-
     if (type === 'service' && unitMeasure.value !== serviceUnitId) {
         unitMeasure.value = serviceUnitId;
         return;
@@ -763,33 +715,19 @@ watch(currentItemType, (type, prevType) => {
     }
 });
 
-watch(
-    () => localForm.value.tracks_inventory,
-    (value) => {
-        if (!value) {
-            localForm.value.negative_movement = 0;
-        }
-    },
-);
-
 const NEGATIVE_STOCK_WARNING =
     'Este ítem tiene cantidades negativas en una o más bodegas. ' +
     'No puedes desactivar "Movimiento Negativo" mientras exista stock menor que cero.';
 
-const NEGATIVE_MOVEMENT_INVENTORY_WARNING =
-    'Asocia el ítem con al menos una bodega antes de habilitar movimientos negativos.';
+const NEGATIVE_MOVEMENT_INVENTORY_WARNING = 'Asocia el ítem con al menos una bodega antes de habilitar movimientos negativos.';
 
 const hasInventoryDetails = computed(() => warehouseStocks.value.length > 0);
 
 const hasNegativeStock = computed(() => warehouseStocks.value.some((w) => Number(w.quantity) < 0));
 
-const negativeMovementBool = computed(() =>
-    localForm.value.negative_movement === 1 || localForm.value.negative_movement === true,
-);
+const negativeMovementBool = computed(() => localForm.value.negative_movement === 1 || localForm.value.negative_movement === true);
 
-const negativeMovementToggleDisabled = computed(
-    () => isViewMode.value || !tracksInventoryBool.value || (!hasInventoryDetails.value && !negativeMovementBool.value),
-);
+const negativeMovementToggleDisabled = computed(() => isViewMode.value || (!hasInventoryDetails.value && !negativeMovementBool.value));
 
 function showNegativeMovementWarning() {
     alertType.value = 'warning';
@@ -804,10 +742,6 @@ function showNegativeMovementInventoryWarning() {
 }
 
 function handleNegativeMovementChange(val: boolean) {
-    if (!tracksInventoryBool.value) {
-        localForm.value.negative_movement = 0;
-        return;
-    }
     if (val && !hasInventoryDetails.value) {
         showNegativeMovementInventoryWarning();
         return;
@@ -828,9 +762,7 @@ type AdvancedFormDraft = Partial<Item> & {
 function buildAdvancedFormDraft(): AdvancedFormDraft {
     const draftTaxId: unknown = localForm.value.tax_id;
     const isDraftTaxIdBlank =
-        draftTaxId === undefined ||
-        draftTaxId === null ||
-        (typeof draftTaxId === 'string' && (draftTaxId.trim() === '' || draftTaxId === 'none'));
+        draftTaxId === undefined || draftTaxId === null || (typeof draftTaxId === 'string' && (draftTaxId.trim() === '' || draftTaxId === 'none'));
 
     const normalizedTaxId = isDraftTaxIdBlank ? undefined : Number(draftTaxId);
 
@@ -915,20 +847,10 @@ async function handleSubmit() {
 
     if (!unitMeasure.value) requiredErrors.push('Unidad de medida');
 
+    if (props.showAdvancedSections && !localForm.value.income_account_id) requiredErrors.push('Cuenta de ingreso');
+
     if (!localForm.value.reference || String(localForm.value.reference).trim() === '') {
         requiredErrors.push('Referencia');
-    }
-
-    if (!localForm.value.income_account_id) {
-        requiredErrors.push('Cuenta de ingreso');
-    }
-
-    if (tracksInventoryBool.value && !localForm.value.inventory_account_id) {
-        requiredErrors.push('Cuenta de inventario');
-    }
-
-    if (!tracksInventoryBool.value && !localForm.value.cost_of_sale_account_id) {
-        requiredErrors.push('Cuenta de costo / gasto directo');
     }
 
     missingRequiredAdditionalFieldNames.value.forEach((fieldName) => {
@@ -937,10 +859,7 @@ async function handleSubmit() {
 
     if (requiredErrors.length > 0) {
         alertType.value = 'warning';
-        alertMessage.value = formatRequiredFieldsMessage(
-            'Por favor, completa todos los campos obligatorios',
-            requiredErrors,
-        );
+        alertMessage.value = formatRequiredFieldsMessage('Por favor, completa todos los campos obligatorios', requiredErrors);
         scrollDialogToTop();
         return;
     }
@@ -983,62 +902,53 @@ async function handleSubmit() {
     const cleanForm: any = {
         ...localForm.value,
         category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
-        tax_id:
-            resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== ''
-                ? Number(resolvedTaxId)
-                : undefined,
+        tax_id: resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== '' ? Number(resolvedTaxId) : undefined,
         tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
         negative_movement: localForm.value.negative_movement,
         bar_code: localForm.value.bar_code || '',
         description: (localForm.value.description || '').trim() || 'N/A',
         reference: localForm.value.reference || '',
-        extra_fields: Object.keys(orderedExtraFields).length ? JSON.stringify(orderedExtraFields) : null,
+        extra_fields: JSON.stringify(orderedExtraFields),
         name: nameField.value,
         unit_measure: unitMeasure.value,
         item_type: normalizeItemType(localForm.value.item_type),
-        tracks_inventory: tracksInventoryBool.value ? 1 : 0,
-        income_account_id: localForm.value.income_account_id ?? '',
-        inventory_account_id: tracksInventoryBool.value ? (localForm.value.inventory_account_id ?? '') : '',
-        cost_of_sale_account_id: localForm.value.cost_of_sale_account_id ?? '',
+        tracks_inventory: localForm.value.tracks_inventory ?? normalizeItemType(localForm.value.item_type) !== 'service',
         status:
             typeof localForm.value.status === 'boolean'
                 ? localForm.value.status
                     ? 1
                     : 0
-                : localForm.value.status === 1 ||
-                  localForm.value.status === '1' ||
-                  localForm.value.status === true
-                ? 1
-                : 0,
+                : localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true
+                  ? 1
+                  : 0,
     };
 
     const formData = new FormData();
-    const optionalStringFields = new Set(['bar_code', 'description']);
-    const nullableScalarFields = new Set([
-        'income_account_id',
-        'inventory_account_id',
-        'cost_of_sale_account_id',
-    ]);
 
-    Object.entries(cleanForm).forEach(([key, value]) => {
-        if (key === 'negative_movement' || key === 'status' || key === 'tracks_inventory') {
-            formData.append(key, String(value === true || value === 1 || value === '1' || value === 'true' ? 1 : 0));
-            return;
-        }
+    // Boolean/integer fields — always sent as "1" or "0"
+    const boolIntFields = ['negative_movement', 'status', 'tracks_inventory'];
+    for (const key of boolIntFields) {
+        const v = cleanForm[key];
+        formData.append(key, String(v === true || v === 1 || v === '1' || v === 'true' ? 1 : 0));
+    }
 
-        if (nullableScalarFields.has(key)) {
-            formData.append(key, value === null || value === undefined ? '' : String(value));
-            return;
+    // Scalar fields — only sent when not null/undefined; skips objects/arrays to avoid "[object Object]"
+    const scalarFields = [
+        'name', 'reference', 'description', 'bar_code', 'unit_measure',
+        'item_type', 'extra_fields', 'tax', 'tax_id',
+        'category_sub_group_id', 'img',
+        'income_account_id', 'inventory_account_id', 'cost_of_sale_account_id',
+        'export_tariff_code', 'export_brand', 'export_model',
+        'weighted_average_price', 'cost_price',
+    ];
+    for (const key of scalarFields) {
+        const v = cleanForm[key];
+        if (v === undefined || v === null) continue;
+        if (key === 'description' || key === 'bar_code') {
+            if (typeof v === 'string' && v.trim() === '') continue;
         }
-
-        if (typeof value === 'string' && optionalStringFields.has(key) && value.trim() === '') {
-            return;
-        }
-
-        if (value !== undefined && value !== null) {
-            formData.append(key, value as any);
-        }
-    });
+        formData.append(key, v);
+    }
 
     if (imageFile.value) formData.append('image', imageFile.value);
 
@@ -1111,6 +1021,32 @@ watch(
     { immediate: true },
 );
 
+// Auto-select default accounting accounts when options load (only if not already set)
+watch(
+    [accountingIncomeOptions, accountingInventoryOptions, accountingCostOptions, currentItemType],
+    () => {
+        if (!localForm.value.income_account_id && accountingIncomeOptions.value.length > 0) {
+            // For services prefer an account with "servicio" in name; otherwise first income account
+            const isService = currentItemType.value === 'service';
+            const preferred = isService
+                ? accountingIncomeOptions.value.find((a) => /servicio/i.test(a.name))
+                : accountingIncomeOptions.value.find((a) => /venta/i.test(a.name));
+            localForm.value.income_account_id = (preferred ?? accountingIncomeOptions.value[0]).id;
+        }
+
+        if (!localForm.value.inventory_account_id && accountingInventoryOptions.value.length > 0 && currentItemType.value !== 'service') {
+            const preferred = accountingInventoryOptions.value.find((a) => /inventario/i.test(a.name));
+            localForm.value.inventory_account_id = (preferred ?? accountingInventoryOptions.value[0]).id;
+        }
+
+        if (!localForm.value.cost_of_sale_account_id && accountingCostOptions.value.length > 0 && currentItemType.value !== 'service') {
+            const preferred = accountingCostOptions.value.find((a) => /costo.*(venta|ventas)/i.test(a.name));
+            localForm.value.cost_of_sale_account_id = (preferred ?? accountingCostOptions.value[0]).id;
+        }
+    },
+    { immediate: true },
+);
+
 watch(
     () => props.form,
     (newVal) => applyFormData(newVal),
@@ -1127,10 +1063,7 @@ watch(
 );
 
 watch(
-    [
-        () => localForm.value.category_sub_group_id,
-        () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|'),
-    ],
+    [() => localForm.value.category_sub_group_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|')],
     () => updateNameField(),
     { immediate: true },
 );
@@ -1198,9 +1131,7 @@ const INVENTORY_ADJUSTMENT_SAVED_EVENT = 'inventory-adjustment-saved';
 
 const handleInventoryAdjustmentSaved = (event: Event) => {
     const evt = event as CustomEvent<{ itemIds?: number[] }>;
-    const itemIds = (evt?.detail?.itemIds ?? [])
-        .map((id) => Number(id))
-        .filter((id) => Number.isFinite(id) && id > 0);
+    const itemIds = (evt?.detail?.itemIds ?? []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
 
     const currentItemId = Number(props.form.id);
     if (!currentItemId || !itemIds.includes(currentItemId)) return;
@@ -1211,14 +1142,7 @@ const handleInventoryAdjustmentSaved = (event: Event) => {
 
 onMounted(() => {
     void trackLoading(async () => {
-        await Promise.all([
-            fetchWarehouses(),
-            fetchCategorySubGroups(),
-            fetchCategoryGroups(),
-            fetchTaxes(),
-            fetchAccountingAccounts(),
-            fetchAdditionalFields(),
-        ]);
+        await Promise.all([fetchWarehouses(), fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields(), fetchAccountingAccounts()]);
 
         fillExtraFields(props.form.extra_fields);
 
@@ -1245,7 +1169,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="flex min-h-0 flex-1 flex-col -mx-6 -my-10">
+    <div class="-mx-6 -my-10 flex min-h-0 flex-1 flex-col">
         <transition name="fade">
             <div
                 v-if="alertMessage"
@@ -1266,19 +1190,25 @@ onBeforeUnmount(() => {
                 class="flex-shrink-0 px-6 pt-10"
                 headerClass="mb-4"
                 :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
-                :description="dialogType === 'create' ? 'Complete los campos para crear un nuevo ítem.' : dialogType === 'edit' ? 'Edite los campos del ítem seleccionado.' : 'Visualice la información del ítem.'"
+                :description="
+                    dialogType === 'create'
+                        ? 'Complete los campos para crear un nuevo ítem.'
+                        : dialogType === 'edit'
+                          ? 'Edite los campos del ítem seleccionado.'
+                          : 'Visualice la información del ítem.'
+                "
             />
 
-            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto px-6 scroll-smooth" style="scrollbar-width: thin;">
+            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6" style="scrollbar-width: thin">
                 <fieldset :disabled="isViewMode" class="space-y-4">
                     <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
                         <div class="flex flex-col gap-4 md:col-span-3">
                             <div>
                                 <div class="mb-2 flex items-center gap-1">
-                                    <span class="text-sm font-semibold text-card-foreground">
-                                        Tipo de ítem
-                                    </span>
-                                    <HelpTooltip text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes." />
+                                    <span class="text-sm font-semibold text-card-foreground"> Tipo de ítem </span>
+                                    <HelpTooltip
+                                        text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes."
+                                    />
                                 </div>
 
                                 <template v-if="isViewMode">
@@ -1293,7 +1223,7 @@ onBeforeUnmount(() => {
                                             v-for="option in itemTypeOptions"
                                             :key="option.value"
                                             type="button"
-                                            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400"
+                                            class="flex flex-1 items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
                                             :class="[
                                                 option.value === currentItemType
                                                     ? 'border-primary bg-primary text-primary-foreground shadow'
@@ -1310,35 +1240,8 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div>
-                                <template v-if="isViewMode">
-                                    <Label>Controla inventario</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                        {{ tracksInventoryBool ? 'Sí' : 'No' }}
-                                    </div>
-                                </template>
-
-                                <template v-else>
-                                    <SwitchField
-                                        :model-value="tracksInventoryBool"
-                                        @update:modelValue="(value) => (localForm.tracks_inventory = currentItemType === 'service' ? false : value)"
-                                        label="Controla inventario"
-                                        :disabled="currentItemType === 'service'"
-                                        :tooltip-text="currentItemType === 'service'
-                                            ? 'Los servicios no controlan inventario.'
-                                            : 'Actívalo para productos inventariables. Desactívalo para consumibles o productos sin control de stock.'"
-                                    />
-                                </template>
-                            </div>
-
-                            <div>
                                 <Label>Nombre</Label>
-                                <Input
-                                    v-model="nameField"
-                                    label="Nombre"
-                                    readonly
-                                    class="mt-1"
-                                    placeholder="Nombre autocompletado"
-                                />
+                                <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
                             </div>
 
                             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -1381,7 +1284,7 @@ onBeforeUnmount(() => {
                                                 type="button"
                                                 size="sm"
                                                 variant="outline"
-                                                class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
                                                 @click.stop="openGroupDialog"
                                             >
                                                 <Plus class="h-4 w-4" />
@@ -1407,7 +1310,7 @@ onBeforeUnmount(() => {
                                                 type="button"
                                                 size="sm"
                                                 variant="outline"
-                                                class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
                                                 @click.stop="openSubGroupDialog"
                                             >
                                                 <Plus class="h-4 w-4" />
@@ -1432,7 +1335,7 @@ onBeforeUnmount(() => {
                                                 type="button"
                                                 size="sm"
                                                 variant="outline"
-                                                class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                                class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
                                                 @click.stop="openTaxDialog"
                                             >
                                                 <Plus class="h-4 w-4" />
@@ -1443,14 +1346,13 @@ onBeforeUnmount(() => {
                                 </template>
                             </div>
 
-                            <div
-                                v-if="showInventorySection"
-                                class="mt-2 rounded-lg border border-border bg-card p-3"
-                            >
+                            <div v-if="currentItemType !== 'service'" class="mt-2 rounded-lg border border-border bg-card p-3">
                                 <div class="mb-2 flex items-center justify-between">
-                                    <p class="text-sm font-semibold flex items-center gap-1">
+                                    <p class="flex items-center gap-1 text-sm font-semibold">
                                         <span>Detalle de Inventario</span>
-                                        <HelpTooltip text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock." />
+                                        <HelpTooltip
+                                            text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock."
+                                        />
                                     </p>
 
                                     <button
@@ -1465,21 +1367,19 @@ onBeforeUnmount(() => {
                                     </button>
                                 </div>
 
-                                <div
-                                    v-for="(ws, idx) in warehouseStocks"
-                                    :key="idx"
-                                    class="mb-2 rounded-md border border-border/40 bg-muted/20 p-2 transition-colors hover:bg-muted/30 last:mb-0"
-                                >
+                                <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-muted/50 p-2">
                                     <div class="grid grid-cols-1 gap-2 sm:grid-cols-[220px,1fr,1fr,1fr,auto] sm:items-end">
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Bodega</Label>
                                             <SelectField
                                                 v-model="ws.warehouse_id"
                                                 label=""
-                                                :options="availableWarehouses(idx).map((w) => ({
-                                                    id: String(w.id ?? ''),
-                                                    name: w.name,
-                                                }))"
+                                                :options="
+                                                    availableWarehouses(idx).map((w) => ({
+                                                        id: String(w.id ?? ''),
+                                                        name: w.name,
+                                                    }))
+                                                "
                                                 @change="updateWarehouseName(idx)"
                                                 class="w-full"
                                                 placeholder="Bodega"
@@ -1490,7 +1390,7 @@ onBeforeUnmount(() => {
                                                         type="button"
                                                         size="sm"
                                                         variant="outline"
-                                                        class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                                                        class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
                                                         @click.stop="openCatalog('warehouse')"
                                                     >
                                                         <Plus class="h-3 w-3" />
@@ -1514,45 +1414,35 @@ onBeforeUnmount(() => {
 
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Cantidad Min</Label>
-                                            <InputIntegerField
-                                                v-model="ws.stock_min"
-                                                label=""
-                                                type="number"
-                                                class="w-full"
-                                                placeholder="Min"
-                                            />
+                                            <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" />
                                         </div>
 
                                         <div class="flex h-full flex-col justify-between gap-1">
                                             <Label class="text-xs">Cantidad Max</Label>
-                                            <InputIntegerField
-                                                v-model="ws.stock_max"
-                                                label=""
-                                                type="number"
-                                                class="w-full"
-                                                placeholder="Max"
-                                            />
+                                            <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" />
                                         </div>
 
-                                        <div class="flex items-base justify-end">
-                                            <DeleteButton
-                                                v-if="!isViewMode && warehouseStocks.length > 1"
+                                        <div class="items-base flex justify-end">
+                                            <button
+                                                v-if="!isViewMode"
+                                                type="button"
+                                                class="rounded-full p-3 transition hover:bg-red-100 dark:hover:bg-red-900"
                                                 @click="removeWarehouseStock(idx)"
                                                 title="Quitar"
-                                            />
+                                            >
+                                                <Trash class="h-4 w-4 text-red-500" />
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div v-if="warehouseStocks.length === 0" class="py-8 text-center text-sm italic text-muted-foreground">
-                                    No hay bodegas asociadas.
-                                </div>
+                                <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
                             </div>
                         </div>
 
                         <div class="flex flex-col gap-2 md:col-span-1">
                             <div class="flex w-full flex-col items-start gap-2">
-                                <Label class="mb-1 block text-sm font-medium text-left">Imagen</Label>
+                                <Label class="mb-1 block text-left text-sm font-medium">Imagen</Label>
                                 <div class="w-full">
                                     <input
                                         ref="fileInputRef"
@@ -1566,9 +1456,7 @@ onBeforeUnmount(() => {
                                     <div
                                         :class="[
                                             'group relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
-                                            isViewMode
-                                                ? 'cursor-default opacity-100'
-                                                : 'cursor-pointer hover:border-primary hover:shadow-lg',
+                                            isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-primary hover:shadow-lg',
                                         ]"
                                         @click="!isViewMode && triggerFileInput()"
                                         style="min-width: 0; position: relative"
@@ -1583,22 +1471,22 @@ onBeforeUnmount(() => {
                                                 />
                                                 <button
                                                     type="button"
-                                                    class="absolute top-2 right-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-primary-foreground shadow-md transition hover:bg-black"
+                                                    class="absolute right-2 top-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-black"
                                                     @click.stop="openImageZoom"
                                                     aria-label="Ver imagen ampliada"
                                                 >
                                                     Ver imagen
                                                 </button>
                                             </div>
-                                            <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-primary-foreground">
+                                            <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
                                                 {{ isViewMode ? 'Imagen del ítem' : 'Cambiar imagen' }}
                                             </div>
                                         </template>
 
                                         <template v-else>
                                             <div class="z-10 flex h-full w-full flex-col items-center justify-center">
-                                                <Image class="mb-2 h-12 w-12 text-muted-foreground" />
-                                                <span class="text-sm text-muted-foreground">
+                                                <Image class="mb-2 h-12 w-12 text-gray-400" />
+                                                <span class="text-sm text-gray-500">
                                                     {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
                                                 </span>
                                             </div>
@@ -1615,10 +1503,7 @@ onBeforeUnmount(() => {
                             <template v-if="isViewMode">
                                 <Label>Unidad de Medida</Label>
                                 <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                                    {{
-                                        unitMeasures.find((u) => u.id === unitMeasure)?.name ||
-                                        unitMeasure
-                                    }}
+                                    {{ unitMeasures.find((u) => u.id === unitMeasure)?.name || unitMeasure }}
                                 </div>
                             </template>
                             <template v-else>
@@ -1646,9 +1531,11 @@ onBeforeUnmount(() => {
                                 :model-value="negativeMovementBool"
                                 @update:modelValue="handleNegativeMovementChange"
                                 label="Movimiento Negativo"
-                                :tooltip-text="hasInventoryDetails
-                                    ? 'Permite que las bodegas registren cantidades negativas cuando lo necesites.'
-                                    : 'Asocia al menos una bodega antes de habilitar movimientos negativos.'"
+                                :tooltip-text="
+                                    hasInventoryDetails
+                                        ? 'Permite que las bodegas registren cantidades negativas cuando lo necesites.'
+                                        : 'Asocia al menos una bodega antes de habilitar movimientos negativos.'
+                                "
                                 :disabled="negativeMovementToggleDisabled"
                             />
                         </div>
@@ -1660,9 +1547,11 @@ onBeforeUnmount(() => {
 
                     <!-- Campos adicionales -->
                     <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                        <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
                             <span>Campos adicionales</span>
-                            <HelpTooltip text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo." />
+                            <HelpTooltip
+                                text="Agrega atributos adicionales (color, talla, etc.) que permiten diferenciar variantes del mismo subgrupo."
+                            />
                         </p>
                     </div>
 
@@ -1678,51 +1567,51 @@ onBeforeUnmount(() => {
                         />
                     </div>
 
-                    <section
-                        class="rounded-2xl border border-border bg-card p-4 shadow-sm"
-                    >
+                    <section v-if="props.showAdvancedSections" class="rounded-2xl border border-border bg-card p-4 shadow-sm">
                         <div class="flex items-center justify-between pb-2">
-                            <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                            <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
                                 <span>Contabilidad</span>
-                                <HelpTooltip text="Define las cuentas contables del item. Por ahora, los inventariables usan cuenta de inventario y los no inventariables o servicios usan cuenta de costo/gasto directo para compras." />
+                                <HelpTooltip
+                                    text="Indica las cuentas contables que deben usarse al vender o mover este ítem dentro del inventario."
+                                />
                             </p>
                         </div>
 
                         <div class="grid gap-4 md:grid-cols-2">
                             <SelectField
                                 v-model="localForm.income_account_id"
-                                label="Cuenta de ingreso"
-                                :options="accountOptions"
+                                label="Cuenta de ingreso *"
+                                :options="accountingIncomeOptions"
+                                option-label="name"
+                                option-value="id"
                                 clearable
-                                :required="true"
                             />
                             <SelectField
                                 v-model="localForm.inventory_account_id"
                                 label="Cuenta de inventario"
-                                :options="accountOptions"
+                                :options="accountingInventoryOptions"
+                                option-label="name"
+                                option-value="id"
                                 clearable
-                                :required="tracksInventoryBool"
-                                :invalid="inventoryAccountInvalid"
-                                error-message="La cuenta de inventario es obligatoria cuando el ítem controla inventario."
-                                :disabled="!tracksInventoryBool"
                             />
                             <SelectField
                                 v-model="localForm.cost_of_sale_account_id"
-                                label="Cuenta de costo / gasto directo"
-                                :options="accountOptions"
+                                label="Cuenta de costo de venta"
+                                :options="accountingCostOptions"
+                                option-label="name"
+                                option-value="id"
                                 clearable
                             />
                         </div>
                     </section>
 
-                    <section
-                        v-if="props.showAdvancedSections"
-                        class="rounded-2xl border border-border bg-card p-4 shadow-sm"
-                    >
+                    <section v-if="props.showAdvancedSections" class="rounded-2xl border border-border bg-card p-4 shadow-sm">
                         <div class="flex items-center justify-between pb-2">
-                            <p class="text-sm font-semibold text-card-foreground flex items-center gap-1">
+                            <p class="flex items-center gap-1 text-sm font-semibold text-card-foreground">
                                 <span>Datos adicionales para factura de exportación</span>
-                                <HelpTooltip text="Completa estos campos solo si este ítem se usa en operaciones de exportación para facilitar la factura." />
+                                <HelpTooltip
+                                    text="Completa estos campos solo si este ítem se usa en operaciones de exportación para facilitar la factura."
+                                />
                             </p>
                         </div>
 
@@ -1736,13 +1625,11 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- FOOTER -->
-            <DialogFooter
-                class="flex-shrink-0 border-t pt-4 mt-4 px-6 pb-10 flex flex-col-reverse gap-2 md:flex-row md:justify-end"
-            >
+            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col-reverse gap-2 border-t px-6 pb-10 pt-4 md:flex-row md:justify-end">
                 <div v-if="dialogType !== 'view' && showAdvancedLink" class="w-full md:w-auto">
                     <button
                         type="button"
-                        class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="redirectToAdvancedForm"
                     >
                         <ExternalLink class="h-4 w-4" />
@@ -1771,11 +1658,7 @@ onBeforeUnmount(() => {
         </form>
     </div>
 
-    <GroupDialog
-        v-model:isOpen="isGroupDialogOpen"
-        @created="handleGroupCreated"
-        @close="isGroupDialogOpen = false"
-    />
+    <GroupDialog v-model:isOpen="isGroupDialogOpen" @created="handleGroupCreated" @close="isGroupDialogOpen = false" />
 
     <SubGroupDialog
         :isOpen="isSubGroupDialogOpen"
@@ -1814,17 +1697,13 @@ onBeforeUnmount(() => {
             role="dialog"
         >
             <div
-                class="relative mx-auto max-h-[98vh] max-w-[98vw] overflow-hidden rounded-2xl bg-card shadow-[0_25px_70px_rgba(15,23,42,0.8)] transform scale-125"
+                class="relative mx-auto max-h-[98vh] max-w-[98vw] scale-125 transform overflow-hidden rounded-2xl bg-card shadow-[0_25px_70px_rgba(15,23,42,0.8)]"
                 @click.stop
             >
-                <img
-                    :src="imagePreview"
-                    alt="Imagen ampliada"
-                    class="zoom-img max-h-[105vh] max-w-[105vw] object-cover"
-                />
+                <img :src="imagePreview" alt="Imagen ampliada" class="zoom-img max-h-[105vh] max-w-[105vw] object-cover" />
                 <button
                     type="button"
-                    class="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-primary-foreground transition hover:bg-black"
+                    class="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white transition hover:bg-black"
                     @click="closeImageZoom"
                 >
                     Cerrar
@@ -1837,7 +1716,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .zoom-enter-active,
 .zoom-leave-active {
-    transition: opacity 160ms ease, transform 160ms ease;
+    transition:
+        opacity 160ms ease,
+        transform 160ms ease;
 }
 .zoom-enter-from,
 .zoom-leave-to {

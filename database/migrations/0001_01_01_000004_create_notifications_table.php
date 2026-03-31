@@ -26,6 +26,11 @@ return new class extends Migration
             $table->index('created_at');
             $table->index('archived_at');
             $table->index('deleted_at');
+            // Índice compuesto para unreadCount
+            $table->index(
+                ['notifiable_type', 'notifiable_id', 'read_at', 'deleted_at', 'archived_at'],
+                'notifications_unread_count_idx'
+            );
         });
     }
 

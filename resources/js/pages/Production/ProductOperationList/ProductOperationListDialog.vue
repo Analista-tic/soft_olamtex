@@ -10,7 +10,7 @@ import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet';
+import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet/types';
 import { Check, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
 import { computed, PropType, ref, watch } from 'vue';
 import AddNew from './AddNew.vue';
@@ -46,6 +46,10 @@ interface ProductSheetDialogOption {
     id: number | string;
     reference: string;
     type: string;
+    sample_reference?: string | null;
+    product_reference?: string | null;
+    product_reference_2?: string | null;
+    version?: number | null;
     isTemporary?: boolean;
 }
 
@@ -115,6 +119,20 @@ const emit = defineEmits<{
     (event: 'validation-error', message: string): void;
 }>();
 
+function normalizeComparableId(value: number | string | null | undefined): string {
+    return String(value ?? '').trim();
+}
+
+function buildProductSheetLabel(sheet: ProductSheetDialogOption): string {
+    const sample = String(sheet.sample_reference ?? '').trim().toUpperCase();
+    const ref1 = String(sheet.product_reference ?? '').trim().toUpperCase();
+    const ref2 = String(sheet.product_reference_2 ?? '').trim().toUpperCase();
+    const version = Number(sheet.version ?? 1);
+
+    const parts = [sample || '-', ref1 || '-', ref2 || '-'];
+    return `${parts.join(' / ')} / v${version}`;
+}
+
 const validationError = ref('');
 const localOpen = ref(props.open);
 
@@ -132,14 +150,24 @@ const machinesList = ref<MachineOption[]>([]);
 const fabricBasesList = ref<FabricBaseOption[]>([]);
 
 const DEFAULT_OPERATOR_EFFICIENCY = 1;
+const NONE_FABRIC_BASE_ID = '__none__';
+const NONE_FABRIC_BASE_LABEL = 'NS / NINGUNA';
+
+const fabricBaseOptions = computed(() => [
+    { id: NONE_FABRIC_BASE_ID, name: NONE_FABRIC_BASE_LABEL },
+    ...fabricBasesList.value.map((f) => ({
+        id: f.id,
+        name: `${f.nombre ?? f.name ?? f.codigo ?? String(f.id)} (×${Number(f.factor ?? f.factor_base ?? f.factor_base_tela ?? 1).toFixed(2)})`,
+    })),
+]);
 
 const createEmptyRow = (): OperationRow => ({
     section_id: null,
     operation_id: null,
-    machine_id: props.machines[0]?.id ?? null,
+    machine_id: props.machines[0]?.id !== undefined ? Number(props.machines[0].id) : null,
     optimal_time: '0.00',
     quantity: 1,
-    fabric_base_id: props.fabricBases[0]?.id ?? null,
+    fabric_base_id: NONE_FABRIC_BASE_ID,
     operator_efficiency_factor: DEFAULT_OPERATOR_EFFICIENCY,
 });
 const currentRow = ref<OperationRow>(createEmptyRow());
@@ -149,9 +177,6 @@ function syncListsFromProps() {
     operationsList.value = Array.isArray(props.operations) ? [...props.operations] : [];
     machinesList.value = Array.isArray(props.machines) ? [...props.machines] : [];
     fabricBasesList.value = Array.isArray(props.fabricBases) ? [...props.fabricBases] : [];
-    if (!currentRow.value.fabric_base_id && fabricBasesList.value.length > 0) {
-        currentRow.value.fabric_base_id = fabricBasesList.value[0].id ?? null;
-    }
 }
 
 watch(
@@ -176,7 +201,7 @@ watch(
         if (!opId) return;
         const op = operationsList.value.find((o) => o.id === opId);
         if (!op) return;
-        if (op.section_id) currentRow.value.section_id = op.section_id;
+        if (op.section_id) currentRow.value.section_id = Number(op.section_id);
         currentRow.value.optimal_time = op.sam_base != null ? Number(op.sam_base).toFixed(2) : '0.00';
     },
 );
@@ -191,9 +216,12 @@ watch(
 const isEditMode = computed(() => props.mode === 'edit');
 
 const availableProductSheets = computed(() => {
-    const excluded = new Set(props.excludedProductSheetIds ?? []);
-    const editingId = props.mode === 'edit' && props.initialData?.productSheetId != null ? props.initialData.productSheetId : null;
-    return props.productSheets.filter((s) => !excluded.has(s.id) || s.id === editingId);
+    const excluded = new Set((props.excludedProductSheetIds ?? []).map((id) => normalizeComparableId(id as number | string | null | undefined)));
+    const editingId = props.mode === 'edit' && props.initialData?.productSheetId != null ? normalizeComparableId(props.initialData.productSheetId) : null;
+    return props.productSheets.filter((sheet) => {
+        const sheetId = normalizeComparableId(sheet.id);
+        return !excluded.has(sheetId) || sheetId === editingId;
+    });
 });
 
 const productSheetId = ref<number | string | null>(availableProductSheets.value[0]?.id ?? props.productSheets[0]?.id ?? null);
@@ -288,6 +316,7 @@ function getSupplementForRow(row: OperationRow): number {
 
 function getFabricFactorForRow(row: OperationRow): number {
     const id = row.fabric_base_id ?? null;
+    if (id === NONE_FABRIC_BASE_ID) return 1.0;
     if (id == null) return 1.0;
     const opt = fabricBasesList.value.find((f) => f.id === id || f.id == id);
     const factor = opt?.factor ?? opt?.factor_base ?? opt?.factor_base_tela ?? null;
@@ -296,7 +325,7 @@ function getFabricFactorForRow(row: OperationRow): number {
 }
 
 function getFabricBaseName(id: number | string | null): string {
-    if (id == null) return '-';
+    if (id == null || id === NONE_FABRIC_BASE_ID) return NONE_FABRIC_BASE_LABEL;
     const opt = fabricBasesList.value.find((f) => f.id === id || f.id == id);
     return opt?.nombre ?? opt?.name ?? opt?.codigo ?? opt?.code ?? String(id);
 }
@@ -327,7 +356,7 @@ function getOperationName(id: number | null): string {
     return operationsList.value.find((o) => o.id === id)?.name ?? '-';
 }
 
-function getMachineName(id: number | null): string {
+function getMachineName(id: string | number | null): string {
     const m = machinesList.value.find((m) => m.id === id);
     return m ? `${m.code} · ${m.name}` : '-';
 }
@@ -405,7 +434,7 @@ function initializeForm() {
             machine_id: row.machine_id,
             optimal_time: row.optimal_time,
             quantity: row.quantity ?? 1,
-            fabric_base_id: row.fabric_base_id ?? null,
+            fabric_base_id: row.fabric_base_id ?? NONE_FABRIC_BASE_ID,
             operator_efficiency_factor: row.operator_efficiency_factor ?? props.initialData?.operatorEfficiencyFactor ?? DEFAULT_OPERATOR_EFFICIENCY,
         }));
         currentRow.value = createEmptyRow();
@@ -438,6 +467,7 @@ function saveOperations() {
 
     const toNumOrNull = (v: number | string | null | undefined): number | null => {
         if (v == null) return null;
+        if (v === NONE_FABRIC_BASE_ID) return null;
         if (typeof v === 'number' && Number.isFinite(v)) return v;
         const n = parseInt(String(v), 10);
         return Number.isFinite(n) ? n : null;
@@ -499,7 +529,7 @@ function resetForm() {
                         <SelectField
                             v-model="productSheetId"
                             label="Sábana de producto"
-                            :options="availableProductSheets.map((s) => ({ id: s.id, name: `${s.reference} (${s.type})` }))"
+                            :options="availableProductSheets.map((s) => ({ id: s.id, name: buildProductSheetLabel(s) }))"
                             :disabled="isEditMode || readonly"
                             required
                         />
@@ -611,12 +641,7 @@ function resetForm() {
                         <div class="col-span-2">
                             <SelectField
                                 v-model="currentRow.fabric_base_id"
-                                :options="
-                                    fabricBasesList.map((f) => ({
-                                        id: f.id,
-                                        name: `${f.nombre ?? f.name ?? f.codigo ?? String(f.id)} (×${Number(f.factor ?? f.factor_base ?? f.factor_base_tela ?? 1).toFixed(2)})`,
-                                    }))
-                                "
+                                :options="fabricBaseOptions"
                                 placeholder="Base tela"
                                 class="h-9 w-full"
                             />
@@ -753,12 +778,7 @@ function resetForm() {
                                             <SelectField
                                                 v-if="isEditingRow(index) && editRow"
                                                 v-model="editRow.fabric_base_id"
-                                                :options="
-                                                    fabricBasesList.map((f) => ({
-                                                        id: f.id,
-                                                        name: `${f.nombre ?? f.name ?? String(f.id)} (×${Number(f.factor ?? f.factor_base ?? 1).toFixed(2)})`,
-                                                    }))
-                                                "
+                                                :options="fabricBaseOptions"
                                                 class="h-8 min-w-[90px]"
                                             />
                                             <span

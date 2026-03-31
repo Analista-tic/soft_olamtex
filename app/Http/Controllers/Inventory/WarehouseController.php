@@ -52,7 +52,7 @@ class WarehouseController extends Controller
      */
     public function getData(Request $request)
     {
-        $query = Warehouse::query();
+        $query = Warehouse::select('id', 'name', 'observation');
 
         if ($request->has('search') && $request->search) {
             $search = $request->search;

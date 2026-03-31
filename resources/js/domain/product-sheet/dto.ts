@@ -13,6 +13,7 @@ export interface ProductSheetDto {
     reference: string;
     sample_reference?: string | null;
     product_reference?: string | null;
+    product_reference_2?: string | null;
     display_reference?: string | null;
     value?: number;
     label?: string;

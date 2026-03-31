@@ -1,30 +1,27 @@
 <script setup lang="ts">
 import DateField from '@/components/DateField.vue';
+import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import InputField from '@/components/InputField.vue';
-import { Button } from '@/components/ui/button';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
-import DifferenceDialog from '@/components/DifferenceDialog.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
-import FormDialogContent from '@/components/FormDialogContent.vue';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/Expenses';
 import type { Contact } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { parseToDate, toIsoDateString } from '@/lib/date';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
-import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
 import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
-import { formatRequiredFieldsMessage } from '@/lib/alert-format';
-import { useCompanyInfo } from '@/composables/useCompanyInfo';
-import { parseToDate, toIsoDateString } from '@/lib/date';
-import { uiPatterns } from '@/lib/ui-patterns';
 
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit';
-    mode?: 'create' | 'edit' | 'view';
     form: Partial<PurchaseInvoice>;
     readOnly?: boolean;
     deferContent?: boolean;
@@ -44,21 +41,9 @@ const isLoading = ref(false);
 const isInitializingDialog = ref(false);
 const isSubmittingDialog = ref(false);
 const isSendingMail = ref(false);
-const submitAttempted = ref(false);
 const nextInvoiceId = ref<number | null>(null);
 const isLoadingInvoiceId = ref(false);
-const dialogMode = computed<'create' | 'edit' | 'view'>(() => props.mode ?? (props.readOnly ? 'view' : props.dialogType));
-const isReadOnly = computed(() => dialogMode.value === 'view');
-const isCreateMode = computed(() => dialogMode.value === 'create');
-const persistenceMode = computed<'create' | 'edit'>(() => (dialogMode.value === 'create' ? 'create' : 'edit'));
-const dialogTitleText = computed(() => {
-    if (isReadOnly.value) return 'Detalle de factura de compra';
-    return persistenceMode.value === 'edit' ? 'Editar Factura de Compra' : 'Nueva Factura de Compra';
-});
-const dialogDescriptionText = computed(() => {
-    if (isReadOnly.value) return 'Consulta la informacion general y el detalle de items de la factura.';
-    return 'Completa los campos y anade los items de la factura.';
-});
+const isReadOnly = computed(() => !!props.readOnly);
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
 const successMessage = ref<string>('');
@@ -74,7 +59,6 @@ const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
 const shouldEmitLoadingState = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
-const showOverlay = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -86,9 +70,7 @@ function getWithholdingBase(w: { base_amount?: number | null; percentage?: numbe
 function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number }): number {
     return (getWithholdingBase(w) * (Number(w.percentage) || 0)) / 100;
 }
-const retencionesTotal = computed(() =>
-    (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0),
-);
+const retencionesTotal = computed(() => (localForm.value.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0));
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
 const amountDifference = computed(() => (orderTotal.value != null ? Number(total.value) - orderTotal.value : 0));
 
@@ -122,11 +104,7 @@ const hasModifiedPriceOrQuantity = computed(() => {
 });
 
 const hasDifference = computed(() => {
-    return (
-        orderTotal.value != null &&
-        Math.abs(amountDifference.value) > 0.01 &&
-        hasModifiedPriceOrQuantity.value
-    );
+    return orderTotal.value != null && Math.abs(amountDifference.value) > 0.01 && hasModifiedPriceOrQuantity.value;
 });
 
 const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
@@ -135,30 +113,28 @@ const contactPhone = computed(() => selectedContactData.value?.phone || '');
 const { company, logoUrl } = useCompanyInfo();
 
 const pendingPurchaseOrderOptions = computed<Option[]>(() =>
-    purchaseOrders.value.map((order: {
-        id: number | string;
-        document_number?: string;
-        contact?: { full_name?: string; business_name?: string };
-        contact_full_name?: string;
-    }) => {
-        const rawId = order?.id ?? '';
-        const numericId = Number(rawId);
-        const optionId = Number.isNaN(numericId) ? rawId : numericId;
-        // Usar el número de documento (document_number) de la orden, no el del proveedor
-        const orderNumber = order?.document_number || String(order?.id ?? '');
-        const contactName =
-            order?.contact?.full_name ||
-            order?.contact?.business_name ||
-            order?.contact_full_name ||
-            '';
-        // Formato: #documento - Proveedor
-        let name = `#${orderNumber}`;
-        if (contactName) name += ` - ${contactName}`;
-        return {
-            id: optionId,
-            name,
-        };
-    }),
+    purchaseOrders.value.map(
+        (order: {
+            id: number | string;
+            document_number?: string;
+            contact?: { full_name?: string; business_name?: string };
+            contact_full_name?: string;
+        }) => {
+            const rawId = order?.id ?? '';
+            const numericId = Number(rawId);
+            const optionId = Number.isNaN(numericId) ? rawId : numericId;
+            // Usar el número de documento (document_number) de la orden, no el del proveedor
+            const orderNumber = order?.document_number || String(order?.id ?? '');
+            const contactName = order?.contact?.full_name || order?.contact?.business_name || order?.contact_full_name || '';
+            // Formato: #documento - Proveedor
+            let name = `#${orderNumber}`;
+            if (contactName) name += ` - ${contactName}`;
+            return {
+                id: optionId,
+                name,
+            };
+        },
+    ),
 );
 
 const selectedPurchaseOrderValue = computed<Option['id'] | ''>({
@@ -174,7 +150,7 @@ const selectedPurchaseOrderValue = computed<Option['id'] | ''>({
 });
 
 const id = computed(() => {
-    if (persistenceMode.value === 'edit') return props.form?.id?.toString() || '';
+    if (props.dialogType === 'edit') return props.form?.id?.toString() || '';
     if (isLoadingInvoiceId.value) return 'Cargando...';
     if (nextInvoiceId.value == null) return '';
     return nextInvoiceId.value.toString();
@@ -182,7 +158,7 @@ const id = computed(() => {
 
 function createDefaultForm(): PurchaseInvoiceWithProviderName {
     const currentDate = toIsoDateString(new Date()) || '';
-    
+
     return {
         contact_id: null,
         date: currentDate,
@@ -253,12 +229,11 @@ function resetForm() {
     orderTotal.value = null;
     differenceReason.value = props.form?.reason || '';
     differenceEvidenceData.value = null;
-    submitAttempted.value = false;
     const pid = props.form?.parent_document_id ?? props.form?.purchase_order_id;
-    if (persistenceMode.value === 'edit' && localForm.value && pid != null) {
+    if (props.dialogType === 'edit' && localForm.value && pid != null) {
         localForm.value.purchase_order_id = Number(pid);
         localForm.value.parent_document_id = Number(pid);
-    } else if (isCreateMode.value) {
+    } else if (props.dialogType === 'create') {
         selectedPurchaseOrderId.value = pid != null ? Number(pid) : null;
     }
     originalFormSnapshot.value = stableStringify(localForm.value);
@@ -267,11 +242,10 @@ function resetForm() {
 async function initializeDialog() {
     isInitializingDialog.value = true;
     try {
-        submitAttempted.value = false;
         await fetchContacts();
         resetForm();
         await fetchPendingPurchaseOrders();
-        if (isCreateMode.value) {
+        if (props.dialogType === 'create') {
             nextInvoiceId.value = null;
             await fetchNextInvoiceId();
         }
@@ -283,7 +257,7 @@ async function initializeDialog() {
 watch(
     () => props.form,
     () => {
-        if (persistenceMode.value === 'edit' && dialogOpen.value) {
+        if (props.dialogType === 'edit' && dialogOpen.value) {
             resetForm();
         }
     },
@@ -330,7 +304,7 @@ async function fetchPendingPurchaseOrders() {
         });
         const invoices: Array<{ parent_document_id?: number | string | null }> = invoiceRes.data.data || [];
         const invoicedOrderIds = new Set(
-            invoices.map((inv: { parent_document_id?: number | string | null }) => inv.parent_document_id).filter(Boolean)
+            invoices.map((inv: { parent_document_id?: number | string | null }) => inv.parent_document_id).filter(Boolean),
         );
         purchaseOrders.value = orders.filter((order: { id: number | string }) => !invoicedOrderIds.has(order.id));
     } catch {
@@ -375,8 +349,7 @@ async function loadPurchaseOrderToInvoice(orderId: number) {
     selectedPurchaseOrderId.value = Number(orderId);
     localForm.value.purchase_order_id = Number(orderId);
     orderTotal.value = (Array.isArray(order.items) ? order.items : []).reduce(
-        (acc: number, item: any) =>
-            acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0),
+        (acc: number, item: any) => acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0),
         0,
     );
     syncDateRefsFromForm();
@@ -400,10 +373,13 @@ const stableStringify = (value: any): string => {
         if (val && typeof val === 'object') {
             return Object.keys(val)
                 .sort()
-                .reduce((acc: any, key) => {
-                    acc[key] = normalize(val[key]);
-                    return acc;
-                }, {} as Record<string, unknown>);
+                .reduce(
+                    (acc: any, key) => {
+                        acc[key] = normalize(val[key]);
+                        return acc;
+                    },
+                    {} as Record<string, unknown>,
+                );
         }
         return val;
     };
@@ -444,9 +420,8 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
-    submitAttempted.value = true;
     if (!validateForm()) return;
-    if (persistenceMode.value === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value) {
+    if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value) {
         return;
     }
     if (!skipDifferenceCheck && hasDifference.value && !differenceReason.value.trim()) {
@@ -469,7 +444,7 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
         formToSend.parent_document_id = Number(orderId);
     }
     delete formToSend.purchase_order_id;
-    if (isCreateMode.value) delete formToSend.id;
+    if (props.dialogType === 'create') delete formToSend.id;
     if (!Array.isArray(formToSend.withholdings)) {
         formToSend.withholdings = [];
     }
@@ -489,18 +464,16 @@ async function handleSubmit(sendMail = false, skipDifferenceCheck = false) {
     const normalizedReason = differenceReason.value.trim() || trimmedLocalReason;
     formToSend.reason = normalizedReason || null;
     formToSend.evidence_path = differenceEvidenceData.value ?? localForm.value.evidence_path ?? null;
-    const url = isCreateMode.value ? '/gastos/facturas-compra' : `/gastos/facturas-compra/${localForm.value.id}`;
-    const method = isCreateMode.value ? 'POST' : 'PUT';
+    const url = props.dialogType === 'create' ? '/gastos/facturas-compra' : `/gastos/facturas-compra/${localForm.value.id}`;
+    const method = props.dialogType === 'create' ? 'POST' : 'PUT';
     try {
         const { data } = await axios({ method, url, data: formToSend });
         if (sendMail) {
             await axios.post(`/gastos/facturas-compra/${data.data.id}/enviar-correo`);
             emit('refresh', 'Factura guardada y enviada por correo correctamente.');
         } else {
-            emit('refresh', isCreateMode.value ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
-            successMessage.value = isCreateMode.value
-                ? 'Factura creada correctamente.'
-                : 'Factura actualizada correctamente.';
+            emit('refresh', props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.');
+            successMessage.value = props.dialogType === 'create' ? 'Factura creada correctamente.' : 'Factura actualizada correctamente.';
         }
         differenceReason.value = '';
         differenceEvidenceData.value = null;
@@ -537,10 +510,7 @@ function validateForm(): boolean {
     }
 
     if (missingFields.length) {
-        setErrorMessage(
-            formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields),
-            'warning',
-        );
+        setErrorMessage(formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields), 'warning');
         return false;
     }
 
@@ -549,14 +519,15 @@ function validateForm(): boolean {
     if (!items.length) {
         errors.push('La factura debe contener al menos un ítem.');
     }
-    const invalidItems = items.filter((it) =>
-        // aceptar item_id como number|string|null; considerar inválido null/undefined/empty/<=0
-        it.item_id == null ||
-        Number(it.item_id) <= 0 ||
-        it.price === '' ||
-        it.quantity === '' ||
-        Number(it.price) <= 0 ||
-        Number(it.quantity) <= 0,
+    const invalidItems = items.filter(
+        (it) =>
+            // aceptar item_id como number|string|null; considerar inválido null/undefined/empty/<=0
+            it.item_id == null ||
+            Number(it.item_id) <= 0 ||
+            it.price === '' ||
+            it.quantity === '' ||
+            Number(it.price) <= 0 ||
+            Number(it.quantity) <= 0,
     );
     if (invalidItems.length > 0) {
         errors.push('Cada item debe tener item, Precio SIN Impuesto y cantidad.');
@@ -632,19 +603,7 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <div
-            v-if="showOverlay"
-            class="fixed inset-0 z-[2000] grid place-items-center bg-background/60 backdrop-blur-sm"
-        >
-            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
-                <div class="flex items-center gap-3">
-                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p class="text-sm font-medium text-foreground">Cargando informacion...</p>
-                </div>
-            </div>
-        </div>
-
-        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+        <DialogContent v-if="!props.deferContent" class="flex h-[95vh] max-h-[95vh] w-full max-w-[95vw] flex-col p-0">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -654,15 +613,19 @@ watch(
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 w-full">
-                    <div class="flex flex-col gap-1 min-w-0">
-                        <DialogTitle :class="uiPatterns.typography.dialogTitle">{{ dialogTitleText }}</DialogTitle>
-                        <DialogDescription :class="uiPatterns.typography.dialogSubtitle">
-                            {{ dialogDescriptionText }}
+            <DialogHeader class="flex-shrink-0 px-4 pb-3 pr-12 pt-4">
+                <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    <div class="flex min-w-0 flex-col gap-1">
+                        <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Factura de Compra</DialogTitle>
+                        <DialogDescription>
+                            {{
+                                isReadOnly
+                                    ? 'Visualiza los campos y los ítems de la factura.'
+                                    : 'Completa los campos y añade los ítems de la factura.'
+                            }}
                         </DialogDescription>
                     </div>
-                    <div v-if="!isReadOnly" class="w-full sm:w-[280px] shrink-0">
+                    <div v-if="!isReadOnly" class="w-full shrink-0 sm:w-[280px]">
                         <SelectField
                             v-model="selectedPurchaseOrderValue"
                             :options="pendingPurchaseOrderOptions"
@@ -675,32 +638,28 @@ watch(
                     </div>
                 </div>
             </DialogHeader>
-                <div :class="uiPatterns.dialogLarge.body" style="scrollbar-width: thin;">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
                 <form
                     @submit.prevent="handleSubmit()"
-                    :class="{ 'pointer-events-none opacity-50': isCreateMode && isLoadingInvoiceId }"
+                    :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingInvoiceId }"
                     class="space-y-6"
                 >
-                    <div class="space-y-4 mt-8">
+                    <div class="mt-8 space-y-4 rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                         <div class="grid grid-cols-3 items-start gap-4">
                             <div>
                                 <InputField
-                                    label="N° Factura de Compra"
+                                    label="# Factura de Compra"
                                     :modelValue="id"
                                     readonly
-                                    v-if="persistenceMode === 'edit' || (isCreateMode && !isLoadingInvoiceId && id)"
+                                    v-if="dialogType === 'edit' || (dialogType === 'create' && !isLoadingInvoiceId && id)"
                                 />
-                                <span v-else-if="isCreateMode && isLoadingInvoiceId" :class="uiPatterns.typography.helperText">Cargando...</span>
+                                <span v-else-if="dialogType === 'create' && isLoadingInvoiceId" class="text-gray-400">Cargando...</span>
                             </div>
                             <div class="relative flex h-full items-center justify-center rounded p-4">
-                                <img
-                                    :src="logoUrl"
-                                    alt="Logotipo de la empresa"
-                                    class="max-h-24 max-w-[160px] w-auto object-contain"
-                                />
+                                <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
                             </div>
                             <div>
-                                <div class="mb-1 text-sm font-semibold text-foreground">Datos empresa</div>
+                                <div class="text-sm font-semibold">Datos empresa</div>
                                 <p class="text-xs">
                                     Razón Social:
                                     <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span>
@@ -719,7 +678,7 @@ watch(
                         <!-- Proveedor -->
                         <div class="grid grid-cols-3 gap-4">
                             <div class="flex flex-col gap-1">
-                                <label :class="uiPatterns.typography.fieldLabel">Proveedor<span class="text-red-500">*</span></label>
+                                <label class="text-sm font-medium">Proveedor<span class="text-red-500">*</span></label>
                                 <SelectField
                                     v-model="localForm.contact_id"
                                     label=""
@@ -735,44 +694,33 @@ watch(
                                 :modelValue="contactIdNumber"
                                 readonly
                             />
-                            <InputField
-                                :key="`phone-${localForm.contact_id ?? ''}`"
-                                label="Número de contacto"
-                                :modelValue="contactPhone"
-                                readonly
-                            />
+                            <InputField :key="`phone-${localForm.contact_id ?? ''}`" label="Número de contacto" :modelValue="contactPhone" readonly />
                         </div>
 
                         <!-- Fechas -->
                         <div class="grid grid-cols-3 gap-4">
                             <div class="flex flex-col gap-1">
-                                <label :class="uiPatterns.typography.fieldLabel">Fecha de factura<span class="text-red-500">*</span></label>
+                                <label class="text-sm font-medium">Fecha de factura<span class="text-red-500">*</span></label>
                                 <DateField v-model="invoiceDate" label="" :disabled="isReadOnly" :clearable="true" :show-today="true" required />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label :class="uiPatterns.typography.fieldLabel">Fecha de entrega<span class="text-red-500">*</span></label>
+                                <label class="text-sm font-medium">Fecha de entrega<span class="text-red-500">*</span></label>
                                 <DateField v-model="deliveryDate" label="" :disabled="isReadOnly" :clearable="true" :show-today="true" required />
                             </div>
                             <div class="flex flex-col gap-1">
-                                <label :class="uiPatterns.typography.fieldLabel">Número de factura del proveedor</label>
+                                <label class="text-sm font-medium"># factura proveedor</label>
                                 <InputField v-model="localForm.supplier_invoice_number" label="" :readonly="isReadOnly" />
                             </div>
                         </div>
 
                         <!-- Items -->
-                        <InventoryDetailTableLayout
-                            title="Items"
-                            description="Agrega los items necesarios para esta factura"
-                            @create-line="handleInvoiceAddLine"
-                            :createLineButtonDisabled="isReadOnly"
-                        >
+                        <InventoryDetailTableLayout @create-line="handleInvoiceAddLine" :createLineButtonDisabled="isReadOnly">
                             <PurchaseInvoiceItemsTable
                                 ref="invoiceItemsTableRef"
                                 :items="localForm.items || []"
-                                :isCreating="isCreateMode"
+                                :isCreating="dialogType === 'create'"
                                 :isReadOnly="isReadOnly"
                                 :telaMode="false"
-                                :submitAttempted="submitAttempted"
                                 @update:items="(items) => (localForm.items = items)"
                             />
                         </InventoryDetailTableLayout>
@@ -789,10 +737,10 @@ watch(
 
                         <!-- Totales -->
                         <div class="space-y-4 pt-6">
-                            <div class="w-full flex flex-col items-end space-y-0 text-sm">
-                                <div class="w-full max-w-xs rounded p-2 space-y-1 bg-card text-card-foreground shadow-sm">
-                                    <div class="flex justify-between items-center">
-                                        <span :class="uiPatterns.typography.sectionSubtitle">Subtotal</span>
+                            <div class="flex w-full flex-col items-end space-y-0 text-sm">
+                                <div class="w-full max-w-xs space-y-1 rounded bg-card p-2 text-card-foreground shadow-sm">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-semibold text-card-foreground/70">Subtotal</span>
                                         <span>{{
                                             Number(subtotal || 0).toLocaleString('es-CO', {
                                                 style: 'currency',
@@ -802,8 +750,8 @@ watch(
                                             })
                                         }}</span>
                                     </div>
-                                    <div class="flex justify-between items-center">
-                                        <span :class="uiPatterns.typography.sectionSubtitle">IVA 19%</span>
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-semibold text-card-foreground/70">IVA 19%</span>
                                         <span>{{
                                             Number(iva || 0).toLocaleString('es-CO', {
                                                 style: 'currency',
@@ -813,9 +761,9 @@ watch(
                                             })
                                         }}</span>
                                     </div>
-                                    <div class="flex justify-between items-center pt-1">
-                                        <span :class="uiPatterns.typography.sectionTitle">Total orden de compra</span>
-                                        <span :class="uiPatterns.typography.sectionTitle">{{
+                                    <div class="flex items-center justify-between pt-1">
+                                        <span class="font-bold text-card-foreground">Total orden de compra</span>
+                                        <span class="font-bold text-card-foreground">{{
                                             Number(total || 0).toLocaleString('es-CO', {
                                                 style: 'currency',
                                                 currency: 'COP',
@@ -825,21 +773,23 @@ watch(
                                         }}</span>
                                     </div>
                                     <template v-for="(w, idx) in localForm.withholdings || []" :key="idx">
-                                        <div class="flex justify-between items-center">
+                                        <div class="flex items-center justify-between">
                                             <span class="text-card-foreground/60">- {{ w.name }}</span>
-                                            <span class="text-red-500 dark:text-red-400">-{{
-                                                getWithholdingAmount(w).toLocaleString('es-CO', {
-                                                    style: 'currency',
-                                                    currency: 'COP',
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 0,
-                                                })
-                                            }}</span>
+                                            <span class="text-red-500 dark:text-red-400"
+                                                >-{{
+                                                    getWithholdingAmount(w).toLocaleString('es-CO', {
+                                                        style: 'currency',
+                                                        currency: 'COP',
+                                                        minimumFractionDigits: 0,
+                                                        maximumFractionDigits: 0,
+                                                    })
+                                                }}</span
+                                            >
                                         </div>
                                     </template>
-                                    <div class="flex justify-between items-center pt-2 mt-1 border-t border-border/50">
-                                        <span :class="uiPatterns.typography.sectionTitle">Total a pagar</span>
-                                        <span :class="`${uiPatterns.typography.sectionTitle} text-green-500 dark:text-green-400`">{{
+                                    <div class="mt-1 flex items-center justify-between border-t border-border/50 pt-2">
+                                        <span class="font-bold text-card-foreground">Total a pagar</span>
+                                        <span class="font-bold text-green-500 dark:text-green-400">{{
                                             Number(totalPagar || 0).toLocaleString('es-CO', {
                                                 style: 'currency',
                                                 currency: 'COP',
@@ -854,7 +804,7 @@ watch(
 
                         <!-- Observaciones -->
                         <div class="flex flex-col gap-1">
-                            <label :class="uiPatterns.typography.fieldLabel">Observación</label>
+                            <label class="text-sm font-medium">Observación</label>
                             <TextareaField
                                 v-model="localForm.description"
                                 label=""
@@ -863,32 +813,30 @@ watch(
                             />
                         </div>
                     </div>
+                    <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t px-4 pb-4 pt-4">
+                        <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
+                        <button
+                            v-if="!isReadOnly"
+                            type="button"
+                            :disabled="isLoading || isSendingMail"
+                            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            @click.prevent="handleSubmit(false)"
+                        >
+                            {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                        </button>
+                        <button
+                            v-if="!isReadOnly"
+                            type="button"
+                            :disabled="isLoading || isSendingMail"
+                            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            @click.prevent="handleSubmit(true)"
+                        >
+                            {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
+                        </button>
+                    </DialogFooter>
                 </form>
-                </div>
-                <DialogFooter :class="uiPatterns.dialogLarge.footerCompact">
-                    <Button variant="outline" size="pill" @click="dialogOpen = false">
-                        {{ isReadOnly ? 'Cerrar' : 'Cancelar' }}
-                    </Button>
-                    <button
-                        v-if="!isReadOnly"
-                        type="button"
-                        :disabled="isLoading || isSendingMail"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        @click.prevent="handleSubmit(false)"
-                    >
-                        {{ isLoading ? 'Guardando...' : persistenceMode === 'edit' ? 'Actualizar' : 'Guardar' }}
-                    </button>
-                    <button
-                        v-if="!isReadOnly"
-                        type="button"
-                        :disabled="isLoading || isSendingMail"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                        @click.prevent="handleSubmit(true)"
-                    >
-                        {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
-                    </button>
-                </DialogFooter>
-        </FormDialogContent>
+            </div>
+        </DialogContent>
     </Dialog>
     <DifferenceDialog
         v-model:open="differenceDialogOpen"

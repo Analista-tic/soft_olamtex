@@ -13,7 +13,6 @@ use App\Models\Settings\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Log;
 
 class ItemService
 {
@@ -26,7 +25,15 @@ class ItemService
 
     public function paginate(array $filters, int $perPage = 10): LengthAwarePaginator
     {
-        $query = Item::with(['categorySubGroup', 'tax', 'warehouses']);
+        $perPage = max(5, min(100, (int) $perPage));
+
+        $query = Item::query()->select([
+            'id',
+            'name',
+            'reference',
+            'description',
+            'status',
+        ]);
 
         if (!empty($filters['search'])) {
             $search = trim($filters['search']);
@@ -52,7 +59,9 @@ class ItemService
             $query->where('item_type', $filters['item_type']);
         }
 
-        return $query->paginate($perPage);
+        return $query
+            ->orderByDesc('id')
+            ->paginate($perPage);
     }
 
     public function findWithRelations(int $id, array $relations = ['categorySubGroup', 'tax']): Item
@@ -143,7 +152,7 @@ class ItemService
                 continue;
             }
             $upperKey = mb_strtoupper($normalizedKey);
-            $trimmedValue = $normalize((string) ($value ?? ''));
+            $trimmedValue = $normalize(is_scalar($value) ? (string) ($value ?? '') : '');
             $extraFieldsList[] = [
                 'upper' => $upperKey,
                 'value' => $trimmedValue,

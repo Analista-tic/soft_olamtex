@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import type { BreadcrumbItem } from '@/domain/shared';
-import type { NotificationRow, NotificationFilters } from '@/domain/Settings';
+import AlertStack from '@/components/common/AlertStack.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import SelectField from '@/components/SelectField.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card } from '@/components/ui/card';
 import Input from '@/components/ui/input/Input.vue';
-import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import SelectField from '@/components/SelectField.vue';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import {
     Pagination,
     PaginationEllipsis,
@@ -20,18 +17,20 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAlertStack } from '@/composables/useAlert';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import type { NotificationFilters, NotificationRow } from '@/domain/Settings';
+import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
+import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Check, CheckCheck, ExternalLink, Search, Inbox, RotateCcw } from 'lucide-vue-next';
+import { Calendar as CalendarIcon, Check, CheckCheck, ExternalLink, Inbox, RotateCcw, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import { useAlertStack } from '@/composables/useAlert';
-import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date';
-import { uiPatterns } from '@/lib/ui-patterns';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -199,7 +198,7 @@ async function fetchNotifications(page = 1) {
             page,
             per_page: itemsPerPage.value,
         };
-        
+
         if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
         if (selectedArea.value) params.area = selectedArea.value;
         if (selectedStatus.value) params.status = selectedStatus.value;
@@ -209,7 +208,7 @@ async function fetchNotifications(page = 1) {
         }
 
         const response = await axios.get('/configuracion/notificaciones/data', { params });
-        
+
         notificationsList.value = response.data.data ?? [];
         totalItems.value = response.data.total ?? 0;
         currentPage.value = response.data.current_page ?? page;
@@ -227,10 +226,10 @@ async function fetchNotifications(page = 1) {
  */
 async function markAsRead(notification: NotificationRow) {
     if (notification.is_read) return;
-    
+
     try {
         await axios.post(`/configuracion/notificaciones/${notification.id}/read`);
-        
+
         const index = notificationsList.value.findIndex((n) => n.id === notification.id);
         if (index !== -1) {
             notificationsList.value[index] = {
@@ -252,7 +251,7 @@ async function markAllAsRead() {
     try {
         const response = await axios.post('/configuracion/notificaciones/read-all');
         showSuccess(response.data.message || 'Todas las notificaciones marcadas como leídas.');
-        
+
         notificationsList.value = notificationsList.value.map((n) => ({
             ...n,
             is_read: true,
@@ -271,7 +270,7 @@ async function handleNotificationClick(notification: NotificationRow) {
     if (!notification.is_read) {
         await markAsRead(notification);
     }
-    
+
     if (notification.url) {
         router.visit(notification.url);
     }
@@ -291,9 +290,7 @@ function clearFilters() {
 /**
  * Verifica si hay notificaciones no leídas en la lista actual.
  */
-const hasUnreadNotifications = computed(() => 
-    notificationsList.value.some((n) => !n.is_read)
-);
+const hasUnreadNotifications = computed(() => notificationsList.value.some((n) => !n.is_read));
 
 // Watchers para actualizar cuando cambian los filtros
 watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
@@ -316,19 +313,17 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
             <!-- Header -->
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">Notificaciones</h1>
-                    <p :class="uiPatterns.typography.pageSubtitle">
-                        Consulta el historial de notificaciones generadas por el sistema.
-                    </p>
+                    <h1 class="text-lg font-bold">Notificaciones</h1>
+                    <p class="text-sm text-muted-foreground">Consulta el historial de notificaciones generadas por el sistema.</p>
                 </div>
                 <Button
                     v-if="hasUnreadNotifications"
                     @click="markAllAsRead"
                     variant="outline"
                     size="sm"
-                    class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                    class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                 >
-                    <CheckCheck class="w-4 h-4" /> Marcar todas como leídas
+                    <CheckCheck class="h-4 w-4" /> Marcar todas como leídas
                 </Button>
             </div>
 
@@ -349,7 +344,7 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                         </span>
                     </div>
                 </div>
-                
+
                 <!-- Área: col-span-12 md:col-span-2 -->
                 <div class="col-span-12 md:col-span-2">
                     <label class="mb-1 block text-xs font-medium text-muted-foreground">Área</label>
@@ -360,18 +355,13 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                         :button-class="areaButtonClasses"
                     />
                 </div>
-                
+
                 <!-- Estado: col-span-12 md:col-span-2 -->
                 <div class="col-span-12 md:col-span-2">
                     <label class="mb-1 block text-xs font-medium text-muted-foreground">Estado</label>
-                    <SelectField
-                        v-model="selectedStatus"
-                        :options="statusOptions"
-                        placeholder="Todas"
-                        :button-class="statusButtonClasses"
-                    />
+                    <SelectField v-model="selectedStatus" :options="statusOptions" placeholder="Todas" :button-class="statusButtonClasses" />
                 </div>
-                
+
                 <!-- Fecha: col-span-12 md:col-span-2 -->
                 <div class="col-span-12 md:col-span-2">
                     <label class="mb-1 block text-xs font-medium text-muted-foreground">Fecha</label>
@@ -385,7 +375,11 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                         <PopoverContent class="w-auto p-0" align="start">
                             <Calendar
                                 :model-value="dateValue"
-                                @update:model-value="(value) => { dateValue = value; }"
+                                @update:model-value="
+                                    (value) => {
+                                        dateValue = value;
+                                    }
+                                "
                                 initial-focus
                             />
                             <div class="border-t p-2">
@@ -404,22 +398,17 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                     </Popover>
                 </div>
             </div>
-            
+
             <!-- Botón Limpiar Filtros -->
-            <div v-if="hasActiveFilters" class="flex justify-end -mt-2">
-                <Button
-                    @click="clearFilters"
-                    variant="ghost"
-                    size="sm"
-                    class="h-8 px-3 text-xs"
-                >
-                    <RotateCcw class="w-3 h-3 mr-1" />
+            <div v-if="hasActiveFilters" class="-mt-2 flex justify-end">
+                <Button @click="clearFilters" variant="ghost" size="sm" class="h-8 px-3 text-xs">
+                    <RotateCcw class="mr-1 h-3 w-3" />
                     Limpiar filtros
                 </Button>
             </div>
 
             <!-- Tabla de Notificaciones -->
-            <Card class="relative min-h-0 flex-1 rounded-xl border border-border bg-card shadow-sm text-card-foreground md:min-h-min overflow-hidden">
+            <Card class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm md:min-h-min">
                 <Table class="table-fixed">
                     <colgroup>
                         <col class="w-[140px]" />
@@ -446,28 +435,32 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                         <TableRow v-if="notificationsList.length === 0 && !isLoading">
                             <TableCell colspan="7" class="py-12">
                                 <div class="flex flex-col items-center justify-center text-muted-foreground">
-                                    <Inbox class="h-12 w-12 mb-3 opacity-50" />
+                                    <Inbox class="mb-3 h-12 w-12 opacity-50" />
                                     <p class="text-sm font-medium">No hay notificaciones</p>
-                                    <p class="text-xs mt-1">
-                                        {{ hasActiveFilters ? 'No se encontraron notificaciones con los filtros seleccionados.' : 'Las notificaciones del sistema aparecerán aquí.' }}
+                                    <p class="mt-1 text-xs">
+                                        {{
+                                            hasActiveFilters
+                                                ? 'No se encontraron notificaciones con los filtros seleccionados.'
+                                                : 'Las notificaciones del sistema aparecerán aquí.'
+                                        }}
                                     </p>
                                 </div>
                             </TableCell>
                         </TableRow>
-                        
+
                         <!-- Loading -->
                         <TableRow v-if="isLoading">
                             <TableCell colspan="7" class="py-12">
                                 <div class="flex items-center justify-center text-muted-foreground">
-                                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-3"></div>
+                                    <div class="mr-3 h-6 w-6 animate-spin rounded-full border-b-2 border-primary"></div>
                                     <span class="text-sm">Cargando notificaciones...</span>
                                 </div>
                             </TableCell>
                         </TableRow>
-                        
+
                         <!-- Notificaciones -->
-                        <TableRow 
-                            v-for="notification in notificationsList" 
+                        <TableRow
+                            v-for="notification in notificationsList"
                             :key="notification.id"
                             :class="[
                                 'text-center transition-colors',
@@ -487,20 +480,23 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                                 <Badge v-if="notification.module" variant="secondary" class="text-xs">
                                     {{ notification.module }}
                                 </Badge>
-                                <span v-else class="text-muted-foreground text-xs">—</span>
+                                <span v-else class="text-xs text-muted-foreground">—</span>
                             </TableCell>
                             <TableCell class="text-left align-top">
                                 <div class="min-w-0">
                                     <span class="line-clamp-1 text-sm font-medium" :class="{ 'text-primary': !notification.is_read }">
                                         {{ notification.title ?? 'Sin título' }}
                                     </span>
-                                    <span class="line-clamp-2 text-xs text-muted-foreground break-words">
+                                    <span class="line-clamp-2 break-words text-xs text-muted-foreground">
                                         {{ notification.body ?? '' }}
                                     </span>
                                 </div>
                             </TableCell>
                             <TableCell class="whitespace-nowrap">
-                                <TableStatusBadge :label="notification.is_read ? 'Leída' : 'No leída'" :tone="notification.is_read ? 'neutral' : 'sky'" />
+                                <TableStatusBadge
+                                    :label="notification.is_read ? 'Leída' : 'No leída'"
+                                    :tone="notification.is_read ? 'neutral' : 'sky'"
+                                />
                             </TableCell>
                             <TableCell class="text-right">
                                 <div class="flex items-center justify-end gap-1">
@@ -533,7 +529,7 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                 <!-- Paginación -->
                 <div v-if="totalItems > 0" class="border-t px-4 py-3">
                     <Pagination
-                        class="flex justify-center pt-4 pb-2"
+                        class="flex justify-center"
                         v-slot="{ page }"
                         :items-per-page="itemsPerPage"
                         :total="totalItems"
@@ -548,7 +544,7 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
 
                             <template v-for="(item, index) in items">
                                 <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                    <Button class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === page ? 'default' : 'ghost'">
+                                    <Button class="h-8 w-8 p-0" :variant="item.value === page ? 'default' : 'outline'">
                                         {{ item.value }}
                                     </Button>
                                 </PaginationListItem>
@@ -564,6 +560,3 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
         </div>
     </AppLayout>
 </template>
-
-
-

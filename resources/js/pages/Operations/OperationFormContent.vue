@@ -8,9 +8,18 @@ import { Label } from '@/components/ui/label';
 import { Plus } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
-export type SectionOption = { id: number; name: string; type?: string };
-export type ProductSheetOption = { id: number | string; name: string; reference?: string; type?: string };
-export type MachineOption = { id: number; name: string; code?: string };
+export type SectionOption = { id: number | string; name: string; type?: string | null };
+export type ProductSheetOption = {
+    id: number | string;
+    name: string;
+    reference?: string;
+    type?: string;
+    sample_reference?: string | null;
+    product_reference?: string | null;
+    product_reference_2?: string | null;
+    version?: number | null;
+};
+export type MachineOption = { id: number | string; name: string; code?: string | null };
 
 export interface OperationFormData {
     action: string;
@@ -63,12 +72,12 @@ const newGarmentPartValue = ref('');
 const form = ref<OperationFormData>({
     action: '',
     garment_part: '',
-    section_id: props.defaultSectionId ?? props.sections[0]?.id ?? null,
+    section_id: props.defaultSectionId ?? (props.sections[0]?.id !== undefined ? Number(props.sections[0].id) : null),
     measure: null,
     quantity: 1,
     sam_base: null,
     product_sheet_id_reference: (props.defaultProductSheetId ?? null) as number | null,
-    machine_id_reference: props.machines?.[0]?.id ?? null,
+    machine_id_reference: props.machines?.[0]?.id !== undefined ? Number(props.machines[0].id) : null,
     codigo: '',
     is_active: true,
 });
@@ -93,12 +102,12 @@ watch(
             form.value = {
                 action: '',
                 garment_part: '',
-                section_id: defaultSectionId ?? props.sections[0]?.id ?? null,
+                section_id: defaultSectionId ?? (props.sections[0]?.id !== undefined ? Number(props.sections[0].id) : null),
                 measure: null,
                 quantity: 1,
                 sam_base: null,
                 product_sheet_id_reference: (defaultProductSheetId ?? null) as number | null,
-                machine_id_reference: props.machines?.[0]?.id ?? null,
+                machine_id_reference: props.machines?.[0]?.id !== undefined ? Number(props.machines[0].id) : null,
                 codigo: '',
                 is_active: true,
             };
@@ -147,10 +156,16 @@ const garmentPartOptions = computed(() => {
     return base;
 });
 const productSheetOptions = computed(() =>
-    (props.productSheets || []).map((ps) => ({
-        id: ps.id,
-        name: ps.reference ? `${ps.reference} (${ps.type ?? ''})` : ps.name,
-    })),
+    (props.productSheets || []).map((ps) => {
+        const sample = String(ps.sample_reference ?? '').trim().toUpperCase() || '-';
+        const product = String(ps.product_reference ?? '').trim().toUpperCase() || '-';
+        const prod2 = String(ps.product_reference_2 ?? '').trim().toUpperCase();
+        const version = Number(ps.version ?? 1);
+        let name = `${sample} / ${product}`;
+        if (prod2) name += ` / ${prod2}`;
+        name += ` / v${version}`;
+        return { id: ps.id, name };
+    }),
 );
 const machineOptions = computed(() =>
     (props.machines || []).map((m) => ({

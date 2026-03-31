@@ -29,6 +29,7 @@ class CreateItemsTable extends Migration
             $table->string('tariff_heading')->nullable();
             $table->string('brand')->nullable();
             $table->string('model')->nullable();
+            $table->string('costing_method', 30)->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

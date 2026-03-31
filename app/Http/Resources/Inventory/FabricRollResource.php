@@ -37,6 +37,7 @@ class FabricRollResource extends JsonResource
             'provider' => $document?->supplier?->full_name
                 ?? $document?->provider_name
                 ?? 'Proveedor',
+            'price_per_meter' => $this->purchaseDocumentItem?->price ? (float) $this->purchaseDocumentItem->price : null,
             'created_at' => $document?->created_at
                 ? Carbon::parse($document->created_at)->format('d M Y')
                 : null,

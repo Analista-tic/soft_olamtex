@@ -244,9 +244,6 @@ class AuditLogService
             'OperationSection' => 'Seccion operacional',
             'Machine' => 'Maquina',
             'FabricRoll' => 'Rollo de tela',
-            'FabricOrder' => 'Orden de tela',
-            'FabricOrderItem' => 'Item de orden de tela',
-            'FabricProvider' => 'Proveedor de tela',
             default => $base,
         };
     }

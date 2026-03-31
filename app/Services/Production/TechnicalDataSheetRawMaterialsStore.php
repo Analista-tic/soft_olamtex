@@ -7,7 +7,7 @@ use App\Models\Production\TechnicalSheetRawMaterial;
 
 /**
  * Almacenamiento de materia prima de la ficha técnica en BD.
- * El frontend (RawMaterialTab) actualmente usa solo localStorage; al usar este store vía API los datos quedan en BD.
+ * El frontend (FabricMaterialTab) actualmente usa solo localStorage; al usar este store vía API los datos quedan en BD.
  */
 class TechnicalDataSheetRawMaterialsStore
 {

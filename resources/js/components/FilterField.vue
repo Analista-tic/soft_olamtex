@@ -16,11 +16,7 @@ const fieldClasses = computed(() => {
 });
 
 const labelClasses = computed(() => {
-    const base = [
-        'filter-field__label',
-        'text-xs font-semibold transition duration-150',
-        props.active ? 'text-primary' : 'text-muted-foreground',
-    ];
+    const base = ['filter-field__label', 'text-xs font-semibold transition duration-150', props.active ? 'text-primary' : 'text-muted-foreground'];
     return base.join(' ');
 });
 </script>

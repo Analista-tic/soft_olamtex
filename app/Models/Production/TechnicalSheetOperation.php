@@ -59,6 +59,7 @@ class TechnicalSheetOperation extends Model
         'sam_total_operacion',
         'sam_total_lote',
         'quantity_progressed',
+        'motivo_progreso',
         'status',
         'progressed_at',
     ];
@@ -134,10 +135,11 @@ class TechnicalSheetOperation extends Model
     /**
      * Actualiza SOLO el progreso de la operación. Es la única modificación permitida en un snapshot.
      */
-    public function updateProgressOnly(int $quantityProgressed): bool
+    public function updateProgressOnly(int $quantityProgressed, ?string $motivoProgreso = null): bool
     {
         $this->quantity_progressed = $quantityProgressed;
-        $this->progressed_at = now();
+        $this->motivo_progreso     = $motivoProgreso;
+        $this->progressed_at       = now();
 
         if ($quantityProgressed >= $this->quantity) {
             $this->status = EstatusOperacionOrden::COMPLETADA;

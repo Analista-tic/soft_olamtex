@@ -44,7 +44,6 @@ class OperationController extends Controller
             'sections' => $this->sectionService->options(),
             'actions' => $this->service->getUniqueActions(),
             'garmentParts' => $this->service->getUniqueGarmentParts(),
-            'locations' => $this->service->getUniqueLocations(),
             'productSheets' => $productSheets,
             'machines' => $machines,
         ]);
@@ -63,7 +62,6 @@ class OperationController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->whereRaw("CONCAT(action, ' ', garment_part) LIKE ?", ["%{$search}%"])
                     ->orWhere('codigo', 'like', "%{$search}%")
-                    ->orWhere('location', 'like', "%{$search}%")
                     ->orWhere('description', 'like', "%{$search}%");
             });
         }
@@ -105,7 +103,6 @@ class OperationController extends Controller
             'data' => [
                 'actions' => $this->service->getUniqueActions(),
                 'garment_parts' => $this->service->getUniqueGarmentParts(),
-                'locations' => $this->service->getUniqueLocations(),
             ],
         ]);
     }
@@ -121,7 +118,6 @@ class OperationController extends Controller
             'garment_part' => ['required', 'string', 'max:255'],
             'codigo' => ['nullable', 'string', 'max:50'],
             'section_id' => ['required', 'integer', 'exists:operation_sections,id'],
-            'location' => ['nullable', 'string', 'max:100'],
             'measure' => ['nullable', 'numeric', 'min:0'],
             'quantity' => ['nullable', 'integer', 'min:1'],
             'description' => ['nullable', 'string'],
@@ -162,7 +158,6 @@ class OperationController extends Controller
             'action' => ['sometimes', 'string', 'max:255'],
             'garment_part' => ['sometimes', 'string', 'max:255'],
             'section_id' => ['nullable', 'integer', 'exists:operation_sections,id'],
-            'location' => ['nullable', 'string', 'max:100'],
             'measure' => ['nullable', 'numeric', 'min:0'],
             'quantity' => ['nullable', 'integer', 'min:1'],
             'sam_base' => ['nullable', 'numeric', 'min:0'],

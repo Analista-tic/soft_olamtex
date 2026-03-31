@@ -1,27 +1,30 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import type { ExtraFields, AdditionalField } from '@/domain/MasterData';
+import type { AdditionalField, ExtraFields } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared/types';
 import { Plus } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 
-const props = withDefaults(defineProps<{
-    extraFieldNames: string[],
-    extraFields: ExtraFields,
-    readonly?: boolean;
-    showLabel?: boolean;
-    fieldOptions?: Record<string, string[]>;
-    // Metadata de campos adicionales (vista de AdditionalField)
-    additionalFieldsMeta?: AdditionalField[];
-}>(), {
-    readonly: false,
-    showLabel: true,
-    fieldOptions: () => ({}),
-    additionalFieldsMeta: () => [],
-});
+const props = withDefaults(
+    defineProps<{
+        extraFieldNames: string[];
+        extraFields: ExtraFields;
+        readonly?: boolean;
+        showLabel?: boolean;
+        fieldOptions?: Record<string, string[]>;
+        // Metadata de campos adicionales (vista de AdditionalField)
+        additionalFieldsMeta?: AdditionalField[];
+    }>(),
+    {
+        readonly: false,
+        showLabel: true,
+        fieldOptions: () => ({}),
+        additionalFieldsMeta: () => [],
+    },
+);
 const emit = defineEmits<{
     (e: 'update:extraFields', value: ExtraFields): void;
     (e: 'create-additional-field'): void;
@@ -57,13 +60,9 @@ const availableFieldNames = computed(() => {
     return ordered;
 });
 
-const addableFieldNames = computed(() =>
-    availableFieldNames.value.filter((name) => !localExtraFields.value[name]),
-);
+const addableFieldNames = computed(() => availableFieldNames.value.filter((name) => !localExtraFields.value[name]));
 
-const fieldSelectOptions = computed(() =>
-    addableFieldNames.value.map((name) => ({ id: name, name })),
-);
+const fieldSelectOptions = computed(() => addableFieldNames.value.map((name) => ({ id: name, name })));
 
 // dynamicFieldOptions incluye catálogos, props.fieldOptions y opciones desde metadatos
 const dynamicFieldOptions = computed(() => {
@@ -101,20 +100,18 @@ const resolveFieldInputType = (field: string): 'text' | 'number' | 'date' => {
 
 // Función para inicializar campos obligatorios
 function initializeRequiredFields() {
-    const requiredFields = (props.additionalFieldsMeta ?? []).filter(f => f.is_required);
+    const requiredFields = (props.additionalFieldsMeta ?? []).filter((f) => f.is_required);
     let hasChanges = false;
     const updated = { ...localExtraFields.value };
-    
-    requiredFields.forEach(field => {
+
+    requiredFields.forEach((field) => {
         if (!updated[field.name]) {
             // Agregar campo con valor por defecto o vacío
-            updated[field.name] = field.default_value !== undefined && field.default_value !== null 
-                ? String(field.default_value) 
-                : '';
+            updated[field.name] = field.default_value !== undefined && field.default_value !== null ? String(field.default_value) : '';
             hasChanges = true;
         }
     });
-    
+
     if (hasChanges) {
         localExtraFields.value = updated;
     }
@@ -128,7 +125,7 @@ watch(
             localExtraFields.value = { ...val };
             initializeRequiredFields();
         }
-    }
+    },
 );
 
 // Inicializar campos obligatorios cuando cambien los metadatos
@@ -137,7 +134,7 @@ watch(
     () => {
         initializeRequiredFields();
     },
-    { immediate: true, deep: true }
+    { immediate: true, deep: true },
 );
 
 // Emitir cambios solo cuando localExtraFields cambia realmente
@@ -146,7 +143,7 @@ watch(
     (val) => {
         emit('update:extraFields', { ...val });
     },
-    { deep: true }
+    { deep: true },
 );
 
 watch(selectedExtraField, () => {
@@ -210,7 +207,7 @@ function removeExtraField(field: string) {
     if (meta?.is_required) {
         return;
     }
-    
+
     if (localExtraFields.value[field] !== undefined) {
         const updated = { ...localExtraFields.value };
         delete updated[field];
@@ -227,22 +224,13 @@ function isAddDisabled() {
     }
     return !extraFieldValue.value.trim();
 }
-
 </script>
 
 <template>
     <div>
-        <label
-            v-if="props.showLabel"
-            class="mb-2 block font-semibold"
-        >
-            Campos Adicionales
-        </label>
+        <label v-if="props.showLabel" class="mb-2 block font-semibold"> Campos Adicionales </label>
 
-        <div
-            v-if="!props.readonly"
-            class="flex flex-col items-end gap-2 md:flex-row"
-        >
+        <div v-if="!props.readonly" class="flex flex-col items-end gap-2 md:flex-row">
             <div class="flex-1">
                 <SelectField
                     v-model="selectedExtraField"
@@ -256,7 +244,7 @@ function isAddDisabled() {
                             type="button"
                             size="sm"
                             variant="outline"
-                            class="w-full justify-center gap-1 text-xs text-muted-foreground border-border shadow-none hover:bg-muted/70"
+                            class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
                             @click.stop.prevent="emit('create-additional-field')"
                         >
                             <Plus class="h-4 w-4" />
@@ -278,7 +266,7 @@ function isAddDisabled() {
                     v-else-if="selectedExtraField && dynamicFieldOptions[selectedExtraField]"
                     label="Valor"
                     v-model="extraFieldValue"
-                    :options="(dynamicFieldOptions[selectedExtraField] ?? []).map(o => ({ id: o, name: o }))"
+                    :options="(dynamicFieldOptions[selectedExtraField] ?? []).map((o) => ({ id: o, name: o }))"
                     :disabled="!selectedExtraField"
                     placeholder="Seleccione valor"
                 />
@@ -305,19 +293,14 @@ function isAddDisabled() {
 
         <div class="mt-4 space-y-3">
             <div
-                v-for="([field]) in extraFieldEntries"
+                v-for="[field] in extraFieldEntries"
                 :key="field"
                 class="flex flex-col gap-3 rounded-2xl border border-border bg-card/80 px-4 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
             >
                 <div class="flex-1 space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         {{ field }}
-                        <span
-                            v-if="additionalFieldsMetaMap[field]?.is_required"
-                            class="text-red-500"
-                        >
-                            *
-                        </span>
+                        <span v-if="additionalFieldsMetaMap[field]?.is_required" class="text-red-500"> * </span>
                     </p>
                     <div>
                         <SelectField
@@ -343,14 +326,14 @@ function isAddDisabled() {
                 </div>
                 <DeleteButton
                     v-if="!props.readonly && !additionalFieldsMetaMap[field]?.is_required"
-                    class="pt-4 ml-auto text-muted-foreground transition hover:text-red-500"
+                    class="ml-auto pt-4 text-gray-400 transition hover:text-red-500"
                     @click="removeExtraField(field)"
                     title="Quitar"
                 />
             </div>
             <div
                 v-if="!hasExtraFields"
-                class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-center text-sm font-medium text-muted-foreground"
+                class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-center text-sm font-medium text-slate-500"
             >
                 No hay campos adicionales agregados.
             </div>

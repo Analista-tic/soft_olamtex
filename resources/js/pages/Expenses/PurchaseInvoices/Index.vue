@@ -1,41 +1,35 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
-import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import DateField from '@/components/DateField.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { useAlertStack } from '@/composables/useAlert';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import type { PurchaseInvoice } from '@/domain/Expenses';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { formatDateDDMMYYYY, toIsoDateString } from '@/lib/date';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Printer, Search, Mail, Package, Eye, MinusCircle, Trash2 } from 'lucide-vue-next';
+import { Eye, Mail, MinusCircle, MoreVertical, Package, PlusCircle, Printer, Search } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
-import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 import PurchaseInvoiceCreditDebitNotesDialog, {
     type PurchaseInvoiceAssociatedNote,
     type PurchaseInvoiceNotesSummary,
 } from './PurchaseInvoiceCreditDebitNotesDialog.vue';
-import SelectField from '@/components/SelectField.vue';
-import DateField from '@/components/DateField.vue';
-import { Button } from '@/components/ui/button';
-import AlertStack from '@/components/common/AlertStack.vue';
-import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import { useAlertStack } from '@/composables/useAlert';
-import {
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import { formatDateDDMMYYYY, toIsoDateString } from '@/lib/date';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
-import { uiPatterns } from '@/lib/ui-patterns';
+import PurchaseInvoiceDialog from './PurchaseInvoiceDialog.vue';
+import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 
-const breadcrumbs = [
-    { title: 'Facturas de Compra', href: '/facturas-compra' },
-];
+const breadcrumbs = [{ title: 'Facturas de Compra', href: '/facturas-compra' }];
 
 const invoices = ref<PurchaseInvoice[]>([]);
 const isDialogOpen = ref(false);
@@ -60,21 +54,13 @@ const associatedNotesSummary = ref<PurchaseInvoiceNotesSummary | null>(null);
 const isLoadingAssociatedNotes = ref(false);
 const associatedNotesError = ref('');
 const isSendingMail = ref(false);
-const {
-    successMessage,
-    errorMessage,
-    errorType,
-    showSuccess,
-    showError,
-    clearSuccess,
-    clearError,
-    clearAlerts,
-} = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
 const subgroupFilter = ref('all');
-const dateFilter = ref<Date | null>(null);
+const dateFrom = ref<Date | null>(null);
+const dateTo = ref<Date | null>(null);
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 const DEFAULT_STATUS_FILTER = 'all';
@@ -85,19 +71,15 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
 const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
-const hasActiveFilters = computed(() =>
-    isSearchActive.value ||
-    isStatusFilterActive.value ||
-    isProviderFilterActive.value ||
-    isSubgroupFilterActive.value ||
-    isDateFilterActive.value,
-);
+const isDateFromActive = computed(() => Boolean(dateFrom.value));
+const isDateToActive = computed(() => Boolean(dateTo.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
-let isSyncingFilters = false;
+const actionButtonClass =
+    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const actionIconClass = 'h-4 w-4';
 const DIALOG_PREPARE_FALLBACK_MS = 10000;
 let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -106,14 +88,14 @@ const smartLoading = useSmartLoading();
 const facturasRoute = '/gastos/facturas-compra';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
-const receptionScopeParam = 'scope';
-const receptionScopeValue = 'general';
+const receptionInvoiceTypeParam = 'invoice_type';
+const receptionInvoiceTypeValue = 'general';
 
 function buildReceptionUrl(invoiceId?: number | string) {
     const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
     const query = new URLSearchParams({
         [receptionReturnParam]: facturasRoute,
-        [receptionScopeParam]: receptionScopeValue,
+        [receptionInvoiceTypeParam]: receptionInvoiceTypeValue,
     });
     return `${basePath}?${query.toString()}`;
 }
@@ -179,19 +161,12 @@ function getInvoiceStatusTone(status?: string): 'yellow' | 'green' | 'red' | 'gr
     return 'gray';
 }
 
-function isPendingInvoiceStatus(status?: string | null): boolean {
-    return status === 'pending' || status === 'pending_receipt';
-}
-
-function canMutateInvoice(invoice: PurchaseInvoice): boolean {
-    return isPendingInvoiceStatus(invoice.status);
-}
-
 async function fetchProviders() {
     try {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
         providers.value = response.data.data;
     } catch (e) {
+        console.log('Error al cargar proveedores:', e);
         providers.value = [];
     }
 }
@@ -201,6 +176,7 @@ async function fetchSubgroups() {
         const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
         subgroups.value = Array.isArray(data?.data) ? data.data : [];
     } catch (error) {
+        console.log('Error al cargar subgrupos:', error);
         subgroups.value = [];
     }
 }
@@ -259,7 +235,7 @@ async function openDialogWithPreparation(type: 'create' | 'edit', invoice: Purch
     dialogType.value = type;
     isDialogReadOnly.value = readOnly;
     // Asegura el tipado correcto y evita referencias reactivas no deseadas
-    form.value = invoice ? JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice> : {};
+    form.value = invoice ? (JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice>) : {};
     clearAlerts();
 
     await nextTick();
@@ -289,8 +265,8 @@ function handleDialogLoadingState(value: boolean) {
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
     // Evitar petición al servidor si la factura ya está aprobada
-    if (!canMutateInvoice(invoice)) {
-        showError('Solo se pueden eliminar facturas en estado pendiente.');
+    if (invoice.status === 'received') {
+        showError('No se puede eliminar una factura que ya fue recibida.');
         return;
     }
     invoiceToDelete.value = invoice;
@@ -304,6 +280,7 @@ async function deleteInvoice(): Promise<void> {
         showSuccess('Factura eliminada correctamente.');
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
+        console.log('Error al eliminar factura:', e);
         const serverMessage = (e as any)?.response?.data?.message;
         const status = (e as any)?.response?.status;
         if (serverMessage) {
@@ -318,14 +295,13 @@ async function deleteInvoice(): Promise<void> {
     }
 }
 
-
 async function fetchInvoices(page = 1, search = ''): Promise<void> {
     const params: Record<string, any> = {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: toIsoDateString(dateFilter.value) || undefined,
-        date_to: toIsoDateString(dateFilter.value) || undefined,
+        date_from: toIsoDateString(dateFrom.value) || undefined,
+        date_to: toIsoDateString(dateTo.value) || undefined,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
@@ -336,50 +312,42 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     }
     try {
         const response = await axios.get('/gastos/facturas-compra/data', { params });
-        invoices.value = Array.isArray(response.data.data)
-            ? response.data.data
-            : Array.isArray(response.data)
-                ? response.data
-                : [];
+        invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
     } catch (e) {
+        console.log('Error al cargar facturas:', e);
         invoices.value = [];
         totalItems.value = 0;
     }
 }
 
-function applyFilters() {
-    if (currentPage.value !== 1) {
-        currentPage.value = 1;
-        return;
-    }
-    void fetchInvoices(1, searchQuery.value);
-}
-
-function resetFilters() {
-    if (!hasActiveFilters.value) return;
-    isSyncingFilters = true;
-    searchQuery.value = '';
-    statusFilter.value = DEFAULT_STATUS_FILTER;
-    providerFilter.value = DEFAULT_PROVIDER_FILTER;
-    subgroupFilter.value = DEFAULT_SUBGROUP_FILTER;
-    dateFilter.value = null;
-    if (currentPage.value !== 1) {
-        currentPage.value = 1;
-    }
-    isSyncingFilters = false;
-    void fetchInvoices(1, '');
-}
-
-watch([statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery], () => {
-    if (isSyncingFilters) return;
-    applyFilters();
-});
+// Watcher Ãºnico para filtros y bÃºsqueda
+watch(
+    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
+        if (
+            newStatus !== oldStatus ||
+            newProvider !== oldProvider ||
+            newSubgroup !== oldSubgroup ||
+            newFrom !== oldFrom ||
+            newTo !== oldTo ||
+            newSearch !== oldSearch
+        ) {
+            // Solo cambia la página, el watcher de currentPage hará el fetch
+            if (currentPage.value !== 1) {
+                currentPage.value = 1;
+            } else {
+                fetchInvoices(1, newSearch);
+            }
+        }
+    },
+);
 
 // Watcher para paginación
 watch(currentPage, (newPage, oldPage) => {
-    if (isSyncingFilters || newPage === oldPage) return;
-    fetchInvoices(newPage, searchQuery.value);
+    if (newPage !== oldPage) {
+        fetchInvoices(newPage, searchQuery.value);
+    }
 });
 
 onMounted(() => {
@@ -427,12 +395,7 @@ function normalizeAssociatedNotes(payload: unknown): PurchaseInvoiceAssociatedNo
     if (Array.isArray(payload)) {
         return payload as PurchaseInvoiceAssociatedNote[];
     }
-    if (
-        payload &&
-        typeof payload === 'object' &&
-        'data' in payload &&
-        Array.isArray((payload as { data?: unknown }).data)
-    ) {
+    if (payload && typeof payload === 'object' && 'data' in payload && Array.isArray((payload as { data?: unknown }).data)) {
         return (payload as { data: PurchaseInvoiceAssociatedNote[] }).data;
     }
     return [];
@@ -473,11 +436,7 @@ async function handleSendMailAction(invoice: PurchaseInvoice, event?: Event) {
     await sendInvoiceByEmail(invoice);
 }
 
-function goToCreditDebitNote(
-    invoice: PurchaseInvoice,
-    documentType: 'purchase_credit_note' | 'purchase_debit_note',
-    event?: Event,
-) {
+function goToCreditDebitNote(invoice: PurchaseInvoice, documentType: 'purchase_credit_note' | 'purchase_debit_note', event?: Event) {
     stopMenuEvent(event);
     if (!invoice?.id) return;
 
@@ -587,7 +546,6 @@ function handleDialogError(message?: string) {
     showError(message || 'Error al guardar la factura.');
     clearSuccess();
 }
-
 </script>
 
 <template>
@@ -603,15 +561,13 @@ function handleDialogError(message?: string) {
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">Facturas de Compras y Servicios</h1>
-                    <p :class="uiPatterns.typography.pageSubtitle">
-                        Registra facturas para llevar la trazabilidad de la recepción y la aprobación.
-                    </p>
+                    <h1 class="text-lg font-bold">Facturas de Compras y Servicios</h1>
+                    <p class="text-sm text-muted-foreground">Registra facturas para llevar la trazabilidad de la recepción y la aprobación.</p>
                 </div>
                 <div class="flex gap-2">
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="router.visit(buildReceptionUrl())"
                     >
                         <Package class="h-4 w-4" />
@@ -620,7 +576,7 @@ function handleDialogError(message?: string) {
                     <button
                         type="button"
                         :disabled="isPreparingDialog"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="openDialogWithPreparation('create')"
                     >
                         <PlusCircle class="h-4 w-4" />
@@ -629,7 +585,7 @@ function handleDialogError(message?: string) {
                 </div>
             </div>
             <FilterBar align="start">
-                <FilterField label="Buscar factura" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                <FilterField label="Buscar factura" :active="isSearchActive" class="min-w-[220px] flex-1">
                     <div class="relative">
                         <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -645,7 +601,7 @@ function handleDialogError(message?: string) {
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobado' },
-                            { id: 'rejected', name: 'Rechazado' }
+                            { id: 'rejected', name: 'Rechazado' },
                         ]"
                         :button-class="statusButtonClasses"
                     />
@@ -654,7 +610,10 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="providerFilter"
                         label=""
-                        :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map(prov => ({ id: String(prov.id), name: prov.full_name }))]"
+                        :options="[
+                            { id: 'all', name: 'Todos los proveedores' },
+                            ...providers.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
+                        ]"
                         :button-class="providerButtonClasses"
                     />
                 </FilterField>
@@ -662,42 +621,35 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="subgroupFilter"
                         label=""
-                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map(sub => ({ id: String(sub.id), name: sub.name }))]"
+                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map((sub) => ({ id: String(sub.id), name: sub.name }))]"
                         :button-class="subgroupButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <DateField v-model="dateFilter" placeholder="dd/mm/aaaa" />
+                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
+                    <DateField v-model="dateFrom" placeholder="Desde" />
                 </FilterField>
-                <Button
-                    v-if="hasActiveFilters"
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    class="h-10"
-                    @click="resetFilters"
-                >
-                    Limpiar
-                </Button>
+                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
+                    <DateField v-model="dateTo" placeholder="Hasta" />
+                </FilterField>
             </FilterBar>
-            <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">
+            <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead">N° Factura</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Fecha de creación</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Fecha de entrega</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Item</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Total</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Descripción</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
-                            <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>
+                            <TableHead>#Factura</TableHead>
+                            <TableHead>Fecha de creación</TableHead>
+                            <TableHead>Fecha de entrega</TableHead>
+                            <TableHead>Proveedor</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Total</TableHead>
+                            <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                            <TableCell :class="uiPatterns.typography.bodyStrong">
+                            <TableCell class="font-medium">
                                 {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
                             </TableCell>
                             <TableCell>{{ formatDate(invoice.date) }}</TableCell>
@@ -705,7 +657,7 @@ function handleDialogError(message?: string) {
                             <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
                             <TableCell class="text-start">{{ getInvoiceItemsPreview(invoice) }}</TableCell>
                             <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
-                            <TableCell class="text-start max-w-32 truncate">{{ invoice.description || '-' }}</TableCell>
+                            <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>
                                 <TableStatusBadge
                                     :label="invoice.status ? getInvoiceStatusLabel(invoice.status) : 'Pendiente'"
@@ -713,20 +665,44 @@ function handleDialogError(message?: string) {
                                 />
                             </TableCell>
                             <TableCell>
-                                <div class="flex justify-center gap-1 flex-wrap">
-                                      <button
-                                          class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
-                                          @click="viewInvoiceDetails(invoice)"
-                                          title="Ver detalles"
-                                      >
+                                <div class="flex flex-wrap justify-center gap-1">
+                                    <button
+                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
+                                        @click="viewInvoiceDetails(invoice)"
+                                        title="Ver detalles"
+                                    >
                                         <Eye class="h-4 w-4" />
-                                      </button>
-                                    <EditButton
-                                        :onClick="() => canMutateInvoice(invoice) && openDialogWithPreparation('edit', invoice)"
-                                        :disabled="!canMutateInvoice(invoice)"
-                                        :class="!canMutateInvoice(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
+                                    </button>
+                                    <EditButton :onClick="() => openDialogWithPreparation('edit', invoice)" />
+                                    <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
+                                         y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
+                                    <DeleteButton
+                                        :onClick="
+                                            () => {
+                                                if (invoice.status === 'received') {
+                                                    showError('No se puede eliminar una factura que ya fue recibida.');
+                                                } else {
+                                                    confirmDeleteInvoice(invoice);
+                                                }
+                                            }
+                                        "
+                                        :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
                                     />
-                                    <TableActionsMenu content-class="w-48">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger as-child>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                :class="actionButtonClass"
+                                                title="Acciones"
+                                                @click.stop
+                                                @pointerdown.stop
+                                            >
+                                                <MoreVertical :class="actionIconClass" />
+                                                <span class="sr-only">Acciones</span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" class="w-48">
                                             <DropdownMenuItem class="cursor-pointer gap-2" @select="handlePrintAction(invoice, $event)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
@@ -736,30 +712,28 @@ function handleDialogError(message?: string) {
                                             <DropdownMenuItem class="cursor-pointer gap-2" @select="openAssociatedNotesDialog(invoice, $event)">
                                                 <Eye class="h-4 w-4" /> Ver notas crédito/débito
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)">
+                                            <DropdownMenuItem
+                                                class="cursor-pointer gap-2"
+                                                @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)"
+                                            >
                                                 <MinusCircle class="h-4 w-4" /> Crear Nota Crédito
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)">
+                                            <DropdownMenuItem
+                                                class="cursor-pointer gap-2"
+                                                @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)"
+                                            >
                                                 <PlusCircle class="h-4 w-4" /> Crear Nota Débito
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 class="cursor-pointer gap-2"
-                                                :class="isSendingMail ? 'opacity-60 cursor-not-allowed' : ''"
+                                                :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
                                                 :disabled="isSendingMail"
                                                 @select="handleSendMailAction(invoice, $event)"
                                             >
                                                 <Mail class="h-4 w-4" /> Enviar al correo
                                             </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                                class="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                                                :class="!canMutateInvoice(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
-                                                :disabled="!canMutateInvoice(invoice)"
-                                                @select="confirmDeleteInvoice(invoice)"
-                                            >
-                                                <Trash2 class="h-4 w-4" /> Eliminar
-                                            </DropdownMenuItem>
-                                    </TableActionsMenu>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             </TableCell>
                         </TableRow>
@@ -796,13 +770,13 @@ function handleDialogError(message?: string) {
             @open-note="handleOpenAssociatedNote"
         />
         <ConfirmDialog
-        v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminación"
-        description="¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer."
-        confirm-text="Eliminar"
-        cancel-text="Cancelar"
-        :destructive="true"
-        @confirm="deleteInvoice"
-    />
+            v-model:open="isDeleteDialogOpen"
+            title="Confirmar eliminación"
+            description="¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer."
+            confirm-text="Eliminar"
+            cancel-text="Cancelar"
+            :destructive="true"
+            @confirm="deleteInvoice"
+        />
     </AppLayout>
 </template>

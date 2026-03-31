@@ -14,12 +14,14 @@ use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 use App\Http\Controllers\Production\ProductOperationListController;
+use App\Http\Controllers\Production\CollectionController;
 use App\Http\Controllers\Production\ProductSheetController;
 use App\Http\Controllers\Production\ProgrammerController;
 use App\Http\Controllers\Production\ProductionOrderController;
 use App\Http\Controllers\Production\BatchControlController;
 use App\Http\Controllers\Production\TechnicalDataSheetAdditionalInfoController;
 use App\Http\Controllers\Production\TechnicalDataSheetRollsController;
+use App\Http\Controllers\Production\TechnicalSheetCuttingPieceController;
 use App\Http\Controllers\Production\TechnicalDataSheetSuppliesController;
 use App\Http\Controllers\Production\TechnicalDataSheetThreadsController;
 use App\Http\Controllers\Production\TechnicalDataSheetController;
@@ -61,10 +63,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Usuario autenticado
     Route::get('user', function () {
-        $user = Auth::user(); //CONSULTAR USUARIO LOGUEADO
-        if (!$user instanceof User) {
-            abort(401);
-        }
+        $user = Auth::user()->load('roles.permissions', 'permissions');
 
         return response()->json([
             'user' => $user,
@@ -132,6 +131,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('ficha-tecnica.supplies.save-all');
         Route::delete('ficha-tecnica/{opId}/insumos/{supplyId}', [TechnicalDataSheetSuppliesController::class, 'destroy'])
             ->name('ficha-tecnica.supplies.destroy');
+        Route::post('ficha-tecnica/{opId}/solicitar-insumo', [TechnicalDataSheetSuppliesController::class, 'requestSupply'])
+            ->name('ficha-tecnica.supplies.request');
+        Route::get('ficha-tecnica/insumos/subgrupos', [TechnicalDataSheetSuppliesController::class, 'supplySubGroups'])
+            ->name('ficha-tecnica.supplies.sub-groups');
         Route::get('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'index'])
             ->name('ficha-tecnica.rolls.index');
         Route::put('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'saveAll'])
@@ -156,6 +159,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('ficha-tecnica.additional-info.show');
         Route::post('ficha-tecnica/{opId}/info-adicional', [TechnicalDataSheetAdditionalInfoController::class, 'store'])
             ->name('ficha-tecnica.additional-info.store');
+
+        // Despiece de trazo de corte (tabla relacional por pieza)
+        Route::get('ficha-tecnica/{opId}/despiece-corte', [TechnicalSheetCuttingPieceController::class, 'index'])
+            ->name('ficha-tecnica.despiece-corte.index');
+        Route::put('ficha-tecnica/{opId}/despiece-corte', [TechnicalSheetCuttingPieceController::class, 'bulkSync'])
+            ->name('ficha-tecnica.despiece-corte.bulkSync');
 
         Route::get('product-sheets', [ProductSheetController::class, 'getData'])
             ->middleware('permission:ver sabana productos')
@@ -182,6 +191,35 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('sabana-productos/{sabana}', [ProductSheetController::class, 'destroy'])
             ->middleware('permission:eliminar sabana productos')
             ->name('sabana-productos.destroy');
+        Route::post('sabana-productos/{sabana}/toggle-enabled', [ProductSheetController::class, 'toggleEnabled'])
+            ->middleware('permission:editar sabana productos')
+            ->name('sabana-productos.toggleEnabled');
+        Route::get('sabana-productos-templates', [ProductSheetController::class, 'templates'])
+            ->middleware('permission:ver sabana productos')
+            ->name('sabana-productos.templates');
+
+        // Colecciones
+        Route::get('colecciones', [CollectionController::class, 'index'])
+            ->middleware('permission:ver sabana productos')
+            ->name('colecciones.index');
+        Route::get('colecciones/data', [CollectionController::class, 'getData'])
+            ->middleware('permission:ver sabana productos')
+            ->name('colecciones.data');
+        Route::get('colecciones/options', [CollectionController::class, 'options'])
+            ->middleware('permission:ver sabana productos')
+            ->name('colecciones.options');
+        Route::post('colecciones', [CollectionController::class, 'store'])
+            ->middleware('permission:crear sabana productos')
+            ->name('colecciones.store');
+        Route::put('colecciones/{collection}', [CollectionController::class, 'update'])
+            ->middleware('permission:editar sabana productos')
+            ->name('colecciones.update');
+        Route::delete('colecciones/{collection}', [CollectionController::class, 'destroy'])
+            ->middleware('permission:eliminar sabana productos')
+            ->name('colecciones.destroy');
+        Route::post('colecciones/{collection}/toggle-activo', [CollectionController::class, 'toggleActive'])
+            ->middleware('permission:editar sabana productos')
+            ->name('colecciones.toggle-activo');
 
         Route::get('base-operaciones', [OperationController::class, 'indexView'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
@@ -302,11 +340,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/prioridades', [BatchControlController::class, 'updatePriorities'])->name('update-priorities');
         Route::patch('/{order}/fecha-estimada', [BatchControlController::class, 'updateEstimatedDate'])->name('update-estimated-date');
         Route::get('/{order}/historial', [BatchControlController::class, 'deliveryHistory'])->name('delivery-history');
+        Route::get('/{order}/consumo-telas-corte', [BatchControlController::class, 'getCutFabricConsumption'])->name('cut-fabric-consumption');
+        Route::put('/{order}/consumo-telas-corte', [BatchControlController::class, 'saveCutFabricConsumption'])->name('save-cut-fabric-consumption');
 
         // Novedades / Devoluciones
         Route::post('/{order}/novedades', [BatchControlController::class, 'reportNovelty'])->name('report-novelty');
         Route::patch('/{order}/novedades/{novelty}/resolver', [BatchControlController::class, 'resolveNovelty'])->name('resolve-novelty');
         Route::get('/{order}/novedades', [BatchControlController::class, 'novelties'])->name('novelties');
+
+        // Logística: salida de insumos
+        Route::get('/{order}/logistica-insumos', [BatchControlController::class, 'getLogisticsSupplies'])->name('logistics-supplies');
+        Route::post('/{order}/logistica-salida-insumos', [BatchControlController::class, 'processLogisticsSupplyExit'])->name('logistics-supply-exit');
     });
 
 
@@ -602,15 +646,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // === NOTAS CRÉDITO / DÉBITO ===
-    Route::prefix('notas-credito-debito')->middleware('permission:ver notas credito debito')->group(function () {
-        Route::get('/', [CreditDebitNoteController::class, 'index']);
-        Route::get('/data', [CreditDebitNoteController::class, 'getData']);
-        Route::get('/next-number', [CreditDebitNoteController::class, 'nextNumber']);
-        Route::get('/eligible-purchase-invoices', [CreditDebitNoteController::class, 'eligiblePurchaseInvoices']);
-        Route::post('/', [CreditDebitNoteController::class, 'store'])->middleware('permission:crear notas credito debito');
-        Route::get('/{id}', [CreditDebitNoteController::class, 'show']);
-        Route::put('/{id}', [CreditDebitNoteController::class, 'update'])->middleware('permission:editar notas credito debito');
-        Route::delete('/{id}', [CreditDebitNoteController::class, 'destroy'])->middleware('permission:eliminar notas credito debito');
+    Route::prefix('notas-credito-debito')->name('credit-debit-notes.')->middleware('permission:ver notas credito debito')->group(function () {
+        Route::get('/', [CreditDebitNoteController::class, 'index'])->name('index');
+        Route::get('/data', [CreditDebitNoteController::class, 'getData'])->name('data');
+        Route::get('/next-number', [CreditDebitNoteController::class, 'nextNumber'])->name('next-number');
+        Route::get('/eligible-purchase-invoices', [CreditDebitNoteController::class, 'eligiblePurchaseInvoices'])->name('eligible-purchase-invoices');
+        Route::post('/', [CreditDebitNoteController::class, 'store'])->name('store')->middleware('permission:crear notas credito debito');
+        Route::get('/{id}', [CreditDebitNoteController::class, 'show'])->name('show');
+        Route::put('/{id}', [CreditDebitNoteController::class, 'update'])->name('update')->middleware('permission:editar notas credito debito');
+        Route::delete('/{id}', [CreditDebitNoteController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar notas credito debito');
     });
 
     // === FINANZAS: TESORERIA (FASE 1) ===
@@ -635,11 +679,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/recibos-caja/{receipt}/void', [\App\Http\Controllers\Finance\CashReceiptController::class, 'void'])->name('cash-receipts.void');
 
         // === CATÁLOGO DE CUENTAS ===
+        Route::get('/catalogo-cuentas/options', [AccountingAccountController::class, 'options'])->name('account-chart.options');
+
         Route::prefix('catalogo-cuentas')->name('account-chart.')->middleware('permission:ver catalogo cuentas')->group(function () {
             Route::get('/', [AccountingAccountController::class, 'index'])->name('index');
             Route::get('/crear', [AccountingAccountController::class, 'create'])->name('create')->middleware('permission:crear catalogo cuentas');
             Route::get('/data', [AccountingAccountController::class, 'data'])->name('data');
-            Route::get('/options', [AccountingAccountController::class, 'options'])->name('options');
             Route::get('/{id}/data', [AccountingAccountController::class, 'item'])->name('item');
             Route::get('/{id}/movimientos', [AccountingAccountController::class, 'movements'])->name('movements');
             Route::get('/{id}/movimientos/data', [AccountingAccountController::class, 'movementsData'])->name('movements.data');
@@ -695,7 +740,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('inventario.item.formulario-avanzado');
     Route::get('inventario/ajuste-inventario', [ItemController::class, 'adjustmentView'])->name('inventario.ajuste-inventario');
     Route::get('inventario/ajuste-inventario/crear', function () {
-        return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
+        return Inertia::render('Inventory/InventoryAdjustment/InventoryAdjustmentForm');
     })->name('inventario.ajuste-inventario.create');
 
     // === SOLICITUDES INTERNAS ===

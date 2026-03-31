@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import AppContent from '@/components/AppContent.vue';
-import NotificationsDropdown from '@/components/NotificationsDropdown.vue';
 import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
+import NotificationsDropdown from '@/components/NotificationsDropdown.vue';
 import UserMenuDropdown from '@/components/UserMenuDropdown.vue';
 import type { BreadcrumbItemType } from '@/domain/shared';
 

@@ -7,17 +7,45 @@ use App\Http\Controllers\Controller;
 use App\Models\Production\BatchControlDelivery;
 use App\Models\Production\BatchControlNovelty;
 use App\Models\Production\ProductionOrder;
+use App\Models\Production\TechnicalDataSheetSupply;
+use App\Models\Textil\FabricRoll;
+use App\Services\Inventory\InventoryMovementService;
 use App\Services\Settings\SettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class BatchControlController extends Controller
 {
+    private function inferColorFromText(?string $value): ?string
+    {
+        $text = trim((string) $value);
+        if ($text === '') {
+            return null;
+        }
+
+        if (preg_match('/\(([^)]+)\)\s*$/', $text, $match) === 1) {
+            $candidate = trim((string) ($match[1] ?? ''));
+            return $candidate !== '' ? $candidate : null;
+        }
+
+        $parts = preg_split('/[-|\/]/', $text) ?: [];
+        $parts = array_values(array_filter(array_map(static fn ($p) => trim((string) $p), $parts), static fn ($p) => $p !== ''));
+
+        if (count($parts) >= 2) {
+            return $parts[count($parts) - 1];
+        }
+
+        return null;
+    }
+
     public function __construct(
         private SettingService $settingService,
+        private InventoryMovementService $movementService,
     ) {
     }
 
@@ -31,13 +59,64 @@ class BatchControlController extends Controller
     }
 
     /**
+     * Procesos de la ficha de producto normalizados al orden de batch_control.
+     * Incluye obligatorios (según tipo) y los activos, filtrando por lo permitido al tipo.
+     *
+     * @param  array<string, bool>|array<int, string>  $rawProcesses  ProductSheet.processes (objeto o array)
+     * @param  array<string>  $batchProcesses
+     * @param  array<string, string>  $aliases
+     * @param  string  $type  'muestra' | 'producto'
+     * @return array<string>
+     */
+    private function productSheetProcessesForFlow(array $rawProcesses, array $batchProcesses, array $aliases, string $type = 'producto'): array
+    {
+        $mandatoryByType = config('product-sheet.batch_control_mandatory_processes_by_type', []);
+        $mandatory = $mandatoryByType[$type] ?? config('product-sheet.batch_control_mandatory_processes', []);
+
+        $allowedByType = config('product-sheet.processes_allowed_by_type', []);
+        $allowedForType = isset($allowedByType[$type]) ? array_flip($allowedByType[$type]) : null;
+
+        $active = [];
+        if (array_is_list($rawProcesses)) {
+            foreach ($rawProcesses as $p) {
+                $name = is_string($p) ? trim($p) : null;
+                if ($name) {
+                    $active[] = $aliases[$name] ?? $name;
+                }
+            }
+        } else {
+            foreach ($rawProcesses as $name => $enabled) {
+                if ($enabled && is_string($name)) {
+                    $normalized = $aliases[trim($name)] ?? trim($name);
+                    $active[] = $normalized;
+                }
+            }
+        }
+
+        $activeSet = array_flip(array_unique($active));
+
+        $result = [];
+        foreach ($batchProcesses as $proc) {
+            // Excluir procesos no permitidos para este tipo
+            if ($allowedForType !== null && !isset($allowedForType[$proc])) {
+                continue;
+            }
+            if (in_array($proc, $mandatory, true) || isset($activeSet[$proc])) {
+                $result[] = $proc;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Devuelve todas las órdenes con datos para Control de lotes.
      * Incluye la última entrega (observaciones) y fecha estimada.
      */
     public function getData(Request $request): JsonResponse
     {
         $query = ProductionOrder::with([
-            'productSheet:id,type,sample_reference,product_reference,section_id,group_id',
+            'productSheet:id,type,processes,description,sample_reference,product_reference,section_id,group_id',
             'lastDelivery',
         ])
         ->withCount(['pendingNovelties'])
@@ -52,8 +131,20 @@ class BatchControlController extends Controller
 
         $today = Carbon::today();
 
-        $rows = $orders->map(function (ProductionOrder $p) use ($destinations, $sections, $groups, $today) {
+        $processes = config('product-sheet.batch_control_processes', []);
+        $aliases = config('product-sheet.batch_control_process_aliases', []);
+
+        $rows = $orders->map(function (ProductionOrder $p) use ($destinations, $sections, $groups, $today, $processes, $aliases) {
             $ps = $p->productSheet;
+
+            // Flujo real según ProductSheet: procesos activos normalizados al orden de batch_control
+            $rawProcesses = $ps?->processes ?? [];
+            if (is_string($rawProcesses)) {
+                $decoded = json_decode($rawProcesses, true);
+                $rawProcesses = is_array($decoded) ? $decoded : [];
+            }
+            $productSheetProcesses = $this->productSheetProcessesForFlow($rawProcesses, $processes, $aliases, $ps?->type ?? 'producto');
+
             $displayRef = $ps
                 ? (($ps->type ?? '') === 'producto'
                     ? trim((string) ($ps->product_reference ?? ''))
@@ -65,7 +156,7 @@ class BatchControlController extends Controller
             // Fechas estimadas por proceso (JSON)
             $allDates = $p->process_estimated_dates ?? [];
 
-            // Calcular deadline por proceso
+            // Calcular deadline por proceso (soporta fecha o datetime con hora)
             $deadlines = [];
             foreach ($allDates as $proc => $dateStr) {
                 if (!$dateStr) {
@@ -73,7 +164,8 @@ class BatchControlController extends Controller
                     continue;
                 }
                 $estDate = Carbon::parse($dateStr);
-                $daysLeft = $today->diffInDays($estDate, false);
+                // Comparar en días (ignorar hora para determinar urgencia diaria)
+                $daysLeft = $today->startOfDay()->diffInDays($estDate->startOfDay(), false);
                 if ($daysLeft < 0) {
                     $deadlines[$proc] = 'overdue';
                 } elseif ($daysLeft <= 2) {
@@ -85,6 +177,20 @@ class BatchControlController extends Controller
 
             // Última entrega (observaciones del paso anterior)
             $lastDelivery = $p->lastDelivery;
+
+            // Fecha en que llegó al proceso actual (entrega donde to_process = current)
+            $arrivalDelivery = BatchControlDelivery::where('production_order_id', $p->id)
+                ->where('to_process', $p->current_process)
+                ->orderByDesc('created_at')
+                ->first();
+            $currentProcessArrivedAt = $arrivalDelivery?->created_at?->format('Y-m-d H:i');
+
+            // Estado de plazo para la orden completa (fecha final de entrega)
+            $orderDeadlineStatus = 'none';
+            if ($p->estimated_delivery_date) {
+                $daysLeftOrder = $today->diffInDays($p->estimated_delivery_date, false);
+                $orderDeadlineStatus = $daysLeftOrder < 0 ? 'overdue' : ($daysLeftOrder <= 2 ? 'due_soon' : 'on_time');
+            }
 
             return [
                 'id' => $p->id,
@@ -103,6 +209,7 @@ class BatchControlController extends Controller
                 'grupo' => $groupId
                     ? ($groups->get($groupId, ['name' => 'N/A'])['name'] ?? 'N/A')
                     : 'N/A',
+                'description' => trim((string) ($ps?->description ?? '')) ?: '-',
                 'fecha' => $p->estimated_delivery_date?->format('Y-m-d') ?? '-',
                 'product_sheet_type' => $ps?->type ?? 'producto',
                 'batch_priority' => $p->batch_priority ?? 0,
@@ -116,6 +223,9 @@ class BatchControlController extends Controller
                 ] : null,
                 'has_pending_novelties' => ($p->pending_novelties_count ?? 0) > 0,
                 'pending_novelties_count' => $p->pending_novelties_count ?? 0,
+                'current_process_arrived_at' => $currentProcessArrivedAt,
+                'order_deadline_status' => $orderDeadlineStatus,
+                'product_sheet_processes' => $productSheetProcesses,
             ];
         });
 
@@ -204,6 +314,21 @@ class BatchControlController extends Controller
         $process = $request->input('process');
         $date = $request->input('estimated_date');
 
+        // Validar que la fecha del proceso no sea anterior a la llegada al proceso
+        $arrivalDelivery = BatchControlDelivery::where('production_order_id', $order->id)
+            ->where('to_process', $process)
+            ->orderByDesc('created_at')
+            ->first();
+        if ($date && $arrivalDelivery?->created_at) {
+            $processDate = Carbon::parse($date);
+            $arrivedAt = $arrivalDelivery->created_at;
+            if ($processDate->lt($arrivedAt)) {
+                return response()->json([
+                    'message' => 'La fecha estimada del proceso no puede ser anterior a la hora en que la orden llegó a este proceso (' . $arrivedAt->format('d/m/Y H:i') . ').',
+                ], 422);
+            }
+        }
+
         // Validar que la fecha del proceso no supere la fecha final de entrega
         if ($date && $order->estimated_delivery_date) {
             $processDate = Carbon::parse($date);
@@ -254,10 +379,289 @@ class BatchControlController extends Controller
                 'observations' => $d->observations,
                 'delivered_by_name' => $d->deliveredByUser?->name ?? 'N/A',
                 'delivered_at' => $d->created_at?->format('d/m/Y H:i'),
+                'timestamp' => $d->created_at?->toIso8601String(),
             ]);
 
         return response()->json([
             'data' => $deliveries,
+        ]);
+    }
+
+    /**
+     * Datos para dialog de consumo de rollos en proceso de corte.
+     * Base: rollos programados de la ficha técnica (technical_sheet_rolls.lines).
+     * Los largos de trazo y liquidación vienen de la materia prima (raw_materials_uid match).
+     */
+    public function getCutFabricConsumption(ProductionOrder $order): JsonResponse
+    {
+        $sheet = $order->technicalSheet;
+        $rollLines = [];
+        if ($sheet) {
+            $snapshot = $sheet->rollsSnapshot()->first();
+            $rollLines = is_array($snapshot?->lines) ? array_values($snapshot->lines) : [];
+        }
+
+        // Build technical line id -> rollId mapping from snapshot
+        $rollIdByTechnicalLineId = [];
+        foreach ($rollLines as $line) {
+            $technicalLineId = isset($line['id']) ? trim((string) $line['id']) : '';
+            $rollId = isset($line['rollId']) ? (int) $line['rollId'] : null;
+            if ($technicalLineId !== '' && $rollId) {
+                $rollIdByTechnicalLineId[$technicalLineId] = $rollId;
+            }
+        }
+
+        // Batch-fetch roll metadata from fabric_rolls
+        $rollIds = array_values(array_unique(array_filter(array_map(fn (array $l) => isset($l['rollId']) ? (int) $l['rollId'] : null, $rollLines))));
+        $rollMetaById = [];
+        $rollMetaByNumber = [];
+        if (!empty($rollIds)) {
+            $rollMetaRows = FabricRoll::query()
+                ->select(['id', 'roll_number', 'location', 'internal_color_name', 'internal_color_code'])
+                ->whereIn('id', $rollIds)
+                ->get();
+
+            foreach ($rollMetaRows as $roll) {
+                $meta = [
+                    'roll_number' => $roll->roll_number !== null ? (string) $roll->roll_number : null,
+                    'location' => $roll->location !== null ? trim((string) $roll->location) : null,
+                    'internal_color_name' => $roll->internal_color_name !== null ? trim((string) $roll->internal_color_name) : null,
+                    'internal_color_code' => $roll->internal_color_code !== null ? trim((string) $roll->internal_color_code) : null,
+                ];
+
+                $rollMetaById[(int) $roll->id] = $meta;
+
+                $rollNumberRaw = trim((string) ($meta['roll_number'] ?? ''));
+                if ($rollNumberRaw !== '') {
+                    $rollMetaByNumber[$rollNumberRaw] = $meta;
+                    $rollMetaByNumber[strtoupper($rollNumberRaw)] = $meta;
+
+                    $normalizedWithoutPrefix = preg_replace('/^RL\s*/i', '', $rollNumberRaw);
+                    if (is_string($normalizedWithoutPrefix) && $normalizedWithoutPrefix !== '') {
+                        $rollMetaByNumber[$normalizedWithoutPrefix] = $meta;
+                        $rollMetaByNumber[strtoupper($normalizedWithoutPrefix)] = $meta;
+                    }
+                }
+            }
+        }
+
+        $stored = is_array($order->cut_fabric_consumption) ? $order->cut_fabric_consumption : [];
+        $storedLines = is_array($stored['lines'] ?? null) ? array_values($stored['lines']) : [];
+
+        if (!empty($storedLines)) {
+            $storedRollCodes = array_values(array_unique(array_filter(array_map(
+                static fn (array $line) => trim((string) ($line['roll_code'] ?? '')),
+                $storedLines,
+            ), static fn ($code) => $code !== '')));
+
+            if (!empty($storedRollCodes)) {
+                $normalizedRollCodes = [];
+                foreach ($storedRollCodes as $rollCode) {
+                    $normalizedRollCodes[] = $rollCode;
+                    $withoutPrefix = preg_replace('/^RL\s*/i', '', $rollCode);
+                    if (is_string($withoutPrefix) && trim($withoutPrefix) !== '') {
+                        $normalizedRollCodes[] = trim($withoutPrefix);
+                    }
+                }
+
+                $normalizedRollCodes = array_values(array_unique($normalizedRollCodes));
+
+                $rollMetaRowsByNumber = FabricRoll::query()
+                    ->select(['id', 'roll_number', 'location', 'internal_color_name', 'internal_color_code'])
+                    ->whereIn('roll_number', $normalizedRollCodes)
+                    ->get();
+
+                foreach ($rollMetaRowsByNumber as $roll) {
+                    $meta = [
+                        'roll_number' => $roll->roll_number !== null ? (string) $roll->roll_number : null,
+                        'location' => $roll->location !== null ? trim((string) $roll->location) : null,
+                        'internal_color_name' => $roll->internal_color_name !== null ? trim((string) $roll->internal_color_name) : null,
+                        'internal_color_code' => $roll->internal_color_code !== null ? trim((string) $roll->internal_color_code) : null,
+                    ];
+
+                    $rollMetaById[(int) $roll->id] = $meta;
+
+                    $rollNumberRaw = trim((string) ($meta['roll_number'] ?? ''));
+                    if ($rollNumberRaw !== '') {
+                        $rollMetaByNumber[$rollNumberRaw] = $meta;
+                        $rollMetaByNumber[strtoupper($rollNumberRaw)] = $meta;
+
+                        $normalizedWithoutPrefix = preg_replace('/^RL\s*/i', '', $rollNumberRaw);
+                        if (is_string($normalizedWithoutPrefix) && $normalizedWithoutPrefix !== '') {
+                            $rollMetaByNumber[$normalizedWithoutPrefix] = $meta;
+                            $rollMetaByNumber[strtoupper($normalizedWithoutPrefix)] = $meta;
+                        }
+                    }
+                }
+            }
+
+            $enrichedStoredLines = array_map(function (array $line) use ($rollIdByTechnicalLineId, $rollMetaById, $rollMetaByNumber): array {
+                $technicalRollId = trim((string) ($line['technical_roll_id'] ?? ''));
+                $rollCode = trim((string) ($line['roll_code'] ?? ''));
+
+                $rollMeta = null;
+                if ($technicalRollId !== '' && isset($rollIdByTechnicalLineId[$technicalRollId])) {
+                    $resolvedRollId = (int) $rollIdByTechnicalLineId[$technicalRollId];
+                    $rollMeta = $rollMetaById[$resolvedRollId] ?? null;
+                }
+
+                if ($rollMeta === null && $rollCode !== '') {
+                    $rollMeta = $rollMetaByNumber[$rollCode]
+                        ?? $rollMetaByNumber[strtoupper($rollCode)]
+                        ?? $rollMetaByNumber[preg_replace('/^RL\s*/i', '', $rollCode) ?: '']
+                        ?? null;
+                }
+
+                $existingLocation = isset($line['location']) ? trim((string) $line['location']) : null;
+                $existingColor = isset($line['color']) ? trim((string) $line['color']) : null;
+                $existingColorCode = isset($line['color_code']) ? trim((string) $line['color_code']) : null;
+
+                if (($existingLocation === null || $existingLocation === '') && $rollMeta !== null) {
+                    $line['location'] = $rollMeta['location'] ?? null;
+                }
+
+                if (($existingColor === null || $existingColor === '')) {
+                    $line['color'] = $rollMeta['internal_color_name'] ?? $this->inferColorFromText(isset($line['fabric_reference']) ? (string) $line['fabric_reference'] : null);
+                }
+
+                if (($existingColorCode === null || $existingColorCode === '') && $rollMeta !== null) {
+                    $line['color_code'] = $rollMeta['internal_color_code'] ?? null;
+                }
+
+                if (($rollCode === '' || $rollCode === null) && $rollMeta !== null && !empty($rollMeta['roll_number'])) {
+                    $line['roll_code'] = $rollMeta['roll_number'];
+                }
+
+                return $line;
+            }, $storedLines);
+
+            return response()->json([
+                'data' => [
+                    'lines'       => $enrichedStoredLines,
+                    'curves'      => $stored['curves'] ?? null,
+                    'largo_espiga'=> $stored['largo_espiga'] ?? null,
+                ],
+            ]);
+        }
+
+        // Build uid→{largoTrazo, largoLiq} map from raw materials snapshot
+        $rawMaterialMap = [];
+        if ($sheet) {
+            $rawSnapshot = $sheet->rawMaterialsSnapshot()->first();
+            if ($rawSnapshot && is_array($rawSnapshot->rows)) {
+                foreach ($rawSnapshot->rows as $row) {
+                    $uid = $row['uid'] ?? null;
+                    if ($uid) {
+                        $rawMaterialMap[$uid] = [
+                            'largo_trazo' => is_numeric($row['largoTrazo'] ?? null) ? (float) $row['largoTrazo'] : null,
+                            'largo_liq'   => is_numeric($row['largoLiq'] ?? null) ? (float) $row['largoLiq'] : null,
+                        ];
+                    }
+                }
+            }
+        }
+
+        $mappedFromTechnicalData = array_map(function (array $line) use ($rawMaterialMap, $rollMetaById): array {
+            $widthCm       = is_numeric($line['widthCm'] ?? null) ? (float) $line['widthCm'] : null;
+            $rawType       = strtoupper(trim((string) ($line['type'] ?? '')));
+            $rollId        = isset($line['rollId']) ? (int) $line['rollId'] : null;
+            $rawMaterialUid = (string) ($line['rawMaterialUid'] ?? '');
+            $largos        = $rawMaterialMap[$rawMaterialUid] ?? ['largo_trazo' => null, 'largo_liq' => null];
+            $rollMeta      = $rollId ? ($rollMetaById[$rollId] ?? null) : null;
+
+            $fabricReference = trim((string) ($line['fabricName'] ?? ''));
+            $lineColor = isset($line['color']) ? trim((string) $line['color']) : null;
+            $lineColor = $lineColor !== '' ? $lineColor : null;
+            $lineColors = isset($line['colors']) ? trim((string) $line['colors']) : null;
+            $lineColors = $lineColors !== '' ? $lineColors : null;
+            $lineColorCode = isset($line['colorCode']) ? trim((string) $line['colorCode']) : null;
+            $lineColorCode = $lineColorCode !== '' ? $lineColorCode : null;
+            $lineLocation = isset($line['location']) ? trim((string) $line['location']) : null;
+            $lineLocation = $lineLocation !== '' ? $lineLocation : null;
+
+            return [
+                'id'               => (string) Str::uuid(),
+                'technical_roll_id'=> isset($line['id']) ? (string) $line['id'] : null,
+                'roll_code'        => $rollMeta['roll_number'] ?? null,
+                'fabric_reference' => $fabricReference,
+                'color'            => $lineColor ?? $lineColors ?? ($rollMeta['internal_color_name'] ?? null) ?? $this->inferColorFromText($fabricReference),
+                'color_code'       => $lineColorCode ?? ($rollMeta['internal_color_code'] ?? null),
+                'fabric_type'      => in_array($rawType, ['PRINCIPAL', 'SECUNDARIA'], true) ? $rawType : null,
+                'location'         => $lineLocation ?? ($rollMeta['location'] ?? null),
+                'roll_width_m'     => $widthCm !== null ? round($widthCm / 100, 4) : null,
+                'meters_per_roll'  => is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : null,
+                'largo_trazo'      => $largos['largo_trazo'],
+                'largo_liq'        => $largos['largo_liq'],
+                'layers_fabric'    => null,
+                'layers_liquidation' => null,
+                'layers_herringbone' => null,
+                'total_consumption'=> null,
+                'restante'         => null,
+                'ultimo_descargue' => false,
+                'retazo_1'         => null,
+                'retazo_2'         => null,
+                'retazo_3'         => null,
+            ];
+        }, $rollLines);
+
+        return response()->json([
+            'data' => [
+                'lines'        => $mappedFromTechnicalData,
+                'largo_espiga' => null,
+            ],
+        ]);
+    }
+
+    /**
+     * Guardar registro de consumo de telas por orden (proceso corte).
+     */
+    public function saveCutFabricConsumption(Request $request, ProductionOrder $order): JsonResponse
+    {
+        $validated = $request->validate([
+            'lines' => 'required|array|min:1',
+            'lines.*.id' => 'required|string|max:100',
+            'lines.*.technical_roll_id' => 'nullable|string|max:100',
+            'lines.*.roll_code' => 'nullable|string|max:100',
+            'lines.*.fabric_reference' => 'nullable|string|max:200',
+            'lines.*.color' => 'nullable|string|max:200',
+            'lines.*.color_code' => 'nullable|string|max:100',
+            'lines.*.fabric_type' => 'nullable|string|in:PRINCIPAL,SECUNDARIA',
+            'lines.*.location' => 'nullable|string|max:200',
+            'lines.*.roll_width_m' => 'nullable|numeric|min:0',
+            'lines.*.meters_per_roll' => 'nullable|numeric|min:0',
+            'lines.*.largo_trazo' => 'nullable|numeric|min:0',
+            'lines.*.largo_liq' => 'nullable|numeric|min:0',
+            'lines.*.layers_fabric' => 'nullable|integer|min:0',
+            'lines.*.layers_liquidation' => 'nullable|integer|min:0',
+            'lines.*.layers_herringbone' => 'nullable|integer|min:0',
+            'lines.*.total_consumption' => 'nullable|numeric|min:0',
+            'lines.*.restante' => 'nullable|numeric',
+            'lines.*.ultimo_descargue' => 'nullable|boolean',
+            'lines.*.retazo_1' => 'nullable|numeric|min:0',
+            'lines.*.retazo_2' => 'nullable|numeric|min:0',
+            'lines.*.retazo_3' => 'nullable|numeric|min:0',
+            'largo_espiga' => 'nullable|numeric|min:0',
+            'curves' => 'nullable|array',
+            'curves.principal' => 'nullable|array',
+            'curves.liquidacion' => 'nullable|array',
+            'curves.espiga' => 'nullable|array',
+        ]);
+
+        $payload = [
+            'lines'        => array_values($validated['lines']),
+            'curves'       => $validated['curves'] ?? null,
+            'largo_espiga' => $validated['largo_espiga'] ?? null,
+            'updated_at'   => now()->toISOString(),
+            'updated_by'   => $request->user()?->id,
+        ];
+
+        $order->update([
+            'cut_fabric_consumption' => $payload,
+        ]);
+
+        return response()->json([
+            'message' => 'Registro de consumo de telas guardado.',
+            'data' => $payload,
         ]);
     }
 
@@ -298,8 +702,13 @@ class BatchControlController extends Controller
             'reported_by' => $request->user()?->id,
         ]);
 
+        // Mover la orden al proceso anterior (desaparece del tab actual, pasa al anterior)
+        $order->update([
+            'current_process' => $validated['to_process'],
+        ]);
+
         return response()->json([
-            'message' => "Novedad reportada a {$validated['to_process']}.",
+            'message' => "Novedad reportada a {$validated['to_process']}. La orden ha sido enviada al proceso anterior.",
             'data' => [
                 'id' => $novelty->id,
                 'from_process' => $novelty->from_process,
@@ -358,6 +767,7 @@ class BatchControlController extends Controller
                 'status' => $n->status,
                 'reported_by_name' => $n->reportedByUser?->name ?? 'N/A',
                 'reported_at' => $n->created_at?->format('d/m/Y H:i'),
+                'timestamp' => $n->created_at?->toIso8601String(),
                 'resolved_by_name' => $n->resolvedByUser?->name ?? null,
                 'resolved_at' => $n->resolved_at?->format('d/m/Y H:i'),
                 'resolution_notes' => $n->resolution_notes,
@@ -365,6 +775,162 @@ class BatchControlController extends Controller
 
         return response()->json([
             'data' => $novelties,
+        ]);
+    }
+
+    // ─── Logística: Salida de Insumos ─────────────────────
+
+    /**
+     * Insumos de la ficha técnica para proceso de Logística.
+     * Devuelve lista de insumos con info del ítem e inventario disponible por bodega.
+     */
+    public function getLogisticsSupplies(ProductionOrder $order): JsonResponse
+    {
+        $units = (int) ($order->units ?? 0);
+
+        $supplies = TechnicalDataSheetSupply::query()
+            ->where('production_order_id', $order->id)
+            ->whereNotNull('item_id')
+            ->orderBy('sequence')
+            ->orderBy('id')
+            ->get();
+
+        // Precarga bodegas con stock para todos los item_ids de esta orden
+        $itemIds = $supplies->pluck('item_id')->filter()->unique()->values()->all();
+
+        $warehouseStocks = [];
+        if (!empty($itemIds)) {
+            $rows = DB::table('warehouse_items')
+                ->join('warehouses', 'warehouses.id', '=', 'warehouse_items.warehouse_id')
+                ->whereIn('warehouse_items.item_id', $itemIds)
+                ->where('warehouse_items.quantity', '>', 0)
+                ->select(
+                    'warehouse_items.item_id',
+                    'warehouse_items.warehouse_id',
+                    'warehouse_items.quantity as stock',
+                    'warehouses.name as warehouse_name',
+                )
+                ->get();
+
+            foreach ($rows as $row) {
+                $warehouseStocks[$row->item_id][] = [
+                    'id'    => (int) $row->warehouse_id,
+                    'name'  => $row->warehouse_name,
+                    'stock' => (float) $row->stock,
+                ];
+            }
+        }
+
+        // Precarga info de ítems (nombre, referencia, unidad, imagen)
+        $items = [];
+        if (!empty($itemIds)) {
+            $itemModels = \App\Models\MasterData\Item::whereIn('id', $itemIds)
+                ->get(['id', 'name', 'reference', 'unit_measure', 'img']);
+
+            foreach ($itemModels as $item) {
+                $imgUrl = null;
+                if ($item->img) {
+                    $path = ltrim((string) $item->img, '/');
+                    $imgUrl = str_starts_with($path, 'http') ? $path : asset('storage/' . $path);
+                }
+                $items[$item->id] = [
+                    'name'         => trim((string) $item->name),
+                    'reference'    => $item->reference ?? null,
+                    'unit_measure' => $item->unit_measure ?? null,
+                    'img_url'      => $imgUrl,
+                ];
+            }
+        }
+
+        $lines = $supplies->map(function (TechnicalDataSheetSupply $s) use ($units, $warehouseStocks, $items) {
+            $itemId    = $s->item_id;
+            $itemInfo  = $itemId ? ($items[$itemId] ?? null) : null;
+            $warehouses = $itemId ? ($warehouseStocks[$itemId] ?? []) : [];
+
+            // Ordenar bodegas: mayor stock primero
+            usort($warehouses, fn ($a, $b) => $b['stock'] <=> $a['stock']);
+
+            $suggestedQty = $s->qty_per_unit * $units;
+
+            return [
+                'uid'              => $s->uid,
+                'name'             => $s->name,
+                'stage'            => $s->stage,
+                'display_label'    => $s->display_label,
+                'item_id'          => $itemId,
+                'item_name'        => $itemInfo['name'] ?? null,
+                'item_reference'   => $itemInfo['reference'] ?? null,
+                'item_uom'         => $itemInfo['unit_measure'] ?? null,
+                'item_img_url'     => $itemInfo['img_url'] ?? null,
+                'uom'              => $s->uom,
+                'qty_per_unit'     => (float) $s->qty_per_unit,
+                'suggested_qty'    => round($suggestedQty, 4),
+                'document_url'     => $s->document_url,
+                'warehouses'       => array_values($warehouses),
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => [
+                'lines'     => $lines,
+                'op_units'  => $units,
+                'op_code'   => $order->op_code,
+            ],
+        ]);
+    }
+
+    /**
+     * Procesar salidas de inventario de insumos en proceso de Logística.
+     */
+    public function processLogisticsSupplyExit(Request $request, ProductionOrder $order): JsonResponse
+    {
+        $validated = $request->validate([
+            'lines'                => ['required', 'array', 'min:1'],
+            'lines.*.item_id'      => ['required', 'integer', 'exists:items,id'],
+            'lines.*.warehouse_id' => ['required', 'integer', 'exists:warehouses,id'],
+            'lines.*.quantity'     => ['required', 'numeric', 'min:0.0001'],
+            'lines.*.supply_name'  => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $user = $request->user();
+        $errors = [];
+        $processed = 0;
+
+        foreach ($validated['lines'] as $line) {
+            try {
+                $this->movementService->createMovement([
+                    'item_id'             => (int) $line['item_id'],
+                    'warehouse_id'        => (int) $line['warehouse_id'],
+                    'type'                => 'salida',
+                    'quantity'            => (float) $line['quantity'],
+                    'date'                => now()->toDateString(),
+                    'source_type'         => ProductionOrder::class,
+                    'source_id'           => $order->id,
+                    'notes'               => 'Salida Logística OP ' . ($order->op_code ?? "#{$order->id}") . ($line['supply_name'] ? ' - ' . $line['supply_name'] : ''),
+                    'created_by_user_id'  => $user?->id,
+                ]);
+                $processed++;
+            } catch (\Exception $e) {
+                $errors[] = ($line['supply_name'] ?? "Ítem #{$line['item_id']}") . ': ' . $e->getMessage();
+            }
+        }
+
+        if (!empty($errors) && $processed === 0) {
+            return response()->json([
+                'message' => 'No se pudo procesar ninguna salida.',
+                'errors'  => $errors,
+            ], 422);
+        }
+
+        $message = "Se registraron {$processed} salida(s) de inventario para la orden {$order->op_code}.";
+        if (!empty($errors)) {
+            $message .= ' Algunos ítems fallaron: ' . implode('; ', $errors);
+        }
+
+        return response()->json([
+            'message'   => $message,
+            'processed' => $processed,
+            'errors'    => $errors,
         ]);
     }
 }

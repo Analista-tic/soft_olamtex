@@ -1,5 +1,5 @@
-import type { ProductSheet, Programmer } from '@/domain/product-sheet';
-import { normalizeSizes } from '@/domain/product-sheet';
+import type { ProductSheet, Programmer } from '@/domain/product-sheet/types';
+import { normalizeSizes } from '@/domain/product-sheet/sizes';
 import { computed, ref } from 'vue';
 
 export type EditableProgrammer = Omit<Programmer, 'season'> & { season: string | null };

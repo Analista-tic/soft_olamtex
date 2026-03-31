@@ -15,6 +15,7 @@ export interface ProductSheet {
     reference: string;
     sample_reference?: string | null;
     product_reference?: string | null;
+    product_reference_2?: string | null;
     display_reference?: string | null;
     value?: number;
     label?: string;
@@ -27,11 +28,15 @@ export interface ProductSheet {
     yarn_base_id?: number | null;
     billing_price?: number;
     selling_price?: number;
+    latest_total_cost?: number | null;
     sizes?: string | Record<string, boolean> | string[];
     processes?: string | Record<string, boolean>;
     description?: string;
     section?: { id: number; name: string } | null;
     group?: { id: number; name: string } | null;
+    version?: number;
+    parent_id?: number | null;
+    is_enabled?: boolean;
     [key: string]: any;
 }
 
@@ -45,12 +50,13 @@ export interface ProductionOrder {
     destination?: { id: number; name: string } | null;
     destination_id: number | null;
     priority: string | null;
-    isEcommerce: boolean;
+    isEcommerce?: boolean;
     ecommerce_units: Record<string, number> | string | null;
     units: number | null;
     estimated_delivery_date?: string | null;
     status: 'complete' | 'incomplete';
     source?: 'auto' | 'manual';
+    current_process?: string;
     is_auto_from_product_sheet?: boolean;
     is_pending_completion?: boolean;
     pending_fields?: string[];
@@ -225,7 +231,16 @@ export type OpProcessesData = {
 export type CostsSummary = {
     prices: { invoicing: number | null; fixedCost: number | null; sale: number | null; historicInvoicing: number | null };
     units: number | null;
-    costs: { rawMaterial: number; supplies: number; processes: number; cut: number; confection: number; finishing: number; total: number };
+    costs: {
+        rawMaterial: number;
+        rawMaterialPerUnit?: number;
+        supplies: number;
+        processes: number;
+        cut: number;
+        confection: number;
+        finishing: number;
+        total: number;
+    };
     profitability: { olamtex: { value: number | null; percent: number | null }; client: { value: number | null; percent: number | null } };
     breakdownAvailable: { rawMaterial: boolean; supplies: boolean; processes: boolean };
 };
@@ -248,9 +263,13 @@ export type SupplyItem = {
     qtyPerUnit: number;
     unitCost: number;
     internalRequestId?: number | null;
+    purchaseRequestId?: number | null;
+    documentUrl?: string | null;
     notes?: string | null;
     createdAt?: string;
     updatedAt?: string;
+    isDraft?: boolean;
+    sizeMeasurements?: Record<string, { corte: number; termi: number }> | null;
 };
 
 export type SupplyCatalogItem = {
@@ -263,6 +282,51 @@ export type SupplyCatalogItem = {
     supplier?: string | null;
     description?: string | null;
     suggestedPrice?: number | null;
+    item_type?: string | null;
+    is_draft?: boolean;
+    imageUrl?: string | null;
+};
+
+export type SupplySubGroup = {
+    id: number;
+    name: string;
+};
+
+export type SupplyRequestPayload = {
+    name: string;
+    description?: string | null;
+    category_sub_group_id?: number | null;
+    sub_group_name?: string | null;
+    unit_measure?: string | null;
+    reference?: string | null;
+    quantity?: number;
+    unit_price?: number;
+    provider_name?: string | null;
+    observation?: string | null;
+};
+
+export type SupplyRequestResult = {
+    message: string;
+    item: {
+        id: number;
+        name: string;
+        reference: string | null;
+        unit: string | null;
+        item_type: string;
+        status: boolean;
+        description: string | null;
+    };
+    request: {
+        id: number;
+        document_number: string;
+        status: string;
+    };
+    purchase_request: {
+        id: number;
+        request_number: string;
+        status: string;
+        document_url: string | null;
+    };
 };
 
 export type FabricType = 'PRINCIPAL' | 'SECUNDARIA';
@@ -288,6 +352,7 @@ export type RollLine = {
     totalCost?: number | null;
     balanceMeters?: number | null;
     notes?: string | null;
+    rawMaterialUid?: string | null;
     fabricItemId?: string | number | null;
     rollId?: string | number | null;
     createdAt?: string;
@@ -308,6 +373,7 @@ export type ThreadLine = {
     color?: string | null;
     colorCode?: string | null;
     stitchesPerInch?: number | null;
+    defaultThreadCost?: number | null;
     createdAt?: string;
     updatedAt?: string;
 };
@@ -324,7 +390,19 @@ export type PieceType = 'PRINCIPAL' | 'SECUNDARIO';
 export type Side = 'IZQUIERDA' | 'DERECHA' | 'AMBOS' | 'NO_APLICA';
 export type Grain = '90' | '180' | 'SESGO';
 
-export type CuttingPiece = { id: string; uid?: string; name: string; type: PieceType; side: Side; grain: Grain; notes?: string | null };
+export type CuttingPiece = {
+    id: string;
+    uid?: string;
+    name: string;
+    type: PieceType;
+    /** UID de la tela en materia prima (rawMaterials). */
+    fabricUid?: string | null;
+    side: Side;
+    grain: Grain;
+    /** Cantidad calculada según el lado. */
+    quantity?: number;
+    notes?: string | null;
+};
 
 export type AdditionalInfo = {
     cutting: {
@@ -337,6 +415,10 @@ export type AdditionalInfo = {
         pieces: CuttingPiece[];
         generalNotes?: string | null;
     };
-    stamping: { designNotes?: string | null; attachments?: { id: string; name: string; url: string }[] };
+    stamping: {
+        designNotes?: string | null;
+        attachments?: { id: string; name: string; url: string }[];
+        drawingAttachments?: { id: string; name: string; url: string }[];
+    };
     laundry: { type?: string | null; instructions?: string | null };
 };

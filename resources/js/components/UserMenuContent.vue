@@ -8,10 +8,12 @@ import { LogOut, Pencil } from 'lucide-vue-next';
 
 interface Props {
     user: User;
-    items: NavItem[];
+    items?: NavItem[];
 }
 
-defineProps<Props>();
+withDefaults(defineProps<Props>(), {
+    items: () => [],
+});
 </script>
 
 <template>

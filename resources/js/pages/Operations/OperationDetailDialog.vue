@@ -14,7 +14,6 @@ type OperationRecord = {
     normalized_name: string;
     generated_description: string;
     section_id: number | null;
-    location: string | null;
     measure: number | null;
     quantity: number | null;
     description: string | null;

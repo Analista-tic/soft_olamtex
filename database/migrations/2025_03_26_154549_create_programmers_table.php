@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('programmers', function (Blueprint $table) {
+        Schema::create('production_orders', function (Blueprint $table) {
             $table->id();
             $table->foreignId('product_sheet_id')->constrained();
             $table->string('op_code')->nullable()->unique();
@@ -23,6 +23,10 @@ return new class extends Migration
             $table->json('ecommerce_units')->nullable();
             $table->string('status');
             $table->enum('source', ['auto', 'manual'])->default('manual'); // Origen del registro: auto=desde sábana, manual=creado directo
+            $table->string('current_process', 80)->nullable()->comment('Proceso actual para Control de lotes');
+            $table->unsignedInteger('batch_priority')->default(0);
+            $table->json('process_estimated_dates')->nullable();
+            $table->json('cut_fabric_consumption')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });
@@ -33,6 +37,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('programmers');
+        Schema::dropIfExists('production_orders');
     }
 };

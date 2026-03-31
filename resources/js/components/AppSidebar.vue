@@ -13,10 +13,10 @@ import {
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { footerNavItems } from '@/data/footerNavItems';
-import { useAuthStore } from '@/stores/auth';
-import type { LucideIcon } from 'lucide-vue-next';
 import type { NavItem } from '@/domain/shared';
+import { useAuthStore } from '@/stores/auth';
 import { Link, usePage } from '@inertiajs/vue3';
+import type { LucideIcon } from 'lucide-vue-next';
 import { ChartColumn, ChevronDown, Factory, LayoutGrid, Package, Shirt, SquareArrowDown, SquareArrowUp, SquarePen } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -194,9 +194,7 @@ const moduleSections: ModuleSection[] = [
 
 const { state, setOpen } = useSidebar();
 const isSidebarCollapsed = computed(() => state.value === 'collapsed');
-const filteredFooterNavItems = computed<NavItem[]>(() =>
-    footerNavItems.filter((item) => (item.permission ? auth.can(item.permission) : true)),
-);
+const filteredFooterNavItems = computed<NavItem[]>(() => footerNavItems.filter((item) => (item.permission ? auth.can(item.permission) : true)));
 
 const page = usePage();
 const currentUrl = computed(() => {
@@ -325,26 +323,24 @@ watch(
                         <TooltipTrigger as-child>
                             <Link
                                 :href="route('dashboard')"
-                                class="sidebar-item flex items-center h-12 rounded-md transition-colors hover:bg-sidebar-accent mx-1"
+                                class="sidebar-item mx-1 flex h-12 items-center rounded-md transition-colors hover:bg-sidebar-accent"
                             >
                                 <!-- Columna ícono: ancho fijo, centrado -->
-                                <div class="icon-column w-[56px] flex-shrink-0 flex items-center justify-center">
-                                    <div class="flex items-center justify-center size-9 rounded-md bg-sidebar-primary">
+                                <div class="icon-column flex w-[56px] flex-shrink-0 items-center justify-center">
+                                    <div class="flex size-9 items-center justify-center rounded-md bg-sidebar-primary">
                                         <img src="/images/logo.jpg" alt="Logo" class="size-6 rounded-sm object-cover" />
                                     </div>
                                 </div>
                                 <!-- Columna label: transición suave -->
                                 <span
-                                    class="label-column font-semibold text-sm whitespace-nowrap transition-all duration-200 ease-out"
-                                    :class="isSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'"
+                                    class="label-column whitespace-nowrap text-sm font-semibold transition-all duration-200 ease-out"
+                                    :class="isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'"
                                 >
                                     ForU Tex
                                 </span>
                             </Link>
                         </TooltipTrigger>
-                        <TooltipContent v-if="isSidebarCollapsed" side="right" align="center">
-                            ForU Tex
-                        </TooltipContent>
+                        <TooltipContent v-if="isSidebarCollapsed" side="right" align="center"> ForU Tex </TooltipContent>
                     </Tooltip>
                 </SidebarMenuItem>
             </SidebarMenu>
@@ -357,23 +353,21 @@ watch(
                     <TooltipTrigger as-child>
                         <Link
                             :href="route('dashboard')"
-                            class="sidebar-item flex items-center h-10 rounded-md mx-1 transition-colors hover:bg-sidebar-accent"
+                            class="sidebar-item mx-1 flex h-10 items-center rounded-md transition-colors hover:bg-sidebar-accent"
                             :class="{ 'bg-sidebar-accent/50 text-primary': isRouteActive('/dashboard') }"
                         >
-                            <div class="icon-column w-[56px] flex-shrink-0 flex items-center justify-center">
+                            <div class="icon-column flex w-[56px] flex-shrink-0 items-center justify-center">
                                 <LayoutGrid class="size-[18px] shrink-0" />
                             </div>
                             <span
-                                class="label-column text-sm font-medium whitespace-nowrap transition-all duration-200 ease-out"
-                                :class="isSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'"
+                                class="label-column whitespace-nowrap text-sm font-medium transition-all duration-200 ease-out"
+                                :class="isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'"
                             >
                                 Dashboard
                             </span>
                         </Link>
                     </TooltipTrigger>
-                    <TooltipContent v-if="isSidebarCollapsed" side="right" align="center">
-                        Dashboard
-                    </TooltipContent>
+                    <TooltipContent v-if="isSidebarCollapsed" side="right" align="center"> Dashboard </TooltipContent>
                 </Tooltip>
             </div>
 
@@ -390,15 +384,15 @@ watch(
                                 <CollapsibleTrigger as-child>
                                     <button
                                         @click="ensureSidebarExpanded"
-                                        class="sidebar-item flex items-center h-10 w-full rounded-md mx-1 transition-colors hover:bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                                        class="sidebar-item mx-1 flex h-10 w-full items-center rounded-md text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
                                         :style="{ width: 'calc(100% - 0.5rem)' }"
                                     >
-                                        <div class="icon-column w-[56px] flex-shrink-0 flex items-center justify-center">
+                                        <div class="icon-column flex w-[56px] flex-shrink-0 items-center justify-center">
                                             <component :is="section.icon" class="size-[18px] shrink-0" />
                                         </div>
                                         <span
-                                            class="label-column flex-1 text-sm font-medium whitespace-nowrap text-left transition-all duration-200 ease-out"
-                                            :class="isSidebarCollapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'"
+                                            class="label-column flex-1 whitespace-nowrap text-left text-sm font-medium transition-all duration-200 ease-out"
+                                            :class="isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'"
                                         >
                                             {{ section.title }}
                                         </span>
@@ -406,7 +400,7 @@ watch(
                                             class="mr-2 transition-all duration-200"
                                             :class="[
                                                 sectionStates[section.title] ? 'rotate-180' : 'rotate-0',
-                                                isSidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100 size-4'
+                                                isSidebarCollapsed ? 'w-0 opacity-0' : 'size-4 opacity-100',
                                             ]"
                                         />
                                     </button>
@@ -420,13 +414,13 @@ watch(
 
                     <!-- Contenido colapsable: solo visible en modo expandido -->
                     <CollapsibleContent
-                        class="transition-all duration-200 overflow-hidden"
+                        class="overflow-hidden transition-all duration-200"
                         :class="isSidebarCollapsed ? 'max-h-0 opacity-0' : 'max-h-[1000px] opacity-100'"
                     >
                         <div
                             v-for="(group, groupIndex) in section.groups"
                             :key="group.label ?? `${section.title}-${groupIndex}`"
-                            class="pl-[56px] pr-2 pb-2 module-group"
+                            class="module-group pb-2 pl-[56px] pr-2"
                         >
                             <div v-if="group.label" class="module-group-label">
                                 {{ group.label }}
@@ -448,7 +442,6 @@ watch(
         <SidebarFooter class="mt-auto border-t border-sidebar-border/80 px-1 py-2">
             <NavFooter :items="filteredFooterNavItems" />
         </SidebarFooter>
-
     </Sidebar>
     <slot />
 </template>

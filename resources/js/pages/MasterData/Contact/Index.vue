@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import type { BreadcrumbItem } from '@/domain/shared/types';
-import type { Contact } from '@/domain/MasterData';
-import EditButton from '@/components/common/EditButton.vue';
-import ContactDialog from './ContactDialog.vue';
-import { Button } from '@/components/ui/button';
+import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import EditButton from '@/components/common/EditButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import SelectField from '@/components/SelectField.vue';
+import { Button } from '@/components/ui/button';
 import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
@@ -17,23 +19,18 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import type { Contact } from '@/domain/MasterData';
+import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios, { type AxiosError } from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import SelectField from '@/components/SelectField.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import FilterBar from '@/components/FilterBar.vue';
-import FilterField from '@/components/FilterField.vue';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
-import { uiPatterns } from '@/lib/ui-patterns';
+import ContactDialog from './ContactDialog.vue';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Contactos', href: '/contactos' },
-];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'Contactos', href: '/contactos' }];
 
 const contacts = ref<Contact[]>([]);
 const contactToDelete = ref<Contact | null>(null);
@@ -243,11 +240,7 @@ async function deleteContact(): Promise<void> {
             const responseMessage = axiosError.response?.data?.message;
 
             if (axiosError.response?.status === 409) {
-                setError(
-                    responseMessage ||
-                        'No se puede eliminar el contacto porque tiene relaciones con otros registros.',
-                    'warning',
-                );
+                setError(responseMessage || 'No se puede eliminar el contacto porque tiene relaciones con otros registros.', 'warning');
                 return;
             }
             setError(responseMessage || 'Ocurrió un error al eliminar el contacto.', 'error');
@@ -267,10 +260,7 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
         await axios({ method, url, data: contactData });
         await fetchContacts(currentPage.value, searchQuery.value, selectedContactType.value || null);
         closeDialog();
-        successMessage.value =
-            dialogType.value === 'create'
-                ? 'El contacto se guardó correctamente.'
-                : 'El contacto se actualizó correctamente.';
+        successMessage.value = dialogType.value === 'create' ? 'El contacto se guardó correctamente.' : 'El contacto se actualizó correctamente.';
         setError('', 'error');
     } catch (err) {
         const error = err as AxiosError;
@@ -288,11 +278,7 @@ async function submitForm(contactData: Partial<Contact>): Promise<void> {
     }
 }
 
-async function fetchContacts(
-    page: number = 1,
-    search: string = '',
-    contactType: string | null = null,
-): Promise<void> {
+async function fetchContacts(page: number = 1, search: string = '', contactType: string | null = null): Promise<void> {
     try {
         const response = await axios.get('/contactos/data', {
             params: { page, per_page: itemsPerPage, search, contact_type: contactType },
@@ -344,37 +330,27 @@ onBeforeUnmount(() => {
             </div>
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">Gestión de Contactos</h1>
-                    <p :class="uiPatterns.typography.pageSubtitle">
-                        Administra contactos de proveedores y clientes, controla su información de contacto
-                        y el tipo asignado.
+                    <h1 class="text-lg font-bold">Gestión de Contactos</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Administra contactos de proveedores y clientes, controla su información de contacto y el tipo asignado.
                     </p>
                 </div>
                 <button
                     type="button"
                     :disabled="isPreparingDialog"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openDialog('create')"
                 >
-                    <PlusCircle class="w-4 h-4" />
+                    <PlusCircle class="h-4 w-4" />
                     Nuevo Contacto
                 </button>
             </div>
 
             <!-- Filtros -->
             <FilterBar align="start">
-                <FilterField
-                    label="Buscar contacto"
-                    :active="isSearchActive"
-                    class="flex-1 min-w-[220px] p-0"
-                >
+                <FilterField label="Buscar contacto" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input
-                            id="search_contact"
-                            v-model="searchQuery"
-                            placeholder="Buscar por nombre o email"
-                            class="h-10 w-full pl-10"
-                        />
+                        <Input id="search_contact" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
@@ -396,12 +372,12 @@ onBeforeUnmount(() => {
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead">Id</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Nombre</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Email</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Teléfono</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Tipo</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Acciones</TableHead>
+                            <TableHead>Id</TableHead>
+                            <TableHead>Nombre</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Teléfono</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -421,7 +397,7 @@ onBeforeUnmount(() => {
 
                 <!-- Paginación -->
                 <Pagination
-                    class="flex justify-center pt-4 pb-2"
+                    class="mt-5 flex justify-center"
                     :items-per-page="itemsPerPage"
                     :total="totalItems"
                     :sibling-count="1"
@@ -436,8 +412,8 @@ onBeforeUnmount(() => {
                         <template v-for="(item, index) in items">
                             <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
                                 <Button
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'ghost'"
+                                    class="h-6 w-6 p-0"
+                                    :variant="item.value === currentPage ? 'default' : 'outline'"
                                     @click="handlePageChange(item.value)"
                                 >
                                     {{ item.value }}
@@ -477,5 +453,3 @@ onBeforeUnmount(() => {
         @confirm="deleteContact"
     />
 </template>
-
-

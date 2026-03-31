@@ -2,8 +2,8 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 
 const page = usePage<{ auth: { user?: Record<string, unknown> } }>();
-const plusDarkerStyle = { mixBlendMode: 'plus-darker' as const };
-const hardLightStyle = { mixBlendMode: 'hard-light' as const };
+const plusDarkerStyle = { mixBlendMode: 'plus-darker' } as Record<string, string>;
+const hardLightStyle = { mixBlendMode: 'hard-light' } as Record<string, string>;
 </script>
 
 <template>

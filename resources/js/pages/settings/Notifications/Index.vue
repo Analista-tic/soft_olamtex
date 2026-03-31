@@ -156,9 +156,7 @@ const filteredNotifications = computed<NotificationRow[]>(() => {
 
 const totalItems = computed(() => filteredNotifications.value.length);
 
-const hasActiveFilters = computed(
-    () => statusFilterActive.value || typeFilterActive.value || dateFilterActive.value,
-);
+const hasActiveFilters = computed(() => statusFilterActive.value || typeFilterActive.value || dateFilterActive.value);
 
 function clearFilters() {
     filters.status = 'all';
@@ -219,23 +217,11 @@ function handleOpen(notification: NotificationRow) {
                     </FilterField>
 
                     <FilterField label="Fecha" :active="dateFilterActive" class="min-w-[220px]">
-                        <Input
-                            id="notifications-filter-date"
-                            v-model="filters.date"
-                            type="date"
-                            placeholder="Fecha"
-                            class="h-10 w-full"
-                        />
+                        <Input id="notifications-filter-date" v-model="filters.date" type="date" placeholder="Fecha" class="h-10 w-full" />
                     </FilterField>
 
                     <div class="ml-auto flex items-end">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            class="h-9 text-xs"
-                            :disabled="!hasActiveFilters"
-                            @click="clearFilters"
-                        >
+                        <Button variant="outline" size="sm" class="h-9 text-xs" :disabled="!hasActiveFilters" @click="clearFilters">
                             Limpiar filtros
                         </Button>
                     </div>
@@ -257,11 +243,7 @@ function handleOpen(notification: NotificationRow) {
                     </TableHeader>
 
                     <TableBody>
-                        <TableRow
-                            v-for="notification in filteredNotifications"
-                            :key="notification.id"
-                            class="align-middle"
-                        >
+                        <TableRow v-for="notification in filteredNotifications" :key="notification.id" class="align-middle">
                             <TableCell class="whitespace-nowrap px-4 py-3 text-left text-xs text-muted-foreground">
                                 {{ formatDateTime(notification.created_at) }}
                             </TableCell>
@@ -274,7 +256,7 @@ function handleOpen(notification: NotificationRow) {
                                 <div class="font-semibold">
                                     {{ notification.data?.title ?? 'Notificación' }}
                                 </div>
-                                <p v-if="notification.data?.body" class="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                                <p v-if="notification.data?.body" class="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                                     {{ notification.data.body }}
                                 </p>
                             </TableCell>
@@ -284,7 +266,10 @@ function handleOpen(notification: NotificationRow) {
                                 </div>
                             </TableCell>
                             <TableCell class="px-4 py-3 text-left">
-                                <TableStatusBadge :label="!notification.read_at ? 'No leída' : 'Leída'" :tone="!notification.read_at ? 'green' : 'slate'" />
+                                <TableStatusBadge
+                                    :label="!notification.read_at ? 'No leída' : 'Leída'"
+                                    :tone="!notification.read_at ? 'green' : 'slate'"
+                                />
                             </TableCell>
                             <TableCell class="px-4 py-3 pr-6 text-right">
                                 <Button
@@ -310,9 +295,7 @@ function handleOpen(notification: NotificationRow) {
 
                 <!-- Pie de tabla sencillo -->
                 <div class="flex items-center justify-between border-t border-border/70 bg-card/50 px-4 py-3">
-                    <p class="text-xs text-muted-foreground">
-                        Mostrando {{ totalItems }} notificaciones de {{ allNotifications.length }} cargadas.
-                    </p>
+                    <p class="text-xs text-muted-foreground">Mostrando {{ totalItems }} notificaciones de {{ allNotifications.length }} cargadas.</p>
                 </div>
             </div>
         </div>

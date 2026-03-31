@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import InputField from '@/components/InputField.vue';
 import SwitchField from '@/components/SwitchField.vue';
 import TextareaField from '@/components/TextareaField.vue';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Plus } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
@@ -248,9 +248,7 @@ function handleSubmit() {
                 </div>
             </div>
             <DialogFooter class="mt-6 justify-end gap-2">
-                <Button variant="outline" size="pill" @click="handleClose">
-                    Cancelar
-                </Button>
+                <Button variant="outline" size="pill" @click="handleClose"> Cancelar </Button>
                 <button
                     type="button"
                     :disabled="loading || hasDuplicateOptions"

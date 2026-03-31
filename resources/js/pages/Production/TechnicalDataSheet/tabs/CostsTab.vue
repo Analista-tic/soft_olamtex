@@ -103,7 +103,7 @@ const costVisualCards = computed<CostVisualCard[]>(() => {
             label: 'Costo materia prima',
             value: formatCOP(summary.value.costs.rawMaterial),
             cardClass: 'bg-card',
-            headline: 'Costo de materia prima por prenda',
+            headline: 'Valor ponderado de telas (COP/m)',
         },
         {
             key: 'supplies',

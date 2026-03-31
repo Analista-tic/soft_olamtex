@@ -28,9 +28,7 @@ class ItemController extends Controller
 
     public function index()
     {
-        return Inertia::render('MasterData/Item/Index', [
-            'items' => Item::with(['warehouses', 'categorySubGroup', 'tax'])->get(),
-        ]);
+        return Inertia::render('MasterData/Item/Index');
     }
 
     public function show($id)
@@ -388,8 +386,13 @@ class ItemController extends Controller
 
     public function getWarehouses($id)
     {
-        $item = Item::findOrFail($id);
-        return response()->json($item->getWarehouseStocks());
+        $warehouses = Item::findOrFail($id)
+            ->warehouses()
+            ->select('warehouses.id', 'warehouses.name')
+            ->withPivot(['quantity', 'stock_min', 'stock_max'])
+            ->get();
+
+        return response()->json($warehouses);
     }
 
     // Nueva función para exportar todos los items a Excel
@@ -594,9 +597,7 @@ class ItemController extends Controller
 
     public function listView()
     {
-        return Inertia::render('MasterData/Item/Index', [
-            'items' => Item::with(['categorySubGroup', 'tax'])->get(),
-        ]);
+        return Inertia::render('MasterData/Item/Index');
     }
 
     public function advancedForm(Request $request)
@@ -655,17 +656,8 @@ class ItemController extends Controller
         $data['item_type'] = $itemType;
         $data['tracks_inventory'] = $tracksInventory;
 
-        if (empty($data['income_account_id'])) {
-            throw ValidationException::withMessages([
-                'income_account_id' => ['La cuenta de ingreso es obligatoria para todos los ítems.'],
-            ]);
-        }
-
-        if ($tracksInventory && empty($data['inventory_account_id'])) {
-            throw ValidationException::withMessages([
-                'inventory_account_id' => ['La cuenta de inventario es obligatoria cuando el item controla inventario.'],
-            ]);
-        }
+        // Las cuentas contables solo son obligatorias desde el formulario avanzado.
+        // El dialog básico no las expone, por lo que se omiten si no vienen en el payload.
 
         if (! $tracksInventory && empty($data['cost_of_sale_account_id'])) {
             throw ValidationException::withMessages([
@@ -700,7 +692,7 @@ class ItemController extends Controller
             'extra_fields' => 'nullable',
             'reference' => ['required', 'string'],
             'status' => 'sometimes|boolean',
-            'item_type' => 'required|string|in:product,service',
+            'item_type' => 'required|string|in:product,service,draft',
             'tracks_inventory' => 'sometimes|boolean',
             'unit_measure' => 'nullable|string',
             'income_account_id' => 'nullable|integer|exists:accounting_accounts,id',

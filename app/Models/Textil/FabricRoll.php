@@ -15,12 +15,16 @@ class FabricRoll extends Model
     public const APPROVAL_NOT_APPROVED = 'not_approved';
 
     protected $fillable = [
+        'legacy_id',
         'roll_number',
         'purchase_document_item_id',
         'location',
         'quantity',
         'roll_width',
         'description',
+        'internal_color_name',
+        'internal_color_code',
+        'movement_type',
         'partial_output',
         'actual_output',
         'entry_date',
@@ -28,11 +32,12 @@ class FabricRoll extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:2',
-        'roll_width' => 'decimal:2',
+        'legacy_id'      => 'integer',
+        'quantity'       => 'decimal:2',
+        'roll_width'     => 'decimal:2',
         'partial_output' => 'decimal:2',
-        'actual_output' => 'decimal:2',
-        'entry_date' => 'date',
+        'actual_output'  => 'decimal:2',
+        'entry_date'     => 'date',
     ];
 
     // Relación con el item de factura de compra

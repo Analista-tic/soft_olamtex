@@ -252,104 +252,88 @@ function togglePasswordVisibility() {
 </script>
 
 <template>
-  <div class="grid w-full items-center gap-1.5">
-    <template v-if="hasLabel">
-      <Label>
-        {{ label }}
-        <span v-if="required" class="text-destructive">*</span>
-      </Label>
-    </template>
+    <div class="grid w-full items-center gap-1.5">
+        <template v-if="hasLabel">
+            <Label>
+                {{ label }}
+                <span v-if="required" class="text-destructive">*</span>
+            </Label>
+        </template>
 
-    <div class="relative">
-      <Input
-        v-if="isControlled"
-        :id="label"
-        v-model="formattedValue"
-        :type="
-          isPasswordVisible
-            ? 'text'
-            : props.type
-            ? props.type === 'password'
-              ? 'password'
-              : props.type === 'currency'
-              ? 'text'
-              : props.type
-            : 'text'
-        "
-        :placeholder="computedPlaceholder"
-        :list="list"
-        :readonly="readonly"
-        :disabled="disabled"
-        :step="props.type === 'number' || props.type === 'currency' ? '0.01' : undefined"
-        :inputmode="
-          props.type === 'number' || props.type === 'currency'
-            ? 'decimal'
-            : props.type === 'email'
-            ? 'email'
-            : undefined
-        "
-        @focus="handleFocus"
-        @blur="handleBlur"
-        @beforeinput="handleBeforeInput"
-        :class="[
-          'h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
-          hasError
-            ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40'
-            : ''
-        ]"
-      />
+        <div class="relative">
+            <Input
+                v-if="isControlled"
+                :id="label"
+                v-model="formattedValue"
+                :type="
+                    isPasswordVisible
+                        ? 'text'
+                        : props.type
+                          ? props.type === 'password'
+                              ? 'password'
+                              : props.type === 'currency'
+                                ? 'text'
+                                : props.type
+                          : 'text'
+                "
+                :placeholder="computedPlaceholder"
+                :list="list"
+                :readonly="readonly"
+                :disabled="disabled"
+                :step="props.type === 'number' || props.type === 'currency' ? '0.01' : undefined"
+                :inputmode="props.type === 'number' || props.type === 'currency' ? 'decimal' : props.type === 'email' ? 'email' : undefined"
+                @focus="handleFocus"
+                @blur="handleBlur"
+                @beforeinput="handleBeforeInput"
+                :class="[
+                    'h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-5 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
+                    hasError ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
+                ]"
+            />
 
-      <Input
-        v-else
-        :id="label"
-        :value="formattedValue"
-        :type="
-          isPasswordVisible
-            ? 'text'
-            : props.type
-            ? props.type === 'password'
-              ? 'password'
-              : props.type === 'currency'
-              ? 'text'
-              : props.type
-            : 'text'
-        "
-        :placeholder="computedPlaceholder"
-        :list="list"
-        :readonly="readonly ?? true"
-        :disabled="disabled"
-        :step="props.type === 'number' || props.type === 'currency' ? '0.01' : undefined"
-        :inputmode="
-          props.type === 'number' || props.type === 'currency'
-            ? 'decimal'
-            : props.type === 'email'
-            ? 'email'
-            : undefined
-        "
-        @focus="handleFocus"
-        @blur="handleBlur"
-        @beforeinput="handleBeforeInput"
-        :class="[
-          'h-10 pr-5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
-          hasError
-            ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40'
-            : ''
-        ]"
-      />
+            <Input
+                v-else
+                :id="label"
+                :value="formattedValue"
+                :type="
+                    isPasswordVisible
+                        ? 'text'
+                        : props.type
+                          ? props.type === 'password'
+                              ? 'password'
+                              : props.type === 'currency'
+                                ? 'text'
+                                : props.type
+                          : 'text'
+                "
+                :placeholder="computedPlaceholder"
+                :list="list"
+                :readonly="readonly ?? true"
+                :disabled="disabled"
+                :step="props.type === 'number' || props.type === 'currency' ? '0.01' : undefined"
+                :inputmode="props.type === 'number' || props.type === 'currency' ? 'decimal' : props.type === 'email' ? 'email' : undefined"
+                @focus="handleFocus"
+                @blur="handleBlur"
+                @beforeinput="handleBeforeInput"
+                :class="[
+                    'h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-5 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
+                    hasError ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
+                ]"
+            />
 
-      <button
-        v-if="props.type === 'password'"
-        type="button"
-        class="absolute inset-y-0 right-0 flex items-center px-2"
-        @click="togglePasswordVisibility"
-      >
-        <Eye v-if="!isPasswordVisible" class="h-5 w-5 text-muted-foreground" />
-        <EyeOff v-else class="h-5 w-5 text-muted-foreground" />
-      </button>
+            <button
+                v-if="props.type === 'password'"
+                type="button"
+                class="absolute inset-y-0 right-0 flex items-center px-2"
+                @click="togglePasswordVisibility"
+            >
+                <Eye v-if="!isPasswordVisible" class="h-5 w-5 text-muted-foreground" />
+                <EyeOff v-else class="h-5 w-5 text-muted-foreground" />
+            </button>
+        </div>
+
+        <p v-if="hasError && errorMessage" class="mt-0.5 text-xs text-destructive">
+            {{ errorMessage }}
+        </p>
     </div>
-
-    <p v-if="hasError && errorMessage" class="mt-0.5 text-xs text-destructive">
-      {{ errorMessage }}
-    </p>
-  </div>
 </template>

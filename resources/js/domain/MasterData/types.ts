@@ -95,7 +95,7 @@ export interface Item extends Timestamps {
     description: string;
     extra_fields?: ExtraFields | string;
     status: boolean;
-    item_type: 'product' | 'service';
+    item_type: 'product' | 'service' | 'draft';
     tracks_inventory?: boolean;
     unit_measure?: string;
     income_account_id?: number | null;

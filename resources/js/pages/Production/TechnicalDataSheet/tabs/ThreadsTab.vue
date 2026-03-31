@@ -14,6 +14,8 @@ const props = defineProps<{
     units: number | null;
 }>();
 
+type ColorOption = Option & { code?: string };
+
 type LocalThreadRow = {
     uid: string;
     id: string | null;
@@ -23,6 +25,7 @@ type LocalThreadRow = {
     color: string;
     colorCode: string;
     stitchesPerInch: string | number | null;
+    defaultThreadCost: string | number | null;
 };
 
 const isLoading = ref(false);
@@ -36,7 +39,7 @@ const isLoadingParameterOptions = ref(false);
 const gaugeOptions = ref<Option[]>([]);
 const stitchesPerInchOptions = ref<Option[]>([]);
 const brandOptions = ref<Option[]>([]);
-const colorOptions = ref<Option[]>([]);
+const colorOptions = ref<ColorOption[]>([]);
 
 function generateUid(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -56,7 +59,7 @@ function formatCOP(value: number): string {
         .replace(/\u00A0/g, ' ');
 }
 
-const totalHilos = computed(() => 0);
+const totalHilos = computed(() => rows.value.reduce((sum, row) => sum + (Number(row.defaultThreadCost) || 0), 0));
 const costoHilos = computed(() => formatCOP(totalHilos.value));
 
 function toNullableText(value: string): string | null {
@@ -82,6 +85,7 @@ function mapApiLineToLocal(line: ThreadLine): LocalThreadRow {
         color: String(line.color ?? ''),
         colorCode: String(line.colorCode ?? ''),
         stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined ? Number(line.stitchesPerInch) : null,
+        defaultThreadCost: line.defaultThreadCost != null ? Number(line.defaultThreadCost) : null,
     };
 }
 
@@ -95,6 +99,7 @@ function createEmptyRow(): LocalThreadRow {
         color: '',
         colorCode: '',
         stitchesPerInch: null,
+        defaultThreadCost: null,
     };
 }
 
@@ -107,6 +112,7 @@ function normalizeRowsForSave(): ThreadLine[] {
         color: toNullableText(row.color),
         colorCode: toNullableText(row.colorCode),
         stitchesPerInch: toNullableNumber(row.stitchesPerInch),
+        defaultThreadCost: toNullableNumber(row.defaultThreadCost),
     }));
 }
 
@@ -130,6 +136,31 @@ function applyState(state: ThreadState): void {
 
 function addThread(): void {
     rows.value.push(createEmptyRow());
+}
+
+function onColorSelected(rowIndex: number, value: string | number | null): void {
+    const row = rows.value[rowIndex];
+    if (!row) return;
+    if (value === null || value === '') {
+        row.color = '';
+        row.colorCode = '';
+        return;
+    }
+    const opt = colorOptions.value.find((o) => String(o.id) === String(value) || String(o.name) === String(value));
+    if (opt) {
+        row.color = String(opt.name ?? '');
+        row.colorCode = String(opt.code ?? opt.name ?? '');
+        return;
+    }
+
+    row.color = String(value);
+    row.colorCode = '';
+}
+
+function getColorSelectionValue(row: LocalThreadRow): string | null {
+    if (!row.color) return null;
+    const opt = colorOptions.value.find((o) => String(o.name) === row.color || String(o.id) === row.color);
+    return opt ? String(opt.id) : row.color;
 }
 
 function removeThread(uid: string): void {
@@ -173,11 +204,15 @@ async function loadThreadParameterOptions(): Promise<void> {
 
     isLoadingParameterOptions.value = true;
     try {
-        const data = await fetchSettingsParameters(['calibre', 'puntada_por_pulgada', 'brands', 'fabric_colors']);
+        const data = await fetchSettingsParameters(['calibre', 'puntada_por_pulgada', 'thread_brands', 'fabric_colors']);
         gaugeOptions.value = (data.calibre ?? []).map(mapNumericOption);
         stitchesPerInchOptions.value = (data.puntada_por_pulgada ?? []).map(mapNumericOption);
-        brandOptions.value = (data.brands ?? []).map(mapTextOption);
-        colorOptions.value = (data.fabric_colors ?? []).map(mapTextOption);
+        brandOptions.value = (data.thread_brands ?? []).map(mapTextOption);
+        colorOptions.value = (data.fabric_colors ?? []).map((opt: Option & { code?: string }) => ({
+            id: String(opt.id ?? opt.name ?? ''),
+            name: String(opt.name ?? opt.id ?? ''),
+            ...(opt.code != null && { code: String(opt.code) }),
+        }));
     } catch (err) {
         console.error('Error al cargar parametros de hilos:', err);
         gaugeOptions.value = [];
@@ -247,38 +282,41 @@ onMounted(() => {
     <div class="space-y-4">
         <div class="flex flex-col gap-3 p-2 md:flex-row md:items-start md:justify-between">
             <div>
-                <h2 class="text-lg font-semibold text-foreground">Hilaza</h2>
-                <p class="text-sm text-muted-foreground">Costo estimado informativo por prenda. No afecta inventario.</p>
+                <h2 class="text-lg font-semibold text-foreground">Hilos</h2>
+                <p class="text-sm text-muted-foreground">
+                    Selecciona los colores del catálogo; se guardan nombre y código. Costo estimado informativo por prenda. No afecta inventario.
+                </p>
             </div>
             <div class="w-fit rounded-full border border-border bg-muted/30 px-3 py-1.5 text-sm font-medium text-foreground">
-                Costo Hilaza: {{ costoHilos }}
+                Costo Hilos: {{ costoHilos }}
             </div>
         </div>
 
-        <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">Cargando hilaza...</div>
+        <div v-if="isLoading" class="rounded-lg border-0 px-4 py-6 text-sm text-muted-foreground shadow-none">Cargando hilos...</div>
 
         <template v-else>
             <div v-if="rows.length === 0" class="rounded-lg border border-dashed border-border bg-background px-4 py-8 text-center">
-                <p class="text-sm font-medium text-foreground">No hay hilaza registrada. Agrega una linea para iniciar.</p>
+                <p class="text-sm font-medium text-foreground">No hay hilos registrados. Agrega una linea para iniciar.</p>
             </div>
 
             <div v-else class="max-h-[460px] overflow-auto rounded-md border border-border">
                 <Table>
                     <TableHeader class="sticky top-0 z-10 bg-background">
                         <TableRow>
-                            <TableHead class="min-w-[170px] text-left">Hilaza</TableHead>
+                            <TableHead class="min-w-[170px] text-left">Hilo</TableHead>
                             <TableHead class="min-w-[120px] text-left">Calibre</TableHead>
                             <TableHead class="min-w-[160px] text-left">Marca</TableHead>
                             <TableHead class="min-w-[140px] text-left">Color</TableHead>
-                            <TableHead class="min-w-[140px] text-left">Cod. color</TableHead>
+                            <TableHead class="min-w-[120px] text-left">Cod. color</TableHead>
                             <TableHead class="min-w-[180px] text-left">Puntada por pulgada</TableHead>
+                            <TableHead class="min-w-[120px] text-right">Costo hilo por defecto</TableHead>
                             <TableHead class="w-[80px] text-center">Accion</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="(row, index) in rows" :key="row.uid" class="group transition-colors hover:bg-muted/30">
                             <TableCell>
-                                <Input v-model="rows[index].threadName" placeholder="Nombre de la hilaza" :disabled="isSaving" />
+                                <Input v-model="rows[index].threadName" placeholder="Nombre del hilo" :disabled="isSaving" />
                             </TableCell>
                             <TableCell>
                                 <SelectField
@@ -303,18 +341,18 @@ onMounted(() => {
                             </TableCell>
                             <TableCell>
                                 <SelectField
-                                    v-model="rows[index].color"
+                                    :model-value="getColorSelectionValue(row)"
                                     label=""
                                     placeholder="Selecciona color"
                                     :options="colorOptions"
                                     :disabled="isSaving || isLoadingParameterOptions"
                                     :searchable="true"
-                                    :allow-custom="true"
-                                    custom-option-label='Crear "{value}"'
+                                    :allow-custom="false"
+                                    @update:model-value="(v) => onColorSelected(index, v as string | number | null)"
                                 />
                             </TableCell>
-                            <TableCell>
-                                <Input v-model="rows[index].colorCode" placeholder="Codigo" :disabled="isSaving" />
+                            <TableCell class="text-muted-foreground">
+                                <span class="text-sm">{{ row.colorCode || '—' }}</span>
                             </TableCell>
                             <TableCell>
                                 <SelectField
@@ -323,6 +361,18 @@ onMounted(() => {
                                     placeholder="Selecciona"
                                     :options="stitchesPerInchOptions"
                                     :disabled="isSaving || isLoadingParameterOptions"
+                                />
+                            </TableCell>
+                            <TableCell class="text-right">
+                                <Input
+                                    :model-value="row.defaultThreadCost != null ? String(row.defaultThreadCost) : ''"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    class="text-right tabular-nums"
+                                    placeholder="0"
+                                    :disabled="isSaving"
+                                    @update:model-value="(v) => (rows[index].defaultThreadCost = v && Number(v) >= 0 ? Number(v) : null)"
                                 />
                             </TableCell>
                             <TableCell class="text-center">
@@ -350,7 +400,7 @@ onMounted(() => {
                         @click="addThread"
                     >
                         <Plus class="mr-1 h-4 w-4" />
-                        Agregar hilaza
+                        Agregar hilo
                     </Button>
                     <Button type="button" class="h-9 rounded-full px-4" :disabled="!canSave" @click="handleSave">
                         <Save class="mr-1 h-4 w-4" />
@@ -360,7 +410,7 @@ onMounted(() => {
 
                 <div class="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                     <div class="flex items-center gap-2">
-                        <p class="text-xs uppercase tracking-wide text-muted-foreground">Total hilaza</p>
+                        <p class="text-xs uppercase tracking-wide text-muted-foreground">Total Hilos Asignados</p>
                         <p class="text-sm font-semibold tabular-nums text-foreground">{{ costoHilos }}</p>
                     </div>
                 </div>

@@ -9,6 +9,7 @@ export interface ProductSheetValidationSource {
     fabric_base_id: number | null;
     operational_list_id: number | null;
     yarn_base_id?: number | null;
+    woven_product?: boolean;
 }
 
 export interface ProductSheetFieldErrors {
@@ -25,10 +26,11 @@ export interface ProductSheetFieldErrors {
 export function useProductSheetValidation<T extends ProductSheetValidationSource>(params: {
     form: Ref<T>;
     activeReference: Ref<string>;
-    requiresOperationalList: Ref<boolean>;
+    requiresOperationalList?: Ref<boolean>;
     hasOperationalListConfigured?: Ref<boolean>;
     requiresYarnBase?: Ref<boolean>;
 }) {
+    const requiresOperationalList = params.requiresOperationalList ?? computed(() => false);
     const requiresYarnBase = params.requiresYarnBase ?? computed(() => false);
     const hasOperationalListConfigured = params.hasOperationalListConfigured ?? computed(() => false);
 
@@ -40,12 +42,12 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
         if (!form.group_id) errors.push('Grupo es requerido.');
         if (!form.brand_id) errors.push('Marca es requerida.');
         if (!form.world_id) errors.push('Mundo es requerido.');
-        if (!form.fabric_base_id) errors.push('Base es requerida.');
+        if (!form.woven_product && !form.fabric_base_id) errors.push('Base Tela es requerida.');
         if (!params.activeReference.value.trim()) errors.push('Referencia es requerida.');
 
-        if (params.requiresOperationalList.value && !hasOperationalListConfigured.value && !form.operational_list_id) {
+        if (requiresOperationalList.value && !hasOperationalListConfigured.value && !form.operational_list_id) {
             errors.push(
-                'Configura el listado operacional: haz clic en "Configurar procesos" y añade al menos una operación para el proceso Desarrollo de muestras.',
+                'Configura el listado operacional: haz clic en "Configurar procesos" y añade al menos una operación para el proceso Muestras.',
             );
         }
 
@@ -64,10 +66,10 @@ export function useProductSheetValidation<T extends ProductSheetValidationSource
             group_id: !form.group_id ? 'Grupo es requerido.' : '',
             brand_id: !form.brand_id ? 'Marca es requerida.' : '',
             world_id: !form.world_id ? 'Mundo es requerido.' : '',
-            fabric_base_id: !form.fabric_base_id ? 'Base es requerida.' : '',
+            fabric_base_id: !form.woven_product && !form.fabric_base_id ? 'Base Tela es requerida.' : '',
             yarn_base_id: requiresYarnBase.value && !form.yarn_base_id ? 'Base hilaza es requerida.' : '',
             operational_list_id:
-                params.requiresOperationalList.value && !hasOperationalListConfigured.value && !form.operational_list_id
+                requiresOperationalList.value && !hasOperationalListConfigured.value && !form.operational_list_id
                     ? 'Configura el listado operacional (Configurar procesos).'
                     : '',
         };

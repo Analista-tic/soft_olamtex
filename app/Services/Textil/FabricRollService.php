@@ -211,13 +211,6 @@ class FabricRollService
         }
     }
 
-    protected function sumRollQuantityForItem(int $itemId): float
-    {
-        return (float) FabricRoll::whereHas('purchaseDocumentItem', function ($query) use ($itemId) {
-            $query->where('item_id', $itemId);
-        })->sum('quantity');
-    }
-
     /** Suma de metros recibidos para un ítem de documento (línea de factura). */
     protected function sumRollQuantityForPurchaseDocumentItem(int $purchaseDocumentItemId): float
     {
@@ -253,6 +246,98 @@ class FabricRollService
         return $query
             ->orderBy('entry_date', 'desc')
             ->get();
+    }
+
+    /**
+     * Retorna rollos con datos de tela/proveedor aplanados vía JOINs.
+     * Evita eager-loading masivo: carga solo columnas necesarias en una sola query.
+     *
+     * @return LengthAwarePaginator
+     */
+    public function inventoryWithFilters(array $filters = [], int $perPage = 100, string $sortBy = 'entry_date', string $sortDirection = 'desc'): LengthAwarePaginator
+    {
+        $allowedSorts = [
+            'roll_number'  => 'fr.roll_number',
+            'location'     => 'fr.location',
+            'fabric'       => DB::raw("COALESCE(i.name, pdi.item_name, 'Tela')"),
+            'color'        => 'pdi.supplier_color',
+            'width'        => 'fr.roll_width',
+            'quantity'     => 'fr.quantity',
+            'partial_output' => 'fr.partial_output',
+            'actual_output'  => 'fr.actual_output',
+            'entry_date'   => 'fr.entry_date',
+            'provider'     => DB::raw("COALESCE(c.full_name, pd.provider_name, 'Proveedor')"),
+        ];
+
+        $sortColumn    = $allowedSorts[$sortBy] ?? 'fr.entry_date';
+        $sortDirection = strtolower($sortDirection) === 'asc' ? 'asc' : 'desc';
+
+        $query = DB::table('fabric_rolls as fr')
+            ->select([
+                'fr.id',
+                'fr.roll_number',
+                'fr.location',
+                'fr.quantity',
+                'fr.roll_width',
+                'fr.partial_output',
+                'fr.actual_output',
+                DB::raw("COALESCE(i.name, pdi.item_name, 'Tela') as fabric"),
+                'pdi.id as purchase_document_item_id',
+                'pdi.item_id as fabric_item_id',
+                'pdi.supplier_color',
+                'pdi.supplier_code',
+                'pdi.price as price_per_meter',
+                DB::raw("COALESCE(c.full_name, pd.provider_name, 'Proveedor') as provider"),
+                DB::raw("COALESCE(pd.supplier_order_number, pd.document_number, 'N/A') as order_number"),
+                'pd.created_at as doc_created_at',
+                'u.name as creator_name',
+            ])
+            ->join('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
+            ->leftJoin('items as i', 'i.id', '=', 'pdi.item_id')
+            ->join('purchase_documents as pd', 'pd.id', '=', 'pdi.purchase_document_id')
+            ->leftJoin('contacts as c', 'c.id', '=', 'pd.contact_id')
+            ->leftJoin('users as u', 'u.id', '=', 'pd.created_by_user_id')
+            ->whereNull('fr.deleted_at');
+
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('fr.roll_number', 'like', "%{$search}%")
+                    ->orWhere('fr.location', 'like', "%{$search}%")
+                    ->orWhere('i.name', 'like', "%{$search}%")
+                    ->orWhere('pdi.item_name', 'like', "%{$search}%")
+                    ->orWhere('pdi.supplier_color', 'like', "%{$search}%")
+                    ->orWhere('c.full_name', 'like', "%{$search}%")
+                    ->orWhere('pd.provider_name', 'like', "%{$search}%")
+                    ->orWhere('pd.supplier_order_number', 'like', "%{$search}%")
+                    ->orWhere('pd.document_number', 'like', "%{$search}%");
+            });
+        }
+
+        if (!empty($filters['base_fabric'])) {
+            $query->where('i.description', 'like', '%' . $filters['base_fabric'] . '%');
+        }
+
+        if (!empty($filters['provider'])) {
+            $prov = $filters['provider'];
+            $query->where(function ($q) use ($prov) {
+                $q->where('c.full_name', 'like', "%{$prov}%")
+                    ->orWhere('pd.provider_name', 'like', "%{$prov}%");
+            });
+        }
+
+        if (!empty($filters['with_output'])) {
+            $query->where(function ($q) {
+                $q->where('fr.partial_output', '>', 0)
+                    ->orWhere('fr.actual_output', '>', 0);
+            });
+        }
+
+        if (!empty($filters['fabric_item_ids'])) {
+            $query->whereIn('pdi.item_id', (array) $filters['fabric_item_ids']);
+        }
+
+        return $query->orderBy($sortColumn, $sortDirection)->paginate($perPage);
     }
 
     public function available(): Collection

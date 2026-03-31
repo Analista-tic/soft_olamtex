@@ -100,14 +100,47 @@ function resolveSectionType(entry: OperationEntry): string {
     const id = entry.operation_section_id ?? null;
     return id ? (props.sections.find((s) => s.id === id)?.type ?? '') : '';
 }
+
+function getNormalizedSectionType(entry: OperationEntry): 'confeccion' | 'presentacion' | 'otros' {
+    const byType = normalize(resolveSectionType(entry));
+    if (byType === 'confeccion') return 'confeccion';
+    if (byType === 'presentacion' || byType === 'terminacion') return 'presentacion';
+
+    const byName = normalize(resolveSectionName(entry));
+    if (['presentacion', 'terminacion'].includes(byName)) return 'presentacion';
+    if (['confeccion', 'ensamble', 'preparacion'].includes(byName)) return 'confeccion';
+
+    return 'otros';
+}
+
+function asNumber(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = typeof value === 'string' ? Number(value) : (value as number);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
 function getSamValue(entry: OperationEntry): number {
-    const v = entry.sam_total_operacion ?? entry.sam ?? entry.optimal_time ?? 0;
-    const p = typeof v === 'string' ? Number(v) : v;
-    return Number.isFinite(p) ? p : 0;
+    const persistedTotal = asNumber(entry.sam_total_operacion);
+    if (persistedTotal !== null && persistedTotal > 0) return persistedTotal;
+
+    const persistedUnit = asNumber(entry.sam_total_unitario);
+    const quantity = asNumber(entry.quantity) ?? 1;
+    if (persistedUnit !== null && persistedUnit > 0) return Number((persistedUnit * quantity).toFixed(4));
+
+    const samBase = asNumber(entry.sam_base) ?? asNumber(entry.sam) ?? asNumber(entry.optimal_time) ?? 0;
+    const machineSupplement = asNumber(entry.machine_supplement_factor) ?? 1;
+    const fabricFactor = asNumber(entry.fabric_base_factor) ?? 1;
+    const operatorFactor = asNumber(entry.operator_efficiency_factor) ?? 1;
+
+    return Number((samBase * machineSupplement * fabricFactor * operatorFactor * quantity).toFixed(4));
 }
 function getSamBaseValue(entry: OperationEntry): number {
     const v = entry.sam_base ?? entry.sam ?? entry.optimal_time ?? 0;
     return Number.isFinite(Number(v)) ? Number(v) : 0;
+}
+function fmtOperationTime(v: number): string {
+    const safe = Number.isFinite(v) ? v : 0;
+    return String(Math.floor(safe));
 }
 function fmt(v: number): string {
     return v.toFixed(2);
@@ -173,9 +206,9 @@ type GroupedSection = { sectionName: string; sectionType: string; items: Operati
 const groupedOperations = computed<GroupedSection[]>(() => {
     const map = new Map<string, GroupedSection>();
     operations.value.forEach((entry) => {
-        const st = normalize(resolveSectionType(entry));
-        const key = st === 'confeccion' ? 'Confección' : st === 'presentacion' ? 'Presentación' : 'Otros';
-        if (!map.has(key)) map.set(key, { sectionName: key, sectionType: st, items: [], totalSam: 0 });
+        const normalizedType = getNormalizedSectionType(entry);
+        const key = normalizedType === 'confeccion' ? 'Confección' : normalizedType === 'presentacion' ? 'Presentación' : 'Otros';
+        if (!map.has(key)) map.set(key, { sectionName: key, sectionType: normalizedType, items: [], totalSam: 0 });
         const g = map.get(key)!;
         g.items.push(entry);
         g.totalSam += getSamValue(entry);
@@ -185,10 +218,10 @@ const groupedOperations = computed<GroupedSection[]>(() => {
 
 const totalSam = computed(() => operations.value.reduce((s, e) => s + getSamValue(e), 0));
 const totalSamConfeccion = computed(() =>
-    operations.value.reduce((s, e) => (normalize(resolveSectionType(e)) === 'confeccion' ? s + getSamValue(e) : s), 0),
+    operations.value.reduce((s, e) => (getNormalizedSectionType(e) === 'confeccion' ? s + getSamValue(e) : s), 0),
 );
 const totalSamPresentacion = computed(() =>
-    operations.value.reduce((s, e) => (normalize(resolveSectionType(e)) === 'presentacion' ? s + getSamValue(e) : s), 0),
+    operations.value.reduce((s, e) => (getNormalizedSectionType(e) === 'presentacion' ? s + getSamValue(e) : s), 0),
 );
 const costHilo = computed(() => Number(parameters.value['yarn_cost'] ?? parameters.value['costo hilo'] ?? 0) || 0);
 const costConfeccion = computed(() => totalSamConfeccion.value * operationCost.value);
@@ -197,19 +230,20 @@ const costTotalConfeccion = computed(() => costConfeccion.value + costHilo.value
 const costTotalPresentacion = computed(() => costTerminacion.value);
 const costTotalProducto = computed(() => costTotalConfeccion.value + costTotalPresentacion.value);
 
-function getCostPerOperation(entry: OperationEntry): number {
-    return getSamValue(entry) * operationCost.value;
-}
-
 function getOpsPerHour(entry: OperationEntry): number {
-    const samOp = getSamValue(entry);
+    const samOp = Number(getSamValue(entry).toFixed(2));
     if (samOp <= 0) return 0;
-    return Number((60 / samOp).toFixed(2));
+    return Math.floor(60 / samOp);
 }
 
-const currencyFormatter = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+function getFabricFactorDisplay(entry: OperationEntry): string {
+    const factor = asNumber(entry.fabric_base_factor);
+    return fmt(factor ?? 1);
+}
+
+const currencyFormatter = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 function formatCurrency(v: number): string {
-    return Number.isFinite(v) ? currencyFormatter.format(v) : '0';
+    return Number.isFinite(v) ? currencyFormatter.format(v) : '0.00';
 }
 
 onMounted(() => {
@@ -305,7 +339,7 @@ watch(
                                         <span class="text-sm font-semibold">{{ group.sectionName }}</span>
                                         <Badge variant="outline" class="text-[10px]">{{ group.items.length }} op.</Badge>
                                     </div>
-                                    <span class="font-mono text-sm font-semibold text-primary">SAM {{ fmt(group.totalSam) }}</span>
+                                    <span class="font-mono text-sm font-semibold text-primary">SAM {{ fmtOperationTime(group.totalSam) }}</span>
                                 </button>
                                 <div v-if="!collapsedSections.has(group.sectionName)">
                                     <Table>
@@ -359,11 +393,6 @@ watch(
                                                         >Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)."
                                                     /></span>
                                                 </TableHead>
-                                                <TableHead class="text-right">
-                                                    <span class="inline-flex items-center justify-end gap-1"
-                                                        >Costo op. <HelpTooltip text="SAM op. × costo por minuto de operaciones."
-                                                    /></span>
-                                                </TableHead>
                                                 <TableHead class="w-24"></TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -377,12 +406,12 @@ watch(
                                                     entry.machine?.code ?? '-'
                                                 }}</TableCell>
                                                 <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
-                                                <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
+                                                <TableCell class="text-right font-mono">{{ fmtOperationTime(getSamBaseValue(entry)) }}</TableCell>
                                                 <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                     entry.machine_supplement_factor != null ? Number(entry.machine_supplement_factor).toFixed(2) : '-'
                                                 }}</TableCell>
                                                 <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
-                                                    entry.fabric_base_factor != null ? fmt(entry.fabric_base_factor) : '-'
+                                                    getFabricFactorDisplay(entry)
                                                 }}</TableCell>
                                                 <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                     entry.operator_efficiency_factor != null
@@ -393,9 +422,6 @@ watch(
                                                 <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                     getOpsPerHour(entry)
                                                 }}</TableCell>
-                                                <TableCell class="text-right font-mono text-xs"
-                                                    >$ {{ formatCurrency(getCostPerOperation(entry)) }}</TableCell
-                                                >
                                                 <TableCell class="py-1">
                                                     <div class="flex items-center justify-end gap-0.5">
                                                         <Button variant="ghost" size="icon" class="h-7 w-7" title="Editar" @click="editOperation()"
@@ -421,13 +447,11 @@ watch(
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow class="border-t bg-muted/30">
-                                                <TableCell colspan="10" class="py-1.5 text-right text-xs font-bold"
+                                                <TableCell colspan="8" class="py-1.5 text-right text-xs font-bold"
                                                     >Total {{ group.sectionName }}</TableCell
                                                 >
-                                                <TableCell class="py-1.5 text-right font-mono text-xs font-bold">{{ fmt(group.totalSam) }}</TableCell>
-                                                <TableCell class="py-1.5 text-right font-mono text-xs font-bold"
-                                                    >$ {{ formatCurrency(group.totalSam * operationCost) }}</TableCell
-                                                >
+                                                <TableCell class="py-1.5 text-right font-mono text-xs font-bold">{{ fmtOperationTime(group.totalSam) }}</TableCell>
+                                                <TableCell class="py-1.5"></TableCell>
                                                 <TableCell></TableCell>
                                             </TableRow>
                                         </TableBody>
@@ -456,7 +480,7 @@ watch(
                             <!-- Total general -->
                             <div class="space-y-2 rounded-lg border bg-primary/5 px-4 py-3">
                                 <div class="flex items-center justify-end gap-6">
-                                    <span class="text-sm font-bold">SAM total ruta</span>
+                                    <span class="text-sm font-bold">SAM total operaciones</span>
                                     <span class="font-mono text-lg font-bold text-primary">{{ fmt(totalSam) }} min</span>
                                 </div>
                                 <div class="grid grid-cols-2 gap-2 border-t border-primary/20 pt-2 text-xs">
@@ -521,11 +545,6 @@ watch(
                                                     >Op./h <HelpTooltip text="Operaciones por hora (60 ÷ SAM op.)."
                                                 /></span>
                                             </TableHead>
-                                            <TableHead class="text-right">
-                                                <span class="inline-flex items-center justify-end gap-1"
-                                                    >Costo op. <HelpTooltip text="Costo de la operación."
-                                                /></span>
-                                            </TableHead>
                                             <TableHead class="w-24"></TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -536,12 +555,12 @@ watch(
                                             <TableCell>{{ entry.operation?.name ?? '-' }}</TableCell>
                                             <TableCell class="text-center text-xs text-muted-foreground">{{ entry.machine?.code ?? '-' }}</TableCell>
                                             <TableCell class="text-right">{{ entry.quantity ?? 1 }}</TableCell>
-                                            <TableCell class="text-right font-mono">{{ fmt(getSamBaseValue(entry)) }}</TableCell>
+                                            <TableCell class="text-right font-mono">{{ fmtOperationTime(getSamBaseValue(entry)) }}</TableCell>
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                 entry.machine_supplement_factor != null ? Number(entry.machine_supplement_factor).toFixed(2) : '-'
                                             }}</TableCell>
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
-                                                entry.fabric_base_factor != null ? fmt(entry.fabric_base_factor) : '-'
+                                                getFabricFactorDisplay(entry)
                                             }}</TableCell>
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                 entry.operator_efficiency_factor != null ? Number(entry.operator_efficiency_factor).toFixed(2) : '-'
@@ -550,9 +569,6 @@ watch(
                                             <TableCell class="text-right font-mono text-xs text-muted-foreground">{{
                                                 getOpsPerHour(entry)
                                             }}</TableCell>
-                                            <TableCell class="text-right font-mono text-xs"
-                                                >$ {{ formatCurrency(getCostPerOperation(entry)) }}</TableCell
-                                            >
                                             <TableCell class="py-1">
                                                 <div class="flex items-center justify-end gap-0.5">
                                                     <Button variant="ghost" size="icon" class="h-7 w-7" title="Editar" @click="editOperation()"
@@ -576,7 +592,7 @@ watch(
                                 </Table>
                             </ScrollArea>
                             <div class="flex items-center justify-end gap-6 border-t bg-primary/5 px-4 py-3">
-                                <span class="text-sm font-bold">SAM total</span>
+                                <span class="text-sm font-bold">SAM total operaciones</span>
                                 <span class="font-mono text-lg font-bold text-primary">{{ fmt(totalSam) }} min</span>
                             </div>
                         </div>

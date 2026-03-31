@@ -15,22 +15,25 @@ import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } fr
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useProductSheetValidation } from '@/composables/useProductSheetValidation';
-import type { FabricBaseOption, ProductOperationPayload } from '@/domain/product-sheet';
-import type { MachineOption, OperationOption, OperationSection, OptionParams, ProductSheet } from '@/domain/Production';
+import type { FabricBaseOption, MachineOption, OperationOption, OperationSection, ProductOperationPayload } from '@/domain/product-sheet';
+import type { OptionParams, ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
     PRODUCT_SHEET_TYPE_SAMPLE,
     convertSampleToProduct,
     createProductSheet,
+    fetchProductSheetTemplates,
     normalizeProductSheetType,
     parseBooleanRecord,
+    showProductSheet,
     stringifyJsonRecord,
     updateProductSheet,
 } from '@/domain/Production';
 import ProductOperationListDialog from '@/pages/Production/ProductOperationList/ProductOperationListDialog.vue';
+import { router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Image as ImageIcon, List, Trash } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { Eye, Image as ImageIcon, List, Loader2, Trash } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 
 interface Props {
     mode: 'create' | 'edit' | 'view'; // Define si es creación, edición o visualización
@@ -42,6 +45,7 @@ interface Props {
     fabricBases: OptionParams[]; // Cambiar bases a fabricBases
     yarnBases: OptionParams[]; // Asegúrate de que el tipo sea un arreglo
     operationalLists?: OptionParams[]; // Opcional para uso desde otros contextos
+    collections?: OptionParams[]; // Colecciones disponibles
     readonly?: boolean; // Prop para modo de solo lectura
 }
 
@@ -147,8 +151,9 @@ const tooltips = {
 const normalizeTypeValue = (value?: string) => normalizeProductSheetType(value);
 
 const developmentProcessLabel = 'Desarrollo de muestras';
+const developmentProcessAliases = ['Desarrollo de muestra', 'Desarrollo de Muestra', 'Desarrollo de Muestras'];
 const hasAppliedDefaultSampleProcess = ref(false);
-const autoAddedSampleProcess = ref(false);
+const mandatoryProcesses = ['Muestras', 'Confección', 'Terminación', 'Bodega'];
 const flatSketchFile = ref<File | null>(null);
 const flatSketchPreviewUrl = ref<string | null>(null);
 const flatSketchLoadFailed = ref(false);
@@ -163,8 +168,9 @@ interface FormState {
     world_id: number | null;
     fabric_base_id: number | null;
     yarn_base_id: number | null;
-    type: string;
+    type: 'muestra' | 'producto';
     operational_list_id: number | null;
+    collection_id: number | null;
     billing_price: number;
     selling_price: number;
     sizes: string;
@@ -173,8 +179,11 @@ interface FormState {
     flat_sketch_path: string;
     sample_reference: string;
     product_reference: string;
+    product_reference_2: string;
     processes: string;
     status: 'incomplete' | 'complete';
+    version: number;
+    parent_id: number | null;
 }
 
 interface ProductSheetDialogOption {
@@ -192,6 +201,7 @@ function defaultSizesJson(): string {
         L: false,
         XL: false,
         '2XL': false,
+        U: false,
         '2': false,
         '3': false,
         '4': false,
@@ -253,6 +263,7 @@ function createInitialFormState(): FormState {
         yarn_base_id: null,
         type: TYPE_SAMPLE,
         operational_list_id: null,
+        collection_id: null,
         billing_price: 0,
         selling_price: 0,
         sizes: defaultSizesJson(),
@@ -261,12 +272,135 @@ function createInitialFormState(): FormState {
         flat_sketch_path: '',
         sample_reference: '',
         product_reference: '',
+        product_reference_2: '',
         processes: '',
         status: 'incomplete',
+        version: 1,
+        parent_id: null,
     };
 }
 
 const form = ref<FormState>(createInitialFormState());
+const collectionOptions = ref<OptionParams[]>([]);
+const collectionSearchTerm = ref('');
+const creatingCollection = ref(false);
+
+function normalizeCollectionName(value: string): string {
+    return value.trim().replace(/\s+/g, ' ');
+}
+
+function syncCollectionOptionsFromProps(): void {
+    collectionOptions.value = Array.isArray(props.collections) ? [...props.collections] : [];
+}
+
+async function createCollectionFromSelect(): Promise<void> {
+    if (isReadonly.value || creatingCollection.value) return;
+
+    const name = normalizeCollectionName(collectionSearchTerm.value);
+    if (!name) {
+        setError('Escribe el nombre de la colección en el buscador para crearla.', 'warning');
+        return;
+    }
+
+    const exists = collectionOptions.value.some((option) => String(option.name).trim().toLowerCase() === name.toLowerCase());
+    if (exists) {
+        const existing = collectionOptions.value.find((option) => String(option.name).trim().toLowerCase() === name.toLowerCase());
+        form.value.collection_id = toIdOrNull(existing?.id ?? null);
+        setError('La colección ya existe y fue seleccionada.', 'info');
+        return;
+    }
+
+    creatingCollection.value = true;
+    try {
+        const response = await axios.post(route('produccion.colecciones.store'), {
+            name,
+            is_active: true,
+        });
+
+        const created = response.data?.data;
+        const createdId = toIdOrNull(created?.id ?? null);
+        const createdName = normalizeCollectionName(String(created?.name ?? name));
+
+        if (!createdId) {
+            setError('No se pudo obtener el ID de la colección creada.');
+            return;
+        }
+
+        collectionOptions.value = [...collectionOptions.value, { id: createdId, name: createdName }];
+        form.value.collection_id = createdId;
+        collectionSearchTerm.value = '';
+        setError('Colección creada y seleccionada.', 'info');
+    } catch (err: unknown) {
+        if (axios.isAxiosError(err)) {
+            const message = err.response?.data?.message;
+            const validationError = err.response?.data?.errors
+                ? Object.values(err.response.data.errors).flat()[0]
+                : null;
+            setError(validationError ?? message ?? 'No se pudo crear la colección.');
+            return;
+        }
+
+        setError('No se pudo crear la colección.');
+    } finally {
+        creatingCollection.value = false;
+    }
+}
+
+// Template (crear desde plantilla)
+const templateOptions = ref<Array<{ id: number | string; name: string }>>([]);
+const selectedTemplateId = ref<number | null>(null);
+const isLoadingTemplate = ref(false);
+
+async function loadTemplates() {
+    try {
+        const response = await fetchProductSheetTemplates();
+        templateOptions.value = response.data?.data ?? [];
+    } catch {
+        templateOptions.value = [];
+    }
+}
+
+async function applyTemplate(templateId: number) {
+    if (!templateId) return;
+    isLoadingTemplate.value = true;
+    try {
+        const response = await showProductSheet(templateId);
+        const tpl = response.data?.data;
+        if (!tpl) return;
+
+        form.value = {
+            ...createInitialFormState(),
+            section_id: toIdOrNull(tpl.section_id),
+            group_id: toIdOrNull(tpl.group_id),
+            brand_id: toIdOrNull(tpl.brand_id),
+            world_id: toIdOrNull(tpl.world_id),
+            fabric_base_id: toIdOrNull(tpl.fabric_base_id),
+            yarn_base_id: toIdOrNull(tpl.yarn_base_id),
+            type: normalizeProductSheetType(tpl.type),
+            operational_list_id: toIdOrNull(tpl.operational_list_id),
+            collection_id: toIdOrNull(tpl.collection_id),
+            billing_price: Number(tpl.billing_price ?? 0),
+            selling_price: Number(tpl.selling_price ?? 0),
+            sizes: ensureSizesJson(tpl.sizes),
+            woven_product: Boolean(tpl.woven_product),
+            description: String(tpl.description ?? ''),
+            flat_sketch_path: '',
+            sample_reference: normalizeUpperText(tpl.sample_reference ?? ''),
+            product_reference: normalizeUpperText(tpl.product_reference ?? ''),
+            product_reference_2: normalizeUpperText(tpl.product_reference_2 ?? ''),
+            processes: typeof tpl.processes === 'string' ? tpl.processes : JSON.stringify(tpl.processes ?? {}),
+            status: 'incomplete',
+            version: 1,
+            parent_id: templateId,
+        };
+        form.value.reference = form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
+    } catch (err) {
+        console.error('Error al cargar template:', err);
+        setError('No se pudo cargar la plantilla seleccionada.');
+    } finally {
+        isLoadingTemplate.value = false;
+    }
+}
 
 const operationListDialogOpen = ref(false);
 const operationListOptionsLoaded = ref(false);
@@ -348,34 +482,85 @@ function buildOperationDialogInitialData() {
 }
 
 const sizeGroups = {
-    tallas_1: ['XS', 'S', 'M', 'L', 'XL', '2XL'],
+    tallas_1: ['XS', 'S', 'M', 'L', 'XL', '2XL', 'U'],
     tallas_2: ['2', '3', '4', '5', '6', '8', '10', '12', '14', '16'],
     tallas_3: ['28', '30', '32', '34', '36', '38'],
 };
 
 const parsedSizes = computed<Record<string, boolean>>(() => parseBooleanRecord(form.value.sizes));
 
-const overallStatus = computed<boolean>(() => {
-    const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
-    return Boolean(form.value.reference) && Boolean(form.value.billing_price) && Boolean(form.value.selling_price) && hasSelectedSize;
+const operationalListSheetId = computed<number | null>(() => {
+    const id = props.productSheet?.id ?? form.value.id;
+    return typeof id === 'number' && id > 0 ? id : null;
 });
 
+const canManageOperationalList = computed(() => operationalListSheetId.value !== null);
+
+const overallStatus = computed<boolean>(() => {
+    const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
+    return (
+        Boolean(form.value.reference) &&
+        Boolean(form.value.billing_price) &&
+        Boolean(form.value.selling_price) &&
+        hasSelectedSize &&
+        hasOperationalListConfigured.value
+    );
+});
+
+// Alineado con config/product-sheet.php (batch_control_processes)
 const allProcesses = ref([
-    'Desarrollo de muestras',
+    'I&D',
     'Tejido',
     'Corte',
+    'Logística',
+    'Estampado',
     'Bordado',
     'Sublimado',
-    'Estampado',
-    'Lavandería',
-    'Muestra',
+    'Desarrollo de muestras',
+    'Muestras',
     'Confección',
+    'Lavandería',
     'Terminación',
+    'Inspección y aprobación',
     'Bodega',
 ]);
 
-function parseProcessesValue(value?: string | null): Record<string, boolean> {
-    return parseBooleanRecord(value ?? null);
+function parseProcessesValue(value?: unknown): Record<string, boolean> {
+    const parsed = parseBooleanRecord(value ?? null);
+    for (const alias of developmentProcessAliases) {
+        if (parsed[alias]) {
+            parsed[developmentProcessLabel] = true;
+            delete parsed[alias];
+        }
+    }
+
+    const allowed = new Set(allProcesses.value);
+    for (const key of Object.keys(parsed)) {
+        if (!allowed.has(key)) {
+            delete parsed[key];
+        }
+    }
+
+    for (const process of mandatoryProcesses) {
+        parsed[process] = true;
+    }
+
+    return parsed;
+}
+
+function orderProcesses(processes: Record<string, boolean>): Record<string, boolean> {
+    const ordered = allProcesses.value.reduce<Record<string, boolean>>((acc, process) => {
+        if (processes[process]) {
+            acc[process] = true;
+        }
+        return acc;
+    }, {});
+
+    for (const process of mandatoryProcesses) {
+        ordered[process] = true;
+    }
+
+    return ordered;
 }
 
 function applyDefaultSampleProcessOnce() {
@@ -387,32 +572,24 @@ function applyDefaultSampleProcessOnce() {
     const isProcessesFieldEmpty = !form.value.processes || Object.keys(currentProcesses).length === 0;
 
     if (isProcessesFieldEmpty) {
-        form.value.processes = JSON.stringify({ [developmentProcessLabel]: true });
-        autoAddedSampleProcess.value = true;
+        form.value.processes = JSON.stringify(orderProcesses({ [developmentProcessLabel]: true }));
     }
 
     hasAppliedDefaultSampleProcess.value = true;
 }
 
-const selectedProcesses = computed(() => parseProcessesValue(form.value.processes));
-const requiresOperationalList = computed(() => Boolean(selectedProcesses.value[developmentProcessLabel]));
 const hasOperationalListConfigured = computed(
     () =>
-        Boolean(form.value.operational_list_id) ||
-        operationListPayload.value.length > 0 ||
-        (operationDialogInitialData.value != null &&
-            Array.isArray(operationDialogInitialData.value.operations) &&
-            operationDialogInitialData.value.operations.length > 0),
+        operationDialogInitialData.value != null &&
+        Array.isArray(operationDialogInitialData.value.operations) &&
+        operationDialogInitialData.value.operations.length > 0,
 );
 
-const operationalListCount = computed(() => {
-    const payloadLen = operationListPayload.value.length;
-    const dialogLen =
-        operationDialogInitialData.value != null && Array.isArray(operationDialogInitialData.value.operations)
-            ? operationDialogInitialData.value.operations.length
-            : 0;
-    return payloadLen > 0 ? payloadLen : dialogLen;
-});
+const operationalListCount = computed(() =>
+    operationDialogInitialData.value != null && Array.isArray(operationDialogInitialData.value.operations)
+        ? operationDialogInitialData.value.operations.length
+        : 0,
+);
 
 const operationListReadonly = computed(() => Boolean(props.productSheet?.has_production_orders));
 
@@ -424,6 +601,15 @@ const typeModel = computed({
         form.value.type = normalizeTypeValue(value);
     },
 });
+
+/**
+ * El tipo sólo puede cambiarse libremente en creación.
+ * Al editar un PRODUCTO no se permite regresarlo a muestra.
+ */
+const isTypeReadonly = computed(
+    () => isReadonly.value || (isEditMode.value && normalizeTypeValue(props.productSheet?.type) === TYPE_PRODUCT),
+);
+
 const showConvertButton = computed(
     () => isEditMode.value && normalizeTypeValue(form.value.type) === TYPE_SAMPLE && !Boolean(props.productSheet?.has_derived_product),
 );
@@ -432,15 +618,22 @@ const displayedReferenceForInput = computed<string>(() =>
     form.value.type === TYPE_SAMPLE ? (form.value.sample_reference ?? '') : (form.value.product_reference ?? ''),
 );
 const hasBothReferences = computed(() => Boolean(form.value.sample_reference && form.value.product_reference));
+const hasAnyReference = computed(() =>
+    Boolean(form.value.sample_reference?.trim() || form.value.product_reference?.trim()),
+);
 
 const isConvertDialogOpen = ref(false);
 const convertLoading = ref(false);
 const activeReference = computed<string>({
     get() {
-        return form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
+        // Priorizar según tipo: si muestra → sample, si producto → product
+        if (form.value.type === TYPE_SAMPLE) {
+            return form.value.sample_reference || form.value.product_reference || '';
+        }
+        return form.value.product_reference || form.value.sample_reference || '';
     },
     set(value: string) {
-        const normalized = (value ?? '').trim();
+        const normalized = normalizeUpperText(value);
         form.value.reference = normalized;
         if (form.value.type === TYPE_SAMPLE) {
             form.value.sample_reference = normalized;
@@ -453,28 +646,55 @@ const showFieldErrors = ref(false);
 const { validationErrors, fieldErrors, isValid } = useProductSheetValidation({
     form,
     activeReference,
-    requiresOperationalList,
-    hasOperationalListConfigured,
     requiresYarnBase: computed(() => form.value.woven_product),
 });
+
+function normalizeUpperText(value: unknown): string {
+    const text = typeof value === 'string' ? value : String(value ?? '');
+    return text.trim().toLocaleUpperCase('es-CO');
+}
 
 watch(
     () => form.value.type,
     (type) => {
         form.value.reference = type === TYPE_SAMPLE ? (form.value.sample_reference ?? '') : (form.value.product_reference ?? '');
 
-        if (type === TYPE_PRODUCT && autoAddedSampleProcess.value) {
-            const currentProcesses = parseProcessesValue(form.value.processes);
-            if (currentProcesses[developmentProcessLabel]) {
-                delete currentProcesses[developmentProcessLabel];
-                form.value.processes = JSON.stringify(currentProcesses);
-            }
-            autoAddedSampleProcess.value = false;
-        }
-
         applyDefaultSampleProcessOnce();
     },
     { immediate: true },
+);
+
+watch(
+    () => form.value.sample_reference,
+    (value) => {
+        if (typeof value !== 'string') return;
+        const normalized = normalizeUpperText(value);
+        if (value !== normalized) {
+            form.value.sample_reference = normalized;
+        }
+    },
+);
+
+watch(
+    () => form.value.product_reference,
+    (value) => {
+        if (typeof value !== 'string') return;
+        const normalized = normalizeUpperText(value);
+        if (value !== normalized) {
+            form.value.product_reference = normalized;
+        }
+    },
+);
+
+watch(
+    () => form.value.product_reference_2,
+    (value) => {
+        if (typeof value !== 'string') return;
+        const normalized = normalizeUpperText(value);
+        if (value !== normalized) {
+            form.value.product_reference_2 = normalized;
+        }
+    },
 );
 watch(
     () => form.value.woven_product,
@@ -516,16 +736,20 @@ watch(
                 yarn_base_id: toIdOrNull(newProductSheet.yarn_base_id),
                 type: normalizedType,
                 operational_list_id: toIdOrNull(newProductSheet.operational_list_id),
+                collection_id: toIdOrNull(newProductSheet.collection_id),
                 billing_price: Number(newProductSheet.billing_price ?? 0),
                 selling_price: Number(newProductSheet.selling_price ?? 0),
                 sizes: sizeValue,
                 woven_product: Boolean(newProductSheet.woven_product),
                 description: String(newProductSheet.description ?? ''),
                 flat_sketch_path: String(newProductSheet.flat_sketch_path ?? ''),
-                sample_reference: String(newProductSheet.sample_reference ?? ''),
-                product_reference: String(newProductSheet.product_reference ?? ''),
+                sample_reference: normalizeUpperText(newProductSheet.sample_reference ?? ''),
+                product_reference: normalizeUpperText(newProductSheet.product_reference ?? ''),
+                product_reference_2: normalizeUpperText(newProductSheet.product_reference_2 ?? newProductSheet.export_reference ?? ''),
                 processes: normalizeProcessesForForm(newProductSheet.processes),
                 status: newProductSheet.status === 'complete' ? 'complete' : 'incomplete',
+                version: Number(newProductSheet.version ?? 1),
+                parent_id: newProductSheet.parent_id ?? null,
             };
             form.value.reference = form.value.type === TYPE_SAMPLE ? form.value.sample_reference : form.value.product_reference;
             isConvertDialogOpen.value = false;
@@ -535,8 +759,16 @@ watch(
 );
 
 watch(
+    () => props.collections,
+    () => {
+        syncCollectionOptionsFromProps();
+    },
+    { immediate: true },
+);
+
+watch(
     () => props.open,
-    async (newValue) => {
+    (newValue) => {
         localOpen.value = newValue;
         if (!newValue) {
             resetForm();
@@ -545,10 +777,11 @@ watch(
             if (isCreateMode.value) {
                 resetForm();
             } else if ((isEditMode.value || isViewMode.value) && props.productSheet?.id) {
-                // Precargar operaciones existentes para validación correcta
+                // Precargar operaciones existentes para validación correcta, pero NO bloquear la apertura
                 const productId = props.productSheet.id;
-                if (typeof productId === 'number' && requiresOperationalList.value) {
-                    await loadOperationsForProduct(productId, true);
+                if (typeof productId === 'number') {
+                    // Cargar operaciones en segundo plano
+                    loadOperationsForProduct(productId, true);
                 }
             }
         }
@@ -562,12 +795,40 @@ watch(localOpen, (newValue) => {
     }
 });
 
-watch(requiresOperationalList, (needs) => {
-    if (!needs) {
-        form.value.operational_list_id = null;
-        operationListDialogOpen.value = false;
+// Cargar templates cuando se abre el dialog en modo creación
+watch(
+    () => props.open,
+    (isOpen) => {
+        if (isOpen && isCreateMode.value) {
+            loadTemplates();
+        }
+    },
+);
+
+// Aplicar template cuando se selecciona
+watch(selectedTemplateId, (newId) => {
+    if (newId && typeof newId === 'number') {
+        applyTemplate(newId);
+    } else if (newId === null) {
+        // Reset form si deselecciona template
+        if (form.value.parent_id) {
+            resetForm();
+        }
     }
 });
+
+function goToOperationalListIndex() {
+    const productSheetId = operationalListSheetId.value;
+
+    if (!productSheetId) {
+        setError('Guarda primero la sábana para registrar su listado operacional.', 'info');
+        return;
+    }
+
+    router.get(route('produccion.listados-operacionales.index'), {
+        product_sheet_id: productSheetId,
+    });
+}
 
 async function loadOperationListOptions(forceRefresh = false) {
     if ((!forceRefresh && operationListOptionsLoaded.value) || operationListOptionsLoading.value) return;
@@ -588,9 +849,9 @@ async function loadOperationListOptions(forceRefresh = false) {
             : [];
 
         operationListMeta.value = {
-            sections: payload?.sections ?? [],
-            operations: payload?.operations ?? [],
-            machines: payload?.machines ?? [],
+            sections: (payload?.sections ?? []) as OperationSection[],
+            operations: (payload?.operations ?? []) as OperationOption[],
+            machines: (payload?.machines ?? []) as MachineOption[],
             productSheets: payload?.productSheets ?? [],
             fabricBases,
             actions: payload?.actions ?? [],
@@ -793,32 +1054,11 @@ function normalizeBooleanInput(value: unknown): boolean {
 }
 
 function normalizeProcessesForForm(value: unknown): string {
-    if (typeof value === 'string') {
-        try {
-            JSON.parse(value);
-            return value;
-        } catch {
-            return '{}';
-        }
-    }
-    if (Array.isArray(value)) {
-        return JSON.stringify(Object.fromEntries(value.map((p) => [String(p), true])));
-    }
-    if (value && typeof value === 'object') {
-        return JSON.stringify(value);
-    }
-    return '{}';
+    return JSON.stringify(orderProcesses(parseProcessesValue(value)));
 }
 
 function ensureValidProcessesJson(value: string | undefined): string {
-    const str = (value ?? '').trim();
-    if (!str) return JSON.stringify({ Muestra: true, Confección: true, Terminación: true, Bodega: true });
-    try {
-        JSON.parse(str);
-        return str;
-    } catch {
-        return JSON.stringify({ Muestra: true, Confección: true, Terminación: true, Bodega: true });
-    }
+    return JSON.stringify(orderProcesses(parseProcessesValue(value)));
 }
 
 function buildBasePayload() {
@@ -840,9 +1080,13 @@ function buildBasePayload() {
         processes: ensureValidProcessesJson(form.value.processes),
         status: form.value.status ?? 'incomplete',
         operational_list_id: toIdOrNull(form.value.operational_list_id),
+        collection_id: toIdOrNull(form.value.collection_id),
         // Enviar siempre ambas referencias para no borrar la que no está en el tab activo
-        sample_reference: form.value.sample_reference?.trim() || null,
-        product_reference: form.value.product_reference?.trim() || null,
+        sample_reference: normalizeUpperText(form.value.sample_reference) || null,
+        product_reference: normalizeUpperText(form.value.product_reference) || null,
+        product_reference_2: normalizeUpperText(form.value.product_reference_2) || null,
+        version: form.value.version ?? 1,
+        parent_id: form.value.parent_id ?? null,
     };
 
     return payload;
@@ -1056,9 +1300,9 @@ function resetForm() {
     closeConvertDialog();
     closeOperationListDialog();
     hasAppliedDefaultSampleProcess.value = false;
-    autoAddedSampleProcess.value = false;
     operationListPayload.value = [];
     operationDialogInitialData.value = null;
+    selectedTemplateId.value = null;
     form.value = createInitialFormState();
     showFieldErrors.value = false;
     errorMessage.value = '';
@@ -1073,6 +1317,8 @@ function handleClose() {
         emit('update:open', false); // Sincronizar el estado con el componente padre
     }
 }
+
+
 </script>
 
 <template>
@@ -1090,18 +1336,39 @@ function handleClose() {
 
     <Dialog v-model:open="localOpen">
         <FormDialogContent class="flex max-h-[95vh] max-w-[190vh] flex-col px-2 py-2">
-            <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
-                <DialogTitle> {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos </DialogTitle>
-                <DialogDescription>
-                    {{
-                        isViewMode
-                            ? 'Visualiza los detalles del producto.'
-                            : `Completa los campos para ${isEditMode ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.`
-                    }}
-                </DialogDescription>
-            </DialogHeader>
             <TooltipProvider>
-                <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
+            <DialogHeader class="flex-shrink-0 px-6 pb-4 pt-6">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0 flex-1">
+                        <DialogTitle> {{ isViewMode ? 'Visualizar' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos </DialogTitle>
+                        <DialogDescription>
+                            {{
+                                isViewMode
+                                    ? 'Visualiza los detalles del producto.'
+                                    : `Completa los campos para ${isEditMode ? 'editar' : 'crear'} un producto. Haz clic en guardar cuando termines.`
+                            }}
+                        </DialogDescription>
+                    </div>
+                    <!-- Template selector en esquina superior derecha (solo modo crear) -->
+                    <div v-if="isCreateMode" class="flex w-64 flex-shrink-0 flex-col gap-1">
+                        <div class="flex items-center gap-1">
+                            <Label class="text-xs font-medium text-muted-foreground">Crear desde plantilla</Label>
+                            <HelpTooltip text="Selecciona una sábana existente como base. Las referencias se copian y se crea una nueva versión." aria-label="Ayuda sobre plantilla" />
+                        </div>
+                        <SelectField
+                            v-model="selectedTemplateId"
+                            label=""
+                            :options="templateOptions"
+                            placeholder="Sin plantilla (nuevo)"
+                            :disabled="isLoadingTemplate"
+                        />
+                        <span v-if="form.parent_id" class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                            Nueva versión
+                        </span>
+                    </div>
+                </div>
+            </DialogHeader>
+            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6 pb-24" style="scrollbar-width: thin">
                     <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_340px]">
                         <div class="space-y-4">
                             <div class="grid gap-2">
@@ -1109,54 +1376,59 @@ function handleClose() {
                                     <Label class="text-sm font-medium"> Tipo<span class="text-red-500">*</span> </Label>
                                     <HelpTooltip :text="tooltips.type" aria-label="Ayuda sobre Tipo" />
                                 </div>
-                                <SegmentedToggle v-model="typeModel" :options="typeOptions" :disabled="isReadonly" />
+                                <SegmentedToggle v-model="typeModel" :options="typeOptions" :disabled="isTypeReadonly" />
                             </div>
 
-                            <!-- Primera seccion: Identificacion del producto -->
-                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                                <div class="md:col-span-1">
-                                    <div v-if="!isReadonly" class="space-y-1.5">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium"> {{ mainReferenceLabel }}<span class="text-red-500">*</span> </Label>
-                                        </div>
-                                        <InputField
-                                            v-model="activeReference"
-                                            label=""
-                                            placeholder="ejemplo: 901010"
-                                            :disabled="isReadonly"
-                                            :error="showFieldErrors && fieldErrors.reference ? fieldErrors.reference : undefined"
-                                        />
+                            <!-- Template selector (solo en modo crear) -->
+                            <!-- Movido al DialogHeader (esquina superior derecha) -->
+
+                            <!-- Version badge (editar/ver) -->
+                            <div v-if="!isCreateMode && form.version && form.version > 1" class="mb-2">
+                                <span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-800">
+                                    Versión {{ form.version }}
+                                </span>
+                            </div>
+
+                            <!-- Primera seccion: Identificacion del producto (3 referencias) -->
+                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div v-if="form.type === TYPE_SAMPLE" class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Ref. Muestra<span class="text-red-500">*</span></Label>
                                     </div>
-                                    <div v-else-if="hasBothReferences" class="space-y-1.5">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">Referencias</Label>
-                                        </div>
-                                        <div class="flex h-9 items-center gap-2 rounded-md border bg-muted/30 px-3">
-                                            <span
-                                                class="inline-flex h-5 items-center gap-0.5 whitespace-nowrap rounded-full bg-blue-100 px-2 text-[11px] font-medium text-blue-800"
-                                            >
-                                                <span class="text-blue-500">M:</span>
-                                                <span class="max-w-[80px] truncate" :title="form.sample_reference">{{ form.sample_reference }}</span>
-                                            </span>
-                                            <span
-                                                class="inline-flex h-5 items-center gap-0.5 whitespace-nowrap rounded-full bg-green-100 px-2 text-[11px] font-medium text-green-800"
-                                            >
-                                                <span class="text-green-600">P:</span>
-                                                <span class="max-w-[80px] truncate" :title="form.product_reference">{{
-                                                    form.product_reference
-                                                }}</span>
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div v-else class="space-y-1.5">
-                                        <div class="flex items-center gap-2">
-                                            <Label class="text-sm font-medium">{{ mainReferenceLabel }}</Label>
-                                        </div>
-                                        <div class="flex h-9 items-center rounded-md border bg-muted/30 px-3 text-sm font-medium text-foreground">
-                                            {{ displayedReferenceForInput || 'Sin referencia' }}
-                                        </div>
-                                    </div>
+                                    <InputField
+                                        v-model="form.sample_reference"
+                                        label=""
+                                        placeholder="ej: MU1"
+                                        :disabled="isReadonly"
+                                        :error="showFieldErrors && fieldErrors.reference && form.type === TYPE_SAMPLE ? fieldErrors.reference : undefined"
+                                    />
                                 </div>
+                                <div v-if="form.type === TYPE_PRODUCT" class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Ref. Prod 1<span class="text-red-500">*</span></Label>
+                                    </div>
+                                    <InputField
+                                        v-model="form.product_reference"
+                                        label=""
+                                        placeholder="ej: 901010"
+                                        :disabled="isReadonly"
+                                        :error="showFieldErrors && fieldErrors.reference && form.type === TYPE_PRODUCT ? fieldErrors.reference : undefined"
+                                    />
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Ref. Prod 2</Label>
+                                    </div>
+                                    <InputField
+                                        v-model="form.product_reference_2"
+                                        label=""
+                                        placeholder="ej: 4002"
+                                        :disabled="isReadonly"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
                                         <Label class="text-sm font-medium">Precio facturacion</Label>
@@ -1248,16 +1520,16 @@ function handleClose() {
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Base<span class="text-red-500">*</span></Label>
-                                        <HelpTooltip :text="tooltips.base" aria-label="Ayuda sobre Base" />
+                                        <Label class="text-sm font-medium">Base Tela<span v-if="!form.woven_product" class="text-red-500">*</span></Label>
+                                        <HelpTooltip :text="tooltips.base" aria-label="Ayuda sobre Base Tela" />
                                     </div>
                                     <SelectField
                                         class="w-full"
                                         v-model="form.fabric_base_id"
                                         label=""
                                         :options="props.fabricBases"
-                                        required
-                                        placeholder="Seleccione base"
+                                        :required="!form.woven_product"
+                                        placeholder="Seleccione base tela"
                                         :disabled="isReadonly"
                                         :invalid="showFieldErrors && !!fieldErrors.fabric_base_id"
                                         :error-message="showFieldErrors ? fieldErrors.fabric_base_id : undefined"
@@ -1305,37 +1577,65 @@ function handleClose() {
                                 </div>
                             </div>
 
-                            <div
-                                v-if="requiresOperationalList"
-                                class="mb-4 rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-50 via-white to-cyan-50 p-4 shadow-sm"
-                            >
-                                <div class="flex items-start justify-between gap-4">
-                                    <div class="flex-1 space-y-1">
-                                        <div class="flex items-center gap-2">
-                                            <List class="h-4 w-4 text-emerald-700" />
-                                            <Label class="text-sm font-semibold text-emerald-900">Listado operacional</Label>
-                                            <HelpTooltip :text="tooltips.operationalList" aria-label="Ayuda sobre Listado operacional" />
-                                        </div>
-                                        <p class="text-xs leading-relaxed text-emerald-800/80">
-                                            Configura las operaciones detalladas para el proceso de desarrollo de muestras.
-                                        </p>
+                            <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div class="flex flex-col gap-1">
+                                    <div class="flex items-center gap-2">
+                                        <Label class="text-sm font-medium">Colección</Label>
                                     </div>
-                                    <Button
-                                        variant="default"
-                                        size="sm"
-                                        class="shrink-0 rounded-full bg-emerald-700 px-4 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-emerald-800"
-                                        :disabled="isReadonly || operationListOptionsLoading"
-                                        @click="openOperationListDialog"
-                                    >
-                                        <template v-if="operationListOptionsLoading"> Cargando... </template>
-                                        <template v-else-if="hasOperationalListConfigured">
-                                            {{ operationalListCount }} operación{{ operationalListCount !== 1 ? 'es' : '' }} configurada{{
-                                                operationalListCount !== 1 ? 's' : ''
-                                            }}
-                                        </template>
-                                        <template v-else> Configurar procesos </template>
-                                    </Button>
+                                    <SelectField
+                                        v-model="form.collection_id"
+                                        label=""
+                                        :options="collectionOptions"
+                                        placeholder="Sin colección"
+                                        :disabled="isReadonly"
+                                        :searchable="true"
+                                        :search-threshold="0"
+                                        search-placeholder="Buscar o escribir colección"
+                                        :action-label="creatingCollection ? 'Creando colección…' : 'Crear colección'"
+                                        :action-disabled="isReadonly || creatingCollection"
+                                        @search="(term) => (collectionSearchTerm = String(term ?? ''))"
+                                        @action="createCollectionFromSelect"
+                                    />
                                 </div>
+                            </div>
+
+                            <div class="mb-4 rounded-xl border border-emerald-200/70 bg-gradient-to-r from-emerald-50 via-white to-cyan-50 p-4 shadow-sm">
+                                <template v-if="operationListOptionsLoading">
+                                    <div class="flex items-center justify-center py-8">
+                                        <Loader2 class="w-8 h-8 text-primary animate-spin" />
+                                        <span class="ml-3 text-primary">Cargando operaciones...</span>
+                                    </div>
+                                </template>
+                                <template v-else>
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div class="flex-1 space-y-1">
+                                            <div class="flex items-center gap-2">
+                                                <List class="h-4 w-4 text-emerald-700" />
+                                                <Label class="text-sm font-semibold text-emerald-900">Listado operacional</Label>
+                                                <HelpTooltip :text="tooltips.operationalList" aria-label="Ayuda sobre Listado operacional" />
+                                            </div>
+                                            <p class="text-xs leading-relaxed text-emerald-800/80">
+                                                Estado: {{ hasOperationalListConfigured ? 'Configurado' : 'Pendiente' }}.
+                                                Una sábana solo pasa a estado completo cuando tiene listado operacional registrado.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            class="shrink-0 rounded-full bg-emerald-700 px-4 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-emerald-800"
+                                            :disabled="!canManageOperationalList"
+                                            @click="goToOperationalListIndex"
+                                        >
+                                            <template v-if="!canManageOperationalList"> Guarda la sábana primero </template>
+                                            <template v-else-if="hasOperationalListConfigured">
+                                                {{ operationalListCount }} operación{{ operationalListCount !== 1 ? 'es' : '' }} registrada{{
+                                                    operationalListCount !== 1 ? 's' : ''
+                                                }}
+                                            </template>
+                                            <template v-else> Registrar listado operacional </template>
+                                        </Button>
+                                    </div>
+                                </template>
                             </div>
 
                             <div class="space-y-1">
@@ -1348,6 +1648,7 @@ function handleClose() {
                                         v-model="form.processes"
                                         :availableProcesses="allProcesses"
                                         :wovenProduct="form.woven_product"
+                                        :productSheetType="form.type"
                                         :disabled="isReadonly"
                                     />
                                 </div>
@@ -1421,7 +1722,6 @@ function handleClose() {
                         </div>
                     </div>
                 </div>
-            </TooltipProvider>
 
             <DialogFooter class="mt-4 flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-background pt-4">
                 <Button
@@ -1445,6 +1745,7 @@ function handleClose() {
                     @submit="saveProductSheet"
                 />
             </DialogFooter>
+            </TooltipProvider>
         </FormDialogContent>
     </Dialog>
     <ProductOperationListDialog
@@ -1459,7 +1760,7 @@ function handleClose() {
         :fabric-bases="operationListMeta.fabricBases"
         :actions="operationListMeta.actions"
         :garmentParts="operationListMeta.garmentParts"
-        :readonly="operationListReadonly"
+        :readonly="isReadonly || operationListReadonly"
         @save="handleOperationDialogSave"
         @close="closeOperationListDialog"
         @validation-error="setError"

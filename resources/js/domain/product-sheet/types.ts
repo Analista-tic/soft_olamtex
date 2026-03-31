@@ -14,6 +14,7 @@ export interface ProductSheet {
     reference: string;
     sample_reference?: string | null;
     product_reference?: string | null;
+    product_reference_2?: string | null;
     display_reference?: string | null;
     value?: number;
     label?: string;
@@ -68,26 +69,30 @@ export interface ProductSheetOption {
 
 // Product Operation List Types
 export interface OperationSection {
-    id: number;
+    id: number | string;
     name: string;
-    type: string;
+    type?: string | null;
+    description?: string | null;
 }
 
 export interface OperationOption {
-    id: number;
+    id: number | string;
     name: string;
     action?: string;
     garment_part?: string;
-    section_id?: number | null;
+    section_id?: number | string | null;
     sam_base?: number | null;
+    description?: string | null;
+    code?: string | null;
 }
 
 export interface MachineOption {
-    id: number;
-    code: string;
+    id: number | string;
+    code?: string | null;
     name: string;
     /** Suplemento de la máquina (snapshot para listado operacional). */
     supplement_factor?: number;
+    section_id?: number | string | null;
 }
 
 export interface FabricBaseOption {

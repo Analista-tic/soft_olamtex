@@ -22,6 +22,8 @@ class SettingService
         'process_types' => ['process_types', 'tipos_proceso', 'tipos_de_proceso', 'tipo_proceso', 'process_type', 'processes'],
         'operational_lists' => ['operational_lists', 'listados_operacionales', 'listado_operacional', 'listado_operacional'],
         'fabric_colors' => ['fabric_colors', 'colores', 'colors'],
+        'unit_measures' => ['unit_measures', 'unit_measure_catalog', 'unidades_medida', 'unidades_de_medida', 'unidad_medida'],
+        'thread_brands' => ['thread_brands', 'marcas_hilo', 'marcas_de_hilo'],
     ];
 
     /**
@@ -111,6 +113,49 @@ class SettingService
                         'factor_base' => $factor,
                         'factor_base_tela' => $factor,
                     ];
+                })
+                ->filter()
+                ->values();
+        }
+
+        return collect();
+    }
+
+    /**
+     * Return catalog options with code when available (e.g. fabric_colors).
+     * Used for thread color selection where both name and code are needed.
+     *
+     * @return Collection<int, array{id: string|int, name: string, code?: string}>
+     */
+    public function getCatalogOptionsWithCode(string $key): Collection
+    {
+        foreach ($this->keyCandidates($key) as $candidate) {
+            $setting = Setting::parameters()
+                ->where('key', $candidate)
+                ->where('status', true)
+                ->first();
+
+            if (!$setting || !is_array($setting->value)) {
+                continue;
+            }
+
+            $value = $setting->value;
+            return collect($value)
+                ->map(function (mixed $item) {
+                    if (is_array($item)) {
+                        $name = isset($item['name']) ? (string) $item['name'] : null;
+                        $id = $item['id'] ?? $name ?? $item['code'] ?? null;
+                        $code = isset($item['code']) ? (string) $item['code'] : null;
+                        if ($name !== null && $id !== null) {
+                            $row = ['id' => $id, 'name' => $name];
+                            if ($code !== null) {
+                                $row['code'] = $code;
+                            }
+                            return $row;
+                        }
+                    }
+                    $label = is_string($item) ? $item : (string) $item;
+                    return ['id' => $label, 'name' => $label];
                 })
                 ->filter()
                 ->values();

@@ -125,10 +125,9 @@ class TechnicalDataSheetController extends Controller
                 continue;
             }
 
-            $data[$canonicalKey] = $this->settingService
-                ->getCatalogOptions($canonicalKey)
-                ->values()
-                ->all();
+            $data[$canonicalKey] = $canonicalKey === 'fabric_colors'
+                ? $this->settingService->getCatalogOptionsWithCode($canonicalKey)->values()->all()
+                : $this->settingService->getCatalogOptions($canonicalKey)->values()->all();
         }
 
         return response()->json(['data' => $data]);
@@ -535,6 +534,7 @@ class TechnicalDataSheetController extends Controller
             'rows.*.uid' => ['nullable', 'string', 'max:100'],
             'rows.*.telaItemId' => ['nullable', 'integer'],
             'rows.*.tela' => ['nullable', 'string', 'max:255'],
+            'rows.*.trazo' => ['nullable', 'string', 'max:100'],
             'rows.*.supplierId' => ['nullable', 'integer'],
             'rows.*.lastSupplierName' => ['nullable', 'string', 'max:255'],
             'rows.*.lastUnitPriceCop' => ['nullable', 'numeric', 'min:0'],

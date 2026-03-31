@@ -8,14 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('operations')) {
-            Schema::create('operations', function (Blueprint $table) {
+        Schema::create('operations', function (Blueprint $table) {
                 $table->id();
                 $table->string('codigo', 50)->unique()->nullable()->comment('Código auto-generado en backend - NO EDITABLE por usuario');
                 $table->string('action')->comment('Acción: CERRAR, PRENDER, ASENTAR, etc.');
                 $table->string('garment_part')->comment('Parte de prenda: BOLSILLO, PRETINA, CUELLO, etc.');
                 $table->unsignedBigInteger('section_id')->nullable()->comment('FK a operation_sections');
-                $table->string('location', 100)->nullable()->comment('Ubicación de operación');
                 $table->decimal('measure', 8, 4)->nullable()->comment('Medida en cm');
                 $table->integer('quantity')->nullable()->comment('Cantidad de piezas');
                 $table->text('description')->nullable()->comment('Descripción generada: acción + parte + medida + cantidad + sección');
@@ -43,8 +41,7 @@ return new class extends Migration
                     ->references('id')
                     ->on('machines')
                     ->onDelete('set null');
-            });
-        }
+        });
     }
 
     public function down(): void

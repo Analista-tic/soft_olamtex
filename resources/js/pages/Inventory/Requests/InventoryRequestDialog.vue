@@ -7,10 +7,9 @@ import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import axios from 'axios';
+import { Image, Plus } from 'lucide-vue-next';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import InventoryRequestItemsTable from './InventoryRequestItemsTable.vue';
-import { Image, Plus } from 'lucide-vue-next';
-import { uiPatterns } from '@/lib/ui-patterns';
 
 type RequestItem = {
     item_id: number | null;
@@ -76,16 +75,11 @@ const OVERLAY_DELAY_MS = 150;
 let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isReadonly = computed(() => props.dialogType === 'view');
-const shouldShowOverlayRaw = computed(
-    () => dialogOpen.value && !props.deferContent && (isSubmittingDialog.value || isInitializingDialog.value),
-);
-const footerContainerClass = `${uiPatterns.dialogLarge.footerCompact} bg-background`;
-const primaryPillButtonClass =
-    'shadow-sm';
-const secondaryPillButtonClass =
-    'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
-const actionPillButtonClass =
-    'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
+const shouldShowOverlayRaw = computed(() => dialogOpen.value && !props.deferContent && (isSubmittingDialog.value || isInitializingDialog.value));
+const footerContainerClass = 'mt-4 flex flex-shrink-0 flex-wrap justify-end gap-2 border-t px-4 pb-4 pt-4';
+const primaryPillButtonClass = 'shadow-sm';
+const secondaryPillButtonClass = 'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
+const actionPillButtonClass = 'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
 
 const statusLabels: Record<string, string> = {
     solicitado: 'Solicitado',
@@ -100,15 +94,18 @@ function clearOverlayDelay() {
     }
 }
 
-
 const safeDocumentNumber = computed({
     get: () => localForm.value.document_number ?? '',
-    set: (val: string) => { localForm.value.document_number = val; },
+    set: (val: string) => {
+        localForm.value.document_number = val;
+    },
 });
 
 const safeObservation = computed({
     get: () => localForm.value.observation ?? '',
-    set: (val: string) => { localForm.value.observation = val; },
+    set: (val: string) => {
+        localForm.value.observation = val;
+    },
 });
 
 function createDefaultForm(): InventoryRequestForm {
@@ -171,9 +168,7 @@ async function fetchRequest(id: number) {
         const { data } = await axios.get(`/inventario/solicitudes-internas/${id}`);
         const payload = data?.data ?? {};
         const rawImagePath = typeof payload.image === 'string' ? payload.image.trim() : '';
-        const normalizedImagePath = rawImagePath
-            ? `/storage/${rawImagePath.replace(/^\/?storage\//, '')}`
-            : null;
+        const normalizedImagePath = rawImagePath ? `/storage/${rawImagePath.replace(/^\/?storage\//, '')}` : null;
         const resolvedImageUrl = normalizedImagePath || payload.image_url || null;
         localForm.value = {
             id: payload.id,
@@ -182,13 +177,14 @@ async function fetchRequest(id: number) {
             delivery_date: payload.delivery_date ? formatDateValue(payload.delivery_date) : '',
             observation: payload.observation ?? '',
             status: payload.status ?? null,
-            items: Array.isArray(payload.items) && payload.items.length
-                ? payload.items.map((item: any) => ({
-                    item_id: item.item_id ?? null,
-                    name: item.item?.name || item.item_name || '',
-                    quantity: item.requested_quantity ?? 0,
-                }))
-                : [createEmptyItem()],
+            items:
+                Array.isArray(payload.items) && payload.items.length
+                    ? payload.items.map((item: any) => ({
+                          item_id: item.item_id ?? null,
+                          name: item.item?.name || item.item_name || '',
+                          quantity: item.requested_quantity ?? 0,
+                      }))
+                    : [createEmptyItem()],
             image: null,
             image_url: resolvedImageUrl,
         };
@@ -261,9 +257,7 @@ function validateForm(): boolean {
         return false;
     }
 
-    const itemsCheck = (localForm.value.items || []).filter(
-        (item) => (item.item_id || (item.name && item.name.trim())) && Number(item.quantity) > 0,
-    );
+    const itemsCheck = (localForm.value.items || []).filter((item) => (item.item_id || (item.name && item.name.trim())) && Number(item.quantity) > 0);
     if (!itemsCheck.length) {
         errorMessage.value = 'Debe agregar al menos un item con cantidad.';
         return false;
@@ -324,9 +318,7 @@ async function handleSubmit() {
         payload.append('date', localForm.value.date);
         payload.append('delivery_date', localForm.value.delivery_date || '');
         payload.append('observation', localForm.value.observation || '');
-        payload.append('items', JSON.stringify(
-            buildRequestItems(),
-        ));
+        payload.append('items', JSON.stringify(buildRequestItems()));
         payload.append('image', localForm.value.image);
         if (props.dialogType !== 'create') {
             payload.append('id', String(localForm.value.id));
@@ -349,23 +341,17 @@ async function handleSubmit() {
     }
 
     const method = props.dialogType === 'create' ? 'POST' : 'PUT';
-    const url = props.dialogType === 'create'
-        ? '/inventario/solicitudes-internas'
-        : `/inventario/solicitudes-internas/${localForm.value.id}`;
+    const url = props.dialogType === 'create' ? '/inventario/solicitudes-internas' : `/inventario/solicitudes-internas/${localForm.value.id}`;
 
     try {
         const response = await axios({ method, url, data: payload, headers });
         const savedId = Number(response?.data?.data?.id ?? 0) || null;
-        const msg = props.dialogType === 'create'
-            ? 'Solicitud creada correctamente.'
-            : 'Solicitud actualizada correctamente.';
+        const msg = props.dialogType === 'create' ? 'Solicitud creada correctamente.' : 'Solicitud actualizada correctamente.';
         emit('saved', msg, savedId);
         dialogOpen.value = false;
     } catch (e: any) {
         const serverMessage =
-            e?.response?.data?.message ||
-            Object.values(e?.response?.data?.errors || {})?.flat()?.[0] ||
-            'No se pudo guardar la solicitud.';
+            e?.response?.data?.message || Object.values(e?.response?.data?.errors || {})?.flat()?.[0] || 'No se pudo guardar la solicitud.';
         errorMessage.value = serverMessage;
     } finally {
         isLoading.value = false;
@@ -474,15 +460,11 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <DialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
-            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+        <DialogContent v-if="!props.deferContent" class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
+            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
                 <div class="flex flex-col gap-1">
-                    <DialogTitle>
-                        {{ dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva' }} Solicitud Interna
-                    </DialogTitle>
-                    <DialogDescription class="pb-2">
-                        Registro de solicitudes internas de insumos o materiales.
-                    </DialogDescription>
+                    <DialogTitle> {{ dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva' }} Solicitud Interna </DialogTitle>
+                    <DialogDescription class="pb-2"> Registro de solicitudes internas de insumos o materiales. </DialogDescription>
                 </div>
             </DialogHeader>
             <AlertStack
@@ -493,13 +475,13 @@ onUnmounted(() => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <div class="overflow-y-auto flex-1 px-4 pr-2 scroll-smooth" style="scrollbar-width: thin;">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
                 <form @submit.prevent="handleSubmit()" class="space-y-6">
                     <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
                         <div class="space-y-4">
                             <div class="grid grid-cols-2 gap-4">
                                 <InputField
-                                    label="N° Solicitud"
+                                    label="# Solicitud"
                                     v-model="safeDocumentNumber"
                                     placeholder="SINT-001"
                                     :readonly="true"
@@ -526,7 +508,7 @@ onUnmounted(() => {
                                     :disabled="isReadonly"
                                 />
                                 <InputField
-                                    :modelValue="localForm.status ? (statusLabels[localForm.status] || localForm.status) : ''"
+                                    :modelValue="localForm.status ? statusLabels[localForm.status] || localForm.status : ''"
                                     label="Estado"
                                     :readonly="true"
                                     :disabled="true"
@@ -574,21 +556,12 @@ onUnmounted(() => {
                         </div>
 
                         <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border lg:sticky lg:top-4">
-                            <label class="block text-sm font-medium text-foreground dark:text-foreground mb-2">Imagen</label>
-                            <input
-                                ref="fileInputRef"
-                                type="file"
-                                accept="image/*"
-                                class="hidden"
-                                :disabled="isReadonly"
-                                @change="onImageChange"
-                            />
+                            <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen</label>
+                            <input ref="fileInputRef" type="file" accept="image/*" class="hidden" :disabled="isReadonly" @change="onImageChange" />
                             <div
                                 :class="[
                                     'group relative flex h-56 w-full flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/50 text-center transition-all duration-200',
-                                    isReadonly
-                                        ? 'cursor-default opacity-90'
-                                        : 'cursor-pointer hover:border-primary hover:shadow-md',
+                                    isReadonly ? 'cursor-default opacity-90' : 'cursor-pointer hover:border-primary hover:shadow-md',
                                 ]"
                                 @click="triggerFileInput"
                             >
@@ -598,54 +571,35 @@ onUnmounted(() => {
                                         alt="Previsualización"
                                         class="h-full w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
                                     />
-                                    <div class="absolute bottom-0 left-0 right-0 bg-black/50 py-1 text-xs text-primary-foreground">
+                                    <div class="absolute bottom-0 left-0 right-0 bg-black/50 py-1 text-xs text-white">
                                         {{ isReadonly ? 'Imagen de la solicitud' : 'Cambiar imagen' }}
                                     </div>
                                 </template>
                                 <template v-else>
-                                    <Image class="mb-2 h-12 w-12 text-muted-foreground" />
-                                    <span class="text-sm text-muted-foreground">
+                                    <Image class="mb-2 h-12 w-12 text-gray-400" />
+                                    <span class="text-sm text-gray-500">
                                         {{ isReadonly ? 'Sin imagen' : 'Haz clic para subir imagen' }}
                                     </span>
                                 </template>
                             </div>
                         </div>
                     </div>
+
+                    <DialogFooter :class="footerContainerClass">
+                        <template v-if="isReadonly">
+                            <Button type="button" size="pill" :class="primaryPillButtonClass" @click="dialogOpen = false"> Cerrar </Button>
+                        </template>
+                        <template v-else>
+                            <Button type="button" variant="outline" size="pill" :class="secondaryPillButtonClass" @click="dialogOpen = false">
+                                Cancelar
+                            </Button>
+                            <Button type="button" size="pill" :disabled="isLoading" :class="primaryPillButtonClass" @click.prevent="handleSubmit">
+                                {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                            </Button>
+                        </template>
+                    </DialogFooter>
                 </form>
             </div>
-
-            <DialogFooter :class="footerContainerClass">
-                <template v-if="isReadonly">
-                    <Button
-                        type="button"
-                        size="pill"
-                        :class="primaryPillButtonClass"
-                        @click="dialogOpen = false"
-                    >
-                        Cerrar
-                    </Button>
-                </template>
-                <template v-else>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="pill"
-                        :class="secondaryPillButtonClass"
-                        @click="dialogOpen = false"
-                    >
-                        Cancelar
-                    </Button>
-                    <Button
-                        type="button"
-                        size="pill"
-                        :disabled="isLoading"
-                        :class="primaryPillButtonClass"
-                        @click.prevent="handleSubmit"
-                    >
-                        {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                    </Button>
-                </template>
-            </DialogFooter>
         </DialogContent>
     </Dialog>
 </template>

@@ -46,9 +46,6 @@ const props = withDefaults(
         actionSticky?: boolean;
         invalid?: boolean;
         errorMessage?: string;
-        optionsClass?: string;
-        getOptionClass?: (option: Option, state: { active: boolean; selected: boolean }) => string;
-        getOptionLabelClass?: (option: Option, state: { active: boolean; selected: boolean }) => string;
     }>(),
     {
         required: false,
@@ -69,7 +66,6 @@ const props = withDefaults(
         actionSticky: true,
         invalid: false,
         errorMessage: '',
-        optionsClass: '',
     },
 );
 
@@ -228,9 +224,7 @@ function displayValue(item: Option | Option[] | null): string {
     return selected ? labelOf(selected) : '';
 }
 
-function displayValueFromUnknown(item: unknown): string {
-    return displayValue(item as Option | Option[] | null);
-}
+const displayValueForInput = (item: unknown): string => displayValue(item as Option | Option[] | null);
 
 function getOptionId(option: Option | null | undefined) {
     const id = option?.id ?? option;
@@ -256,14 +250,6 @@ function isOptionSelected(option: Option) {
     return modelValue == option.id;
 }
 
-function resolveOptionClass(option: Option, state: { active: boolean; selected: boolean }): string {
-    return props.getOptionClass ? props.getOptionClass(option, state) : '';
-}
-
-function resolveOptionLabelClass(option: Option, state: { active: boolean; selected: boolean }): string {
-    return props.getOptionLabelClass ? props.getOptionLabelClass(option, state) : '';
-}
-
 function handleComboboxChange(value: Option | Option[] | null) {
     if (props.multiple) {
         const selected = Array.isArray(value) ? value : [];
@@ -284,7 +270,8 @@ function handleInput(event: Event) {
 const hasLabel = computed(() => Boolean(props.label?.trim()));
 const hasAction = computed(() => Boolean(props.actionLabel?.trim()));
 const actionButtonClass = computed(() => {
-    const base = 'w-full inline-flex items-center justify-center gap-2 rounded-full border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border disabled:bg-muted/20 disabled:text-muted-foreground';
+    const base =
+        'w-full inline-flex items-center justify-center gap-2 rounded-full border border-input bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:border-border disabled:bg-muted/20 disabled:text-muted-foreground';
     const customClass = props.actionClass || '';
     return customClass ? `${base} ${customClass}` : base;
 });
@@ -395,9 +382,15 @@ watch(
                             class="absolute left-3 top-2 z-0 flex max-w-[70%] flex-wrap items-center gap-2"
                         >
                             <template v-for="opt in selectedOptions" :key="String(opt.id)">
-                                <span class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-foreground/90 shadow-sm">
-                                    <span class="truncate max-w-[10rem]">{{ labelOf(opt) }}</span>
-                                    <button type="button" @click.stop.prevent="removeSelected(opt.id)" class="inline-flex items-center justify-center rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+                                <span
+                                    class="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-foreground/90 shadow-sm"
+                                >
+                                    <span class="max-w-[10rem] truncate">{{ labelOf(opt) }}</span>
+                                    <button
+                                        type="button"
+                                        @click.stop.prevent="removeSelected(opt.id)"
+                                        class="inline-flex items-center justify-center rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                                    >
                                         <X class="h-3 w-3" />
                                     </button>
                                 </span>
@@ -406,7 +399,7 @@ watch(
 
                         <ComboboxInput
                             ref="inputRef"
-                            class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
+                            class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
                             :class="[
                                 !isSearchEnabled ? 'cursor-default' : '',
                                 buttonClass,
@@ -416,7 +409,7 @@ watch(
                             :aria-invalid="invalid ? 'true' : undefined"
                             :data-invalid="invalid ? 'true' : undefined"
                             :placeholder="placeholderText"
-                            :display-value="displayValueFromUnknown"
+                            :display-value="displayValueForInput"
                             :disabled="disabled"
                             @input="handleInput"
                         />
@@ -430,8 +423,7 @@ watch(
                         <Teleport to="body">
                             <div v-if="open" ref="floatingRef" :style="floatingStyles" class="z-50" @pointerdown.stop @click.stop>
                                 <ComboboxOptions
-                                    class="relative max-h-60 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
-                                    :class="optionsClass"
+                                    class="relative max-h-52 overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-2xl focus:outline-none"
                                 >
                                     <div
                                         v-if="hasAction"
@@ -453,10 +445,7 @@ watch(
                                     </div>
                                     <div
                                         v-if="$slots.header"
-                                        :class="[
-                                            'border-b border-border/70 bg-popover px-2 py-2',
-                                            !hasAction ? 'sticky top-0 z-10' : '',
-                                        ]"
+                                        :class="['border-b border-border/70 bg-popover px-2 py-2', !hasAction ? 'sticky top-0 z-10' : '']"
                                     >
                                         <slot name="header" :searchTerm="normalizedSearchTerm" />
                                     </div>
@@ -464,22 +453,18 @@ watch(
                                         <template #default="{ active }">
                                             <div
                                                 :class="[
-                                                    'relative cursor-pointer select-none rounded-sm py-2.5 pl-3 pr-9 transition-colors',
-                                                    active
-                                                        ? 'bg-accent/70 text-foreground'
-                                                        : isOptionSelected(customOption)
-                                                          ? 'bg-primary/5 text-foreground'
-                                                          : 'text-popover-foreground',
+                                                    'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
+                                                    active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
                                                 ]"
                                             >
-                                                <span :class="isOptionSelected(customOption) ? 'font-medium text-primary' : ''">
+                                                <span>
                                                     {{ customOption?.name }}
                                                 </span>
                                                 <span
                                                     v-if="customOption && isOptionSelected(customOption)"
                                                     :class="[
                                                         'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
-                                                        active ? 'text-foreground' : 'text-primary',
+                                                        active ? 'text-accent-foreground' : 'text-primary',
                                                     ]"
                                                 >
                                                     <Check class="h-4 w-4" />
@@ -491,7 +476,7 @@ watch(
                                         v-if="!multiple && showPlaceholderOption"
                                         :value="null"
                                         disabled
-                                        class="bg-muted/30 text-muted-foreground cursor-default select-none relative py-2 pl-3 pr-9"
+                                        class="relative cursor-default select-none bg-muted/30 py-2 pl-3 pr-9 text-muted-foreground"
                                     >
                                         {{ placeholderText }}
                                     </ComboboxOption>
@@ -505,39 +490,23 @@ watch(
                                             </div>
                                             <ComboboxOption v-for="option in group.options" :key="String(option.id)" :value="option">
                                                 <template #default="{ active }">
-                                            <div
-                                                :class="[
-                                                    'relative cursor-pointer select-none rounded-sm py-2.5 pl-3 pr-9 transition-colors',
-                                                    active
-                                                        ? 'bg-accent/70 text-foreground'
-                                                        : isOptionSelected(option)
-                                                          ? 'bg-primary/5 text-foreground'
-                                                          : 'text-popover-foreground',
-                                                    resolveOptionClass(option, {
-                                                        active,
-                                                        selected: isOptionSelected(option),
-                                                    }),
-                                                ]"
-                                            >
-                                                <span
-                                                    :class="[
-                                                        isOptionSelected(option) ? 'font-medium text-primary' : '',
-                                                        resolveOptionLabelClass(option, {
-                                                            active,
-                                                            selected: isOptionSelected(option),
-                                                        }),
-                                                    ]"
-                                                >
-                                                    {{ labelOf(option) }}
-                                                </span>
-                                                <span
-                                                    v-if="isOptionSelected(option)"
-                                                    :class="[
-                                                        'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
-                                                        active ? 'text-foreground' : 'text-primary',
-                                                    ]"
-                                                >
-                                                    <Check class="h-4 w-4" />
+                                                    <div
+                                                        :class="[
+                                                            'relative cursor-pointer select-none py-2 pl-3 pr-9 transition-colors',
+                                                            active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                        ]"
+                                                    >
+                                                        <span>
+                                                            {{ labelOf(option) }}
+                                                        </span>
+                                                        <span
+                                                            v-if="isOptionSelected(option)"
+                                                            :class="[
+                                                                'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
+                                                                active ? 'text-accent-foreground' : 'text-primary',
+                                                            ]"
+                                                        >
+                                                            <Check class="h-4 w-4" />
                                                         </span>
                                                     </div>
                                                 </template>

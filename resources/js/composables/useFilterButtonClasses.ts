@@ -16,7 +16,8 @@ export function useFilterButtonClasses(
         const active = isActive.value;
         const baseClasses = options?.baseClasses ?? DEFAULT_BASE_CLASSES;
         const activeClasses = options?.activeClasses ?? 'border-primary/60 bg-accent text-accent-foreground shadow';
-        const inactiveClasses = options?.inactiveClasses ?? 'border-border bg-background text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground';
+        const inactiveClasses =
+            options?.inactiveClasses ?? 'border-border bg-background text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground';
 
         return `${baseClasses} ${active ? activeClasses : inactiveClasses}`.trim();
     });

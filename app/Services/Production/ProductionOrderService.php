@@ -7,11 +7,13 @@ use App\Models\Production\ProductionOrder;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
+use App\Models\Production\TechnicalSheetThread;
 use App\Services\Production\ProductOperationListService;
 use App\Services\Settings\SettingService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -26,6 +28,13 @@ class ProductionOrderService
     private const DEFAULT_DESTINATION = 'OLAMTEX';
     private const STATUS_COMPLETE = 'complete';
     private const STATUS_INCOMPLETE = 'incomplete';
+    private const DEFAULT_THREAD_NAMES = [
+        'Pespunte / Amarre',
+        'Filetes',
+        'Ojales',
+        'Presilla',
+        'Puntada Seguridad',
+    ];
 
     private const MONTH_NAMES = [
         'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
@@ -117,6 +126,18 @@ class ProductionOrderService
             $technicalSheet = TechnicalSheet::firstOrCreate(
                 ['production_order_id' => $order->id],
                 ['status' => TechnicalSheet::STATUS_DRAFT],
+            );
+
+            // Inicializar snapshot de hilos para OP nueva con colores vacíos.
+            TechnicalSheetThread::firstOrCreate(
+                ['technical_sheet_id' => $technicalSheet->id],
+                [
+                    'params' => [
+                        'defaultYear' => (int) date('Y'),
+                        'method' => 'PER_GARMENT',
+                    ],
+                    'lines' => $this->defaultThreadLines(),
+                ],
             );
 
             // Reemplazar operaciones del snapshot previo
@@ -298,5 +319,25 @@ class ProductionOrderService
             ->max();
 
         return ($max ?? 0) + 1;
+    }
+
+    private function defaultThreadLines(): array
+    {
+        $now = now()->toISOString();
+
+        return array_map(function (string $threadName) use ($now) {
+            return [
+                'id' => (string) Str::uuid(),
+                'threadName' => $threadName,
+                'gauge' => null,
+                'brand' => null,
+                'color' => null,
+                'colorCode' => null,
+                'stitchesPerInch' => null,
+                'defaultThreadCost' => null,
+                'createdAt' => $now,
+                'updatedAt' => $now,
+            ];
+        }, self::DEFAULT_THREAD_NAMES);
     }
 }

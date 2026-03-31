@@ -50,6 +50,7 @@ class TechnicalDataSheetThreadsController extends Controller
             'threads.*.color' => ['nullable', 'string', 'max:120'],
             'threads.*.colorCode' => ['nullable', 'string', 'max:120'],
             'threads.*.stitchesPerInch' => ['nullable', 'numeric', 'min:0'],
+            'threads.*.defaultThreadCost' => ['nullable', 'numeric', 'min:0'],
             'deletedIds' => ['nullable', 'array'],
             'deletedIds.*' => ['string', 'max:100'],
         ]);
@@ -90,6 +91,7 @@ class TechnicalDataSheetThreadsController extends Controller
                 'color' => $this->nullableText($row['color'] ?? null),
                 'colorCode' => $this->nullableText($row['colorCode'] ?? null),
                 'stitchesPerInch' => $this->nullableNumber($row['stitchesPerInch'] ?? null),
+                'defaultThreadCost' => $this->nullableNumber($row['defaultThreadCost'] ?? null),
                 'createdAt' => $previous['createdAt'] ?? $now,
                 'updatedAt' => $now,
             ];
@@ -131,6 +133,7 @@ class TechnicalDataSheetThreadsController extends Controller
             'year' => ['required', 'integer', 'min:2000', 'max:2100'],
             'threadName' => ['required', 'string', 'max:200'],
             'color' => ['nullable', 'string', 'max:120'],
+            'colorCode' => ['nullable', 'string', 'max:120'],
             'supplier' => ['nullable', 'string', 'max:200'],
             'costPerGarment' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
@@ -149,6 +152,7 @@ class TechnicalDataSheetThreadsController extends Controller
             'year' => (int) $validated['year'],
             'threadName' => trim((string) $validated['threadName']),
             'color' => $this->nullableText($validated['color'] ?? null),
+            'colorCode' => $this->nullableText($validated['colorCode'] ?? null),
             'supplier' => $this->nullableText($validated['supplier'] ?? null),
             'costPerGarment' => (float) $validated['costPerGarment'],
             'notes' => $this->nullableText($validated['notes'] ?? null),
@@ -228,6 +232,7 @@ class TechnicalDataSheetThreadsController extends Controller
             'colorCode' => $this->nullableText($line['colorCode'] ?? null),
             // Compatibilidad con payload historico: costPerGarment -> stitchesPerInch solo para no perder dato.
             'stitchesPerInch' => $this->nullableNumber($line['stitchesPerInch'] ?? $line['costPerGarment'] ?? null),
+            'defaultThreadCost' => $this->nullableNumber($line['defaultThreadCost'] ?? null),
             'createdAt' => $line['createdAt'] ?? null,
             'updatedAt' => $line['updatedAt'] ?? null,
         ];
@@ -251,6 +256,7 @@ class TechnicalDataSheetThreadsController extends Controller
                 'color' => null,
                 'colorCode' => null,
                 'stitchesPerInch' => null,
+                'defaultThreadCost' => null,
                 'createdAt' => $now,
                 'updatedAt' => $now,
             ];

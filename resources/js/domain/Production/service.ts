@@ -25,6 +25,9 @@ import type {
     RollState,
     SupplyCatalogItem,
     SupplyItem,
+    SupplyRequestPayload,
+    SupplyRequestResult,
+    SupplySubGroup,
     ThreadSavePayload,
     ThreadState,
 } from './types';
@@ -44,6 +47,8 @@ const ENDPOINTS = {
     ITEM_META_BY_ITEM: '/produccion/insumos/items/:itemId/meta',
     OP_SUPPLIES_BULK: '/produccion/ficha-tecnica/:id/insumos',
     OP_SUPPLY_DELETE: '/produccion/ficha-tecnica/:id/insumos/:supplyId',
+    OP_SUPPLY_REQUEST: '/produccion/ficha-tecnica/:id/solicitar-insumo',
+    OP_SUPPLY_SUB_GROUPS: '/produccion/ficha-tecnica/insumos/subgrupos',
     OP_ROLLS: '/produccion/ficha-tecnica/:id/rollos',
     OP_ROLLS_PARAMS: '/produccion/ficha-tecnica/:id/rollos/params',
     OP_ROLLS_LINES: '/produccion/ficha-tecnica/:id/rollos/lines',
@@ -52,12 +57,15 @@ const ENDPOINTS = {
     OP_THREADS: '/produccion/ficha-tecnica/:id/hilos',
     OP_RAW_MATERIALS: '/produccion/ficha-tecnica/:id/materia-prima',
     OP_ADDITIONAL_INFO: '/produccion/ficha-tecnica/:id/info-adicional',
+    OP_CUTTING_PIECES: '/produccion/ficha-tecnica/:id/despiece-corte',
     PRODUCT_SHEETS: '/produccion/product-sheets',
     PRODUCT_SHEETS_SHOW: '/produccion/sabana-productos/:id',
     PRODUCT_SHEETS_STORE: '/produccion/sabana-productos',
     PRODUCT_SHEETS_UPDATE: '/produccion/sabana-productos/:id',
     PRODUCT_SHEETS_DELETE: '/produccion/sabana-productos/:id',
     PRODUCT_SHEETS_CONVERT: '/produccion/sabana-productos/:id/convert',
+    PRODUCT_SHEETS_TOGGLE_ENABLED: '/produccion/sabana-productos/:id/toggle-enabled',
+    PRODUCT_SHEETS_TEMPLATES: '/produccion/sabana-productos-templates',
 } as const;
 
 type ItemCatalogDto = {
@@ -65,6 +73,9 @@ type ItemCatalogDto = {
     name: string;
     reference?: string | null;
     unit?: string | null;
+    item_type?: string | null;
+    is_draft?: boolean;
+    img_url?: string | null;
 };
 
 export type LastPurchaseByItem = {
@@ -257,10 +268,16 @@ export async function fetchSettingsParameters(keys: string[]): Promise<Record<st
 
     Object.entries(source).forEach(([key, options]) => {
         result[key] = Array.isArray(options)
-            ? options.map((option) => ({
-                  id: option.id,
-                  name: String(option.name ?? ''),
-              }))
+            ? options.map((option) => {
+                  const base = {
+                      id: option.id,
+                      name: String(option.name ?? ''),
+                  };
+                  if (option && typeof option === 'object' && 'code' in option && option.code != null) {
+                      return { ...base, code: String(option.code) };
+                  }
+                  return base;
+              })
             : [];
     });
 
@@ -298,9 +315,21 @@ export function deleteProductSheet(id: number) {
     return axios.delete(url);
 }
 
-export function convertSampleToProduct(id: number, productReference: string) {
+export function convertSampleToProduct(id: number, productReference: string, options?: { allowDuplicateReference?: boolean }) {
     const url = ENDPOINTS.PRODUCT_SHEETS_CONVERT.replace(':id', String(id));
-    return axios.post(url, { product_reference: productReference });
+    return axios.post(url, {
+        product_reference: productReference,
+        allow_duplicate_reference: options?.allowDuplicateReference === true,
+    });
+}
+
+export function toggleProductSheetEnabled(id: number) {
+    const url = ENDPOINTS.PRODUCT_SHEETS_TOGGLE_ENABLED.replace(':id', String(id));
+    return axios.post(url);
+}
+
+export function fetchProductSheetTemplates() {
+    return axios.get<{ data: Array<{ id: number; name: string }> }>(ENDPOINTS.PRODUCT_SHEETS_TEMPLATES);
 }
 
 export async function fetchOpProcesses(opId: string | number): Promise<OpProcessesData> {
@@ -382,6 +411,7 @@ export async function fetchOpCostsSummary(opId: string | number): Promise<CostsS
         units: data?.units ?? null,
         costs: {
             rawMaterial: Number(data?.costs?.rawMaterial ?? 0),
+            rawMaterialPerUnit: Number(data?.costs?.rawMaterialPerUnit ?? 0),
             supplies: Number(data?.costs?.supplies ?? 0),
             processes: Number(data?.costs?.processes ?? 0),
             cut: Number(data?.costs?.cut ?? 0),
@@ -429,6 +459,7 @@ export async function fetchSupplyCatalogItems(search = ''): Promise<SupplyCatalo
             const name = String(item.name ?? '').trim();
             const reference = item.reference ? String(item.reference).trim() : null;
             const label = reference ? `${name} (${reference})` : name;
+            const isDraft = item.is_draft === true || item.item_type === 'draft';
 
             return {
                 id: Number(item.id),
@@ -439,6 +470,9 @@ export async function fetchSupplyCatalogItems(search = ''): Promise<SupplyCatalo
                 supplier: null,
                 description: null,
                 suggestedPrice: null,
+                item_type: item.item_type ?? 'product',
+                is_draft: isDraft,
+                imageUrl: item.img_url ?? null,
             };
         })
         .filter((item) => item.label !== '');
@@ -493,6 +527,7 @@ export type RawMaterialRowDto = {
     uid?: string;
     telaItemId?: number | null;
     tela?: string;
+    trazo?: string | null;
     supplierId?: number | null;
     lastSupplierName?: string | null;
     lastUnitPriceCop?: number | null;
@@ -534,6 +569,39 @@ export async function deleteOpSupply(opId: string | number, supplyId: string): P
     return Array.isArray(response.data) ? response.data : [];
 }
 
+/* ── Solicitud de insumo (draft) ─────────────────────────────── */
+
+export async function requestSupplyItem(
+    opId: string | number,
+    payload: SupplyRequestPayload,
+    referenceImage?: File | null,
+): Promise<SupplyRequestResult> {
+    const url = ENDPOINTS.OP_SUPPLY_REQUEST.replace(':id', String(opId));
+
+    const formData = new FormData();
+    formData.append('name', payload.name);
+    if (payload.description) formData.append('description', payload.description);
+    if (payload.category_sub_group_id != null) formData.append('category_sub_group_id', String(payload.category_sub_group_id));
+    if (payload.sub_group_name) formData.append('sub_group_name', payload.sub_group_name);
+    if (payload.unit_measure) formData.append('unit_measure', payload.unit_measure);
+    if (payload.reference) formData.append('reference', payload.reference);
+    if (payload.quantity != null) formData.append('quantity', String(payload.quantity));
+    if (payload.unit_price != null) formData.append('unit_price', String(payload.unit_price));
+    if (payload.provider_name) formData.append('provider_name', payload.provider_name);
+    if (payload.observation) formData.append('observation', payload.observation);
+    if (referenceImage) formData.append('reference_image', referenceImage);
+
+    const response = await axios.post<SupplyRequestResult>(url, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+}
+
+export async function fetchSupplySubGroups(): Promise<SupplySubGroup[]> {
+    const response = await axios.get<SupplySubGroup[]>(ENDPOINTS.OP_SUPPLY_SUB_GROUPS);
+    return Array.isArray(response.data) ? response.data : [];
+}
+
 function normalizeRollState(data: RollStateDto | null | undefined): RollState {
     return {
         params: {
@@ -562,6 +630,7 @@ function normalizeRollState(data: RollStateDto | null | undefined): RollState {
                   totalCost: line.totalCost !== null && line.totalCost !== undefined ? Number(line.totalCost) : null,
                   balanceMeters: line.balanceMeters !== null && line.balanceMeters !== undefined ? Number(line.balanceMeters) : null,
                   notes: line.notes ?? null,
+                  rawMaterialUid: line.rawMaterialUid ?? null,
                   fabricItemId: line.fabricItemId ?? null,
                   rollId: line.rollId ?? null,
                   createdAt: line.createdAt,
@@ -617,10 +686,14 @@ function parseWidth(value: string | null | undefined): number | null {
     return parsed;
 }
 
-export async function fetchAvailableFabricRolls(fabricItemIds: number[] = []): Promise<AvailableFabricRoll[]> {
+export async function fetchAvailableFabricRolls(
+    fabricItemIds: number[] = [],
+    excludeOpId?: string | number,
+): Promise<AvailableFabricRoll[]> {
     const response = await axios.get<{ data?: InventoryRollDto[] } | InventoryRollDto[]>(ENDPOINTS.INVENTORY_ROLLS, {
         params: {
             fabricItemIds: fabricItemIds.length > 0 ? fabricItemIds : undefined,
+            excludeOpId: excludeOpId != null ? excludeOpId : undefined,
         },
     });
     const raw = Array.isArray(response.data) ? response.data : Array.isArray(response.data?.data) ? response.data.data : [];
@@ -642,7 +715,7 @@ export async function fetchAvailableFabricRolls(fabricItemIds: number[] = []): P
             colorCode: roll.color_code ? String(roll.color_code) : null,
             supplier: roll.provider ? String(roll.provider) : null,
             widthCm: parseWidth(roll.width),
-            availableMeters: parseMeters(roll.real_availability ?? roll.partial_availability),
+            availableMeters: parseMeters(roll.partial_availability ?? roll.real_availability),
             pricePerMeter: roll.pricePerMeter ?? roll.price_per_meter ?? null,
             location: roll.location ? String(roll.location) : null,
         };
@@ -661,6 +734,7 @@ function normalizeThreadState(data: ThreadStateDto | null | undefined): ThreadSt
             color: line.color ?? null,
             colorCode: line.colorCode ?? null,
             stitchesPerInch: line.stitchesPerInch !== null && line.stitchesPerInch !== undefined ? Number(line.stitchesPerInch) : null,
+            defaultThreadCost: line.defaultThreadCost != null ? Number(line.defaultThreadCost) : null,
             createdAt: line.createdAt,
             updatedAt: line.updatedAt,
         })),
@@ -691,10 +765,12 @@ function normalizeAdditionalInfo(data: AdditionalInfoDto | null | undefined): Ad
                   uid: stableId || undefined,
                   name: String(piece.name ?? ''),
                   type: piece.type === 'SECUNDARIO' ? 'SECUNDARIO' : 'PRINCIPAL',
+                  fabricUid: piece.fabricUid ? String(piece.fabricUid) : null,
                   side: ['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(String(piece.side))
                       ? (piece.side as CuttingPiece['side'])
                       : 'NO_APLICA',
                   grain: ['90', '180', 'SESGO'].includes(String(piece.grain)) ? (piece.grain as CuttingPiece['grain']) : '90',
+                  quantity: piece.quantity != null ? Number(piece.quantity) : undefined,
                   notes: piece.notes ?? null,
               };
           })
@@ -744,4 +820,63 @@ export async function saveOpAdditionalInfo(opId: string | number, payload: Addit
     const url = ENDPOINTS.OP_ADDITIONAL_INFO.replace(':id', String(opId));
     const response = await axios.post<AdditionalInfoDto>(url, payload);
     return normalizeAdditionalInfo(response.data);
+}
+
+/** Retorna las piezas de despiece almacenadas en BD para la OP dada. */
+export async function fetchOpCuttingPieces(opId: string | number): Promise<CuttingPiece[]> {
+    const url = ENDPOINTS.OP_CUTTING_PIECES.replace(':id', String(opId));
+    const response = await axios.get<{ pieces: AdditionalInfoDto['cutting']['pieces'] }>(url);
+    const raw = response.data?.pieces;
+    if (!Array.isArray(raw)) return [];
+    return raw.map((piece) => {
+        const stableId = String(piece.id ?? piece.uid ?? '').trim();
+        return {
+            id: stableId,
+            uid: stableId || undefined,
+            name: String(piece.name ?? ''),
+            type: piece.type === 'SECUNDARIO' ? 'SECUNDARIO' : ('PRINCIPAL' as const),
+            fabricUid: piece.fabricUid ? String(piece.fabricUid) : null,
+            side: ['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(String(piece.side))
+                ? (piece.side as CuttingPiece['side'])
+                : ('NO_APLICA' as const),
+            grain: ['90', '180', 'SESGO'].includes(String(piece.grain)) ? (piece.grain as CuttingPiece['grain']) : ('90' as const),
+            quantity: piece.quantity != null ? Number(piece.quantity) : undefined,
+            notes: piece.notes ?? null,
+        };
+    });
+}
+
+/** Sincroniza el listado completo de piezas de despiece en BD (bulk replace). */
+export async function saveOpCuttingPieces(opId: string | number, pieces: CuttingPiece[]): Promise<CuttingPiece[]> {
+    const url = ENDPOINTS.OP_CUTTING_PIECES.replace(':id', String(opId));
+    const payload = pieces.map((p, index) => ({
+        piece_uid: p.id,
+        sequence: index,
+        name: p.name,
+        piece_type: p.type ?? 'PRINCIPAL',
+        fabric_uid: p.fabricUid ?? null,
+        side: p.side,
+        grain: p.grain,
+        quantity: p.quantity,
+        notes: p.notes ?? null,
+    }));
+    const response = await axios.put<{ pieces: AdditionalInfoDto['cutting']['pieces'] }>(url, { pieces: payload });
+    const raw = response.data?.pieces;
+    if (!Array.isArray(raw)) return [];
+    return raw.map((piece) => {
+        const stableId = String(piece.id ?? piece.uid ?? '').trim();
+        return {
+            id: stableId,
+            uid: stableId || undefined,
+            name: String(piece.name ?? ''),
+            type: piece.type === 'SECUNDARIO' ? 'SECUNDARIO' : ('PRINCIPAL' as const),
+            fabricUid: piece.fabricUid ? String(piece.fabricUid) : null,
+            side: ['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(String(piece.side))
+                ? (piece.side as CuttingPiece['side'])
+                : ('NO_APLICA' as const),
+            grain: ['90', '180', 'SESGO'].includes(String(piece.grain)) ? (piece.grain as CuttingPiece['grain']) : ('90' as const),
+            quantity: piece.quantity != null ? Number(piece.quantity) : undefined,
+            notes: piece.notes ?? null,
+        };
+    });
 }

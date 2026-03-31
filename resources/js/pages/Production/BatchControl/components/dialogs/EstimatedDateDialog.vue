@@ -1,0 +1,214 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { AlertTriangle, Calendar, CheckCircle2, Clock, Lightbulb, XCircle } from 'lucide-vue-next';
+import { computed } from 'vue';
+import type { BatchControlRow } from '../../types';
+
+const props = defineProps<{
+    open: boolean;
+    row: BatchControlRow | null;
+    /** Valor del input datetime-local ("YYYY-MM-DDTHH:MM") */
+    editingDate: string;
+    /** Proceso que se está editando (siempre = activeProcess del tab) */
+    editingProcess: string;
+    /** Si la fila no está en el proceso activo (orden en otro proceso) */
+    isDisabledRow: boolean;
+    /** Fecha estimada del proceso anterior (sugerencia para filas deshabilitadas) */
+    suggestedDate: string | null;
+    formatDate: (val: string) => string;
+}>();
+
+const emit = defineEmits<{
+    (e: 'update:open', v: boolean): void;
+    (e: 'update:editingDate', v: string): void;
+    (e: 'save'): void;
+    (e: 'close'): void;
+}>();
+
+const minDatetime = computed(() => {
+    if (props.isDisabledRow || !props.row?.current_process_arrived_at) return undefined;
+    return props.row.current_process_arrived_at.replace(' ', 'T');
+});
+
+const maxDatetime = computed(() => {
+    if (!props.row?.fecha || props.row.fecha === '-') return undefined;
+    return props.row.fecha + 'T23:59';
+});
+
+const editDatePart = computed(() => props.editingDate?.split('T')[0] ?? '');
+
+const isDateAfterFinal = computed(
+    () => !!(editDatePart.value && props.row?.fecha && props.row.fecha !== '-' && editDatePart.value > props.row.fecha),
+);
+
+const isDateBeforeArrival = computed(() => {
+    if (!props.editingDate || props.isDisabledRow || !props.row?.current_process_arrived_at) return false;
+    return props.editingDate.replace('T', ' ') < props.row.current_process_arrived_at;
+});
+
+const isInvalid = computed(() => isDateAfterFinal.value || isDateBeforeArrival.value);
+
+const estimatedStatus = computed<'none' | 'on_time' | 'due_soon' | 'overdue'>(() => {
+    if (!props.editingDate) return 'none';
+    const clean = props.editingDate.replace('T', ' ');
+    const target = new Date(clean.replace(' ', 'T'));
+    if (Number.isNaN(target.getTime())) return 'none';
+    target.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return 'overdue';
+    if (diffDays <= 2) return 'due_soon';
+    return 'on_time';
+});
+
+const estimatedDeltaLabel = computed(() => {
+    if (!props.editingDate) return 'Sin fecha estimada';
+
+    const clean = props.editingDate.replace('T', ' ');
+    const target = new Date(clean.replace(' ', 'T'));
+    if (Number.isNaN(target.getTime())) return 'Fecha inválida';
+
+    target.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Vence hoy';
+    if (diffDays < 0) return `${Math.abs(diffDays)} día(s) vencida`;
+    return `Faltan ${diffDays} día(s)`;
+});
+
+const estimatedStatusLabel = computed(() => {
+    if (estimatedStatus.value === 'overdue') return 'Vencida';
+    if (estimatedStatus.value === 'due_soon') return 'Próxima';
+    if (estimatedStatus.value === 'on_time') return 'A tiempo';
+    return 'Sin fecha';
+});
+
+const estimatedStatusClass = computed(() => {
+    if (estimatedStatus.value === 'overdue') return 'border-red-200 bg-red-50 text-red-700';
+    if (estimatedStatus.value === 'due_soon') return 'border-amber-200 bg-amber-50 text-amber-700';
+    if (estimatedStatus.value === 'on_time') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    return 'border-muted-foreground/20 bg-muted/20 text-muted-foreground';
+});
+
+const estimatedStatusIcon = computed(() => {
+    if (estimatedStatus.value === 'overdue') return XCircle;
+    if (estimatedStatus.value === 'due_soon') return AlertTriangle;
+    if (estimatedStatus.value === 'on_time') return CheckCircle2;
+    return Clock;
+});
+
+function applySuggestion() {
+    if (!props.suggestedDate) return;
+    emit('update:editingDate', props.suggestedDate.replace(' ', 'T'));
+}
+</script>
+
+<template>
+    <Dialog :open="open" @update:open="emit('update:open', $event)">
+        <DialogContent class="gap-0 overflow-hidden p-0 sm:max-w-sm">
+            <!-- Header -->
+            <DialogHeader class="border-b border-border/50 bg-muted/20 px-6 py-5">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted/60">
+                        <Calendar class="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div class="min-w-0">
+                        <DialogTitle class="text-sm font-semibold leading-tight">Fecha estimada</DialogTitle>
+                        <DialogDescription class="mt-0.5 text-xs text-muted-foreground">
+                            Proceso <span class="font-medium text-foreground">{{ editingProcess }}</span>
+                            <span class="mx-1">·</span>
+                            <span class="font-mono">{{ row?.op_code }}</span>
+                        </DialogDescription>
+                    </div>
+                </div>
+                <p v-if="isDisabledRow" class="mt-2 text-xs text-muted-foreground">
+                    La orden está en <span class="font-medium text-foreground">{{ row?.current_process }}</span>.
+                    Programa la fecha estimada para cuando llegue a este proceso.
+                </p>
+            </DialogHeader>
+
+            <!-- Body -->
+            <div class="space-y-4 px-6 py-5">
+                <!-- Sugerencia del proceso anterior -->
+                <div
+                    v-if="isDisabledRow && suggestedDate"
+                    class="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-700"
+                >
+                    <Lightbulb class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                        Proceso anterior termina el
+                        <span class="font-semibold">{{ formatDate(suggestedDate) }}</span>.
+                        <button type="button" class="ml-1 underline hover:no-underline" @click="applySuggestion">Usar esta fecha</button>
+                    </span>
+                </div>
+
+                <!-- Input datetime -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Fecha y hora estimada</label>
+                    <Input
+                        :model-value="editingDate"
+                        type="datetime-local"
+                        :min="minDatetime"
+                        :max="maxDatetime"
+                        class="h-9"
+                        @update:model-value="emit('update:editingDate', String($event))"
+                    />
+                </div>
+
+                <!-- Preview + referencias -->
+                <div v-if="editingDate" class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Clock class="h-3.5 w-3.5 shrink-0" />
+                    <span class="font-medium text-foreground">{{ formatDate(editingDate) }}</span>
+                </div>
+
+                <div
+                    v-if="editingDate"
+                    :class="['flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-xs', estimatedStatusClass]"
+                >
+                    <div class="inline-flex items-center gap-1.5">
+                        <component :is="estimatedStatusIcon" class="h-3.5 w-3.5 shrink-0" />
+                        <span class="font-semibold">Estado: {{ estimatedStatusLabel }}</span>
+                    </div>
+                    <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold">{{ estimatedDeltaLabel }}</span>
+                </div>
+
+                <div class="space-y-1.5 rounded-lg border border-border/40 bg-muted/20 px-4 py-3 text-xs">
+                    <div v-if="!isDisabledRow && row?.current_process_arrived_at" class="flex justify-between">
+                        <span class="text-muted-foreground">Llegó al proceso</span>
+                        <span class="font-medium">{{ formatDate(row.current_process_arrived_at) }}</span>
+                    </div>
+                    <div v-if="row?.fecha && row.fecha !== '-'" class="flex justify-between">
+                        <span class="text-muted-foreground">Entrega final de la orden</span>
+                        <span class="font-medium">{{ formatDate(row.fecha) }}</span>
+                    </div>
+                    <div v-if="!row?.current_process_arrived_at && (row?.fecha === '-' || !row?.fecha)" class="text-muted-foreground">
+                        Sin fechas de referencia registradas.
+                    </div>
+                </div>
+
+                <!-- Errores de validación -->
+                <div v-if="isDateBeforeArrival" class="flex items-center gap-1.5 rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                    <AlertTriangle class="h-3.5 w-3.5 shrink-0" />
+                    La fecha no puede ser anterior a la hora de llegada al proceso.
+                </div>
+                <div v-if="isDateAfterFinal" class="flex items-center gap-1.5 rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+                    <AlertTriangle class="h-3.5 w-3.5 shrink-0" />
+                    La fecha no puede ser posterior a la fecha final de entrega.
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <DialogFooter class="border-t border-border/50 bg-muted/20 px-6 py-4">
+                <Button variant="outline" size="sm" @click="emit('close')">Cancelar</Button>
+                <Button size="sm" :disabled="!!isInvalid" @click="emit('save')">Guardar</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+</template>

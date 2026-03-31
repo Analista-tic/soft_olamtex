@@ -1,23 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
-import AdditionalFieldDialog from './AdditionalFieldDialog.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import EditButton from '@/components/common/EditButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import EditButton from '@/components/common/EditButton.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import Input from '@/components/ui/input/Input.vue';
 import { Button } from '@/components/ui/button';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { BreadcrumbItem } from '@/domain/shared';
-import type { AdditionalField, AdditionalFieldPayload } from '@/domain/MasterData';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -29,8 +20,16 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import type { AdditionalField, AdditionalFieldPayload } from '@/domain/MasterData';
+import type { BreadcrumbItem } from '@/domain/shared';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
-import { uiPatterns } from '@/lib/ui-patterns';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import AdditionalFieldDialog from './AdditionalFieldDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Catálogo de ítem', href: '/inventario/item' },
@@ -189,9 +188,7 @@ async function openDialog(type: 'create' | 'edit', field: AdditionalField | null
     if (token === null) return;
 
     dialogType.value = type;
-    form.value = type === 'edit' && field
-        ? { ...field }
-        : { ...defaultForm };
+    form.value = type === 'edit' && field ? { ...field } : { ...defaultForm };
     clearMessages();
 
     await nextTick();
@@ -239,14 +236,10 @@ async function handleDialogSubmit(fieldData: AdditionalFieldPayload) {
             delete payload.id;
         }
 
-        const url = dialogType.value === 'create'
-            ? '/campos-adicionales'
-            : `/campos-adicionales/${fieldData.id}`;
+        const url = dialogType.value === 'create' ? '/campos-adicionales' : `/campos-adicionales/${fieldData.id}`;
         const method = dialogType.value === 'create' ? 'POST' : 'PUT';
         await axios({ method, url, data: payload });
-        successMessage.value = dialogType.value === 'create'
-            ? 'Campo adicional creado correctamente.'
-            : 'Campo adicional actualizado correctamente.';
+        successMessage.value = dialogType.value === 'create' ? 'Campo adicional creado correctamente.' : 'Campo adicional actualizado correctamente.';
         setError('');
         fetchAdditionalFields(currentPage.value, searchQuery.value);
         closeDialog();
@@ -266,12 +259,7 @@ async function fetchAdditionalFields(page = 1, search = '') {
                 per_page: itemsPerPage,
                 search,
                 field_type: typeFilter.value !== DEFAULT_TYPE_FILTER ? typeFilter.value : undefined,
-                status:
-                    statusFilter.value === 'active'
-                        ? true
-                        : statusFilter.value === 'inactive'
-                            ? false
-                            : undefined,
+                status: statusFilter.value === 'active' ? true : statusFilter.value === 'inactive' ? false : undefined,
             },
         });
         additionalFields.value = response.data.data;
@@ -392,9 +380,7 @@ async function persistFieldOrder(fields: AdditionalField[]) {
     isReordering.value = true;
     try {
         await axios.post('/campos-adicionales/reorder', {
-            order: fields
-                .map((field) => Number(field.id))
-                .filter((id): id is number => Number.isFinite(id)),
+            order: fields.map((field) => Number(field.id)).filter((id): id is number => Number.isFinite(id)),
         });
         successMessage.value = 'Orden actualizado correctamente.';
         errorMessage.value = '';
@@ -438,30 +424,27 @@ onBeforeUnmount(() => {
         />
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div class="flex flex-col gap-1 max-w-3xl">
-                    <h1 :class="uiPatterns.typography.pageTitle">Campos adicionales</h1>
-                    <p :class="uiPatterns.typography.pageSubtitle">
-                        Este módulo permite definir, ordenar y mantener los campos adicionales que enriquecen la información de ítems y productos, asegurando que cada área del negocio capture los atributos obligatorios y opcionales que requiere su operación.
+                <div class="flex max-w-3xl flex-col gap-1">
+                    <h1 class="text-lg font-bold">Campos adicionales</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Este módulo permite definir, ordenar y mantener los campos adicionales que enriquecen la información de ítems y productos,
+                        asegurando que cada área del negocio capture los atributos obligatorios y opcionales que requiere su operación.
                     </p>
                 </div>
                 <div class="flex items-center justify-end pt-2 lg:pt-0">
                     <button
                         type="button"
                         :disabled="isPreparingDialog"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="openDialog('create')"
                     >
-                        <PlusCircle class="w-4 h-4" />
+                        <PlusCircle class="h-4 w-4" />
                         Crear nuevo campo
                     </button>
                 </div>
             </div>
             <FilterBar align="start" gap="gap-4" noMargin>
-                <FilterField
-                    label="Buscar campo"
-                    :active="isSearchActive"
-                    class="flex-1 min-w-[220px] p-0"
-                >
+                <FilterField label="Buscar campo" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
                         <Input
                             id="search_additional_field"
@@ -469,41 +452,29 @@ onBeforeUnmount(() => {
                             placeholder="Buscar por nombre o etiqueta"
                             class="h-10 w-full pl-11"
                         />
-                        <span class="absolute inset-y-0 start-2 flex items-center justify-center pointer-events-none">
+                        <span class="pointer-events-none absolute inset-y-0 start-2 flex items-center justify-center">
                             <Search :size="18" class="text-muted-foreground" />
                         </span>
                     </div>
                 </FilterField>
                 <FilterField label="Tipo" :active="isTypeFilterActive" class="min-w-[180px]">
-                    <SelectField
-                        v-model="typeFilter"
-                        label=""
-                        :options="typeOptions"
-                        :button-class="typeButtonClasses"
-                    />
+                    <SelectField v-model="typeFilter" label="" :options="typeOptions" :button-class="typeButtonClasses" />
                 </FilterField>
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
-                    <SelectField
-                        v-model="statusFilter"
-                        label=""
-                        :options="statusOptions"
-                        :button-class="statusButtonClasses"
-                    />
+                    <SelectField v-model="statusFilter" label="" :options="statusOptions" :button-class="statusButtonClasses" />
                 </FilterField>
             </FilterBar>
-            <p class="text-xs text-muted-foreground">
-                Ordena campos adicionales (arrastrar y soltar).
-            </p>
+            <p class="text-xs text-muted-foreground">Ordena campos adicionales (arrastrar y soltar).</p>
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead">Nombre</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Tipo</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Requerido</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Opciones</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Acciones</TableHead>
+                            <TableHead>Nombre</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Requerido</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Opciones</TableHead>
+                            <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -538,14 +509,12 @@ onBeforeUnmount(() => {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="additionalFields.length === 0">
-                            <TableCell colspan="7" class="px-4 py-2 text-center text-muted-foreground">
-                                No hay campos adicionales registrados.
-                            </TableCell>
+                            <TableCell colspan="7" class="px-4 py-2 text-center text-gray-400"> No hay campos adicionales registrados. </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
                 <Pagination
-                    class="flex justify-center pt-4 pb-2"
+                    class="mt-5 flex justify-center"
                     :items-per-page="itemsPerPage"
                     :total="totalItems"
                     :sibling-count="1"
@@ -557,15 +526,10 @@ onBeforeUnmount(() => {
                         <PaginationFirst />
                         <PaginationPrev />
                         <template v-for="(item, index) in items">
-                            <PaginationListItem
-                                v-if="item.type === 'page'"
-                                :key="index"
-                                :value="item.value"
-                                as-child
-                            >
+                            <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
                                 <Button
-                                    class="h-8 w-8 rounded-md p-0 text-xs font-medium"
-                                    :variant="item.value === currentPage ? 'default' : 'ghost'"
+                                    class="h-6 w-6 p-0"
+                                    :variant="item.value === currentPage ? 'default' : 'outline'"
                                     @click="handlePageChange(item.value)"
                                 >
                                     {{ item.value }}
@@ -603,5 +567,3 @@ onBeforeUnmount(() => {
         />
     </AppLayout>
 </template>
-
-

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import FilterBar from '@/components/FilterBar.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -873,9 +872,7 @@ watch(detailDialogOpen, (value) => {
                 </div>
                 <DialogFooter class="flex flex-shrink-0 justify-end gap-2 border-t border-border px-6 py-3">
                     <DialogClose as-child>
-                        <Button variant="outline" size="pill">
-                            Cerrar
-                        </Button>
+                        <Button variant="outline" size="pill"> Cerrar </Button>
                     </DialogClose>
                 </DialogFooter>
             </DialogContent>

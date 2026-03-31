@@ -362,7 +362,12 @@ onMounted(() => {
                 </DialogHeader>
                 <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
                     <div class="w-full md:w-auto">
-                        <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="isDeleteDialogOpen = false">
+                        <Button
+                            variant="outline"
+                            size="pill"
+                            class="mx-auto flex w-full max-w-[140px] justify-center"
+                            @click="isDeleteDialogOpen = false"
+                        >
                             Cancelar
                         </Button>
                     </div>

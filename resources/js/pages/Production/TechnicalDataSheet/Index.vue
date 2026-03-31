@@ -3,18 +3,17 @@ import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production';
-import { fetchOpBasicInfo, fetchOpOptions } from '@/domain/Production';
+import { fetchOpBasicInfo, fetchOpOptions, fetchOpRawMaterials, fetchOpRolls } from '@/domain/Production';
 import type { BreadcrumbItem, Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Layers, Package, Volleyball, Workflow } from 'lucide-vue-next';
+import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Volleyball, Workflow } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AdditionalInfoTab from './tabs/AdditionalInfoTab/index.vue';
 import CostsTab from './tabs/CostsTab.vue';
+import FabricMaterialTab from './tabs/FabricMaterialTab.vue';
 import OperationalListTab from './tabs/OperationalListTab.vue';
 import ProcessesTab from './tabs/ProcessesTab.vue';
-import RawMaterialTab from './tabs/RawMaterialTab.vue';
-import RollsTab from './tabs/RollsTab.vue';
 import SuppliesTab from './tabs/SuppliesTab.vue';
 import ThreadsTab from './tabs/ThreadsTab.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
@@ -38,6 +37,7 @@ const isBasicInfoCollapsed = ref(false);
 const hasOperationalList = ref(false);
 type RawMaterialsInfoRow = {
     uid: string;
+    telaItemId: number | null;
     tela: string;
     ancho: number | null;
     promTrazo: number;
@@ -46,6 +46,7 @@ type RawMaterialsInfoRow = {
     consumo: number;
     precioTela: number | null;
     proveedor: string | null;
+    programmedColors: string[];
 };
 const rawMaterialsInfo = ref<RawMaterialsInfoRow[]>([]);
 
@@ -120,7 +121,6 @@ const tabs = [
     { value: 'lista_operacional', label: 'Lista operacional', icon: ClipboardList },
     { value: 'procesos', label: 'Procesos', icon: Workflow },
     { value: 'materia_prima', label: 'Materia prima', icon: Box },
-    { value: 'rollos', label: 'Rollos', icon: Layers },
     { value: 'hilos', label: 'Hilos', icon: Volleyball },
     { value: 'insumos', label: 'Insumos', icon: Package },
     { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
@@ -151,60 +151,85 @@ function formatCurrency(value: number | null | undefined): string {
     }).format(value);
 }
 
-function loadRawMaterialsInfo(opId: string | number | null): void {
-    if (typeof window === 'undefined' || opId === null || opId === undefined || opId === '') {
+async function loadRawMaterialsInfo(opId: string | number | null): Promise<void> {
+    if (opId === null || opId === undefined || opId === '') {
         rawMaterialsInfo.value = [];
         return;
     }
 
     try {
-        const raw = window.localStorage.getItem(`tDS_rawMaterial_${opId}`);
-        if (!raw) {
-            rawMaterialsInfo.value = [];
-            return;
+        const [rows, rollState] = await Promise.all([fetchOpRawMaterials(opId), fetchOpRolls(opId)]);
+
+        const colorByRawMaterialUid = new Map<string, Set<string>>();
+        const colorByItemId = new Map<number, Set<string>>();
+
+        for (const line of rollState.lines ?? []) {
+            const programmedMeters = Number(line.programmedMeters ?? 0);
+            if (!Number.isFinite(programmedMeters) || programmedMeters <= 0) continue;
+
+            const colorName = String(line.color ?? line.colors ?? '').trim();
+            const colorCode = String(line.colorCode ?? '').trim();
+            const colorLabel = colorName && colorCode ? `${colorName} (${colorCode})` : colorName || colorCode;
+            if (!colorLabel) continue;
+
+            const rawMaterialUid = String(line.rawMaterialUid ?? '').trim();
+            if (rawMaterialUid) {
+                const bucket = colorByRawMaterialUid.get(rawMaterialUid) ?? new Set<string>();
+                bucket.add(colorLabel);
+                colorByRawMaterialUid.set(rawMaterialUid, bucket);
+            }
+
+            const itemId = Number(line.fabricItemId ?? 0);
+            if (Number.isFinite(itemId) && itemId > 0) {
+                const bucket = colorByItemId.get(itemId) ?? new Set<string>();
+                bucket.add(colorLabel);
+                colorByItemId.set(itemId, bucket);
+            }
         }
 
-        const parsed = JSON.parse(raw) as Array<Record<string, unknown>>;
-        if (!Array.isArray(parsed)) {
-            rawMaterialsInfo.value = [];
-            return;
-        }
-
-        rawMaterialsInfo.value = parsed
+        rawMaterialsInfo.value = rows
             .map((row, index) => {
                 const toNumberOrNull = (value: unknown): number | null => {
-                    const parsedNumber = Number(value);
-                    return Number.isFinite(parsedNumber) ? parsedNumber : null;
+                    const n = Number(value);
+                    return Number.isFinite(n) && n > 0 ? n : null;
                 };
                 const toNumber = (value: unknown): number => {
-                    const parsedNumber = Number(value);
-                    return Number.isFinite(parsedNumber) ? parsedNumber : 0;
+                    const n = Number(value);
+                    return Number.isFinite(n) ? Math.max(0, n) : 0;
                 };
 
+                const rowUid = String(row.uid ?? '').trim();
+                const telaItemId = toNumberOrNull(row.telaItemId);
+                const colorsByUid = rowUid ? colorByRawMaterialUid.get(rowUid) : null;
+                const colorsByItem = telaItemId ? colorByItemId.get(telaItemId) : null;
+                const programmedColors = Array.from(new Set([...(colorsByUid ?? []), ...(colorsByItem ?? [])]));
+
                 return {
-                    uid: String(row.uid ?? `raw_${index}`),
+                    uid: row.uid || `raw_${index}`,
+                    telaItemId,
                     tela: String(row.tela ?? '').trim(),
                     ancho: toNumberOrNull(row.ancho),
                     promTrazo: toNumber(row.promTrazo),
                     largoTrazo: toNumber(row.largoTrazo),
                     largoLiq: toNumber(row.largoLiq),
                     consumo: toNumber(row.consumo),
-                    precioTela: toNumberOrNull(row.lastUnitPriceCop ?? row.precioTela),
-                    proveedor: String(row.lastSupplierName ?? row.proveedor ?? '').trim() || null,
+                    precioTela: toNumberOrNull(row.lastUnitPriceCop),
+                    proveedor: String(row.lastSupplierName ?? '').trim() || null,
+                    programmedColors,
                 } satisfies RawMaterialsInfoRow;
             })
             .filter((row) => row.tela !== '');
     } catch (error) {
-        console.error('Error al leer materia prima para informacion adicional:', error);
+        console.error('Error al cargar materia prima:', error);
         rawMaterialsInfo.value = [];
     }
 }
 
-function handleRawMaterialSaved(event: Event): void {
+async function handleRawMaterialSaved(event: Event): Promise<void> {
     const customEvent = event as CustomEvent<{ opId?: string | number }>;
     const opId = customEvent.detail?.opId;
     if (opId === undefined || opId === null || String(opId) !== String(selectedOpId.value ?? '')) return;
-    loadRawMaterialsInfo(selectedOpId.value);
+    await loadRawMaterialsInfo(selectedOpId.value);
 }
 
 async function loadOpOptions(searchTerm = ''): Promise<void> {
@@ -277,7 +302,7 @@ watch(
 
         resetDrawingState();
         await loadOpDetail(value);
-        loadRawMaterialsInfo(value);
+        await loadRawMaterialsInfo(value);
     },
     { immediate: true },
 );
@@ -464,16 +489,16 @@ onBeforeUnmount(() => {
 
                     <Tabs v-model="activeTab" :default-value="defaultTabValue" class="flex min-h-0 w-full flex-1 flex-col">
                         <div class="mb-3 flex justify-center">
-                            <TabsList class="inline-flex w-fit items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
+                            <TabsList class="inline-flex w-fit flex-nowrap items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
                                 <TabsTrigger
                                     v-for="tab in tabs"
                                     :key="tab.value"
                                     :value="tab.value"
-                                    class="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground data-[state=active]:border data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
+                                    class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground data-[state=active]:border data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
                                 >
-                                    <span class="inline-flex items-center gap-2">
+                                    <span class="inline-flex shrink-0 items-center gap-2">
                                         <component :is="tab.icon" class="h-4 w-4 shrink-0" />
-                                        <span>{{ tab.label }}</span>
+                                        <span class="shrink-0">{{ tab.label }}</span>
                                     </span>
                                 </TabsTrigger>
                             </TabsList>
@@ -492,11 +517,7 @@ onBeforeUnmount(() => {
                         </TabsContent>
 
                         <TabsContent value="materia_prima" class="mt-0">
-                            <RawMaterialTab v-if="selectedOpId" :op-id="selectedOpId" />
-                        </TabsContent>
-
-                        <TabsContent value="rollos" class="mt-0">
-                            <RollsTab v-if="selectedOpId" :op-id="selectedOpId" :units="selectedOp?.units ?? null" />
+                            <FabricMaterialTab v-if="selectedOpId" :op-id="selectedOpId" :units="selectedOp?.units ?? null" />
                         </TabsContent>
 
                         <TabsContent value="hilos" class="mt-0">
@@ -511,6 +532,7 @@ onBeforeUnmount(() => {
                                 :has-operational-list="hasOperationalList"
                                 :op-code="selectedOp?.opCode ?? null"
                                 :op-group="selectedOp?.group ?? null"
+                                :sizes="selectedOp?.sizes ?? []"
                             />
                         </TabsContent>
 

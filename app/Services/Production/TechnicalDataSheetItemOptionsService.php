@@ -13,20 +13,28 @@ class TechnicalDataSheetItemOptionsService
     public function getOptions(string $group, string $search = '', string $status = 'habilitado', int $limit = 100): array
     {
         $normalizedGroup = $this->normalizeText($group);
-        if ($normalizedGroup === null) {
-            return [];
-        }
 
-        $groupLike = $this->resolveGroupLikePattern($normalizedGroup);
-        if ($groupLike === null) {
-            return [];
+        // Si no se especifica grupo, buscar en todos los grupos de insumos/materia prima
+        if ($normalizedGroup === null) {
+            $groupLike = null;
+        } else {
+            $groupLike = $this->resolveGroupLikePattern($normalizedGroup);
+            if ($groupLike === null) {
+                return [];
+            }
         }
 
         $query = Item::query()
-            ->select(['id', 'name', 'reference', 'unit_measure', 'status'])
+            ->select(['id', 'name', 'reference', 'unit_measure', 'status', 'img'])
             ->with(['categorySubGroup.categoryGroup:id,name'])
             ->whereHas('categorySubGroup.categoryGroup', function (Builder $builder) use ($groupLike) {
-                $builder->whereRaw('LOWER(name) LIKE ?', [$groupLike]);
+                if ($groupLike !== null) {
+                    $builder->whereRaw('LOWER(name) LIKE ?', [$groupLike]);
+                } else {
+                    // Sin grupo específico: retornar ítems de insumos y materia prima
+                    $builder->whereRaw('LOWER(name) LIKE ?', ['%insumo%'])
+                            ->orWhereRaw('LOWER(name) LIKE ?', ['%materia prima%']);
+                }
             })
             ->orderBy('name')
             ->limit(max(1, $limit));
@@ -41,14 +49,22 @@ class TechnicalDataSheetItemOptionsService
 
         $this->applyStatusFilter($query, $status);
 
-        return $query->get()->map(function (Item $item): array {
+        $results = $query->get()->map(function (Item $item): array {
+            $name = trim((string) $item->name);
+            $isDraft = $item->item_type === 'draft';
+
             return [
                 'id' => (int) $item->id,
-                'name' => trim((string) $item->name),
+                'name' => $isDraft ? "{$name} [Solicitado]" : $name,
                 'reference' => $this->nullableText($item->reference),
                 'unit' => $this->nullableText($item->unit_measure),
+                'item_type' => $item->item_type ?? 'product',
+                'is_draft'  => $isDraft,
+                'img_url'   => $item->img_url,
             ];
         })->values()->all();
+
+        return $results;
     }
 
     private function resolveGroupLikePattern(string $group): ?string
@@ -77,7 +93,11 @@ class TechnicalDataSheetItemOptionsService
             return;
         }
 
-        $query->where('status', true);
+        // Incluir items habilitados + items draft (solicitados, aún inhabilitados)
+        $query->where(function (Builder $q) {
+            $q->where('status', true)
+              ->orWhere('item_type', 'draft');
+        });
     }
 
     private function normalizeText(string $value): ?string

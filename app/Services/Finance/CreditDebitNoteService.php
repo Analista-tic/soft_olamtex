@@ -53,12 +53,18 @@ class CreditDebitNoteService
     {
         $perPage = (int) ($filters['per_page'] ?? 20);
 
+        $allowedTypes = $this->resolveAllowedTypesByContext($filters['context'] ?? null);
+
         $query = PurchaseDocument::query()
             ->with([
                 'supplier:id,full_name,id_number,phone,email',
                 'parent:id,document_number,document_type,contact_id',
             ])
-            ->whereIn('document_type', $this->allowedTypes);
+            ->whereIn('document_type', $allowedTypes);
+
+        if (!empty($filters['document_type']) && in_array($filters['document_type'], $allowedTypes, true)) {
+            $query->where('document_type', $filters['document_type']);
+        }
 
         if (!empty($filters['contact_id'])) {
             $query->where('contact_id', $filters['contact_id']);
@@ -113,6 +119,16 @@ class CreditDebitNoteService
             ->map(fn (PurchaseDocument $invoice) => $this->mapEligiblePurchaseInvoice($invoice))
             ->values()
             ->all();
+    }
+
+    private function resolveAllowedTypesByContext(?string $context): array
+    {
+        if ($context === 'sale') {
+            return ['sale_credit_note', 'sale_debit_note'];
+        }
+
+        // Default: purchase context
+        return $this->allowedTypes;
     }
 
     public function create(array $payload): PurchaseDocument

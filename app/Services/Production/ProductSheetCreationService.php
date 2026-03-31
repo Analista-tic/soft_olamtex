@@ -5,6 +5,7 @@ namespace App\Services\Production;
 use App\Models\Production\ProductSheet;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProductSheetCreationService
 {
@@ -17,6 +18,23 @@ class ProductSheetCreationService
     public function create(array $attributes): ProductSheet
     {
         $attributes = $this->sanitizeAttributes($attributes);
+
+        // Versionamiento: si viene de un template (parent_id), calcular versión automática
+        if (!empty($attributes['parent_id'])) {
+            $parentId = (int) $attributes['parent_id'];
+            $parent = ProductSheet::find($parentId);
+
+            if ($parent) {
+                $attributes['version'] = ProductSheet::nextVersion(
+                    $attributes['sample_reference'] ?? $parent->sample_reference,
+                    $attributes['product_reference'] ?? $parent->product_reference,
+                );
+            }
+        } else {
+            // Sin template: verificar unicidad de sample_reference
+            $attributes['version'] = 1;
+        }
+
         $this->logPersistencePayload('create', $attributes);
 
         $productSheet = ProductSheet::create($attributes);
@@ -48,6 +66,21 @@ class ProductSheetCreationService
             Log::warning('product_sheet_persistence_sanitized_keys', [
                 'removed_keys' => $removedKeys,
             ]);
+        }
+
+        foreach (['sample_reference', 'product_reference', 'product_reference_2'] as $referenceKey) {
+            if (!array_key_exists($referenceKey, $sanitized)) {
+                continue;
+            }
+
+            $rawValue = $sanitized[$referenceKey];
+
+            if (!is_string($rawValue)) {
+                continue;
+            }
+
+            $normalized = trim($rawValue);
+            $sanitized[$referenceKey] = $normalized !== '' ? Str::upper($normalized) : null;
         }
 
         return $sanitized;

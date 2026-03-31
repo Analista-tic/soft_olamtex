@@ -201,7 +201,7 @@ function handleSave() {
             </DialogHeader>
             <div class="flex-1 overflow-y-auto scroll-smooth pr-2" style="scrollbar-width: thin">
                 <div class="space-y-4">
-                    <TextareaField v-model="reason" label="Motivo" rows="3" required />
+                    <TextareaField v-model="reason" label="Motivo" :rows="3" required />
                     <div class="space-y-2 text-sm">
                         <label class="block font-semibold">
                             Evidencia (imagen)

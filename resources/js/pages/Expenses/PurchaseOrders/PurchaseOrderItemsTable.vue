@@ -1,22 +1,20 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
-import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
-import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
-import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { PurchaseOrderItem } from '@/domain/Expenses';
-import type { Item } from '@/domain/MasterData';
 import type { Tax } from '@/domain/Finance';
+import type { Item } from '@/domain/MasterData';
+import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
+import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
+import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
-import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 
-const props = defineProps<{ 
+const props = defineProps<{
     items: PurchaseOrderItem[];
     suggestedItems?: any[];
-    readonly?: boolean;
-    submitAttempted?: boolean;
 }>();
 const emit = defineEmits(['update:items']);
 
@@ -35,7 +33,6 @@ const itemDialogForm = ref<Partial<Item>>({
     negative_movement: false,
     status: true,
 });
-const isReadOnly = computed(() => !!props.readonly);
 
 const itemMap = computed(() => new Map<number, Item>(catalogItems.value.map((a) => [a.id, a])));
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
@@ -49,7 +46,7 @@ const taxOptions = computed(() => [
         })),
 ]);
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
-const showActionsColumn = computed(() => !isReadOnly.value && localItems.value.length > 1);
+const showActionsColumn = computed(() => localItems.value.length > 1);
 const totalColumns = computed(() => {
     let cols = 6; // Item, Precio, Impuesto, Cantidad, Descripcion, Total
     if (shouldShowFabricColumns.value) {
@@ -97,13 +94,11 @@ onMounted(() => {
 });
 
 function openTaxDialog() {
-    if (isReadOnly.value) return;
     taxForm.value = { name: '', percentage: 0, status: true };
     isTaxDialogOpen.value = true;
 }
 
 function openItemDialog() {
-    if (isReadOnly.value) return;
     itemDialogForm.value = {
         reference: '',
         description: '',
@@ -152,7 +147,6 @@ function validateFabricFields(): string | null {
 }
 
 function addItem() {
-    if (isReadOnly.value) return;
     const newItem: PurchaseOrderItem = {
         item_id: null,
         price: 0,
@@ -169,20 +163,7 @@ function addItem() {
     localItems.value.push(newItem);
 }
 
-function isItemIdInvalid(item: PurchaseOrderItem): boolean {
-    return !!props.submitAttempted && (item.item_id == null || Number(item.item_id) <= 0);
-}
-
-function isPriceInvalid(item: PurchaseOrderItem): boolean {
-    return !!props.submitAttempted && (item.price === '' || Number(item.price) <= 0);
-}
-
-function isQuantityInvalid(item: PurchaseOrderItem): boolean {
-    return !!props.submitAttempted && (item.quantity === '' || Number(item.quantity) <= 0);
-}
-
 function removeItem(idx: number) {
-    if (isReadOnly.value) return;
     if (localItems.value.length <= 1) {
         // Mantener al menos un ítem obligatorio
         return;
@@ -243,9 +224,13 @@ function syncItemsTaxWithCatalog() {
     });
 }
 
-watch([catalogItems, taxes], () => {
-    syncItemsTaxWithCatalog();
-}, { immediate: true });
+watch(
+    [catalogItems, taxes],
+    () => {
+        syncItemsTaxWithCatalog();
+    },
+    { immediate: true },
+);
 
 watch(
     localItems,
@@ -286,9 +271,8 @@ function getSuggestedItemForRow(rowIdx: number) {
 }
 
 function applySuggestedItem(suggestedItem: any, targetIdx: number) {
-    if (isReadOnly.value) return;
     if (!suggestedItem || targetIdx >= localItems.value.length) return;
-    
+
     const targetItem = localItems.value[targetIdx];
     targetItem.item_id = suggestedItem.item_id || null;
     targetItem.price = Number(suggestedItem.price) || 0;
@@ -298,7 +282,7 @@ function applySuggestedItem(suggestedItem: any, targetIdx: number) {
     targetItem.supplier_code = suggestedItem.supplier_code || '';
     targetItem.supplier_color = suggestedItem.supplier_color || '';
     targetItem.order_width = Number(suggestedItem.order_width) || 0;
-    
+
     calcTotals(targetItem);
     emit('update:items', localItems.value);
 }
@@ -307,117 +291,94 @@ defineExpose({ addItem, validateFabricFields });
 </script>
 
 <template>
-    <div class="w-full overflow-x-auto rounded-lg border border-border bg-background">
-
-        <div style="overflow: visible; max-height: none;">
-            <Table class="min-w-full table-fixed text-sm">
+    <div style="overflow: visible; max-height: none" class="w-full">
+        <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none">
+            <Table
+                class="min-w-full table-fixed border-separate border-spacing-x-2 border-spacing-y-1 text-center"
+                style="overflow: visible; max-height: none"
+            >
                 <TableHeader>
-                    <TableRow class="bg-muted/50 border-b border-border">
-                        <TableHead class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Item <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad <span class="text-destructive">*</span></TableHead>
-                        <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripción</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Código proveedor</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Color proveedor</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Ancho pedido</TableHead>
-                        <TableHead class="min-w-[90px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</TableHead>
-                        <TableHead v-if="showActionsColumn" class="w-[60px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"></TableHead>
+                    <TableRow class="border-b border-border/60 text-center">
+                        <TableHead class="min-w-[150px] text-left">Item <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[160px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Código proveedor</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Color proveedor</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left">Ancho pedido</TableHead>
+                        <TableHead class="min-w-[90px] text-left">Total</TableHead>
+                        <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
                     </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                    <TableRow v-for="(item, idx) in localItems" :key="idx" class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0">
-                        <TableCell class="p-2 text-left min-w-[150px]">
+                    <TableRow v-for="(item, idx) in localItems" :key="idx">
+                        <TableCell class="min-w-[150px] p-1 text-left">
                             <div class="space-y-1.5">
                                 <SelectField
                                     v-model="item.item_id"
                                     :options="catalogItems.map((a) => ({ id: a.id, name: a.name }))"
                                     label=""
                                     class="w-full"
-                                    :invalid="isItemIdInvalid(item)"
-                                    :disabled="isReadOnly"
-                                    :action-label="!isReadOnly ? 'Nuevo item' : undefined"
-                                    :action-disabled="isReadOnly"
+                                    action-label="Nuevo item"
                                     @action="openItemDialog"
                                 />
                                 <!-- Item sugerido de la solicitud para esta fila -->
-                                <div v-if="getSuggestedItemForRow(idx)" class="text-xs mt-1.5">
-                                    <div 
-                                        class="flex items-center gap-1.5 text-xs bg-accent/30 rounded-md px-2 py-1 border border-border/40 transition-colors group"
-                                        :class="isReadOnly ? 'cursor-default opacity-70' : 'cursor-pointer hover:bg-accent/50'"
-                                        @click="!isReadOnly && applySuggestedItem(getSuggestedItemForRow(idx), idx)"
+                                <div v-if="getSuggestedItemForRow(idx)" class="mt-1.5 text-xs">
+                                    <div
+                                        class="group flex cursor-pointer items-center gap-1.5 rounded-md border border-border/40 bg-accent/30 px-2 py-1 text-xs transition-colors hover:bg-accent/50"
+                                        @click="applySuggestedItem(getSuggestedItemForRow(idx), idx)"
                                         title="Clic para aplicar este item sugerido de la solicitud"
                                     >
                                         <span class="text-[10px] opacity-60 group-hover:opacity-100">💡</span>
-                                        <span class="flex-1 font-medium text-foreground/90">{{ getSuggestedItemForRow(idx)?.name || getSuggestedItemForRow(idx)?.description || `Item sugerido` }}</span>
+                                        <span class="flex-1 font-medium text-foreground/90">{{
+                                            getSuggestedItemForRow(idx)?.name || getSuggestedItemForRow(idx)?.description || `Item sugerido`
+                                        }}</span>
                                     </div>
                                 </div>
                             </div>
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 120px;">
+                        <TableCell class="p-1 text-left" style="width: 120px">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
                                 label=""
                                 :decimals="2"
                                 :min="0"
-                                :readonly="isReadOnly"
-                                :disabled="isReadOnly"
                                 class="h-10 w-full"
-                                :error="isPriceInvalid(item)"
                                 @input="calcTotals(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 160px;">
+                        <TableCell class="p-1 text-left" style="width: 160px">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
                                 label=""
                                 class="w-full"
-                                :disabled="isReadOnly"
-                                :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
-                                :action-disabled="isReadOnly"
+                                action-label="Nuevo impuesto"
                                 @action="openTaxDialog"
-                                @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
+                                @update:modelValue="
+                                    (val) => {
+                                        item.tax = Number(val) || 0;
+                                        calcTotals(item);
+                                    }
+                                "
                             />
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 110px;">
-                            <InputField
-                                v-model="item.quantity"
-                                type="number"
-                                label=""
-                                :readonly="isReadOnly"
-                                :disabled="isReadOnly"
-                                class="h-10 w-full"
-                                :error="isQuantityInvalid(item)"
-                                @input="calcTotals(item)"
-                            />
+                        <TableCell class="p-1 text-left" style="width: 110px">
+                            <InputField v-model="item.quantity" type="number" label="" class="h-10 w-full" @input="calcTotals(item)" />
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 160px;">
-                            <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
+                        <TableCell class="p-1 text-left" style="width: 160px">
+                            <InputField v-model="item.description" label="" class="h-10 w-full" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-2 text-left" style="width: 150px;">
-                            <InputField
-                                v-model="item.supplier_code"
-                                label=""
-                                placeholder="Código proveedor"
-                                class="h-10 w-full"
-                                :readonly="isReadOnly || !isTela(item)"
-                                :disabled="isReadOnly || !isTela(item)"
-                            />
+                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px">
+                            <InputField v-model="item.supplier_code" label="" placeholder="Código proveedor" class="h-10 w-full" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-2 text-left" style="width: 150px;">
-                            <InputField
-                                v-model="item.supplier_color"
-                                label=""
-                                placeholder="Color proveedor"
-                                class="h-10 w-full"
-                                :readonly="isReadOnly || !isTela(item)"
-                                :disabled="isReadOnly || !isTela(item)"
-                            />
+                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px">
+                            <InputField v-model="item.supplier_color" label="" placeholder="Color proveedor" class="h-10 w-full" />
                         </TableCell>
-                        <TableCell v-if="isTela(item)" class="p-2 text-left" style="width: 150px;">
+                        <TableCell v-if="isTela(item)" class="p-1 text-left" style="width: 150px">
                             <InputField
                                 v-model="item.order_width"
                                 type="number"
@@ -426,11 +387,9 @@ defineExpose({ addItem, validateFabricFields });
                                 step="any"
                                 class="h-10 w-full"
                                 :required="true"
-                                :readonly="isReadOnly || !isTela(item)"
-                                :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-2 text-left" style="width: 90px;">
+                        <TableCell class="p-1 text-left" style="width: 90px">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',
@@ -440,7 +399,7 @@ defineExpose({ addItem, validateFabricFields });
                                 })
                             }}
                         </TableCell>
-                        <TableCell v-if="showActionsColumn" class="p-2 text-center">
+                        <TableCell v-if="showActionsColumn" class="p-1 text-center">
                             <div class="flex justify-center">
                                 <DeleteButton v-if="localItems.length > 1" @click="removeItem(idx)" />
                             </div>
@@ -448,7 +407,7 @@ defineExpose({ addItem, validateFabricFields });
                     </TableRow>
 
                     <TableRow v-if="localItems.length === 0">
-                        <TableCell :colspan="totalColumns" class="py-8 text-center text-sm italic text-muted-foreground"> No hay items agregados. </TableCell>
+                        <TableCell :colspan="totalColumns" class="text-center text-muted-foreground"> No hay items agregados. </TableCell>
                     </TableRow>
                 </TableBody>
             </Table>

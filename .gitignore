@@ -26,3 +26,8 @@ yarn-error.log
 /.cursor
 /.github
 
+
+# Local dev artifacts
+.claude/
+/db/
+seed_output.log

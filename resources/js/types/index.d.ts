@@ -284,7 +284,7 @@ export interface Item {
     description: string;
     extra_fields?: ExtraFields | string;
     status: boolean;
-    item_type: 'product' | 'service';
+    item_type: 'product' | 'service' | 'draft';
     unit_measure?: string; // Añadido correctamente
     created_at?: string;
     updated_at?: string;

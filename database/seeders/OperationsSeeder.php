@@ -5,12 +5,15 @@ namespace Database\Seeders;
 use App\Models\Production\Operation;
 use App\Models\Production\OperationSection;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 class OperationsSeeder extends Seeder
 {
     public function run(): void
     {
         $sections = $this->ensureSections();
+        $hasLocationColumn = Schema::hasColumn('operations', 'location');
+        $hasDescriptionColumn = Schema::hasColumn('operations', 'description');
 
         $operations = [
             // Delantero
@@ -95,19 +98,26 @@ class OperationsSeeder extends Seeder
         foreach ($operations as $data) {
             $sectionId = $sections[$data['section']] ?? null;
 
+            $payload = [
+                'section_id' => $sectionId,
+                'measure' => $data['measure'],
+                'quantity' => $data['quantity'],
+                'sam_base' => $data['sam_base'],
+                'is_active' => true,
+            ];
+
+            if ($hasLocationColumn) {
+                $payload['location'] = $data['location'];
+            } elseif ($hasDescriptionColumn) {
+                $payload['description'] = trim(sprintf('Ubicación ref: %s', (string) ($data['location'] ?? 'N/A')));
+            }
+
             Operation::updateOrCreate(
                 [
                     'action' => strtoupper(trim($data['action'])),
                     'garment_part' => strtoupper(trim($data['garment_part'])),
                 ],
-                [
-                    'section_id' => $sectionId,
-                    'location' => $data['location'],
-                    'measure' => $data['measure'],
-                    'quantity' => $data['quantity'],
-                    'sam_base' => $data['sam_base'],
-                    'is_active' => true,
-                ]
+                $payload
             );
         }
 

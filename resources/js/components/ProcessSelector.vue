@@ -61,6 +61,7 @@ interface Props {
     modelValue: string | undefined;
     wovenProduct: boolean | undefined;
     disabled?: boolean;
+    productSheetType?: 'muestra' | 'producto';
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -69,7 +70,29 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits(['update:modelValue']);
 
 const localSelectedProcess = ref<string | null>(null);
-const nonRemovableProcesses = ['Muestra', 'Confección', 'Terminación', 'Bodega'];
+
+// Procesos permitidos y obligatorios según tipo (alineado con config processes_allowed_by_type)
+const allowedProcessesByType: Record<string, string[]> = {
+    // MUESTRA: pre-producción + Muestras. Termina ahí, sin Desarrollo de muestras ni post-Muestras.
+    muestra: ['I&D', 'Tejido', 'Corte', 'Logística', 'Estampado', 'Bordado', 'Sublimado', 'Muestras'],
+    // PRODUCTO: todo excepto Muestras.
+    producto: [
+        'I&D', 'Tejido', 'Corte', 'Logística', 'Estampado', 'Bordado', 'Sublimado',
+        'Desarrollo de muestras', 'Confección', 'Lavandería', 'Terminación',
+        'Inspección y aprobación', 'Bodega',
+    ],
+};
+
+// Procesos no removibles por tipo (alineado con batch_control_mandatory_processes_by_type)
+const nonRemovableByType: Record<string, string[]> = {
+    muestra: ['Muestras'],
+    producto: ['Desarrollo de muestras', 'Confección', 'Terminación', 'Bodega'],
+};
+
+const nonRemovableProcesses = computed<string[]>(() => {
+    if (!props.productSheetType) return ['Muestras', 'Confección', 'Terminación', 'Bodega'];
+    return nonRemovableByType[props.productSheetType] ?? ['Muestras', 'Confección', 'Terminación', 'Bodega'];
+});
 
 // Normaliza a Record<string, boolean>; acepta objeto o array desde backend
 function normalizeProcessesToRecord(value: string | undefined): Record<string, boolean> {
@@ -89,17 +112,22 @@ function normalizeProcessesToRecord(value: string | undefined): Record<string, b
 }
 
 const selectedProcesses = ref<Record<string, boolean>>(normalizeProcessesToRecord(props.modelValue));
+
+// Orden productivo (alineado con config product-sheet.batch_control_processes)
 const processOrder = [
+    'I&D',
     'Tejido',
     'Corte',
+    'Logística',
+    'Estampado',
     'Bordado',
     'Sublimado',
-    'Estampado',
-    'Lavandería',
-    'Muestra',
     'Desarrollo de muestras',
+    'Muestras',
     'Confección',
+    'Lavandería',
     'Terminación',
+    'Inspección y aprobación',
     'Bodega',
 ];
 
@@ -109,8 +137,17 @@ const orderedSelectedProcesses = computed(() => {
         .sort((a, b) => processOrder.indexOf(a) - processOrder.indexOf(b));
 });
 
+// Procesos disponibles filtrados por tipo de ficha
+const typeFilteredAvailableProcesses = computed(() => {
+    if (!props.productSheetType) return props.availableProcesses;
+    const allowed = allowedProcessesByType[props.productSheetType];
+    if (!allowed) return props.availableProcesses;
+    const allowedSet = new Set(allowed);
+    return props.availableProcesses.filter((p) => allowedSet.has(p));
+});
+
 const filteredProcesses = computed(() => {
-    return props.availableProcesses.filter((process) => !selectedProcesses.value[process]);
+    return typeFilteredAvailableProcesses.value.filter((process) => !selectedProcesses.value[process]);
 });
 
 watch(localSelectedProcess, (newValue) => {
@@ -127,11 +164,40 @@ watch(
     { deep: true },
 );
 
+// Compatibilidad: Muestra → Muestras, Estampando → Estampado
+const processAliases: Record<string, string> = {
+    Muestra: 'Muestras',
+    Estampando: 'Estampado',
+    'Desarrollo de muestra': 'Desarrollo de muestras',
+    'Desarrollo de Muestra': 'Desarrollo de muestras',
+    'Desarrollo de Muestras': 'Desarrollo de muestras',
+};
+
 watch(
     () => props.modelValue,
     (newValue) => {
         const parsed = normalizeProcessesToRecord(newValue);
-        nonRemovableProcesses.forEach((process) => {
+        // Normalizar nombres legacy
+        for (const [oldName, newName] of Object.entries(processAliases)) {
+            if (parsed[oldName]) {
+                parsed[newName] = true;
+                delete parsed[oldName];
+            }
+        }
+        // Eliminar procesos no permitidos para el tipo actual
+        if (props.productSheetType) {
+            const allowed = allowedProcessesByType[props.productSheetType];
+            if (allowed) {
+                const allowedSet = new Set(allowed);
+                for (const key of Object.keys(parsed)) {
+                    if (!allowedSet.has(key)) {
+                        delete parsed[key];
+                    }
+                }
+            }
+        }
+        // Asegurar obligatorios
+        nonRemovableProcesses.value.forEach((process) => {
             parsed[process] = true;
         });
         const serialized = JSON.stringify(parsed);
@@ -140,6 +206,27 @@ watch(
         }
     },
     { immediate: true },
+);
+
+// Cuando cambia el tipo, limpiar procesos no permitidos y aplicar obligatorios del nuevo tipo
+watch(
+    () => props.productSheetType,
+    (newType) => {
+        if (!newType) return;
+        const allowed = allowedProcessesByType[newType];
+        if (!allowed) return;
+        const allowedSet = new Set(allowed);
+        const current: Record<string, boolean> = {};
+        for (const [key, val] of Object.entries(selectedProcesses.value)) {
+            if (val && allowedSet.has(key)) {
+                current[key] = true;
+            }
+        }
+        for (const p of nonRemovableByType[newType] ?? []) {
+            current[p] = true;
+        }
+        selectedProcesses.value = current;
+    },
 );
 
 watch(
@@ -164,7 +251,7 @@ function addProcess(process: string) {
 }
 
 function removeProcess(process: string) {
-    if (!nonRemovableProcesses.includes(process)) {
+    if (!nonRemovableProcesses.value.includes(process)) {
         delete selectedProcesses.value[process];
     }
 }

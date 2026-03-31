@@ -1,49 +1,36 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import EditButton from '@/components/common/EditButton.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import Input from '@/components/ui/input/Input.vue';
 import InputDate from '@/components/InputDate.vue';
 import SelectField from '@/components/SelectField.vue';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import Input from '@/components/ui/input/Input.vue';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAlertStack } from '@/composables/useAlert';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
+import type { PurchaseRequest } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
+import { CheckCircle, Eye, MoreVertical, PlusCircle, Search, Send, X, XCircle } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Eye, PlusCircle, Search, CheckCircle, XCircle, Send, X, Trash2 } from 'lucide-vue-next';
-import EditButton from '@/components/common/EditButton.vue';
-import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
-import {
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
-import { useAlertStack } from '@/composables/useAlert';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { PurchaseRequest } from '@/domain/Expenses';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
-import { uiPatterns } from '@/lib/ui-patterns';
 
-const breadcrumbs = [
-    { title: 'Solicitud de compra', href: '/solicitudes-compra' },
-];
+const breadcrumbs = [{ title: 'Solicitud de compra', href: '/solicitudes-compra' }];
 
 const requests = ref<PurchaseRequest[]>([]);
 const searchQuery = ref('');
 const statusFilter = ref('all');
 const providerFilter = ref('');
-const dateFilter = ref('');
+const dateFrom = ref('');
+const dateTo = ref('');
 const isLoading = ref(false);
 
 const DEFAULT_STATUS_FILTER = 'all';
@@ -51,25 +38,12 @@ const DEFAULT_STATUS_FILTER = 'all';
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value.trim().length > 0);
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
-const hasActiveFilters = computed(() =>
-    isSearchActive.value ||
-    isStatusFilterActive.value ||
-    isProviderFilterActive.value ||
-    isDateFilterActive.value,
-);
+const isDateFromActive = computed(() => Boolean(dateFrom.value));
+const isDateToActive = computed(() => Boolean(dateTo.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
-let isSyncingFilters = false;
 
-const {
-    successMessage,
-    errorMessage,
-    errorType,
-    clearSuccess,
-    clearError,
-    showError,
-} = useAlertStack();
+const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError } = useAlertStack();
 
 const statusOptions = [
     { id: 'all', name: 'Todos los estados' },
@@ -98,7 +72,6 @@ const statusBadgeTones: Record<string, 'gray' | 'yellow' | 'green' | 'blue' | 'r
     rejected: 'red',
     cancelled: 'slate',
 };
-
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
     style: 'currency',
@@ -143,7 +116,7 @@ const getRequestItemsPreview = (request: PurchaseRequest) => {
             items = [];
         }
     }
-    
+
     const names = items
         .map((item) => {
             const rawName = item.name || item.item?.name || item.item_name || item.description;
@@ -175,12 +148,8 @@ const isDialogBootstrapping = ref(false);
 const hasDialogLoadingStarted = ref(false);
 const isDeleteDialogOpen = ref(false);
 const requestToDelete = ref<PurchaseRequest | null>(null);
-const showSendToApprovalConfirm = ref(false);
-const requestToSendToApproval = ref<PurchaseRequest | null>(null);
 const isRejectDialogOpen = ref(false);
 const requestToReject = ref<PurchaseRequest | null>(null);
-const isCancelDialogOpen = ref(false);
-const requestToCancel = ref<PurchaseRequest | null>(null);
 const DIALOG_PREPARE_FALLBACK_MS = 1500;
 let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -341,17 +310,9 @@ async function handleDeleteRequest() {
 }
 
 async function handleSendToApproval(request: PurchaseRequest) {
-    requestToSendToApproval.value = request.id ? request : null;
-    showSendToApprovalConfirm.value = Boolean(requestToSendToApproval.value);
-}
-
-async function confirmSendToApproval() {
-    if (!requestToSendToApproval.value?.id) {
-        showSendToApprovalConfirm.value = false;
-        return;
-    }
+    if (!request.id) return;
     try {
-        await axios.post(`/gastos/solicitudes-compra/${requestToSendToApproval.value.id}/send-to-approval`);
+        await axios.post(`/gastos/solicitudes-compra/${request.id}/send-to-approval`);
         successMessage.value = 'Solicitud enviada a aprobación correctamente.';
         fetchRequests();
     } catch (err: any) {
@@ -402,27 +363,16 @@ async function handleReject(reason: string) {
 }
 
 async function handleCancel(request: PurchaseRequest) {
-    requestToCancel.value = request.id ? request : null;
-    isCancelDialogOpen.value = Boolean(requestToCancel.value);
-}
-
-async function confirmCancelRequest() {
-    if (!requestToCancel.value?.id) {
-        isCancelDialogOpen.value = false;
-        return;
-    }
-
+    if (!request.id) return;
+    if (!confirm('¿Estás seguro de cancelar esta solicitud?')) return;
     try {
-        await axios.post(`/gastos/solicitudes-compra/${requestToCancel.value.id}/cancel`);
+        await axios.post(`/gastos/solicitudes-compra/${request.id}/cancel`);
         successMessage.value = 'Solicitud cancelada correctamente.';
         fetchRequests();
     } catch (err: any) {
         const message = err?.response?.data?.message || 'No se pudo cancelar la solicitud.';
         showError(message);
         console.error('Error cancelando solicitud', err);
-    } finally {
-        isCancelDialogOpen.value = false;
-        requestToCancel.value = null;
     }
 }
 
@@ -466,18 +416,6 @@ const canCancel = (request: PurchaseRequest): boolean => {
     return status === 'draft' || status === 'pending';
 };
 
-const canDeleteRequest = (request: PurchaseRequest): boolean => {
-    return canEditRequest(request) || request.status === 'cancelled';
-};
-
-const hasSecondaryActions = (request: PurchaseRequest): boolean => {
-    return canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request);
-};
-
-const hasMenuActions = (request: PurchaseRequest): boolean => {
-    return hasSecondaryActions(request) || canDeleteRequest(request);
-};
-
 async function fetchRequests() {
     isLoading.value = true;
     const params: Record<string, unknown> = {};
@@ -490,18 +428,16 @@ async function fetchRequests() {
     if (providerFilter.value.trim()) {
         params.provider_name = providerFilter.value.trim();
     }
-    if (dateFilter.value) {
-        params.date_from = dateFilter.value;
-        params.date_to = dateFilter.value;
+    if (dateFrom.value) {
+        params.date_from = dateFrom.value;
+    }
+    if (dateTo.value) {
+        params.date_to = dateTo.value;
     }
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
-        const rows = Array.isArray(response.data?.data)
-            ? response.data.data
-            : Array.isArray(response.data)
-                ? response.data
-                : [];
-        
+        const rows = Array.isArray(response.data?.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
+
         // Asegurar que items sea un array en cada solicitud
         requests.value = rows.map((request: any) => {
             if (request.items && typeof request.items === 'string') {
@@ -515,7 +451,7 @@ async function fetchRequests() {
             }
             return request;
         });
-        
+
         clearError();
     } catch (error) {
         requests.value = [];
@@ -526,24 +462,12 @@ async function fetchRequests() {
     }
 }
 
-function applyFilters() {
-    void fetchRequests();
-}
+watch([statusFilter, providerFilter, dateFrom, dateTo], () => {
+    fetchRequests();
+});
 
-function resetFilters() {
-    if (!hasActiveFilters.value) return;
-    isSyncingFilters = true;
-    searchQuery.value = '';
-    statusFilter.value = DEFAULT_STATUS_FILTER;
-    providerFilter.value = '';
-    dateFilter.value = '';
-    isSyncingFilters = false;
-    applyFilters();
-}
-
-watch([searchQuery, statusFilter, providerFilter, dateFilter], () => {
-    if (isSyncingFilters) return;
-    applyFilters();
+watch(searchQuery, () => {
+    fetchRequests();
 });
 
 onMounted(() => {
@@ -569,15 +493,13 @@ onBeforeUnmount(() => {
         <div class="flex flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="space-y-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">Solicitud de Compra y Servicios</h1>
-                    <p :class="uiPatterns.typography.pageSubtitle">
-                        Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.
-                    </p>
+                    <h1 class="text-lg font-bold">Solicitud de Compra y Servicios</h1>
+                    <p class="text-sm text-muted-foreground">Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.</p>
                 </div>
                 <button
                     type="button"
                     :disabled="isPreparingDialog"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     @click="openCreateRequest"
                 >
                     <PlusCircle class="h-4 w-4" />
@@ -586,10 +508,10 @@ onBeforeUnmount(() => {
             </div>
 
             <FilterBar align="start">
-                <FilterField label="Buscar solicitud" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                <FilterField label="Buscar solicitud" :active="isSearchActive" class="min-w-[220px] flex-1">
                     <div class="relative">
                         <Input v-model="searchQuery" placeholder="Buscar solicitud" class="h-10 w-full pl-10" />
-                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2 pointer-events-none">
+                        <span class="pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search class="h-4 w-4 text-muted-foreground" />
                         </span>
                     </div>
@@ -606,53 +528,46 @@ onBeforeUnmount(() => {
                 <FilterField label="Proveedor" :active="isProviderFilterActive" class="min-w-[180px]">
                     <Input v-model="providerFilter" placeholder="Nombre del proveedor" class="h-10 w-full" />
                 </FilterField>
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFilter" placeholder="dd/mm/aaaa" />
+                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFrom" placeholder="Desde" />
                 </FilterField>
-                <Button
-                    v-if="hasActiveFilters"
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    class="h-10"
-                    @click="resetFilters"
-                >
-                    Limpiar
-                </Button>
+                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
+                    <InputDate v-model="dateTo" placeholder="Hasta" />
+                </FilterField>
             </FilterBar>
 
             <div class="relative overflow-auto rounded-xl border border-sidebar-border/70">
                 <Table class="text-center">
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead">N° Solicitud</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Fecha</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Item</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Total estimado</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Descripción</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
-                            <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>
+                            <TableHead># Solicitud</TableHead>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead>Proveedor</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Total estimado</TableHead>
+                            <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <template v-if="isLoading">
                             <TableRow>
                                 <TableCell colspan="8">
-                                    <div :class="`py-6 text-center ${uiPatterns.typography.bodyMuted}`">Cargando solicitudes...</div>
+                                    <div class="py-6 text-center text-sm text-muted-foreground">Cargando solicitudes...</div>
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else-if="!requests.length">
                             <TableRow>
                                 <TableCell colspan="8">
-                                    <div :class="`py-6 text-center ${uiPatterns.typography.bodyMuted}`">No se encontraron solicitudes.</div>
+                                    <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron solicitudes.</div>
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else>
                             <TableRow v-for="request in requests" :key="request.id" class="text-center">
-                                <TableCell :class="uiPatterns.typography.bodyStrong">{{ request.request_number || request.id }}</TableCell>
+                                <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
                                 <TableCell>{{ formatDate(request.date) }}</TableCell>
                                 <TableCell class="max-w-[180px] truncate">{{ request.provider_name || '-' }}</TableCell>
                                 <TableCell>{{ getRequestItemsPreview(request) }}</TableCell>
@@ -661,20 +576,32 @@ onBeforeUnmount(() => {
                                 <TableCell>
                                     <TableStatusBadge :label="getStatusLabel(request.status)" :tone="getStatusTone(request.status)" />
                                 </TableCell>
-                                <TableCell class="flex justify-center items-center gap-2">
+                                <TableCell class="flex items-center justify-center gap-2">
                                     <button
-                                        class="flex items-center text-muted-foreground hover:text-primary transition-colors duration-200"
+                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
                                         @click="viewRequest(request)"
                                         title="Ver detalles"
                                     >
-                                        <Eye class="w-4 h-4" />
+                                        <Eye class="h-4 w-4" />
                                     </button>
-                                    <EditButton 
-                                        v-if="canEditRequest(request)"
-                                        :onClick="() => editRequest(request)" 
-                                        title="Editar solicitud"
+                                    <EditButton v-if="canEditRequest(request)" :onClick="() => editRequest(request)" title="Editar solicitud" />
+                                    <DeleteButton
+                                        v-if="canEditRequest(request) || request.status === 'cancelled'"
+                                        :onClick="() => confirmDeleteRequest(request)"
+                                        title="Eliminar solicitud"
                                     />
-                                    <TableActionsMenu v-if="hasMenuActions(request)" content-class="w-48">
+                                    <DropdownMenu
+                                        v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
+                                    >
+                                        <DropdownMenuTrigger as-child>
+                                            <button
+                                                class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700"
+                                                title="Más acciones"
+                                            >
+                                                <MoreVertical class="h-4 w-4" />
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" class="w-48">
                                             <DropdownMenuItem
                                                 v-if="canSendToApproval(request)"
                                                 class="cursor-pointer gap-2"
@@ -703,15 +630,8 @@ onBeforeUnmount(() => {
                                             >
                                                 <X class="h-4 w-4" /> Cancelar
                                             </DropdownMenuItem>
-                                            <DropdownMenuSeparator v-if="hasSecondaryActions(request) && canDeleteRequest(request)" />
-                                            <DropdownMenuItem
-                                                v-if="canDeleteRequest(request)"
-                                                class="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                                                @click="confirmDeleteRequest(request)"
-                                            >
-                                                <Trash2 class="h-4 w-4" /> Eliminar
-                                            </DropdownMenuItem>
-                                        </TableActionsMenu>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TableCell>
                             </TableRow>
                         </template>
@@ -739,25 +659,6 @@ onBeforeUnmount(() => {
         cancel-text="Cancelar"
         :destructive="true"
         @confirm="handleDeleteRequest"
-    />
-
-    <ConfirmDialog
-        v-model:open="showSendToApprovalConfirm"
-        title="Enviar a aprobación"
-        description="¿Confirmas que deseas enviar esta solicitud a aprobación?"
-        confirm-text="Enviar"
-        cancel-text="Cancelar"
-        @confirm="confirmSendToApproval"
-    />
-
-    <ConfirmDialog
-        v-model:open="isCancelDialogOpen"
-        title="Cancelar solicitud"
-        description="¿Estás seguro de cancelar esta solicitud?"
-        confirm-text="Cancelar solicitud"
-        cancel-text="Volver"
-        :destructive="true"
-        @confirm="confirmCancelRequest"
     />
 
     <ConfirmWithInputDialog

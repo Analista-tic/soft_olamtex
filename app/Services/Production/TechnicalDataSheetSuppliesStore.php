@@ -2,327 +2,202 @@
 
 namespace App\Services\Production;
 
-use App\Models\Expenses\PurchaseDocument;
-use App\Models\Expenses\PurchaseDocumentItem;
-use App\Models\Textil\FabricRoll;
-use App\Models\MasterData\Item;
-use Illuminate\Support\Facades\Storage;
+use App\Models\Production\TechnicalDataSheetSupply;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
+/**
+ * Persiste insumos de ficha técnica en la tabla relacional
+ * `technical_data_sheet_supplies` (un registro por insumo).
+ *
+ * El contrato público (read/write/upsertOne/deleteOne) mantiene
+ * compatibilidad con el controlador existente.
+ */
 class TechnicalDataSheetSuppliesStore
 {
-    public function getPath(int $opId): string
-    {
-        return "production/op_{$opId}_supplies.json";
-    }
-
+    /**
+     * Lee todos los insumos activos de una OP y los retorna
+     * en el formato array camelCase que espera el frontend.
+     *
+     * @return array<int, array<string, mixed>>
+     */
     public function read(int $opId): array
     {
-        $fromDb = $this->readFromDb($opId);
-        if ($fromDb !== null) {
-            return $fromDb;
-        }
-
-        $path = $this->getPath($opId);
-        if (!Storage::exists($path)) {
-            return [];
-        }
-
-        $raw = Storage::get($path);
-        if (!is_string($raw) || trim($raw) === '') {
-            return [];
-        }
-
-        $decoded = json_decode($raw, true);
-        return is_array($decoded) ? array_values($decoded) : [];
-    }
-
-    public function write(int $opId, array $items): void
-    {
-        $items = array_values($items);
-
-        $sheet = \App\Models\Production\TechnicalSheet::firstOrCreate(
-            ['production_order_id' => $opId],
-            ['status' => \App\Models\Production\TechnicalSheet::STATUS_DRAFT],
-        );
-        \App\Models\Production\TechnicalSheetSupply::updateOrCreate(
-            ['technical_sheet_id' => $sheet->id],
-            ['items' => $items],
-        );
-
-        Storage::put($this->getPath($opId), json_encode($items, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-    }
-
-    private function readFromDb(int $opId): ?array
-    {
-        $sheet = \App\Models\Production\TechnicalSheet::where('production_order_id', $opId)->first();
-        if (!$sheet) {
-            return null;
-        }
-
-        $snapshot = $sheet->suppliesSnapshot()->first();
-        if (!$snapshot) {
-            return null;
-        }
-
-        return is_array($snapshot->items) ? array_values($snapshot->items) : [];
+        return TechnicalDataSheetSupply::query()
+            ->where('production_order_id', $opId)
+            ->orderBy('sequence')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (TechnicalDataSheetSupply $s) => $s->toFrontendArray())
+            ->values()
+            ->all();
     }
 
     /**
-     * Retorna la ultima compra registrada para un item de insumo.
+     * Reemplaza la lista completa de insumos de una OP (upsert bulk).
+     * Los insumos no presentes en $items son eliminados (soft-delete).
      *
-     * @return array{
-     *   provider: array{id:int|null,name:string|null}|null,
-     *   price: float|null,
-     *   currency: string,
-     *   date: string|null,
-     *   source: string
-     * }|null
+     * @param  array<int, array<string, mixed>>  $items  payload camelCase del frontend
+     */
+    public function write(int $opId, array $items): void
+    {
+        DB::transaction(function () use ($opId, $items) {
+            $incomingUids = collect($items)
+                ->map(fn (array $i) => trim((string) ($i['id'] ?? '')))
+                ->filter(fn (string $uid) => $uid !== '')
+                ->all();
+
+            // Eliminar (soft-delete) los que ya no están en la lista
+            TechnicalDataSheetSupply::query()
+                ->where('production_order_id', $opId)
+                ->when(
+                    count($incomingUids) > 0,
+                    fn ($q) => $q->whereNotIn('uid', $incomingUids)
+                )
+                ->delete();
+
+            foreach ($items as $index => $item) {
+                $this->persistOne($opId, $item, $index);
+            }
+        });
+    }
+
+    /**
+     * Crea o actualiza un único insumo (upsert por uid).
+     *
+     * @param  array<string, mixed>  $item  payload camelCase
+     */
+    public function upsertOne(int $opId, array $item): TechnicalDataSheetSupply
+    {
+        $uid = trim((string) ($item['id'] ?? ''));
+        if ($uid === '') {
+            $uid = (string) Str::uuid();
+        }
+        $item['id'] = $uid;
+
+        return DB::transaction(fn () => $this->persistOne($opId, $item));
+    }
+
+    /**
+     * Elimina (soft-delete) un insumo por su uid.
+     */
+    public function deleteOne(int $opId, string $uid): void
+    {
+        TechnicalDataSheetSupply::query()
+            ->where('production_order_id', $opId)
+            ->where('uid', trim($uid))
+            ->delete();
+    }
+
+    // ── Accesos adicionales usados por el controlador ────────────────
+
+    /**
+     * Retorna datos de la última compra de un ítem de inventario.
+     * Delegado al repositorio de compras; implementación pendiente
+     * según módulo de Gastos/Compras del proyecto.
+     *
+     * @return array<string, mixed>|null
      */
     public function getLastPurchaseForItem(int $itemId): ?array
     {
-        $row = PurchaseDocumentItem::query()
-            ->join('purchase_documents', 'purchase_documents.id', '=', 'purchase_document_items.purchase_document_id')
-            ->leftJoin('contacts', 'contacts.id', '=', 'purchase_documents.contact_id')
-            ->where('purchase_document_items.item_id', $itemId)
-            ->where('purchase_documents.document_type', PurchaseDocument::TYPE_INVOICE)
-            ->where('purchase_documents.status', 'approved')
-            ->whereNull('purchase_documents.deleted_at')
-            ->orderByDesc('purchase_documents.approved_at')
-            ->orderByDesc('purchase_documents.date')
-            ->orderByDesc('purchase_documents.id')
-            ->selectRaw('
-                purchase_documents.contact_id as provider_id,
-                COALESCE(contacts.full_name, purchase_documents.provider_name) as provider_name,
-                purchase_document_items.price as unit_price,
-                purchase_documents.date as invoice_date
-            ')
-            ->first();
-
-        if (!$row) {
-            return null;
-        }
-
-        $providerId = $row->provider_id !== null ? (int) $row->provider_id : null;
-        $providerName = $row->provider_name !== null ? trim((string) $row->provider_name) : null;
-
-        return [
-            'provider' => $providerId !== null || $providerName !== null
-                ? [
-                    'id' => $providerId,
-                    'name' => $providerName,
-                ]
-                : null,
-            'price' => $row->unit_price !== null ? (float) $row->unit_price : null,
-            'currency' => 'COP',
-            'date' => $row->invoice_date !== null ? (string) $row->invoice_date : null,
-            'source' => 'invoice',
-        ];
-    }
-
-    /**
-     * Retorna metadata derivada del item para ficha tecnica:
-     * - ultima compra (proveedor/precio/fecha)
-     * - ancho (desde inventario de rollos o item.extra_fields)
-     *
-     * @return array{
-     *   itemId:int,
-     *   provider:array{id:int|null,name:string|null}|null,
-     *   price:float|null,
-     *   currency:string,
-     *   date:string|null,
-     *   invoiceNumber:string|null,
-     *   width:float|null,
-     *   widthUnit:string|null,
-     *   source:array{price:string,width:string}
-     * }
-     */
-    public function getItemMeta(int $itemId): array
-    {
-        $lastPurchase = $this->getLastPurchaseForItemWithInvoiceNumber($itemId);
-        $widthMeta = $this->resolveWidthMeta($itemId);
-
-        return [
-            'itemId' => $itemId,
-            'provider' => $lastPurchase['provider'],
-            'price' => $lastPurchase['price'],
-            'currency' => 'COP',
-            'date' => $lastPurchase['date'],
-            'invoiceNumber' => $lastPurchase['invoiceNumber'],
-            'width' => $widthMeta['width'],
-            'widthUnit' => $widthMeta['widthUnit'],
-            'source' => [
-                'price' => $lastPurchase['source'],
-                'width' => $widthMeta['source'],
-            ],
-        ];
-    }
-
-    /**
-     * @return array{
-     *   provider:array{id:int|null,name:string|null}|null,
-     *   price:float|null,
-     *   date:string|null,
-     *   invoiceNumber:string|null,
-     *   source:string
-     * }
-     */
-    private function getLastPurchaseForItemWithInvoiceNumber(int $itemId): array
-    {
-        $row = PurchaseDocumentItem::query()
-            ->join('purchase_documents', 'purchase_documents.id', '=', 'purchase_document_items.purchase_document_id')
-            ->leftJoin('contacts', 'contacts.id', '=', 'purchase_documents.contact_id')
-            ->where('purchase_document_items.item_id', $itemId)
-            ->where('purchase_documents.document_type', PurchaseDocument::TYPE_INVOICE)
-            ->where('purchase_documents.status', 'approved')
-            ->whereNull('purchase_documents.deleted_at')
-            ->orderByDesc('purchase_documents.approved_at')
-            ->orderByDesc('purchase_documents.date')
-            ->orderByDesc('purchase_documents.id')
-            ->selectRaw('
-                purchase_documents.contact_id as provider_id,
-                COALESCE(contacts.full_name, purchase_documents.provider_name) as provider_name,
-                purchase_document_items.price as unit_price,
-                purchase_documents.date as invoice_date,
-                purchase_documents.document_number as invoice_number
-            ')
-            ->first();
-
-        if (!$row) {
-            return [
-                'provider' => null,
-                'price' => null,
-                'date' => null,
-                'invoiceNumber' => null,
-                'source' => 'unknown',
-            ];
-        }
-
-        $providerId = $row->provider_id !== null ? (int) $row->provider_id : null;
-        $providerName = $row->provider_name !== null ? trim((string) $row->provider_name) : null;
-
-        return [
-            'provider' => $providerId !== null || $providerName !== null
-                ? [
-                    'id' => $providerId,
-                    'name' => $providerName,
-                ]
-                : null,
-            'price' => $row->unit_price !== null ? (float) $row->unit_price : null,
-            'date' => $row->invoice_date !== null ? (string) $row->invoice_date : null,
-            'invoiceNumber' => $row->invoice_number !== null ? (string) $row->invoice_number : null,
-            'source' => 'invoice',
-        ];
-    }
-
-    /**
-     * @return array{width:float|null,widthUnit:string|null,source:string}
-     */
-    private function resolveWidthMeta(int $itemId): array
-    {
-        $inventoryWidth = FabricRoll::query()
-            ->join('purchase_document_items', 'purchase_document_items.id', '=', 'fabric_rolls.purchase_document_item_id')
-            ->where('purchase_document_items.item_id', $itemId)
-            ->whereNotNull('fabric_rolls.roll_width')
-            ->where('fabric_rolls.roll_width', '>', 0)
-            ->orderByDesc('fabric_rolls.entry_date')
-            ->orderByDesc('fabric_rolls.id')
-            ->value('fabric_rolls.roll_width');
-
-        if ($inventoryWidth !== null) {
-            return [
-                'width' => (float) $inventoryWidth,
-                'widthUnit' => 'm',
-                'source' => 'inventory',
-            ];
-        }
-
-        $item = Item::query()->find($itemId);
-        if ($item) {
-            $fromItem = $this->extractWidthFromItem($item);
-            if ($fromItem !== null) {
-                return [
-                    'width' => $fromItem['width'],
-                    'widthUnit' => $fromItem['unit'],
-                    'source' => 'item',
-                ];
-            }
-        }
-
-        return [
-            'width' => null,
-            'widthUnit' => null,
-            'source' => 'unknown',
-        ];
-    }
-
-    /**
-     * @return array{width:float,unit:string}|null
-     */
-    private function extractWidthFromItem(Item $item): ?array
-    {
-        $extra = is_array($item->extra_fields) ? $item->extra_fields : [];
-        foreach ($extra as $key => $value) {
-            if (!is_string($key)) {
-                continue;
-            }
-
-            $normalizedKey = $this->normalizeText($key);
-            if (!str_contains($normalizedKey, 'ancho')) {
-                continue;
-            }
-
-            $parsed = $this->parseNumeric($value);
-            if ($parsed === null || $parsed <= 0) {
-                continue;
-            }
-
-            $unit = str_contains($normalizedKey, 'cm') ? 'cm' : 'm';
-            return [
-                'width' => $parsed,
-                'unit' => $unit,
-            ];
-        }
-
+        // TODO: integrar con PurchaseDocument / PurchaseOrderDetail
         return null;
     }
 
-    private function normalizeText(string $value): string
+    /**
+     * Meta del ítem de inventario (unidad, descripción, etc.).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getItemMeta(int $itemId): ?array
     {
-        $text = mb_strtolower(trim($value));
-        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
-        if ($ascii !== false) {
-            $text = mb_strtolower(trim($ascii));
+        $item = \App\Models\MasterData\Item::query()->find($itemId);
+        if (!$item) {
+            return null;
         }
-        return preg_replace('/\s+/', ' ', $text) ?: '';
+
+        return [
+            'id'           => (int) $item->id,
+            'name'         => trim((string) $item->name),
+            'reference'    => $item->reference ?? null,
+            'unit_measure' => $item->unit_measure ?? null,
+            'description'  => $item->description ?? null,
+        ];
     }
 
-    private function parseNumeric(mixed $value): ?float
+    // ── Privado ──────────────────────────────────────────────────────
+
+    /**
+     * Persiste (crea o actualiza) un insumo individual.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function persistOne(int $opId, array $item, int $index = 0): TechnicalDataSheetSupply
     {
-        if ($value === null) {
+        $uid = trim((string) ($item['id'] ?? '')) ?: (string) Str::uuid();
+
+        /** @var TechnicalDataSheetSupply $record */
+        $record = TechnicalDataSheetSupply::query()->firstOrNew([
+            'production_order_id' => $opId,
+            'uid'                 => $uid,
+        ]);
+
+        $record->fill([
+            'name'              => trim((string) $item['name']),
+            'stage'             => $item['stage'] ?? 'GENERAL',
+            'sequence'          => isset($item['sequence']) ? (int) $item['sequence'] : ($index + 1),
+            'display_label'     => $this->nullableText($item['displayLabel'] ?? null),
+            'item_id'           => isset($item['itemId']) && $item['itemId'] !== null ? (int) $item['itemId'] : null,
+            'requested_name'    => $this->nullableText($item['requestedName'] ?? null),
+            'supplier'          => $this->nullableText($item['supplier'] ?? null),
+            'description'       => $this->nullableText($item['description'] ?? null),
+            'moda_linea'        => $item['modaLinea'] ?? 'NA',
+            'uom'               => $this->nullableText($item['uom'] ?? null),
+            'qty_per_unit'      => (float) ($item['qtyPerUnit'] ?? 0),
+            'unit_cost'         => (float) ($item['unitCost'] ?? 0),
+            'internal_request_id' => isset($item['internalRequestId']) ? (int) $item['internalRequestId'] : null,
+            'purchase_request_id' => isset($item['purchaseRequestId']) ? (int) $item['purchaseRequestId'] : null,
+            'document_url'      => $this->nullableText($item['documentUrl'] ?? null),
+            'notes'             => $this->nullableText($item['notes'] ?? null),
+            'is_draft'          => !empty($item['isDraft']),
+            'size_measurements' => $this->normalizeSizeMeasurements($item['sizeMeasurements'] ?? null),
+        ]);
+
+        $record->save();
+
+        return $record;
+    }
+
+    private function nullableText(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $text = trim($value);
+        return $text !== '' ? $text : null;
+    }
+
+    /**
+     * Normaliza el JSON de medidas por talla.
+     * Espera: {"S":{"corte":0.66,"termi":0.64}, ...}
+     *
+     * @return array<string, array{corte: float, termi: float}>|null
+     */
+    private function normalizeSizeMeasurements(mixed $value): ?array
+    {
+        if (!is_array($value) || empty($value)) {
             return null;
         }
 
-        if (is_numeric($value)) {
-            $parsed = (float) $value;
-            return $parsed > 0 ? $parsed : null;
+        $result = [];
+        foreach ($value as $size => $measures) {
+            if (!is_array($measures)) continue;
+            $result[(string) $size] = [
+                'corte' => (float) ($measures['corte'] ?? 0),
+                'termi' => (float) ($measures['termi'] ?? 0),
+            ];
         }
 
-        $raw = trim((string) $value);
-        if ($raw === '') {
-            return null;
-        }
-
-        $sanitized = preg_replace('/[^0-9,.\-]/', '', $raw);
-        if (!is_string($sanitized) || $sanitized === '') {
-            return null;
-        }
-
-        $normalized = str_replace(',', '.', $sanitized);
-        if (!is_numeric($normalized)) {
-            return null;
-        }
-
-        $parsed = (float) $normalized;
-        return $parsed > 0 ? $parsed : null;
+        return empty($result) ? null : $result;
     }
 }

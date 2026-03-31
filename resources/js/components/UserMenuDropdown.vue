@@ -9,8 +9,8 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useInitials } from '@/composables/useInitials';
-import type { SharedData } from '@/domain/shared';
 import type { User } from '@/domain/Settings/types';
+import type { SharedData } from '@/domain/shared';
 import { router, usePage } from '@inertiajs/vue3';
 import { ChevronDown, LogOut, Settings, User as UserIcon } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -68,12 +68,7 @@ function logout() {
             </button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent
-            align="end"
-            side="bottom"
-            :side-offset="10"
-            class="z-[60] w-60 rounded-xl"
-        >
+        <DropdownMenuContent align="end" side="bottom" :side-offset="10" class="z-[60] w-60 rounded-xl">
             <DropdownMenuLabel class="font-normal">
                 <p class="truncate text-sm font-medium leading-none">{{ user.name }}</p>
                 <p class="mt-1 truncate text-xs leading-none text-muted-foreground">{{ user.email }}</p>

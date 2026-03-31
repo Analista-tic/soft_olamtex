@@ -1,36 +1,29 @@
 <script setup lang="ts">
-import EditButton from '@/components/common/EditButton.vue';
-import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
+import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import EditButton from '@/components/common/EditButton.vue';
+import FilterBar from '@/components/FilterBar.vue';
+import FilterField from '@/components/FilterField.vue';
+import InputDate from '@/components/InputDate.vue';
+import SelectField from '@/components/SelectField.vue';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { useAlertStack } from '@/composables/useAlert';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import type { PurchaseInvoice } from '@/domain/Expenses';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { PlusCircle, Printer, Search, Mail, Package, Eye, Trash2 } from 'lucide-vue-next';
+import { Eye, Mail, MoreVertical, Package, PlusCircle, Printer, Search } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialogTelas from './PurchaseInvoiceDialogTelas.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
-import SelectField from '@/components/SelectField.vue';
-import InputDate from '@/components/InputDate.vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
-import FilterBar from '@/components/FilterBar.vue';
-import FilterField from '@/components/FilterField.vue';
-import { useAlertStack } from '@/composables/useAlert';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import {
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
-import { uiPatterns } from '@/lib/ui-patterns';
 
-const breadcrumbs = [
-    { title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' },
-];
+const breadcrumbs = [{ title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' }];
 
 const invoices = ref<PurchaseInvoice[]>([]);
 const isDialogOpen = ref(false);
@@ -49,28 +42,20 @@ const totalItems = ref(0);
 const isPrintDialogOpen = ref(false);
 const invoiceToPrint = ref<PurchaseInvoice | null>(null);
 const isSendingMail = ref(false);
-const {
-    successMessage,
-    errorMessage,
-    errorType,
-    showSuccess,
-    showError,
-    clearSuccess,
-    clearError,
-    clearAlerts,
-} = useAlertStack();
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError, clearAlerts } = useAlertStack();
 
 const statusFilter = ref('all');
 const providerFilter = ref('all');
 const subgroupFilter = ref('all');
-const dateFilter = ref('');
+const dateFrom = ref('');
+const dateTo = ref('');
 const providers = ref<{ id: number; full_name: string }[]>([]);
 const subgroups = ref<{ id: number; name: string }[]>([]);
 const facturasFabricRoute = '/gastos/facturas-compra-tela';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
-const receptionScopeParam = 'scope';
-const receptionScopeValue = 'fabric';
+const receptionInvoiceTypeParam = 'invoice_type';
+const receptionInvoiceTypeValue = 'fabric';
 
 const DEFAULT_STATUS_FILTER = 'all';
 const DEFAULT_PROVIDER_FILTER = 'all';
@@ -80,19 +65,12 @@ const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const isProviderFilterActive = computed(() => providerFilter.value !== DEFAULT_PROVIDER_FILTER);
 const isSubgroupFilterActive = computed(() => subgroupFilter.value !== DEFAULT_SUBGROUP_FILTER);
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
-const hasActiveFilters = computed(() =>
-    isSearchActive.value ||
-    isStatusFilterActive.value ||
-    isProviderFilterActive.value ||
-    isSubgroupFilterActive.value ||
-    isDateFilterActive.value,
-);
+const isDateFromActive = computed(() => Boolean(dateFrom.value));
+const isDateToActive = computed(() => Boolean(dateTo.value));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
-let isSyncingFilters = false;
 const DIALOG_PREPARE_FALLBACK_MS = 10000;
 let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -125,29 +103,6 @@ const computeInvoiceTotal = (invoice: PurchaseInvoice) => {
     }, 0);
 };
 
-function getInvoiceStatusLabel(status?: string): string {
-    if (status === 'pending_receipt') return 'Pendiente';
-    if (status === 'approved') return 'Aprobado';
-    if (status === 'received') return 'Recibida';
-    if (status === 'rejected') return 'Rechazada';
-    return 'Sin estado';
-}
-
-function getInvoiceStatusTone(status?: string): 'yellow' | 'green' | 'red' | 'gray' {
-    if (status === 'pending_receipt') return 'yellow';
-    if (status === 'approved' || status === 'received') return 'green';
-    if (status === 'rejected') return 'red';
-    return 'gray';
-}
-
-function isPendingInvoiceStatus(status?: string | null): boolean {
-    return status === 'pending' || status === 'pending_receipt';
-}
-
-function canMutateInvoice(invoice: PurchaseInvoice): boolean {
-    return isPendingInvoiceStatus(invoice.status);
-}
-
 const getInvoiceItemsPreview = (invoice: PurchaseInvoice) => {
     const names = (invoice.items || [])
         .map((item) => {
@@ -171,7 +126,7 @@ function buildReceptionUrl(invoiceId?: number | string) {
     const basePath = invoiceId ? `${receptionBaseRoute}/${invoiceId}` : receptionBaseRoute;
     const query = new URLSearchParams({
         [receptionReturnParam]: facturasFabricRoute,
-        [receptionScopeParam]: receptionScopeValue,
+        [receptionInvoiceTypeParam]: receptionInvoiceTypeValue,
     });
     return `${basePath}?${query.toString()}`;
 }
@@ -181,6 +136,7 @@ async function fetchProviders() {
         const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
         providers.value = response.data.data;
     } catch (e) {
+        console.log('Error al cargar proveedores:', e);
         providers.value = [];
     }
 }
@@ -190,6 +146,7 @@ async function fetchSubgroups() {
         const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
         subgroups.value = Array.isArray(data?.data) ? data.data : [];
     } catch (error) {
+        console.log('Error al cargar subgrupos:', error);
         subgroups.value = [];
     }
 }
@@ -247,7 +204,7 @@ async function openDialogWithPreparation(type: 'create' | 'edit', invoice: Purch
 
     dialogType.value = type;
     isDialogReadOnly.value = readOnly;
-    form.value = invoice ? JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice> : {};
+    form.value = invoice ? (JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice>) : {};
     clearAlerts();
 
     await nextTick();
@@ -277,8 +234,8 @@ function handleDialogLoadingState(value: boolean) {
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
     // Evitar petición al servidor si la factura ya está aprobada
-    if (!canMutateInvoice(invoice)) {
-        showError('Solo se pueden eliminar facturas en estado pendiente.');
+    if (invoice.status === 'received') {
+        showError('No se puede eliminar una factura que está recibida.');
         return;
     }
     invoiceToDelete.value = invoice;
@@ -292,6 +249,7 @@ async function deleteInvoice(): Promise<void> {
         showSuccess('Factura eliminada correctamente.');
         await fetchInvoices(currentPage.value, searchQuery.value);
     } catch (e) {
+        console.log('Error al eliminar factura:', e);
         // Intentar mostrar mensaje del servidor si está disponible
         const serverMessage = (e as any)?.response?.data?.message;
         const status = (e as any)?.response?.status;
@@ -308,14 +266,13 @@ async function deleteInvoice(): Promise<void> {
     }
 }
 
-
 async function fetchInvoices(page = 1, search = ''): Promise<void> {
     const params: Record<string, any> = {
         page,
         per_page: itemsPerPage,
         search,
-        date_from: dateFilter.value,
-        date_to: dateFilter.value,
+        date_from: dateFrom.value,
+        date_to: dateTo.value,
     };
     if (statusFilter.value !== 'all') params.status = statusFilter.value;
     if (providerFilter.value !== 'all' && providerFilter.value !== '' && providerFilter.value !== null) {
@@ -326,50 +283,42 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
     }
     try {
         const response = await axios.get('/gastos/facturas-compra-tela/data', { params });
-        invoices.value = Array.isArray(response.data.data)
-            ? response.data.data
-            : Array.isArray(response.data)
-                ? response.data
-                : [];
+        invoices.value = Array.isArray(response.data.data) ? response.data.data : Array.isArray(response.data) ? response.data : [];
         totalItems.value = typeof response.data.total === 'number' ? response.data.total : 0;
     } catch (e) {
+        console.log('Error al cargar facturas:', e);
         invoices.value = [];
         totalItems.value = 0;
     }
 }
 
-function applyFilters() {
-    if (currentPage.value !== 1) {
-        currentPage.value = 1;
-        return;
-    }
-    void fetchInvoices(1, searchQuery.value);
-}
-
-function resetFilters() {
-    if (!hasActiveFilters.value) return;
-    isSyncingFilters = true;
-    searchQuery.value = '';
-    statusFilter.value = DEFAULT_STATUS_FILTER;
-    providerFilter.value = DEFAULT_PROVIDER_FILTER;
-    subgroupFilter.value = DEFAULT_SUBGROUP_FILTER;
-    dateFilter.value = '';
-    if (currentPage.value !== 1) {
-        currentPage.value = 1;
-    }
-    isSyncingFilters = false;
-    void fetchInvoices(1, '');
-}
-
-watch([statusFilter, providerFilter, subgroupFilter, dateFilter, searchQuery], () => {
-    if (isSyncingFilters) return;
-    applyFilters();
-});
+// Watcher único para filtros y búsqueda
+watch(
+    [statusFilter, providerFilter, subgroupFilter, dateFrom, dateTo, searchQuery],
+    ([newStatus, newProvider, newSubgroup, newFrom, newTo, newSearch], [oldStatus, oldProvider, oldSubgroup, oldFrom, oldTo, oldSearch]) => {
+        if (
+            newStatus !== oldStatus ||
+            newProvider !== oldProvider ||
+            newSubgroup !== oldSubgroup ||
+            newFrom !== oldFrom ||
+            newTo !== oldTo ||
+            newSearch !== oldSearch
+        ) {
+            // Solo cambia la página, el watcher de currentPage hará el fetch
+            if (currentPage.value !== 1) {
+                currentPage.value = 1;
+            } else {
+                fetchInvoices(1, newSearch);
+            }
+        }
+    },
+);
 
 // Watcher para paginación
 watch(currentPage, (newPage, oldPage) => {
-    if (isSyncingFilters || newPage === oldPage) return;
-    fetchInvoices(newPage, searchQuery.value);
+    if (newPage !== oldPage) {
+        fetchInvoices(newPage, searchQuery.value);
+    }
 });
 
 onMounted(() => {
@@ -404,9 +353,9 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice) {
     }
 }
 
-function goToReception() {
+function goToReception(invoice: PurchaseInvoice) {
     // Navegar a la página de recepción con el ID de la factura
-    router.visit(buildReceptionUrl());
+    router.visit(buildReceptionUrl(invoice.id));
 }
 
 function viewInvoiceDetails(invoice: PurchaseInvoice) {
@@ -427,32 +376,32 @@ function handleDialogError(message?: string) {
     showError(message || 'Error al guardar la factura.');
     clearSuccess();
 }
-
 </script>
 
 <template>
     <Head title="Facturas de Compras Tela" />
     <AppLayout :breadcrumbs="breadcrumbs">
-            <AlertStack
-                :successMessage="successMessage"
-                :errorMessage="errorMessage"
-                :errorType="errorType"
-                @close-success="clearSuccess"
-                @close-error="clearError"
-            />
+        <AlertStack
+            :successMessage="successMessage"
+            :errorMessage="errorMessage"
+            :errorType="errorType"
+            @close-success="clearSuccess"
+            @close-error="clearError"
+        />
         <div class="flex h-full flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">Facturas de Compras Tela</h1>
-                    <p :class="uiPatterns.typography.pageSubtitle">
+                    <h1 class="text-lg font-bold">Facturas de Compras Tela</h1>
+                    <p class="text-sm text-muted-foreground">
                         Registra facturas de tela para llevar la trazabilidad de la recepción y la aprobación.
                     </p>
                 </div>
                 <div class="flex gap-2">
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
-                        @click="goToReception()"
+                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        :disabled="!invoices.length"
+                        @click="invoices.length && goToReception(invoices[0])"
                     >
                         <Package class="h-4 w-4" />
                         Ver Recepciones
@@ -460,7 +409,7 @@ function handleDialogError(message?: string) {
                     <button
                         type="button"
                         :disabled="isPreparingDialog"
-                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         @click="openDialogWithPreparation('create')"
                     >
                         <PlusCircle class="h-4 w-4" />
@@ -469,7 +418,7 @@ function handleDialogError(message?: string) {
                 </div>
             </div>
             <FilterBar align="start">
-                <FilterField label="Buscar factura" :active="isSearchActive" class="flex-1 min-w-[220px]">
+                <FilterField label="Buscar factura" :active="isSearchActive" class="min-w-[220px] flex-1">
                     <div class="relative">
                         <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -485,7 +434,7 @@ function handleDialogError(message?: string) {
                             { id: 'all', name: 'Todos los estados' },
                             { id: 'pending', name: 'Pendiente' },
                             { id: 'approved', name: 'Aprobado' },
-                            { id: 'rejected', name: 'Rechazado' }
+                            { id: 'rejected', name: 'Rechazado' },
                         ]"
                         :button-class="statusButtonClasses"
                     />
@@ -494,7 +443,10 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="providerFilter"
                         label=""
-                        :options="[{ id: 'all', name: 'Todos los proveedores' }, ...providers.map(prov => ({ id: String(prov.id), name: prov.full_name }))]"
+                        :options="[
+                            { id: 'all', name: 'Todos los proveedores' },
+                            ...providers.map((prov) => ({ id: String(prov.id), name: prov.full_name })),
+                        ]"
                         :button-class="providerButtonClasses"
                     />
                 </FilterField>
@@ -502,42 +454,35 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="subgroupFilter"
                         label=""
-                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map(sub => ({ id: String(sub.id), name: sub.name }))]"
+                        :options="[{ id: 'all', name: 'Todos los subgrupos' }, ...subgroups.map((sub) => ({ id: String(sub.id), name: sub.name }))]"
                         :button-class="subgroupButtonClasses"
                     />
                 </FilterField>
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFilter" placeholder="dd/mm/aaaa" />
+                <FilterField label="Desde" :active="isDateFromActive" class="min-w-[140px]">
+                    <InputDate v-model="dateFrom" placeholder="dd/mm/aaaa" />
                 </FilterField>
-                <Button
-                    v-if="hasActiveFilters"
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    class="h-10"
-                    @click="resetFilters"
-                >
-                    Limpiar
-                </Button>
+                <FilterField label="Hasta" :active="isDateToActive" class="min-w-[140px]">
+                    <InputDate v-model="dateTo" placeholder="dd/mm/aaaa" />
+                </FilterField>
             </FilterBar>
-            <div class="relative rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min overflow-auto">
+            <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead :class="uiPatterns.typography.tableHead">N° Factura</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Fecha de creación</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Fecha de entrega</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Proveedor</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Item</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Total</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Descripción</TableHead>
-                            <TableHead :class="uiPatterns.typography.tableHead">Estado</TableHead>
-                            <TableHead :class="`${uiPatterns.typography.tableHead} text-center`">Acciones</TableHead>
+                            <TableHead>#Factura</TableHead>
+                            <TableHead>Fecha de creación</TableHead>
+                            <TableHead>Fecha de entrega</TableHead>
+                            <TableHead>Proveedor</TableHead>
+                            <TableHead>Item</TableHead>
+                            <TableHead>Total</TableHead>
+                            <TableHead>Descripción</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                            <TableCell :class="`${uiPatterns.typography.bodyStrong} text-start`">
+                            <TableCell class="text-start font-medium">
                                 {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
                             </TableCell>
                             <TableCell>{{ formatDate(invoice.date) }}</TableCell>
@@ -545,15 +490,44 @@ function handleDialogError(message?: string) {
                             <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
                             <TableCell class="text-start">{{ getInvoiceItemsPreview(invoice) }}</TableCell>
                             <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
-                            <TableCell class="text-start max-w-32 truncate">{{ invoice.description || '-' }}</TableCell>
+                            <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
                             <TableCell>
-                                <TableStatusBadge
-                                    :label="invoice.status ? getInvoiceStatusLabel(invoice.status) : 'Pendiente'"
-                                    :tone="invoice.status ? getInvoiceStatusTone(invoice.status) : 'yellow'"
-                                />
+                                <span
+                                    v-if="invoice.status"
+                                    :class="[
+                                        'rounded-full px-2 py-1 text-xs font-medium',
+                                        invoice.status === 'pending_receipt'
+                                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-400'
+                                            : invoice.status === 'approved'
+                                              ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
+                                              : invoice.status === 'received'
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-400'
+                                                : invoice.status === 'rejected'
+                                                  ? 'bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-400'
+                                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+                                    ]"
+                                >
+                                    {{
+                                        invoice.status === 'pending_receipt'
+                                            ? 'Pendiente'
+                                            : invoice.status === 'approved'
+                                              ? 'Aprobado'
+                                              : invoice.status === 'received'
+                                                ? 'Recibida'
+                                                : invoice.status === 'rejected'
+                                                  ? 'Rechazada'
+                                                  : 'Sin estado'
+                                    }}
+                                </span>
+                                <span
+                                    v-else
+                                    class="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-300"
+                                >
+                                    Pendiente
+                                </span>
                             </TableCell>
                             <TableCell>
-                                <div class="flex justify-center gap-1 flex-wrap">
+                                <div class="flex flex-wrap justify-center gap-1">
                                     <button
                                         class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
                                         @click="viewInvoiceDetails(invoice)"
@@ -561,36 +535,45 @@ function handleDialogError(message?: string) {
                                     >
                                         <Eye class="h-4 w-4" />
                                     </button>
-                                    <EditButton
-                                        :onClick="() => canMutateInvoice(invoice) && openDialogWithPreparation('edit', invoice)"
-                                        :disabled="!canMutateInvoice(invoice)"
-                                        :class="!canMutateInvoice(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
+                                    <EditButton :onClick="() => openDialogWithPreparation('edit', invoice)" />
+                                    <!-- Mostrar siempre el botón; si está aprobado se muestra deshabilitado visualmente
+                                         y al hacer clic se muestra un mensaje en vez de intentar eliminar -->
+                                    <DeleteButton
+                                        :onClick="
+                                            () => {
+                                                if (invoice.status === 'received') {
+                                                    showError('No se puede eliminar una factura que está recibida.');
+                                                } else {
+                                                    confirmDeleteInvoice(invoice);
+                                                }
+                                            }
+                                        "
+                                        :customClass="invoice.status === 'received' ? 'opacity-60 cursor-not-allowed' : ''"
                                     />
-                                    <TableActionsMenu content-class="w-48">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger as-child>
+                                            <Button variant="ghost" size="icon" class="h-8 w-8 p-0">
+                                                <MoreVertical class="h-4 w-4" />
+                                                <span class="sr-only">Acciones</span>
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" class="w-48">
                                             <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(invoice)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception()">
+                                            <DropdownMenuItem class="cursor-pointer gap-2" @click="goToReception(invoice)">
                                                 <Package class="h-4 w-4" /> Ir a recepción
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 class="cursor-pointer gap-2"
-                                                :class="isSendingMail ? 'opacity-60 cursor-not-allowed' : ''"
+                                                :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
                                                 :disabled="isSendingMail"
                                                 @click="sendInvoiceByEmail(invoice)"
                                             >
                                                 <Mail class="h-4 w-4" /> Enviar al correo
                                             </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                                class="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                                                :class="!canMutateInvoice(invoice) ? 'opacity-60 cursor-not-allowed' : ''"
-                                                :disabled="!canMutateInvoice(invoice)"
-                                                @click="confirmDeleteInvoice(invoice)"
-                                            >
-                                                <Trash2 class="h-4 w-4" /> Eliminar
-                                            </DropdownMenuItem>
-                                    </TableActionsMenu>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             </TableCell>
                         </TableRow>
@@ -617,13 +600,13 @@ function handleDialogError(message?: string) {
             @close="isPrintDialogOpen = false"
         />
         <ConfirmDialog
-        v-model:open="isDeleteDialogOpen"
-        title="Confirmar eliminación"
-        description="¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer."
-        confirm-text="Eliminar"
-        cancel-text="Cancelar"
-        :destructive="true"
-        @confirm="deleteInvoice"
-    />
+            v-model:open="isDeleteDialogOpen"
+            title="Confirmar eliminación"
+            description="¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer."
+            confirm-text="Eliminar"
+            cancel-text="Cancelar"
+            :destructive="true"
+            @confirm="deleteInvoice"
+        />
     </AppLayout>
 </template>

@@ -29,26 +29,26 @@ const hasAny = computed(() => !!props.successMessage || !!props.errorMessage);
             name="alert"
             @enter="
                 (el) => {
-                    el.style.opacity = '0';
-                    el.style.transform = 'translateY(-1rem)';
+                    (el as HTMLElement).style.opacity = '0';
+                    (el as HTMLElement).style.transform = 'translateY(-1rem)';
                 }
             "
             @after-enter="
                 (el) => {
-                    el.style.opacity = '1';
-                    el.style.transform = 'translateY(0)';
+                    (el as HTMLElement).style.opacity = '1';
+                    (el as HTMLElement).style.transform = 'translateY(0)';
                 }
             "
             @leave="
                 (el) => {
-                    el.style.opacity = '1';
-                    el.style.transform = 'translateY(0)';
+                    (el as HTMLElement).style.opacity = '1';
+                    (el as HTMLElement).style.transform = 'translateY(0)';
                 }
             "
             @after-leave="
                 (el) => {
-                    el.style.opacity = '0';
-                    el.style.transform = 'translateY(-1rem)';
+                    (el as HTMLElement).style.opacity = '0';
+                    (el as HTMLElement).style.transform = 'translateY(-1rem)';
                 }
             "
         >
@@ -67,26 +67,26 @@ const hasAny = computed(() => !!props.successMessage || !!props.errorMessage);
             name="alert"
             @enter="
                 (el) => {
-                    el.style.opacity = '0';
-                    el.style.transform = 'translateY(-1rem)';
+                    (el as HTMLElement).style.opacity = '0';
+                    (el as HTMLElement).style.transform = 'translateY(-1rem)';
                 }
             "
             @after-enter="
                 (el) => {
-                    el.style.opacity = '1';
-                    el.style.transform = 'translateY(0)';
+                    (el as HTMLElement).style.opacity = '1';
+                    (el as HTMLElement).style.transform = 'translateY(0)';
                 }
             "
             @leave="
                 (el) => {
-                    el.style.opacity = '1';
-                    el.style.transform = 'translateY(0)';
+                    (el as HTMLElement).style.opacity = '1';
+                    (el as HTMLElement).style.transform = 'translateY(0)';
                 }
             "
             @after-leave="
                 (el) => {
-                    el.style.opacity = '0';
-                    el.style.transform = 'translateY(-1rem)';
+                    (el as HTMLElement).style.opacity = '0';
+                    (el as HTMLElement).style.transform = 'translateY(-1rem)';
                 }
             "
         >

@@ -10,6 +10,7 @@ export function mapProductSheetDto(dto: ProductSheetDto): ProductSheet {
         reference: dto.reference,
         sample_reference: dto.sample_reference ?? null,
         product_reference: dto.product_reference ?? null,
+        product_reference_2: dto.product_reference_2 ?? null,
         display_reference: dto.display_reference ?? null,
         value: dto.value ?? dto.id,
         label: dto.label ?? dto.display_reference ?? dto.reference,

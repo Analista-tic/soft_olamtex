@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AlertBox from '@/components/AlertBox.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
@@ -13,14 +14,12 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import Button from '@/components/ui/button/Button.vue';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import type { CuttingPiece, Grain, Side, SizeUnit } from '@/domain/Production';
-import { fetchSettingsParameters } from '@/domain/Production';
 import type { Option } from '@/domain/shared';
 import { Check, Pencil, Plus, Trash, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
@@ -46,12 +45,14 @@ type RawMaterialsInfoRow = {
     consumo: number;
     precioTela: number | null;
     proveedor: string | null;
+    programmedColors?: string[];
 };
 
 type InlinePieceForm = {
     pieceId: string;
     fabricId: string;
-    sideId: string;
+    leftUnits: string;
+    rightUnits: string;
     grainId: string;
 };
 type InlineSizeForm = {
@@ -59,11 +60,6 @@ type InlineSizeForm = {
     size: string;
     curve: string;
     units: string;
-};
-type ColorSlot = {
-    label: string;
-    name: string;
-    hex: string | null;
 };
 
 const DEFAULT_PIECE_TYPE = 'PRINCIPAL' as const;
@@ -83,11 +79,18 @@ function normalizeText(value: string | null | undefined): string | null {
     return clean === '' ? null : clean;
 }
 
+function normalizeUpperText(value: string | null | undefined): string {
+    return String(value ?? '')
+        .trim()
+        .toLocaleUpperCase('es-CO');
+}
+
 function createEmptyInlinePieceForm(): InlinePieceForm {
     return {
         pieceId: '',
         fabricId: '',
-        sideId: '',
+        leftUnits: '0',
+        rightUnits: '0',
         grainId: '',
     };
 }
@@ -99,17 +102,6 @@ function createEmptyInlineSizeForm(): InlineSizeForm {
         curve: '',
         units: '0',
     };
-}
-
-function normalizeSideValue(value: string | null | undefined): Side | null {
-    const normalized = String(value ?? '')
-        .trim()
-        .toUpperCase()
-        .replace(/\s+/g, '_');
-    if (['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(normalized)) {
-        return normalized as Side;
-    }
-    return null;
 }
 
 function normalizeGrainValue(value: string | null | undefined): Grain | null {
@@ -168,13 +160,6 @@ function buildNotesFromPieceMeta(fabricId: string, fabricName: string, quantity:
     })}`;
 }
 
-function sanitizeHex(value: unknown): string | null {
-    const raw = String(value ?? '').trim();
-    if (!raw) return null;
-    const normalized = raw.startsWith('#') ? raw : `#${raw}`;
-    return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(normalized) ? normalized : null;
-}
-
 const props = defineProps<{
     open: boolean;
     data: CuttingData;
@@ -199,17 +184,13 @@ const inlinePieceTargetId = ref<string | null>(null);
 const pieceToDeleteId = ref<string | null>(null);
 const inlineSizeForm = ref<InlineSizeForm>(createEmptyInlineSizeForm());
 const inlinePieceForm = ref<InlinePieceForm>(createEmptyInlinePieceForm());
-const pieceOptions = ref<Option[]>([]);
-const sideOptions = ref<Option[]>([]);
 const grainOptions = ref<Option[]>([]);
 const loadingPieceOptions = ref(false);
-const pieceOptionsLoaded = ref(false);
 const infoMessage = ref<string | null>(null);
 const successMessage = ref<string | null>(null);
 const attemptedSectionSave = ref(false);
 const attemptedInlineSizeSave = ref(false);
 const attemptedInlinePieceSave = ref(false);
-const isDrawingPreviewOpen = ref(false);
 
 const localData = computed({
     get: () => props.data,
@@ -218,6 +199,12 @@ const localData = computed({
 
 const totalUnitsBySize = computed(() => localData.value.sizes.reduce((acc, row) => acc + Number(row.units || 0), 0));
 const totalCurvesBySize = computed(() => localData.value.sizes.reduce((acc, row) => acc + Math.max(0, Number(row.curve || 0)), 0));
+const totalUnitsByPieces = computed(() =>
+    localData.value.pieces.reduce((acc, piece) => {
+        const quantity = Number(piece.quantity ?? quantityFromSide(piece.side ?? null));
+        return acc + (Number.isFinite(quantity) ? Math.max(0, quantity) : 0);
+    }, 0),
+);
 
 const effectiveTotalUnits = computed(() => (typeof props.totalUnits === 'number' ? props.totalUnits : totalUnitsBySize.value));
 
@@ -236,12 +223,7 @@ const fabricOptions = computed<Option[]>(() => {
         })
         .filter((row): row is Option => row !== null);
 });
-const pieceOptionsForEditor = computed<Option[]>(() => {
-    if (!inlinePieceForm.value.pieceId) return pieceOptions.value;
-    const exists = pieceOptions.value.some((option) => String(option.id) === inlinePieceForm.value.pieceId);
-    if (exists) return pieceOptions.value;
-    return [{ id: inlinePieceForm.value.pieceId, name: inlinePieceForm.value.pieceId }, ...pieceOptions.value];
-});
+
 const fabricOptionsForEditor = computed<Option[]>(() => {
     if (!inlinePieceForm.value.fabricId) return fabricOptions.value;
     const exists = fabricOptions.value.some((option) => String(option.id) === inlinePieceForm.value.fabricId);
@@ -249,17 +231,58 @@ const fabricOptionsForEditor = computed<Option[]>(() => {
     const fallbackName = parseFabricFromNotes(`${FABRIC_NOTE_PREFIX}${inlinePieceForm.value.fabricId}|`).fabricName ?? inlinePieceForm.value.fabricId;
     return [{ id: inlinePieceForm.value.fabricId, name: fallbackName }, ...fabricOptions.value];
 });
-const selectedPieceOption = computed(() => pieceOptionsForEditor.value.find((option) => String(option.id) === inlinePieceForm.value.pieceId) ?? null);
 const selectedFabricOption = computed(
     () => fabricOptionsForEditor.value.find((option) => String(option.id) === inlinePieceForm.value.fabricId) ?? null,
 );
-const inlineQuantity = computed(() => quantityFromSide(normalizeSideValue(inlinePieceForm.value.sideId)));
+
+const sizeOptions = computed<Option[]>(() => {
+    const source = Array.isArray(props.sizes) ? props.sizes : [];
+    return source.map((size) => ({ id: String(size), name: String(size) }));
+});
+
+const sizeOptionsForCreate = computed<Option[]>(() => {
+    const used = new Set(localData.value.sizes.map((row) => String(row.size ?? '').trim()).filter((value) => value !== ''));
+    return sizeOptions.value.filter((option) => !used.has(String(option.id)));
+});
+
+const canAddMoreSizes = computed(() => {
+    if (!Array.isArray(props.sizes) || props.sizes.length === 0) return true;
+    return sizeOptionsForCreate.value.length > 0;
+});
+
+function normalizeCount(value: string | number | null | undefined): number {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.floor(parsed));
+}
+
+const inlineTotalQuantity = computed(() => normalizeCount(inlinePieceForm.value.leftUnits) + normalizeCount(inlinePieceForm.value.rightUnits));
+
+function getPieceHandCounts(piece: CuttingPiece): { left: number; right: number } {
+    const quantity = Math.max(0, Number(piece.quantity ?? quantityFromSide(piece.side ?? null) ?? 0));
+    if (piece.side === 'IZQUIERDA') return { left: quantity, right: 0 };
+    if (piece.side === 'DERECHA') return { left: 0, right: quantity };
+    if (piece.side === 'AMBOS') {
+        const left = Math.floor(quantity / 2);
+        const right = quantity - left;
+        return { left, right };
+    }
+    return { left: 0, right: 0 };
+}
+
+function resolveSideFromHands(left: number, right: number): Side {
+    if (left > 0 && right > 0) return 'AMBOS';
+    if (left > 0) return 'IZQUIERDA';
+    if (right > 0) return 'DERECHA';
+    return 'NO_APLICA';
+}
+
 const canSaveInlinePiece = computed(() => {
     return (
         inlinePieceForm.value.pieceId !== '' &&
         inlinePieceForm.value.fabricId !== '' &&
-        inlinePieceForm.value.sideId !== '' &&
         inlinePieceForm.value.grainId !== '' &&
+        inlineTotalQuantity.value > 0 &&
         fabricOptions.value.length > 0
     );
 });
@@ -279,36 +302,6 @@ const hasIncompleteSizes = computed(() => {
         return size === '' || units <= 0;
     });
 });
-
-const resolvedDrawingUrl = computed(() => {
-    const raw = String(props.drawingUrl ?? '').trim();
-    if (!raw) return null;
-    if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
-    if (raw.startsWith('/')) return raw;
-    return `/${raw}`;
-});
-const colorSlots = computed<ColorSlot[]>(() => {
-    const source = localData.value as Record<string, unknown>;
-    const candidateLists = [source.colorCodes, source.colors, source.colours];
-    const list = candidateLists.find((entry) => Array.isArray(entry)) as Array<Record<string, unknown>> | undefined;
-
-    return Array.from({ length: 6 }, (_, index) => {
-        const item = list?.[index] ?? {};
-        const name = String(item.name ?? item.code ?? item.label ?? '').trim();
-        const hex = sanitizeHex(item.hex ?? item.color ?? item.value);
-        return {
-            label: `Color ${index + 1}`,
-            name: name || 'Sin registro',
-            hex,
-        };
-    });
-});
-
-function formatDecimal(value: number | null): string {
-    if (value === null || value === undefined) return '-';
-    if (Number.isInteger(value)) return String(value);
-    return value.toFixed(2).replace(/\.00$/, '');
-}
 
 function clearLocalMessages(): void {
     infoMessage.value = null;
@@ -333,9 +326,18 @@ function initializeSizesFromOpOnOpen(): void {
     emit('update:data', { ...localData.value, sizes: buildSizesFromOp() });
 }
 
-function removeSizeRow(uid: string): void {
-    const newSizes = localData.value.sizes.filter((row) => row.uid !== uid);
-    emit('update:data', { ...localData.value, sizes: newSizes });
+function ensureSizesHaveUid(): void {
+    let changed = false;
+
+    const normalized = localData.value.sizes.map((row) => {
+        const uid = String(row.uid ?? '').trim();
+        if (uid) return row;
+        changed = true;
+        return { ...row, uid: makeId() };
+    });
+
+    if (!changed) return;
+    emit('update:data', { ...localData.value, sizes: normalized });
 }
 
 function openCreateSizeInline(): void {
@@ -351,6 +353,12 @@ function handleAddSizeClick(): void {
         infoMessage.value = 'Completa la talla actual para continuar.';
         return;
     }
+
+    if (!canAddMoreSizes.value) {
+        infoMessage.value = 'Todas las tallas de la OP ya están registradas.';
+        return;
+    }
+
     openCreateSizeInline();
 }
 
@@ -370,6 +378,16 @@ function openEditSizeInline(row: SizeUnit): void {
         infoMessage.value = 'Completa la talla actual para continuar.';
         return;
     }
+
+    const currentId = String(row.uid ?? '').trim();
+    if (!currentId) {
+        ensureSizesHaveUid();
+        const refreshed = localData.value.sizes.find((item) => item.size === row.size && Number(item.units) === Number(row.units));
+        if (refreshed) {
+            row = refreshed;
+        }
+    }
+
     attemptedInlineSizeSave.value = false;
     inlineSizeMode.value = 'edit';
     inlineSizeForm.value = {
@@ -431,52 +449,18 @@ function saveInlineSize(): void {
     cancelInlineSizeEditor();
 }
 
-async function loadPieceFieldOptions(): Promise<void> {
-    if (loadingPieceOptions.value || pieceOptionsLoaded.value) return;
-    loadingPieceOptions.value = true;
-    try {
-        const parameters = await fetchSettingsParameters(['piezas', 'lateral', 'hilo']);
-        pieceOptions.value = (parameters.piezas ?? [])
-            .map((option) => {
-                const label = String(option.name ?? '').trim();
-                return { id: label, name: label };
-            })
-            .filter((option) => option.id !== '');
-
-        sideOptions.value = (parameters.lateral ?? [])
-            .map((option) => {
-                const side = normalizeSideValue(String(option.name ?? option.id ?? ''));
-                if (!side) return null;
-                const labels: Record<Side, string> = {
-                    IZQUIERDA: 'Izquierda',
-                    DERECHA: 'Derecha',
-                    AMBOS: 'Ambos',
-                    NO_APLICA: 'No aplica',
-                };
-                return { id: side, name: labels[side] } as Option;
-            })
-            .filter((option): option is Option => option !== null);
-
-        grainOptions.value = (parameters.hilo ?? [])
-            .map((option) => {
-                const grain = normalizeGrainValue(String(option.name ?? option.id ?? ''));
-                if (!grain) return null;
-                return { id: grain, name: grain } as Option;
-            })
-            .filter((option): option is Option => option !== null);
-
-        pieceOptionsLoaded.value = true;
-    } catch (error) {
-        console.error('Error al cargar parametros de despiece:', error);
-        pieceOptions.value = [];
-        sideOptions.value = [];
-        grainOptions.value = [];
-    } finally {
-        loadingPieceOptions.value = false;
-    }
+function loadPieceFieldOptions(): void {
+    if (loadingPieceOptions.value) return;
+    grainOptions.value = (['90', '180', 'SESGO'] as const).map((grain) => ({ id: grain, name: grain }));
 }
 
 function pieceFabricLabel(piece: CuttingPiece): string {
+    // Usar fabricUid (campo propio, source of truth desde BD)
+    if (piece.fabricUid) {
+        const opt = fabricOptions.value.find((option) => String(option.id) === piece.fabricUid);
+        if (opt) return opt.name;
+    }
+    // Backward compat: legacy notes hack
     const parsed = parseFabricFromNotes(piece.notes);
     if (parsed.fabricName) return parsed.fabricName;
     if (parsed.fabricId) {
@@ -520,15 +504,29 @@ function openEditPieceInline(piece: CuttingPiece): void {
     }
     attemptedInlinePieceSave.value = false;
     const stableId = pieceStableId(piece) || makeId();
-    const parsedFabric = parseFabricFromNotes(piece.notes);
+
+    // Resolver fabricId desde fabricUid (campo propio) o legacy notes hack
+    let resolvedFabricId = String(piece.fabricUid ?? '').trim();
+    if (!resolvedFabricId) {
+        const parsed = parseFabricFromNotes(piece.notes);
+        resolvedFabricId = parsed.fabricId ?? '';
+    }
+
     inlinePieceMode.value = 'edit';
     inlinePieceTargetId.value = stableId;
+    const handCounts = getPieceHandCounts(piece);
     inlinePieceForm.value = {
-        pieceId: String(piece.name ?? '').trim(),
-        fabricId: parsedFabric.fabricId ?? '',
-        sideId: piece.side ?? '',
+        pieceId: normalizeUpperText(String(piece.name ?? '')),
+        fabricId: resolvedFabricId,
+        leftUnits: String(handCounts.left),
+        rightUnits: String(handCounts.right),
         grainId: piece.grain ?? '',
     };
+}
+
+function onPieceInputChange(value: string | number | boolean | Array<string | number | boolean> | null | undefined): void {
+    const raw = Array.isArray(value) ? value[0] : value;
+    inlinePieceForm.value.pieceId = normalizeUpperText(String(raw ?? ''));
 }
 
 function cancelInlinePieceEditor(): void {
@@ -552,19 +550,27 @@ function saveInlinePiece(): void {
 
     const stableId = inlinePieceTargetId.value ?? makeId();
     const selectedFabricName = selectedFabricOption.value?.name ?? '';
-    const side = normalizeSideValue(inlinePieceForm.value.sideId);
-    const quantity = quantityFromSide(side);
+    const leftUnits = normalizeCount(inlinePieceForm.value.leftUnits);
+    const rightUnits = normalizeCount(inlinePieceForm.value.rightUnits);
+    const quantity = leftUnits + rightUnits;
+    const side = resolveSideFromHands(leftUnits, rightUnits);
     const grain = normalizeGrainValue(inlinePieceForm.value.grainId);
-    if (!side || !grain || !selectedPieceOption.value || !Number.isFinite(quantity) || quantity < 0) return;
+    const normalizedPieceName = normalizeUpperText(inlinePieceForm.value.pieceId);
+    if (!grain || !normalizedPieceName || !Number.isFinite(quantity) || quantity <= 0) return;
+
+    const fabricUid = String(selectedFabricOption.value?.id ?? '').trim() || null;
 
     const piece: CuttingPiece = {
         id: stableId,
         uid: stableId,
-        name: selectedPieceOption.value.name,
+        name: normalizedPieceName,
         type: DEFAULT_PIECE_TYPE,
+        fabricUid,
         side,
         grain,
-        notes: buildNotesFromPieceMeta(String(selectedFabricOption.value?.id ?? ''), selectedFabricName, quantity),
+        quantity,
+        // Backward compat: mantener notes con el legado sólo si no hay fabricUid propio
+        notes: fabricUid ? null : buildNotesFromPieceMeta(String(selectedFabricOption.value?.id ?? ''), selectedFabricName, quantity),
     };
 
     const existingIndex = localData.value.pieces.findIndex((row) => {
@@ -644,17 +650,13 @@ function handleDialogOpenChange(value: boolean): void {
     if (!value) handleClose();
 }
 
-function openDrawingPreview(): void {
-    if (!resolvedDrawingUrl.value) return;
-    isDrawingPreviewOpen.value = true;
-}
-
 watch(
     () => props.open,
     (isOpen) => {
         if (isOpen) {
             void loadPieceFieldOptions();
             initializeSizesFromOpOnOpen();
+            ensureSizesHaveUid();
             clearLocalMessages();
             attemptedSectionSave.value = false;
             cancelInlineSizeEditor();
@@ -675,600 +677,400 @@ watch(
         >
             <FormHeader class="pb-2" title="Corte" description="Configura unidades por talla, curvas, despiece y notas generales." />
 
-            <div class="min-h-0 flex-1 overflow-y-auto pr-1 pt-4">
-                <div v-if="infoMessage" class="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-                    {{ infoMessage }}
+            <!-- Alertas flotantes tipo dialog (patrón estándar) -->
+            <div
+                v-if="infoMessage || successMessage"
+                class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0"
+            >
+                <AlertBox
+                    v-if="infoMessage"
+                    type="info"
+                    title="Información"
+                    :message="infoMessage"
+                    :auto-close-ms="4000"
+                    class="pointer-events-auto"
+                    @close="infoMessage = null"
+                />
+                <AlertBox
+                    v-if="successMessage && !infoMessage"
+                    type="success"
+                    title="Éxito"
+                    :message="successMessage"
+                    :auto-close-ms="4000"
+                    class="pointer-events-auto"
+                    @close="successMessage = null"
+                />
+            </div>
+
+            <div class="min-h-0 flex-1 overflow-y-auto pr-2 pt-4">
+                <div
+                    class="grid grid-cols-[0.98fr_1.6fr] gap-6 items-start"
+                    style="grid-template-columns: minmax(260px,38%) minmax(340px,62%);"
+                >
+
+                <!-- ── TALLAS (columna izquierda 38%) ────────────────── -->
+                <div class="bg-background rounded-lg border border-border px-3 py-3 shadow-sm">
+                <h3 class="mb-2 text-sm font-semibold text-foreground">Tallas</h3>
+                <div v-if="localData.sizes.length === 0 && inlineSizeMode !== 'create'"
+                    class="rounded-md border border-dashed border-border px-3 py-5 text-sm text-muted-foreground"
+                >
+                    Sin informacion registrada por talla.
                 </div>
-                <div v-if="successMessage" class="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                    {{ successMessage }}
+
+                <div v-else class="rounded-md border border-border bg-background p-2">
+                    <Table>
+                        <TableHeader>
+                            <TableRow class="text-center">
+                                <TableHead>Talla</TableHead>
+                                <TableHead>Curva</TableHead>
+                                <TableHead>Unidades</TableHead>
+                                <TableHead>Accion</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody class="text-center">
+                            <TableRow v-if="inlineSizeMode === 'create'">
+                                <TableCell class="align-top">
+                                    <div class="space-y-1">
+                                        <SelectField
+                                            v-if="sizeOptions.length > 0"
+                                            v-model="inlineSizeForm.size"
+                                            :options="sizeOptionsForCreate"
+                                            placeholder="Selecciona talla"
+                                            :searchable="false"
+                                            :disabled="sizeOptionsForCreate.length === 0"
+                                            :invalid="isInlineSizeFieldInvalid('size')"
+                                            :aria-invalid="isInlineSizeFieldInvalid('size') ? 'true' : undefined"
+                                        />
+                                        <Input
+                                            v-else
+                                            :model-value="inlineSizeForm.size"
+                                            placeholder="Talla"
+                                            :invalid="isInlineSizeFieldInvalid('size')"
+                                            :aria-invalid="isInlineSizeFieldInvalid('size') ? 'true' : undefined"
+                                            @update:model-value="(value) => (inlineSizeForm.size = String(value))"
+                                        />
+                                        <p v-if="isInlineSizeFieldInvalid('size')" class="text-xs text-destructive">Campo obligatorio</p>
+                                        <p v-else-if="sizeOptions.length > 0 && sizeOptionsForCreate.length === 0" class="text-xs text-muted-foreground">
+                                            No hay más tallas disponibles.
+                                        </p>
+                                    </div>
+                                </TableCell>
+                                <TableCell class="align-top">
+                                    <div class="space-y-1">
+                                        <Input
+                                            :model-value="inlineSizeForm.curve"
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            placeholder="Curva"
+                                            :invalid="isInlineSizeFieldInvalid('curve')"
+                                            :aria-invalid="isInlineSizeFieldInvalid('curve') ? 'true' : undefined"
+                                            @update:model-value="(value) => (inlineSizeForm.curve = String(value))"
+                                        />
+                                        <p v-if="isInlineSizeFieldInvalid('curve')" class="text-xs text-destructive">Debe ser >= 0</p>
+                                    </div>
+                                </TableCell>
+                                <TableCell class="align-top">
+                                    <div class="space-y-1">
+                                        <Input
+                                            :model-value="inlineSizeForm.units"
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            placeholder="Unidades"
+                                            :invalid="isInlineSizeFieldInvalid('units')"
+                                            :aria-invalid="isInlineSizeFieldInvalid('units') ? 'true' : undefined"
+                                            @update:model-value="(value) => (inlineSizeForm.units = String(value))"
+                                        />
+                                        <p v-if="isInlineSizeFieldInvalid('units')" class="text-xs text-destructive">Debe ser mayor a 0</p>
+                                    </div>
+                                </TableCell>
+                                <TableCell class="w-[84px] text-center align-top">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button
+                                            type="button"
+                                            class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-emerald-600 focus-visible:text-emerald-600 active:text-emerald-600"
+                                            aria-label="Guardar talla"
+                                            @click="saveInlineSize"
+                                        >
+                                            <Check class="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground active:text-muted-foreground"
+                                            aria-label="Cancelar edicion de talla"
+                                            @click="cancelInlineSizeEditor"
+                                        >
+                                            <X class="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+
+                            <TableRow v-for="row in localData.sizes" :key="row.uid ?? row.size">
+                                <template v-if="isEditingSize(row)">
+                                    <TableCell class="font-medium text-foreground">
+                                        {{ inlineSizeForm.size }}
+                                    </TableCell>
+                                    <TableCell class="align-top">
+                                        <div class="space-y-1">
+                                            <Input
+                                                :model-value="inlineSizeForm.curve"
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                placeholder="Curva"
+                                                :invalid="isInlineSizeFieldInvalid('curve')"
+                                                :aria-invalid="isInlineSizeFieldInvalid('curve') ? 'true' : undefined"
+                                                @update:model-value="(value) => (inlineSizeForm.curve = String(value))"
+                                            />
+                                            <p v-if="isInlineSizeFieldInvalid('curve')" class="text-xs text-destructive">Debe ser >= 0</p>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell class="align-top">
+                                        <div class="space-y-1">
+                                            <Input
+                                                :model-value="inlineSizeForm.units"
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                placeholder="Unidades"
+                                                :invalid="isInlineSizeFieldInvalid('units')"
+                                                :aria-invalid="isInlineSizeFieldInvalid('units') ? 'true' : undefined"
+                                                @update:model-value="(value) => (inlineSizeForm.units = String(value))"
+                                            />
+                                            <p v-if="isInlineSizeFieldInvalid('units')" class="text-xs text-destructive">
+                                                Debe ser mayor a 0
+                                            </p>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell class="w-[84px] text-center align-top">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <button
+                                                type="button"
+                                                class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-emerald-600 focus-visible:text-emerald-600 active:text-emerald-600"
+                                                aria-label="Guardar talla"
+                                                @click="saveInlineSize"
+                                            >
+                                                <Check class="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground active:text-muted-foreground"
+                                                aria-label="Cancelar edicion de talla"
+                                                @click="cancelInlineSizeEditor"
+                                            >
+                                                <X class="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </TableCell>
+                                </template>
+                                <template v-else>
+                                    <TableCell class="font-medium text-foreground">{{ row.size }}</TableCell>
+                                    <TableCell>{{ row.curve || '-' }}</TableCell>
+                                    <TableCell>{{ row.units }}</TableCell>
+                                    <TableCell class="w-[84px] text-center align-top">
+                                        <div class="flex items-center justify-center">
+                                            <button
+                                                type="button"
+                                                class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-primary focus-visible:text-primary active:text-primary"
+                                                aria-label="Editar talla"
+                                                @click="openEditSizeInline(row)"
+                                            >
+                                                <Pencil class="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </TableCell>
+                                </template>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </div>
 
-                <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2.9fr)_minmax(0,1.8fr)]">
-                    <div class="space-y-4">
-                        <div class="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                            <div>
-                                <div class="flex items-center gap-1">
-                                    <p class="text-sm font-semibold text-foreground">Unidades por talla</p>
-                                    <HelpTooltip
-                                        text="Distribución editable de unidades para corte/trazo."
-                                        aria-label="Ayuda sobre Unidades por talla"
-                                    />
-                                </div>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <div class="flex items-center gap-2">
-                                    <Badge variant="outline">Curvas: {{ totalCurvesBySize }}</Badge>
-                                    <Badge variant="outline">Total: {{ totalUnitsBySize }}</Badge>
-                                </div>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    class="rounded-full border-primary/40 px-4 text-primary hover:bg-primary/10 hover:text-primary"
-                                    @click="handleAddSizeClick"
-                                >
-                                    <Plus class="mr-1 h-4 w-4" />
-                                    Agregar talla
-                                </Button>
-                            </div>
-                        </div>
+                <!-- Totales tallas -->
+                <div v-if="localData.sizes.length > 0" class="mt-3 flex items-center gap-6 text-xs text-muted-foreground">
+                    <span>Total unidades: <strong class="text-foreground">{{ totalUnitsBySize }}</strong></span>
+                    <span v-if="totalCurvesBySize > 0">Total curvas: <strong class="text-foreground">{{ totalCurvesBySize }}</strong></span>
+                </div>
 
-                        <div v-if="unitsUnavailable" class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                            Unidades no disponibles en la OP. Puedes registrar tallas manualmente.
-                        </div>
+                <!-- Botón añadir talla -->
+                <div class="mt-3 flex items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" class="rounded-full" :disabled="!canAddMoreSizes" @click="handleAddSizeClick">
+                        <Plus class="mr-1 h-3.5 w-3.5" />
+                        Agregar talla
+                    </Button>
+                </div>
+                </div><!-- /col-izquierda -->
 
-                        <div
-                            v-if="localData.sizes.length === 0 && inlineSizeMode !== 'create'"
-                            class="rounded-md border border-dashed border-border px-3 py-5 text-sm text-muted-foreground"
-                        >
-                            Sin informacion registrada por talla.
-                        </div>
+                <!-- ── DESPIECE + NOTAS (columna derecha 62%) ─────────── -->
+                <div class="bg-background rounded-lg border border-border px-4 py-4 shadow-sm">
 
-                        <div v-else class="rounded-md border border-border bg-background p-2">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow class="text-center">
-                                        <TableHead>Talla</TableHead>
-                                        <TableHead>Curva</TableHead>
-                                        <TableHead>Unidades</TableHead>
-                                        <TableHead>Accion</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody class="text-center">
-                                    <TableRow v-if="inlineSizeMode === 'create'">
+                <!-- ── DESPIECE ── -->
+                <div>
+                    <h3 class="mb-2 text-sm font-semibold text-foreground">Despiece de trazo</h3>
+
+                    <div
+                        v-if="fabricOptions.length === 0"
+                        class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+                    >
+                        Agrega la información de materia prima (telas) para poder vincular piezas a telas.
+                    </div>
+
+                    <div v-if="localData.pieces.length > 0 || hasInlinePieceEditor" class="rounded-md border border-border bg-background p-2">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead class="w-[30%]">Pieza</TableHead>
+                                    <TableHead class="w-[24%]">Tela</TableHead>
+                                    <TableHead>Hilo</TableHead>
+                                    <TableHead class="text-center">Izq.</TableHead>
+                                    <TableHead class="text-center">Der.</TableHead>
+                                    <TableHead class="w-[84px] text-center">Accion</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <!-- Fila inline de creación -->
+                                <TableRow v-if="inlinePieceMode === 'create'">
+                                    <TableCell class="align-top">
+                                        <Input
+                                            :model-value="inlinePieceForm.pieceId"
+                                            placeholder="Pieza"
+                                            :invalid="isInlineFieldInvalid('pieceId')"
+                                            @update:model-value="onPieceInputChange"
+                                        />
+                                        <p v-if="isInlineFieldInvalid('pieceId')" class="mt-0.5 text-xs text-destructive">Requerido</p>
+                                    </TableCell>
+                                    <TableCell class="align-top">
+                                        <SelectField
+                                            v-model="inlinePieceForm.fabricId"
+                                            :options="fabricOptionsForEditor"
+                                            :searchable="false"
+                                            placeholder="Tela"
+                                            :invalid="isInlineFieldInvalid('fabricId')"
+                                            :disabled="fabricOptions.length === 0"
+                                            @update:model-value="(v) => (inlinePieceForm.fabricId = String(v ?? ''))"
+                                        />
+                                        <p v-if="isInlineFieldInvalid('fabricId')" class="mt-0.5 text-xs text-destructive">Requerido</p>
+                                    </TableCell>
+                                    <TableCell class="align-top">
+                                        <SelectField
+                                            v-model="inlinePieceForm.grainId"
+                                            :options="grainOptions"
+                                            :searchable="false"
+                                            placeholder="Hilo"
+                                            :invalid="isInlineFieldInvalid('grainId')"
+                                            :loading="loadingPieceOptions"
+                                            @update:model-value="(v) => (inlinePieceForm.grainId = String(v ?? ''))"
+                                        />
+                                        <p v-if="isInlineFieldInvalid('grainId')" class="mt-0.5 text-xs text-destructive">Requerido</p>
+                                    </TableCell>
+                                    <TableCell class="align-top">
+                                        <Input
+                                            :model-value="inlinePieceForm.leftUnits"
+                                            type="number" min="0" step="1"
+                                            class="w-16 text-center"
+                                            @update:model-value="(v) => (inlinePieceForm.leftUnits = String(v))"
+                                        />
+                                    </TableCell>
+                                    <TableCell class="align-top">
+                                        <Input
+                                            :model-value="inlinePieceForm.rightUnits"
+                                            type="number" min="0" step="1"
+                                            class="w-16 text-center"
+                                            @update:model-value="(v) => (inlinePieceForm.rightUnits = String(v))"
+                                        />
+                                    </TableCell>
+                                    <TableCell class="w-[84px] text-center align-top">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-emerald-600" aria-label="Guardar pieza" @click="saveInlinePiece">
+                                                <Check class="h-4 w-4" />
+                                            </button>
+                                            <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-muted-foreground" aria-label="Cancelar" @click="cancelInlinePieceEditor">
+                                                <X class="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+
+                                <!-- Filas existentes -->
+                                <TableRow v-for="piece in localData.pieces" :key="pieceStableId(piece)">
+                                    <template v-if="isEditingPiece(piece)">
                                         <TableCell class="align-top">
-                                            <div class="space-y-1">
-                                                <Input
-                                                    :model-value="inlineSizeForm.size"
-                                                    placeholder="Talla"
-                                                    :invalid="isInlineSizeFieldInvalid('size')"
-                                                    :aria-invalid="isInlineSizeFieldInvalid('size') ? 'true' : undefined"
-                                                    @update:model-value="(value) => (inlineSizeForm.size = String(value))"
-                                                />
-                                                <p v-if="isInlineSizeFieldInvalid('size')" class="text-xs text-destructive">Campo obligatorio</p>
-                                            </div>
+                                            <Input :model-value="inlinePieceForm.pieceId" placeholder="Pieza" :invalid="isInlineFieldInvalid('pieceId')" @update:model-value="onPieceInputChange" />
                                         </TableCell>
                                         <TableCell class="align-top">
-                                            <div class="space-y-1">
-                                                <Input
-                                                    :model-value="inlineSizeForm.curve"
-                                                    type="number"
-                                                    min="0"
-                                                    step="1"
-                                                    placeholder="Curva"
-                                                    :invalid="isInlineSizeFieldInvalid('curve')"
-                                                    :aria-invalid="isInlineSizeFieldInvalid('curve') ? 'true' : undefined"
-                                                    @update:model-value="(value) => (inlineSizeForm.curve = String(value))"
-                                                />
-                                                <p v-if="isInlineSizeFieldInvalid('curve')" class="text-xs text-destructive">Debe ser >= 0</p>
-                                            </div>
+                                            <SelectField v-model="inlinePieceForm.fabricId" :options="fabricOptionsForEditor" :searchable="false" placeholder="Tela" :invalid="isInlineFieldInvalid('fabricId')" :disabled="fabricOptions.length === 0" @update:model-value="(v) => (inlinePieceForm.fabricId = String(v ?? ''))" />
                                         </TableCell>
                                         <TableCell class="align-top">
-                                            <div class="space-y-1">
-                                                <Input
-                                                    :model-value="inlineSizeForm.units"
-                                                    type="number"
-                                                    min="1"
-                                                    step="1"
-                                                    placeholder="Unidades"
-                                                    :invalid="isInlineSizeFieldInvalid('units')"
-                                                    :aria-invalid="isInlineSizeFieldInvalid('units') ? 'true' : undefined"
-                                                    @update:model-value="(value) => (inlineSizeForm.units = String(value))"
-                                                />
-                                                <p v-if="isInlineSizeFieldInvalid('units')" class="text-xs text-destructive">Debe ser mayor a 0</p>
-                                            </div>
+                                            <SelectField v-model="inlinePieceForm.grainId" :options="grainOptions" :searchable="false" placeholder="Hilo" :invalid="isInlineFieldInvalid('grainId')" :loading="loadingPieceOptions" @update:model-value="(v) => (inlinePieceForm.grainId = String(v ?? ''))" />
+                                        </TableCell>
+                                        <TableCell class="align-top">
+                                            <Input :model-value="inlinePieceForm.leftUnits" type="number" min="0" step="1" class="w-16 text-center" @update:model-value="(v) => (inlinePieceForm.leftUnits = String(v))" />
+                                        </TableCell>
+                                        <TableCell class="align-top">
+                                            <Input :model-value="inlinePieceForm.rightUnits" type="number" min="0" step="1" class="w-16 text-center" @update:model-value="(v) => (inlinePieceForm.rightUnits = String(v))" />
                                         </TableCell>
                                         <TableCell class="w-[84px] text-center align-top">
                                             <div class="flex items-center justify-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-emerald-600 focus-visible:text-emerald-600 active:text-emerald-600"
-                                                    aria-label="Guardar talla"
-                                                    @click="saveInlineSize"
-                                                >
-                                                    <Check class="h-4 w-4" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground active:text-muted-foreground"
-                                                    aria-label="Cancelar edicion de talla"
-                                                    @click="cancelInlineSizeEditor"
-                                                >
-                                                    <X class="h-4 w-4" />
-                                                </button>
+                                                <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-emerald-600" aria-label="Guardar" @click="saveInlinePiece"><Check class="h-4 w-4" /></button>
+                                                <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-muted-foreground" aria-label="Cancelar" @click="cancelInlinePieceEditor"><X class="h-4 w-4" /></button>
                                             </div>
                                         </TableCell>
-                                    </TableRow>
-
-                                    <TableRow v-for="row in localData.sizes" :key="row.uid">
-                                        <template v-if="isEditingSize(row)">
-                                            <TableCell class="align-top">
-                                                <div class="space-y-1">
-                                                    <Input
-                                                        :model-value="inlineSizeForm.size"
-                                                        placeholder="Talla"
-                                                        :invalid="isInlineSizeFieldInvalid('size')"
-                                                        :aria-invalid="isInlineSizeFieldInvalid('size') ? 'true' : undefined"
-                                                        @update:model-value="(value) => (inlineSizeForm.size = String(value))"
-                                                    />
-                                                    <p v-if="isInlineSizeFieldInvalid('size')" class="text-xs text-destructive">Campo obligatorio</p>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="align-top">
-                                                <div class="space-y-1">
-                                                    <Input
-                                                        :model-value="inlineSizeForm.curve"
-                                                        type="number"
-                                                        min="0"
-                                                        step="1"
-                                                        placeholder="Curva"
-                                                        :invalid="isInlineSizeFieldInvalid('curve')"
-                                                        :aria-invalid="isInlineSizeFieldInvalid('curve') ? 'true' : undefined"
-                                                        @update:model-value="(value) => (inlineSizeForm.curve = String(value))"
-                                                    />
-                                                    <p v-if="isInlineSizeFieldInvalid('curve')" class="text-xs text-destructive">Debe ser >= 0</p>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="align-top">
-                                                <div class="space-y-1">
-                                                    <Input
-                                                        :model-value="inlineSizeForm.units"
-                                                        type="number"
-                                                        min="1"
-                                                        step="1"
-                                                        placeholder="Unidades"
-                                                        :invalid="isInlineSizeFieldInvalid('units')"
-                                                        :aria-invalid="isInlineSizeFieldInvalid('units') ? 'true' : undefined"
-                                                        @update:model-value="(value) => (inlineSizeForm.units = String(value))"
-                                                    />
-                                                    <p v-if="isInlineSizeFieldInvalid('units')" class="text-xs text-destructive">
-                                                        Debe ser mayor a 0
-                                                    </p>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="w-[84px] text-center align-top">
-                                                <div class="flex items-center justify-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-emerald-600 focus-visible:text-emerald-600 active:text-emerald-600"
-                                                        aria-label="Guardar talla"
-                                                        @click="saveInlineSize"
-                                                    >
-                                                        <Check class="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground active:text-muted-foreground"
-                                                        aria-label="Cancelar edicion de talla"
-                                                        @click="cancelInlineSizeEditor"
-                                                    >
-                                                        <X class="h-4 w-4" />
-                                                    </button>
-                                                </div>
-                                            </TableCell>
-                                        </template>
-                                        <template v-else>
-                                            <TableCell class="font-medium text-foreground">{{ row.size }}</TableCell>
-                                            <TableCell>{{ row.curve || '-' }}</TableCell>
-                                            <TableCell>{{ row.units }}</TableCell>
-                                            <TableCell class="w-[84px] text-center align-top">
-                                                <div class="flex items-center justify-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-primary focus-visible:text-primary active:text-primary"
-                                                        aria-label="Editar talla"
-                                                        @click="openEditSizeInline(row)"
-                                                    >
-                                                        <Pencil class="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-destructive focus-visible:text-destructive active:text-destructive"
-                                                        aria-label="Eliminar talla"
-                                                        @click="removeSizeRow(String(row.uid))"
-                                                    >
-                                                        <Trash class="h-4 w-4" />
-                                                    </button>
-                                                </div>
-                                            </TableCell>
-                                        </template>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-                        </div>
-
-                        <div class="mb-3 flex items-center justify-between gap-3">
-                            <div>
-                                <div class="flex items-center gap-1">
-                                    <p class="text-sm font-semibold text-foreground">Despiece</p>
-                                    <HelpTooltip text="Listado de piezas para proceso de corte." aria-label="Ayuda sobre Despiece" />
-                                </div>
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                class="rounded-full border-primary/40 px-4 text-primary hover:bg-primary/10 hover:text-primary"
-                                @click="handleAddPieceClick"
-                            >
-                                <Plus class="mr-1 h-4 w-4" />
-                                Agregar pieza
-                            </Button>
-                        </div>
-
-                        <div
-                            v-if="loadingPieceOptions"
-                            class="mb-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground"
-                        >
-                            Cargando parámetros de despiece...
-                        </div>
-
-                        <div class="rounded-md border border-border bg-background p-2">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead class="text-left">N°</TableHead>
-                                        <TableHead class="text-left">Pieza</TableHead>
-                                        <TableHead class="text-left">Tela</TableHead>
-                                        <TableHead class="text-left">Lateralidad</TableHead>
-                                        <TableHead class="text-left">Cantidad</TableHead>
-                                        <TableHead class="text-left">Hilo</TableHead>
-                                        <TableHead class="text-center">Acción</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    <TableRow v-if="inlinePieceMode === 'create'">
-                                        <TableCell class="font-medium text-foreground">PIEZA {{ localData.pieces.length + 1 }}</TableCell>
-                                        <TableCell class="align-top">
-                                            <div class="space-y-1">
-                                                <SelectField
-                                                    v-model="inlinePieceForm.pieceId"
-                                                    :options="pieceOptionsForEditor"
-                                                    placeholder="Selecciona pieza"
-                                                    :searchable="true"
-                                                    :invalid="isInlineFieldInvalid('pieceId')"
-                                                    :aria-invalid="isInlineFieldInvalid('pieceId') ? 'true' : undefined"
-                                                />
-                                                <p v-if="isInlineFieldInvalid('pieceId')" class="text-xs text-destructive">Campo obligatorio</p>
+                                    </template>
+                                    <template v-else>
+                                        <TableCell class="font-medium text-foreground">{{ piece.name }}</TableCell>
+                                        <TableCell>{{ pieceFabricLabel(piece) }}</TableCell>
+                                        <TableCell>{{ piece.grain }}</TableCell>
+                                        <TableCell class="text-center tabular-nums">{{ getPieceHandCounts(piece).left }}</TableCell>
+                                        <TableCell class="text-center tabular-nums">{{ getPieceHandCounts(piece).right }}</TableCell>
+                                        <TableCell class="w-[84px] text-center">
+                                            <div class="flex items-center justify-center gap-1">
+                                                <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-primary" aria-label="Editar" @click="openEditPieceInline(piece)"><Pencil class="h-4 w-4" /></button>
+                                                <button type="button" class="inline-flex h-8 w-8 items-center justify-center text-foreground hover:text-destructive" aria-label="Eliminar" @click="requestRemovePiece(pieceStableId(piece))"><Trash class="h-4 w-4" /></button>
                                             </div>
                                         </TableCell>
-                                        <TableCell class="align-top">
-                                            <div class="space-y-1">
-                                                <SelectField
-                                                    v-model="inlinePieceForm.fabricId"
-                                                    :options="fabricOptionsForEditor"
-                                                    :disabled="fabricOptions.length === 0"
-                                                    :searchable="true"
-                                                    :placeholder="fabricOptions.length === 0 ? 'Sin telas registradas' : 'Selecciona tela'"
-                                                    :invalid="isInlineFieldInvalid('fabricId')"
-                                                    :aria-invalid="isInlineFieldInvalid('fabricId') ? 'true' : undefined"
-                                                />
-                                                <p v-if="isInlineFieldInvalid('fabricId')" class="text-xs text-destructive">Campo obligatorio</p>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell class="align-top">
-                                            <div class="space-y-1">
-                                                <SelectField
-                                                    v-model="inlinePieceForm.sideId"
-                                                    :options="sideOptions"
-                                                    placeholder="Selecciona lateralidad"
-                                                    :searchable="false"
-                                                    :invalid="isInlineFieldInvalid('sideId')"
-                                                    :aria-invalid="isInlineFieldInvalid('sideId') ? 'true' : undefined"
-                                                />
-                                                <p v-if="isInlineFieldInvalid('sideId')" class="text-xs text-destructive">Campo obligatorio</p>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell class="align-top">
-                                            <div class="flex min-h-10 items-center px-1 text-sm">
-                                                <span class="font-medium text-foreground">{{ inlineQuantity }}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell class="align-top">
-                                            <div class="space-y-1">
-                                                <SelectField
-                                                    v-model="inlinePieceForm.grainId"
-                                                    :options="grainOptions"
-                                                    placeholder="Selecciona hilo"
-                                                    :searchable="false"
-                                                    :invalid="isInlineFieldInvalid('grainId')"
-                                                    :aria-invalid="isInlineFieldInvalid('grainId') ? 'true' : undefined"
-                                                />
-                                                <p v-if="isInlineFieldInvalid('grainId')" class="text-xs text-destructive">Campo obligatorio</p>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell class="text-center align-top">
-                                            <div class="flex items-center justify-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-emerald-600 focus-visible:text-emerald-600 active:text-emerald-600"
-                                                    aria-label="Guardar pieza"
-                                                    @click="saveInlinePiece"
-                                                >
-                                                    <Check class="h-4 w-4" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground active:text-muted-foreground"
-                                                    aria-label="Cancelar edicion"
-                                                    @click="cancelInlinePieceEditor"
-                                                >
-                                                    <X class="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-
-                                    <TableRow v-for="(piece, index) in localData.pieces" :key="piece.uid ?? piece.id">
-                                        <TableCell class="font-medium text-foreground">PIEZA {{ index + 1 }}</TableCell>
-                                        <template v-if="isEditingPiece(piece)">
-                                            <TableCell class="align-top">
-                                                <div class="space-y-1">
-                                                    <SelectField
-                                                        v-model="inlinePieceForm.pieceId"
-                                                        :options="pieceOptionsForEditor"
-                                                        placeholder="Selecciona pieza"
-                                                        :searchable="true"
-                                                        :invalid="isInlineFieldInvalid('pieceId')"
-                                                        :aria-invalid="isInlineFieldInvalid('pieceId') ? 'true' : undefined"
-                                                    />
-                                                    <p v-if="isInlineFieldInvalid('pieceId')" class="text-xs text-destructive">Campo obligatorio</p>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="align-top">
-                                                <div class="space-y-1">
-                                                    <SelectField
-                                                        v-model="inlinePieceForm.fabricId"
-                                                        :options="fabricOptionsForEditor"
-                                                        :disabled="fabricOptions.length === 0"
-                                                        :searchable="true"
-                                                        :placeholder="fabricOptions.length === 0 ? 'Sin telas registradas' : 'Selecciona tela'"
-                                                        :invalid="isInlineFieldInvalid('fabricId')"
-                                                        :aria-invalid="isInlineFieldInvalid('fabricId') ? 'true' : undefined"
-                                                    />
-                                                    <p v-if="isInlineFieldInvalid('fabricId')" class="text-xs text-destructive">Campo obligatorio</p>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="align-top">
-                                                <div class="space-y-1">
-                                                    <SelectField
-                                                        v-model="inlinePieceForm.sideId"
-                                                        :options="sideOptions"
-                                                        placeholder="Selecciona lateralidad"
-                                                        :searchable="false"
-                                                        :invalid="isInlineFieldInvalid('sideId')"
-                                                        :aria-invalid="isInlineFieldInvalid('sideId') ? 'true' : undefined"
-                                                    />
-                                                    <p v-if="isInlineFieldInvalid('sideId')" class="text-xs text-destructive">Campo obligatorio</p>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="align-top">
-                                                <div class="flex min-h-10 items-center px-1 text-sm">
-                                                    <span class="font-medium text-foreground">{{ inlineQuantity }}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="align-top">
-                                                <div class="space-y-1">
-                                                    <SelectField
-                                                        v-model="inlinePieceForm.grainId"
-                                                        :options="grainOptions"
-                                                        placeholder="Selecciona hilo"
-                                                        :searchable="false"
-                                                        :invalid="isInlineFieldInvalid('grainId')"
-                                                        :aria-invalid="isInlineFieldInvalid('grainId') ? 'true' : undefined"
-                                                    />
-                                                    <p v-if="isInlineFieldInvalid('grainId')" class="text-xs text-destructive">Campo obligatorio</p>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="text-center align-top">
-                                                <div class="flex items-center justify-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-emerald-600 focus-visible:text-emerald-600 active:text-emerald-600"
-                                                        aria-label="Guardar pieza"
-                                                        @click="saveInlinePiece"
-                                                    >
-                                                        <Check class="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-muted-foreground focus-visible:text-muted-foreground active:text-muted-foreground"
-                                                        aria-label="Cancelar edicion"
-                                                        @click="cancelInlinePieceEditor"
-                                                    >
-                                                        <X class="h-4 w-4" />
-                                                    </button>
-                                                </div>
-                                            </TableCell>
-                                        </template>
-                                        <template v-else>
-                                            <TableCell class="font-medium text-foreground">{{ piece.name }}</TableCell>
-                                            <TableCell>{{ pieceFabricLabel(piece) }}</TableCell>
-                                            <TableCell>{{ piece.side }}</TableCell>
-                                            <TableCell>{{ quantityFromSide(piece.side ?? null) }}</TableCell>
-                                            <TableCell>
-                                                <div class="flex items-center justify-between gap-2">
-                                                    <span>{{ piece.grain }}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="w-[84px]">
-                                                <div class="flex items-center justify-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-primary focus-visible:text-primary active:text-primary"
-                                                        aria-label="Editar pieza"
-                                                        @click="openEditPieceInline(piece)"
-                                                    >
-                                                        <Pencil class="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex h-8 w-8 items-center justify-center text-foreground transition-colors hover:text-destructive focus-visible:text-destructive active:text-destructive"
-                                                        aria-label="Eliminar pieza"
-                                                        @click="requestRemovePiece(String(piece.id ?? piece.uid ?? ''))"
-                                                    >
-                                                        <Trash class="h-4 w-4" />
-                                                    </button>
-                                                </div>
-                                            </TableCell>
-                                        </template>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-
-                            <div
-                                v-if="localData.pieces.length === 0 && !hasInlinePieceEditor"
-                                class="rounded-md border border-dashed border-border px-3 py-5 text-sm text-muted-foreground"
-                            >
-                                Sin piezas registradas.
-                            </div>
-                        </div>
-
-                        <div class="mb-2 flex items-center gap-1">
-                            <p class="text-sm font-semibold text-foreground">Notas generales de corte</p>
-                            <HelpTooltip
-                                text="Escribe observaciones generales del proceso de corte."
-                                aria-label="Ayuda sobre Notas generales de corte"
-                            />
-                        </div>
-                        <Textarea
-                            :model-value="localData.generalNotes ?? ''"
-                            rows="4"
-                            placeholder="Escribe observaciones generales de corte"
-                            @update:model-value="(value) => updateGeneralNotes(String(value))"
-                        />
+                                    </template>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
                     </div>
 
-                    <div class="pr-1">
-                        <div class="rounded-lg border border-border bg-muted/20 p-4">
-                            <div class="mb-3">
-                                <p class="text-sm font-semibold text-foreground">Dibujo plano</p>
-                                <p class="text-xs text-muted-foreground">Referencia visual del producto</p>
-                            </div>
+                    <div v-else class="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+                        Sin piezas registradas.
+                    </div>
 
-                            <button
-                                v-if="resolvedDrawingUrl"
-                                type="button"
-                                class="w-full overflow-hidden rounded-md bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                                aria-label="Abrir dibujo plano en tamaño grande"
-                                @click="openDrawingPreview"
-                            >
-                                <img :src="resolvedDrawingUrl" alt="Dibujo plano de referencia" class="h-52 w-full object-cover" />
-                            </button>
+                    <div v-if="localData.pieces.length > 0" class="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                        <span>Piezas: <strong class="text-foreground">{{ localData.pieces.length }}</strong></span>
+                        <span>Uds. por pieza: <strong class="text-foreground">{{ totalUnitsByPieces }}</strong></span>
+                    </div>
 
-                            <div v-else class="flex h-52 items-center justify-center rounded-md bg-background/70 px-3 text-sm text-muted-foreground">
-                                Sin dibujo plano
-                            </div>
-
-                            <div class="mb-3 mt-4 border-t border-border pt-4">
-                                <p class="text-sm font-semibold text-foreground">Materia prima</p>
-                                <p class="text-xs text-muted-foreground">Información de la materia prima utilizada</p>
-                            </div>
-
-                            <div v-if="rawMaterialsInfo.length === 0" class="rounded-md bg-background/70 px-3 py-5 text-sm text-muted-foreground">
-                                Sin telas seleccionadas.
-                            </div>
-
-                            <div v-else class="overflow-visible rounded-md bg-background/70">
-                                <Table class="w-full table-fixed text-center">
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead class="w-[14%]">N°</TableHead>
-                                            <TableHead class="w-[24%]">Tela</TableHead>
-                                            <TableHead class="w-[13%]">Ancho</TableHead>
-                                            <TableHead class="w-[17%]">Prom. trazo</TableHead>
-                                            <TableHead class="w-[16%]">Largo trazo</TableHead>
-                                            <TableHead class="w-[16%]">Largo liq.</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        <TableRow v-for="(row, index) in rawMaterialsInfo" :key="row.uid">
-                                            <TableCell class="break-words font-medium text-foreground">Tela {{ index + 1 }}</TableCell>
-                                            <TableCell class="break-words font-medium text-foreground">{{ row.tela }}</TableCell>
-                                            <TableCell class="break-words">{{ formatDecimal(row.ancho) }}</TableCell>
-                                            <TableCell class="break-words">{{ formatDecimal(row.promTrazo) }}</TableCell>
-                                            <TableCell class="break-words">{{ formatDecimal(row.largoTrazo) }}</TableCell>
-                                            <TableCell class="break-words">{{ formatDecimal(row.largoLiq) }}</TableCell>
-                                        </TableRow>
-                                    </TableBody>
-                                </Table>
-                            </div>
-                            <div class="mt-4 border-t border-border pt-4">
-                                <div class="mb-3">
-                                    <p class="text-sm font-semibold text-foreground">Colores - códigos</p>
-                                    <p class="text-xs text-muted-foreground">Referencia visual</p>
-                                </div>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div
-                                        v-for="slot in colorSlots"
-                                        :key="slot.label"
-                                        class="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2"
-                                    >
-                                        <div
-                                            class="h-10 w-10 shrink-0 rounded-md border border-border bg-muted"
-                                            :style="slot.hex ? { backgroundColor: slot.hex } : undefined"
-                                        />
-                                        <div class="min-w-0">
-                                            <p class="text-xs font-medium text-muted-foreground">{{ slot.label }}</p>
-                                            <p class="truncate text-sm font-medium text-foreground">{{ slot.name }}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="mt-3">
+                        <Button type="button" variant="outline" size="sm" class="rounded-full" @click="handleAddPieceClick">
+                            <Plus class="mr-1 h-3.5 w-3.5" />
+                            Agregar pieza
+                        </Button>
                     </div>
                 </div>
+
+                <!-- ── NOTAS GENERALES ── -->
+                <div class="mt-6 border-t border-border pt-4">
+                    <h3 class="mb-2 text-sm font-semibold text-foreground">Notas generales de corte</h3>
+                    <Textarea
+                        :model-value="localData.generalNotes ?? ''"
+                        placeholder="Instrucciones especiales, observaciones de trazo, etc."
+                        class="min-h-[80px]"
+                        @update:model-value="(v) => updateGeneralNotes(String(v))"
+                    />
+                </div>
+
+                </div><!-- /col-derecha -->
+                </div><!-- /grid -->
             </div>
 
-            <DialogFooter class="mt-4 shrink-0 justify-end gap-2 border-t bg-background px-1 pt-4">
+            <DialogFooter class="mt-6 shrink-0 justify-end gap-2 border-t bg-background px-1 pt-4">
                 <Button type="button" variant="outline" class="rounded-full px-6" @click="handleClose">Cerrar</Button>
                 <Button type="button" class="rounded-full px-6" :disabled="savingSection === 'cutting'" @click="handleSave">
                     {{ savingSection === 'cutting' ? 'Guardando...' : 'Guardar' }}
-                </Button>
-            </DialogFooter>
-        </FormDialogContent>
-    </Dialog>
-
-    <Dialog v-model:open="isDrawingPreviewOpen">
-        <FormDialogContent class="max-w-4xl">
-            <FormHeader title="Dibujo plano" description="Referencia visual del producto" />
-            <div class="mt-2 flex max-h-[80vh] items-center justify-center overflow-hidden rounded-md border border-border bg-background p-3">
-                <img
-                    v-if="resolvedDrawingUrl"
-                    :src="resolvedDrawingUrl"
-                    alt="Dibujo plano de referencia en vista ampliada"
-                    class="max-h-[75vh] w-full object-contain"
-                />
-            </div>
-            <DialogFooter class="mt-4 justify-end">
-                <Button
-                    type="button"
-                    variant="outline"
-                    class="rounded-full px-6"
-                    aria-label="Cerrar vista de dibujo plano"
-                    @click="isDrawingPreviewOpen = false"
-                >
-                    Cerrar
                 </Button>
             </DialogFooter>
         </FormDialogContent>
@@ -1282,9 +1084,7 @@ watch(
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel as-child>
-                    <Button variant="outline" @click="closeDeletePieceDialog">
-                        Cancelar
-                    </Button>
+                    <Button variant="outline" @click="closeDeletePieceDialog"> Cancelar </Button>
                 </AlertDialogCancel>
                 <AlertDialogAction as-child>
                     <button

@@ -6,6 +6,7 @@ use App\Models\Settings\Setting;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class AdditionalFieldService
@@ -66,35 +67,33 @@ class AdditionalFieldService
         }
     }
 
+    public const OPTIONS_CACHE_KEY = 'additional_fields_options';
+    public const OPTIONS_CACHE_TTL = 3600; // 1 hora
+
     public function options(): Collection
     {
-        $fields = $this->fieldQuery()
-            ->where('status', true)
-            ->orderBy('position', 'asc')
-            ->get([
-                'id',
-                'label',
-                'field_type',
-                'options',
-                'default_value',
-                'description',
-                'is_required',
-                'position',
-            ]);
-
-        return $fields->map(function (Setting $field) {
-            return [
-                'id' => $field->id,
-                'name' => $field->label,
-                'label' => $field->label,
-                'field_type' => $field->field_type,
-                'options' => $field->options,
-                'default_value' => $field->default_value,
-                'description' => $field->description,
-                'is_required' => $field->is_required,
-                'position' => $field->position,
-            ];
+        return Cache::remember(self::OPTIONS_CACHE_KEY, self::OPTIONS_CACHE_TTL, function () {
+            return $this->fieldQuery()
+                ->where('status', true)
+                ->orderBy('position', 'asc')
+                ->get(['id', 'label', 'field_type', 'options', 'default_value', 'description', 'is_required', 'position'])
+                ->map(fn(Setting $field) => [
+                    'id'            => $field->id,
+                    'name'          => $field->label,
+                    'label'         => $field->label,
+                    'field_type'    => $field->field_type,
+                    'options'       => $field->options,
+                    'default_value' => $field->default_value,
+                    'description'   => $field->description,
+                    'is_required'   => $field->is_required,
+                    'position'      => $field->position,
+                ]);
         });
+    }
+
+    public function clearOptionsCache(): void
+    {
+        Cache::forget(self::OPTIONS_CACHE_KEY);
     }
 
     public function orderedNames(): array

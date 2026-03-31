@@ -59,11 +59,15 @@ class TechnicalSheetService
 
         $processes       = $this->calculateProcessesForSheet($opId, $productSheet?->id);
 
-        $rawMaterial     = $this->calculateRollsTotal($opId, $units ?? 0.0)
-                         + $this->calculateThreadsTotal($opId, $units ?? 0.0);
+        $rawMaterialTotal          = $this->calculateRollsTotal($opId, $units ?? 0.0)
+                                   + $this->calculateThreadsTotal($opId, $units ?? 0.0);
+        $rawMaterialPerUnit        = ($units !== null && $units > 0)
+            ? ($rawMaterialTotal / $units)
+            : 0.0;
+        $rawMaterialWeightedFabric = $this->calculateRollsWeightedPrice($opId, $units ?? 0.0);
         $supplies        = $this->calculateSuppliesTotal($opId);
         $processesTotal  = $processes['total'];
-        $total           = $rawMaterial + $supplies + $processesTotal;
+        $total           = $rawMaterialPerUnit + $supplies + $processesTotal;
 
         // ── Rentabilidad ──
         $fixedCost      = null;
@@ -93,7 +97,8 @@ class TechnicalSheetService
             ],
             'units' => $units,
             'costs' => [
-                'rawMaterial' => round($rawMaterial, 4),
+                'rawMaterial' => round($rawMaterialWeightedFabric, 4),
+                'rawMaterialPerUnit' => round($rawMaterialPerUnit, 4),
                 'supplies'    => round($supplies, 4),
                 'processes'   => round($processesTotal, 4),
                 'cut'         => round($processes['cut'], 4),
@@ -522,6 +527,48 @@ class TechnicalSheetService
         }
 
         return $total;
+    }
+
+    public function calculateRollsWeightedPrice(int $opId, float $units = 0.0): float
+    {
+        $state  = $this->rollsStore->read($opId);
+        $params = is_array($state['params'] ?? null) ? $state['params'] : [];
+        $trazo  = is_numeric($params['trazo'] ?? null) ? (float) $params['trazo'] : 0.8;
+        if ($trazo <= 0.01) {
+            $trazo = 0.8;
+        }
+
+        $lines = is_array($state['lines'] ?? null) ? $state['lines'] : [];
+        if (empty($lines)) {
+            return 0.0;
+        }
+
+        $totalMeters = 0.0;
+        $totalCost   = 0.0;
+
+        foreach ($lines as $line) {
+            $programmedMeters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : null;
+            $base             = is_numeric($line['consumptionBase'] ?? null) ? (float) $line['consumptionBase'] : 0.0;
+            $extra            = is_numeric($line['extraMeters'] ?? null) ? (float) $line['extraMeters'] : 0.0;
+            $price  = is_numeric($line['pricePerMeter'] ?? null) ? (float) $line['pricePerMeter'] : 0.0;
+
+            $meters = 0.0;
+            if ($programmedMeters !== null) {
+                $meters = $programmedMeters;
+            } elseif ($units > 0) {
+                $consumoAjustado = ($base / $trazo) + $extra;
+                $meters = $consumoAjustado * $units;
+            }
+
+            if ($meters <= 0 || $price <= 0) {
+                continue;
+            }
+
+            $totalMeters += $meters;
+            $totalCost   += $meters * $price;
+        }
+
+        return $totalMeters > 0 ? ($totalCost / $totalMeters) : 0.0;
     }
 
     public function calculateSuppliesTotal(int $opId): float

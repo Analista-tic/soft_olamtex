@@ -35,7 +35,6 @@ type OperationRecord = {
     normalized_name: string;
     generated_description: string;
     section_id: number | null;
-    location: string | null;
     measure: number | null;
     quantity: number | null;
     description: string | null;
@@ -65,7 +64,6 @@ const page = usePage<{
     sections: Section[];
     actions: string[];
     garmentParts: string[];
-    locations: string[];
     productSheets: ProductSheetOption[];
     machines: MachineOption[];
 }>();

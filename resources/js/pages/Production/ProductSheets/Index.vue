@@ -27,8 +27,8 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useGlobalAlert } from '@/composables/useGlobalAlert';
 import { uiPatterns } from '@/lib/ui-patterns';
 import {
@@ -38,6 +38,7 @@ import {
     listProductSheets,
     resolveProductSheetReference,
     showProductSheet,
+    toggleProductSheetEnabled,
     type OptionParams,
     type ProductSheet,
 } from '@/domain/Production';
@@ -46,7 +47,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Eye, Pencil, PlusCircle, Repeat2, Search, Trash } from 'lucide-vue-next';
+import { Eye, MoreVertical, Pencil, PlusCircle, Power, Repeat2, Search, Trash } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente unificado
 
@@ -65,6 +66,7 @@ interface ProductSheetPageProps extends SharedData {
     fabricBases: OptionParams[]; // Cambiar bases a fabricBases
     yarnBases: OptionParams[];
     operationalLists: OptionParams[];
+    collections: OptionParams[];
 }
 
 const props = defineProps<ProductSheetPageProps>();
@@ -92,7 +94,6 @@ const statusOptions = [
 ];
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-const actionIconClass = 'h-4 w-4';
 const sectionOptions = computed(() => [{ id: 'all', name: 'Todos' }, ...props.sections]);
 const worldOptions = computed(() => [{ id: 'all', name: 'Todos' }, ...props.worlds]);
 
@@ -105,6 +106,8 @@ const canDelete = ref(false);
 const convertRowDialogOpen = ref(false);
 const convertRowTarget = ref<ProductSheet | null>(null);
 const convertRowLoading = ref(false);
+const convertDuplicateDialogOpen = ref(false);
+const pendingConvertReference = ref('');
 
 const { successMessage, errorMessage, errorType, success, error, warning, clear } = useGlobalAlert();
 
@@ -169,17 +172,21 @@ function openRowConvertDialog(product: ProductSheet) {
     if (product.type !== 'muestra' || product.product_reference) {
         return;
     }
+    pendingConvertReference.value = '';
+    convertDuplicateDialogOpen.value = false;
     convertRowTarget.value = product;
     convertRowDialogOpen.value = true;
 }
 
 function closeRowConvertDialog() {
     convertRowLoading.value = false;
+    pendingConvertReference.value = '';
+    convertDuplicateDialogOpen.value = false;
     convertRowDialogOpen.value = false;
     convertRowTarget.value = null;
 }
 
-async function submitRowConvertDialog(productReference: string) {
+async function submitRowConvertDialog(productReference: string, allowDuplicateReference = false) {
     if (!convertRowTarget.value) {
         error('No se pudo identificar la sábana.');
         return;
@@ -188,7 +195,9 @@ async function submitRowConvertDialog(productReference: string) {
     convertRowLoading.value = true;
 
     try {
-        const response = await convertSampleToProduct(convertRowTarget.value.id, productReference);
+        const response = await convertSampleToProduct(convertRowTarget.value.id, productReference, {
+            allowDuplicateReference,
+        });
         const updated = response.data?.data;
         if (!updated) {
             throw new Error(response.data?.message ?? 'No se recibieron datos de la sábana convertida.');
@@ -207,6 +216,19 @@ async function submitRowConvertDialog(productReference: string) {
         success('Sábana convertida a producto correctamente.');
         closeRowConvertDialog();
     } catch (err: unknown) {
+        if (axios.isAxiosError(err)) {
+            const responseData = err.response?.data;
+            const isDuplicateReference =
+                err.response?.status === 409 && responseData?.code === 'PRODUCT_REFERENCE_ALREADY_EXISTS' && !allowDuplicateReference;
+
+            if (isDuplicateReference) {
+                pendingConvertReference.value = productReference;
+                convertDuplicateDialogOpen.value = true;
+                warning(responseData?.message ?? 'La referencia ya existe.');
+                return;
+            }
+        }
+
         const message = axios.isAxiosError(err)
             ? (err.response?.data?.message ?? 'Error al convertir la sábana.')
             : err instanceof Error
@@ -215,6 +237,42 @@ async function submitRowConvertDialog(productReference: string) {
         error(message);
     } finally {
         convertRowLoading.value = false;
+    }
+}
+
+async function confirmDuplicateConvert() {
+    const productReference = pendingConvertReference.value.trim();
+    if (!productReference) {
+        convertDuplicateDialogOpen.value = false;
+        return;
+    }
+
+    convertDuplicateDialogOpen.value = false;
+    await submitRowConvertDialog(productReference, true);
+}
+
+function cancelDuplicateConvert() {
+    convertDuplicateDialogOpen.value = false;
+    pendingConvertReference.value = '';
+}
+
+async function handleToggleEnabled(product: ProductSheet) {
+    try {
+        const response = await toggleProductSheetEnabled(product.id);
+        const msg = response.data?.message ?? 'Estado actualizado.';
+        const updatedData = response.data?.data;
+        const index = productSheets.value.findIndex((ps) => ps.id === product.id);
+        if (index !== -1 && updatedData) {
+            productSheets.value[index] = { ...productSheets.value[index], ...updatedData };
+        } else {
+            reloadProductSheets();
+        }
+        success(msg);
+    } catch (err) {
+        const message = axios.isAxiosError(err)
+            ? (err.response?.data?.message ?? 'Error al cambiar el estado.')
+            : 'Error al cambiar el estado.';
+        error(message);
     }
 }
 
@@ -392,38 +450,54 @@ onUnmounted(() => {
             </FilterBar>
 
             <div class="relative mt-4 min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <TooltipProvider>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Ref. Muestra</TableHead>
-                                <TableHead>Ref. Producto</TableHead>
-                                <TableHead>Seccion</TableHead>
-                                <TableHead>Grupo</TableHead>
-                                <TableHead>Marca</TableHead>
-                                <TableHead>Mundo</TableHead>
-                                <TableHead>Base</TableHead>
-                                <TableHead>Precio Fact</TableHead>
-                                <TableHead>Precio Venta</TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead class="text-center">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow v-for="product in productSheets" :key="product.id" class="text-center">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Ref. Muestra</TableHead>
+                            <TableHead>Ref. Producto</TableHead>
+                            <TableHead>Ref. Prod 2</TableHead>
+                            <TableHead>Sección</TableHead>
+                            <TableHead>Grupo</TableHead>
+                            <TableHead>Mundo</TableHead>
+                            <TableHead>Base</TableHead>
+                            <TableHead>Precio Fact</TableHead>
+                            <TableHead>Precio Venta</TableHead>
+                            <TableHead>Costo Total</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead class="text-center">Acciones</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow v-if="productSheets.length === 0">
+                            <TableCell colspan="12" class="py-10 text-center text-sm text-muted-foreground">
+                                No se encontraron sábanas de producto.
+                            </TableCell>
+                        </TableRow>
+                        <TableRow v-for="product in productSheets" v-else :key="product.id" class="text-center" :class="{ 'opacity-50': product.is_enabled === false }">
                                 <TableCell class="font-medium">
-                                    {{ product.sample_reference ?? (product.type === 'muestra' ? resolveProductSheetReference(product) : '-') }}
+                                    <div class="flex flex-row items-center justify-center gap-1 whitespace-nowrap">
+                                        <span class="whitespace-nowrap">{{ product.sample_reference ?? (product.type === 'muestra' ? resolveProductSheetReference(product) : '-') }}</span>
+                                        <span v-if="product.version && product.version > 1" class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800 whitespace-nowrap">
+                                            v{{ product.version }}
+                                        </span>
+                                    </div>
                                 </TableCell>
                                 <TableCell class="font-medium">
                                     {{ product.product_reference ?? (product.type === 'producto' ? resolveProductSheetReference(product) : '-') }}
                                 </TableCell>
+                                <TableCell class="font-medium">
+                                    {{ product.product_reference_2 ?? '-' }}
+                                </TableCell>
                                 <TableCell>{{ product.section?.name ?? '' }}</TableCell>
                                 <TableCell>{{ product.group?.name ?? '' }}</TableCell>
-                                <TableCell>{{ product.brand?.name ?? '' }}</TableCell>
                                 <TableCell>{{ product.world?.name ?? '' }}</TableCell>
                                 <TableCell>{{ product.fabric_base?.name ?? '' }}</TableCell>
                                 <TableCell>{{ formatCopCurrency(product.billing_price) }}</TableCell>
                                 <TableCell>{{ formatCopCurrency(product.selling_price) }}</TableCell>
+                                <TableCell>
+                                    <span v-if="product.latest_total_cost != null">{{ formatCopCurrency(product.latest_total_cost) }}</span>
+                                    <span v-else class="text-muted-foreground">—</span>
+                                </TableCell>
                                 <TableCell>
                                     <TableStatusBadge
                                         :label="product.status === 'complete' ? 'Completo' : 'Incompleto'"
@@ -431,70 +505,49 @@ onUnmounted(() => {
                                     />
                                 </TableCell>
                                 <TableCell class="text-center">
-                                    <div class="flex items-center justify-center gap-2">
-                                        <Tooltip v-if="canEdit && product.type === 'muestra' && !product.product_reference">
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Copiar"
-                                                    :disabled="convertRowLoading"
-                                                    @click="openRowConvertDialog(product)"
-                                                >
-                                                    <Repeat2 :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Copiar</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip v-if="canView">
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Ver detalle"
-                                                    @click="viewProductSheet(product)"
-                                                >
-                                                    <Eye :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Ver detalle</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip v-if="canEdit">
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="actionButtonClass"
-                                                    aria-label="Editar"
-                                                    @click="openEditDialog(product)"
-                                                >
-                                                    <Pencil :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Editar</TooltipContent>
-                                        </Tooltip>
-                                        <Tooltip v-if="canDelete">
-                                            <TooltipTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    :class="[actionButtonClass, 'text-destructive hover:text-destructive']"
-                                                    aria-label="Eliminar"
-                                                    @click="confirmDeleteProductSheet(product)"
-                                                >
-                                                    <Trash :class="actionIconClass" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Eliminar</TooltipContent>
-                                        </Tooltip>
-                                    </div>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger as-child>
+                                            <Button variant="ghost" size="icon" :class="actionButtonClass" aria-label="Acciones">
+                                                <MoreVertical class="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" class="w-48">
+                                            <DropdownMenuItem v-if="canView" class="cursor-pointer gap-2" @click="viewProductSheet(product)">
+                                                <Eye class="h-4 w-4" /> Ver detalle
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem v-if="canEdit" class="cursor-pointer gap-2" @click="openEditDialog(product)">
+                                                <Pencil class="h-4 w-4" /> Editar
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canEdit"
+                                                class="cursor-pointer gap-2"
+                                                :class="product.is_enabled !== false ? 'text-amber-600' : 'text-green-600'"
+                                                @click="handleToggleEnabled(product)"
+                                            >
+                                                <Power class="h-4 w-4" />
+                                                {{ product.is_enabled !== false ? 'Deshabilitar' : 'Habilitar' }}
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canEdit && product.type === 'muestra' && !product.product_reference"
+                                                class="cursor-pointer gap-2"
+                                                :disabled="convertRowLoading"
+                                                @click="openRowConvertDialog(product)"
+                                            >
+                                                <Repeat2 class="h-4 w-4" /> Convertir a producto
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                v-if="canDelete"
+                                                class="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                                                @click="confirmDeleteProductSheet(product)"
+                                            >
+                                                <Trash class="h-4 w-4" /> Eliminar
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </TooltipProvider>
+                        </TableRow>
+                    </TableBody>
+                </Table>
                 <Pagination
                     class="mt-5 flex justify-center"
                     v-slot="{ page }"
@@ -537,6 +590,7 @@ onUnmounted(() => {
         :fabricBases="props.fabricBases"
         :yarnBases="props.yarnBases"
         :operationalLists="props.operationalLists"
+        :collections="props.collections"
         v-model:open="isEditDialogOpen"
         :readonly="isViewMode"
         @productSheetSaved="handleProductSheetSaved"
@@ -550,6 +604,37 @@ onUnmounted(() => {
         :initial-value="convertRowTarget?.product_reference ?? ''"
         @confirm="submitRowConvertDialog"
     />
+
+    <AlertDialog v-model:open="convertDuplicateDialogOpen">
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Referencia existente</AlertDialogTitle>
+                <AlertDialogDescription>
+                    La referencia ya existe. Si continúas, se registrará como versionado con la misma referencia.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter class="flex flex-col gap-2 md:flex-row md:justify-end">
+                <AlertDialogCancel asChild>
+                    <button
+                        type="button"
+                        class="mx-auto flex w-full max-w-[180px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-white px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        @click="cancelDuplicateConvert"
+                    >
+                        Cancelar
+                    </button>
+                </AlertDialogCancel>
+                <AlertDialogAction asChild>
+                    <Button
+                        variant="default"
+                        class="mx-auto flex w-full max-w-[180px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
+                        @click="confirmDuplicateConvert"
+                    >
+                        Continuar como versión
+                    </Button>
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 
     <AlertDialog v-model:open="isDeleteDialogOpen" @close="isDeleteDialogOpen = false">
         <AlertDialogContent>
@@ -582,6 +667,3 @@ onUnmounted(() => {
         </AlertDialogContent>
     </AlertDialog>
 </template>
-
-
-

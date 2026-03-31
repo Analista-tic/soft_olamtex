@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { useSidebar, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuItem } from '@/components/ui/sidebar';
+import { SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { NavItem } from '@/domain/shared';
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Props {
     items: NavItem[];
@@ -50,14 +50,14 @@ const isRouteActive = (href: string) => {
                             <Link
                                 v-if="!isExternal(item.href)"
                                 :href="item.href"
-                                class="sidebar-item flex h-10 items-center rounded-md mx-1 transition-colors hover:bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                                class="sidebar-item mx-1 flex h-10 items-center rounded-md text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
                                 :class="{ 'bg-sidebar-accent/50 text-primary': isRouteActive(item.href) }"
                             >
                                 <div class="icon-column flex h-10 w-[56px] shrink-0 items-center justify-center">
                                     <component :is="item.icon" class="size-[18px] shrink-0" />
                                 </div>
                                 <span
-                                    class="label-column text-sm font-medium whitespace-nowrap transition-all duration-200 ease-out"
+                                    class="label-column whitespace-nowrap text-sm font-medium transition-all duration-200 ease-out"
                                     :class="isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'"
                                 >
                                     {{ item.title }}
@@ -68,13 +68,13 @@ const isRouteActive = (href: string) => {
                                 :href="item.href"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class="sidebar-item flex h-10 items-center rounded-md mx-1 transition-colors hover:bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                                class="sidebar-item mx-1 flex h-10 items-center rounded-md text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
                             >
                                 <div class="icon-column flex h-10 w-[56px] shrink-0 items-center justify-center">
                                     <component :is="item.icon" class="size-[18px] shrink-0" />
                                 </div>
                                 <span
-                                    class="label-column text-sm font-medium whitespace-nowrap transition-all duration-200 ease-out"
+                                    class="label-column whitespace-nowrap text-sm font-medium transition-all duration-200 ease-out"
                                     :class="isSidebarCollapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'"
                                 >
                                     {{ item.title }}

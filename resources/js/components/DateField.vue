@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import { parseToDate, toIsoDateString } from '@/lib/date';
+import { computed } from 'vue';
 
 const props = withDefaults(
     defineProps<{
@@ -46,4 +46,3 @@ const stringModel = computed<string | null>({
         :align="props.align"
     />
 </template>
-

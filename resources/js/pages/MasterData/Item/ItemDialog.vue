@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import ItemFormContent from './ItemFormContent.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import type { Item } from '@/domain/MasterData';
 import { Dialog } from '@/components/ui/dialog';
+import type { Item } from '@/domain/MasterData';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import ItemFormContent from './ItemFormContent.vue';
 
 type DialogType = 'create' | 'edit' | 'view';
 type SaveMode = Exclude<DialogType, 'view'>;
@@ -163,10 +163,7 @@ function handleFormLoadingState(value: boolean) {
 
 <template>
     <Dialog :open="dialogOpen" @update:open="handleDialogOpenChange">
-        <div
-            v-if="showOverlay"
-            class="fixed inset-0 z-[2000] grid place-items-center bg-background/60 backdrop-blur-sm"
-        >
+        <div v-if="showOverlay" class="fixed inset-0 z-[2000] grid place-items-center bg-background/60 backdrop-blur-sm">
             <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
                 <div class="flex items-center gap-3">
                     <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
@@ -175,7 +172,7 @@ function handleFormLoadingState(value: boolean) {
             </div>
         </div>
 
-        <FormDialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[180vh] px-2 py-2" :scrollable="false">
+        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-[180vh] flex-col px-2 py-2" :scrollable="false">
             <ItemFormContent
                 :is-open="dialogOpen"
                 :dialog-type="props.dialogType"

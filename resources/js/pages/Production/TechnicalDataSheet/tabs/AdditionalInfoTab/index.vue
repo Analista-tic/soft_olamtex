@@ -12,6 +12,7 @@ type SectionVisibility = Record<SectionKey, boolean>;
 
 type RawMaterialsInfoRow = {
     uid: string;
+    telaItemId: number | null;
     tela: string;
     ancho: number | null;
     promTrazo: number;
@@ -20,6 +21,7 @@ type RawMaterialsInfoRow = {
     consumo: number;
     precioTela: number | null;
     proveedor: string | null;
+    programmedColors: string[];
 };
 
 function makeId(): string {
@@ -111,48 +113,8 @@ const stampingDialogData = computed<AdditionalInfo['stamping']>({
     },
 });
 
-function loadRawMaterialsFromStorage(opId: string | number): RawMaterialsInfoRow[] {
-    if (typeof window === 'undefined') return [];
-    try {
-        const raw = window.localStorage.getItem(`tDS_rawMaterial_${opId}`);
-        if (!raw) return [];
-
-        const parsed = JSON.parse(raw) as Array<Record<string, unknown>>;
-        if (!Array.isArray(parsed)) return [];
-
-        const toNumber = (value: unknown): number => {
-            const parsedValue = Number(value);
-            return Number.isFinite(parsedValue) ? parsedValue : 0;
-        };
-        const toNumberOrNull = (value: unknown): number | null => {
-            const parsedValue = Number(value);
-            return Number.isFinite(parsedValue) ? parsedValue : null;
-        };
-
-        return parsed
-            .map((row, index) => ({
-                uid: String(row.uid ?? `raw_${index}`),
-                tela: String(row.tela ?? '').trim(),
-                ancho: toNumberOrNull(row.ancho),
-                promTrazo: toNumber(row.promTrazo),
-                largoTrazo: toNumber(row.largoTrazo),
-                largoLiq: toNumber(row.largoLiq),
-                consumo: toNumber(row.consumo),
-                precioTela: toNumberOrNull(row.lastUnitPriceCop ?? row.precioTela),
-                proveedor: String(row.lastSupplierName ?? row.proveedor ?? '').trim() || null,
-            }))
-            .filter((row) => row.tela !== '');
-    } catch (storageError) {
-        console.error('Error al leer materia prima para informacion adicional:', storageError);
-        return [];
-    }
-}
-
 const effectiveRawMaterialsInfo = computed<RawMaterialsInfoRow[]>(() => {
-    if (Array.isArray(props.rawMaterialsInfo) && props.rawMaterialsInfo.length > 0) {
-        return props.rawMaterialsInfo;
-    }
-    return loadRawMaterialsFromStorage(props.opId);
+    return Array.isArray(props.rawMaterialsInfo) ? props.rawMaterialsInfo.filter((row) => row.tela !== '') : [];
 });
 
 const visibleSections = computed<SectionKey[]>(() => {
@@ -272,7 +234,7 @@ function createDefaultAdditionalInfo(): AdditionalInfo {
             pieces: [],
             generalNotes: null,
         },
-        stamping: { designNotes: null, attachments: [] },
+        stamping: { designNotes: null, attachments: [], drawingAttachments: [] },
         laundry: { type: null, instructions: null },
     };
 }
@@ -343,8 +305,10 @@ function normalizePayload(payload: AdditionalInfo): AdditionalInfo {
                         uid: stableId,
                         name: String(piece.name ?? '').trim(),
                         type: (piece.type === 'SECUNDARIO' ? 'SECUNDARIO' : 'PRINCIPAL') as PieceType,
+                        fabricUid: piece.fabricUid ?? null,
                         side: (['IZQUIERDA', 'DERECHA', 'AMBOS', 'NO_APLICA'].includes(String(piece.side)) ? piece.side : 'NO_APLICA') as Side,
                         grain: (['90', '180', 'SESGO'].includes(String(piece.grain)) ? piece.grain : '90') as Grain,
+                        quantity: piece.quantity != null ? Math.max(0, Number(piece.quantity)) : undefined,
                         notes: normalizeText(piece.notes),
                     };
                 })
@@ -354,6 +318,7 @@ function normalizePayload(payload: AdditionalInfo): AdditionalInfo {
         stamping: {
             designNotes: normalizeText(payload.stamping.designNotes),
             attachments: Array.isArray(payload.stamping.attachments) ? payload.stamping.attachments : [],
+            drawingAttachments: Array.isArray(payload.stamping.drawingAttachments) ? payload.stamping.drawingAttachments : [],
         },
         laundry: {
             type: normalizeText(payload.laundry.type),
@@ -404,8 +369,7 @@ async function persist(section: SectionKey): Promise<void> {
         console.error('Error al guardar informacion adicional:', err);
         saveToLocalStorage(payload);
         applyData(payload);
-        error.value = null;
-        success.value = 'Guardado local (sin servidor).';
+        error.value = 'No se pudo guardar en el servidor. Los datos se conservaron localmente, pero se perderan al limpiar el navegador.';
     } finally {
         savingSection.value = null;
     }

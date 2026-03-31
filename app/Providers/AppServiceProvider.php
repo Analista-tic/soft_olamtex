@@ -21,6 +21,7 @@ use App\Models\MasterData\Contact;
 use App\Models\MasterData\Item;
 use App\Models\MasterData\Parameter;
 use App\Models\Production\Machine;
+use App\Models\Production\Collection;
 use App\Models\Production\Operation;
 use App\Models\Production\OperationSection;
 use App\Models\Production\ProductionOrder;
@@ -32,14 +33,12 @@ use App\Models\Production\TechnicalSheetProcess;
 use App\Models\Production\TechnicalSheetRawMaterial;
 use App\Models\Production\TechnicalSheetRoll;
 use App\Models\Production\TechnicalSheetSupply;
+use App\Models\Production\TechnicalDataSheetSupply;
 use App\Models\Production\TechnicalSheetThread;
 use App\Models\Settings\Area;
 use App\Models\Settings\User;
 use App\Models\Settings\Role;
 use App\Models\Settings\Setting;
-use App\Models\Textil\FabricOrder;
-use App\Models\Textil\FabricOrderItem;
-use App\Models\Textil\FabricProvider;
 use App\Models\Textil\FabricRoll;
 use App\Observers\AuditObserver;
 use Illuminate\Support\Facades\Route;
@@ -68,6 +67,7 @@ class AppServiceProvider extends ServiceProvider
         Route::model('programador', ProductionOrder::class);
         Route::model('listItem', ProductOperationList::class);
         Route::model('operation', Operation::class);
+        Route::model('collection', Collection::class);
 
         $this->registerAuditObservers();
     }
@@ -105,6 +105,7 @@ class AppServiceProvider extends ServiceProvider
             InventoryMovement::class,
             // Production
             ProductSheet::class,
+            Collection::class,
             ProductOperationList::class,
             Operation::class,
             OperationSection::class,
@@ -117,11 +118,9 @@ class AppServiceProvider extends ServiceProvider
             TechnicalSheetThread::class,
             TechnicalSheetSupply::class,
             TechnicalSheetRawMaterial::class,
+            TechnicalDataSheetSupply::class,
             // Textil
             FabricRoll::class,
-            FabricOrder::class,
-            FabricOrderItem::class,
-            FabricProvider::class,
         ];
 
         foreach ($auditedModels as $modelClass) {

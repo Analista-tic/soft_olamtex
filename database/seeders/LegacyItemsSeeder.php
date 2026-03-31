@@ -23,16 +23,28 @@ class LegacyItemsSeeder extends Seeder
 {
     public function run(): void
     {
+        // Busca primero en storage/app/legacy/, luego en db/ como fallback
         $csvFiles = [
             storage_path('app/legacy/Base de datos normalizada 1 - Items.csv'),
             storage_path('app/legacy/Base de datos normalizada 2 - Items.csv'),
         ];
 
+        // Si no existen en storage/, intentar desde db/
+        $fallback = [
+            base_path('db/Base de datos normalizada 1 - Items.csv'),
+            base_path('db/Base de datos normalizada 2 - Items.csv'),
+        ];
+        foreach ($fallback as $i => $path) {
+            if (! file_exists($csvFiles[$i]) && file_exists($path)) {
+                $csvFiles[$i] = $path;
+            }
+        }
+
         // Filtrar solo archivos que existan (permite ejecutar seed sin los CSV)
         $existing = array_filter($csvFiles, fn(string $path) => file_exists($path));
 
         if (empty($existing)) {
-            $this->command?->warn('LegacyItemsSeeder: No se encontraron archivos CSV en storage/app/legacy/. Se omite importación legacy.');
+            $this->command?->warn('LegacyItemsSeeder: No se encontraron archivos CSV en storage/app/legacy/ ni en db/. Se omite importación legacy.');
             Log::warning('legacy_import.no_files', ['expected' => $csvFiles]);
             return;
         }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import FormDialogContent from '@/components/FormDialogContent.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import axios from 'axios';
 import { reactive, ref, watch } from 'vue';
@@ -83,23 +84,23 @@ const handleSubmit = async () => {
 
 <template>
     <Dialog :open="modelValue" @update:open="close">
-        <DialogContent class="max-w-md border border-border p-8">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
             <form class="space-y-4" @submit.prevent="handleSubmit">
-                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <DialogHeader>
                     <DialogTitle>Actualizar contraseña</DialogTitle>
                     <DialogDescription>Asegúrate de usar una contraseña larga y segura.</DialogDescription>
                 </DialogHeader>
                 <fieldset class="space-y-4">
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-foreground">Contraseña actual</label>
+                        <label class="text-sm font-medium text-slate-700">Contraseña actual</label>
                         <Input v-model="form.current_password" type="password" placeholder="Contraseña actual" required />
                     </div>
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-foreground">Nueva contraseña</label>
+                        <label class="text-sm font-medium text-slate-700">Nueva contraseña</label>
                         <Input v-model="form.new_password" type="password" placeholder="Nueva contraseña" required />
                     </div>
                     <div class="space-y-1">
-                        <label class="text-sm font-medium text-foreground">Confirmar contraseña</label>
+                        <label class="text-sm font-medium text-slate-700">Confirmar contraseña</label>
                         <Input v-model="form.confirm_password" type="password" placeholder="Repite la contraseña" required />
                     </div>
                     <p v-if="message" :class="messageType === 'success' ? 'text-emerald-600' : 'text-red-600'" class="text-sm font-medium">
@@ -122,6 +123,6 @@ const handleSubmit = async () => {
                     </Button>
                 </DialogFooter>
             </form>
-        </DialogContent>
+        </FormDialogContent>
     </Dialog>
 </template>

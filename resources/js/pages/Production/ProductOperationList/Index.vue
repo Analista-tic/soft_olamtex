@@ -11,7 +11,7 @@ import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
-import type { CostParameters, ProductOperationListPageProps, ProductOperationPayload } from '@/domain/product-sheet';
+import type { CostParameters, ProductOperationListPageProps, ProductOperationPayload } from '@/domain/product-sheet/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -37,19 +37,40 @@ const machines = computed(() => page.props.machines || []);
 const productSheets = computed(() => page.props.productSheets || []);
 const actions = computed(() => page.props.actions || []);
 const garmentParts = computed(() => page.props.garmentParts || []);
-const locations = computed(() => page.props.locations || []);
 const fabricBases = computed(() => (page.props as any).fabric_bases || []);
+function buildProductSheetLabel(sheet: any): string {
+    const sample = String(sheet.sample_reference ?? '').trim().toUpperCase() || '-';
+    const product = String(sheet.product_reference ?? '').trim().toUpperCase() || '-';
+    const prod2 = String(sheet.product_reference_2 ?? '').trim().toUpperCase();
+    const version = Number(sheet.version ?? 1);
+    let label = `${sample} / ${product}`;
+    if (prod2) label += ` / ${prod2}`;
+    label += ` / v${version}`;
+    return label;
+}
+
 const productSheetOptions = computed(() => [
     { id: 'all', name: 'Todos' },
     ...productSheets.value.map((sheet) => ({
         id: sheet.id,
-        name: `${sheet.reference} (${sheet.type})`,
+        name: buildProductSheetLabel(sheet),
     })),
 ]);
 
 const isDialogOpen = ref(false);
 const searchQuery = ref('');
-const selectedProductSheetId = ref<number | 'all'>('all');
+
+function getInitialProductSheetFilter(): number | 'all' {
+    if (typeof window === 'undefined') {
+        return 'all';
+    }
+
+    const raw = new URLSearchParams(window.location.search).get('product_sheet_id');
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 'all';
+}
+
+const selectedProductSheetId = ref<number | 'all'>(getInitialProductSheetFilter());
 
 type OperationSummary = {
     product_sheet_id: number;
@@ -102,6 +123,10 @@ function normalizeText(value: string): string {
 function toNumberOrNull(value: unknown): number | null {
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+function normalizeComparableId(value: number | string | null | undefined): string {
+    return String(value ?? '').trim();
 }
 
 function formatOptimalTime(value: unknown): string {
@@ -242,6 +267,16 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
     }
 
     const targetSheetId = validPayloads.find((payload) => payload.product_sheet_id)?.product_sheet_id ?? null;
+    const targetSheetComparableId = normalizeComparableId(targetSheetId);
+
+    if (
+        dialogMode.value === 'create' &&
+        targetSheetComparableId !== '' &&
+        operationSummaries.value.some((summary) => normalizeComparableId(summary.product_sheet_id) === targetSheetComparableId)
+    ) {
+        showError('No se puede crear más de un listado operacional para la misma referencia de producto.');
+        return;
+    }
 
     // Solo eliminar operaciones existentes en modo EDIT
     // En modo CREATE solo agregamos nuevas operaciones
@@ -594,7 +629,12 @@ watch(productSheets, () => {
                 :open="isDialogOpen"
                 :mode="dialogMode"
                 :initial-data="dialogInitialData"
-                :productSheets="productSheets"
+                :productSheets="
+                    productSheets.map((sheet) => ({
+                        ...sheet,
+                        reference: buildProductSheetLabel(sheet),
+                    }))
+                "
                 :excluded-product-sheet-ids="operationSummaries.map((s) => s.product_sheet_id)"
                 :sections="sections"
                 :operations="operations"

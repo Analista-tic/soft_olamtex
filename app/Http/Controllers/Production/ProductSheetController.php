@@ -6,6 +6,7 @@ use App\Http\Requests\Production\ConvertProductSheetRequest;
 use App\Http\Requests\Production\StoreProductSheetRequest;
 use App\Http\Requests\Production\UpdateProductSheetRequest;
 use App\Models\Production\ProductSheet;
+use App\Services\Production\CollectionService;
 use App\Services\Production\ProductSheetCreationService;
 use App\Services\Production\ProductSheetPersistenceService;
 use App\Services\Settings\SettingService;
@@ -24,6 +25,7 @@ class ProductSheetController extends Controller
 
     public function __construct(
         private SettingService $settingService,
+        private CollectionService $collectionService,
         private ProductSheetCreationService $productSheetCreationService,
         private ProductSheetPersistenceService $productSheetPersistenceService,
     ) {
@@ -44,6 +46,7 @@ class ProductSheetController extends Controller
             'yarnBases' => $catalogs['yarn_bases']->values()->all(),
             'sizes' => $catalogs['sizes']->values()->all(),
             'operationalLists' => $catalogs['operational_lists']->values()->all(),
+            'collections' => $catalogs['collections']->values()->all(),
         ]);
     }
 
@@ -56,6 +59,9 @@ class ProductSheetController extends Controller
         $validatedData['sizes'] = $this->productSheetPersistenceService->normalizeSizes($validatedData['sizes'] ?? '[]');
         $validatedData = $this->productSheetPersistenceService->prepareFlatSketchUpload($request, $validatedData);
         $validatedData = $this->productSheetCreationService->sanitizeAttributes($validatedData);
+        if (($validatedData['status'] ?? 'incomplete') === 'complete') {
+            $validatedData['status'] = 'incomplete';
+        }
         $storedFlatSketchPath = $validatedData['flat_sketch_path'] ?? null;
 
         try {
@@ -84,6 +90,11 @@ class ProductSheetController extends Controller
         $validatedData['sizes'] = $this->productSheetPersistenceService->normalizeSizes($validatedData['sizes'] ?? '[]');
         $validatedData = $this->productSheetPersistenceService->prepareFlatSketchUpload($request, $validatedData, $sabana);
         $validatedData = $this->productSheetCreationService->sanitizeAttributes($validatedData);
+
+        if (($validatedData['status'] ?? null) === 'complete' && !$this->hasOperationalListRegistered($sabana->id)) {
+            $validatedData['status'] = 'incomplete';
+        }
+
         $sabana->update($validatedData);
 
         return response()->json([
@@ -103,6 +114,21 @@ class ProductSheetController extends Controller
         }
 
         $productReference = $request->input('product_reference') ?? $this->generateProductReference($sabana);
+        $productReference = Str::upper(trim((string) $productReference));
+        $allowDuplicateReference = $request->boolean('allow_duplicate_reference');
+
+        $referenceExists = ProductSheet::query()
+            ->where('product_reference', $productReference)
+            ->where('id', '!=', $sabana->id)
+            ->exists();
+
+        if ($referenceExists && !$allowDuplicateReference) {
+            return response()->json([
+                'success' => false,
+                'code' => 'PRODUCT_REFERENCE_ALREADY_EXISTS',
+                'message' => 'La referencia de producto ya existe. Si deseas continuar por versionado, confirma la advertencia.',
+            ], 409);
+        }
 
         $sabana->update([
             'product_reference' => $productReference,
@@ -131,6 +157,7 @@ class ProductSheetController extends Controller
             $worlds = $catalogs['worlds']->keyBy('id');
             $fabricBases = $catalogs['fabric_bases']->keyBy('id');
             $yarnBases = $catalogs['yarn_bases']->keyBy('id');
+            $collections = $catalogs['collections']->keyBy('id');
 
             // Enriquecer el producto con los nombres
             $productSheet->section = $sections->get($productSheet->section_id, ['id' => $productSheet->section_id, 'name' => 'N/A']);
@@ -139,6 +166,7 @@ class ProductSheetController extends Controller
             $productSheet->world = $worlds->get($productSheet->world_id, ['id' => $productSheet->world_id, 'name' => 'N/A']);
             $productSheet->fabric_base = $fabricBases->get($productSheet->fabric_base_id, ['id' => $productSheet->fabric_base_id, 'name' => 'N/A']);
             $productSheet->yarn_base = $productSheet->yarn_base_id ? $yarnBases->get($productSheet->yarn_base_id, ['id' => $productSheet->yarn_base_id, 'name' => 'N/A']) : null;
+            $productSheet->collection_obj = $productSheet->collection_id ? $collections->get($productSheet->collection_id, ['id' => $productSheet->collection_id, 'name' => 'N/A']) : null;
 
             // Convertir arrays a JSON strings para el frontend
             $data = $this->productSheetPersistenceService->serializeProductSheet($productSheet);
@@ -150,8 +178,13 @@ class ProductSheetController extends Controller
             $data['world'] = $productSheet->world;
             $data['fabric_base'] = $productSheet->fabric_base;
             $data['yarn_base'] = $productSheet->yarn_base;
+            $data['collection_id'] = $productSheet->collection_id;
+            $data['collection'] = $productSheet->collection_obj;
             $data['flat_sketch_path'] = $this->resolveExistingFlatSketchPath($productSheet->flat_sketch_path);
             $data['has_production_orders'] = $productSheet->hasProductionOrders();
+            $data['version'] = $productSheet->version;
+            $data['parent_id'] = $productSheet->parent_id;
+            $data['is_enabled'] = $productSheet->is_enabled;
 
             return response()->json([
                 'success' => true,
@@ -204,7 +237,8 @@ class ProductSheetController extends Controller
         if ($request->has('search') && $request->search != '') {
             $query->where(function ($sub) use ($request) {
                 $sub->where('sample_reference', 'like', '%' . $request->search . '%')
-                    ->orWhere('product_reference', 'like', '%' . $request->search . '%');
+                    ->orWhere('product_reference', 'like', '%' . $request->search . '%')
+                    ->orWhere('product_reference_2', 'like', '%' . $request->search . '%');
             });
         }
 
@@ -220,7 +254,19 @@ class ProductSheetController extends Controller
             $query->where('world_id', $request->world_id);
         }
 
-        $products_sheets = $query->withCount('productionOrders')->orderBy('id', 'desc')->paginate(10);
+        $products_sheets = $query
+            ->withCount('productionOrders')
+            ->addSelect([
+                'latest_total_cost' => \App\Models\Production\ProductionOrder::query()
+                    ->select('technical_sheets.total_cost')
+                    ->join('technical_sheets', 'technical_sheets.production_order_id', '=', 'production_orders.id')
+                    ->whereColumn('production_orders.product_sheet_id', 'product_sheets.id')
+                    ->whereNull('technical_sheets.deleted_at')
+                    ->orderByDesc('production_orders.id')
+                    ->limit(1),
+            ])
+            ->orderBy('id', 'desc')
+            ->paginate(10);
 
         $catalogs = $this->gatherCatalogs();
         $sections = $catalogs['sections']->keyBy('id');
@@ -259,6 +305,55 @@ class ProductSheetController extends Controller
         ]);
     }
 
+    /**
+     * Alterna el estado habilitado/deshabilitado de una sábana.
+     */
+    public function toggleEnabled(ProductSheet $sabana): JsonResponse
+    {
+        // Si se intenta deshabilitar pero tiene órdenes de producción activas, advertir
+        if ($sabana->is_enabled && $sabana->hasProductionOrders()) {
+            // Permitir deshabilitar igualmente, pero no afecta OPs existentes
+        }
+
+        $sabana->update(['is_enabled' => !$sabana->is_enabled]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $sabana->is_enabled ? 'Sábana habilitada correctamente.' : 'Sábana deshabilitada correctamente.',
+            'data' => $this->productSheetPersistenceService->serializeProductSheet($sabana->fresh()),
+        ]);
+    }
+
+    /**
+     * Devuelve sábanas habilitadas y completas para usarse como template al crear.
+     */
+    public function templates(Request $request): JsonResponse
+    {
+        $templates = ProductSheet::query()
+            ->where('is_enabled', true)
+            ->whereNull('deleted_at')
+            ->select(['id', 'sample_reference', 'product_reference', 'product_reference_2', 'type', 'version'])
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($ps) {
+                $refs = array_filter([
+                    $ps->sample_reference,
+                    $ps->product_reference,
+                    $ps->product_reference_2,
+                ]);
+                $label = implode(' / ', $refs) ?: 'Sin referencia';
+                if ($ps->version > 1) {
+                    $label .= ' v' . $ps->version;
+                }
+                return [
+                    'id' => $ps->id,
+                    'name' => $label,
+                ];
+            });
+
+        return response()->json(['data' => $templates->values()->all()]);
+    }
+
     private function gatherCatalogs(): array
     {
         $keys = ['sections', 'groups', 'brands', 'worlds', 'fabric_bases', 'yarn_bases', 'sizes', 'operational_lists'];
@@ -266,7 +361,17 @@ class ProductSheetController extends Controller
         foreach ($keys as $key) {
             $catalogs[$key] = $this->settingService->getCatalogOptions($key);
         }
+        $catalogs['collections'] = $this->collectionService->allActive()
+            ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name]);
         return $catalogs;
+    }
+
+    private function hasOperationalListRegistered(int $productSheetId): bool
+    {
+        return DB::table('product_sheet_operations')
+            ->where('product_sheet_id', $productSheetId)
+            ->whereNull('deleted_at')
+            ->exists();
     }
 
     public function parameters(Request $request): JsonResponse

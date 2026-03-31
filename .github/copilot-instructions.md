@@ -1,3 +1,16 @@
+# REGLA CRÍTICA SOBRE PERSISTENCIA DE INFORMACIÓN DE NEGOCIO
+
+**Está terminantemente prohibido guardar información relevante de negocio (como unidades por talla, curva, piezas de despiece, consumos, etc.) únicamente en el frontend, en archivos JSON, o en campos no estructurados.**
+
+**Toda información que afecte procesos, reportes, inventario, costos, o que sea necesaria para auditoría o trazabilidad, DEBE existir y persistirse en una tabla relacional en la base de datos.**
+
+- No se permite implementar features donde el desglose de unidades por talla/curva de corte/despiece solo viva en el frontend o en campos JSON.
+- Todo cambio que implique captura, edición o consulta de datos de negocio debe reflejarse en una tabla SQL normalizada, con modelo Eloquent y migración correspondiente.
+- Los agentes (Copilot, Claude, PR reviewers) deben rechazar cualquier PR, commit o feature que no cumpla esta regla.
+- Si se detecta lógica que solo persiste en frontend/JSON, debe migrarse a tabla relacional antes de continuar.
+
+**Esta regla aplica a toda la base de código y a cualquier agente o asistente (Copilot, Claude, etc).**
+
 # Copilot Instructions for soft_olamtex
 
 ## Aplicabilidad obligatoria
@@ -69,6 +82,14 @@
   ```
 - **Data tables:** Use `DataTable` component for displaying tabular data with built-in sorting, filtering, and pagination. Pass column definitions and data rows.
 - **Dialog/Modal:** Use `Dialog` for forms and confirmations. Keep modal logic scoped to Inertia page components.
+
+### Regla obligatoria para dialogs
+- **Todo dialog nuevo o modificado debe construirse con el patrón base del proyecto:** `Dialog` + `FormDialogContent` + `FormHeader` + `DialogFooter` cuando aplique.
+- **No improvisar contenedores alternos** si ya existe el patrón `FormDialogContent`; este debe ser la base visual y estructural del modal.
+- **Distribución proporcional del espacio:** al diseñar dialogs, repartir el ancho y alto de forma equilibrada entre formulario, tablas, paneles laterales, dibujo plano, ayudas visuales y acciones. Evitar paneles demasiado angostos o demasiado dominantes que recorten contenido principal.
+- **Prioridad visual:** el contenido principal del flujo debe ocupar la mayor parte del espacio; contenido de apoyo (resúmenes, dibujos, colores, ayuda visual) debe ser más compacto y no competir con la captura de datos.
+- **Responsive primero:** en desktop usar proporciones equilibradas; en pantallas menores apilar sin perder legibilidad ni ocultar campos importantes.
+- **Consistencia de espaciado:** usar paddings, gaps y alturas visuales consistentes dentro del dialog; evitar bloques que se vean comprimidos o sobredimensionados frente a otros del mismo modal.
 
 ### Client Routing
 - Use `route('usuarios.index')` etc. via Ziggy (`ziggy-js` alias). Keep names in [routes/web.php](routes/web.php) aligned with component locations under `resources/js`.
@@ -191,6 +212,7 @@ Ver documentación completa en [GUIA_ALERTAS.md](../docs/GUIA_ALERTAS.md).
 - **Services:** Poner lógica no trivial en `app/Services/<Domain>` e invocarla desde el controlador.
 - **Auditing:** Si se añaden modelos nuevos, registrar observers en [app/Providers/AppServiceProvider.php](app/Providers/AppServiceProvider.php), definir `fillable`/`casts` en el modelo y excluir campos ruidosos en [app/Models/AuditLog.php](app/Models/AuditLog.php).
 - **Frontend:** Añadir componentes Vue 3 + TS bajo `resources/js/<Domain>/...`, navegar con nombres de ruta Ziggy y mantener nombres alineados con los grupos del backend. **IMPORTANTE:** Siempre incluir alertas para operaciones (crear, editar, eliminar, guardar) usando `useGlobalAlert()` en páginas y `AlertBox` locale en dialogs.
+- **Dialogs:** Cuando el feature use modal, construirlo con `FormDialogContent` y mantener una distribución proporcional del espacio: formulario principal dominante, paneles auxiliares compactos, y layout claro para lectura/captura.
 - **Alertas:** Toda operación debe mostrar feedback: success para operaciones exitosas, error para fallos, warning para advertencias. Nunca dejar usuarios sin saber si algo se guardó o falló.
 - **QA:** Ejecutar `php artisan migrate:fresh --seed`, `vendor/bin/pest` y format/lint en `resources/`. Todo código nuevo debe ser depurable siguiendo los patrones de este documento.
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { useSmartLoading } from '@/composables/useSmartLoading';
+import { computed } from 'vue';
 
 const smartLoading = useSmartLoading();
 const overlayLabel = computed(() => smartLoading.label.value || 'Cargando informacion...');

@@ -304,12 +304,7 @@ const saveAvatar = async () => {
         formData.append('avatar', new File([croppedBlob], `avatar_${Date.now()}.png`, { type: 'image/png' }));
         const response = await axios.post(route('profile.avatar.upload'), formData);
 
-        emit(
-            'success',
-            response.data.message ?? 'Avatar actualizado correctamente.',
-            response.data.avatar_url,
-            response.data.avatar_path ?? null,
-        );
+        emit('success', response.data.message ?? 'Avatar actualizado correctamente.', response.data.avatar_url, response.data.avatar_path ?? null);
         closeDialog();
     } catch (error) {
         if (axios.isAxiosError(error)) {
@@ -344,13 +339,11 @@ onUnmounted(() => {
 
 <template>
     <Dialog v-model:open="isOpen">
-        <FormDialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
             <div class="space-y-5">
-                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <DialogHeader>
                     <DialogTitle>Ajustar foto de perfil</DialogTitle>
-                    <p class="text-sm text-muted-foreground">
-                        Arrastra la imagen para reposicionar y usa el zoom para encuadrar.
-                    </p>
+                    <p class="text-sm text-muted-foreground">Arrastra la imagen para reposicionar y usa el zoom para encuadrar.</p>
                 </DialogHeader>
 
                 <div class="space-y-4">
@@ -386,14 +379,7 @@ onUnmounted(() => {
                         </div>
 
                         <div class="flex items-center gap-3">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                class="h-8 w-8 rounded-full"
-                                :disabled="!canZoomOut"
-                                @click="zoomOut"
-                            >
+                            <Button type="button" variant="ghost" size="icon" class="h-8 w-8 rounded-full" :disabled="!canZoomOut" @click="zoomOut">
                                 <Minus class="h-4 w-4" />
                             </Button>
 
@@ -407,14 +393,7 @@ onUnmounted(() => {
                                 @input="handleSliderChange"
                             />
 
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                class="h-8 w-8 rounded-full"
-                                :disabled="!canZoomIn"
-                                @click="zoomIn"
-                            >
+                            <Button type="button" variant="ghost" size="icon" class="h-8 w-8 rounded-full" :disabled="!canZoomIn" @click="zoomIn">
                                 <Plus class="h-4 w-4" />
                             </Button>
                         </div>

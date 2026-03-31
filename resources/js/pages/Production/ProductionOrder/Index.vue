@@ -23,7 +23,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { ProductSheet, Programmer } from '@/domain/Production';
+import type { ProductSheet, Programmer } from '@/domain/Production/types';
 import type { BreadcrumbItem, Option } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import ProductionOrderDialog from '@/pages/Production/ProductionOrder/ProductionOrderDialog.vue';

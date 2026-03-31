@@ -201,6 +201,12 @@ class AccountingAccountController extends Controller
             }
         }
 
+        if ($request->filled('account_type')) {
+            $types = array_filter(array_map('trim', explode(',', $request->input('account_type'))));
+            $query->when(count($types) === 1, fn($q) => $q->where('account_type', $types[0]))
+                  ->when(count($types) > 1,  fn($q) => $q->whereIn('account_type', $types));
+        }
+
         return response()->json(['data' => $query->get()]);
     }
 

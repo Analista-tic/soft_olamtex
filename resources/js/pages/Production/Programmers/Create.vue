@@ -56,8 +56,21 @@ const props = withDefaults(
 
 type AlertType = 'success' | 'error' | 'info' | 'warning';
 
-type ProgrammerLotForm = Partial<Programmer> & {
-    /** input original (para no “pelear” con el usuario mientras tipea) */
+/**
+ * Formulario de lote de programación.
+ * Solo incluye campos usados en la creación, sin extender Programmer completo.
+ */
+type ProgrammerLotForm = {
+    product_sheet_id: number | null;
+    season: string | null;
+    destination_id: number | null;
+    priority: string | null;
+    estimated_delivery_date: string | null;
+    units: number | null;
+    ecommerce_units: Record<string, number> | string | null;
+    status: 'complete' | 'incomplete';
+    isEcommerce: boolean;
+    /** Input original para no "pelear" con el usuario mientras tipea */
     unitsInput?: string;
 };
 
@@ -160,26 +173,72 @@ function getProductSheetValue(sheet: ProductSheet): number {
     return Number(candidate);
 }
 
-function getProductSheetLabel(sheet: ProductSheet): string {
-    const typed = sheet as ProductSheet & { label?: string; display_reference?: string };
-    return String(typed.label ?? typed.display_reference ?? sheet.reference ?? '').trim();
+function getProductSheetLabel(sheet: ProductSheet | null | undefined): string {
+    if (!sheet) return '';
+    return getProductSheetStructuredLabel(sheet);
+}
+
+function getSampleReference(sheet: ProductSheet): string {
+    return String(sheet.sample_reference ?? '').trim().toLocaleUpperCase('es-CO');
 }
 
 function getProductReference(sheet: ProductSheet): string {
-    return String(sheet.product_reference ?? '').trim();
+    return String(sheet.product_reference ?? '').trim().toLocaleUpperCase('es-CO');
 }
 
-function hasProductReference(sheet: ProductSheet): boolean {
-    return getProductReference(sheet).length > 0;
+function getProductReference2(sheet: ProductSheet): string {
+    return String(sheet.product_reference_2 ?? '').trim().toLocaleUpperCase('es-CO');
 }
 
-const productSheetList = computed(() => allProductSheets.value.filter(hasProductReference));
+function getBrandName(sheet: ProductSheet): string {
+    const fromObject = typeof sheet.brand === 'object' && sheet.brand ? String((sheet.brand as { name?: string }).name ?? '') : '';
+    const fromString = typeof (sheet as ProductSheet & { brand?: string }).brand === 'string' ? String((sheet as ProductSheet & { brand?: string }).brand ?? '') : '';
+    return (fromObject || fromString).trim().toLocaleUpperCase('es-CO');
+}
+
+function hasAnyMainReference(sheet: ProductSheet): boolean {
+    return getSampleReference(sheet).length > 0 || getProductReference(sheet).length > 0;
+}
+
+function getSheetVersion(sheet: ProductSheet): number {
+    return Number((sheet as ProductSheet & { version?: number }).version ?? 1);
+}
+
+function buildProductSheetSelectLabel(sheet: ProductSheet): string {
+    const sample = getSampleReference(sheet) || '-';
+    const product = getProductReference(sheet) || '-';
+    const prod2 = getProductReference2(sheet);
+    const version = getSheetVersion(sheet);
+
+    let label = `${sample} / ${product}`;
+    if (prod2) label += ` / ${prod2}`;
+    label += ` / v${version}`;
+
+    return label;
+}
+
+function getProductSheetStructuredLabel(sheet: ProductSheet): string {
+    const sample = String(sheet.sample_reference ?? '').trim().toUpperCase() || '-';
+    const product = String(sheet.product_reference ?? '').trim().toUpperCase() || '-';
+    const prod2 = String((sheet as ProductSheet & { product_reference_2?: string }).product_reference_2 ?? '').trim().toUpperCase();
+    const version = Number((sheet as ProductSheet & { version?: number }).version ?? 1);
+    let label = `${sample} / ${product}`;
+    if (prod2) label += ` / ${prod2}`;
+    label += ` / v${version}`;
+    return label;
+}
+
+function isProductSheetComplete(sheet: ProductSheet): boolean {
+    return (sheet as ProductSheet & { status?: string }).status === 'complete';
+}
+
+const productSheetList = computed(() => allProductSheets.value.filter((s) => hasAnyMainReference(s) && isProductSheetComplete(s)));
 
 const productSheetOptions = computed<Option[]>(() =>
     productSheetList.value
         .map((sheet) => ({
             id: getProductSheetValue(sheet),
-            name: getProductReference(sheet),
+            name: buildProductSheetSelectLabel(sheet),
         }))
         .filter((opt) => opt.name !== ''),
 );
@@ -233,6 +292,85 @@ const lotsCountModel = computed<string | number>({
 function handleLotsCountInput(event: Event) {
     const input = event.target as HTMLInputElement;
     input.value = input.value.replace(/[^0-9]/g, '');
+}
+
+function monthToNumber(month: string | number | null | undefined): number | null {
+    if (!month) return null;
+
+    const monthMap: Record<string, number> = {
+        ENERO: 1,
+        FEBRERO: 2,
+        MARZO: 3,
+        ABRIL: 4,
+        MAYO: 5,
+        JUNIO: 6,
+        JULIO: 7,
+        AGOSTO: 8,
+        SEPTIEMBRE: 9,
+        OCTUBRE: 10,
+        NOVIEMBRE: 11,
+        DICIEMBRE: 12,
+    };
+
+    const normalized = normalizeOptionToName(month, monthOptions.value) ?? String(month).trim().toUpperCase();
+    const byName = monthMap[normalized];
+    if (byName) return byName;
+
+    const asNum = Number(normalized);
+    if (Number.isFinite(asNum) && asNum >= 1 && asNum <= 12) {
+        return Math.floor(asNum);
+    }
+
+    return null;
+}
+
+function getPriorityDays(priority: string | null | undefined): number | null {
+    if (!priority) return null;
+
+    const upper = (normalizeOptionToName(priority, priorityOptions.value) ?? String(priority)).toUpperCase().trim();
+    const mapping: Record<string, number> = {
+        'A': 45,
+        'B': 30,
+        'C': 15,
+        'D': 10,
+    };
+    return mapping[upper] || null;
+}
+
+function calculateEstimatedDeliveryDate(season: string | number | null | undefined, priority: string | null | undefined): string | null {
+    const monthNum = monthToNumber(season);
+    const days = getPriorityDays(priority);
+    
+    if (monthNum === null || days === null) return null;
+    
+    const now = new Date();
+    let year = now.getFullYear();
+    
+    if (monthNum < now.getMonth() + 1) {
+        year += 1;
+    }
+    
+    const baseDate = new Date(year, monthNum - 1, 1);
+    baseDate.setDate(baseDate.getDate() + days);
+    
+    return baseDate.toISOString().split('T')[0];
+}
+
+function updateEstimatedDeliveryDate(lotIndex: number) {
+    const lot = lotsForm.value[lotIndex];
+    if (!lot) return;
+
+    if (!lot.priority) {
+        lot.estimated_delivery_date = null;
+        return;
+    }
+
+    if (lot.season && lot.priority) {
+        const calculated = calculateEstimatedDeliveryDate(lot.season, lot.priority);
+        if (calculated) {
+            lot.estimated_delivery_date = calculated;
+        }
+    }
 }
 
 function generateLots() {
@@ -298,7 +436,7 @@ function getLotErrors(lot: Partial<Programmer>): string[] {
     if (!lot.product_sheet_id) errors.push('Referencia');
     if (!lot.season) errors.push('Temporada');
     if (!lot.destination_id) errors.push('Destino');
-    if (!lot.priority) errors.push('Prioridad');
+    if (!lot.estimated_delivery_date) errors.push('Fecha entrega');
 
     const units = lot.units;
     const isValidUnits = units !== null && units !== undefined && !Number.isNaN(Number(units)) && Number(units) > 0;
@@ -371,8 +509,13 @@ function addProductSheet(response: ProductSheetSavedPayload) {
 
     const newProductSheet = response.data;
 
-    if (!hasProductReference(newProductSheet)) {
-        setAlert('La sábana fue creada sin referencia de producto. No aparece en este selector.', 'info');
+    if (!hasAnyMainReference(newProductSheet)) {
+        setAlert('La sábana fue creada sin RefMuestra y sin RefProducto. No aparece en este selector.', 'info');
+        return;
+    }
+
+    if (!isProductSheetComplete(newProductSheet)) {
+        setAlert('La sábana fue creada como incompleta. Complétala antes de poder programarla.', 'warning');
         return;
     }
 
@@ -529,7 +672,15 @@ watch(
                                         aria-label="Ayuda sobre referencia"
                                     />
                                 </div>
-                                <SelectField v-model="form.productSheetId" label="" :options="productSheetOptions" required />
+                                <SelectField
+                                    v-model="form.productSheetId"
+                                    label=""
+                                    :options="productSheetOptions"
+                                    :searchable="true"
+                                    placeholder="Seleccionar referencia..."
+                                    search-placeholder="Buscar por RefMuestra / RefProducto / Marca / RefExportación..."
+                                    required
+                                />
                             </div>
 
                             <!-- Cantidad lotes -->
@@ -677,7 +828,11 @@ watch(
                                                 label=""
                                                 :aria-label="`Temporada para lote ${index + 1}`"
                                                 :class="{ 'border-red-500': !lot.season }"
-                                                @update:modelValue="validateLotField(index)"
+                                                @update:modelValue="(value) => {
+                                                    lot.season = value !== null && value !== undefined ? String(value) : null;
+                                                    validateLotField(index);
+                                                    updateEstimatedDeliveryDate(index);
+                                                }"
                                             />
                                         </td>
 
@@ -698,8 +853,11 @@ watch(
                                                 :options="priorityOptions"
                                                 label=""
                                                 :aria-label="`Prioridad para lote ${index + 1}`"
-                                                :class="{ 'border-red-500': !lot.priority }"
-                                                @update:modelValue="validateLotField(index)"
+                                                @update:modelValue="(value) => {
+                                                    lot.priority = value !== null && value !== undefined ? String(value) : null;
+                                                    validateLotField(index);
+                                                    updateEstimatedDeliveryDate(index);
+                                                }"
                                             />
                                         </td>
 
@@ -709,6 +867,9 @@ watch(
                                                 type="date"
                                                 class="h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm transition placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                                                 :aria-label="`Fecha estimada de entrega para lote ${index + 1}`"
+                                                :readonly="!!lot.priority"
+                                                :disabled="!!lot.priority"
+                                                :title="lot.priority ? `Calculada automáticamente según prioridad ${lot.priority}` : 'Ingresa manualmente la fecha'"
                                             />
                                         </td>
 

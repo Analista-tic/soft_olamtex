@@ -17,7 +17,7 @@ class ProductSheetService
         return $this->model
             ->orderBy('created_at', 'desc')
             ->take($limit)
-            ->select(['id', 'type', 'sample_reference', 'product_reference'])
+            ->select(['id', 'type', 'sample_reference', 'product_reference', 'product_reference_2'])
             ->get()
             ->map(function ($sheet) {
                 $type = $sheet->type === 'producto' ? 'producto' : 'muestra';
@@ -28,6 +28,9 @@ class ProductSheetService
                 return [
                     'id' => $sheet->id,
                     'reference' => $reference,
+                    'sample_reference' => $sheet->sample_reference,
+                    'product_reference' => $sheet->product_reference,
+                    'product_reference_2' => $sheet->product_reference_2,
                     'type' => $type,
                 ];
             });
@@ -50,11 +53,12 @@ class ProductSheetService
             ->where(function ($query) use ($reference) {
                 $query
                     ->where('sample_reference', 'like', "%{$reference}%")
-                    ->orWhere('product_reference', 'like', "%{$reference}%");
+                    ->orWhere('product_reference', 'like', "%{$reference}%")
+                    ->orWhere('product_reference_2', 'like', "%{$reference}%");
             })
             ->orderBy('created_at', 'desc')
             ->limit(20)
-            ->get(['id', 'type', 'sample_reference', 'product_reference'])
+            ->get(['id', 'type', 'sample_reference', 'product_reference', 'product_reference_2'])
             ->map(function ($sheet) {
                 $type = $sheet->type === 'producto' ? 'producto' : 'muestra';
                 $reference = $type === 'producto'
@@ -64,6 +68,9 @@ class ProductSheetService
                 return [
                     'id' => $sheet->id,
                     'reference' => $reference,
+                    'sample_reference' => $sheet->sample_reference,
+                    'product_reference' => $sheet->product_reference,
+                    'product_reference_2' => $sheet->product_reference_2,
                     'type' => $type,
                 ];
             });

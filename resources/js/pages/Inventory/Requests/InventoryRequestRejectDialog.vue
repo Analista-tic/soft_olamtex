@@ -87,9 +87,7 @@ watch(dialogOpen, (isOpen) => {
                 <TextareaField v-model="reason" label="Motivo" placeholder="Describe el motivo del rechazo" :required="true" />
             </div>
             <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-2 border-t px-4 pb-4 pt-4">
-                <Button variant="outline" size="pill" @click="dialogOpen = false">
-                    Cancelar
-                </Button>
+                <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
                 <button
                     type="button"
                     :disabled="isLoading"

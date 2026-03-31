@@ -6,20 +6,27 @@ export const useAuthStore = defineStore('auth', {
         user: null,
         roles: [] as string[],
         permissions: [] as string[],
+        _fetchPromise: null as Promise<void> | null,
     }),
     actions: {
         async fetchUser() {
-            if (!this.user) {
-                try {
-                    const { data } = await axios.get('/user');
+            if (this.user) return;
+            if (this._fetchPromise) return this._fetchPromise;
+            this._fetchPromise = axios
+                .get('/user')
+                .then(({ data }) => {
                     this.user = data.user;
                     this.roles = data.roles;
                     this.permissions = data.permissions;
-                } catch (error) {
+                })
+                .catch((error) => {
                     console.error('Error al obtener los datos del usuario:', error);
                     throw error;
-                }
-            }
+                })
+                .finally(() => {
+                    this._fetchPromise = null;
+                });
+            return this._fetchPromise;
         },
         hasRole(role: string): boolean {
             return this.roles.includes(role);

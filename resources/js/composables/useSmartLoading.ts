@@ -1,5 +1,5 @@
-import { readonly, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
+import { readonly, ref } from 'vue';
 
 export type SmartLoadingTaskId = symbol;
 
@@ -21,7 +21,7 @@ interface SmartLoadingTask {
 }
 
 interface InertiaLikeRouter {
-    on: (event: string, callback: (...args: unknown[]) => void) => void;
+    on: (event: string, callback: (...args: any[]) => void) => void;
 }
 
 const DEFAULT_DELAY = 200;
@@ -47,9 +47,7 @@ function refreshState() {
         return;
     }
 
-    const newestVisibleTask = visibleTasks.reduce((current, candidate) =>
-        candidate.startedAt > current.startedAt ? candidate : current,
-    );
+    const newestVisibleTask = visibleTasks.reduce((current, candidate) => (candidate.startedAt > current.startedAt ? candidate : current));
 
     label.value = newestVisibleTask.label || DEFAULT_LABEL;
 }
@@ -148,10 +146,7 @@ function stop(id?: SmartLoadingTaskId) {
     }, remaining);
 }
 
-async function run<T>(
-    taskOrFactory: Promise<T> | (() => Promise<T> | T),
-    options: SmartLoadingOptions = {},
-): Promise<T> {
+async function run<T>(taskOrFactory: Promise<T> | (() => Promise<T> | T), options: SmartLoadingOptions = {}): Promise<T> {
     const taskId = start(options);
 
     try {

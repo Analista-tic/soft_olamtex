@@ -203,21 +203,6 @@ class OperationService
     }
 
     /**
-     * Obtiene valores únicos de ubicaciones
-     */
-    public function getUniqueLocations(): Collection
-    {
-        return $this->model
-            ->active()
-            ->whereNotNull('location')
-            ->where('location', '!=', '')
-            ->pluck('location')
-            ->unique()
-            ->sort()
-            ->values();
-    }
-
-    /**
      * Busca una operación existente por action+garment_part.
      * Si existe, la retorna. Si no existe, la crea con todos los datos proporcionados.
      */

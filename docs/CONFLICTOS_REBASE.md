@@ -97,6 +97,25 @@ Resumen de las decisiones tomadas al resolver conflictos durante el `git pull --
 
 ---
 
+## Correcciones posteriores (post-rebase)
+
+### BatchControl Index.vue (2025-03-06)
+
+**Acciones en la tabla**:
+- **Problema**: Las acciones (Ver novedades, Historial, Novedad, Entregar) ocupaban mucho espacio y podían saltar de fila.
+- **Solución**: Acciones agrupadas en un dropdown (DropdownMenu con MoreVertical), patrón igual que `PurchaseOrders/Index.vue`.
+- **Cambios**: `flex-nowrap`, `whitespace-nowrap`, columna Acciones con ancho fijo; creado `BatchControlRowActions.vue`.
+
+**Componentización**:
+- Extraídos: `types.ts`, `BatchControlTable.vue`, `BatchControlRowActions.vue`.
+- Estructura reutilizable y fácil de mantener.
+
+**Novedad y cambio de estado**:
+- Al reportar novedad, la orden pasa al proceso anterior (backend actualiza `current_process`).
+- Desaparece del tab actual y aparece en el tab del proceso anterior.
+
+---
+
 ## Resumen por tipo
 
 | Tipo                | Criterio principal                    | Versión preferida |

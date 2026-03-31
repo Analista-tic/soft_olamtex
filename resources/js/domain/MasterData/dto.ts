@@ -59,7 +59,7 @@ export interface ItemDto {
     description: string;
     extra_fields?: string | Record<string, string>;
     status: boolean;
-    item_type: 'product' | 'service';
+    item_type: 'product' | 'service' | 'draft';
     tracks_inventory?: boolean;
     unit_measure?: string;
     income_account_id?: number | null;

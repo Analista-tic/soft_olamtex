@@ -8,8 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (! Schema::hasTable('operation_audit_logs')) {
-            Schema::create('operation_audit_logs', function (Blueprint $table) {
+        Schema::create('operation_audit_logs', function (Blueprint $table) {
                 $table->id();
                 $table->unsignedBigInteger('operation_id');
                 $table->string('field_changed', 50);
@@ -28,8 +27,7 @@ return new class extends Migration
                     ->on('users')
                     ->onDelete('set null');
                 $table->index('operation_id');
-            });
-        }
+        });
     }
 
     public function down(): void

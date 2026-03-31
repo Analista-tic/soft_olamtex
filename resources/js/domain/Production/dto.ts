@@ -22,6 +22,7 @@ export interface ProductSheetDto {
     reference?: string | null;
     sample_reference?: string | null;
     product_reference?: string | null;
+    product_reference_2?: string | null;
     display_reference?: string | null;
     value?: number;
     label?: string;
@@ -46,6 +47,9 @@ export interface ProductSheetDto {
     yarn_base?: CatalogEntityDto | null;
     flat_sketch_path?: string | null;
     flatDrawingUrl?: string | null;
+    version?: number;
+    parent_id?: number | null;
+    is_enabled?: boolean;
 }
 
 export interface ProductionOrderDto {
@@ -249,6 +253,7 @@ export interface CostsSummaryDto {
     units: number | null;
     costs: {
         rawMaterial: number;
+        rawMaterialPerUnit?: number;
         supplies: number;
         processes: number;
         cut: number;
@@ -284,6 +289,7 @@ export interface RollLineDto {
     totalCost?: number | null;
     balanceMeters?: number | null;
     notes?: string | null;
+    rawMaterialUid?: string | null;
     fabricItemId?: string | number | null;
     rollId?: string | number | null;
     createdAt?: string;
@@ -308,6 +314,7 @@ export interface ThreadLineDto {
     color?: string | null;
     colorCode?: string | null;
     stitchesPerInch?: number | null;
+    defaultThreadCost?: number | null;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -321,8 +328,10 @@ export interface CuttingPieceDto {
     uid?: string | null;
     name: string;
     type: 'PRINCIPAL' | 'SECUNDARIO';
+    fabricUid?: string | null;
     side: 'IZQUIERDA' | 'DERECHA' | 'AMBOS' | 'NO_APLICA';
     grain: '90' | '180' | 'SESGO';
+    quantity?: number | null;
     notes?: string | null;
 }
 

@@ -34,10 +34,12 @@ class UpdateProductSheetRequest extends BaseProductSheetRequest
         return $this->baseRules($sampleReferenceRules, $productReferenceRules);
     }
 
-    public function withValidator($validator): void
+    public function withValidator(\Illuminate\Contracts\Validation\Validator $validator): void
     {
         $productSheet = $this->resolveProductSheet();
         $validator->after(function ($validator) use ($productSheet) {
+            $this->applyTypeValidation($validator);
+
             if (!$productSheet) {
                 return;
             }

@@ -50,6 +50,7 @@ class ProductionOrder extends Model
         'current_process',
         'batch_priority',
         'process_estimated_dates',
+        'cut_fabric_consumption',
         'source',
     ];
 
@@ -57,6 +58,7 @@ class ProductionOrder extends Model
         'ecommerce_units' => 'array',
         'estimated_delivery_date' => 'date',
         'process_estimated_dates' => 'array',
+        'cut_fabric_consumption' => 'array',
         'batch_priority' => 'integer',
     ];
 
@@ -151,5 +153,27 @@ class ProductionOrder extends Model
     public function pendingNovelties()
     {
         return $this->hasMany(BatchControlNovelty::class)->where('status', 'pending');
+    }
+
+    // ─── Batch Control Setters ──────────────────────────
+
+    /**
+     * Actualiza la prioridad de lote.
+     * Método controlado para BatchControl.
+     */
+    public function updateBatchPriority(int $priority): self
+    {
+        $this->setAttribute('batch_priority', $priority);
+        return $this;
+    }
+
+    /**
+     * Actualiza las fechas estimadas de procesos.
+     * Método controlado para BatchControl.
+     */
+    public function updateProcessEstimatedDates(array $dates): self
+    {
+        $this->setAttribute('process_estimated_dates', $dates);
+        return $this;
     }
 }

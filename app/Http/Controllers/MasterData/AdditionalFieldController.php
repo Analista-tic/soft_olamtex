@@ -22,7 +22,9 @@ class AdditionalFieldController extends Controller
 
     public function store(AdditionalFieldRequest $request)
     {
-        return $this->service->create($request->validated());
+        $result = $this->service->create($request->validated());
+        $this->service->clearOptionsCache();
+        return $result;
     }
 
     public function show($id)
@@ -33,14 +35,16 @@ class AdditionalFieldController extends Controller
     public function update(AdditionalFieldRequest $request, $id)
     {
         $field = $this->service->find($id);
-
-        return $this->service->update($field, $request->validated());
+        $result = $this->service->update($field, $request->validated());
+        $this->service->clearOptionsCache();
+        return $result;
     }
 
     public function destroy($id)
     {
         $field = $this->service->find($id);
         $this->service->delete($field);
+        $this->service->clearOptionsCache();
 
         return response()->noContent();
     }
@@ -53,6 +57,7 @@ class AdditionalFieldController extends Controller
         ]);
 
         $this->service->reorder($validated['order']);
+        $this->service->clearOptionsCache();
 
         return response()->json(['message' => 'Orden actualizado correctamente.']);
     }

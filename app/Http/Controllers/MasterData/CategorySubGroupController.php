@@ -56,7 +56,8 @@ class CategorySubGroupController extends Controller
 
     public function getData(Request $request)
     {
-        $query = CategorySubGroup::with('categoryGroup');
+        $query = CategorySubGroup::select('id', 'name', 'category_group_id')
+            ->with('categoryGroup:id,name');
 
         if ($request->has('search') && $request->search) {
             $search = $request->search;

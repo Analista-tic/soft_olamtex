@@ -7,9 +7,9 @@ import { createPinia } from 'pinia'; // Importar Pinia
 import type { DefineComponent } from 'vue';
 import { Fragment, createApp, h } from 'vue';
 import { ZiggyVue } from 'ziggy-js';
+import GlobalLoadingOverlay from './components/common/GlobalLoadingOverlay.vue';
 import { initAccentColor } from './composables/useAccentColor';
 import { initializeTheme } from './composables/useAppearance';
-import GlobalLoadingOverlay from './components/common/GlobalLoadingOverlay.vue';
 import { useSmartLoading } from './composables/useSmartLoading';
 
 // ImportMeta declarations are provided in resources/js/env.d.ts
@@ -105,14 +105,10 @@ createInertiaApp({
     setup({ el, App, props, plugin }) {
         const pinia = createPinia(); // Crear instancia de Pinia
         const smartLoading = useSmartLoading();
-        smartLoading.bindSmartLoadingToInertia(router);
+        smartLoading.bindSmartLoadingToInertia(router as any);
 
         createApp({
-            render: () =>
-                h(Fragment, [
-                    h(App, props),
-                    h(GlobalLoadingOverlay),
-                ]),
+            render: () => h(Fragment, [h(App, props), h(GlobalLoadingOverlay)]),
         })
             .use(plugin)
             .use(pinia) // Usar Pinia

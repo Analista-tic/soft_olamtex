@@ -1,23 +1,22 @@
 <script setup lang="ts">
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
-import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import SelectField from '@/components/SelectField.vue';
-import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
-import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
-import type { Item } from '@/domain/MasterData';
 import type { Tax } from '@/domain/Finance';
+import type { Item } from '@/domain/MasterData';
+import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
+import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
+import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
-import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 
-const props = defineProps<{ 
-    items: PurchaseInvoiceItem[]; 
-    isCreating?: boolean; 
+const props = defineProps<{
+    items: PurchaseInvoiceItem[];
+    isCreating?: boolean;
     isReadOnly?: boolean;
     telaMode?: boolean | null;
-    submitAttempted?: boolean;
 }>();
 const emit = defineEmits(['update:items']);
 
@@ -88,12 +87,8 @@ function normalizeOrderWidth(value: string | number | null | undefined) {
 function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
     return {
         ...item,
-        price: props.isCreating
-            ? (item.original_order_item?.price != null ? item.original_order_item.price : '')
-            : (item.price ?? ''),
-        quantity: props.isCreating
-            ? (item.original_order_item?.quantity != null ? item.original_order_item.quantity : '')
-            : (item.quantity ?? ''),
+        price: props.isCreating ? '' : (item.price ?? ''),
+        quantity: props.isCreating ? '' : (item.quantity ?? ''),
         tax: Number(item.tax) || 0,
         supplier_code: item.supplier_code || '',
         supplier_color: item.supplier_color || '',
@@ -120,8 +115,7 @@ function notifyParent() {
     const currentItems = localItems.value;
     const externalItems = Array.isArray(props.items) ? props.items : [];
     const hasDiff =
-        currentItems.length !== externalItems.length ||
-        currentItems.some((item, idx) => JSON.stringify(item) !== JSON.stringify(externalItems[idx]));
+        currentItems.length !== externalItems.length || currentItems.some((item, idx) => JSON.stringify(item) !== JSON.stringify(externalItems[idx]));
     if (hasDiff) {
         emit('update:items', currentItems);
     }
@@ -226,18 +220,6 @@ function removeItem(idx: number) {
     notifyParent();
 }
 
-function isItemIdInvalid(item: PurchaseInvoiceItem): boolean {
-    return !!props.submitAttempted && (item.item_id == null || Number(item.item_id) <= 0);
-}
-
-function isPriceInvalidRequired(item: PurchaseInvoiceItem): boolean {
-    return !!props.submitAttempted && (item.price === '' || Number(item.price) <= 0);
-}
-
-function isQuantityInvalidRequired(item: PurchaseInvoiceItem): boolean {
-    return !!props.submitAttempted && (item.quantity === '' || Number(item.quantity) <= 0);
-}
-
 function setTaxFromItem(invoiceItem: PurchaseInvoiceItem) {
     const itemId = Number(invoiceItem.item_id);
     const selectedItem = itemMap.value.get(itemId);
@@ -267,10 +249,7 @@ function setTaxFromItem(invoiceItem: PurchaseInvoiceItem) {
 }
 
 function getSuggestedPrice(item: PurchaseInvoiceItem): number | null {
-    if (
-        item.original_order_item &&
-        (typeof item.original_order_item.price === 'string' || typeof item.original_order_item.price === 'number')
-    ) {
+    if (item.original_order_item && (typeof item.original_order_item.price === 'string' || typeof item.original_order_item.price === 'number')) {
         const price = Number(item.original_order_item.price);
         return isNaN(price) ? null : price;
     }
@@ -313,11 +292,12 @@ function setFieldsFromOrder(item: PurchaseInvoiceItem) {
     if (item.original_order_item) {
         item.supplier_code = item.original_order_item.supplier_code || '';
         item.supplier_color = item.original_order_item.supplier_color || '';
-        item.order_width = typeof item.original_order_item.order_width === 'string'
-            ? item.original_order_item.order_width
-            : (item.original_order_item.order_width !== undefined && item.original_order_item.order_width !== null
-                ? String(item.original_order_item.order_width)
-                : '');
+        item.order_width =
+            typeof item.original_order_item.order_width === 'string'
+                ? item.original_order_item.order_width
+                : item.original_order_item.order_width !== undefined && item.original_order_item.order_width !== null
+                  ? String(item.original_order_item.order_width)
+                  : '';
     }
 }
 
@@ -329,9 +309,13 @@ function syncInvoiceItemsTaxWithCatalog() {
     });
 }
 
-watch([catalogItems, taxes], () => {
-    syncInvoiceItemsTaxWithCatalog();
-}, { immediate: true });
+watch(
+    [catalogItems, taxes],
+    () => {
+        syncInvoiceItemsTaxWithCatalog();
+    },
+    { immediate: true },
+);
 
 function isPriceDifferent(item: PurchaseInvoiceItem): boolean {
     const suggested = getSuggestedPrice(item);
@@ -349,28 +333,36 @@ defineExpose({ addItem });
 </script>
 
 <template>
-    <div class="w-full overflow-x-auto rounded-lg border border-border bg-background">
-
-        <div style="overflow: visible; max-height: none;">
-            <Table class="min-w-full table-fixed text-sm">
+    <div style="overflow: visible; max-height: none" class="w-full">
+        <div class="overflow-x-auto rounded-lg border border-border" style="overflow: visible; max-height: none">
+            <Table
+                class="min-w-full table-fixed border-separate border-spacing-x-2 border-spacing-y-1 text-center"
+                style="overflow: visible; max-height: none"
+            >
                 <TableHeader>
-                    <TableRow class="bg-muted/50 border-b border-border">
-                        <TableHead class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Item <span class="text-red-600">*</span></TableHead>
-                        <TableHead class="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Precio SIN Impuesto <span class="text-red-600">*</span></TableHead>
-                        <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto (%)</TableHead>
-                        <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Cantidad <span class="text-red-600">*</span></TableHead>
-                        <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripción</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Código proveedor <span class="text-red-600">*</span></TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Color proveedor <span class="text-red-600">*</span></TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Ancho pedido <span class="text-red-600">*</span></TableHead>
-                        <TableHead class="min-w-[90px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</TableHead>
-                        <TableHead v-if="showActionsColumn" class="w-[60px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"></TableHead>
+                    <TableRow class="border-b border-border/60">
+                        <TableHead class="min-w-[150px] text-left">Item <span class="text-red-600">*</span></TableHead>
+                        <TableHead class="min-w-[120px] text-left">Precio SIN Impuesto <span class="text-red-600">*</span></TableHead>
+                        <TableHead class="min-w-[160px] text-left">Impuesto (%)</TableHead>
+                        <TableHead class="min-w-[110px] text-left">Cantidad <span class="text-red-600">*</span></TableHead>
+                        <TableHead class="min-w-[160px] text-left">Descripción</TableHead>
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
+                            >Código proveedor <span class="text-red-600">*</span></TableHead
+                        >
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
+                            >Color proveedor <span class="text-red-600">*</span></TableHead
+                        >
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
+                            >Ancho pedido <span class="text-red-600">*</span></TableHead
+                        >
+                        <TableHead class="min-w-[90px] text-left">Total</TableHead>
+                        <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
                     </TableRow>
                 </TableHeader>
 
                 <TableBody>
-                    <TableRow v-for="(item, idx) in localItems" :key="idx" class="border-b border-border/40 transition-colors hover:bg-muted/20 last:border-0">
-                        <TableCell class="p-2 text-left min-w-[150px] align-top">
+                    <TableRow v-for="(item, idx) in localItems" :key="idx">
+                        <TableCell class="min-w-[150px] p-1 text-left">
                             <SelectField
                                 v-model="item.item_id"
                                 :options="itemOptions"
@@ -378,13 +370,12 @@ defineExpose({ addItem });
                                 placeholder="Selecciona item"
                                 :disabled="isReadOnly"
                                 class="w-full"
-                                :invalid="isItemIdInvalid(item)"
                                 :action-label="!isReadOnly ? 'Nuevo item' : undefined"
                                 :action-disabled="isReadOnly"
                                 @action="openItemDialog"
                             />
                         </TableCell>
-                        <TableCell class="p-2 text-left align-top" style="width: 120px;">
+                        <TableCell class="p-1 text-left" style="width: 120px">
                             <InputField
                                 v-model="item.price"
                                 type="currency"
@@ -396,18 +387,11 @@ defineExpose({ addItem });
                                 :disabled="isReadOnly"
                                 class="h-10 w-full"
                                 @input="calcTotals(item)"
-                                :error="isPriceDifferent(item) || isPriceInvalidRequired(item)"
+                                :error="isPriceDifferent(item)"
                             />
-                            <div
-                                v-if="getSuggestedPrice(item) !== null"
-                                :class="[
-                                    'mt-1 text-xs',
-                                    isPriceDifferent(item)
-                                        ? 'text-amber-600 dark:text-amber-400'
-                                        : 'text-muted-foreground'
-                                ]"
-                            >
-                                Orden: {{
+                            <div v-if="getSuggestedPrice(item) !== null" class="mt-1 text-xs text-gray-500">
+                                Valor en la orden:
+                                {{
                                     Number(getSuggestedPrice(item)).toLocaleString('es-CO', {
                                         style: 'currency',
                                         currency: 'COP',
@@ -417,7 +401,7 @@ defineExpose({ addItem });
                                 }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-2 text-left align-top" style="width: 160px;">
+                        <TableCell class="p-1 text-left" style="width: 160px">
                             <SelectField
                                 v-model="item.tax"
                                 :options="taxOptions"
@@ -427,10 +411,15 @@ defineExpose({ addItem });
                                 :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
                                 :action-disabled="isReadOnly"
                                 @action="openTaxDialog"
-                                @update:modelValue="(val) => { item.tax = Number(val) || 0; calcTotals(item); }"
+                                @update:modelValue="
+                                    (val) => {
+                                        item.tax = Number(val) || 0;
+                                        calcTotals(item);
+                                    }
+                                "
                             />
                         </TableCell>
-                        <TableCell class="p-2 text-left align-top" style="width: 110px;">
+                        <TableCell class="p-1 text-left" style="width: 110px">
                             <InputField
                                 v-model="item.quantity"
                                 type="number"
@@ -439,26 +428,16 @@ defineExpose({ addItem });
                                 @input="calcTotals(item)"
                                 :readonly="isReadOnly"
                                 :disabled="isReadOnly"
-                                :error="isQuantityDifferent(item) || isQuantityInvalidRequired(item)"
+                                :error="isQuantityDifferent(item)"
                             />
-                            <div
-                                v-if="getSuggestedQuantity(item) !== null"
-                                :class="[
-                                    'mt-1 text-xs',
-                                    isQuantityDifferent(item)
-                                        ? 'text-amber-600 dark:text-amber-400'
-                                        : 'text-muted-foreground'
-                                ]"
-                            >
-                                Orden: {{
-                                    Number(getSuggestedQuantity(item)).toLocaleString('es-CO')
-                                }}
+                            <div v-if="getSuggestedQuantity(item) !== null" class="mt-1 text-xs text-gray-500">
+                                Cantidad real: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
                             </div>
                         </TableCell>
-                        <TableCell class="p-2 text-left align-top" style="width: 160px;">
+                        <TableCell class="p-1 text-left" style="width: 160px">
                             <InputField v-model="item.description" label="" class="h-10 w-full" :readonly="isReadOnly" :disabled="isReadOnly" />
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-2 text-left align-top" style="width: 150px;">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 150px">
                             <InputField
                                 v-model="item.supplier_code"
                                 label=""
@@ -468,7 +447,7 @@ defineExpose({ addItem });
                                 :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-2 text-left align-top" style="width: 150px;">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 150px">
                             <InputField
                                 v-model="item.supplier_color"
                                 label=""
@@ -478,7 +457,7 @@ defineExpose({ addItem });
                                 :disabled="isReadOnly || !isTela(item)"
                             />
                         </TableCell>
-                        <TableCell v-if="shouldShowFabricColumns" class="p-2 text-left align-top" style="width: 150px;">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left" style="width: 150px">
                             <InputField
                                 v-model="item.order_width"
                                 type="text"
@@ -490,7 +469,7 @@ defineExpose({ addItem });
                                 :required="isTela(item)"
                             />
                         </TableCell>
-                        <TableCell class="p-2 text-left align-top" style="width: 90px;">
+                        <TableCell class="p-1 text-left" style="width: 90px">
                             {{
                                 Number(item.total || 0).toLocaleString('es-CO', {
                                     style: 'currency',
@@ -500,16 +479,14 @@ defineExpose({ addItem });
                                 })
                             }}
                         </TableCell>
-                        <TableCell v-if="showActionsColumn" class="p-2 text-center align-top">
+                        <TableCell v-if="showActionsColumn" class="p-1 text-center">
                             <div class="flex justify-center">
                                 <DeleteButton @click="removeItem(idx)" />
                             </div>
                         </TableCell>
                     </TableRow>
                     <TableRow v-if="localItems.length === 0">
-                        <TableCell :colspan="totalColumns" class="py-8 text-center text-sm italic text-muted-foreground">
-                            No hay items agregados.
-                        </TableCell>
+                        <TableCell :colspan="totalColumns" class="text-center text-gray-400"> No hay items agregados. </TableCell>
                     </TableRow>
                 </TableBody>
             </Table>

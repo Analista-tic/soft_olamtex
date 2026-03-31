@@ -1,29 +1,19 @@
 <script setup lang="ts">
+import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import TextareaField from '@/components/TextareaField.vue';
-import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
-import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import type { PurchaseRequestForm } from '@/domain/Expenses';
-import axios from 'axios';
-import { computed, nextTick, ref, watch } from 'vue';
-import AlertStack from '@/components/common/AlertStack.vue';
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import { useAlertStack } from '@/composables/useAlert';
-import HelpTooltip from '@/components/HelpTooltip.vue';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { uiPatterns } from '@/lib/ui-patterns';
-import { Upload, X, FileText } from 'lucide-vue-next';
+import { useAlertStack } from '@/composables/useAlert';
+import type { PurchaseRequestForm } from '@/domain/Expenses';
+import axios from 'axios';
+import { FileText, Plus, Upload, X } from 'lucide-vue-next';
+import { computed, nextTick, ref, watch } from 'vue';
+import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
 
 // Tipo local que extiende PurchaseRequestForm para el formulario del di?logo
 type PurchaseRequestDialogForm = Omit<PurchaseRequestForm, 'items' | 'estimated_amount'> & {
@@ -53,13 +43,11 @@ const localForm = ref<PurchaseRequestDialogForm>(createDefaultForm());
 const isLoading = ref(false);
 const isInitializingDialog = ref(false);
 const isSubmittingDialog = ref(false);
-const submitAttempted = ref(false);
 const nextRequestId = ref<number | null>(null);
 const isLoadingRequestId = ref(false);
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref('');
 const itemsTableRef = ref<InstanceType<typeof PurchaseRequestItemsTable> | null>(null);
-const showCancelConfirm = ref(false);
 
 // Archivo y preview
 const documentFile = ref<File | null>(null);
@@ -90,22 +78,8 @@ const id = computed(() => {
     return nextRequestId.value.toString();
 });
 
-
 const hasDocument = computed(() => {
     return Boolean(documentFile.value || localForm.value.document_path);
-});
-
-const hasUnsavedChanges = computed(() => {
-    if (props.dialogType !== 'create') return false;
-
-    const hasDescription = String(localForm.value.description ?? '').trim().length > 0;
-    const hasItems = (localForm.value.items || []).some(
-        (it) =>
-            Number(it.quantity) > 0 ||
-            String(it.name ?? (it as { item_name?: string | null }).item_name ?? '').trim().length > 0,
-    );
-
-    return hasDescription || hasItems;
 });
 
 const documentUrl = computed(() => {
@@ -193,9 +167,9 @@ function resetForm() {
         const clone = JSON.parse(JSON.stringify(props.form));
         clone.estimated_amount = clone.estimated_amount ?? null;
         clone.request_number = clone.request_number ?? '';
-        
+
         clone.date = normalizeIsoDate(clone.date, getTodayDate()) || getTodayDate();
-        
+
         // Parsear items si viene como string JSON
         if (typeof clone.items === 'string') {
             try {
@@ -204,19 +178,21 @@ function resetForm() {
                 clone.items = [];
             }
         }
-        
+
         // Asegurar que items sea un array con al menos un item
         if (!Array.isArray(clone.items) || clone.items.length === 0) {
-            clone.items = [{
-                item_id: null,
-                name: '',
-                price: 0,
-                quantity: 1,
-                description: '',
-                total: 0,
-            }];
+            clone.items = [
+                {
+                    item_id: null,
+                    name: '',
+                    price: 0,
+                    quantity: 1,
+                    description: '',
+                    total: 0,
+                },
+            ];
         }
-        
+
         // Normalizar items para asegurar que tengan los campos correctos
         clone.items = clone.items.map((item: any) => ({
             item_id: item.item_id ?? null,
@@ -226,7 +202,7 @@ function resetForm() {
             description: item.description ?? '',
             total: Number(item.total) || 0,
         }));
-        
+
         localForm.value = clone;
     } else {
         localForm.value = createDefaultForm();
@@ -237,7 +213,6 @@ function resetForm() {
     documentFile.value = null;
     documentPreview.value = null;
 
-    submitAttempted.value = false;
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
@@ -290,10 +265,13 @@ const stableStringify = (value: any): string => {
         if (val && typeof val === 'object') {
             return Object.keys(val)
                 .sort()
-                .reduce((acc: any, key) => {
-                    acc[key] = normalize(val[key]);
-                    return acc;
-                }, {} as Record<string, unknown>);
+                .reduce(
+                    (acc: any, key) => {
+                        acc[key] = normalize(val[key]);
+                        return acc;
+                    },
+                    {} as Record<string, unknown>,
+                );
         }
         return val;
     };
@@ -344,23 +322,13 @@ function triggerFileInput() {
     fileInputRef.value?.click();
 }
 
-function handleCancel(): void {
-    if (props.dialogType === 'create' && hasUnsavedChanges.value) {
-        showCancelConfirm.value = true;
-        return;
-    }
-
-    dialogOpen.value = false;
-}
-
 async function handleSubmit(sendToApproval: boolean = false) {
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
-    submitAttempted.value = true;
 
     if (!validateForm()) return;
-    
+
     if (props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value && !documentFile.value) {
         if (sendToApproval) {
             // Si no hay cambios pero quiere enviar a aprobaci?n, solo enviar
@@ -374,13 +342,13 @@ async function handleSubmit(sendToApproval: boolean = false) {
 
     try {
         const formData = new FormData();
-        
+
         // A?adir datos del formulario
         const payload: any = {
             ...localForm.value,
         };
         payload.date = normalizeIsoDate(localForm.value.date, getTodayDate()) || getTodayDate();
-        
+
         // Eliminar estimated_amount ya que se calcula del total de items
         delete payload.estimated_amount;
 
@@ -389,7 +357,24 @@ async function handleSubmit(sendToApproval: boolean = false) {
         }
 
         // A?adir items como JSON string
-        formData.append('items', JSON.stringify(Array.isArray(localForm.value.items) ? localForm.value.items : []));
+        if (localForm.value.items && Array.isArray(localForm.value.items) && localForm.value.items.length > 0) {
+            formData.append('items', JSON.stringify(localForm.value.items));
+        } else {
+            // Asegurar que siempre haya al menos un item vac?o
+            formData.append(
+                'items',
+                JSON.stringify([
+                    {
+                        item_id: null,
+                        name: '',
+                        price: 0,
+                        quantity: 1,
+                        description: '',
+                        total: 0,
+                    },
+                ]),
+            );
+        }
 
         // A?adir archivo si existe
         if (documentFile.value) {
@@ -401,7 +386,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
                 const originalSnapshot = originalFormSnapshot.value ? JSON.parse(originalFormSnapshot.value) : null;
                 const hadDocument = originalSnapshot?.document_path;
                 const currentHasDocument = localForm.value.document_path;
-                
+
                 // Si hab?a documento y ahora no hay (ni nuevo archivo ni existente), eliminar
                 if (hadDocument && !currentHasDocument && !documentFile.value) {
                     // Enviar como '1' para que Laravel lo interprete como true con $request->boolean()
@@ -418,7 +403,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
             // No incluir remove_document aqu?, ya se maneja arriba
             if (key !== 'items' && key !== 'remove_document' && payload[key] !== null && payload[key] !== undefined) {
                 const value = payload[key];
-                formData.append(key, typeof value === 'number' ? value.toString() : value as string);
+                formData.append(key, typeof value === 'number' ? value.toString() : (value as string));
             }
         });
 
@@ -427,10 +412,7 @@ async function handleSubmit(sendToApproval: boolean = false) {
             formData.append('_method', 'PUT');
         }
 
-        const url =
-            props.dialogType === 'create'
-                ? PURCHASE_REQUESTS_BASE_URL
-                : `${PURCHASE_REQUESTS_BASE_URL}/${localForm.value.id}`;
+        const url = props.dialogType === 'create' ? PURCHASE_REQUESTS_BASE_URL : `${PURCHASE_REQUESTS_BASE_URL}/${localForm.value.id}`;
 
         const response = await axios({
             method: 'POST',
@@ -445,18 +427,20 @@ async function handleSubmit(sendToApproval: boolean = false) {
         if (sendToApproval && response.data?.data?.id) {
             try {
                 await axios.post(`${PURCHASE_REQUESTS_BASE_URL}/${response.data.data.id}/send-to-approval`);
-                const msg = props.dialogType === 'create' 
-                    ? 'Solicitud creada y enviada a aprobación correctamente.' 
-                    : 'Solicitud actualizada y enviada a aprobación correctamente.';
+                const msg =
+                    props.dialogType === 'create'
+                        ? 'Solicitud creada y enviada a aprobación correctamente.'
+                        : 'Solicitud actualizada y enviada a aprobación correctamente.';
                 emit('refresh', msg);
                 showSuccess(msg);
                 dialogOpen.value = false;
                 return;
             } catch {
                 // Si falla el envío a aprobación, al menos se guardó
-                const msg = props.dialogType === 'create' 
-                    ? 'Solicitud creada correctamente, pero no se pudo enviar a aprobación.' 
-                    : 'Solicitud actualizada correctamente, pero no se pudo enviar a aprobación.';
+                const msg =
+                    props.dialogType === 'create'
+                        ? 'Solicitud creada correctamente, pero no se pudo enviar a aprobación.'
+                        : 'Solicitud actualizada correctamente, pero no se pudo enviar a aprobación.';
                 showError(msg);
                 emit('refresh', msg);
                 dialogOpen.value = false;
@@ -507,9 +491,7 @@ async function handleSendToApproval() {
         showSuccess(msg);
         dialogOpen.value = false;
     } catch (e) {
-        const serverMessage =
-            (e as any)?.response?.data?.message ||
-            'Error al enviar la solicitud a aprobación. Por favor intenta nuevamente.';
+        const serverMessage = (e as any)?.response?.data?.message || 'Error al enviar la solicitud a aprobación. Por favor intenta nuevamente.';
         setErrorMessage(serverMessage);
         emit('error', serverMessage);
         console.error('Error enviando a aprobación:', e);
@@ -531,12 +513,8 @@ function validateForm() {
         return false;
     }
 
-    const validItems = (localForm.value.items || []).filter(
-        (it) =>
-            Number(it.quantity) > 0 &&
-            (it.item_id || String(it.name ?? (it as { item_name?: string | null }).item_name ?? '').trim()),
-    );
-    if (!validItems.length) {
+    const itemsCheck = (localForm.value.items || []).filter((it) => Number(it.quantity) > 0);
+    if (!itemsCheck.length) {
         setErrorMessage('Debe agregar al menos un ítem con cantidad mayor a cero a la solicitud.', 'warning');
         return false;
     }
@@ -583,7 +561,6 @@ watch(
     { immediate: true },
 );
 
-
 watch(
     () => localForm.value.items,
     (items) => {
@@ -597,12 +574,10 @@ watch(
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent v-if="!props.deferContent" class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
-            <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                <DialogTitle :class="uiPatterns.typography.dialogTitle">{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
-                <DialogDescription :class="uiPatterns.typography.dialogSubtitle">
-                    Completa los campos de la solicitud de compra.
-                </DialogDescription>
+        <DialogContent v-if="!props.deferContent" class="flex h-[95vh] max-h-[95vh] w-full max-w-[95vw] flex-col p-0">
+            <DialogHeader class="px-4 pb-3 pt-4">
+                <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
+                <DialogDescription> Completa los campos de la solicitud de compra. </DialogDescription>
             </DialogHeader>
 
             <AlertStack
@@ -615,7 +590,7 @@ watch(
                 @close-error="clearError"
             />
 
-            <div :class="uiPatterns.dialogLarge.body" style="scrollbar-width: thin;">
+            <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
                 <TooltipProvider>
                     <form
                         @submit.prevent="handleSubmit()"
@@ -627,7 +602,7 @@ watch(
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label :class="uiPatterns.typography.fieldLabel">N° Solicitud</Label>
+                                            <Label class="text-sm font-medium"># Solicitud</Label>
                                             <HelpTooltip
                                                 text="Número único de la solicitud de compra."
                                                 aria-label="Ayuda sobre número de solicitud"
@@ -639,32 +614,24 @@ watch(
                                             :placeholder="id ? `SOL-${id}` : 'SOL-001'"
                                             :readonly="true"
                                         />
-                                        <span v-if="dialogType === 'create' && isLoadingRequestId" :class="uiPatterns.typography.helperText">
+                                        <span v-if="dialogType === 'create' && isLoadingRequestId" class="text-xs text-muted-foreground">
                                             Generando número...
                                         </span>
                                     </div>
 
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label :class="uiPatterns.typography.fieldLabel">Fecha</Label>
-                                            <HelpTooltip
-                                                text="Fecha de la solicitud."
-                                                aria-label="Ayuda sobre fecha"
-                                            />
+                                            <Label class="text-sm font-medium">Fecha</Label>
+                                            <HelpTooltip text="Fecha de la solicitud." aria-label="Ayuda sobre fecha" />
                                         </div>
-                                        <DatePickerField
-                                            v-model="requestDateModel"
-                                            :disabled="isReadOnly"
-                                            :clearable="true"
-                                            :show-today="true"
-                                        />
+                                        <DatePickerField v-model="requestDateModel" :disabled="isReadOnly" :clearable="true" :show-today="true" />
                                     </div>
                                 </div>
 
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label :class="uiPatterns.typography.fieldLabel">Proveedor</Label>
+                                            <Label class="text-sm font-medium">Proveedor</Label>
                                             <HelpTooltip
                                                 text="Escribe el nombre del proveedor para esta solicitud."
                                                 aria-label="Ayuda sobre proveedor"
@@ -681,7 +648,7 @@ watch(
 
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
-                                            <Label :class="uiPatterns.typography.fieldLabel">Destino</Label>
+                                            <Label class="text-sm font-medium">Destino</Label>
                                             <HelpTooltip
                                                 text="Lugar o departamento de destino para los productos."
                                                 aria-label="Ayuda sobre destino"
@@ -699,9 +666,7 @@ watch(
 
                                 <div class="flex flex-col gap-1.5">
                                     <div class="flex items-center gap-2">
-                                        <Label :class="uiPatterns.typography.fieldLabel">
-                                            Descripción <span class="text-red-500">*</span>
-                                        </Label>
+                                        <Label class="text-sm font-medium"> Descripción <span class="text-red-500">*</span> </Label>
                                         <HelpTooltip
                                             text="Describe brevemente la solicitud de compra y su propósito."
                                             aria-label="Ayuda sobre descripción"
@@ -718,101 +683,82 @@ watch(
                                 </div>
                             </div>
 
-                            <InventoryDetailTableLayout
-                                title="Items"
-                                description="Agrega los items necesarios para esta solicitud"
-                                button-label="Agregar item"
-                                :show-create-line-button="!isReadOnly"
-                                @create-line="itemsTableRef?.addItem()"
-                            >
+                            <div class="border-t border-border"></div>
+
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h3 class="text-sm font-semibold">Items</h3>
+                                        <p class="text-xs text-muted-foreground">Agrega los items necesarios para esta solicitud</p>
+                                    </div>
+                                    <button
+                                        v-if="!isReadOnly"
+                                        type="button"
+                                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-xs font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        @click="itemsTableRef?.addItem()"
+                                    >
+                                        <Plus class="h-4 w-4" />
+                                        Agregar Item
+                                    </button>
+                                </div>
                                 <PurchaseRequestItemsTable
                                     ref="itemsTableRef"
                                     :items="localForm.items || []"
                                     :readonly="isReadOnly"
-                                    :submitAttempted="submitAttempted"
                                     @update:items="localForm.items = $event"
                                 />
-                            </InventoryDetailTableLayout>
+                            </div>
                         </div>
 
                         <aside class="self-start lg:sticky lg:top-4">
                             <div class="rounded-lg border border-border bg-card p-4">
                                 <div class="mb-3">
-                                    <h3 :class="uiPatterns.typography.sectionTitle">Imagen</h3>
-                                    <p :class="uiPatterns.typography.sectionSubtitle">Adjunta un documento o imagen relacionado con la solicitud (opcional)</p>
+                                    <h3 class="text-sm font-semibold">Imagen</h3>
+                                    <p class="text-xs text-muted-foreground">Adjunta un documento o imagen relacionado con la solicitud (opcional)</p>
                                 </div>
 
-                                <input
-                                    ref="fileInputRef"
-                                    type="file"
-                                    accept="image/*,application/pdf"
-                                    class="hidden"
-                                    @change="handleFileSelect"
-                                />
+                                <input ref="fileInputRef" type="file" accept="image/*,application/pdf" class="hidden" @change="handleFileSelect" />
 
-                                <div v-if="!hasDocument" class="flex min-h-[280px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30 p-4 text-center">
+                                <div
+                                    v-if="!hasDocument"
+                                    class="flex min-h-[280px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30 p-4 text-center"
+                                >
                                     <Upload class="mb-2 h-8 w-8 text-muted-foreground" />
-                                    <p :class="['mb-2', uiPatterns.typography.helperText]">
-                                        Haz clic para subir imagen
-                                    </p>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        @click="triggerFileInput"
-                                        :disabled="isReadOnly"
-                                    >
+                                    <p class="mb-2 text-xs text-muted-foreground">Haz clic para subir imagen</p>
+                                    <Button type="button" variant="outline" size="sm" @click="triggerFileInput" :disabled="isReadOnly">
                                         Seleccionar Archivo
                                     </Button>
-                                    <p :class="['mt-1', uiPatterns.typography.helperText]">
-                                        Formatos: JPEG, PNG, WebP, PDF (m?x. 10MB)
-                                    </p>
+                                    <p class="mt-1 text-xs text-muted-foreground">Formatos: JPEG, PNG, WebP, PDF (m?x. 10MB)</p>
                                 </div>
 
                                 <div v-else class="space-y-2">
                                     <div class="rounded-lg border border-border bg-card p-2">
                                         <div v-if="isImageFile && documentUrl" class="overflow-hidden rounded-md border border-border bg-muted/20">
-                                            <img
-                                                :src="documentUrl"
-                                                alt="Preview"
-                                                class="h-56 w-full object-contain"
-                                            />
+                                            <img :src="documentUrl" alt="Preview" class="h-56 w-full object-contain" />
                                         </div>
                                         <div v-else class="flex h-56 items-center justify-center rounded-md border border-border bg-muted/30">
                                             <div class="text-center">
                                                 <FileText class="mx-auto h-7 w-7 text-muted-foreground" />
-                                                <p :class="['mt-2', uiPatterns.typography.helperText]">Vista previa no disponible</p>
+                                                <p class="mt-2 text-xs text-muted-foreground">Vista previa no disponible</p>
                                             </div>
                                         </div>
 
                                         <div class="mt-2 min-w-0">
-                                            <p :class="['truncate', uiPatterns.typography.bodyStrong]">
+                                            <p class="truncate text-sm font-medium">
                                                 {{ documentFile?.name || 'Documento adjunto' }}
                                             </p>
-                                            <p :class="uiPatterns.typography.helperText">
+                                            <p class="text-xs text-muted-foreground">
                                                 {{ documentFile ? `${(documentFile.size / 1024).toFixed(2)} KB` : 'Archivo existente' }}
                                             </p>
                                         </div>
                                     </div>
 
                                     <div class="flex items-center justify-end gap-2">
-                                        <Button
-                                            v-if="!isReadOnly"
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            @click="triggerFileInput"
-                                        >
+                                        <Button v-if="!isReadOnly" type="button" variant="outline" size="sm" @click="triggerFileInput">
                                             Cambiar
                                         </Button>
-                                        <Button
-                                            v-if="!isReadOnly"
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            @click="removeDocument"
-                                        >
-                                            <X class="w-4 h-4" />
+                                        <Button v-if="!isReadOnly" type="button" variant="ghost" size="icon" @click="removeDocument">
+                                            <X class="h-4 w-4" />
                                         </Button>
                                     </div>
                                 </div>
@@ -822,15 +768,13 @@ watch(
                 </TooltipProvider>
             </div>
 
-            <DialogFooter :class="uiPatterns.dialogLarge.footerSpaced">
-                <Button variant="outline" size="pill" @click="handleCancel">
-                    Cancelar
-                </Button>
+            <DialogFooter class="mt-4 flex flex-shrink-0 justify-end gap-4 border-t px-4 pb-4 pt-4">
+                <Button variant="outline" size="pill" @click="dialogOpen = false"> Cancelar </Button>
                 <button
                     v-if="!props.readonly && !isReadOnly"
                     type="button"
                     :disabled="isLoading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     @click="handleSubmit(false)"
                 >
                     {{ isLoading ? 'Guardando...' : 'Guardar' }}
@@ -839,22 +783,12 @@ watch(
                     v-if="!props.readonly && !isReadOnly && canSendToApproval"
                     type="button"
                     :disabled="isLoading"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     @click="handleSubmit(true)"
                 >
                     {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobación' }}
                 </button>
             </DialogFooter>
         </DialogContent>
-
-        <ConfirmDialog
-            v-model:open="showCancelConfirm"
-            title="¿Descartar solicitud?"
-            description="Tienes datos ingresados que se perderán si cancelas."
-            confirm-text="Descartar"
-            cancel-text="Seguir editando"
-            :destructive="true"
-            @confirm="dialogOpen = false"
-        />
     </Dialog>
 </template>

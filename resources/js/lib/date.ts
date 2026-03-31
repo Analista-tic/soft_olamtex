@@ -4,12 +4,7 @@ type DateInput = Date | string | null | undefined;
 
 function buildDate(year: number, month: number, day: number): Date | null {
     const parsed = new Date(year, month - 1, day);
-    if (
-        Number.isNaN(parsed.getTime()) ||
-        parsed.getFullYear() !== year ||
-        parsed.getMonth() !== month - 1 ||
-        parsed.getDate() !== day
-    ) {
+    if (Number.isNaN(parsed.getTime()) || parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) {
         return null;
     }
     return parsed;
@@ -53,4 +48,3 @@ export function formatDateDDMMYYYY(value: DateInput, fallback = '-'): string {
     if (!parsed) return fallback;
     return format(parsed, 'dd/MM/yyyy');
 }
-

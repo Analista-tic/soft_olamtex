@@ -212,7 +212,7 @@ class ExampleDataSeeder extends Seeder
                     'warehouse_id' => $warehouseId,
                     'type' => 'entrada',
                     'quantity' => 250,
-                    'unit_price' => 50.00,
+                    'unit_price' => 7875.00,
                     'notes' => $baseNotes,
                     'created_by_user_id' => $userId,
                 ]);
@@ -221,7 +221,7 @@ class ExampleDataSeeder extends Seeder
                     'warehouse_id' => $warehouseId,
                     'type' => 'entrada',
                     'quantity' => 180,
-                    'unit_price' => 50.00,
+                    'unit_price' => 6990.00,
                     'notes' => $baseNotes,
                     'created_by_user_id' => $userId,
                 ]);
@@ -497,11 +497,15 @@ class ExampleDataSeeder extends Seeder
 
         // Fichas de producto (ProductSheets)
         // Obtener IDs desde settings (kind=parameter)
-        $sectionId = $this->getParameterFirstId('sections');
-        $groupId = $this->getParameterFirstId('groups');
-        $brandId = $this->getParameterFirstId('brands');
-        $worldId = $this->getParameterFirstId('worlds');
-        $fabricBaseId = $this->getParameterFirstId('fabric_bases');
+        $sectionPantalonId = $this->getParameterIdByName('sections', 'PANTALON', $this->getParameterFirstId('sections'));
+        $sectionBuzoId = $this->getParameterIdByName('sections', 'BUZO', $sectionPantalonId);
+        $groupLineaId = $this->getParameterIdByName('groups', 'LÍNEA', $this->getParameterFirstId('groups'));
+        $brandEvaCastilloId = $this->getParameterIdByName('brands', 'EVA CASTILLO', $this->getParameterFirstId('brands'));
+        $brandAmericanEastId = $this->getParameterIdByName('brands', 'AMERICAN EAST', $brandEvaCastilloId);
+        $worldDamaId = $this->getParameterIdByName('worlds', 'DAMA', $this->getParameterFirstId('worlds'));
+        $worldHombreId = $this->getParameterIdByName('worlds', 'HOMBRE', $worldDamaId);
+        $fabricBaseAlgodonId = $this->getParameterIdByName('fabric_bases', 'ALGODÓN', $this->getParameterFirstId('fabric_bases'));
+        $fabricBaseLanaId = $this->getParameterIdByName('fabric_bases', 'LANA', $fabricBaseAlgodonId);
 
         // ========== PRODUCT SHEETS Y PRODUCTION ORDERS ==========
         // Se crean escenarios consistentes con la lógica del ERP:
@@ -514,13 +518,13 @@ class ExampleDataSeeder extends Seeder
         DB::table('product_sheets')->updateOrInsert(
             ['sample_reference' => 'MUESTRA001'],
             [
-                'section_id' => $sectionId,
-                'group_id' => $groupId,
-                'brand_id' => $brandId,
-                'world_id' => $worldId,
-                'fabric_base_id' => $fabricBaseId,
+                'section_id' => $sectionPantalonId,
+                'group_id' => $groupLineaId,
+                'brand_id' => $brandEvaCastilloId,
+                'world_id' => $worldDamaId,
+                'fabric_base_id' => $fabricBaseAlgodonId,
                 'yarn_base_id' => null,
-                'description' => 'Pantalón jean básico - Muestra NO tejida',
+                'description' => 'Pantalón de muestra - línea dama',
                 'flat_sketch_path' => null,
                 'billing_price' => null,
                 'selling_price' => null,
@@ -538,16 +542,16 @@ class ExampleDataSeeder extends Seeder
         DB::table('product_sheets')->updateOrInsert(
             ['product_reference' => 'PRODUCTO02'],
             [
-                'section_id' => $sectionId,
-                'group_id' => $groupId,
-                'brand_id' => $brandId,
-                'world_id' => $worldId,
-                'fabric_base_id' => $fabricBaseId,
+                'section_id' => $sectionPantalonId,
+                'group_id' => $groupLineaId,
+                'brand_id' => $brandEvaCastilloId,
+                'world_id' => $worldDamaId,
+                'fabric_base_id' => $fabricBaseAlgodonId,
                 'yarn_base_id' => null,
-                'description' => 'Pantalón jean clásico - Producto TEJIDO',
+                'description' => 'Pantalón dama clásico - base MOMA',
                 'flat_sketch_path' => null,
-                'billing_price' => 45000.00,
-                'selling_price' => 89000.00,
+                'billing_price' => 46990.00,
+                'selling_price' => 68990.00,
                 'sizes' => json_encode(['S' => true, 'M' => true, 'L' => true, 'XL' => true]),
                 'woven_product' => true,
                 'processes' => json_encode([]),
@@ -562,16 +566,16 @@ class ExampleDataSeeder extends Seeder
         DB::table('product_sheets')->updateOrInsert(
             ['product_reference' => 'PRODUCTO01'],
             [
-                'section_id' => $sectionId,
-                'group_id' => $groupId,
-                'brand_id' => $brandId,
-                'world_id' => $worldId,
-                'fabric_base_id' => $fabricBaseId,
+                'section_id' => $sectionBuzoId,
+                'group_id' => $groupLineaId,
+                'brand_id' => $brandAmericanEastId,
+                'world_id' => $worldHombreId,
+                'fabric_base_id' => $fabricBaseLanaId,
                 'yarn_base_id' => null,
-                'description' => 'Pantalón drill clásico - Producto NO tejido',
+                'description' => 'Buzo hoodie cuello tortuga - base perchado',
                 'flat_sketch_path' => null,
-                'billing_price' => 40000.00,
-                'selling_price' => 76000.00,
+                'billing_price' => 43990.00,
+                'selling_price' => 54990.00,
                 'sizes' => json_encode(['30' => true, '32' => true, '34' => true, '36' => true]),
                 'woven_product' => false,
                 'processes' => json_encode([]),
@@ -588,10 +592,10 @@ class ExampleDataSeeder extends Seeder
         $productoMfSheetId = DB::table('product_sheets')->where('product_reference', 'PRODUCTO01')->value('id');
 
         // Obtener el ID del destino desde settings (kind=parameter)
-        $destinationId = $this->getParameterFirstId('destinations');
+        $destinationId = $this->getParameterIdByName('destinations', 'OLAMTEX', $this->getParameterFirstId('destinations'));
 
-        // Obtener mes actual para temporada (ej: FEBRERO)
-        $seasonLabel = strtoupper(now()->locale('es')->monthName);
+        // Temporada fija de ejemplo para ambiente demo
+        $seasonLabel = 'MAYO';
 
         // ProductionOrder AUTO para muestra (MU-xxxx) - simula creación desde Sábana de Productos
         // type=muestra, woven_product=false → MU
@@ -624,7 +628,7 @@ class ExampleDataSeeder extends Seeder
                 'op_code' => $opCodeProducto,
                 'season' => $seasonLabel,
                 'destination_id' => $destinationId,
-                'priority' => 'A', // Manuales SÍ usan prioridad
+                'priority' => 'D', // Ejemplo realista para línea de menor urgencia
                 'units' => 500, // Unidades programadas
                 'estimated_delivery_date' => null, // Manuales NO usan fecha entrega
                 'ecommerce_units' => json_encode(['S' => 100, 'M' => 150, 'L' => 150, 'XL' => 100]),
@@ -643,7 +647,7 @@ class ExampleDataSeeder extends Seeder
                 'op_code' => 'MF-0001',
                 'season' => $seasonLabel,
                 'destination_id' => $destinationId,
-                'priority' => 'A',
+                'priority' => 'B',
                 'units' => 300,
                 'estimated_delivery_date' => null,
                 'ecommerce_units' => json_encode(['30' => 80, '32' => 90, '34' => 80, '36' => 50]),
@@ -703,10 +707,10 @@ class ExampleDataSeeder extends Seeder
                 'purchase_document_id' => $fabricInvoice1Id,
                 'item_id' => $lanaId,
                 'quantity' => 600, // Total metros (suma de los 3 rollos)
-                'price' => 50.00,
+                'price' => 7875.00,
                 'tax' => 19,
-                'total' => 30000.00,
-                'total_tax' => 5700.00,
+                'total' => 4725000.00,
+                'total_tax' => 897750.00,
                 'supplier_code' => 'LANA-BEIGE-001',
                 'supplier_color' => 'VERDE',
                 'order_width' => 2.00,
@@ -765,10 +769,10 @@ class ExampleDataSeeder extends Seeder
                 'purchase_document_id' => $fabricInvoice2Id,
                 'item_id' => $algodonId,
                 'quantity' => 430, // Total metros (250 + 180)
-                'price' => 50.00,
+                'price' => 6990.00,
                 'tax' => 19,
-                'total' => 21500.00,
-                'total_tax' => 4085.00,
+                'total' => 3005700.00,
+                'total_tax' => 571083.00,
                 'supplier_code' => 'ALGODON-001',
                 'supplier_color' => 'AZUL',
                 'order_width' => 1.50,
@@ -800,6 +804,46 @@ class ExampleDataSeeder extends Seeder
             }
 
         }
+    }
+
+    private function getParameterIdByName(string $key, string $name, int $fallback = 1): int
+    {
+        $setting = Setting::where('kind', 'parameter')->where('key', $key)->first();
+        if (! $setting) {
+            return $fallback;
+        }
+
+        $items = $setting->value ?? [];
+        if (! is_array($items) || empty($items)) {
+            return $fallback;
+        }
+
+        $normalizedName = $this->normalizeParameterName($name);
+
+        foreach ($items as $entry) {
+            if (! is_array($entry) || ! isset($entry['id'], $entry['name'])) {
+                continue;
+            }
+
+            if ($this->normalizeParameterName((string) $entry['name']) === $normalizedName) {
+                return (int) $entry['id'];
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function normalizeParameterName(string $name): string
+    {
+        $upper = strtoupper(trim($name));
+
+        return strtr($upper, [
+            'Á' => 'A',
+            'É' => 'E',
+            'Í' => 'I',
+            'Ó' => 'O',
+            'Ú' => 'U',
+        ]);
     }
 
     private function getParameterFirstId(string $name, int $fallback = 1): int

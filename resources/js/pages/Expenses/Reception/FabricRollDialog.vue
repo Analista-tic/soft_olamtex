@@ -308,9 +308,9 @@ onMounted(() => {
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent class="flex flex-col max-h-[95vh] max-w-2xl px-2 py-2">
+        <DialogContent class="flex max-h-[90vh] max-w-3xl flex-col gap-0 p-0">
             <div class="flex-shrink-0 px-6 pb-2 pt-5">
-                <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
+                <DialogHeader>
                     <DialogTitle class="text-lg">{{ editingRoll ? 'Editar rollo' : 'Registrar rollo de tela' }}</DialogTitle>
                     <DialogDescription class="text-sm text-muted-foreground">
                         {{
@@ -452,17 +452,22 @@ onMounted(() => {
                             </div>
 
                             <DialogFooter class="mt-4 border-t pt-4">
-                                <Button type="button" variant="outline" size="pill" @click="dialogOpen = false">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    class="rounded-full px-5 py-2 text-sm font-semibold"
+                                    @click="dialogOpen = false"
+                                >
                                     Cancelar
                                 </Button>
-                                <Button type="submit" size="pill" class="shadow-sm" :disabled="isLoading">
+                                <Button type="submit" class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm" :disabled="isLoading">
                                     {{ isLoading ? 'Guardando...' : editingRoll ? 'Actualizar rollo' : 'Guardar rollo' }}
                                 </Button>
                                 <Button
                                     v-if="editingRoll"
                                     type="button"
                                     variant="outline"
-                                    size="pill"
+                                    class="rounded-full px-5 py-2 text-sm font-semibold"
                                     @click="
                                         resetForm();
                                         form.roll_number = generateRollNumber();
@@ -485,7 +490,7 @@ onMounted(() => {
                                 <table class="w-full text-sm">
                                     <thead>
                                         <tr class="bg-muted/50">
-                                            <th class="px-4 py-3 text-left font-medium">Número de rollo</th>
+                                            <th class="px-4 py-3 text-left font-medium"># Rollo</th>
                                             <th class="px-4 py-3 text-right font-medium">Longitud</th>
                                             <th class="px-4 py-3 text-right font-medium">Ancho</th>
                                             <th class="px-4 py-3 text-left font-medium">Ubicación</th>
@@ -526,13 +531,17 @@ onMounted(() => {
                             </div>
                             <p class="text-sm font-medium text-muted-foreground">Longitud total recibida: {{ totalReceived.toFixed(2) }} mts</p>
                             <DialogFooter class="mt-4 border-t pt-4">
-                                <Button type="button" variant="outline" size="pill" @click="dialogOpen = false">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    class="rounded-full px-5 py-2 text-sm font-semibold"
+                                    @click="dialogOpen = false"
+                                >
                                     Cerrar
                                 </Button>
                                 <Button
                                     type="button"
-                                    size="pill"
-                                    class="shadow-sm"
+                                    class="rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                                     @click="
                                         resetForm();
                                         form.roll_number = generateRollNumber();

@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import type { BreadcrumbItem } from '@/domain/shared';
-import type { Role, User } from '@/domain/Settings/types'; // Importar los tipos centralizados
-import EditButton from '@/components/common/EditButton.vue';
-import UserDialog from './UserDialog.vue';
-import { Button } from '@/components/ui/button';
+import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
-import Input from '@/components/ui/input/Input.vue';
+import DeleteButton from '@/components/common/DeleteButton.vue';
+import EditButton from '@/components/common/EditButton.vue';
+import ViewButton from '@/components/common/ViewButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
-import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { Button } from '@/components/ui/button';
+import Input from '@/components/ui/input/Input.vue';
 import {
     Pagination,
     PaginationEllipsis,
@@ -21,18 +20,18 @@ import {
     PaginationPrev,
 } from '@/components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAlertStack } from '@/composables/useAlert';
+import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
+import { useSmartLoading } from '@/composables/useSmartLoading';
+import type { Role, User } from '@/domain/Settings/types'; // Importar los tipos centralizados
+import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import DeleteButton from '@/components/common/DeleteButton.vue';
-import { useAuthStore } from '@/stores/auth';
-import AlertStack from '@/components/common/AlertStack.vue';
-import { useAlertStack } from '@/composables/useAlert';
-import ViewButton from '@/components/common/ViewButton.vue';
-import { useSmartLoading } from '@/composables/useSmartLoading';
-import { uiPatterns } from '@/lib/ui-patterns';
+import UserDialog from './UserDialog.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -76,10 +75,7 @@ const areaFilterButtonClasses = useFilterButtonClasses(isAreaFilterActive);
 
 type AreaOption = { id: number; name: string };
 const areaOptions = ref<AreaOption[]>([]);
-const areaSelectOptions = computed(() => [
-    { id: '', name: 'Todas las areas' },
-    ...areaOptions.value,
-]);
+const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las areas' }, ...areaOptions.value]);
 const areaLookup = computed(() => {
     const map = new Map<number, string>();
     areaOptions.value.forEach((area) => map.set(area.id, area.name));
@@ -145,7 +141,7 @@ function resolveApiMessage(error: unknown, fallback: string): string {
         if (data?.message) return data.message;
         if (data?.errors) {
             const firstError = Object.values(data.errors)
-                .flatMap((value) => Array.isArray(value) ? value : [value])
+                .flatMap((value) => (Array.isArray(value) ? value : [value]))
                 .find((value) => Boolean(value));
             if (firstError) return String(firstError);
         }
@@ -206,9 +202,7 @@ async function deleteUser() {
 type UserFormData = Partial<User> & { roles?: Array<Role | string> };
 
 function normalizeRoleNames(roles: Array<Role | string> | undefined): string[] {
-    return (roles ?? [])
-        .map((role) => (typeof role === 'string' ? role : role?.name))
-        .filter((roleName): roleName is string => Boolean(roleName));
+    return (roles ?? []).map((role) => (typeof role === 'string' ? role : role?.name)).filter((roleName): roleName is string => Boolean(roleName));
 }
 
 async function submitForm(userData: UserFormData) {
@@ -221,9 +215,12 @@ async function submitForm(userData: UserFormData) {
             ...userData, // Usar los datos recibidos del componente hijo
             roles: rolesPayload,
         };
+        console.log(payload);
 
         const response = await axios({ method, url, data: payload });
+        console.log(response);
 
+        console.log('Usuario guardado exitosamente:', response.data);
         showSuccess(dialogType.value === 'create' ? 'Usuario creado correctamente.' : 'Usuario actualizado correctamente.');
         fetchUsers(); // Refrescar la lista de usuarios
         closeDialog();
@@ -269,9 +266,10 @@ watch(selectedAreaId, () => {
 
 watch(isDialogOpen, (newValue) => {
     if (newValue) {
-        form.value = (dialogType.value === 'edit' || dialogType.value === 'view') && form.value.id
-            ? { ...form.value, password: '' } // Limpiar solo el campo de contraseña al editar
-            : { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
+        form.value =
+            (dialogType.value === 'edit' || dialogType.value === 'view') && form.value.id
+                ? { ...form.value, password: '' } // Limpiar solo el campo de contraseña al editar
+                : { id: null, name: '', email: '', password: '', roles: [] }; // Limpiar todo el formulario al crear
     }
 });
 
@@ -310,30 +308,23 @@ onMounted(async () => {
         <div v-if="isPageReady" class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex items-center justify-between">
                 <div class="flex flex-col gap-1">
-                    <h1 :class="uiPatterns.typography.pageTitle">Gestión de Usuarios</h1>
-                    <p :class="uiPatterns.typography.pageSubtitle">
-                        Administra los usuarios y sus roles para el acceso a las funciones del sistema.
-                    </p>
+                    <h1 class="text-lg font-bold">Gestión de Usuarios</h1>
+                    <p class="text-sm text-muted-foreground">Administra los usuarios y sus roles para el acceso a las funciones del sistema.</p>
                 </div>
                 <Button
                     v-if="canCreate"
                     @click="openDialog('create')"
                     variant="default"
                     size="sm"
-                    class="flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm h-10"
+                    class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                 >
-                    <PlusCircle class="w-4 h-4" /> Crear Nuevo Usuario
+                    <PlusCircle class="h-4 w-4" /> Crear Nuevo Usuario
                 </Button>
             </div>
             <FilterBar align="start">
-                <FilterField label="Buscar usuario" :active="isSearchActive" class="flex-1 min-w-[220px] p-0">
+                <FilterField label="Buscar usuario" :active="isSearchActive" class="min-w-[220px] flex-1 p-0">
                     <div class="relative w-full">
-                        <Input
-                            id="search_user"
-                            v-model="searchQuery"
-                            placeholder="Buscar por nombre o email"
-                            class="h-10 w-full pl-10"
-                        />
+                        <Input id="search_user" v-model="searchQuery" placeholder="Buscar por nombre o email" class="h-10 w-full pl-10" />
                         <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
                             <Search :size="20" class="text-muted-foreground" />
                         </span>
@@ -349,7 +340,7 @@ onMounted(async () => {
                     />
                 </FilterField>
             </FilterBar>
-            <div class="relative min-h-0 flex-1 rounded-xl border border-border bg-card shadow-sm text-card-foreground md:min-h-min">
+            <div class="relative min-h-0 flex-1 rounded-xl border border-border bg-card text-card-foreground shadow-sm md:min-h-min">
                 <Table class="text-center text-sm text-card-foreground">
                     <TableHeader>
                         <TableRow>
@@ -365,14 +356,11 @@ onMounted(async () => {
                             <TableCell class="text-center font-medium">{{ user.name }}</TableCell>
                             <TableCell class="text-center">{{ user.email }}</TableCell>
                             <TableCell class="text-center">
-                                {{
-                                    Number.isFinite(Number(user.area_id))
-                                        ? areaLookup.get(Number(user.area_id)) ?? 'Sin area'
-                                        : 'Sin area'
-                                }}
+                                {{ Number.isFinite(Number(user.area_id)) ? (areaLookup.get(Number(user.area_id)) ?? 'Sin area') : 'Sin area' }}
                             </TableCell>
-                            <TableCell class="text-center">{{ user.roles?.map(role => role.name).join(', ') }}</TableCell> <!-- Mostrar roles -->
-                            <TableCell class="flex gap-1 justify-center">
+                            <TableCell class="text-center">{{ user.roles?.map((role) => role.name).join(', ') }}</TableCell>
+                            <!-- Mostrar roles -->
+                            <TableCell class="flex justify-center gap-1">
                                 <ViewButton v-if="canView" :onClick="() => openDialog('view', user)" />
                                 <EditButton v-if="canEdit" @click="openDialog('edit', user)" />
                                 <DeleteButton v-if="canDelete" @click="confirmDeleteUser(user)" />
@@ -381,7 +369,7 @@ onMounted(async () => {
                     </TableBody>
                 </Table>
                 <Pagination
-                    class="flex justify-center pt-4 pb-2"
+                    class="mt-5 flex justify-center"
                     v-slot="{ page }"
                     :items-per-page="itemsPerPage"
                     :total="totalItems"
@@ -396,7 +384,7 @@ onMounted(async () => {
 
                         <template v-for="(item, index) in items">
                             <PaginationListItem v-if="item.type === 'page'" :key="index" :value="item.value" as-child>
-                                <Button class="h-8 w-8 rounded-md p-0 text-xs font-medium" :variant="item.value === page ? 'default' : 'ghost'">
+                                <Button class="h-6 w-6 p-0" :variant="item.value === page ? 'default' : 'outline'">
                                     {{ item.value }}
                                 </Button>
                             </PaginationListItem>
@@ -432,9 +420,3 @@ onMounted(async () => {
         @confirm="deleteUser"
     />
 </template>
-
-
-
-
-
-

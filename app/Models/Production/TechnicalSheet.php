@@ -122,6 +122,30 @@ class TechnicalSheet extends Model
         return $this->hasOne(TechnicalSheetRawMaterial::class);
     }
 
+    /**
+     * Piezas de despiece de trazo de corte (tabla relacional, source of truth).
+     */
+    public function cuttingPieces()
+    {
+        return $this->hasMany(TechnicalSheetCuttingPiece::class)->orderBy('sequence');
+    }
+
+    /**
+     * Tallas/unidades/curva de la ficha (source of truth para el desglose de corte).
+     */
+    public function sizes()
+    {
+        return $this->hasMany(TechnicalSheetSize::class)->orderBy('size');
+    }
+
+    /**
+     * Imágenes de referencia de estampado/lavandería (source of truth para imágenes del diálogo).
+     */
+    public function stampingImages()
+    {
+        return $this->hasMany(TechnicalSheetStampingImage::class);
+    }
+
     // ─── Helpers de dominio ───────────────────────────────
 
     /**

@@ -20,6 +20,7 @@ import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { format, isValid, parse } from 'date-fns';
+import { watch } from 'vue';
 
 const props = defineProps<{
     destinations: OptionParams[];
@@ -92,8 +93,14 @@ function getProductSheetValue(sheet: ProductSheet): number {
 }
 
 function getProductSheetLabel(sheet: ProductSheet): string {
-    const typed = sheet as ProductSheet & { label?: string; display_reference?: string };
-    return String(typed.label ?? typed.display_reference ?? sheet.reference ?? '').trim();
+    const sample = String(sheet.sample_reference ?? '').trim().toUpperCase() || '-';
+    const product = String(sheet.product_reference ?? '').trim().toUpperCase() || '-';
+    const prod2 = String((sheet as ProductSheet & { product_reference_2?: string }).product_reference_2 ?? '').trim().toUpperCase();
+    const version = Number((sheet as ProductSheet & { version?: number }).version ?? 1);
+    let label = `${sample} / ${product}`;
+    if (prod2) label += ` / ${prod2}`;
+    label += ` / v${version}`;
+    return label;
 }
 
 function resolveEcommerceValues(value?: string | Record<string, number> | null): Record<string, number> | null {
@@ -236,6 +243,83 @@ function normalizePriorityForApi(priority: string | number | null | undefined): 
     return PRIORITY_VALUES.includes(normalized as any) ? (normalized as (typeof PRIORITY_VALUES)[number]) : null;
 }
 
+function monthToNumber(month: string | number | null | undefined): number | null {
+    if (!month) return null;
+
+    const monthMap: Record<string, number> = {
+        ENERO: 1,
+        FEBRERO: 2,
+        MARZO: 3,
+        ABRIL: 4,
+        MAYO: 5,
+        JUNIO: 6,
+        JULIO: 7,
+        AGOSTO: 8,
+        SEPTIEMBRE: 9,
+        OCTUBRE: 10,
+        NOVIEMBRE: 11,
+        DICIEMBRE: 12,
+    };
+
+    const normalized = normalizeSeasonForApi(month) ?? String(month).trim().toUpperCase();
+    const byName = monthMap[normalized];
+    if (byName) return byName;
+
+    const asNum = Number(normalized);
+    if (Number.isFinite(asNum) && asNum >= 1 && asNum <= 12) {
+        return Math.floor(asNum);
+    }
+
+    return null;
+}
+
+function getPriorityDays(priority: string | number | null | undefined): number | null {
+    const normalized = normalizePriorityForApi(priority);
+    if (!normalized) return null;
+
+    const mapping: Record<string, number> = {
+        A: 45,
+        B: 30,
+        C: 15,
+        D: 10,
+    };
+
+    return mapping[normalized] ?? null;
+}
+
+function calculateEstimatedDeliveryDate(season: string | number | null | undefined, priority: string | number | null | undefined): string | null {
+    const monthNum = monthToNumber(season);
+    const days = getPriorityDays(priority);
+
+    if (monthNum === null || days === null) return null;
+
+    const now = new Date();
+    let year = now.getFullYear();
+
+    if (monthNum < now.getMonth() + 1) {
+        year += 1;
+    }
+
+    const baseDate = new Date(year, monthNum - 1, 1);
+    baseDate.setDate(baseDate.getDate() + days);
+
+    return baseDate.toISOString().split('T')[0];
+}
+
+function updateEstimatedDeliveryDate() {
+    if (isReadOnly.value) return;
+
+    const priority = normalizePriorityForApi(programmer.value.priority);
+    if (!priority) {
+        return;
+    }
+
+    const calculated = calculateEstimatedDeliveryDate(programmer.value.season, priority);
+    if (calculated) {
+        programmer.value.estimated_delivery_date = calculated;
+    }
+}
+
 const selectedSeasonLabel = computed(() => normalizeSeasonForApi(programmer.value.season) || 'Sin temporada');
 
 const ecommerceSummary = computed(() => {
@@ -299,7 +383,7 @@ function openDialog(selectedProgrammer: Programmer, mode: 'edit' | 'view' = 'edi
     programmer.value = {
         ...createEmptyProgrammer(),
         ...selectedProgrammer,
-        season: normalizeSeasonValue(selectedProgrammer.season),
+        season: normalizeSeasonValue(selectedProgrammer.season ?? selectedProgrammer.season_display),
         estimated_delivery_date: normalizeIsoDate(selectedProgrammer.estimated_delivery_date),
     };
 
@@ -315,6 +399,11 @@ function validateFields() {
         { ok: Boolean(programmer.value.product_sheet_id), message: 'La referencia es obligatoria.' },
         { ok: Boolean(programmer.value.season), message: 'La temporada es obligatoria.' },
         { ok: Boolean(programmer.value.destination_id), message: 'El destino es obligatorio.' },
+        { ok: Boolean(programmer.value.estimated_delivery_date), message: 'La fecha estimada de entrega es obligatoria.' },
+        {
+            ok: programmer.value.units !== null && programmer.value.units !== undefined && Number(programmer.value.units) > 0,
+            message: 'Las unidades son obligatorias y deben ser mayores a 0.',
+        },
     ];
 
     for (const item of required) {
@@ -388,6 +477,13 @@ async function saveChanges() {
         isLoading.value = false;
     }
 }
+
+watch(
+    () => [programmer.value.season, programmer.value.priority, isReadOnly.value],
+    () => {
+        updateEstimatedDeliveryDate();
+    },
+);
 </script>
 
 <template>
@@ -458,6 +554,7 @@ async function saveChanges() {
                                             label=""
                                             required
                                             class="mt-1 w-full"
+                                            @update:modelValue="() => updateEstimatedDeliveryDate()"
                                         />
                                     </template>
                                 </div>
@@ -510,6 +607,7 @@ async function saveChanges() {
                                         label=""
                                         :disabled="isReadOnly"
                                         class="mt-1 w-full"
+                                        @update:modelValue="() => updateEstimatedDeliveryDate()"
                                     />
                                 </div>
 
@@ -524,7 +622,9 @@ async function saveChanges() {
                                         v-model="programmer.estimated_delivery_date"
                                         type="date"
                                         class="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 py-1 text-sm transition placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
-                                        :disabled="isReadOnly"
+                                        :readonly="Boolean(programmer.priority)"
+                                        :disabled="isReadOnly || Boolean(programmer.priority)"
+                                        :title="programmer.priority ? `Calculada automaticamente segun prioridad ${programmer.priority}` : 'Ingresa manualmente la fecha'"
                                     />
                                 </div>
 

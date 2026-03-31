@@ -3,7 +3,6 @@
 namespace App\Models\Production;
 
 use App\Models\Concerns\HasAuditLabel;
-use App\Models\Settings\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -20,7 +19,6 @@ class Operation extends Model
         'action',
         'garment_part',
         'section_id',
-        'location',
         'measure',
         'quantity',
         'description',

@@ -15,9 +15,8 @@ import axios from 'axios';
 import { Camera, Trash2 } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import AppearanceSection from './Appearance.vue';
-import AvatarCropDialog from './Profile/AvatarCropDialog.vue';
 import ProfileSection from './Profile.vue';
-import { uiPatterns } from '@/lib/ui-patterns';
+import AvatarCropDialog from './Profile/AvatarCropDialog.vue';
 
 interface CompanyData {
     name: string;
@@ -192,7 +191,7 @@ const navSectionBaseClasses =
     'flex w-full items-start justify-between gap-2 rounded-xl border px-3 py-3 text-left text-sm transition-colors min-h-[58px] shadow-sm bg-card border-border dark:border-border';
 const navSectionActiveClasses = 'border-primary bg-primary/10 text-primary';
 const navSectionDefaultClasses =
-    'text-muted-foreground/80 hover:border-slate-300 hover:bg-slate-50 hover:text-card-foreground dark:text-muted-foreground/60 dark:hover:border-slate-600 dark:hover:bg-slate-900 dark:hover:text-foreground';
+    'text-muted-foreground/80 hover:border-slate-300 hover:bg-slate-50 hover:text-card-foreground dark:text-muted-foreground/60 dark:hover:border-slate-600 dark:hover:bg-slate-900 dark:hover:text-white';
 
 const defaultLogo =
     'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 120%22%3E%3Crect width=%22120%22 height=%22120%22 rx=%2216%22 ry=%2216%22 fill=%22%23f0f4f8%22/%3E%3Cpath d=%22M30 40h60v40H30z%22 fill=%22%23ffffff%22 stroke=%22%23d0d7e7%22 stroke-width=%222%22/%3E%3Cpath d=%22M38 48h44M38 56h44M38 64h24%22 stroke=%22%2393a3b8%22 stroke-width=%224%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%2286%22 cy=%2254%22 r=%226%22 fill=%22%23aac9ff%22/%3E%3Cpath d=%22M56 34h14a4 4 0 0 1 4 4v6h-22v-6a4 4 0 0 1 4-4z%22 fill=%22%23a5b6c8%22/%3E%3C/svg%3E';
@@ -620,7 +619,7 @@ onBeforeUnmount(() => {
         </transition>
         <div class="flex flex-1 flex-col gap-6 rounded-xl p-3">
             <div class="space-y-1">
-                <h1 :class="uiPatterns.typography.pageTitle">Datos Básicos</h1>
+                <h1 class="text-2xl font-semibold text-card-foreground">Datos Básicos</h1>
                 <p class="max-w-2xl text-sm text-muted-foreground/70">
                     Centraliza la información corporativa que utiliza el sistema para identificar la empresa, comunicar con contactos y contextualizar
                     los reportes operativos.
@@ -634,9 +633,14 @@ onBeforeUnmount(() => {
                         <div class="flex flex-col items-center py-4">
                             <!-- Avatar con botón fijo de edición - NO se mueve -->
                             <div class="relative inline-block h-28 w-28">
-                                <Avatar class="h-28 w-28 ring-4 ring-white shadow-lg">
-                                    <AvatarImage v-if="currentAvatarUrl" :key="user.avatar_url ?? 'no-avatar'" :src="currentAvatarUrl" :alt="user.name" />
-                                    <AvatarFallback class="bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-semibold text-primary-foreground">
+                                <Avatar class="h-28 w-28 shadow-lg ring-4 ring-white">
+                                    <AvatarImage
+                                        v-if="currentAvatarUrl"
+                                        :key="user.avatar_url ?? 'no-avatar'"
+                                        :src="currentAvatarUrl"
+                                        :alt="user.name"
+                                    />
+                                    <AvatarFallback class="bg-gradient-to-br from-blue-500 to-indigo-600 text-2xl font-semibold text-white">
                                         {{ userInitials }}
                                     </AvatarFallback>
                                 </Avatar>
@@ -645,7 +649,7 @@ onBeforeUnmount(() => {
                                     <DropdownMenuTrigger :as-child="true">
                                         <button
                                             type="button"
-                                            class="absolute bottom-0 right-0 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-primary text-primary-foreground box-border shadow-md transition-colors hover:bg-primary/90 data-[state=open]:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                            class="absolute bottom-0 right-0 z-10 box-border inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-primary text-white shadow-md transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 data-[state=open]:bg-primary"
                                             aria-label="Acciones de foto de perfil"
                                         >
                                             <Camera class="h-4 w-4" />
@@ -676,7 +680,6 @@ onBeforeUnmount(() => {
                                 class="hidden"
                                 @change="handleAvatarFileChange"
                             />
-
                         </div>
                         <div class="space-y-1 text-center">
                             <p class="text-xs font-semibold uppercase text-muted-foreground/70">Usuario</p>
@@ -734,157 +737,154 @@ onBeforeUnmount(() => {
 
                 <section class="rounded-2xl border border-border bg-card p-5 shadow-sm">
                     <div v-if="selectedSection === 'empresa'" class="space-y-4">
-                        <div
-                            v-if="!canEditCompany"
-                            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-                        >
+                        <div v-if="!canEditCompany" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                             Solo administradores pueden modificar informacion de empresa.
                         </div>
                         <form class="space-y-6" @submit.prevent="saveBasicData">
                             <fieldset class="space-y-6" :disabled="!canEditCompany">
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <div class="space-y-2">
-                                    <label for="legal-name" class="text-sm font-medium text-card-foreground">
-                                        Nombre <span class="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                        id="legal-name"
-                                        v-model="companyInfo.name"
-                                        :class="isFieldMissing('name') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                    />
-                                </div>
-                                <div class="space-y-2">
-                                    <label for="nit" class="text-sm font-medium text-card-foreground">
-                                        NIT <span class="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                        id="nit"
-                                        v-model="companyInfo.nit"
-                                        :class="isFieldMissing('nit') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                    />
-                                </div>
-                            </div>
-
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <div class="space-y-2">
-                                    <label for="email" class="text-sm font-medium text-card-foreground">
-                                        Correo corporativo <span class="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                        id="email"
-                                        v-model="companyInfo.email"
-                                        :class="isFieldMissing('email') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                    />
-                                </div>
-                                <div class="space-y-2">
-                                    <label for="accounting-email" class="text-sm font-medium text-card-foreground">Correo contable</label>
-                                    <Input id="accounting-email" v-model="companyInfo.accounting_email" />
-                                </div>
-                                <div class="space-y-2">
-                                    <label for="phone" class="text-sm font-medium text-card-foreground">
-                                        Teléfono principal <span class="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                        id="phone"
-                                        v-model="companyInfo.phone"
-                                        :class="isFieldMissing('phone') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                    />
-                                </div>
-                                <div class="space-y-2">
-                                    <label for="website" class="text-sm font-medium text-card-foreground">Sitio web</label>
-                                    <Input id="website" v-model="companyInfo.website" />
-                                </div>
-                            </div>
-
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <div class="flex h-full flex-col justify-end space-y-2">
-                                    <label for="address" class="text-sm font-medium text-card-foreground">
-                                        Dirección <span class="text-red-500">*</span>
-                                    </label>
-                                    <Input
-                                        id="address"
-                                        v-model="companyInfo.address"
-                                        :class="isFieldMissing('address') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
-                                    />
-                                </div>
-                                <div class="flex h-full flex-col justify-end space-y-2">
-                                    <SelectField
-                                        v-model="locationValue"
-                                        label="Municipio y departamento"
-                                        required
-                                        :disabled="!canEditCompany"
-                                        :options="locationOptions"
-                                        placeholder="Selecciona un municipio o departamento"
-                                        :searchable="true"
-                                        :searchThreshold="0"
-                                        @search="updateLocationOptions"
-                                    />
-                                </div>
-                            </div>
-
-                            <div class="space-y-2">
-                                <label for="description" class="text-sm font-medium text-card-foreground">Descripción</label>
-                                <Textarea id="description" rows="4" v-model="companyInfo.description" />
-                            </div>
-
-                            <div class="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
-                                <div class="flex items-center gap-2">
-                                    <p class="text-sm font-semibold text-card-foreground">Logotipo corporativo</p>
-                                    <HelpTooltip
-                                        text="Sube un logotipo que represente a tu marca."
-                                        aria-label="Ayuda sobre el logotipo corporativo"
-                                    />
-                                </div>
-                                <p class="m-2 text-xs text-muted-foreground/70">
-                                    Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
-                                </p>
-                                <div class="flex flex-col gap-3">
-                                    <div
-                                        class="relative w-full overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted transition dark:border-border dark:bg-slate-900"
-                                        :class="canEditCompany ? 'cursor-pointer hover:border-primary' : 'cursor-not-allowed opacity-70'"
-                                        style="min-height: 9rem"
-                                        @click="canEditCompany && triggerLogoUpload()"
-                                        @drop.prevent="canEditCompany && handleLogoDrop($event)"
-                                        @dragover.prevent
-                                    >
-                                        <template v-if="logoPreviewUrl">
-                                            <img :src="companyLogo" alt="Logotipo de la empresa" class="h-full w-full object-cover" />
-                                            <div class="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-[10px] uppercase text-primary-foreground">
-                                                {{ hasCustomLogo ? 'Listo para subir' : 'Sin cambios' }}
-                                            </div>
-                                        </template>
-                                        <template v-else>
-                                            <div class="flex h-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground/60">
-                                                <Camera class="h-6 w-6" />
-                                                <span class="text-center text-xs leading-tight"> Haz clic o arrastra una imagen. </span>
-                                            </div>
-                                        </template>
+                                <div class="grid gap-4 md:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label for="legal-name" class="text-sm font-medium text-card-foreground">
+                                            Nombre <span class="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            id="legal-name"
+                                            v-model="companyInfo.name"
+                                            :class="isFieldMissing('name') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                        />
                                     </div>
-                                    <button
-                                        type="button"
-                                        class="inline-flex items-center justify-center gap-1 self-start rounded-full border border-border/80 bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                        :disabled="!hasCustomLogo || !canEditCompany"
-                                        @click="resetLogoPreview"
-                                    >
-                                        Restablecer
-                                    </button>
+                                    <div class="space-y-2">
+                                        <label for="nit" class="text-sm font-medium text-card-foreground">
+                                            NIT <span class="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            id="nit"
+                                            v-model="companyInfo.nit"
+                                            :class="isFieldMissing('nit') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                        />
+                                    </div>
                                 </div>
-                                <input
-                                    ref="iconInputRef"
-                                    type="file"
-                                    accept="image/*"
-                                    class="hidden"
-                                    :disabled="!canEditCompany"
-                                    @change="handleLogoChange"
-                                />
-                            </div>
+
+                                <div class="grid gap-4 md:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label for="email" class="text-sm font-medium text-card-foreground">
+                                            Correo corporativo <span class="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            id="email"
+                                            v-model="companyInfo.email"
+                                            :class="isFieldMissing('email') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label for="accounting-email" class="text-sm font-medium text-card-foreground">Correo contable</label>
+                                        <Input id="accounting-email" v-model="companyInfo.accounting_email" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label for="phone" class="text-sm font-medium text-card-foreground">
+                                            Teléfono principal <span class="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            id="phone"
+                                            v-model="companyInfo.phone"
+                                            :class="isFieldMissing('phone') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label for="website" class="text-sm font-medium text-card-foreground">Sitio web</label>
+                                        <Input id="website" v-model="companyInfo.website" />
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-4 md:grid-cols-2">
+                                    <div class="flex h-full flex-col justify-end space-y-2">
+                                        <label for="address" class="text-sm font-medium text-card-foreground">
+                                            Dirección <span class="text-red-500">*</span>
+                                        </label>
+                                        <Input
+                                            id="address"
+                                            v-model="companyInfo.address"
+                                            :class="isFieldMissing('address') ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''"
+                                        />
+                                    </div>
+                                    <div class="flex h-full flex-col justify-end space-y-2">
+                                        <SelectField
+                                            v-model="locationValue"
+                                            label="Municipio y departamento"
+                                            required
+                                            :disabled="!canEditCompany"
+                                            :options="locationOptions"
+                                            placeholder="Selecciona un municipio o departamento"
+                                            :searchable="true"
+                                            :searchThreshold="0"
+                                            @search="updateLocationOptions"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label for="description" class="text-sm font-medium text-card-foreground">Descripción</label>
+                                    <Textarea id="description" rows="4" v-model="companyInfo.description" />
+                                </div>
+
+                                <div class="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-sm font-semibold text-card-foreground">Logotipo corporativo</p>
+                                        <HelpTooltip
+                                            text="Sube un logotipo que represente a tu marca."
+                                            aria-label="Ayuda sobre el logotipo corporativo"
+                                        />
+                                    </div>
+                                    <p class="m-2 text-xs text-muted-foreground/70">
+                                        Sube PNG, SVG o JPG de máximo 2 MB. Haz clic o arrastra una foto desde tu escritorio.
+                                    </p>
+                                    <div class="flex flex-col gap-3">
+                                        <div
+                                            class="relative w-full overflow-hidden rounded-2xl border-2 border-dashed border-border bg-muted transition dark:border-border dark:bg-slate-900"
+                                            :class="canEditCompany ? 'cursor-pointer hover:border-primary' : 'cursor-not-allowed opacity-70'"
+                                            style="min-height: 9rem"
+                                            @click="canEditCompany && triggerLogoUpload()"
+                                            @drop.prevent="canEditCompany && handleLogoDrop($event)"
+                                            @dragover.prevent
+                                        >
+                                            <template v-if="logoPreviewUrl">
+                                                <img :src="companyLogo" alt="Logotipo de la empresa" class="h-full w-full object-cover" />
+                                                <div class="absolute inset-x-0 bottom-0 bg-black/60 py-1 text-[10px] uppercase text-white">
+                                                    {{ hasCustomLogo ? 'Listo para subir' : 'Sin cambios' }}
+                                                </div>
+                                            </template>
+                                            <template v-else>
+                                                <div class="flex h-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground/60">
+                                                    <Camera class="h-6 w-6" />
+                                                    <span class="text-center text-xs leading-tight"> Haz clic o arrastra una imagen. </span>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center justify-center gap-1 self-start rounded-full border border-border/80 bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                            :disabled="!hasCustomLogo || !canEditCompany"
+                                            @click="resetLogoPreview"
+                                        >
+                                            Restablecer
+                                        </button>
+                                    </div>
+                                    <input
+                                        ref="iconInputRef"
+                                        type="file"
+                                        accept="image/*"
+                                        class="hidden"
+                                        :disabled="!canEditCompany"
+                                        @change="handleLogoChange"
+                                    />
+                                </div>
                             </fieldset>
 
                             <div class="flex flex-wrap gap-3 border-t pt-4">
                                 <button
                                     type="submit"
                                     :disabled="isSaving || !canEditCompany"
-                                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {{ isSaving ? 'Guardando...' : 'Guardar cambios' }}
                                 </button>
@@ -920,5 +920,3 @@ onBeforeUnmount(() => {
         />
     </AppLayout>
 </template>
-
-

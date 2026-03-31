@@ -1,4 +1,6 @@
 import axios from 'axios';
+import type { CreditDebitNoteDto, RetentionDto, TaxDto } from './dto';
+import { mapCreditDebitNoteFromApi, mapCreditDebitNoteToApi, mapRetentionDto, mapTaxDto } from './mappers';
 import type {
     CreditDebitNote,
     CreditDebitNoteListQuery,
@@ -129,17 +131,16 @@ export async function deleteRetention(id: number): Promise<void> {
 }
 
 type CreditDebitNoteEntityResponse = CreditDebitNoteDto | { data: CreditDebitNoteDto };
-type CreditDebitNoteListResponse = {
-    data?: CreditDebitNoteDto[];
-    total?: number;
-    current_page?: number;
-} | CreditDebitNoteDto[];
+type CreditDebitNoteListResponse =
+    | {
+          data?: CreditDebitNoteDto[];
+          total?: number;
+          current_page?: number;
+      }
+    | CreditDebitNoteDto[];
 
 function isCreditDebitNoteEntityEnvelope(raw: CreditDebitNoteEntityResponse): raw is { data: CreditDebitNoteDto } {
-    return typeof raw === 'object'
-        && raw !== null
-        && 'data' in raw
-        && Boolean((raw as { data?: CreditDebitNoteDto }).data);
+    return typeof raw === 'object' && raw !== null && 'data' in raw && Boolean((raw as { data?: CreditDebitNoteDto }).data);
 }
 
 function pickCreditDebitNoteEntity(raw: CreditDebitNoteEntityResponse): CreditDebitNoteDto {
@@ -178,18 +179,12 @@ export async function get(id: number | string): Promise<CreditDebitNote> {
 }
 
 export async function create(payload: CreditDebitNotePayload): Promise<CreditDebitNote> {
-    const res = await axios.post<CreditDebitNoteEntityResponse>(
-        CREDIT_DEBIT_NOTE_ENDPOINT,
-        mapCreditDebitNoteToApi(payload),
-    );
+    const res = await axios.post<CreditDebitNoteEntityResponse>(CREDIT_DEBIT_NOTE_ENDPOINT, mapCreditDebitNoteToApi(payload));
     return mapCreditDebitNoteFromApi(pickCreditDebitNoteEntity(res.data));
 }
 
 export async function update(id: number | string, payload: CreditDebitNotePayload): Promise<CreditDebitNote> {
-    const res = await axios.put<CreditDebitNoteEntityResponse>(
-        `${CREDIT_DEBIT_NOTE_ENDPOINT}/${id}`,
-        mapCreditDebitNoteToApi(payload),
-    );
+    const res = await axios.put<CreditDebitNoteEntityResponse>(`${CREDIT_DEBIT_NOTE_ENDPOINT}/${id}`, mapCreditDebitNoteToApi(payload));
     return mapCreditDebitNoteFromApi(pickCreditDebitNoteEntity(res.data));
 }
 

@@ -77,31 +77,16 @@ onMounted(() => {
                 title="Notificaciones"
             >
                 <Bell class="h-[18px] w-[18px]" />
-                <Badge
-                    v-if="badgeCount"
-                    variant="destructive"
-                    class="absolute -right-2 -top-2 h-4 min-w-4 px-1 text-[10px] leading-none"
-                >
+                <Badge v-if="badgeCount" variant="destructive" class="absolute -right-2 -top-2 h-4 min-w-4 px-1 text-[10px] leading-none">
                     {{ badgeCount }}
                 </Badge>
             </button>
         </PopoverTrigger>
 
-        <PopoverContent
-            align="end"
-            side="bottom"
-            :side-offset="10"
-            class="z-[60] w-[380px] max-w-[calc(100vw-1rem)] rounded-xl p-0"
-        >
+        <PopoverContent align="end" side="bottom" :side-offset="10" class="z-[60] w-[380px] max-w-[calc(100vw-1rem)] rounded-xl p-0">
             <div class="flex items-center justify-between border-b px-4 py-3">
                 <p class="text-sm font-semibold">Notificaciones</p>
-                <Button
-                    v-if="unreadCount > 0"
-                    variant="ghost"
-                    size="sm"
-                    class="h-7 text-xs"
-                    @click="markAllAsRead"
-                >
+                <Button v-if="unreadCount > 0" variant="ghost" size="sm" class="h-7 text-xs" @click="markAllAsRead">
                     <CheckCheck class="mr-1 h-3.5 w-3.5" />
                     Marcar todas leidas
                 </Button>
@@ -112,10 +97,7 @@ onMounted(() => {
                     <div class="h-5 w-5 animate-spin rounded-full border-b-2 border-primary" />
                 </div>
 
-                <div
-                    v-else-if="latestNotifications.length === 0"
-                    class="flex flex-col items-center justify-center py-8 text-muted-foreground"
-                >
+                <div v-else-if="latestNotifications.length === 0" class="flex flex-col items-center justify-center py-8 text-muted-foreground">
                     <Inbox class="mb-2 h-9 w-9 opacity-40" />
                     <p class="text-sm">Sin notificaciones</p>
                 </div>
@@ -166,9 +148,7 @@ onMounted(() => {
             </div>
 
             <div class="border-t px-4 py-2">
-                <Button variant="ghost" size="sm" class="w-full text-xs" @click="openAllNotifications">
-                    Ver todas las notificaciones
-                </Button>
+                <Button variant="ghost" size="sm" class="w-full text-xs" @click="openAllNotifications"> Ver todas las notificaciones </Button>
             </div>
         </PopoverContent>
     </Popover>

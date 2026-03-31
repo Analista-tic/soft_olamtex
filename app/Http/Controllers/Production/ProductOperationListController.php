@@ -41,7 +41,6 @@ class ProductOperationListController extends Controller
             'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
             'actions' => $this->operationService->getUniqueActions(),
             'garmentParts' => $this->operationService->getUniqueGarmentParts(),
-            'locations' => $this->operationService->getUniqueLocations(),
         ]);
     }
 
@@ -59,7 +58,6 @@ class ProductOperationListController extends Controller
             'fabric_bases' => $this->settingService->getFabricBasesWithFactor()->values()->all(),
             'actions' => $this->operationService->getUniqueActions(),
             'garmentParts' => $this->operationService->getUniqueGarmentParts(),
-            'locations' => $this->operationService->getUniqueLocations(),
             'costParameters' => $this->getCostParameters(),
         ]);
     }

@@ -10,6 +10,8 @@ use App\Http\Resources\Inventory\FabricRollResource;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Production\ProductionOrder;
+use App\Models\Production\TechnicalSheet;
+use App\Models\Production\TechnicalSheetRoll;
 use App\Models\Textil\FabricRoll;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Textil\FabricRollService;
@@ -109,24 +111,134 @@ class FabricRollController extends Controller
         return Inertia::render('Textil/FabricRollOrders/Download', [
             'roll' => $roll,
             'lotName' => $lotName,
-            'rolls' => FabricRollResource::collection($this->service->available())->resolve(),
             'sizes' => $sizes,
         ]);
     }
 
-    public function inventoryRollsData(Request $request)
+    public function inventoryRollsData(Request $request): JsonResponse
     {
-        $rawIds = $request->query('fabricItemIds', []);
-        $ids = is_array($rawIds) ? $rawIds : [$rawIds];
+        $rawIds = $request->input('fabricItemIds', []);
+        $ids    = is_array($rawIds) ? $rawIds : [$rawIds];
         $fabricItemIds = collect($ids)
             ->map(fn ($id) => is_numeric($id) ? (int) $id : null)
             ->filter(fn ($id) => is_int($id) && $id > 0)
-            ->unique()
-            ->values()
-            ->all();
+            ->unique()->values()->all();
 
-        $rolls = $this->service->export($fabricItemIds);
-        return FabricRollResource::collection($rolls);
+        $filters = [
+            'search'          => $request->input('search'),
+            'base_fabric'     => $request->input('base_fabric'),
+            'provider'        => $request->input('provider'),
+            'with_output'     => $request->boolean('with_output'),
+            'fabric_item_ids' => $fabricItemIds ?: null,
+        ];
+
+        $perPage       = min((int) $request->input('per_page', 100), 500);
+        $sortBy        = $request->input('sort_by', 'entry_date');
+        $sortDirection = $request->input('sort_direction', 'desc');
+        /** @var \Illuminate\Pagination\LengthAwarePaginator $paginator */
+        $paginator = $this->service->inventoryWithFilters($filters, $perPage, $sortBy, $sortDirection);
+
+        // Descuentar metros ya programados en fichas técnicas de OTRAS órdenes
+        $excludeOpId = $request->input('excludeOpId');
+        $committedByRollId = $this->getCommittedMetersByRollId(
+            is_numeric($excludeOpId) ? (int) $excludeOpId : null
+        );
+
+        $rows = $paginator->getCollection()->map(function (object $row) use ($committedByRollId): array {
+            $row     = (array) $row;
+            $qty     = (float) ($row['quantity'] ?? 0);
+            $partial = (float) ($row['partial_output'] ?? 0);
+            $actual  = (float) ($row['actual_output'] ?? 0);
+            $reservedOrConsumed = max($partial, $actual);
+            $committed = (float) ($committedByRollId[(string) $row['id']] ?? 0.0);
+            $color   = $row['supplier_color'] ?? null;
+
+            return [
+                'id'                        => $row['id'],
+                'fabric_item_id'            => $row['fabric_item_id'],
+                'purchase_document_item_id' => $row['purchase_document_item_id'],
+                'roll'                      => $row['roll_number'],
+                'location'                  => $row['location'],
+                'fabric'                    => $row['fabric'],
+                'color'                     => $color ?? 'N/A',
+                'color_code'                => '#' . substr(md5($color ?? ''), 0, 6),
+                'width'                     => $this->fmtMeters((float) ($row['roll_width'] ?? 0)),
+                'roll_qty'                  => $this->fmtMeters($qty),
+                'partial_output'            => $this->fmtMeters($partial),
+                'exit_quantity'             => $this->fmtMeters($actual),
+                'partial_availability'      => $this->fmtMeters(max(0.0, $qty - $reservedOrConsumed - $committed)),
+                'real_availability'         => $this->fmtMeters(max(0.0, $qty - $actual)),
+                'order_number'              => $row['order_number'],
+                'provider'                  => $row['provider'],
+                'price_per_meter'           => isset($row['price_per_meter']) ? (float) $row['price_per_meter'] : null,
+                'created_at'               => isset($row['doc_created_at'])
+                    ? \Illuminate\Support\Carbon::parse($row['doc_created_at'])->format('d M Y')
+                    : null,
+                'creator'                   => $row['creator_name'] ?? null,
+                'status'                    => $actual >= $qty ? 'depleted' : 'available',
+                'quantity_value'            => $qty,
+                'exit_quantity_value'       => $actual,
+            ];
+        });
+
+        return response()->json([
+            'data' => $rows,
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+                'from'         => $paginator->firstItem(),
+                'to'           => $paginator->lastItem(),
+            ],
+        ]);
+    }
+
+    /**
+     * Suma metros programados por rollId en todas las fichas técnicas
+     * excepto la orden indicada en $excludeOpId (la orden actualmente activa).
+     *
+     * @return array<string, float>
+     */
+    private function getCommittedMetersByRollId(?int $excludeOpId): array
+    {
+        $query = TechnicalSheetRoll::query()->select('technical_sheet_id', 'lines');
+
+        if ($excludeOpId !== null) {
+            $excludeSheetId = TechnicalSheet::where('production_order_id', $excludeOpId)->value('id');
+            if ($excludeSheetId) {
+                $query->where('technical_sheet_id', '!=', $excludeSheetId);
+            }
+        }
+
+        $committed = [];
+        foreach ($query->get() as $snapshot) {
+            $lines = is_array($snapshot->lines) ? $snapshot->lines : [];
+            foreach ($lines as $line) {
+                $rollId = trim((string) ($line['rollId'] ?? ''));
+                if ($rollId === '') {
+                    continue;
+                }
+                $meters = is_numeric($line['programmedMeters'] ?? null)
+                    ? (float) $line['programmedMeters']
+                    : 0.0;
+                if ($meters > 0.0) {
+                    $committed[$rollId] = ($committed[$rollId] ?? 0.0) + $meters;
+                }
+            }
+        }
+
+        return $committed;
+    }
+
+    private function fmtMeters(?float $value): string
+    {
+        if ($value === null) {
+            return '0 m';
+        }
+        $normalized = rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+
+        return "{$normalized} m";
     }
 
     public function reception()

@@ -10,9 +10,9 @@ import { computed, ref, watch } from 'vue';
 const props = defineProps<{
     isOpen: boolean;
     entity: 'section' | 'operation' | 'machine';
-    sections: Array<{ id: number; name: string; type?: string }>;
-    operations: Array<{ id: number; name: string }>;
-    machines: Array<{ id: number; code: string; name: string }>;
+    sections: Array<{ id: number | string; name: string; type?: string | null }>;
+    operations: Array<{ id: number | string; name: string }>;
+    machines: Array<{ id: number | string; code?: string | null; name: string }>;
     productSheets?: Array<{ id: number | string; reference: string; type: string }>;
     actions?: Array<string>;
     garmentParts?: Array<string>;
