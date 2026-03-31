@@ -41,6 +41,7 @@ use App\Models\Settings\Role;
 use App\Models\Settings\Setting;
 use App\Models\Textil\FabricRoll;
 use App\Observers\AuditObserver;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -70,6 +71,13 @@ class AppServiceProvider extends ServiceProvider
         Route::model('collection', Collection::class);
 
         $this->registerAuditObservers();
+
+        Model::preventLazyLoading(! app()->isProduction());
+        Model::handleLazyLoadingViolationUsing(function ($model, $relation) {
+            $class = get_class($model);
+            info("N+1 detectado: relación [{$relation}] en modelo [{$class}]");
+            throw new \RuntimeException("N+1 detectado: relación [{$relation}] en modelo [{$class}]. Usa eager loading (->with()).");
+        });
     }
 
     private function registerAuditObservers(): void

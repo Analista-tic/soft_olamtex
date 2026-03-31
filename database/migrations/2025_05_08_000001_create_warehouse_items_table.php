@@ -13,10 +13,8 @@ class CreateWarehouseItemsTable extends Migration
             $table->foreignId('warehouse_id')->constrained();
             $table->foreignId('item_id')->constrained();
             $table->integer('quantity')->default(0);
-            $table->decimal('weighted_average_price', 20, 6)->nullable();
             $table->integer('stock_min')->default(0);
             $table->integer('stock_max')->default(0);
-            $table->unique(['item_id', 'warehouse_id']);
             $table->timestamps();
         });
     }

@@ -29,7 +29,7 @@ class SalePayment extends Model
         'cash_receipt_id' => 'integer',
         'sale_invoice_id' => 'integer',
         'payment_date' => 'date',
-        'amount' => 'float',
+        'amount' => 'decimal:2',
         'cash_receipt_number' => 'integer',
         'created_by_user_id' => 'integer',
     ];

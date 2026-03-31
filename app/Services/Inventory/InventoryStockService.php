@@ -35,47 +35,5 @@ class InventoryStockService
         ]);
     }
 
-    /**
-     * @deprecated 4UTEX: No manipular stock directamente. Usar InventoryMovementService::createMovement
-     *             para todos los movimientos. Los movimientos son inmutables; para corregir use reverseMovement().
-     */
-    public function applyStockMovement(Item $item, int $warehouseId, int $quantity, string $type): void
-    {
-        $quantity = abs($quantity);
-        $sign = $type === 'entrada' ? 1 : -1;
 
-        $row = DB::table('warehouse_items')
-            ->where('item_id', $item->id)
-            ->where('warehouse_id', $warehouseId)
-            ->lockForUpdate()
-            ->first();
-
-        $currentQty = $row ? (int) $row->quantity : 0;
-        $newQty = $currentQty + ($sign * $quantity);
-
-        if ($newQty < 0 && !$item->negative_movement) {
-            $item->negative_movement = 1;
-            $item->save();
-        }
-
-        $quantityToStore = $item->negative_movement ? $newQty : max($newQty, 0);
-
-        $payload = [
-            'quantity'   => $quantityToStore,
-            'stock_min'  => $row ? $row->stock_min : 0,
-            'stock_max'  => $row ? $row->stock_max : 0,
-            'updated_at' => now(),
-        ];
-
-        if ($row) {
-            DB::table('warehouse_items')
-                ->where('id', $row->id)
-                ->update($payload);
-        } else {
-            $payload['item_id'] = $item->id;
-            $payload['warehouse_id'] = $warehouseId;
-            $payload['created_at'] = now();
-            DB::table('warehouse_items')->insert($payload);
-        }
-    }
 }
