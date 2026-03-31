@@ -12,9 +12,9 @@ class CreateWarehouseItemsTable extends Migration
             $table->id();
             $table->foreignId('warehouse_id')->constrained();
             $table->foreignId('item_id')->constrained();
-            $table->integer('quantity')->default(0);
-            $table->integer('stock_min')->default(0);
-            $table->integer('stock_max')->default(0);
+            $table->decimal('quantity', 15, 4)->default(0);
+            $table->decimal('stock_min', 15, 4)->default(0)->nullable();
+            $table->decimal('stock_max', 15, 4)->default(0)->nullable();
             $table->timestamps();
         });
     }
