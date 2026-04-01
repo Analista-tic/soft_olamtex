@@ -69,6 +69,9 @@ const dialogType = ref<DialogType>('create');
 const form = ref<Partial<Item>>({});
 const isPreparingDialog = ref(false);
 const isDialogBootstrapping = ref(false);
+// Precarga de catálogos para el dialog de ítems
+const preloadedSubGroups = ref<any[]>([]);
+const preloadedTaxes = ref<any[]>([]);
 
 const isDeleteDialogOpen = ref(false);
 const itemToDelete = ref<Item | null>(null);
@@ -360,6 +363,19 @@ watch(statusFilter, async () => {
 
 onMounted(async () => {
     await fetchItems(currentPage.value);
+
+    // Precargar subgrupos y taxes para que estén listos
+    // cuando el usuario abra el dialog de edición
+    try {
+        const [sgRes, taxRes] = await Promise.all([
+            axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } }),
+            axios.get('/impuestos/data', { params: { per_page: 100, status: true } }),
+        ]);
+        preloadedSubGroups.value = sgRes.data?.data ?? [];
+        preloadedTaxes.value = (taxRes.data?.data ?? []).filter((t: any) => t.status);
+    } catch (e) {
+        // silencioso — el dialog los cargará por su cuenta si falla
+    }
 });
 
 onBeforeUnmount(() => {
@@ -582,6 +598,8 @@ onBeforeUnmount(() => {
             :dialogType="dialogType"
             :form="form"
             :defer-content="isPreparingDialog"
+            :preloaded-sub-groups="preloadedSubGroups"
+            :preloaded-taxes="preloadedTaxes"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
             @loading-state="handleDialogLoadingState"

@@ -15,6 +15,8 @@ const props = withDefaults(
         form: Partial<Item>;
         showAdvancedLink?: boolean;
         deferContent?: boolean;
+        preloadedSubGroups?: any[];
+        preloadedTaxes?: any[];
     }>(),
     {
         showAdvancedLink: true,
@@ -178,6 +180,8 @@ function handleFormLoadingState(value: boolean) {
                 :dialog-type="props.dialogType"
                 :form="props.form"
                 :show-advanced-link="props.showAdvancedLink"
+                :preloaded-sub-groups="props.preloadedSubGroups ?? []"
+                :preloaded-taxes="props.preloadedTaxes ?? []"
                 @close="handleFormClose"
                 @refresh="handleFormRefresh"
                 @saved="handleFormSaved"

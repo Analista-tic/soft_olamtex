@@ -14,6 +14,8 @@ class WarehousesSeeder extends Seeder
         $warehouses = [
             ['name' => 'Principal', 'observation' => 'Almacén principal'],
             ['name' => 'Secundario', 'observation' => 'Bodega secundaria'],
+            ['name' => 'Almacén 008', 'observation' => 'Almacén de insumos y suministros'],
+            ['name' => 'Almacén 010', 'observation' => 'Almacén de insumos y suministros'],
         ];
 
         foreach ($warehouses as $w) {

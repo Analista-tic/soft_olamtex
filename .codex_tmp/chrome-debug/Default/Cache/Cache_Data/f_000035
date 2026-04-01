@@ -1,0 +1,425 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/resources/js/pages/MasterData/Category/SubGroupDialog.vue");import { defineComponent as _defineComponent } from "/node_modules/.vite/deps/vue.js?v=2ed03e8c";
+import ConfirmDialog from "/resources/js/components/common/ConfirmDialog.vue";
+import FormDialogContent from "/resources/js/components/FormDialogContent.vue";
+import HelpTooltip from "/resources/js/components/HelpTooltip.vue";
+import InputField from "/resources/js/components/InputField.vue";
+import SelectField from "/resources/js/components/SelectField.vue";
+import { Button } from "/resources/js/components/ui/button/index.ts";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "/resources/js/components/ui/dialog/index.ts";
+import Label from "/resources/js/components/ui/label/Label.vue";
+import { TooltipProvider } from "/resources/js/components/ui/tooltip/index.ts";
+import axios from "/node_modules/.vite/deps/axios.js?v=2ed03e8c";
+import { Plus, X } from "/node_modules/.vite/deps/lucide-vue-next.js?v=2ed03e8c";
+import { computed, nextTick, ref, watch } from "/node_modules/.vite/deps/vue.js?v=2ed03e8c";
+import GroupDialog from "/resources/js/pages/MasterData/Category/GroupDialog.vue";
+const _sfc_main = /* @__PURE__ */ _defineComponent({
+  __name: "SubGroupDialog",
+  props: {
+    isOpen: { type: Boolean, required: true },
+    dialogType: { type: String, required: true },
+    subGroupData: { type: Object, required: true },
+    groups: { type: Array, required: true },
+    deferContent: { type: Boolean, required: false }
+  },
+  emits: ["close", "submit", "notify", "loading-state"],
+  setup(__props, { expose: __expose, emit: __emit }) {
+    __expose();
+    const props = __props;
+    const emit = __emit;
+    const internalIsOpen = ref(props.isOpen);
+    const isInitializingDialog = ref(false);
+    const shouldEmitLoadingState = computed(() => internalIsOpen.value && isInitializingDialog.value);
+    watch(
+      () => props.isOpen,
+      async (newValue) => {
+        internalIsOpen.value = newValue;
+        if (newValue) {
+          await initializeDialog();
+          return;
+        }
+        isInitializingDialog.value = false;
+      }
+    );
+    watch(
+      () => internalIsOpen.value,
+      (newValue) => {
+        if (!newValue) {
+          isInitializingDialog.value = false;
+          emit("close");
+        }
+      }
+    );
+    const form = ref({ ...props.subGroupData });
+    watch(
+      () => props.subGroupData,
+      (newData) => {
+        form.value = { ...newData };
+      },
+      { deep: true }
+    );
+    const localGroups = ref([...props.groups]);
+    watch(
+      () => props.groups,
+      (newGroups) => {
+        localGroups.value = [...newGroups];
+      },
+      { deep: true }
+    );
+    async function handleGroupCreated(newGroup) {
+      try {
+        const response = await axios.post("/categorias/grupos", newGroup);
+        const createdGroup = response.data;
+        localGroups.value.push(createdGroup);
+        form.value.category_group_id = createdGroup.id;
+      } catch (error) {
+        console.error("Error al crear el grupo:", error);
+      } finally {
+        isGroupDialogOpen.value = false;
+      }
+    }
+    async function deleteGroup(groupId) {
+      try {
+        const response = await axios.delete(`/categorias/grupos/${groupId}`);
+        emit("notify", { type: "success", message: response.data?.message || "Grupo eliminado correctamente." });
+        localGroups.value = localGroups.value.filter((group) => group.id !== groupId);
+        if (form.value.category_group_id === groupId) {
+          form.value.category_group_id = null;
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.data?.message) {
+          emit("notify", { type: "error", message: error.response.data.message });
+        } else {
+          console.error("Error al eliminar el grupo:", error);
+          emit("notify", { type: "error", message: "Ocurrió un error al intentar eliminar el grupo. Por favor, inténtalo de nuevo." });
+        }
+      }
+    }
+    const isGroupDialogOpen = ref(false);
+    function openGroupDialog() {
+      isGroupDialogOpen.value = true;
+    }
+    function openGroupDialogFromDropdown() {
+      openGroupDialog();
+    }
+    function closeGroupDialog() {
+      isGroupDialogOpen.value = false;
+    }
+    function closeDialog() {
+      internalIsOpen.value = false;
+    }
+    async function initializeDialog() {
+      isInitializingDialog.value = true;
+      try {
+        await nextTick();
+        form.value = { ...props.subGroupData };
+        subGroupName.value = "";
+        subGroupList.value = [];
+      } finally {
+        isInitializingDialog.value = false;
+      }
+    }
+    const subGroupName = ref("");
+    const subGroupList = ref([]);
+    function addSubGroupToList() {
+      if (subGroupName.value.trim()) {
+        subGroupList.value.push({
+          name: subGroupName.value.trim(),
+          category_group_id: form.value.category_group_id
+        });
+        subGroupName.value = "";
+      }
+    }
+    function removeSubGroupFromList(index) {
+      subGroupList.value.splice(index, 1);
+    }
+    function submitForm() {
+      emit("submit", { ...form.value, subgroups: subGroupList.value });
+    }
+    const isDeleteDialogOpen = ref(false);
+    const groupToDelete = ref(null);
+    function openDeleteDialog(groupId) {
+      groupToDelete.value = groupId;
+      isDeleteDialogOpen.value = true;
+    }
+    function closeDeleteDialog() {
+      isDeleteDialogOpen.value = false;
+      groupToDelete.value = null;
+    }
+    async function confirmDeleteGroup() {
+      if (groupToDelete.value !== null) {
+        await deleteGroup(groupToDelete.value);
+      }
+      closeDeleteDialog();
+    }
+    watch(
+      shouldEmitLoadingState,
+      (value) => {
+        emit("loading-state", value);
+      },
+      { immediate: true }
+    );
+    const __returned__ = { props, emit, internalIsOpen, isInitializingDialog, shouldEmitLoadingState, form, localGroups, handleGroupCreated, deleteGroup, isGroupDialogOpen, openGroupDialog, openGroupDialogFromDropdown, closeGroupDialog, closeDialog, initializeDialog, subGroupName, subGroupList, addSubGroupToList, removeSubGroupFromList, submitForm, isDeleteDialogOpen, groupToDelete, openDeleteDialog, closeDeleteDialog, confirmDeleteGroup, ConfirmDialog, FormDialogContent, HelpTooltip, InputField, SelectField, get Button() {
+      return Button;
+    }, get Dialog() {
+      return Dialog;
+    }, get DialogFooter() {
+      return DialogFooter;
+    }, get DialogHeader() {
+      return DialogHeader;
+    }, get DialogTitle() {
+      return DialogTitle;
+    }, get DialogDescription() {
+      return DialogDescription;
+    }, Label, get TooltipProvider() {
+      return TooltipProvider;
+    }, get Plus() {
+      return Plus;
+    }, get X() {
+      return X;
+    }, GroupDialog };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+import { toDisplayString as _toDisplayString, createTextVNode as _createTextVNode, withCtx as _withCtx, createVNode as _createVNode, createElementVNode as _createElementVNode, withModifiers as _withModifiers, renderList as _renderList, Fragment as _Fragment, openBlock as _openBlock, createElementBlock as _createElementBlock, createBlock as _createBlock, createCommentVNode as _createCommentVNode } from "/node_modules/.vite/deps/vue.js?v=2ed03e8c";
+const _hoisted_1 = {
+  class: "flex-1 overflow-y-auto scroll-smooth pr-2",
+  style: { "scrollbar-width": "thin" }
+};
+const _hoisted_2 = { class: "space-y-4" };
+const _hoisted_3 = { class: "space-y-2 pt-5" };
+const _hoisted_4 = { class: "flex items-center gap-2" };
+const _hoisted_5 = { class: "flex flex-1 flex-col gap-1" };
+const _hoisted_6 = { class: "flex items-center gap-2" };
+const _hoisted_7 = { class: "flex items-center" };
+const _hoisted_8 = ["disabled"];
+const _hoisted_9 = { class: "mt-4 space-y-2" };
+const _hoisted_10 = { class: "flex flex-wrap gap-2" };
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return _openBlock(), _createElementBlock(
+    _Fragment,
+    null,
+    [
+      _createVNode($setup["Dialog"], {
+        open: $setup.internalIsOpen,
+        "onUpdate:open": _cache[3] || (_cache[3] = ($event) => $setup.internalIsOpen = $event)
+      }, {
+        default: _withCtx(() => [
+          !$setup.props.deferContent ? (_openBlock(), _createBlock($setup["FormDialogContent"], {
+            key: 0,
+            class: "flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2"
+          }, {
+            default: _withCtx(() => [
+              _createVNode($setup["TooltipProvider"], null, {
+                default: _withCtx(() => [
+                  _createVNode($setup["DialogHeader"], { class: "flex-shrink-0" }, {
+                    default: _withCtx(() => [
+                      _createVNode($setup["DialogTitle"], null, {
+                        default: _withCtx(() => [
+                          _createTextVNode(
+                            _toDisplayString($props.dialogType === "create" ? "Crear Subgrupo" : "Editar Subgrupo"),
+                            1
+                            /* TEXT */
+                          )
+                        ]),
+                        _: 1
+                        /* STABLE */
+                      }),
+                      _createVNode($setup["DialogDescription"], null, {
+                        default: _withCtx(() => [
+                          _createTextVNode(
+                            " Completa los campos para " + _toDisplayString($props.dialogType === "create" ? "crear un nuevo subgrupo" : "editar el subgrupo") + ". ",
+                            1
+                            /* TEXT */
+                          )
+                        ]),
+                        _: 1
+                        /* STABLE */
+                      })
+                    ]),
+                    _: 1
+                    /* STABLE */
+                  }),
+                  _createElementVNode("div", _hoisted_1, [
+                    _createElementVNode("div", _hoisted_2, [
+                      _createElementVNode("div", _hoisted_3, [
+                        _createElementVNode("div", _hoisted_4, [
+                          _createElementVNode("div", _hoisted_5, [
+                            _createElementVNode("div", _hoisted_6, [
+                              _createVNode($setup["Label"], { class: "text-sm font-medium" }, {
+                                default: _withCtx(() => _cache[6] || (_cache[6] = [
+                                  _createTextVNode(" Grupo"),
+                                  _createElementVNode(
+                                    "span",
+                                    { class: "text-destructive" },
+                                    "*",
+                                    -1
+                                    /* CACHED */
+                                  )
+                                ])),
+                                _: 1,
+                                __: [6]
+                              }),
+                              _createVNode($setup["HelpTooltip"], {
+                                text: "Selecciona el grupo principal que alojará este subgrupo.",
+                                "aria-label": "Ayuda sobre el grupo"
+                              })
+                            ]),
+                            _createVNode($setup["SelectField"], {
+                              label: "",
+                              options: $setup.localGroups.map((group) => ({ id: group.id, name: group.name })),
+                              modelValue: $setup.form.category_group_id,
+                              "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => $setup.form.category_group_id = $event),
+                              required: "",
+                              placeholder: "Selecciona un grupo",
+                              "button-class": "w-full",
+                              searchable: ""
+                            }, {
+                              header: _withCtx(() => [
+                                _createElementVNode("button", {
+                                  type: "button",
+                                  class: "inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                                  onClick: _withModifiers($setup.openGroupDialogFromDropdown, ["stop"])
+                                }, [
+                                  _createVNode($setup["Plus"], { class: "mr-2 h-4 w-4" }),
+                                  _cache[7] || (_cache[7] = _createTextVNode(" Nuevo grupo "))
+                                ])
+                              ]),
+                              _: 1
+                              /* STABLE */
+                            }, 8, ["options", "modelValue"])
+                          ]),
+                          _createVNode($setup["X"], {
+                            class: "mt-5 h-6 w-6 cursor-pointer transition-colors hover:text-destructive",
+                            disabled: !$setup.form.category_group_id,
+                            onClick: _cache[1] || (_cache[1] = () => $setup.form.category_group_id != null && $setup.openDeleteDialog($setup.form.category_group_id))
+                          }, null, 8, ["disabled"])
+                        ])
+                      ]),
+                      _createElementVNode("div", _hoisted_7, [
+                        _createVNode($setup["InputField"], {
+                          modelValue: $setup.subGroupName,
+                          "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $setup.subGroupName = $event),
+                          label: "Nombre del Subgrupo",
+                          placeholder: "Escribe el nombre del subgrupo"
+                        }, null, 8, ["modelValue"]),
+                        _createElementVNode("button", {
+                          type: "button",
+                          class: "ml-2 flex items-center justify-center bg-transparent shadow-none disabled:cursor-not-allowed disabled:opacity-50",
+                          style: { "height": "2.5rem" },
+                          onClick: $setup.addSubGroupToList,
+                          disabled: !$setup.subGroupName.trim()
+                        }, [
+                          _createVNode($setup["Plus"], { class: "mt-5 h-6 w-6 cursor-pointer transition-colors hover:text-primary" })
+                        ], 8, _hoisted_8)
+                      ]),
+                      _createElementVNode("div", _hoisted_9, [
+                        _createElementVNode("p", _hoisted_10, [
+                          (_openBlock(true), _createElementBlock(
+                            _Fragment,
+                            null,
+                            _renderList($setup.subGroupList, (subGroup, index) => {
+                              return _openBlock(), _createElementBlock("span", {
+                                key: index,
+                                class: "flex items-center space-x-2 rounded-full bg-muted px-3 py-1 text-sm"
+                              }, [
+                                _createElementVNode(
+                                  "span",
+                                  null,
+                                  _toDisplayString(subGroup.name),
+                                  1
+                                  /* TEXT */
+                                ),
+                                _createVNode($setup["X"], {
+                                  class: "mr-2 h-4 w-4 cursor-pointer transition-colors hover:text-destructive",
+                                  onClick: ($event) => $setup.removeSubGroupFromList(index)
+                                }, null, 8, ["onClick"])
+                              ]);
+                            }),
+                            128
+                            /* KEYED_FRAGMENT */
+                          ))
+                        ])
+                      ])
+                    ])
+                  ]),
+                  _createVNode($setup["DialogFooter"], { class: "mt-4 flex flex-shrink-0 justify-end gap-2 border-t pt-4" }, {
+                    default: _withCtx(() => [
+                      _createVNode($setup["Button"], {
+                        variant: "outline",
+                        size: "pill",
+                        onClick: $setup.closeDialog
+                      }, {
+                        default: _withCtx(() => _cache[8] || (_cache[8] = [
+                          _createTextVNode(" Cancelar ")
+                        ])),
+                        _: 1,
+                        __: [8]
+                      }),
+                      _createElementVNode(
+                        "button",
+                        {
+                          type: "button",
+                          class: "inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                          onClick: $setup.submitForm
+                        },
+                        _toDisplayString($props.dialogType === "create" ? "Crear" : "Guardar"),
+                        1
+                        /* TEXT */
+                      )
+                    ]),
+                    _: 1
+                    /* STABLE */
+                  })
+                ]),
+                _: 1
+                /* STABLE */
+              })
+            ]),
+            _: 1
+            /* STABLE */
+          })) : _createCommentVNode("v-if", true)
+        ]),
+        _: 1
+        /* STABLE */
+      }, 8, ["open"]),
+      _createVNode($setup["GroupDialog"], {
+        isOpen: $setup.isGroupDialogOpen,
+        "onUpdate:isOpen": _cache[4] || (_cache[4] = ($event) => $setup.isGroupDialogOpen = $event),
+        onCreated: $setup.handleGroupCreated,
+        onClose: $setup.closeGroupDialog
+      }, null, 8, ["isOpen"]),
+      _createCommentVNode(" Diálogo de confirmación para eliminar "),
+      _createVNode($setup["ConfirmDialog"], {
+        open: $setup.isDeleteDialogOpen,
+        "onUpdate:open": _cache[5] || (_cache[5] = ($event) => $setup.isDeleteDialogOpen = $event),
+        title: "Confirmar Eliminación",
+        description: "¿Estás seguro de que deseas eliminar este grupo? Esta acción no se puede deshacer.",
+        "confirm-text": "Eliminar",
+        "cancel-text": "Cancelar",
+        destructive: true,
+        onConfirm: $setup.confirmDeleteGroup
+      }, null, 8, ["open"])
+    ],
+    64
+    /* STABLE_FRAGMENT */
+  );
+}
+_sfc_main.__hmrId = "9f66c9ac";
+typeof __VUE_HMR_RUNTIME__ !== "undefined" && __VUE_HMR_RUNTIME__.createRecord(_sfc_main.__hmrId, _sfc_main);
+import.meta.hot.on("file-changed", ({ file }) => {
+  __VUE_HMR_RUNTIME__.CHANGED_FILE = file;
+});
+import.meta.hot.accept((mod) => {
+  if (!mod) return;
+  const { default: updated, _rerender_only } = mod;
+  if (_rerender_only) {
+    __VUE_HMR_RUNTIME__.rerender(updated.__hmrId, updated.render);
+  } else {
+    __VUE_HMR_RUNTIME__.reload(updated.__hmrId, updated);
+  }
+});
+import _export_sfc from "/@id/__x00__plugin-vue:export-helper";
+export default /* @__PURE__ */ _export_sfc(_sfc_main, [["render", _sfc_render], ["__file", "C:/Users/Analista TICS/Documents/Proyectos de software/soft_olamtex/resources/js/pages/MasterData/Category/SubGroupDialog.vue"]]);
+
+//# sourceMappingURL=data:application/json;base64,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QVBVLE1BQU07QUFBQSwyRkFBa0I7QUFBQSxRQUNoQyxPQUFNO0FBQUEsUUFDTixhQUFZO0FBQUEsUUFDWixnQkFBYTtBQUFBLFFBQ2IsZUFBWTtBQUFBLFFBQ1gsYUFBYTtBQUFBLFFBQ2IsV0FBUztBQUFBIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJTdWJHcm91cERpYWxvZy52dWUiXSwic291cmNlc0NvbnRlbnQiOlsiPHNjcmlwdCBzZXR1cCBsYW5nPVwidHNcIj5cbmltcG9ydCBDb25maXJtRGlhbG9nIGZyb20gJ0AvY29tcG9uZW50cy9jb21tb24vQ29uZmlybURpYWxvZy52dWUnO1xuaW1wb3J0IEZvcm1EaWFsb2dDb250ZW50IGZyb20gJ0AvY29tcG9uZW50cy9Gb3JtRGlhbG9nQ29udGVudC52dWUnO1xuaW1wb3J0IEhlbHBUb29sdGlwIGZyb20gJ0AvY29tcG9uZW50cy9IZWxwVG9vbHRpcC52dWUnO1xuaW1wb3J0IElucHV0RmllbGQgZnJvbSAnQC9jb21wb25lbnRzL0lucHV0RmllbGQudnVlJztcbmltcG9ydCBTZWxlY3RGaWVsZCBmcm9tICdAL2NvbXBvbmVudHMvU2VsZWN0RmllbGQudnVlJztcbmltcG9ydCB7IEJ1dHRvbiB9IGZyb20gJ0AvY29tcG9uZW50cy91aS9idXR0b24nO1xuaW1wb3J0IHsgRGlhbG9nLCBEaWFsb2dGb290ZXIsIERpYWxvZ0hlYWRlciwgRGlhbG9nVGl0bGUsIERpYWxvZ0Rlc2NyaXB0aW9uIH0gZnJvbSAnQC9jb21wb25lbnRzL3VpL2RpYWxvZyc7XG5pbXBvcnQgTGFiZWwgZnJvbSAnQC9jb21wb25lbnRzL3VpL2xhYmVsL0xhYmVsLnZ1ZSc7XG5pbXBvcnQgeyBUb29sdGlwUHJvdmlkZXIgfSBmcm9tICdAL2NvbXBvbmVudHMvdWkvdG9vbHRpcCc7XG5pbXBvcnQgdHlwZSB7IENhdGVnb3J5R3JvdXAsIENhdGVnb3J5U3ViR3JvdXAgfSBmcm9tICdAL2RvbWFpbi9NYXN0ZXJEYXRhJztcbmltcG9ydCBheGlvcyBmcm9tICdheGlvcyc7XG5pbXBvcnQgeyBQbHVzLCBYIH0gZnJvbSAnbHVjaWRlLXZ1ZS1uZXh0JztcbmltcG9ydCB7IGNvbXB1dGVkLCBuZXh0VGljaywgcmVmLCB3YXRjaCB9IGZyb20gJ3Z1ZSc7IC8vIEFzZWd1cmFyIHF1ZSB3YXRjaCBlc3TDqSBpbXBvcnRhZG9cbmltcG9ydCBHcm91cERpYWxvZyBmcm9tICcuL0dyb3VwRGlhbG9nLnZ1ZSc7XG5cbmNvbnN0IHByb3BzID0gZGVmaW5lUHJvcHM8e1xuICAgIGlzT3BlbjogYm9vbGVhbjtcbiAgICBkaWFsb2dUeXBlOiAnY3JlYXRlJyB8ICdlZGl0JztcbiAgICBzdWJHcm91cERhdGE6IFBhcnRpYWw8Q2F0ZWdvcnlTdWJHcm91cD47XG4gICAgZ3JvdXBzOiBDYXRlZ29yeUdyb3VwW107XG4gICAgZGVmZXJDb250ZW50PzogYm9vbGVhbjtcbn0+KCk7XG5cbmNvbnN0IGVtaXQgPSBkZWZpbmVFbWl0czx7XG4gICAgKGU6ICdjbG9zZScpOiB2b2lkO1xuICAgIChlOiAnc3VibWl0JywgcGF5bG9hZDogUGFydGlhbDxDYXRlZ29yeVN1Ykdyb3VwPiAmIHsgc3ViZ3JvdXBzPzogUGFydGlhbDxDYXRlZ29yeVN1Ykdyb3VwPltdIH0pOiB2b2lkO1xuICAgIChlOiAnbm90aWZ5JywgcGF5bG9hZDogeyB0eXBlOiAnc3VjY2VzcycgfCAnZXJyb3InOyBtZXNzYWdlOiBzdHJpbmcgfSk6IHZvaWQ7XG4gICAgKGU6ICdsb2FkaW5nLXN0YXRlJywgdmFsdWU6IGJvb2xlYW4pOiB2b2lkO1xufT4oKTtcblxuY29uc3QgaW50ZXJuYWxJc09wZW4gPSByZWYocHJvcHMuaXNPcGVuKTtcbmNvbnN0IGlzSW5pdGlhbGl6aW5nRGlhbG9nID0gcmVmKGZhbHNlKTtcbmNvbnN0IHNob3VsZEVtaXRMb2FkaW5nU3RhdGUgPSBjb21wdXRlZCgoKSA9PiBpbnRlcm5hbElzT3Blbi52YWx1ZSAmJiBpc0luaXRpYWxpemluZ0RpYWxvZy52YWx1ZSk7XG5cbndhdGNoKFxuICAgICgpID0+IHByb3BzLmlzT3BlbixcbiAgICBhc3luYyAobmV3VmFsdWUpID0+IHtcbiAgICAgICAgaW50ZXJuYWxJc09wZW4udmFsdWUgPSBuZXdWYWx1ZTtcbiAgICAgICAgaWYgKG5ld1ZhbHVlKSB7XG4gICAgICAgICAgICBhd2FpdCBpbml0aWFsaXplRGlhbG9nKCk7XG4gICAgICAgICAgICByZXR1cm47XG4gICAgICAgIH1cbiAgICAgICAgaXNJbml0aWFsaXppbmdEaWFsb2cudmFsdWUgPSBmYWxzZTtcbiAgICB9LFxuKTtcblxud2F0Y2goXG4gICAgKCkgPT4gaW50ZXJuYWxJc09wZW4udmFsdWUsXG4gICAgKG5ld1ZhbHVlKSA9PiB7XG4gICAgICAgIGlmICghbmV3VmFsdWUpIHtcbiAgICAgICAgICAgIGlzSW5pdGlhbGl6aW5nRGlhbG9nLnZhbHVlID0gZmFsc2U7XG4gICAgICAgICAgICBlbWl0KCdjbG9zZScpO1xuICAgICAgICB9XG4gICAgfSxcbik7XG5cbmNvbnN0IGZvcm0gPSByZWY8UGFydGlhbDxDYXRlZ29yeVN1Ykdyb3VwPj4oeyAuLi5wcm9wcy5zdWJHcm91cERhdGEgfSk7XG5cbndhdGNoKFxuICAgICgpID0+IHByb3BzLnN1Ykdyb3VwRGF0YSxcbiAgICAobmV3RGF0YTogUGFydGlhbDxDYXRlZ29yeVN1Ykdyb3VwPikgPT4ge1xuICAgICAgICBmb3JtLnZhbHVlID0geyAuLi5uZXdEYXRhIH07XG4gICAgfSxcbiAgICB7IGRlZXA6IHRydWUgfSxcbik7XG5cbmNvbnN0IGxvY2FsR3JvdXBzID0gcmVmPENhdGVnb3J5R3JvdXBbXT4oWy4uLnByb3BzLmdyb3Vwc10pO1xud2F0Y2goXG4gICAgKCkgPT4gcHJvcHMuZ3JvdXBzLFxuICAgIChuZXdHcm91cHM6IENhdGVnb3J5R3JvdXBbXSkgPT4ge1xuICAgICAgICBsb2NhbEdyb3Vwcy52YWx1ZSA9IFsuLi5uZXdHcm91cHNdO1xuICAgIH0sXG4gICAgeyBkZWVwOiB0cnVlIH0sXG4pO1xuXG5hc3luYyBmdW5jdGlvbiBoYW5kbGVHcm91cENyZWF0ZWQobmV3R3JvdXA6IFBhcnRpYWw8Q2F0ZWdvcnlHcm91cD4pIHtcbiAgICB0cnkge1xuICAgICAgICBjb25zdCByZXNwb25zZSA9IGF3YWl0IGF4aW9zLnBvc3Q8Q2F0ZWdvcnlHcm91cD4oJy9jYXRlZ29yaWFzL2dydXBvcycsIG5ld0dyb3VwKTtcbiAgICAgICAgY29uc3QgY3JlYXRlZEdyb3VwID0gcmVzcG9uc2UuZGF0YTtcbiAgICAgICAgbG9jYWxHcm91cHMudmFsdWUucHVzaChjcmVhdGVkR3JvdXApO1xuICAgICAgICBmb3JtLnZhbHVlLmNhdGVnb3J5X2dyb3VwX2lkID0gY3JlYXRlZEdyb3VwLmlkO1xuICAgIH0gY2F0Y2ggKGVycm9yKSB7XG4gICAgICAgIGNvbnNvbGUuZXJyb3IoJ0Vycm9yIGFsIGNyZWFyIGVsIGdydXBvOicsIGVycm9yKTtcbiAgICB9IGZpbmFsbHkge1xuICAgICAgICBpc0dyb3VwRGlhbG9nT3Blbi52YWx1ZSA9IGZhbHNlO1xuICAgIH1cbn1cblxuYXN5bmMgZnVuY3Rpb24gZGVsZXRlR3JvdXAoZ3JvdXBJZDogbnVtYmVyKSB7XG4gICAgdHJ5IHtcbiAgICAgICAgY29uc3QgcmVzcG9uc2UgPSBhd2FpdCBheGlvcy5kZWxldGUoYC9jYXRlZ29yaWFzL2dydXBvcy8ke2dyb3VwSWR9YCk7XG4gICAgICAgIGVtaXQoJ25vdGlmeScsIHsgdHlwZTogJ3N1Y2Nlc3MnLCBtZXNzYWdlOiByZXNwb25zZS5kYXRhPy5tZXNzYWdlIHx8ICdHcnVwbyBlbGltaW5hZG8gY29ycmVjdGFtZW50ZS4nIH0pO1xuXG4gICAgICAgIGxvY2FsR3JvdXBzLnZhbHVlID0gbG9jYWxHcm91cHMudmFsdWUuZmlsdGVyKChncm91cCkgPT4gZ3JvdXAuaWQgIT09IGdyb3VwSWQpO1xuXG4gICAgICAgIC8vIFNpIGVsIGdydXBvIGVsaW1pbmFkbyBlc3RhYmEgc2VsZWNjaW9uYWRvLCBsaW1waWFybG8gZGVsIGZvcm11bGFyaW9cbiAgICAgICAgaWYgKGZvcm0udmFsdWUuY2F0ZWdvcnlfZ3JvdXBfaWQgPT09IGdyb3VwSWQpIHtcbiAgICAgICAgICAgIGZvcm0udmFsdWUuY2F0ZWdvcnlfZ3JvdXBfaWQgPSBudWxsO1xuICAgICAgICB9XG4gICAgfSBjYXRjaCAoZXJyb3I6IHVua25vd24pIHtcbiAgICAgICAgaWYgKGF4aW9zLmlzQXhpb3NFcnJvcihlcnJvcikgJiYgZXJyb3IucmVzcG9uc2U/LmRhdGE/Lm1lc3NhZ2UpIHtcbiAgICAgICAgICAgIGVtaXQoJ25vdGlmeScsIHsgdHlwZTogJ2Vycm9yJywgbWVzc2FnZTogZXJyb3IucmVzcG9uc2UuZGF0YS5tZXNzYWdlIH0pO1xuICAgICAgICB9IGVsc2Uge1xuICAgICAgICAgICAgY29uc29sZS5lcnJvcignRXJyb3IgYWwgZWxpbWluYXIgZWwgZ3J1cG86JywgZXJyb3IpO1xuICAgICAgICAgICAgZW1pdCgnbm90aWZ5JywgeyB0eXBlOiAnZXJyb3InLCBtZXNzYWdlOiAnT2N1cnJpw7MgdW4gZXJyb3IgYWwgaW50ZW50YXIgZWxpbWluYXIgZWwgZ3J1cG8uIFBvciBmYXZvciwgaW50w6ludGFsbyBkZSBudWV2by4nIH0pO1xuICAgICAgICB9XG4gICAgfVxufVxuXG5jb25zdCBpc0dyb3VwRGlhbG9nT3BlbiA9IHJlZihmYWxzZSk7XG5cbmZ1bmN0aW9uIG9wZW5Hcm91cERpYWxvZygpIHtcbiAgICBpc0dyb3VwRGlhbG9nT3Blbi52YWx1ZSA9IHRydWU7XG59XG5cbmZ1bmN0aW9uIG9wZW5Hcm91cERpYWxvZ0Zyb21Ecm9wZG93bigpIHtcbiAgICBvcGVuR3JvdXBEaWFsb2coKTtcbn1cblxuZnVuY3Rpb24gY2xvc2VHcm91cERpYWxvZygpIHtcbiAgICBpc0dyb3VwRGlhbG9nT3Blbi52YWx1ZSA9IGZhbHNlO1xufVxuXG5mdW5jdGlvbiBjbG9zZURpYWxvZygpIHtcbiAgICBpbnRlcm5hbElzT3Blbi52YWx1ZSA9IGZhbHNlO1xufVxuXG5hc3luYyBmdW5jdGlvbiBpbml0aWFsaXplRGlhbG9nKCkge1xuICAgIGlzSW5pdGlhbGl6aW5nRGlhbG9nLnZhbHVlID0gdHJ1ZTtcbiAgICB0cnkge1xuICAgICAgICBhd2FpdCBuZXh0VGljaygpO1xuICAgICAgICBmb3JtLnZhbHVlID0geyAuLi5wcm9wcy5zdWJHcm91cERhdGEgfTtcbiAgICAgICAgc3ViR3JvdXBOYW1lLnZhbHVlID0gJyc7XG4gICAgICAgIHN1Ykdyb3VwTGlzdC52YWx1ZSA9IFtdO1xuICAgIH0gZmluYWxseSB7XG4gICAgICAgIGlzSW5pdGlhbGl6aW5nRGlhbG9nLnZhbHVlID0gZmFsc2U7XG4gICAgfVxufVxuXG5jb25zdCBzdWJHcm91cE5hbWUgPSByZWYoJycpO1xuY29uc3Qgc3ViR3JvdXBMaXN0ID0gcmVmPFBhcnRpYWw8Q2F0ZWdvcnlTdWJHcm91cD5bXT4oW10pO1xuXG5mdW5jdGlvbiBhZGRTdWJHcm91cFRvTGlzdCgpIHtcbiAgICBpZiAoc3ViR3JvdXBOYW1lLnZhbHVlLnRyaW0oKSkge1xuICAgICAgICBzdWJHcm91cExpc3QudmFsdWUucHVzaCh7XG4gICAgICAgICAgICBuYW1lOiBzdWJHcm91cE5hbWUudmFsdWUudHJpbSgpLFxuICAgICAgICAgICAgY2F0ZWdvcnlfZ3JvdXBfaWQ6IGZvcm0udmFsdWUuY2F0ZWdvcnlfZ3JvdXBfaWQsXG4gICAgICAgIH0pO1xuICAgICAgICBzdWJHcm91cE5hbWUudmFsdWUgPSAnJztcbiAgICB9XG59XG5cbmZ1bmN0aW9uIHJlbW92ZVN1Ykdyb3VwRnJvbUxpc3QoaW5kZXg6IG51bWJlcikge1xuICAgIHN1Ykdyb3VwTGlzdC52YWx1ZS5zcGxpY2UoaW5kZXgsIDEpO1xufVxuXG5mdW5jdGlvbiBzdWJtaXRGb3JtKCkge1xuICAgIGVtaXQoJ3N1Ym1pdCcsIHsgLi4uZm9ybS52YWx1ZSwgc3ViZ3JvdXBzOiBzdWJHcm91cExpc3QudmFsdWUgfSk7XG59XG5cbmNvbnN0IGlzRGVsZXRlRGlhbG9nT3BlbiA9IHJlZihmYWxzZSk7XG5jb25zdCBncm91cFRvRGVsZXRlID0gcmVmPG51bWJlciB8IG51bGw+KG51bGwpO1xuXG5mdW5jdGlvbiBvcGVuRGVsZXRlRGlhbG9nKGdyb3VwSWQ6IG51bWJlcikge1xuICAgIGdyb3VwVG9EZWxldGUudmFsdWUgPSBncm91cElkO1xuICAgIGlzRGVsZXRlRGlhbG9nT3Blbi52YWx1ZSA9IHRydWU7XG59XG5cbmZ1bmN0aW9uIGNsb3NlRGVsZXRlRGlhbG9nKCkge1xuICAgIGlzRGVsZXRlRGlhbG9nT3Blbi52YWx1ZSA9IGZhbHNlO1xuICAgIGdyb3VwVG9EZWxldGUudmFsdWUgPSBudWxsO1xufVxuXG5hc3luYyBmdW5jdGlvbiBjb25maXJtRGVsZXRlR3JvdXAoKSB7XG4gICAgaWYgKGdyb3VwVG9EZWxldGUudmFsdWUgIT09IG51bGwpIHtcbiAgICAgICAgYXdhaXQgZGVsZXRlR3JvdXAoZ3JvdXBUb0RlbGV0ZS52YWx1ZSk7XG4gICAgfVxuICAgIGNsb3NlRGVsZXRlRGlhbG9nKCk7XG59XG5cbndhdGNoKFxuICAgIHNob3VsZEVtaXRMb2FkaW5nU3RhdGUsXG4gICAgKHZhbHVlKSA9PiB7XG4gICAgICAgIGVtaXQoJ2xvYWRpbmctc3RhdGUnLCB2YWx1ZSk7XG4gICAgfSxcbiAgICB7IGltbWVkaWF0ZTogdHJ1ZSB9LFxuKTtcbjwvc2NyaXB0PlxuXG48dGVtcGxhdGU+XG4gICAgPERpYWxvZyB2LW1vZGVsOm9wZW49XCJpbnRlcm5hbElzT3BlblwiPlxuICAgICAgICA8Rm9ybURpYWxvZ0NvbnRlbnQgdi1pZj1cIiFwcm9wcy5kZWZlckNvbnRlbnRcIiBjbGFzcz1cImZsZXggbWF4LWgtWzk1dmhdIG1heC13LVs4NXZoXSBmbGV4LWNvbCBweC0yIHB5LTJcIj5cbiAgICAgICAgICAgIDxUb29sdGlwUHJvdmlkZXI+XG4gICAgICAgICAgICAgICAgPERpYWxvZ0hlYWRlciBjbGFzcz1cImZsZXgtc2hyaW5rLTBcIj5cbiAgICAgICAgICAgICAgICAgICAgPERpYWxvZ1RpdGxlPnt7IGRpYWxvZ1R5cGUgPT09ICdjcmVhdGUnID8gJ0NyZWFyIFN1YmdydXBvJyA6ICdFZGl0YXIgU3ViZ3J1cG8nIH19PC9EaWFsb2dUaXRsZT5cbiAgICAgICAgICAgICAgICAgICAgPERpYWxvZ0Rlc2NyaXB0aW9uPlxuICAgICAgICAgICAgICAgICAgICAgICAgQ29tcGxldGEgbG9zIGNhbXBvcyBwYXJhIHt7IGRpYWxvZ1R5cGUgPT09ICdjcmVhdGUnID8gJ2NyZWFyIHVuIG51ZXZvIHN1YmdydXBvJyA6ICdlZGl0YXIgZWwgc3ViZ3J1cG8nIH19LlxuICAgICAgICAgICAgICAgICAgICA8L0RpYWxvZ0Rlc2NyaXB0aW9uPlxuICAgICAgICAgICAgICAgIDwvRGlhbG9nSGVhZGVyPlxuICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJmbGV4LTEgb3ZlcmZsb3cteS1hdXRvIHNjcm9sbC1zbW9vdGggcHItMlwiIHN0eWxlPVwic2Nyb2xsYmFyLXdpZHRoOiB0aGluXCI+XG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJzcGFjZS15LTRcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJzcGFjZS15LTIgcHQtNVwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMlwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPVwiZmxleCBmbGV4LTEgZmxleC1jb2wgZ2FwLTFcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMlwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxMYWJlbCBjbGFzcz1cInRleHQtc20gZm9udC1tZWRpdW1cIj4gR3J1cG88c3BhbiBjbGFzcz1cInRleHQtZGVzdHJ1Y3RpdmVcIj4qPC9zcGFuPiA8L0xhYmVsPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxIZWxwVG9vbHRpcFxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB0ZXh0PVwiU2VsZWNjaW9uYSBlbCBncnVwbyBwcmluY2lwYWwgcXVlIGFsb2phcsOhIGVzdGUgc3ViZ3J1cG8uXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgYXJpYS1sYWJlbD1cIkF5dWRhIHNvYnJlIGVsIGdydXBvXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8U2VsZWN0RmllbGRcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBsYWJlbD1cIlwiXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgOm9wdGlvbnM9XCJsb2NhbEdyb3Vwcy5tYXAoKGdyb3VwOiBDYXRlZ29yeUdyb3VwKSA9PiAoeyBpZDogZ3JvdXAuaWQsIG5hbWU6IGdyb3VwLm5hbWUgfSkpXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB2LW1vZGVsPVwiZm9ybS5jYXRlZ29yeV9ncm91cF9pZFwiXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgcmVxdWlyZWRcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBwbGFjZWhvbGRlcj1cIlNlbGVjY2lvbmEgdW4gZ3J1cG9cIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDpidXR0b24tY2xhc3M9XCIndy1mdWxsJ1wiXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgc2VhcmNoYWJsZVxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDx0ZW1wbGF0ZSAjaGVhZGVyPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8YnV0dG9uXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB0eXBlPVwiYnV0dG9uXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIGNsYXNzPVwiaW5saW5lLWZsZXggdy1mdWxsIGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciBnYXAtMiByb3VuZGVkLWZ1bGwgYm9yZGVyIGJvcmRlci1ib3JkZXIgYmctbXV0ZWQgcHgtMyBweS0xIHRleHQteHMgZm9udC1zZW1pYm9sZCB0ZXh0LW11dGVkLWZvcmVncm91bmQgdHJhbnNpdGlvbiBob3ZlcjpiZy1tdXRlZC83MCBmb2N1cy12aXNpYmxlOm91dGxpbmUtbm9uZSBmb2N1cy12aXNpYmxlOnJpbmctMiBmb2N1cy12aXNpYmxlOnJpbmctcHJpbWFyeSBmb2N1cy12aXNpYmxlOnJpbmctb2Zmc2V0LTJcIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgQGNsaWNrLnN0b3A9XCJvcGVuR3JvdXBEaWFsb2dGcm9tRHJvcGRvd25cIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8UGx1cyBjbGFzcz1cIm1yLTIgaC00IHctNFwiIC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBOdWV2byBncnVwb1xuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L3RlbXBsYXRlPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9TZWxlY3RGaWVsZD5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxYXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBjbGFzcz1cIm10LTUgaC02IHctNiBjdXJzb3ItcG9pbnRlciB0cmFuc2l0aW9uLWNvbG9ycyBob3Zlcjp0ZXh0LWRlc3RydWN0aXZlXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDpkaXNhYmxlZD1cIiFmb3JtLmNhdGVnb3J5X2dyb3VwX2lkXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIEBjbGljaz1cIigpID0+IGZvcm0uY2F0ZWdvcnlfZ3JvdXBfaWQgIT0gbnVsbCAmJiBvcGVuRGVsZXRlRGlhbG9nKGZvcm0uY2F0ZWdvcnlfZ3JvdXBfaWQpXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLz5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzcz1cImZsZXggaXRlbXMtY2VudGVyXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPElucHV0RmllbGQgdi1tb2RlbD1cInN1Ykdyb3VwTmFtZVwiIGxhYmVsPVwiTm9tYnJlIGRlbCBTdWJncnVwb1wiIHBsYWNlaG9sZGVyPVwiRXNjcmliZSBlbCBub21icmUgZGVsIHN1YmdydXBvXCIgLz5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8YnV0dG9uXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHR5cGU9XCJidXR0b25cIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBjbGFzcz1cIm1sLTIgZmxleCBpdGVtcy1jZW50ZXIganVzdGlmeS1jZW50ZXIgYmctdHJhbnNwYXJlbnQgc2hhZG93LW5vbmUgZGlzYWJsZWQ6Y3Vyc29yLW5vdC1hbGxvd2VkIGRpc2FibGVkOm9wYWNpdHktNTBcIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBzdHlsZT1cImhlaWdodDogMi41cmVtXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgQGNsaWNrPVwiYWRkU3ViR3JvdXBUb0xpc3RcIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA6ZGlzYWJsZWQ9XCIhc3ViR3JvdXBOYW1lLnRyaW0oKVwiXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8UGx1cyBjbGFzcz1cIm10LTUgaC02IHctNiBjdXJzb3ItcG9pbnRlciB0cmFuc2l0aW9uLWNvbG9ycyBob3Zlcjp0ZXh0LXByaW1hcnlcIiAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvYnV0dG9uPlxuICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPVwibXQtNCBzcGFjZS15LTJcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICA8cCBjbGFzcz1cImZsZXggZmxleC13cmFwIGdhcC0yXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB2LWZvcj1cIihzdWJHcm91cCwgaW5kZXgpIGluIHN1Ykdyb3VwTGlzdFwiXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA6a2V5PVwiaW5kZXhcIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgY2xhc3M9XCJmbGV4IGl0ZW1zLWNlbnRlciBzcGFjZS14LTIgcm91bmRlZC1mdWxsIGJnLW11dGVkIHB4LTMgcHktMSB0ZXh0LXNtXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHNwYW4+e3sgc3ViR3JvdXAubmFtZSB9fTwvc3Bhbj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxYXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgY2xhc3M9XCJtci0yIGgtNCB3LTQgY3Vyc29yLXBvaW50ZXIgdHJhbnNpdGlvbi1jb2xvcnMgaG92ZXI6dGV4dC1kZXN0cnVjdGl2ZVwiXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgQGNsaWNrPVwicmVtb3ZlU3ViR3JvdXBGcm9tTGlzdChpbmRleClcIlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLz5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9zcGFuPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvcD5cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgICAgICAgICA8RGlhbG9nRm9vdGVyIGNsYXNzPVwibXQtNCBmbGV4IGZsZXgtc2hyaW5rLTAganVzdGlmeS1lbmQgZ2FwLTIgYm9yZGVyLXQgcHQtNFwiPlxuICAgICAgICAgICAgICAgICAgICA8QnV0dG9uIHZhcmlhbnQ9XCJvdXRsaW5lXCIgc2l6ZT1cInBpbGxcIiBAY2xpY2s9XCJjbG9zZURpYWxvZ1wiPiBDYW5jZWxhciA8L0J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgPGJ1dHRvblxuICAgICAgICAgICAgICAgICAgICAgICAgdHlwZT1cImJ1dHRvblwiXG4gICAgICAgICAgICAgICAgICAgICAgICBjbGFzcz1cImlubGluZS1mbGV4IGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciBnYXAtMiByb3VuZGVkLWZ1bGwgYmctcHJpbWFyeSBweC01IHB5LTIgdGV4dC1zbSBmb250LXNlbWlib2xkIHRleHQtcHJpbWFyeS1mb3JlZ3JvdW5kIHNoYWRvdy1zbSB0cmFuc2l0aW9uIGhvdmVyOmJnLXByaW1hcnkvOTAgZm9jdXMtdmlzaWJsZTpvdXRsaW5lLW5vbmUgZm9jdXMtdmlzaWJsZTpyaW5nLTIgZm9jdXMtdmlzaWJsZTpyaW5nLXJpbmcgZm9jdXMtdmlzaWJsZTpyaW5nLW9mZnNldC0yIGZvY3VzLXZpc2libGU6cmluZy1vZmZzZXQtYmFja2dyb3VuZFwiXG4gICAgICAgICAgICAgICAgICAgICAgICBAY2xpY2s9XCJzdWJtaXRGb3JtXCJcbiAgICAgICAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgICAgICAgICAge3sgZGlhbG9nVHlwZSA9PT0gJ2NyZWF0ZScgPyAnQ3JlYXInIDogJ0d1YXJkYXInIH19XG4gICAgICAgICAgICAgICAgICAgIDwvYnV0dG9uPlxuICAgICAgICAgICAgICAgIDwvRGlhbG9nRm9vdGVyPlxuICAgICAgICAgICAgPC9Ub29sdGlwUHJvdmlkZXI+XG4gICAgICAgIDwvRm9ybURpYWxvZ0NvbnRlbnQ+XG4gICAgPC9EaWFsb2c+XG4gICAgPEdyb3VwRGlhbG9nIHYtbW9kZWw6aXNPcGVuPVwiaXNHcm91cERpYWxvZ09wZW5cIiBAY3JlYXRlZD1cImhhbmRsZUdyb3VwQ3JlYXRlZFwiIEBjbG9zZT1cImNsb3NlR3JvdXBEaWFsb2dcIiAvPlxuXG4gICAgPCEtLSBEacOhbG9nbyBkZSBjb25maXJtYWNpw7NuIHBhcmEgZWxpbWluYXIgLS0+XG4gICAgPENvbmZpcm1EaWFsb2dcbiAgICAgICAgdi1tb2RlbDpvcGVuPVwiaXNEZWxldGVEaWFsb2dPcGVuXCJcbiAgICAgICAgdGl0bGU9XCJDb25maXJtYXIgRWxpbWluYWNpw7NuXCJcbiAgICAgICAgZGVzY3JpcHRpb249XCLCv0VzdMOhcyBzZWd1cm8gZGUgcXVlIGRlc2VhcyBlbGltaW5hciBlc3RlIGdydXBvPyBFc3RhIGFjY2nDs24gbm8gc2UgcHVlZGUgZGVzaGFjZXIuXCJcbiAgICAgICAgY29uZmlybS10ZXh0PVwiRWxpbWluYXJcIlxuICAgICAgICBjYW5jZWwtdGV4dD1cIkNhbmNlbGFyXCJcbiAgICAgICAgOmRlc3RydWN0aXZlPVwidHJ1ZVwiXG4gICAgICAgIEBjb25maXJtPVwiY29uZmlybURlbGV0ZUdyb3VwXCJcbiAgICAvPlxuPC90ZW1wbGF0ZT5cbiJdLCJmaWxlIjoiQzovVXNlcnMvQW5hbGlzdGEgVElDUy9Eb2N1bWVudHMvUHJveWVjdG9zIGRlIHNvZnR3YXJlL3NvZnRfb2xhbXRleC9yZXNvdXJjZXMvanMvcGFnZXMvTWFzdGVyRGF0YS9DYXRlZ29yeS9TdWJHcm91cERpYWxvZy52dWUifQ==

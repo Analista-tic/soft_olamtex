@@ -1,0 +1,225 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/resources/js/pages/auth/Login.vue");import { defineComponent as _defineComponent } from "/node_modules/.vite/deps/vue.js?v=2ed03e8c";
+import AppLogoIcon from "/resources/js/components/AppLogoIcon.vue";
+import { Button } from "/resources/js/components/ui/button/index.ts";
+import { Card, CardContent } from "/resources/js/components/ui/card/index.ts";
+import { Input } from "/resources/js/components/ui/input/index.ts";
+import { Label } from "/resources/js/components/ui/label/index.ts";
+import { useForm } from "/node_modules/.vite/deps/@inertiajs_vue3.js?v=2ed03e8c";
+const _sfc_main = /* @__PURE__ */ _defineComponent({
+  __name: "Login",
+  setup(__props, { expose: __expose }) {
+    __expose();
+    const form = useForm({
+      email: "",
+      password: "",
+      remember: false
+    });
+    const submit = () => {
+      form.post(route("login"), {
+        onFinish: () => form.reset("password")
+      });
+    };
+    const __returned__ = { form, submit, AppLogoIcon, get Button() {
+      return Button;
+    }, get Card() {
+      return Card;
+    }, get CardContent() {
+      return CardContent;
+    }, get Input() {
+      return Input;
+    }, get Label() {
+      return Label;
+    } };
+    Object.defineProperty(__returned__, "__isScriptSetup", { enumerable: false, value: true });
+    return __returned__;
+  }
+});
+import { createVNode as _createVNode, createElementVNode as _createElementVNode, createTextVNode as _createTextVNode, withCtx as _withCtx, vModelCheckbox as _vModelCheckbox, withDirectives as _withDirectives, withModifiers as _withModifiers, Fragment as _Fragment, openBlock as _openBlock, createElementBlock as _createElementBlock } from "/node_modules/.vite/deps/vue.js?v=2ed03e8c";
+const _hoisted_1 = { className: "flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10" };
+const _hoisted_2 = { className: "w-full max-w-sm md:max-w-3xl" };
+const _hoisted_3 = { class: "flex flex-col gap-6" };
+const _hoisted_4 = { class: "flex flex-col items-center text-center" };
+const _hoisted_5 = { class: "grid gap-2" };
+const _hoisted_6 = { class: "grid gap-2" };
+const _hoisted_7 = { class: "flex items-center" };
+const _hoisted_8 = {
+  class: "flex items-center justify-between",
+  tabindex: 3
+};
+function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
+  return _openBlock(), _createElementBlock(
+    _Fragment,
+    null,
+    [
+      _createElementVNode("div", _hoisted_1, [
+        _createElementVNode("div", _hoisted_2, [
+          _createVNode($setup["Card"], { class: "overflow-hidden" }, {
+            default: _withCtx(() => [
+              _createVNode($setup["CardContent"], { class: "grid p-0 md:grid-cols-2" }, {
+                default: _withCtx(() => [
+                  _createElementVNode(
+                    "form",
+                    {
+                      onSubmit: _withModifiers($setup.submit, ["prevent"]),
+                      class: "p-6 md:p-8"
+                    },
+                    [
+                      _createElementVNode("div", _hoisted_3, [
+                        _createElementVNode("div", _hoisted_4, [
+                          _createVNode($setup["AppLogoIcon"], {
+                            src: "/images/logo.jpg",
+                            alt: "Logo de la aplicación",
+                            class: "w-10"
+                          }),
+                          _cache[3] || (_cache[3] = _createElementVNode(
+                            "h1",
+                            { class: "text-2xl font-bold" },
+                            "Bienvenido de nuevo",
+                            -1
+                            /* CACHED */
+                          )),
+                          _cache[4] || (_cache[4] = _createElementVNode(
+                            "p",
+                            { class: "text-muted-foreground" },
+                            "Ingresa a tu cuenta de ForUTex",
+                            -1
+                            /* CACHED */
+                          ))
+                        ]),
+                        _createElementVNode("div", _hoisted_5, [
+                          _createVNode($setup["Label"], { for: "email" }, {
+                            default: _withCtx(() => _cache[5] || (_cache[5] = [
+                              _createTextVNode("Email")
+                            ])),
+                            _: 1,
+                            __: [5]
+                          }),
+                          _createVNode($setup["Input"], {
+                            id: "email",
+                            type: "email",
+                            placeholder: "email@ejemplo.com",
+                            modelValue: $setup.form.email,
+                            "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => $setup.form.email = $event),
+                            required: ""
+                          }, null, 8, ["modelValue"])
+                        ]),
+                        _createElementVNode("div", _hoisted_6, [
+                          _createElementVNode("div", _hoisted_7, [
+                            _createVNode($setup["Label"], { for: "password" }, {
+                              default: _withCtx(() => _cache[6] || (_cache[6] = [
+                                _createTextVNode("Contraseña")
+                              ])),
+                              _: 1,
+                              __: [6]
+                            })
+                          ]),
+                          _createVNode($setup["Input"], {
+                            id: "password",
+                            type: "password",
+                            placeholder: "Contraseña",
+                            modelValue: $setup.form.password,
+                            "onUpdate:modelValue": _cache[1] || (_cache[1] = ($event) => $setup.form.password = $event),
+                            required: ""
+                          }, null, 8, ["modelValue"])
+                        ]),
+                        _createElementVNode("div", _hoisted_8, [
+                          _createVNode($setup["Label"], {
+                            for: "remember",
+                            class: "flex items-center space-x-3"
+                          }, {
+                            default: _withCtx(() => [
+                              _withDirectives(_createElementVNode(
+                                "input",
+                                {
+                                  type: "checkbox",
+                                  id: "remember",
+                                  "onUpdate:modelValue": _cache[2] || (_cache[2] = ($event) => $setup.form.remember = $event),
+                                  tabindex: 4
+                                },
+                                null,
+                                512
+                                /* NEED_PATCH */
+                              ), [
+                                [_vModelCheckbox, $setup.form.remember]
+                              ]),
+                              _cache[7] || (_cache[7] = _createElementVNode(
+                                "span",
+                                null,
+                                "Recuérdame",
+                                -1
+                                /* CACHED */
+                              ))
+                            ]),
+                            _: 1,
+                            __: [7]
+                          })
+                        ]),
+                        _createVNode($setup["Button"], {
+                          type: "submit",
+                          class: "w-full",
+                          disabled: $setup.form.processing
+                        }, {
+                          default: _withCtx(() => _cache[8] || (_cache[8] = [
+                            _createTextVNode(" Iniciar sesión ")
+                          ])),
+                          _: 1,
+                          __: [8]
+                        }, 8, ["disabled"])
+                      ])
+                    ],
+                    32
+                    /* NEED_HYDRATION */
+                  ),
+                  _cache[9] || (_cache[9] = _createElementVNode(
+                    "div",
+                    { class: "relative hidden bg-muted md:block" },
+                    [
+                      _createElementVNode("img", {
+                        src: "/images/login.png",
+                        alt: "Imagen",
+                        class: "absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+                      })
+                    ],
+                    -1
+                    /* CACHED */
+                  ))
+                ]),
+                _: 1,
+                __: [9]
+              })
+            ]),
+            _: 1
+            /* STABLE */
+          })
+        ])
+      ]),
+      _cache[10] || (_cache[10] = _createElementVNode(
+        "div",
+        { class: "flex flex-col gap-6" },
+        null,
+        -1
+        /* CACHED */
+      ))
+    ],
+    64
+    /* STABLE_FRAGMENT */
+  );
+}
+_sfc_main.__hmrId = "ab03e11e";
+typeof __VUE_HMR_RUNTIME__ !== "undefined" && __VUE_HMR_RUNTIME__.createRecord(_sfc_main.__hmrId, _sfc_main);
+import.meta.hot.on("file-changed", ({ file }) => {
+  __VUE_HMR_RUNTIME__.CHANGED_FILE = file;
+});
+import.meta.hot.accept((mod) => {
+  if (!mod) return;
+  const { default: updated, _rerender_only } = mod;
+  if (_rerender_only) {
+    __VUE_HMR_RUNTIME__.rerender(updated.__hmrId, updated.render);
+  } else {
+    __VUE_HMR_RUNTIME__.reload(updated.__hmrId, updated);
+  }
+});
+import _export_sfc from "/@id/__x00__plugin-vue:export-helper";
+export default /* @__PURE__ */ _export_sfc(_sfc_main, [["render", _sfc_render], ["__file", "C:/Users/Analista TICS/Documents/Proyectos de software/soft_olamtex/resources/js/pages/auth/Login.vue"]]);
+
+//# sourceMappingURL=data:application/json;base64,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QWxGLE1BQUs7QUFBQSwwQkFBUyxPQUFNO0FBQUEsMEJBQVUsVUFBVSxZQUFLO0FBQUE7NENBQVksTUFBZ0I7QUFBQSw2Q0FBaEIsa0JBQWdCO0FBQUE7Ozs7Ozs7Ozs0Q0FHekY7QUFBQSxvQkFNTTtBQUFBLHNCQU5ELE9BQU0sb0NBQW1DO0FBQUE7QUFBQSxzQkFDMUMsb0JBSUU7QUFBQSx3QkFIRSxLQUFJO0FBQUEsd0JBQ0osS0FBSTtBQUFBLHdCQUNKLE9BQU07QUFBQTs7Ozs7Ozs7Ozs7Ozs7O2tDQU85QjtBQUFBLFFBQXVDO0FBQUEsVUFBbEMsT0FBTSxzQkFBcUI7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBIiwibmFtZXMiOltdLCJpZ25vcmVMaXN0IjpbXSwic291cmNlcyI6WyJMb2dpbi52dWUiXSwic291cmNlc0NvbnRlbnQiOlsiPHNjcmlwdCBzZXR1cCBsYW5nPVwidHNcIj5cbmltcG9ydCBBcHBMb2dvSWNvbiBmcm9tICdAL2NvbXBvbmVudHMvQXBwTG9nb0ljb24udnVlJztcbmltcG9ydCB7IEJ1dHRvbiB9IGZyb20gJ0AvY29tcG9uZW50cy91aS9idXR0b24nO1xuaW1wb3J0IHsgQ2FyZCwgQ2FyZENvbnRlbnQgfSBmcm9tICdAL2NvbXBvbmVudHMvdWkvY2FyZCc7XG5pbXBvcnQgeyBJbnB1dCB9IGZyb20gJ0AvY29tcG9uZW50cy91aS9pbnB1dCc7XG5pbXBvcnQgeyBMYWJlbCB9IGZyb20gJ0AvY29tcG9uZW50cy91aS9sYWJlbCc7XG5pbXBvcnQgeyB1c2VGb3JtIH0gZnJvbSAnQGluZXJ0aWFqcy92dWUzJztcblxuY29uc3QgZm9ybSA9IHVzZUZvcm0oe1xuICAgIGVtYWlsOiAnJyxcbiAgICBwYXNzd29yZDogJycsXG4gICAgcmVtZW1iZXI6IGZhbHNlLFxufSk7XG5cbmNvbnN0IHN1Ym1pdCA9ICgpID0+IHtcbiAgICBmb3JtLnBvc3Qocm91dGUoJ2xvZ2luJyksIHtcbiAgICAgICAgb25GaW5pc2g6ICgpID0+IGZvcm0ucmVzZXQoJ3Bhc3N3b3JkJyksXG4gICAgfSk7XG59O1xuPC9zY3JpcHQ+XG5cbjx0ZW1wbGF0ZT5cbiAgICA8ZGl2IGNsYXNzTmFtZT1cImZsZXggbWluLWgtc3ZoIGZsZXgtY29sIGl0ZW1zLWNlbnRlciBqdXN0aWZ5LWNlbnRlciBiZy1tdXRlZCBwLTYgbWQ6cC0xMFwiPlxuICAgICAgICA8ZGl2IGNsYXNzTmFtZT1cInctZnVsbCBtYXgtdy1zbSBtZDptYXgtdy0zeGxcIj5cbiAgICAgICAgICAgIDxDYXJkIGNsYXNzPVwib3ZlcmZsb3ctaGlkZGVuXCI+XG4gICAgICAgICAgICAgICAgPENhcmRDb250ZW50IGNsYXNzPVwiZ3JpZCBwLTAgbWQ6Z3JpZC1jb2xzLTJcIj5cbiAgICAgICAgICAgICAgICAgICAgPGZvcm0gQHN1Ym1pdC5wcmV2ZW50PVwic3VibWl0XCIgY2xhc3M9XCJwLTYgbWQ6cC04XCI+XG4gICAgICAgICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPVwiZmxleCBmbGV4LWNvbCBnYXAtNlwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJmbGV4IGZsZXgtY29sIGl0ZW1zLWNlbnRlciB0ZXh0LWNlbnRlclwiPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8QXBwTG9nb0ljb24gc3JjPVwiL2ltYWdlcy9sb2dvLmpwZ1wiIGFsdD1cIkxvZ28gZGUgbGEgYXBsaWNhY2nDs25cIiBjbGFzcz1cInctMTBcIiAvPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8aDEgY2xhc3M9XCJ0ZXh0LTJ4bCBmb250LWJvbGRcIj5CaWVudmVuaWRvIGRlIG51ZXZvPC9oMT5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPHAgY2xhc3M9XCJ0ZXh0LW11dGVkLWZvcmVncm91bmRcIj5JbmdyZXNhIGEgdHUgY3VlbnRhIGRlIEZvclVUZXg8L3A+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzcz1cImdyaWQgZ2FwLTJcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPExhYmVsIGZvcj1cImVtYWlsXCI+RW1haWw8L0xhYmVsPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8SW5wdXQgaWQ9XCJlbWFpbFwiIHR5cGU9XCJlbWFpbFwiIHBsYWNlaG9sZGVyPVwiZW1haWxAZWplbXBsby5jb21cIiB2LW1vZGVsPVwiZm9ybS5lbWFpbFwiIHJlcXVpcmVkIC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzcz1cImdyaWQgZ2FwLTJcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzcz1cImZsZXggaXRlbXMtY2VudGVyXCI+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8TGFiZWwgZm9yPVwicGFzc3dvcmRcIj5Db250cmFzZcOxYTwvTGFiZWw+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8SW5wdXQgaWQ9XCJwYXNzd29yZFwiIHR5cGU9XCJwYXNzd29yZFwiIHBsYWNlaG9sZGVyPVwiQ29udHJhc2XDsWFcIiB2LW1vZGVsPVwiZm9ybS5wYXNzd29yZFwiIHJlcXVpcmVkIC8+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzcz1cImZsZXggaXRlbXMtY2VudGVyIGp1c3RpZnktYmV0d2VlblwiIDp0YWJpbmRleD1cIjNcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgPExhYmVsIGZvcj1cInJlbWVtYmVyXCIgY2xhc3M9XCJmbGV4IGl0ZW1zLWNlbnRlciBzcGFjZS14LTNcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxpbnB1dCB0eXBlPVwiY2hlY2tib3hcIiBpZD1cInJlbWVtYmVyXCIgdi1tb2RlbD1cImZvcm0ucmVtZW1iZXJcIiA6dGFiaW5kZXg9XCI0XCIgLz5cbiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxzcGFuPlJlY3XDqXJkYW1lPC9zcGFuPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA8L0xhYmVsPlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICAgICAgICAgIDxCdXR0b24gdHlwZT1cInN1Ym1pdFwiIGNsYXNzPVwidy1mdWxsXCIgOmRpc2FibGVkPVwiZm9ybS5wcm9jZXNzaW5nXCI+IEluaWNpYXIgc2VzacOzbiA8L0J1dHRvbj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgICAgICA8L2Zvcm0+XG4gICAgICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9XCJyZWxhdGl2ZSBoaWRkZW4gYmctbXV0ZWQgbWQ6YmxvY2tcIj5cbiAgICAgICAgICAgICAgICAgICAgICAgIDxpbWdcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICBzcmM9XCIvaW1hZ2VzL2xvZ2luLnBuZ1wiXG4gICAgICAgICAgICAgICAgICAgICAgICAgICAgYWx0PVwiSW1hZ2VuXCJcbiAgICAgICAgICAgICAgICAgICAgICAgICAgICBjbGFzcz1cImFic29sdXRlIGluc2V0LTAgaC1mdWxsIHctZnVsbCBvYmplY3QtY292ZXIgZGFyazpicmlnaHRuZXNzLVswLjJdIGRhcms6Z3JheXNjYWxlXCJcbiAgICAgICAgICAgICAgICAgICAgICAgIC8+XG4gICAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDwvQ2FyZENvbnRlbnQ+XG4gICAgICAgICAgICA8L0NhcmQ+XG4gICAgICAgIDwvZGl2PlxuICAgIDwvZGl2PlxuICAgIDxkaXYgY2xhc3M9XCJmbGV4IGZsZXgtY29sIGdhcC02XCI+PC9kaXY+XG48L3RlbXBsYXRlPlxuIl0sImZpbGUiOiJDOi9Vc2Vycy9BbmFsaXN0YSBUSUNTL0RvY3VtZW50cy9Qcm95ZWN0b3MgZGUgc29mdHdhcmUvc29mdF9vbGFtdGV4L3Jlc291cmNlcy9qcy9wYWdlcy9hdXRoL0xvZ2luLnZ1ZSJ9

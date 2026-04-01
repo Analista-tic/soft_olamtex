@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import axios from 'axios';
 import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AlertBox from '@/components/AlertBox.vue';
 import FormHeader from '@/components/FormHeader.vue';
@@ -53,6 +53,8 @@ const props = withDefaults(
         form: Partial<Item>;
         showAdvancedLink?: boolean;
         showAdvancedSections?: boolean;
+        preloadedSubGroups?: any[];
+        preloadedTaxes?: any[];
     }>(),
     {
         showAdvancedLink: true,
@@ -367,6 +369,14 @@ function normalizeExtraFieldsValue(value: unknown): Record<string, unknown> {
     return {};
 }
 
+const LEGACY_META_KEYS = new Set([
+    'legacy_import',
+    'legacy_source',
+    'migration_batch',
+    'legacy_row_number',
+    'legacy_raw_row',
+]);
+
 function fillExtraFields(obj: unknown) {
     extraFields.value = {};
     const normalized = normalizeExtraFieldsValue(obj);
@@ -374,12 +384,20 @@ function fillExtraFields(obj: unknown) {
     Object.entries(normalized).forEach(([key, value]) => {
         const fieldName = String(key ?? '').trim();
         if (!fieldName) return;
+        if (LEGACY_META_KEYS.has(fieldName)) return;
         if (value === undefined || value === null) return;
 
         const stringValue = (typeof value === 'string' ? value : String(value)).trim();
         if (!stringValue) return;
 
         extraFields.value[fieldName] = stringValue;
+    });
+
+    const currentNames = new Set(extraFieldNames.value);
+    Object.keys(extraFields.value).forEach((key) => {
+        if (!currentNames.has(key)) {
+            extraFieldNames.value = [...extraFieldNames.value, key];
+        }
     });
 }
 
@@ -433,6 +451,10 @@ async function loadItemDetails(itemId: number) {
     try {
         const { data } = await axios.get(`/item/${itemId}`);
         applyFormData(data);
+        // Sincronizar grupo explícitamente después de recibir los datos
+        // por si fetchCategorySubGroups ya terminó antes que loadItemDetails
+        await nextTick();
+        syncGroupFromSubgroup();
     } catch (error) {
         console.error('Error al cargar el item:', error);
     }
@@ -449,12 +471,17 @@ async function fetchWarehouses() {
 
 async function fetchCategorySubGroups() {
     try {
-        const { data } = await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } });
-        categorySubGroups.value = data.data;
+        // Usar datos precargados si están disponibles — evita
+        // request redundante cuando el Index ya los cargó
+        const raw: any[] =
+            props.preloadedSubGroups && props.preloadedSubGroups.length > 0
+                ? props.preloadedSubGroups
+                : (await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } })).data.data;
+        categorySubGroups.value = raw;
 
         // Derive groups from the eager-loaded relation — avoids a second HTTP request
         const seen = new Set<number>();
-        categoryGroups.value = (data.data as any[])
+        categoryGroups.value = raw
             .map((sg: any) => sg.category_group)
             .filter((g: any) => g && !seen.has(g.id) && seen.add(g.id))
             .sort((a: any, b: any) => a.name.localeCompare(b.name));
@@ -1058,8 +1085,20 @@ watch(
     (newVal) => {
         if (!newVal) return;
         const subGroup = categorySubGroups.value.find((sg) => String(sg.id) === String(newVal));
-        if (subGroup?.category_group_id) selectedGroupId.value = String(subGroup.category_group_id);
+        if (subGroup?.category_group_id) {
+            selectedGroupId.value = String(subGroup.category_group_id);
+        }
     },
+);
+
+watch(
+    () => categorySubGroups.value.length,
+    (newLength) => {
+        if (newLength > 0 && localForm.value.category_sub_group_id) {
+            syncGroupFromSubgroup();
+        }
+    },
+    { immediate: true },
 );
 
 watch(
@@ -1113,18 +1152,39 @@ watch(
     async (value) => {
         if (value) {
             emit('loading-state', isLoadingState.value);
+
+            // Garantizar que los subgrupos estén listos ANTES de cargar
+            // el ítem — loadItemDetails llama syncGroupFromSubgroup
+            // internamente y necesita categorySubGroups poblado.
+            if (categorySubGroups.value.length === 0) {
+                await trackLoading(() => fetchCategorySubGroups());
+            }
+
+            // Cargar detalles del ítem DESPUÉS de que los subgrupos
+            // ya están disponibles en memoria
             if (props.dialogType !== 'create' && props.form.id) {
                 await trackLoading(() => loadItemDetails(Number(props.form.id)));
             }
+
             if (props.form.id) {
                 await trackLoading(() => refreshWarehouseStocksForCurrentItem(Number(props.form.id)));
             } else {
                 warehouseStocks.value = [];
             }
+
+            // Segunda sincronización explícita como garantía:
+            // cubre el caso en que onMounted cargó los subgrupos
+            // pero applyFormData corrió antes de que terminara.
+            nextTick(() => syncGroupFromSubgroup());
         } else {
             warehouseStocks.value = [];
         }
     },
+    // immediate: true es crítico — DialogContent de Radix desmonta el
+    // componente al cerrar y lo remonta al abrir, así que isOpen ya es
+    // true desde el primer render y sin immediate el callback nunca
+    // se ejecutaría (no habría "cambio" de valor).
+    { immediate: true },
 );
 
 const INVENTORY_ADJUSTMENT_SAVED_EVENT = 'inventory-adjustment-saved';
@@ -1144,7 +1204,18 @@ onMounted(() => {
     void trackLoading(async () => {
         await Promise.all([fetchWarehouses(), fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields(), fetchAccountingAccounts()]);
 
-        fillExtraFields(props.form.extra_fields);
+        // Re-agregar nombres de campos adicionales que vienen del ítem pero
+        // no están en el catálogo oficial (fetchAdditionalFields pudo haber
+        // sobrescrito extraFieldNames con solo los nombres del catálogo).
+        // NO llamamos fillExtraFields(props.form.extra_fields) porque en el
+        // dialog props.form lleva datos truncados del listado y borraría
+        // los extra fields que loadItemDetails ya pobló.
+        const knownNames = new Set(extraFieldNames.value);
+        for (const key of Object.keys(extraFields.value)) {
+            if (key && !knownNames.has(key)) {
+                extraFieldNames.value = [...extraFieldNames.value, key];
+            }
+        }
 
         if (props.form.id) {
             await fetchWarehouseStocks(props.form.id);
