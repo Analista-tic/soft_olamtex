@@ -1,22 +1,15 @@
 <?php
 
 use App\Http\Controllers\Production\TechnicalDataSheetController;
-<<<<<<< HEAD
-=======
+
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\CompanySettingsController;
 use App\Http\Controllers\Settings\RoleController;
 use App\Http\Controllers\Settings\UserController;
->>>>>>> 2432eba56061a1274b6ace45a1d2c13bcb709181
 use App\Models\Settings\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-<<<<<<< HEAD
-
-Route::get('/', fn () => redirect('login'))->name('home');
-=======
->>>>>>> 2432eba56061a1274b6ace45a1d2c13bcb709181
 
 Route::get('dashboard', fn () => Inertia::render('Dashboard'))
     ->middleware(['auth', 'verified'])
@@ -25,12 +18,8 @@ Route::get('dashboard', fn () => Inertia::render('Dashboard'))
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('user', function () {
         $user = Auth::user();
-<<<<<<< HEAD
 
-        if (! $user instanceof User) {
-=======
         if (!$user instanceof User) {
->>>>>>> 2432eba56061a1274b6ace45a1d2c13bcb709181
             abort(401);
         }
 
@@ -60,15 +49,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('under-construction');
 
-<<<<<<< HEAD
-    require __DIR__.'/master-data.php';
-    require __DIR__.'/production.php';
-    require __DIR__.'/inventory.php';
-    require __DIR__.'/expenses.php';
-    require __DIR__.'/finance.php';
-    require __DIR__.'/income.php';
-    require __DIR__.'/textil.php';
-=======
+
     // ===================================================================
     // MÓDULOS DEL SISTEMA (cada archivo contiene sus rutas aisladas)
     // ===================================================================
@@ -172,7 +153,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/{id}', [App\Http\Controllers\Settings\NotificationsController::class, 'destroy'])
             ->name('destroy');
     });
->>>>>>> 2432eba56061a1274b6ace45a1d2c13bcb709181
 });
 
 require __DIR__.'/auth.php';

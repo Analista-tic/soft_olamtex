@@ -26,7 +26,7 @@ import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 
 import type { Tax } from '@/domain/Finance';
-import type { Warehouse } from '@/domain/inventory';
+import type { Warehouse } from '@/domain/Inventory';
 import type {
     AdditionalField,
     AdditionalFieldPayload,
@@ -101,12 +101,6 @@ type ItemFormSource = Partial<Item> & {
 
 type ItemForm = Omit<Partial<Item>, 'tax_id'> & {
     tax_id?: Item['tax_id'] | 'none';
-    income_account?: string;
-    inventory_account?: string;
-    cost_of_sale_account?: string;
-    export_tariff_code?: string;
-    export_brand?: string;
-    export_model?: string;
 };
 
 const normalizeItemType = (value?: string | null): ItemType => (value === 'service' ? 'service' : 'product');
@@ -133,12 +127,9 @@ function prepareLocalForm(source: ItemFormSource): ItemForm {
         bar_code: source.bar_code ?? '',
         tax_id: resolvedTaxId,
         item_type: normalizeItemType(source.item_type),
-        income_account: source.income_account || '',
-        inventory_account: source.inventory_account || '',
-        cost_of_sale_account: source.cost_of_sale_account || '',
-        export_tariff_code: source.export_tariff_code || '',
-        export_brand: source.export_brand || '',
-        export_model: source.export_model || '',
+        export_tariff_code: source.export_tariff_code ?? '',
+        export_brand: source.export_brand ?? '',
+        export_model: source.export_model ?? '',
     } as ItemForm;
 }
 
