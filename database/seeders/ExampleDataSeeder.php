@@ -17,57 +17,8 @@ class ExampleDataSeeder extends Seeder
 {
     public function run(): void
     {
-        // Insertar warehouse de ejemplo si no existe
-        $warehouse = DB::table('warehouses')->where('name', 'Principal')->first();
-        $warehouseId = $warehouse ? $warehouse->id : DB::table('warehouses')->insertGetId([
-            'name' => 'Principal',
-            'observation' => 'Almacén principal',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Insertar bodegas adicionales si no existen
-        $warehouseSecondary = DB::table('warehouses')->where('name', 'Ferias')->first();
-        $warehouseSecondaryId = $warehouseSecondary ? $warehouseSecondary->id : DB::table('warehouses')->insertGetId([
-            'name' => 'Ferias',
-            'observation' => 'Bodega secundaria',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $warehouseTertiary = DB::table('warehouses')->where('name', 'Local Comercial 1')->first();
-        $warehouseTertiaryId = $warehouseTertiary ? $warehouseTertiary->id : DB::table('warehouses')->insertGetId([
-            'name' => 'Local Comercial 1',
-            'observation' => 'Punto de venta principal',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Insertar category_group de ejemplo si no existe
-        $categoryGroup = DB::table('category_groups')->where('name', 'Grupo Ejemplo')->first();
-        $categoryGroupId = $categoryGroup ? $categoryGroup->id : DB::table('category_groups')->insertGetId([
-            'name' => 'Grupo Ejemplo',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Insertar category_sub_group de ejemplo si no existe
-        $categorySubGroup = DB::table('category_sub_groups')->where('name', 'Subgrupo Ejemplo')->first();
-        $categorySubGroupId = $categorySubGroup ? $categorySubGroup->id : DB::table('category_sub_groups')->insertGetId([
-            'name' => 'Subgrupo Ejemplo',
-            'category_group_id' => $categoryGroupId,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Insertar category_sub_group TELA para items de tela
-        $telaSubGroup = DB::table('category_sub_groups')->where('name', 'Tela')->first();
-        $telaSubGroupId = $telaSubGroup ? $telaSubGroup->id : DB::table('category_sub_groups')->insertGetId([
-            'name' => 'Tela',
-            'category_group_id' => $categoryGroupId,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // Usar subgrupo existente creado por CategorySeeder
+        $categorySubGroupId = DB::table('category_sub_groups')->where('name', 'General')->value('id') ?? 1;
 
         // Insertar usuario de ejemplo
         $user = DB::table('users')->where('email', 'ejemplo@correo.com')->first();
@@ -102,24 +53,8 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Insertar impuestos (taxes) de ejemplo si no existen
-        $tax19 = DB::table('taxes')->where('name', 'IVA 19%')->first();
-        $tax19Id = $tax19 ? $tax19->id : DB::table('taxes')->insertGetId([
-            'name' => 'IVA 19%',
-            'percentage' => 19,
-            'status' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-        
-        $tax0 = DB::table('taxes')->where('name', 'Exento')->first();
-        $tax0Id = $tax0 ? $tax0->id : DB::table('taxes')->insertGetId([
-            'name' => 'Exento',
-            'percentage' => 0,
-            'status' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // Usar impuestos existentes creados por TaxesSeeder
+        $tax19Id = DB::table('taxes')->where('name', 'IVA 19%')->value('id') ?? 1;
 
         // Insertar retenciones (retentions) de ejemplo si no existen
         DB::table('retentions')->updateOrInsert(
@@ -158,124 +93,6 @@ class ExampleDataSeeder extends Seeder
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-
-        // Crear items de TELA específicos
-        $lanaBeige = DB::table('items')->where('bar_code', 'TELA-LANA-001')->first();
-        $lanaId = $lanaBeige ? $lanaBeige->id : DB::table('items')->insertGetId([
-            'category_sub_group_id' => $telaSubGroupId,
-            'tax_id' => $tax19Id,
-            'name' => 'Tela LANA Beige',
-            'reference' => 'LANA-BEIGE',
-            'img' => null,
-            'bar_code' => 'TELA-LANA-001',
-            'negative_movement' => false,
-            'description' => 'Tela LANA Beige Genérica Químicos LÍNEA 3',
-            'extra_fields' => null,
-            'status' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        $algodon = DB::table('items')->where('bar_code', 'TELA-ALGODON-001')->first();
-        $algodonId = $algodon ? $algodon->id : DB::table('items')->insertGetId([
-            'category_sub_group_id' => $telaSubGroupId,
-            'tax_id' => $tax19Id,
-            'name' => 'Tela ALGODÓN 100%',
-            'reference' => 'ALGODON-100',
-            'img' => null,
-            'bar_code' => 'TELA-ALGODON-001',
-            'negative_movement' => false,
-            'description' => 'Tela ALGODÓN 100% Premium LÍNEA 1',
-            'extra_fields' => null,
-            'status' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Stock inicial vía movimientos de entrada (para tener precio ponderado y permitir transferencias)
-        if (Schema::hasTable('inventory_movements')) {
-            $seedUser = User::find($userId);
-            if ($seedUser) {
-                $movementService = app(InventoryMovementService::class);
-                $baseNotes = 'Stock inicial seeder';
-                $movementService->createMovement([
-                    'item_id' => $itemId,
-                    'warehouse_id' => $warehouseId,
-                    'type' => 'entrada',
-                    'quantity' => 100,
-                    'unit_price' => 1200.00,
-                    'notes' => $baseNotes,
-                    'created_by_user_id' => $userId,
-                ]);
-                $movementService->createMovement([
-                    'item_id' => $lanaId,
-                    'warehouse_id' => $warehouseId,
-                    'type' => 'entrada',
-                    'quantity' => 250,
-                    'unit_price' => 7875.00,
-                    'notes' => $baseNotes,
-                    'created_by_user_id' => $userId,
-                ]);
-                $movementService->createMovement([
-                    'item_id' => $algodonId,
-                    'warehouse_id' => $warehouseId,
-                    'type' => 'entrada',
-                    'quantity' => 180,
-                    'unit_price' => 6990.00,
-                    'notes' => $baseNotes,
-                    'created_by_user_id' => $userId,
-                ]);
-                // Ajustar stock_min y stock_max en warehouse_items
-                DB::table('warehouse_items')->where('item_id', $itemId)->where('warehouse_id', $warehouseId)->update(['stock_min' => 10, 'stock_max' => 200]);
-                DB::table('warehouse_items')->where('item_id', $lanaId)->where('warehouse_id', $warehouseId)->update(['stock_min' => 10, 'stock_max' => 500]);
-                DB::table('warehouse_items')->where('item_id', $algodonId)->where('warehouse_id', $warehouseId)->update(['stock_min' => 10, 'stock_max' => 400]);
-            }
-        } else {
-            // Fallback si no existe tabla de movimientos
-            DB::table('warehouse_items')->updateOrInsert(
-                ['warehouse_id' => $warehouseId, 'item_id' => $itemId],
-                ['quantity' => 100, 'stock_min' => 10, 'stock_max' => 200, 'created_at' => now(), 'updated_at' => now()]
-            );
-            DB::table('warehouse_items')->updateOrInsert(
-                ['warehouse_id' => $warehouseId, 'item_id' => $lanaId],
-                ['quantity' => 250, 'stock_min' => 10, 'stock_max' => 500, 'created_at' => now(), 'updated_at' => now()]
-            );
-            DB::table('warehouse_items')->updateOrInsert(
-                ['warehouse_id' => $warehouseId, 'item_id' => $algodonId],
-                ['quantity' => 180, 'stock_min' => 10, 'stock_max' => 400, 'created_at' => now(), 'updated_at' => now()]
-            );
-        }
-
-        // Transferencias de bodega de ejemplo
-        if (Schema::hasTable('warehouse_transfers') && Schema::hasTable('warehouse_transfer_items')) {
-            $hasTransfers = DB::table('warehouse_transfers')->exists();
-            $seedUser = User::find($userId);
-
-            if (!$hasTransfers && $seedUser) {
-                $transferService = new WarehouseTransferService(new InventoryMovementService());
-
-                $transferService->create([
-                    'date' => now()->subDays(7)->toDateString(),
-                    'origin_warehouse_id' => $warehouseId,
-                    'destination_warehouse_id' => $warehouseSecondaryId,
-                    'observation' => 'Traslado inicial de prueba',
-                    'items' => [
-                        ['item_id' => $itemId, 'quantity' => 5],
-                        ['item_id' => $lanaId, 'quantity' => 12],
-                    ],
-                ], $seedUser);
-
-                $transferService->create([
-                    'date' => now()->subDays(3)->toDateString(),
-                    'origin_warehouse_id' => $warehouseId,
-                    'destination_warehouse_id' => $warehouseTertiaryId,
-                    'observation' => 'Reposición punto de venta',
-                    'items' => [
-                        ['item_id' => $algodonId, 'quantity' => 8],
-                    ],
-                ], $seedUser);
-            }
-        }
 
         // Generar documento ejemplo (solicitud + orden) usando la tabla unificada
         $requestDocumentId = DB::table('purchase_documents')->insertGetId([
@@ -403,96 +220,6 @@ class ExampleDataSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-
-            DB::table('inventory_adjustment_lines')->insert([
-                'inventory_adjustment_id' => $adjustmentId,
-                'item_id' => $itemId,
-                'warehouse_id' => $warehouseId,
-                'price' => 1250.00,
-                'tax' => 19,
-                'quantity' => 4,
-                'description' => 'Ajuste por recepción inicial',
-                'line_total' => 1250.00 * 4,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
-
-        // Secciones para listados operacionales
-        $operationSections = [
-            ['name' => 'Delantero', 'type' => 'confección'],
-            ['name' => 'Trasero', 'type' => 'confección'],
-            ['name' => 'Pretina', 'type' => 'confección'],
-            ['name' => 'Cuello', 'type' => 'confección'],
-            ['name' => 'Ensamble', 'type' => 'confección'],
-            ['name' => 'Terminacion', 'type' => 'presentación'],
-            ['name' => 'Presentacion', 'type' => 'presentación'],
-        ];
-        foreach ($operationSections as $section) {
-            DB::table('operation_sections')->updateOrInsert(
-                ['name' => $section['name'], 'type' => $section['type']],
-                ['is_active' => true, 'created_at' => now(), 'updated_at' => now()]
-            );
-        }
-
-        // Máquinas con factor de suplemento (conversión)
-        $machines = [
-            ['code' => 'PLN', 'name' => 'PLANA', 'supplement_factor' => 1.169],
-            ['code' => 'MF5H', 'name' => 'FILETEADORA 5 HILOS', 'supplement_factor' => 1.145],
-            ['code' => 'MF3H', 'name' => 'FILETEADORA 3 HILOS', 'supplement_factor' => 1.145],
-            ['code' => 'MPP', 'name' => 'MÁQUINA PLANA PESPUNTE', 'supplement_factor' => 1.169],
-            ['code' => 'PLANC', 'name' => 'PLANCHA', 'supplement_factor' => 1.2],
-            ['code' => 'OFM', 'name' => 'OJALADORA DE FRANELA MANUAL', 'supplement_factor' => 1.086],
-            ['code' => 'MASH', 'name' => 'MÁQUINA ATRACADORA SEMIAUTOMÁTICA HORIZONTAL', 'supplement_factor' => 1.0],
-            ['code' => 'COLL', 'name' => 'COLLARETERA', 'supplement_factor' => 1.19],
-            ['code' => 'P2A', 'name' => 'PLANA 2 AGUJAS', 'supplement_factor' => 1.18],
-            ['code' => 'CDC', 'name' => 'CERRADORA DE CODO', 'supplement_factor' => 1.21],
-            ['code' => 'PRES', 'name' => 'PRESILLADORA', 'supplement_factor' => 1.169],
-            ['code' => 'MAN', 'name' => 'MANUAL', 'supplement_factor' => 1.086],
-            ['code' => 'EMP', 'name' => 'EMPRETINADORA', 'supplement_factor' => 1.21],
-            ['code' => 'FUS', 'name' => 'FUSIONADORA', 'supplement_factor' => 1.2],
-            ['code' => 'BOT', 'name' => 'BOTONADORA', 'supplement_factor' => 1.169],
-        ];
-        foreach ($machines as $machine) {
-            DB::table('machines')->updateOrInsert(
-                ['code' => $machine['code']],
-                [
-                    'name' => $machine['name'],
-                    'supplement_factor' => $machine['supplement_factor'],
-                    'is_active' => true,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]
-            );
-        }
-
-        // Operaciones
-        $operations = [
-            ['action' => 'CERRAR', 'garment_part' => 'TIRO DELANTERO'],
-            ['action' => 'CERRAR', 'garment_part' => 'TIRO TRASERO'],
-            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO TRASERO'],
-            ['action' => 'PLANCHAR', 'garment_part' => 'BOLSILLO PARCHE TRASERO'],
-            ['action' => 'ARMAR', 'garment_part' => 'PRETINA'],
-            ['action' => 'COSER', 'garment_part' => 'BOLSILLO DELANTERO'],
-            ['action' => 'FILETEAR', 'garment_part' => 'COSTADOS'],
-            ['action' => 'PEGAR', 'garment_part' => 'PRETINA'],
-            ['action' => 'HACER', 'garment_part' => 'OJALES'],
-            ['action' => 'PEGAR', 'garment_part' => 'BOTONES'],
-            ['action' => 'ASENTAR', 'garment_part' => 'ELASTICO PRETINA INCORPORADA'],
-            ['action' => 'ASENTAR', 'garment_part' => 'LOMO BOLSILLO DELANTERO'],
-            ['action' => 'ASENTAR', 'garment_part' => 'PRENDIDA DE TAPA'],
-            ['action' => 'ASENTAR', 'garment_part' => 'PRETINA ANTIFLUIDA'],
-            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR BOTAS'],
-            ['action' => 'ATRACAR', 'garment_part' => 'CORDON TUBULAR CINTURA'],
-            ['action' => 'ATRACAR', 'garment_part' => 'HILADILLA'],
-            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO BOCA OJAL'],
-            ['action' => 'CERRAR', 'garment_part' => 'BOLSILLO DELANTERO CURVO CON MALLA'],
-        ];
-        foreach ($operations as $operation) {
-            DB::table('operations')->updateOrInsert(
-                ['action' => $operation['action'], 'garment_part' => $operation['garment_part']],
-                ['is_active' => true, 'created_at' => now(), 'updated_at' => now()]
-            );
         }
 
         // Fichas de producto (ProductSheets)
@@ -511,7 +238,7 @@ class ExampleDataSeeder extends Seeder
         // Se crean escenarios consistentes con la lógica del ERP:
         // - Muestras (type=muestra) generan ProductionOrders AUTO con OP MU-xxxx o MUT-xxxx
         // - Productos (type=producto) pueden tener ProductionOrders MANUALES con OP MF-xxxx o MFT-xxxx
-        
+
         $orderService = app(ProductionOrderService::class);
 
         // Escenario A: ProductSheet tipo 'muestra', woven_product=false OP MU-xxxx (auto)
@@ -600,7 +327,7 @@ class ExampleDataSeeder extends Seeder
         // ProductionOrder AUTO para muestra (MU-xxxx) - simula creación desde Sábana de Productos
         // type=muestra, woven_product=false → MU
         $opCodeMuestra = $orderService->nextOpCode('muestra', false); // MU-0001
-        
+
         DB::table('production_orders')->updateOrInsert(
             ['product_sheet_id' => $muestraSheetId, 'source' => 'auto'],
             [
@@ -621,7 +348,7 @@ class ExampleDataSeeder extends Seeder
         // ProductionOrder MANUAL para producto (MFT-xxxx) - creado desde formulario Programador
         // type=producto, woven_product=true → MFT
         $opCodeProducto = $orderService->nextOpCode('producto', true); // MFT-0001
-        
+
         DB::table('production_orders')->updateOrInsert(
             ['product_sheet_id' => $productoSheetId, 'source' => 'manual'],
             [
@@ -657,153 +384,6 @@ class ExampleDataSeeder extends Seeder
                 'updated_at' => now(),
             ]
         );
-
-        // ========== KARDEX DE TELAS - FACTURAS Y ROLLOS ==========
-        
-        // Crear proveedor de tela si no existe
-        $fabricProvider = DB::table('contacts')->where('id_number', '900000002')->first();
-        $fabricProviderId = $fabricProvider ? $fabricProvider->id : DB::table('contacts')->insertGetId([
-            'contact_type' => 'proveedor',
-            'id_type' => 'NIT',
-            'id_number' => '900000002',
-            'dv' => '5',
-            'full_name' => 'Textiles del Valle S.A.S',
-            'person_type' => 'jurídica',
-            'groups' => null,
-            'municipality' => 'Medellín',
-            'department' => 'Antioquia',
-            'address' => 'Calle 50 # 45-67',
-            'email' => 'ventas@texvalle.com',
-            'phone' => '3001234567',
-            'additional_contacts' => null,
-            'branches' => null,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        // Crear factura de tela 1 usando purchase_documents (evitar duplicados)
-        $fabricInvoice1 = DB::table('purchase_documents')
-            ->where('document_number', 'FT-2026-001')
-            ->where('document_type', 'purchase_invoice')
-            ->first();
-            
-        if (!$fabricInvoice1) {
-            $fabricInvoice1Id = DB::table('purchase_documents')->insertGetId([
-                'document_number' => 'FT-2026-001',
-                'document_type' => 'purchase_invoice',
-                'contact_id' => $fabricProviderId,
-                'date' => now()->subDays(15)->toDateString(),
-                'delivery_date' => now()->subDays(15)->toDateString(),
-                'description' => '[KARDEX-TELA] Factura de tela LANA Beige para producción de enero',
-                'created_by_user_id' => $userId,
-                'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
-                'supplier_invoice_number' => 'FT-2026-001',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            // Crear item de documento para la tela LANA Beige
-            $docItem1 = DB::table('purchase_document_items')->insertGetId([
-                'purchase_document_id' => $fabricInvoice1Id,
-                'item_id' => $lanaId,
-                'quantity' => 600, // Total metros (suma de los 3 rollos)
-                'price' => 7875.00,
-                'tax' => 19,
-                'total' => 4725000.00,
-                'total_tax' => 897750.00,
-                'supplier_code' => 'LANA-BEIGE-001',
-                'supplier_color' => 'VERDE',
-                'order_width' => 2.00,
-                'description' => 'Tela LANA Beige Genérica Químicos LÍNEA 3',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            // Crear rollos para la factura 1 (LANA Beige)
-            $rolls1 = [
-                ['roll_number' => 'RL01', 'width' => 2.00, 'quantity' => 300.00, 'location' => 'PRINCIPAL', 'description' => 'Tela LANA Beige - Rollo 1'],
-                ['roll_number' => 'RL02', 'width' => 2.00, 'quantity' => 200.00, 'location' => 'PRINCIPAL', 'description' => 'Tela LANA Beige - Rollo 2'],
-                ['roll_number' => 'RL03', 'width' => 1.80, 'quantity' => 100.00, 'location' => 'PRINCIPAL', 'description' => 'Tela LANA Beige - Rollo 3'],
-            ];
-
-            foreach ($rolls1 as $rollData) {
-                DB::table('fabric_rolls')->insert([
-                    'roll_number' => $rollData['roll_number'],
-                    'purchase_document_item_id' => $docItem1,
-                    'quantity' => $rollData['quantity'],
-                    'roll_width' => $rollData['width'],
-                    'location' => $rollData['location'],
-                    'description' => $rollData['description'],
-                    'partial_output' => 0.00,
-                    'actual_output' => 0.00,
-                    'entry_date' => now()->subDays(15)->toDateString(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-        }
-
-        // Crear factura de tela 2 usando purchase_documents (evitar duplicados)
-        $fabricInvoice2 = DB::table('purchase_documents')
-            ->where('document_number', 'FT-2026-002')
-            ->where('document_type', 'purchase_invoice')
-            ->first();
-            
-        if (!$fabricInvoice2) {
-            $fabricInvoice2Id = DB::table('purchase_documents')->insertGetId([
-                'document_number' => 'FT-2026-002',
-                'document_type' => 'purchase_invoice',
-                'contact_id' => $fabricProviderId,
-                'date' => now()->subDays(10)->toDateString(),
-                'delivery_date' => now()->subDays(10)->toDateString(),
-                'description' => '[KARDEX-TELA] Factura de tela ALGODÓN para línea premium',
-                'created_by_user_id' => $userId,
-                'status' => 'pending_receipt', // Estados válidos para invoices: pending_receipt, received, rejected
-                'supplier_invoice_number' => 'FT-2026-002',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            // Crear item de documento para la tela ALGODÓN
-            $docItem2 = DB::table('purchase_document_items')->insertGetId([
-                'purchase_document_id' => $fabricInvoice2Id,
-                'item_id' => $algodonId,
-                'quantity' => 430, // Total metros (250 + 180)
-                'price' => 6990.00,
-                'tax' => 19,
-                'total' => 3005700.00,
-                'total_tax' => 571083.00,
-                'supplier_code' => 'ALGODON-001',
-                'supplier_color' => 'AZUL',
-                'order_width' => 1.50,
-                'description' => 'Tela ALGODÓN 100% Premium LÍNEA 1',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-            // Crear rollos para la factura 2 (ALGODÓN)
-            $rolls2 = [
-                ['roll_number' => 'RL04', 'width' => 1.50, 'quantity' => 250.00, 'location' => 'BODEGA 2', 'description' => 'Tela ALGODÓN Premium - Rollo 4'],
-                ['roll_number' => 'RL05', 'width' => 1.50, 'quantity' => 180.00, 'location' => 'BODEGA 2', 'description' => 'Tela ALGODÓN Premium - Rollo 5'],
-            ];
-
-            foreach ($rolls2 as $rollData) {
-                DB::table('fabric_rolls')->insert([
-                    'roll_number' => $rollData['roll_number'],
-                    'purchase_document_item_id' => $docItem2,
-                    'quantity' => $rollData['quantity'],
-                    'roll_width' => $rollData['width'],
-                    'location' => $rollData['location'],
-                    'description' => $rollData['description'],
-                    'partial_output' => 0.00,
-                    'actual_output' => 0.00,
-                    'entry_date' => now()->subDays(10)->toDateString(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-
-        }
     }
 
     private function getParameterIdByName(string $key, string $name, int $fallback = 1): int

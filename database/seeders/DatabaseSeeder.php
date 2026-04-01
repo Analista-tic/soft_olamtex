@@ -29,6 +29,9 @@ class DatabaseSeeder extends Seeder
             // FabricRollsLegacySeeder los encuentre por referencia (col 19 del CSV).
             LegacyItemsSeeder::class,
             FabricRollsLegacySeeder::class,
+
+            // ── Datos de ejemplo (demo) ───────────────────────────
+            ExampleDataSeeder::class,
         ]);
     }
 }

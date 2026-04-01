@@ -260,8 +260,7 @@ onBeforeUnmount(() => {
                 </p>
             </div>
 
-            <div :class="uiPatterns.pageIndex.filtersWrap">
-                <FilterBar no-margin>
+            <FilterBar no-margin>
                     <FilterField label="Buscar factura/proveedor" :active="isSearchActive" class="flex-1 min-w-[260px] p-0">
                         <div class="relative">
                             <Input
@@ -296,8 +295,7 @@ onBeforeUnmount(() => {
                     <FilterField label="Fecha vencimiento" :active="isDueDateActive" class="min-w-[220px]">
                         <InputDate v-model="dueDateFilter" placeholder="Seleccionar fecha" clearable />
                     </FilterField>
-                </FilterBar>
-            </div>
+            </FilterBar>
 
             <div :class="uiPatterns.pageIndex.tableWrap">
                 <TooltipProvider>

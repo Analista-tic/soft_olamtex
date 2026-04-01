@@ -23,33 +23,22 @@ use App\Http\Controllers\Production\TechnicalDataSheetRollsController;
 use App\Http\Controllers\Production\TechnicalDataSheetSuppliesController;
 use App\Http\Controllers\Production\TechnicalDataSheetThreadsController;
 use App\Http\Controllers\Production\TechnicalDataSheetController;
-use App\Http\Controllers\Settings\UserController;
-use App\Http\Controllers\Settings\RoleController;
+<<<<<<< HEAD
+=======
+use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\CompanySettingsController;
-use App\Http\Controllers\MasterData\CategoryGroupController;
-use App\Http\Controllers\MasterData\CategorySubGroupController;
-use App\Http\Controllers\Inventory\WarehouseController;
-use App\Http\Controllers\MasterData\ItemController;
-use App\Http\Controllers\MasterData\AdditionalFieldController;
-use App\Http\Controllers\Finance\RetentionController;
-use App\Http\Controllers\Finance\TaxController;
-use App\Http\Controllers\Finance\CreditDebitNoteController;
-use App\Http\Controllers\Finance\AccountingAccountController;
-use App\Http\Controllers\Finance\BankAccountController;
-use App\Http\Controllers\Finance\ExpenseVoucherController;
-use App\Http\Controllers\Finance\TreasuryLookupController;
-use App\Http\Controllers\Expenses\PurchasePaymentController;
-use App\Http\Controllers\Inventory\InventoryAdjustmentController;
-use App\Http\Controllers\Inventory\InventoryMovementController;
-use App\Http\Controllers\Inventory\ItemInventoryController;
-use App\Http\Controllers\Inventory\WarehouseItemStockController;
-use App\Http\Controllers\Inventory\InventoryRequestController;
-use App\Http\Controllers\Inventory\WarehouseTransferController;
-use App\Http\Controllers\MasterData\ParameterController;
+use App\Http\Controllers\Settings\RoleController;
+use App\Http\Controllers\Settings\UserController;
+>>>>>>> 2432eba56061a1274b6ace45a1d2c13bcb709181
 use App\Models\Settings\User;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+<<<<<<< HEAD
 
-// Página principal
-Route::get('/', fn() => redirect('login'))->name('home');
+Route::get('/', fn () => redirect('login'))->name('home');
+=======
+>>>>>>> 2432eba56061a1274b6ace45a1d2c13bcb709181
 
 Route::get('dashboard', fn () => Inertia::render('Dashboard'))
     ->middleware(['auth', 'verified'])
@@ -57,7 +46,11 @@ Route::get('dashboard', fn () => Inertia::render('Dashboard'))
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('user', function () {
-        $user = Auth::user(); //CONSULTAR USUARIO LOGUEADO
+        $user = Auth::user();
+<<<<<<< HEAD
+
+        if (! $user instanceof User) {
+=======
         if (!$user instanceof User) {
             abort(401);
         }
@@ -88,227 +81,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('under-construction');
 
-    // === COMERCIAL ===
-    Route::prefix('produccion')->name('produccion.')->group(function () {
-        Route::get('ficha-tecnica', [TechnicalDataSheetController::class, 'index'])
-            ->name('ficha-tecnica.index');
-        Route::get('ficha-tecnica/opciones', [TechnicalDataSheetController::class, 'options'])
-            ->name('ficha-tecnica.options');
-        Route::get('ficha-tecnica/{opId}/basica', [TechnicalDataSheetController::class, 'basicInfo'])
-            ->name('ficha-tecnica.basicInfo');
-        Route::get('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'operationalList'])
-            ->name('ficha-tecnica.operational-list');
-        Route::get('ficha-tecnica/{opId}/listado-operacional-detallado', [TechnicalDataSheetController::class, 'operationalListDetail'])
-            ->name('ficha-tecnica.operational-list-detail');
-        Route::get('ficha-tecnica/listados-operacionales/opciones', [TechnicalDataSheetController::class, 'operationalListOptions'])
-            ->name('ficha-tecnica.operational-list-options');
-        Route::post('ficha-tecnica/{opId}/listado-operacional', [TechnicalDataSheetController::class, 'assignOperationalList'])
-            ->name('ficha-tecnica.assign-operational-list');
-        Route::get('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'processesSummary'])
-            ->name('ficha-tecnica.processes-summary');
-        Route::post('ficha-tecnica/{opId}/procesos', [TechnicalDataSheetController::class, 'saveProcesses'])
-            ->name('ficha-tecnica.processes.save');
-        Route::get('ficha-tecnica/{opId}/costos', [TechnicalDataSheetController::class, 'costsSummary'])
-            ->name('ficha-tecnica.costs-summary');
-        Route::get('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'rawMaterialsSummary'])
-            ->name('ficha-tecnica.raw-materials.index');
-        Route::put('ficha-tecnica/{opId}/materia-prima', [TechnicalDataSheetController::class, 'saveRawMaterials'])
-            ->name('ficha-tecnica.raw-materials.save');
-        Route::get('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'index'])
-            ->name('ficha-tecnica.supplies.index');
-        Route::get('ficha-tecnica/insumos/opciones', [TechnicalDataSheetSuppliesController::class, 'itemOptions'])
-            ->name('ficha-tecnica.supplies.item-options');
-        Route::get('insumos/items/{itemId}/last-purchase', [TechnicalDataSheetSuppliesController::class, 'lastPurchaseForItem'])
-            ->middleware('permission:ver gastos|ver sabana productos|ver programador')
-            ->name('ficha-tecnica.supplies.last-purchase');
-        Route::get('insumos/items/{itemId}/meta', [TechnicalDataSheetSuppliesController::class, 'itemMeta'])
-            ->middleware('permission:ver gastos|ver sabana productos|ver programador')
-            ->name('ficha-tecnica.supplies.item-meta');
-        Route::post('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'upsert'])
-            ->name('ficha-tecnica.supplies.upsert');
-        Route::put('ficha-tecnica/{opId}/insumos', [TechnicalDataSheetSuppliesController::class, 'saveAll'])
-            ->name('ficha-tecnica.supplies.save-all');
-        Route::delete('ficha-tecnica/{opId}/insumos/{supplyId}', [TechnicalDataSheetSuppliesController::class, 'destroy'])
-            ->name('ficha-tecnica.supplies.destroy');
-        Route::get('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'index'])
-            ->name('ficha-tecnica.rolls.index');
-        Route::put('ficha-tecnica/{opId}/rollos', [TechnicalDataSheetRollsController::class, 'saveAll'])
-            ->name('ficha-tecnica.rolls.save-all');
-        Route::post('ficha-tecnica/{opId}/rollos/params', [TechnicalDataSheetRollsController::class, 'saveParams'])
-            ->name('ficha-tecnica.rolls.params');
-        Route::post('ficha-tecnica/{opId}/rollos/lines', [TechnicalDataSheetRollsController::class, 'upsertLine'])
-            ->name('ficha-tecnica.rolls.lines.upsert');
-        Route::delete('ficha-tecnica/{opId}/rollos/lines/{lineId}', [TechnicalDataSheetRollsController::class, 'destroyLine'])
-            ->name('ficha-tecnica.rolls.lines.destroy');
-        Route::get('ficha-tecnica/{opId}/hilos', [TechnicalDataSheetThreadsController::class, 'index'])
-            ->name('ficha-tecnica.threads.index');
-        Route::put('ficha-tecnica/{opId}/hilos', [TechnicalDataSheetThreadsController::class, 'saveAll'])
-            ->name('ficha-tecnica.threads.save-all');
-        Route::post('ficha-tecnica/{opId}/hilos/params', [TechnicalDataSheetThreadsController::class, 'saveParams'])
-            ->name('ficha-tecnica.threads.params');
-        Route::post('ficha-tecnica/{opId}/hilos/lines', [TechnicalDataSheetThreadsController::class, 'upsertLine'])
-            ->name('ficha-tecnica.threads.lines.upsert');
-        Route::delete('ficha-tecnica/{opId}/hilos/lines/{lineId}', [TechnicalDataSheetThreadsController::class, 'destroyLine'])
-            ->name('ficha-tecnica.threads.lines.destroy');
-        Route::get('ficha-tecnica/{opId}/info-adicional', [TechnicalDataSheetAdditionalInfoController::class, 'show'])
-            ->name('ficha-tecnica.additional-info.show');
-        Route::post('ficha-tecnica/{opId}/info-adicional', [TechnicalDataSheetAdditionalInfoController::class, 'store'])
-            ->name('ficha-tecnica.additional-info.store');
+<<<<<<< HEAD
+    require __DIR__.'/master-data.php';
+    require __DIR__.'/production.php';
+    require __DIR__.'/inventory.php';
+    require __DIR__.'/expenses.php';
+    require __DIR__.'/finance.php';
+    require __DIR__.'/income.php';
+    require __DIR__.'/textil.php';
+=======
+    // ===================================================================
+    // MÓDULOS DEL SISTEMA (cada archivo contiene sus rutas aisladas)
+    // ===================================================================
+    require __DIR__ . '/production.php';
+    require __DIR__ . '/expenses.php';
+    require __DIR__ . '/income.php';
+    require __DIR__ . '/finance.php';
+    require __DIR__ . '/inventory.php';
+    require __DIR__ . '/master-data.php';
+    require __DIR__ . '/textil.php';
 
-        Route::get('product-sheets', [ProductSheetController::class, 'getData'])
-            ->middleware('permission:ver sabana productos')
-            ->name('product-sheets.getData');
-        Route::get('sabana-productos', [ProductSheetController::class, 'index'])
-            ->middleware('permission:ver sabana productos')
-            ->name('sabana-productos.index');
-        Route::post('sabana-productos', [ProductSheetController::class, 'store'])
-            ->middleware('permission:crear sabana productos')
-            ->name('sabana-productos.store');
-        Route::get('sabana-productos/{sabana}', [ProductSheetController::class, 'show'])
-            ->middleware('permission:ver sabana productos')
-            ->name('sabana-productos.show');
-        Route::put('sabana-productos/{sabana}', [ProductSheetController::class, 'update'])
-            ->middleware('permission:editar sabana productos')
-            ->name('sabana-productos.update');
-        Route::post('sabana-productos/{sabana}/convert', [ProductSheetController::class, 'convertToProduct'])
-            ->middleware('permission:editar sabana productos')
-            ->name('sabana-productos.convertToProduct');
+    // ===================================================================
+    // CONFIGURACIÓN Y ADMINISTRACIÓN
+    // ===================================================================
 
-        Route::get('product-sheets/parameters', [ProductSheetController::class, 'parameters'])
-            ->middleware('permission:ver sabana productos')
-            ->name('product-sheets.parameters');
-        Route::delete('sabana-productos/{sabana}', [ProductSheetController::class, 'destroy'])
-            ->middleware('permission:eliminar sabana productos')
-            ->name('sabana-productos.destroy');
-
-        Route::get('base-operaciones', [OperationController::class, 'indexView'])
-            ->middleware('permission:ver listados operacionales|ver sabana productos')
-            ->name('base-operaciones.index');
-
-        Route::get('listados-operacionales', [ProductOperationListController::class, 'indexView'])
-            ->middleware('permission:ver listados operacionales|ver sabana productos')
-            ->name('listados-operacionales.index');
-
-        Route::prefix('listados-operacionales')->name('listados-operacionales.')->group(function () {
-            Route::get('/data', [ProductOperationListController::class, 'index'])
-                ->middleware('permission:ver listados operacionales|ver sabana productos')
-                ->name('data');
-            Route::get('/options', [ProductOperationListController::class, 'options'])
-                ->middleware('permission:ver listados operacionales|ver sabana productos')
-                ->name('options');
-            Route::post('/', [ProductOperationListController::class, 'store'])
-                ->middleware('permission:crear listados operacionales|crear sabana productos')
-                ->name('store');
-            Route::post('/bulk', [ProductOperationListController::class, 'storeBulk'])
-                ->middleware('permission:crear listados operacionales|crear sabana productos')
-                ->name('bulk');
-            Route::put('/{listItem}', [ProductOperationListController::class, 'update'])
-                ->middleware('permission:editar listados operacionales|editar sabana productos')
-                ->name('update');
-            Route::delete('/{listItem}', [ProductOperationListController::class, 'destroy'])
-                ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
-                ->name('destroy');
-            Route::post('/bulk-delete', [ProductOperationListController::class, 'destroyBulk'])
-                ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
-                ->name('destroy-bulk');
-            Route::post('/copiar-desde-producto', [ProductOperationListController::class, 'copyFromProduct'])
-                ->middleware('permission:crear listados operacionales|crear sabana productos')
-                ->name('copy-from-product');
-            Route::get('/{listItem}/history', [ProductOperationListController::class, 'history'])
-                ->middleware('permission:ver listados operacionales|ver sabana productos')
-                ->name('history');
-        });
-
-        // Parametros
-        Route::prefix('parametros')->name('parametros.')->group(function () {
-            Route::get('/data', [ParameterController::class, 'data'])
-                ->middleware('permission:ver listados operacionales|ver sabana productos')
-                ->name('data');
-        });
-
-        // Secciones de operaciones
-        Route::prefix('secciones')->name('secciones.')->group(function () {
-            Route::get('/data', [SectionController::class, 'data'])->name('data');
-            Route::post('/', [SectionController::class, 'store'])
-                ->middleware('permission:crear listados operacionales|crear sabana productos')
-                ->name('store');
-        });
-
-        // Operaciones
-        Route::prefix('operaciones')->name('operaciones.')->group(function () {
-            Route::get('/data', [OperationController::class, 'data'])->name('data');
-            Route::get('/metadata', [OperationController::class, 'metadata'])->name('metadata');
-            Route::get('/paginated', [OperationController::class, 'paginated'])->name('paginated');
-            Route::post('/', [OperationController::class, 'store'])
-                ->middleware('permission:crear listados operacionales|crear sabana productos')
-                ->name('store');
-            Route::put('/{operation}', [OperationController::class, 'update'])
-                ->middleware('permission:editar listados operacionales|editar sabana productos')
-                ->name('update');
-            Route::delete('/{operation}', [OperationController::class, 'destroy'])
-                ->middleware('permission:eliminar listados operacionales|eliminar sabana productos')
-                ->name('destroy');
-            Route::post('/{operation}/update-standard-time', [OperationController::class, 'updateStandardTime'])
-                ->middleware('permission:editar listados operacionales|editar sabana productos')
-                ->name('update-standard-time');
-            Route::get('/{operation}/audit-log', [OperationController::class, 'auditLog'])
-                ->middleware('permission:ver listados operacionales|ver sabana productos')
-                ->name('audit-log');
-        });
-
-        // Máquinas
-        Route::prefix('maquinas')->name('maquinas.')->group(function () {
-            Route::get('/data', [MachineController::class, 'data'])->name('data');
-            Route::post('/', [MachineController::class, 'store'])
-                ->middleware('permission:crear listados operacionales|crear sabana productos')
-                ->name('store');
-        });
-    });
-
-    // === DISEÑO ===
-    Route::get('produccion/ordenes-produccion', [ProductionOrderController::class, 'index'])
-        ->middleware('permission:ver sabana productos')
-        ->name('production.orders.index');
-    Route::get('produccion/ordenes-produccion/{order}/detalle', [ProductionOrderController::class, 'show'])
-        ->middleware('permission:ver sabana productos')
-        ->name('production.orders.show');
-
-    Route::prefix('comercial')->name('comercial.')->group(function () {
-        Route::get('programmers', [ProgrammerController::class, 'getData'])
-            ->middleware('permission:ver programador')
-            ->name('programmers.getData');
-        Route::get('programador', [ProgrammerController::class, 'index'])
-            ->middleware('permission:ver programador')
-            ->name('programador.index');
-        Route::post('programador', [ProgrammerController::class, 'store'])
-            ->middleware('permission:crear programador')
-            ->name('programador.store');
-        Route::get('programador/{programador}', [ProgrammerController::class, 'show'])
-            ->middleware('permission:ver programador')
-            ->name('programador.show');
-        Route::put('programador/{programador}', [ProgrammerController::class, 'update'])
-            ->middleware('permission:editar programador')
-            ->name('programador.update');
-        Route::delete('programador/{programador}', [ProgrammerController::class, 'destroy'])
-            ->middleware('permission:eliminar programador')
-            ->name('programador.destroy');
-    });
-    Route::prefix('control-de-lotes')->name('control-de-lotes.')->group(function () {
-        Route::get('/', [BatchControlController::class, 'index'])->name('index');
-        Route::get('/data', [BatchControlController::class, 'getData'])->name('data');
-        Route::post('/{order}/entregar', [BatchControlController::class, 'deliver'])->name('deliver');
-        Route::patch('/prioridades', [BatchControlController::class, 'updatePriorities'])->name('update-priorities');
-        Route::patch('/{order}/fecha-estimada', [BatchControlController::class, 'updateEstimatedDate'])->name('update-estimated-date');
-        Route::get('/{order}/historial', [BatchControlController::class, 'deliveryHistory'])->name('delivery-history');
-
-        // Novedades / Devoluciones
-        Route::post('/{order}/novedades', [BatchControlController::class, 'reportNovelty'])->name('report-novelty');
-        Route::patch('/{order}/novedades/{novelty}/resolver', [BatchControlController::class, 'resolveNovelty'])->name('resolve-novelty');
-        Route::get('/{order}/novedades', [BatchControlController::class, 'novelties'])->name('novelties');
-    });
-
-
-    // ===CONFIGURACIÓN ===
+    // === CONFIGURACIÓN ===
     Route::get('configuracion', fn() => Inertia::render('Configuration/Index'))
         ->middleware('permission:ver usuarios')
         ->name('configuracion');
@@ -396,371 +193,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/{id}', [App\Http\Controllers\Settings\NotificationsController::class, 'destroy'])
             ->name('destroy');
     });
-
-    // === CATEGORIAS ===
-    Route::prefix('categorias')->name('categorias.')->group(function () {
-        Route::get('grupos', [CategoryGroupController::class, 'getData'])->name('groups.getData');
-        Route::post('grupos', [CategoryGroupController::class, 'store'])->name('groups.store');
-        Route::get('subgrupos', [CategorySubGroupController::class, 'index'])->name('subgroups.create');
-        Route::get('subgrupos-data', [CategorySubGroupController::class, 'getData'])->name('subgroups.getData');
-        Route::post('subgrupos', [CategorySubGroupController::class, 'store'])->name('subgroups.store');
-        Route::put('subgrupos/{subgroup}', [CategorySubGroupController::class, 'update'])->name('subgroups.update');
-        Route::delete('subgrupos/{subgroup}', [CategorySubGroupController::class, 'destroy'])->name('subgroups.destroy');
-        Route::delete('grupos/{group}', [CategoryGroupController::class, 'destroy'])->name('groups.destroy');
-    });
-
-    // === CONTACTOS ===
-    Route::prefix('contactos')->name('contactos.')->group(function () {
-        Route::get('/', [ContactController::class, 'index'])->name('index');
-        Route::get('/data', [ContactController::class, 'getData'])->name('getData');
-        Route::post('/', [ContactController::class, 'store'])->name('store');
-        Route::get('/{contact}', [ContactController::class, 'show'])->name('show');
-        Route::put('/{contact}', [ContactController::class, 'update'])->name('update');
-        Route::delete('/{contact}', [ContactController::class, 'destroy'])->name('destroy');
-    });
-
-    // === WAREHOUSES ===
-    Route::prefix('bodegas')->name('warehouses.')->group(function () {
-        Route::get('/', [WarehouseController::class, 'index'])->name('index');
-        Route::get('/data', [WarehouseController::class, 'getData'])->name('getData');
-        Route::post('/', [WarehouseController::class, 'store'])->name('store');
-        Route::get('/{warehouse}', [WarehouseController::class, 'show'])->name('show');
-        Route::get('/{id}/warehouses', [ItemController::class, 'getWarehouses'])->name('warehouses');
-        Route::put('/{warehouse}', [WarehouseController::class, 'update'])->name('update');
-        Route::delete('/{warehouse}', [WarehouseController::class, 'destroy'])->name('destroy');
-    });
-
-    // === TRANSFERENCIAS DE BODEGA ===
-    Route::prefix('transferencias-bodegas')->name('warehouse-transfers.')->group(function () {
-        Route::get('/', [WarehouseTransferController::class, 'index'])->name('index');
-        Route::get('/data', [WarehouseTransferController::class, 'getData'])->name('data');
-        Route::get('/{transfer}', [WarehouseTransferController::class, 'show'])->name('show');
-        Route::post('/', [WarehouseTransferController::class, 'store'])->name('store');
-        Route::put('/{transfer}', [WarehouseTransferController::class, 'update'])->name('update');
-        Route::delete('/{transfer}', [WarehouseTransferController::class, 'destroy'])->name('destroy');
-    });
-
-    // === ITEMS ===
-    Route::prefix('item')->name('item.')->group(function () {
-        Route::get('/descargar-plantilla', [ItemController::class, 'downloadTemplate'])->name('descargar-plantilla');
-        Route::get('/exportar-excel', [ItemController::class, 'exportExcel'])->name('exportar-excel');
-        Route::get('/', [ItemController::class, 'index'])->name('index');
-        Route::get('/data', [ItemController::class, 'getData'])->name('data');
-        Route::post('/carga-masiva', [ItemController::class, 'bulkUpload'])->name('carga-masiva');
-        Route::get('/check-duplicate', [ItemController::class, 'checkDuplicate'])->name('check-duplicate');
-        Route::get('/{id}', [ItemController::class, 'show'])->name('show');
-        Route::post('/', [ItemController::class, 'store'])->name('store');
-        Route::put('/{id}', [ItemController::class, 'update'])->name('update');
-        Route::delete('/{id}', [ItemController::class, 'destroy'])->name('destroy');
-        Route::post('/{id}/toggle-status', [ItemController::class, 'toggleStatus'])->name('toggle-status');
-    });
-
-    // === FABRIC ROLLS ===
-    Route::prefix('rollos-tela')->name('fabric-rolls.')->group(function () {
-        Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'index'])->name('index');
-        Route::get('/crear', [App\Http\Controllers\Textil\FabricRollController::class, 'create'])->name('create');
-        Route::get('/data', [App\Http\Controllers\Textil\FabricRollController::class, 'getData'])->name('getData');
-        Route::post('/', [App\Http\Controllers\Textil\FabricRollController::class, 'store'])->name('store');
-        Route::get('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'show'])->name('show');
-        Route::get('/{fabricRoll}/editar', [App\Http\Controllers\Textil\FabricRollController::class, 'edit'])->name('edit');
-        Route::put('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'update'])->name('update');
-        Route::delete('/{fabricRoll}', [App\Http\Controllers\Textil\FabricRollController::class, 'destroy'])->name('destroy');
-        Route::patch('/{fabricRoll}/update-output', [App\Http\Controllers\Textil\FabricRollController::class, 'updateOutput'])->name('update-output');
-    });
-
-    // === INGRESOS ===
-    Route::prefix('income')->name('income.')->group(function () {
-        Route::get('quotes', fn () => Inertia::render('Income/Quotes/Index'))->name('quotes.index');
-        Route::get('quotes/data', [\App\Http\Controllers\Income\QuoteController::class, 'index'])->name('quotes.data');
-        Route::post('quotes', [\App\Http\Controllers\Income\QuoteController::class, 'store'])->name('quotes.store');
-        Route::get('quotes/{saleDocument}', [\App\Http\Controllers\Income\QuoteController::class, 'show'])->name('quotes.show');
-        Route::put('quotes/{saleDocument}', [\App\Http\Controllers\Income\QuoteController::class, 'update'])->name('quotes.update');
-        Route::delete('quotes/{saleDocument}', [\App\Http\Controllers\Income\QuoteController::class, 'destroy'])->name('quotes.destroy');
-        Route::post('quotes/{quote}/convert', [\App\Http\Controllers\Income\QuoteController::class, 'convert'])->name('quotes.convert');
-        Route::get('sales-orders', fn () => Inertia::render('Income/SalesOrders/Index'))->name('sales-orders.index');
-        Route::get('sales-orders/data', [\App\Http\Controllers\Income\SalesOrderController::class, 'index'])->name('sales-orders.data');
-        Route::post('sales-orders', [\App\Http\Controllers\Income\SalesOrderController::class, 'store'])->name('sales-orders.store');
-        Route::get('sales-orders/{saleDocument}', [\App\Http\Controllers\Income\SalesOrderController::class, 'show'])->name('sales-orders.show');
-        Route::put('sales-orders/{saleDocument}', [\App\Http\Controllers\Income\SalesOrderController::class, 'update'])->name('sales-orders.update');
-        Route::delete('sales-orders/{saleDocument}', [\App\Http\Controllers\Income\SalesOrderController::class, 'destroy'])->name('sales-orders.destroy');
-        Route::post('sales-orders/{salesOrder}/convert', [\App\Http\Controllers\Income\SalesOrderController::class, 'convert'])->name('sales-orders.convert');
-        Route::get('sales-invoices', fn () => Inertia::render('Income/SalesInvoices/Index'))->name('sales-invoices.index');
-        Route::get('sales-invoices/data', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'index'])->name('sales-invoices.data');
-        Route::post('sales-invoices', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'store'])->name('sales-invoices.store');
-        Route::get('sales-invoices/{saleDocument}', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'show'])->name('sales-invoices.show');
-        Route::put('sales-invoices/{saleDocument}', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'update'])->name('sales-invoices.update');
-        Route::delete('sales-invoices/{saleDocument}', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'destroy'])->name('sales-invoices.destroy');
-        Route::post('sales-invoices/{salesInvoice}/emit', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'emit'])->name('sales-invoices.emit');
-        Route::post('sales-invoices/{salesInvoice}/void', [\App\Http\Controllers\Income\SalesInvoiceController::class, 'void'])->name('sales-invoices.void');
-        Route::get('credit-debit-notes', fn () => Inertia::render('Income/CreditDebitNotes/Index'))->name('credit-debit-notes.index');
-        Route::get('credit-debit-notes/data', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'index'])->name('credit-debit-notes.data');
-        Route::post('credit-debit-notes', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'store'])->name('credit-debit-notes.store');
-        Route::get('credit-debit-notes/{saleDocument}', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'show'])->name('credit-debit-notes.show');
-        Route::put('credit-debit-notes/{saleDocument}', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'update'])->name('credit-debit-notes.update');
-        Route::delete('credit-debit-notes/{saleDocument}', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'destroy'])->name('credit-debit-notes.destroy');
-        Route::get('cash-receipts', fn () => Inertia::render('Income/CashReceipts/Index'))->name('cash-receipts.index');
-        Route::post('credit-debit-notes/{note}/emit', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'emit'])->name('credit-debit-notes.emit');
-        Route::post('credit-debit-notes/{note}/void', [\App\Http\Controllers\Income\CreditDebitNoteController::class, 'void'])->name('credit-debit-notes.void');
-    });
-
-    // === GASTOS (AGRUPADO) ===
-    Route::prefix('gastos')->name('gastos.')->group(function () {
-        // === SOLICITUD DE COMPRA ===
-        Route::prefix('solicitudes-compra')->name('purchase-requests.')->group(function () {
-            Route::get('/', [PurchaseRequestController::class, 'index'])->name('index');
-            Route::get('/data', [PurchaseRequestController::class, 'getData'])->name('getData');
-            Route::post('/', [PurchaseRequestController::class, 'store'])->name('store');
-            Route::get('/{purchaseRequest}', [PurchaseRequestController::class, 'show'])->name('show');
-            Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update');
-            Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy');
-
-            // Acciones de transición de estados
-            Route::post('/{purchaseRequest}/send-to-approval', [PurchaseRequestController::class, 'sendToApproval'])->name('send-to-approval');
-            Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])->name('approve');
-            Route::post('/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
-            Route::post('/{purchaseRequest}/cancel', [PurchaseRequestController::class, 'cancel'])->name('cancel');
-        });
-
-        // === ORDENES DE COMPRA ===
-        Route::prefix('ordenes-compra')->name('purchase-orders.')->middleware('permission:ver ordenes compra')->group(function () {
-            Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
-            Route::get('/data', [PurchaseOrderController::class, 'getData'])->name('getData');
-            Route::post('/', [PurchaseOrderController::class, 'store'])->name('store')->middleware('permission:crear ordenes compra');
-            Route::get('/{purchaseDocument}', [PurchaseOrderController::class, 'show'])->name('show');
-            Route::put('/{purchaseDocument}', [PurchaseOrderController::class, 'update'])->name('update')->middleware('permission:editar ordenes compra');
-            Route::delete('/{purchaseDocument}', [PurchaseOrderController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar ordenes compra');
-            Route::post('/{purchaseDocument}/enviar-correo-pdf', [PurchaseOrderController::class, 'sendOrderPdf'])->middleware('permission:editar ordenes compra');
-            Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice'])->middleware('permission:editar ordenes compra');
-            Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve'])->middleware('permission:editar ordenes compra');
-        });
-
-        // === FACTURAS DE COMPRA ===
-        Route::prefix('facturas-compra')->name('purchase-invoices.')->middleware('permission:ver facturas compra')->group(function () {
-            Route::get('/', [PurchaseInvoiceController::class, 'index'])->name('index');
-            Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
-            Route::get('/{purchaseDocument}/notas-credito-debito', [PurchaseInvoiceController::class, 'creditDebitNotes'])->name('credit-debit-notes');
-            Route::get('/{purchaseDocument}/notes-summary', [PurchaseInvoiceController::class, 'notesSummary'])->name('notes-summary');
-            Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store')->middleware('permission:crear facturas compra');
-            Route::get('/{purchaseDocument}', [PurchaseInvoiceController::class, 'show'])->name('show');
-            Route::put('/{purchaseDocument}', [PurchaseInvoiceController::class, 'update'])->name('update')->middleware('permission:editar facturas compra');
-            Route::delete('/{purchaseDocument}', [PurchaseInvoiceController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar facturas compra');
-            Route::post('/{purchaseDocument}/justificar', [PurchaseInvoiceController::class, 'justify'])->name('justify')->middleware('permission:editar facturas compra');
-            // Recepción de facturas NO tela
-            Route::patch('/{purchaseDocument}/recibir', [PurchaseInvoiceController::class, 'receive'])->name('receive')->middleware('permission:editar facturas compra');
-            Route::patch('/{purchaseDocument}/rechazar', [PurchaseInvoiceController::class, 'reject'])->name('reject')->middleware('permission:editar facturas compra');
-        });
-
-        // === CUENTAS POR PAGAR (CXP - CONSULTA LEGACY TRANSITORIA) ===
-        Route::prefix('cuentas-por-pagar')->name('accounts-payable.')->group(function () {
-            Route::get('/', [PurchaseInvoiceController::class, 'accountsPayableIndex'])->name('index');
-            Route::get('/data', [PurchaseInvoiceController::class, 'getAccountsPayableData'])->name('getData');
-        });
-
-        // === PAGOS DE FACTURAS (LEGACY TRANSITORIO) ===
-        // El flujo operativo principal fue migrado a /finanzas/comprobantes-egreso.
-        Route::prefix('pagos')->name('payments.')->group(function () {
-            Route::get('/facturas/{purchaseDocument}', [PurchasePaymentController::class, 'byInvoice'])->name('byInvoice');
-            Route::post('/', [PurchasePaymentController::class, 'store'])->name('store');
-        });
-
-        // === FACTURAS DE COMPRA TELAS ===
-        Route::prefix('facturas-compra-tela')->name('purchase-invoices-fabric.')->group(function () {
-            Route::get('/', [PurchaseInvoiceTelaController::class, 'indexFabric'])->name('index');
-            Route::get('/data', [PurchaseInvoiceTelaController::class, 'getData'])->name('getData');
-            Route::post('/', [PurchaseInvoiceTelaController::class, 'store'])->name('store');
-            Route::get('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'show'])->name('show');
-            Route::put('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'update'])->name('update');
-            Route::delete('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'destroy'])->name('destroy');
-        });
-    });
-
-    // === Catálogos para campos parametrizables ===
-    Route::get('catalogos/sections', [SectionController::class, 'data']);
-        // Rutas eliminadas: groups, brands, worlds, fabric-bases, yarn-bases (controllers no existen)
-
-    // === RETENCIONES ===
-    Route::prefix('retenciones')->name('retenciones.')->middleware('permission:ver retenciones')->group(function () {
-        Route::get('/', [RetentionController::class, 'index'])->name('index');
-        Route::get('/data', [RetentionController::class, 'data'])->name('data');
-        Route::get('/{id}', [RetentionController::class, 'show'])->name('show');
-        Route::post('/', [RetentionController::class, 'store'])->name('store')->middleware('permission:crear retenciones');
-        Route::put('/{id}', [RetentionController::class, 'update'])->name('update')->middleware('permission:editar retenciones');
-        Route::delete('/{id}', [RetentionController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar retenciones');
-    });
-
-    // === TAXES ===
-    Route::prefix('impuestos')->name('impuestos.')->middleware('permission:ver impuestos')->group(function () {
-        Route::get('/', [TaxController::class, 'index'])->name('index');
-        Route::get('/data', [TaxController::class, 'data'])->name('data');
-        Route::get('/{id}', [TaxController::class, 'show'])->name('show');
-        Route::post('/', [TaxController::class, 'store'])->name('store')->middleware('permission:crear impuestos');
-        Route::put('/{id}', [TaxController::class, 'update'])->name('update')->middleware('permission:editar impuestos');
-        Route::delete('/{id}', [TaxController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar impuestos');
-        Route::post('/{id}/toggle-status', [TaxController::class, 'toggleStatus'])->name('toggle-status')->middleware('permission:editar impuestos');
-    });
-
-    // === NOTAS CRÉDITO / DÉBITO ===
-    Route::prefix('notas-credito-debito')->middleware('permission:ver notas credito debito')->group(function () {
-        Route::get('/', [CreditDebitNoteController::class, 'index']);
-        Route::get('/data', [CreditDebitNoteController::class, 'getData']);
-        Route::get('/next-number', [CreditDebitNoteController::class, 'nextNumber']);
-        Route::get('/eligible-purchase-invoices', [CreditDebitNoteController::class, 'eligiblePurchaseInvoices']);
-        Route::post('/', [CreditDebitNoteController::class, 'store'])->middleware('permission:crear notas credito debito');
-        Route::get('/{id}', [CreditDebitNoteController::class, 'show']);
-        Route::put('/{id}', [CreditDebitNoteController::class, 'update'])->middleware('permission:editar notas credito debito');
-        Route::delete('/{id}', [CreditDebitNoteController::class, 'destroy'])->middleware('permission:eliminar notas credito debito');
-    });
-
-    // === FINANZAS: TESORERIA (FASE 1) ===
-    Route::prefix('finanzas')->name('finanzas.')->group(function () {
-        Route::get('/comprobantes-egreso', [ExpenseVoucherController::class, 'index'])->name('expense-vouchers.index')->middleware('permission:ver comprobantes egreso');
-        Route::get('/comprobantes-egreso/data', [ExpenseVoucherController::class, 'data'])->name('expense-vouchers.data')->middleware('permission:ver comprobantes egreso');
-        Route::get('/comprobantes-egreso/crear', [ExpenseVoucherController::class, 'create'])->name('expense-vouchers.create')->middleware('permission:crear comprobantes egreso');
-        Route::get('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'show'])->name('expense-vouchers.show')->middleware('permission:ver comprobantes egreso');
-        Route::get('/comprobantes-egreso/{voucher}/editar', [ExpenseVoucherController::class, 'edit'])->name('expense-vouchers.edit')->middleware('permission:editar comprobantes egreso');
-        Route::post('/comprobantes-egreso', [ExpenseVoucherController::class, 'store'])->name('expense-vouchers.store')->middleware('permission:crear comprobantes egreso');
-        Route::put('/comprobantes-egreso/{voucher}', [ExpenseVoucherController::class, 'update'])->name('expense-vouchers.update')->middleware('permission:editar comprobantes egreso');
-
-        Route::get('/recibos-caja', fn () => Inertia::render('Finance/CashReceipts/Index'))->name('cash-receipts.index');
-        Route::get('/recibos-caja/data', [\App\Http\Controllers\Finance\CashReceiptController::class, 'index'])->name('cash-receipts.data');
-        Route::get('/recibos-caja/crear', fn () => Inertia::render('Finance/CashReceipts/CashReceiptForm'))->name('cash-receipts.create');
-        Route::post('/recibos-caja', [\App\Http\Controllers\Finance\CashReceiptController::class, 'store'])->name('cash-receipts.store');
-        Route::get('/recibos-caja/pending-invoices', [\App\Http\Controllers\Finance\CashReceiptController::class, 'pendingInvoices'])->name('cash-receipts.pending-invoices');
-        Route::get('/recibos-caja/customers', [\App\Http\Controllers\Finance\CashReceiptController::class, 'customers'])->name('cash-receipts.customers');
-        Route::get('/recibos-caja/accounts', [\App\Http\Controllers\Finance\CashReceiptController::class, 'accounts'])->name('cash-receipts.accounts');
-        Route::get('/recibos-caja/payment-methods', [\App\Http\Controllers\Finance\CashReceiptController::class, 'paymentMethods'])->name('cash-receipts.payment-methods');
-        Route::get('/recibos-caja/{receipt}', [\App\Http\Controllers\Finance\CashReceiptController::class, 'show'])->name('cash-receipts.show');
-        Route::post('/recibos-caja/{receipt}/void', [\App\Http\Controllers\Finance\CashReceiptController::class, 'void'])->name('cash-receipts.void');
-
-        // === CATÁLOGO DE CUENTAS ===
-        Route::prefix('catalogo-cuentas')->name('account-chart.')->middleware('permission:ver catalogo cuentas')->group(function () {
-            Route::get('/', [AccountingAccountController::class, 'index'])->name('index');
-            Route::get('/crear', [AccountingAccountController::class, 'create'])->name('create')->middleware('permission:crear catalogo cuentas');
-            Route::get('/data', [AccountingAccountController::class, 'data'])->name('data');
-            Route::get('/options', [AccountingAccountController::class, 'options'])->name('options');
-            Route::get('/{id}/data', [AccountingAccountController::class, 'item'])->name('item');
-            Route::get('/{id}/movimientos', [AccountingAccountController::class, 'movements'])->name('movements');
-            Route::get('/{id}/movimientos/data', [AccountingAccountController::class, 'movementsData'])->name('movements.data');
-            Route::get('/{id}/editar', [AccountingAccountController::class, 'edit'])->name('edit')->middleware('permission:editar catalogo cuentas');
-            Route::get('/{id}', [AccountingAccountController::class, 'show'])->name('show');
-            Route::post('/', [AccountingAccountController::class, 'store'])->name('store')->middleware('permission:crear catalogo cuentas');
-            Route::put('/{id}', [AccountingAccountController::class, 'update'])->name('update')->middleware('permission:editar catalogo cuentas');
-            Route::post('/{id}/toggle-status', [AccountingAccountController::class, 'toggleStatus'])->name('toggle-status')->middleware('permission:editar catalogo cuentas');
-        });
-
-        Route::prefix('tesoreria')->name('treasury.')->group(function () {
-            Route::get('/proveedores', [TreasuryLookupController::class, 'suppliers'])->name('suppliers');
-            Route::get('/clientes', [TreasuryLookupController::class, 'customers'])->name('customers');
-            Route::get('/documentos-por-pagar', [TreasuryLookupController::class, 'payableDocuments'])->name('payable-documents');
-            Route::get('/documentos-por-cobrar', [TreasuryLookupController::class, 'receivableDocuments'])->name('receivable-documents');
-            Route::get('/cuentas', [TreasuryLookupController::class, 'accounts'])->name('accounts');
-            Route::get('/metodos-pago', [TreasuryLookupController::class, 'paymentMethods'])->name('payment-methods');
-        });
-
-        // === BANCOS Y CAJAS ===
-        Route::prefix('bancos')->name('bancos.')->group(function () {
-            Route::get('/', [BankAccountController::class, 'index'])->name('index');
-            Route::post('/', [BankAccountController::class, 'store'])->name('store');
-            Route::get('/{bankAccount}', [BankAccountController::class, 'show'])->name('show');
-            Route::put('/{bankAccount}', [BankAccountController::class, 'update'])->name('update');
-            Route::delete('/{bankAccount}', [BankAccountController::class, 'destroy'])->name('destroy');
-        });
-    });
-
-    // === KARDEX TELAS ===
-    Route::prefix('kardex-telas')->name('kardex-telas.')->group(function () {
-          Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'kardex'])->name('index');
-          Route::get('/inventario-rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRolls'])->name('inventario-rollos');
-          Route::get('/inventario-rollos/data', [App\Http\Controllers\Textil\FabricRollController::class, 'inventoryRollsData'])->name('inventario-rollos.data');
-          Route::get('/descargue-orden', [App\Http\Controllers\Textil\FabricRollController::class, 'downloadOrders'])->name('descargue-orden');
-          Route::get('/descargue-orden/descarga', [App\Http\Controllers\Textil\FabricRollController::class, 'downloadWindow'])->name('descargue-orden.descarga');
-          Route::get('/exportar-rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'exportRolls'])->name('exportar-rollos');
-        Route::prefix('recepcion')->name('reception.')->group(function () {
-            Route::get('/', [App\Http\Controllers\Textil\FabricRollController::class, 'reception'])->name('index');
-            Route::get('/data', [App\Http\Controllers\Textil\FabricRollController::class, 'receptionData'])->name('data');
-            Route::get('/facturas/{purchaseDocument}', [App\Http\Controllers\Textil\FabricRollController::class, 'receptionInvoice'])->name('invoice');
-            Route::get('/{invoice}', [App\Http\Controllers\Textil\FabricRollController::class, 'receptionShow'])->name('show');
-            Route::patch('/{invoice}/aprobar', [App\Http\Controllers\Textil\FabricRollController::class, 'approveReception'])->name('approve');
-            Route::patch('/{invoice}/rechazar', [App\Http\Controllers\Textil\FabricRollController::class, 'rejectReception'])->name('reject');
-        });
-        Route::post('/rollos', [App\Http\Controllers\Textil\FabricRollController::class, 'storeFromReception'])->name('rollos.store');
-        Route::get('/rollos/item/{itemId}', [App\Http\Controllers\Textil\FabricRollController::class, 'getByInvoiceItem'])->name('rollos.by-item');
-    });
-
-    // === INVENTARIO ===
-    Route::get('inventario/item', [ItemController::class, 'listView'])->name('listado');
-    Route::get('inventario/item/formulario-avanzado', [ItemController::class, 'advancedForm'])
-        ->name('inventario.item.formulario-avanzado');
-    Route::get('inventario/ajuste-inventario', [ItemController::class, 'adjustmentView'])->name('inventario.ajuste-inventario');
-    Route::get('inventario/ajuste-inventario/crear', function () {
-        return Inertia::render('Inventory/Articles/InventoryAdjustmentForm');
-    })->name('inventario.ajuste-inventario.create');
-
-    // === SOLICITUDES INTERNAS ===
-    Route::prefix('inventario/solicitudes-internas')->name('inventory-requests.')->group(function () {
-        Route::get('/', [InventoryRequestController::class, 'index'])->name('index');
-        Route::get('/data', [InventoryRequestController::class, 'getData'])->name('data');
-        Route::get('/next-number', [InventoryRequestController::class, 'nextNumber'])->name('next-number');
-        Route::get('/{inventoryRequest}', [InventoryRequestController::class, 'show'])->name('show');
-        Route::post('/', [InventoryRequestController::class, 'store'])->name('store');
-        Route::put('/{inventoryRequest}', [InventoryRequestController::class, 'update'])->name('update');
-        Route::post('/{inventoryRequest}/deliver', [InventoryRequestController::class, 'deliver'])->name('deliver');
-        Route::post('/{inventoryRequest}/reject', [InventoryRequestController::class, 'reject'])->name('reject');
-    });
-
-    // === INVENTARIO DE ITEMS ===
-    Route::prefix('inventario-item')->name('inventario-item.')->group(function () {
-        Route::get('/', [ItemInventoryController::class, 'index'])->name('index');        // opcional
-        Route::get('/data', [ItemInventoryController::class, 'getData'])->name('data');
-    });
-    Route::get('/warehouse-items', [WarehouseItemStockController::class, 'index']);
-
-    // === CAMPOS ADICIONALES ===
-    Route::prefix('campos-adicionales')->name('inventory.additional-fields.')->group(function () {
-        Route::get('/', [AdditionalFieldController::class, 'index'])->name('index');
-        Route::get('/options', [AdditionalFieldController::class, 'options'])->name('options');
-        Route::get('/data', [AdditionalFieldController::class, 'getData'])->name('data');
-        Route::post('/', [AdditionalFieldController::class, 'store'])->name('store');
-        Route::post('/reorder', [AdditionalFieldController::class, 'reorder'])->name('reorder');
-        Route::get('/{additionalField}', [AdditionalFieldController::class, 'show'])->name('show');
-        Route::put('/{additionalField}', [AdditionalFieldController::class, 'update'])->name('update');
-        Route::delete('/{additionalField}', [AdditionalFieldController::class, 'destroy'])->name('destroy');
-    });
-
-    Route::prefix('parametros')->name('parametros.')->group(function () {
-        Route::get('/', [ParameterController::class, 'index'])->name('index');
-        Route::get('/data', [ParameterController::class, 'data'])->name('data');
-        Route::post('/', [ParameterController::class, 'store'])->name('store');
-        Route::get('/{id}', [ParameterController::class, 'show'])->name('show');
-        Route::put('/{id}', [ParameterController::class, 'update'])->name('update');
-        Route::delete('/{id}', [ParameterController::class, 'destroy'])->name('destroy');
-    });
-
-    // === AJUSTES DE INVENTARIO ===
-    Route::prefix('ajustes-inventario')->name('ajustes-inventario.')->group(function () {
-        Route::get('/data', [InventoryAdjustmentController::class, 'getData'])->name('data');   // para la tabla
-        Route::get('/', [InventoryAdjustmentController::class, 'index'])->name('index');        // opcional
-        Route::get('/next-number', [InventoryAdjustmentController::class, 'nextNumber'])->name('next-number'); // siguiente consecutivo
-        Route::get('/movement-reasons', [InventoryAdjustmentController::class, 'movementReasons'])->name('movement-reasons');
-        Route::get('/{id}', [InventoryAdjustmentController::class, 'show'])->name('show');      // ver un ajuste
-        Route::post('/', [InventoryAdjustmentController::class, 'store'])->name('store');       // guardar nuevo
-        Route::put('/{id}', [InventoryAdjustmentController::class, 'update'])->name('update');  // actualizar
-        Route::delete('/{id}', [InventoryAdjustmentController::class, 'destroy'])->name('destroy');
-    });
-
-    // === MOVIMIENTOS DE INVENTARIO ===
-    Route::prefix('movimientos-inventario')->name('movimientos-inventario.')->group(function () {
-        Route::get('/', [InventoryMovementController::class, 'index'])->name('index');
-        Route::get('/data', [InventoryMovementController::class, 'getData'])->name('data');
-        Route::get('/item/{itemId}', [InventoryMovementController::class, 'getItemMovements'])->name('item-movements');
-        Route::get('/weighted-price', [InventoryMovementController::class, 'getCurrentWeightedPrice'])->name('weighted-price');
-        Route::post('/transfer', [InventoryMovementController::class, 'storeTransfer'])->name('transfer');
-        Route::post('/', [InventoryMovementController::class, 'store'])->name('store');
-        Route::get('/{id}', [InventoryMovementController::class, 'show'])->name('show');
-        Route::delete('/{id}', [InventoryMovementController::class, 'destroy'])->name('destroy');
-    });
-
+>>>>>>> 2432eba56061a1274b6ace45a1d2c13bcb709181
 });
 
-require __DIR__ . '/auth.php';
-require __DIR__ . '/settings.php';
+require __DIR__.'/auth.php';
+require __DIR__.'/settings.php';
