@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Expenses\ExpenseVoucherController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceController;
 use App\Http\Controllers\Expenses\PurchaseInvoiceTelaController;
 use App\Http\Controllers\Expenses\PurchaseOrderController;
@@ -34,9 +33,15 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::get('/{purchaseDocument}', [PurchaseOrderController::class, 'show'])->name('show');
         Route::put('/{purchaseDocument}', [PurchaseOrderController::class, 'update'])->name('update')->middleware('permission:editar ordenes compra');
         Route::delete('/{purchaseDocument}', [PurchaseOrderController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar ordenes compra');
-        Route::post('/{purchaseDocument}/enviar-correo-pdf', [PurchaseOrderController::class, 'sendOrderPdf'])->middleware('permission:editar ordenes compra');
-        Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice'])->middleware('permission:editar ordenes compra');
-        Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve'])->middleware('permission:editar ordenes compra');
+        Route::post('/{purchaseDocument}/enviar-correo-pdf', [PurchaseOrderController::class, 'sendOrderPdf'])
+            ->name('send-pdf')
+            ->middleware('permission:editar ordenes compra');
+        Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice'])
+            ->name('convert-to-invoice')
+            ->middleware('permission:editar ordenes compra');
+        Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve'])
+            ->name('approve')
+            ->middleware('permission:editar ordenes compra');
     });
 
     // === FACTURAS DE COMPRA ===
