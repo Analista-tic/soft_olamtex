@@ -2,12 +2,12 @@
 import AlertBox from '@/components/AlertBox.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
-import { Skeleton } from '@/components/ui/skeleton';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ClipboardPen, ExternalLink } from 'lucide-vue-next';
@@ -116,6 +116,7 @@ const programmerList = computed<ProgrammerSummary[]>(() => {
 const programmer = computed<ProgrammerSummary | null>(() => programmerList.value[0] ?? null);
 
 const hasData = computed(() => Boolean(productionOrder.value || productSheet.value || programmerList.value.length > 0));
+const canRenderDetail = computed(() => !isLoading.value);
 
 function resolveImageUrl(rawPath?: string | null): string | null {
     const path = typeof rawPath === 'string' ? rawPath.trim() : '';
@@ -433,32 +434,20 @@ onUnmounted(() => {
                 </DialogDescription>
             </DialogHeader>
 
-            <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
-                <template v-if="isLoading">
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between gap-3 rounded-lg bg-muted/5 p-3">
-                            <div class="space-y-2">
-                                <Skeleton class="h-6 w-44" />
-                                <Skeleton class="h-5 w-72" />
-                            </div>
-                            <div class="flex gap-2">
-                                <Skeleton class="h-6 w-16" />
-                                <Skeleton class="h-6 w-20" />
-                            </div>
-                        </div>
-                        <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                            <Skeleton v-for="item in 12" :key="`sk-${item}`" class="h-12 w-full" />
-                        </div>
-                    </div>
-                </template>
-
-                <template v-else-if="!hasData">
+            <div class="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4" :class="{ 'min-h-[420px]': isLoading }">
+                <FormLoadingOverlay
+                    :active="isLoading"
+                    :delay-ms="0"
+                    message="Cargando orden de produccion..."
+                    description="Consultando la informacion consolidada de la OP seleccionada."
+                />
+                <template v-if="canRenderDetail && !hasData">
                     <div class="rounded-lg bg-muted/10 px-3 py-2 text-sm text-muted-foreground">
                         No hay información disponible para esta orden de producción.
                     </div>
                 </template>
 
-                <template v-else>
+                <template v-else-if="canRenderDetail">
                     <div class="shrink-0 rounded-lg border border-border bg-background p-4">
                         <div class="flex flex-col gap-4 lg:flex-row lg:items-stretch">
                             <!-- Info principal -->
