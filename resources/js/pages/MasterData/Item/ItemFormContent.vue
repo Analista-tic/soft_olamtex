@@ -365,13 +365,7 @@ function normalizeExtraFieldsValue(value: unknown): Record<string, unknown> {
     return {};
 }
 
-const LEGACY_META_KEYS = new Set([
-    'legacy_import',
-    'legacy_source',
-    'migration_batch',
-    'legacy_row_number',
-    'legacy_raw_row',
-]);
+const LEGACY_META_KEYS = new Set(['legacy_import', 'legacy_source', 'migration_batch', 'legacy_row_number', 'legacy_raw_row']);
 
 function fillExtraFields(obj: unknown) {
     extraFields.value = {};
@@ -504,14 +498,14 @@ async function fetchAccountingAccounts() {
             params: { account_type: 'income,asset,cost', allows_entries: true },
         });
         const all: AccountingAccountOption[] = data.data ?? [];
-        accountingIncomeOptions.value    = all.filter((a) => a.account_type === 'income');
+        accountingIncomeOptions.value = all.filter((a) => a.account_type === 'income');
         accountingInventoryOptions.value = all.filter((a) => a.account_type === 'asset');
-        accountingCostOptions.value      = all.filter((a) => a.account_type === 'cost');
+        accountingCostOptions.value = all.filter((a) => a.account_type === 'cost');
     } catch {
         // Endpoint puede no existir en todos los contextos — no bloquear el dialog
-        accountingIncomeOptions.value    = [];
+        accountingIncomeOptions.value = [];
         accountingInventoryOptions.value = [];
-        accountingCostOptions.value      = [];
+        accountingCostOptions.value = [];
     }
 }
 
@@ -965,12 +959,25 @@ async function handleSubmit() {
 
     // Scalar fields — only sent when not null/undefined; skips objects/arrays to avoid "[object Object]"
     const scalarFields = [
-        'name', 'reference', 'description', 'bar_code', 'unit_measure',
-        'item_type', 'extra_fields', 'tax', 'tax_id',
-        'category_sub_group_id', 'img',
-        'income_account_id', 'inventory_account_id', 'cost_of_sale_account_id',
-        'export_tariff_code', 'export_brand', 'export_model',
-        'weighted_average_price', 'cost_price',
+        'name',
+        'reference',
+        'description',
+        'bar_code',
+        'unit_measure',
+        'item_type',
+        'extra_fields',
+        'tax',
+        'tax_id',
+        'category_sub_group_id',
+        'img',
+        'income_account_id',
+        'inventory_account_id',
+        'cost_of_sale_account_id',
+        'export_tariff_code',
+        'export_brand',
+        'export_model',
+        'weighted_average_price',
+        'cost_price',
     ];
     for (const key of scalarFields) {
         const v = cleanForm[key];
@@ -1208,11 +1215,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="-mx-6 flex min-h-0 flex-1 flex-col">
+    <div class="flex min-h-0 flex-1 flex-col">
         <transition name="fade">
             <div
                 v-if="alertMessage"
-                class="pointer-events-none absolute left-1/2 top-20 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-6"
+                class="pointer-events-none absolute left-1/2 top-4 z-20 flex w-full max-w-xl -translate-x-1/2 justify-center px-5"
             >
                 <AlertBox
                     :type="alertType"
@@ -1226,8 +1233,7 @@ onBeforeUnmount(() => {
 
         <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
             <FormHeader
-                class="flex-shrink-0 px-6 pt-10"
-                headerClass="mb-4"
+                class="shrink-0 border-b px-5 py-4 pr-12"
                 :title="dialogType === 'create' ? 'Crear ítem' : dialogType === 'edit' ? 'Editar ítem' : 'Detalle del ítem'"
                 :description="
                     dialogType === 'create'
@@ -1238,12 +1244,12 @@ onBeforeUnmount(() => {
                 "
             />
 
-            <div ref="dialogInnerRef" class="flex-1 overflow-y-auto scroll-smooth px-6" style="scrollbar-width: thin">
-                <fieldset :disabled="isViewMode" class="space-y-4">
-                    <div class="grid grid-cols-1 gap-5 md:grid-cols-4">
-                        <div class="flex flex-col gap-4 md:col-span-3">
+            <div ref="dialogInnerRef" class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
+                <fieldset :disabled="isViewMode" class="space-y-3">
+                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                        <div class="flex min-w-0 flex-col gap-3">
                             <div>
-                                <div class="mb-2 flex items-center gap-1">
+                                <div class="mb-1.5 flex items-center gap-1">
                                     <span class="text-sm font-semibold text-card-foreground"> Tipo de ítem </span>
                                     <HelpTooltip
                                         text="Elige producto o servicio para que el sistema active los campos e inventario correspondientes."
@@ -1257,7 +1263,7 @@ onBeforeUnmount(() => {
                                 </template>
 
                                 <template v-else>
-                                    <div class="mt-2 grid grid-cols-2 gap-2">
+                                    <div class="grid grid-cols-2 gap-2">
                                         <button
                                             v-for="option in itemTypeOptions"
                                             :key="option.value"
@@ -1283,7 +1289,7 @@ onBeforeUnmount(() => {
                                 <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
                             </div>
 
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
                                 <template v-if="isViewMode">
                                     <div class="flex flex-col gap-1">
                                         <Label>Grupo</Label>
@@ -1385,7 +1391,7 @@ onBeforeUnmount(() => {
                                 </template>
                             </div>
 
-                            <div v-if="currentItemType !== 'service'" class="mt-2 rounded-lg border border-border bg-card p-3">
+                            <div v-if="currentItemType !== 'service'" class="rounded-lg border border-border bg-card p-3">
                                 <div class="mb-2 flex items-center justify-between">
                                     <p class="flex items-center gap-1 text-sm font-semibold">
                                         <span>Detalle de Inventario</span>
@@ -1407,8 +1413,10 @@ onBeforeUnmount(() => {
                                 </div>
 
                                 <div v-for="(ws, idx) in warehouseStocks" :key="idx" class="mb-2 rounded-md bg-muted/50 p-2">
-                                    <div class="grid grid-cols-1 gap-2 sm:grid-cols-[220px,1fr,1fr,1fr,auto] sm:items-end">
-                                        <div class="flex h-full flex-col justify-between gap-1">
+                                    <div
+                                        class="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(180px,1.2fr)_repeat(3,minmax(90px,1fr))_auto] sm:items-end"
+                                    >
+                                        <div class="space-y-1">
                                             <Label class="text-xs">Bodega</Label>
                                             <SelectField
                                                 v-model="ws.warehouse_id"
@@ -1439,7 +1447,7 @@ onBeforeUnmount(() => {
                                             </SelectField>
                                         </div>
 
-                                        <div class="flex h-full flex-col justify-between gap-1">
+                                        <div class="space-y-1">
                                             <Label class="text-xs">Cantidad</Label>
                                             <InputIntegerField
                                                 v-model="ws.quantity"
@@ -1451,21 +1459,21 @@ onBeforeUnmount(() => {
                                             />
                                         </div>
 
-                                        <div class="flex h-full flex-col justify-between gap-1">
+                                        <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Min</Label>
                                             <InputIntegerField v-model="ws.stock_min" label="" type="number" class="w-full" placeholder="Min" />
                                         </div>
 
-                                        <div class="flex h-full flex-col justify-between gap-1">
+                                        <div class="space-y-1">
                                             <Label class="text-xs">Cantidad Max</Label>
                                             <InputIntegerField v-model="ws.stock_max" label="" type="number" class="w-full" placeholder="Max" />
                                         </div>
 
-                                        <div class="items-base flex justify-end">
+                                        <div class="flex items-end justify-end">
                                             <button
                                                 v-if="!isViewMode"
                                                 type="button"
-                                                class="rounded-full p-3 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                                class="rounded-full p-2 transition hover:bg-red-100 dark:hover:bg-red-900"
                                                 @click="removeWarehouseStock(idx)"
                                                 title="Quitar"
                                             >
@@ -1479,65 +1487,52 @@ onBeforeUnmount(() => {
                             </div>
                         </div>
 
-                        <div class="flex flex-col gap-2 md:col-span-1">
-                            <div class="flex w-full flex-col items-start gap-2">
-                                <Label class="mb-1 block text-left text-sm font-medium">Imagen</Label>
-                                <div class="w-full">
-                                    <input
-                                        ref="fileInputRef"
-                                        type="file"
-                                        accept="image/*"
-                                        class="hidden"
-                                        :disabled="isViewMode"
-                                        @change="handleFileChange"
-                                    />
+                        <div class="min-w-0">
+                            <Label class="mb-1.5 block text-left text-sm font-medium">Imagen</Label>
+                            <input ref="fileInputRef" type="file" accept="image/*" class="hidden" :disabled="isViewMode" @change="handleFileChange" />
 
-                                    <div
-                                        :class="[
-                                            'group relative flex h-52 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
-                                            isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-primary hover:shadow-lg',
-                                        ]"
-                                        @click="!isViewMode && triggerFileInput()"
-                                        style="min-width: 0; position: relative"
-                                    >
-                                        <template v-if="imagePreview">
-                                            <div class="relative h-52 w-full">
-                                                <img
-                                                    :src="imagePreview"
-                                                    alt="Previsualización"
-                                                    class="h-57 w-full rounded object-contain transition-transform duration-200 group-hover:scale-105"
-                                                    style="display: block; position: absolute; top: 0; left: 0; right: 0; margin: 0; z-index: 10"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    class="absolute right-2 top-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-black"
-                                                    @click.stop="openImageZoom"
-                                                    aria-label="Ver imagen ampliada"
-                                                >
-                                                    Ver imagen
-                                                </button>
-                                            </div>
-                                            <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
-                                                {{ isViewMode ? 'Imagen del ítem' : 'Cambiar imagen' }}
-                                            </div>
-                                        </template>
-
-                                        <template v-else>
-                                            <div class="z-10 flex h-full w-full flex-col items-center justify-center">
-                                                <Image class="mb-2 h-12 w-12 text-gray-400" />
-                                                <span class="text-sm text-gray-500">
-                                                    {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
-                                                </span>
-                                            </div>
-                                        </template>
+                            <div
+                                :class="[
+                                    'group relative flex h-40 w-full flex-col items-stretch justify-center overflow-hidden rounded border-2 border-dashed bg-muted/50 transition-all duration-200',
+                                    isViewMode ? 'cursor-default opacity-100' : 'cursor-pointer hover:border-primary hover:shadow-md',
+                                ]"
+                                @click="!isViewMode && triggerFileInput()"
+                            >
+                                <template v-if="imagePreview">
+                                    <div class="relative h-full w-full">
+                                        <img
+                                            :src="imagePreview"
+                                            alt="Previsualización"
+                                            class="absolute inset-0 h-full w-full rounded object-contain transition-transform duration-200 group-hover:scale-105"
+                                        />
+                                        <button
+                                            type="button"
+                                            class="absolute right-2 top-2 rounded-full border border-white bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-black"
+                                            @click.stop="openImageZoom"
+                                            aria-label="Ver imagen ampliada"
+                                        >
+                                            Ver imagen
+                                        </button>
                                     </div>
-                                </div>
+                                    <div class="absolute bottom-0 left-0 right-0 z-20 bg-black/50 py-1 text-center text-xs text-white">
+                                        {{ isViewMode ? 'Imagen del ítem' : 'Cambiar imagen' }}
+                                    </div>
+                                </template>
+
+                                <template v-else>
+                                    <div class="z-10 flex h-full w-full flex-col items-center justify-center px-3 text-center">
+                                        <Image class="mb-2 h-10 w-10 text-gray-400" />
+                                        <span class="text-sm text-gray-500">
+                                            {{ isViewMode ? 'Sin imagen' : 'Haz clic para subir imagen' }}
+                                        </span>
+                                    </div>
+                                </template>
                             </div>
                         </div>
                     </div>
 
                     <!-- SEGUNDA SECCIÓN -->
-                    <div class="mb-3 grid grid-cols-1 gap-4 md:grid-cols-4">
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
                         <div class="md:col-span-1">
                             <template v-if="isViewMode">
                                 <Label>Unidad de Medida</Label>
@@ -1663,36 +1658,30 @@ onBeforeUnmount(() => {
                 </fieldset>
             </div>
 
-            <!-- FOOTER -->
-            <DialogFooter class="mt-4 flex flex-shrink-0 flex-col-reverse gap-2 border-t px-6 pb-10 pt-4 md:flex-row md:justify-end">
-                <div v-if="dialogType !== 'view' && showAdvancedLink" class="w-full md:w-auto">
-                    <button
-                        type="button"
-                        class="mx-auto flex w-full max-w-[250px] items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="redirectToAdvancedForm"
-                    >
-                        <ExternalLink class="h-4 w-4" />
-                        Ir al formulario avanzado
-                    </button>
-                </div>
+            <DialogFooter class="shrink-0 border-t px-5 py-3 md:justify-end">
+                <button
+                    v-if="dialogType !== 'view' && showAdvancedLink"
+                    type="button"
+                    class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 md:w-auto"
+                    @click="redirectToAdvancedForm"
+                >
+                    <ExternalLink class="h-4 w-4" />
+                    Ir al formulario avanzado
+                </button>
 
-                <div class="w-full md:w-auto">
-                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center" @click="handleClose">
-                        {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
-                    </Button>
-                </div>
+                <Button variant="outline" size="pill" class="w-full justify-center md:w-auto" @click="handleClose">
+                    {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
+                </Button>
 
-                <div class="w-full md:w-auto">
-                    <Button
-                        v-if="dialogType !== 'view'"
-                        variant="default"
-                        type="submit"
-                        class="mx-auto flex w-full max-w-[140px] items-center justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
-                        :disabled="isLoadingState"
-                    >
-                        {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
-                    </Button>
-                </div>
+                <Button
+                    v-if="dialogType !== 'view'"
+                    variant="default"
+                    type="submit"
+                    class="w-full justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm md:w-auto"
+                    :disabled="isLoadingState"
+                >
+                    {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
+                </Button>
             </DialogFooter>
         </form>
     </div>
