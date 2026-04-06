@@ -46,6 +46,7 @@ class CategorySeeder extends Seeder
             ['name' => 'Aplique', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Bolsa', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Botón', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
+            ['name' => 'Cierre', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Cinta', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Código', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],
             ['name' => 'Cordón', 'category_group_id' => $groupIds['Insumos'], 'created_at' => $now, 'updated_at' => $now],

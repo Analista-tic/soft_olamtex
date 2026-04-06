@@ -1,12 +1,15 @@
 <?php
 
 use App\Http\Controllers\Production\TechnicalDataSheetController;
+
+use App\Http\Controllers\Settings\AuditLogController;
+use App\Http\Controllers\Settings\CompanySettingsController;
+use App\Http\Controllers\Settings\RoleController;
+use App\Http\Controllers\Settings\UserController;
 use App\Models\Settings\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-
-Route::get('/', fn () => redirect('login'))->name('home');
 
 Route::get('dashboard', fn () => Inertia::render('Dashboard'))
     ->middleware(['auth', 'verified'])
@@ -16,7 +19,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('user', function (Request $request) {
         $user = $request->user();
 
-        if (! $user instanceof User) {
+        if (!$user instanceof User) {
             abort(401);
         }
 
@@ -46,7 +49,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('under-construction');
 
-    // Application route modules. Each file keeps its domain routes isolated.
     require __DIR__.'/master-data.php';
     require __DIR__.'/production.php';
     require __DIR__.'/inventory.php';
