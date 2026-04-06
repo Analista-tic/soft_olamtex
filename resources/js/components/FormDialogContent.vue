@@ -1,15 +1,40 @@
 <script setup lang="ts">
 import { DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import { computed, type HTMLAttributes } from 'vue';
 
-const props = defineProps<{ class?: string; overlayClass?: string; scrollable?: boolean }>();
+type FormDialogSize = 'sm' | 'md' | 'lg';
+
+const props = withDefaults(
+    defineProps<{
+        class?: HTMLAttributes['class'];
+        contentClass?: HTMLAttributes['class'];
+        overlayClass?: HTMLAttributes['class'];
+        scrollable?: boolean;
+        size?: FormDialogSize;
+    }>(),
+    {
+        size: 'sm',
+    },
+);
+
+const sizeClasses: Record<FormDialogSize, string> = {
+    sm: 'max-w-[560px]',
+    md: 'max-w-[820px]',
+    lg: 'max-w-[1120px]',
+};
+
+const contentClass = computed(() =>
+    cn(
+        'flex max-h-[90vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl bg-background p-4 text-foreground sm:p-5',
+        sizeClasses[props.size],
+        props.class,
+    ),
+);
 </script>
 
 <template>
-    <DialogContent
-        :class="['max-h-[80vh] w-full max-w-md rounded-2xl bg-background text-foreground', props.class]"
-        :overlay-class="props.overlayClass"
-        :scrollable="props.scrollable"
-    >
+    <DialogContent :class="contentClass" :content-class="props.contentClass" :overlay-class="props.overlayClass" :scrollable="props.scrollable">
         <DialogTitle class="sr-only">Formulario</DialogTitle>
         <DialogDescription class="sr-only">Contenido del diálogo</DialogDescription>
         <slot />

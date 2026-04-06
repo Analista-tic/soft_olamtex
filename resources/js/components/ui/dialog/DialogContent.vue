@@ -17,6 +17,7 @@ const props = defineProps<
     DialogContentProps & {
         class?: HTMLAttributes['class'];
         closeClass?: HTMLAttributes['class'];
+        contentClass?: HTMLAttributes['class'];
         overlayClass?: HTMLAttributes['class'];
         scrollable?: boolean;
     }
@@ -24,7 +25,14 @@ const props = defineProps<
 const emits = defineEmits<DialogContentEmits>();
 
 const delegatedProps = computed(() => {
-    const { class: _, closeClass: __, overlayClass: ___, ...delegated } = props;
+    const {
+        class: _class,
+        closeClass: _closeClass,
+        contentClass: _contentClass,
+        overlayClass: _overlayClass,
+        scrollable: _scrollable,
+        ...delegated
+    } = props;
 
     return delegated;
 });
@@ -70,9 +78,9 @@ function handleInteractOutside(event: unknown) {
             @interact-outside="handleInteractOutside"
             :class="
                 cn(
-                    'h-fit w-[calc(100%-2rem)] max-w-4xl border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] sm:rounded-[28px]',
+                    'h-fit max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl overflow-y-auto border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] sm:rounded-[28px]',
                     props.class,
-                    'fixed left-1/2 top-1/2 z-[51] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto',
+                    'fixed left-1/2 top-1/2 z-[51] -translate-x-1/2 -translate-y-1/2',
                 )
             "
         >
@@ -81,6 +89,7 @@ function handleInteractOutside(event: unknown) {
                     :class="cn(
                         'dialog-scroll-area flex min-h-0 flex-1 flex-col scroll-smooth',
                         isScrollable ? 'overflow-y-auto px-3 py-4' : 'px-3 py-2',
+                        props.contentClass,
                     )"
                 >
                     <slot />

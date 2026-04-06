@@ -67,7 +67,7 @@ function handleFormError(message: string) {
 
 <template>
     <Dialog :open="dialogOpen" @update:open="handleDialogOpenChange">
-        <FormDialogContent class="flex max-h-[85vh] max-w-[900px] flex-col px-2 py-2" :scrollable="false">
+        <FormDialogContent size="lg" class="p-0" content-class="p-0" :scrollable="false">
             <ItemFormContent
                 :is-open="dialogOpen"
                 :dialog-type="props.dialogType"
