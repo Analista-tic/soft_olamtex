@@ -5,13 +5,13 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
 import axios from 'axios';
 import { Plus, X } from 'lucide-vue-next';
-import { computed, nextTick, ref, watch } from 'vue'; // Asegurar que watch esté importado
+import { nextTick, ref, watch } from 'vue';
 import GroupDialog from './GroupDialog.vue';
 
 const props = defineProps<{
@@ -19,19 +19,16 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     subGroupData: Partial<CategorySubGroup>;
     groups: CategoryGroup[];
-    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'submit', payload: Partial<CategorySubGroup> & { subgroups?: Partial<CategorySubGroup>[] }): void;
     (e: 'notify', payload: { type: 'success' | 'error'; message: string }): void;
-    (e: 'loading-state', value: boolean): void;
 }>();
 
 const internalIsOpen = ref(props.isOpen);
 const isInitializingDialog = ref(false);
-const shouldEmitLoadingState = computed(() => internalIsOpen.value && isInitializingDialog.value);
 
 watch(
     () => props.isOpen,
@@ -178,19 +175,11 @@ async function confirmDeleteGroup() {
     }
     closeDeleteDialog();
 }
-
-watch(
-    shouldEmitLoadingState,
-    (value) => {
-        emit('loading-state', value);
-    },
-    { immediate: true },
-);
 </script>
 
 <template>
     <Dialog v-model:open="internalIsOpen">
-        <FormDialogContent v-if="!props.deferContent" class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
+        <FormDialogContent class="flex max-h-[95vh] max-w-[85vh] flex-col px-2 py-2">
             <TooltipProvider>
                 <DialogHeader class="flex-shrink-0">
                     <DialogTitle>{{ dialogType === 'create' ? 'Crear Subgrupo' : 'Editar Subgrupo' }}</DialogTitle>
