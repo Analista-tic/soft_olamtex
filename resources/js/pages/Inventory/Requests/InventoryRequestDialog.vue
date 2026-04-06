@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormDialogBody from '@/components/FormDialogBody.vue';
+import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
+import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import axios from 'axios';
 import { Image, Plus } from 'lucide-vue-next';
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -76,7 +80,6 @@ let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isReadonly = computed(() => props.dialogType === 'view');
 const shouldShowOverlayRaw = computed(() => dialogOpen.value && !props.deferContent && (isSubmittingDialog.value || isInitializingDialog.value));
-const footerContainerClass = 'mt-4 flex flex-shrink-0 flex-wrap justify-end gap-2 border-t px-4 pb-4 pt-4';
 const primaryPillButtonClass = 'shadow-sm';
 const secondaryPillButtonClass = 'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
 const actionPillButtonClass = 'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
@@ -460,13 +463,11 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <DialogContent v-if="!props.deferContent" class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
-            <DialogHeader class="relative flex-shrink-0 px-4 pt-4">
-                <div class="flex flex-col gap-1">
-                    <DialogTitle> {{ dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva' }} Solicitud Interna </DialogTitle>
-                    <DialogDescription class="pb-2"> Registro de solicitudes internas de insumos o materiales. </DialogDescription>
-                </div>
-            </DialogHeader>
+        <FormDialogContent v-if="!props.deferContent" size="lg" class="p-0" content-class="p-0" :scrollable="false">
+            <FormDialogHeader
+                :title="`${dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva'} Solicitud Interna`"
+                description="Registro de solicitudes internas de insumos o materiales."
+            />
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -475,21 +476,23 @@ onUnmounted(() => {
                 @close-success="successMessage = ''"
                 @close-error="errorMessage = ''"
             />
-            <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
-                <form @submit.prevent="handleSubmit()" class="space-y-6">
-                    <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
+                <FormDialogBody>
+                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
                         <div class="space-y-4">
-                            <div class="grid grid-cols-2 gap-4">
-                                <InputField
-                                    label="# Solicitud"
-                                    v-model="safeDocumentNumber"
-                                    placeholder="SINT-001"
-                                    :readonly="true"
-                                    :disabled="true"
-                                />
-                                <span v-if="props.dialogType === 'create' && isLoadingNumber" class="text-xs text-muted-foreground">
-                                    Generando consecutivo...
-                                </span>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div class="space-y-1">
+                                    <InputField
+                                        v-model="safeDocumentNumber"
+                                        label="# Solicitud"
+                                        placeholder="SINT-001"
+                                        :readonly="true"
+                                        :disabled="true"
+                                    />
+                                    <p v-if="props.dialogType === 'create' && isLoadingNumber" class="text-xs text-muted-foreground">
+                                        Generando consecutivo...
+                                    </p>
+                                </div>
                                 <DatePickerField
                                     v-model="localForm.date"
                                     label="Fecha de solicitud"
@@ -499,7 +502,7 @@ onUnmounted(() => {
                                 />
                             </div>
 
-                            <div v-if="props.dialogType !== 'create'" class="grid grid-cols-2 gap-4">
+                            <div v-if="props.dialogType !== 'create'" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <DatePickerField
                                     v-if="localForm.status === 'entregado'"
                                     v-model="localForm.delivery_date"
@@ -555,12 +558,12 @@ onUnmounted(() => {
                             />
                         </div>
 
-                        <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border lg:sticky lg:top-4">
+                        <div class="rounded-xl border border-sidebar-border/70 p-4 dark:border-sidebar-border">
                             <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200">Imagen</label>
                             <input ref="fileInputRef" type="file" accept="image/*" class="hidden" :disabled="isReadonly" @change="onImageChange" />
                             <div
                                 :class="[
-                                    'group relative flex h-56 w-full flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/50 text-center transition-all duration-200',
+                                    'group relative flex h-48 w-full flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/50 text-center transition-all duration-200',
                                     isReadonly ? 'cursor-default opacity-90' : 'cursor-pointer hover:border-primary hover:shadow-md',
                                 ]"
                                 @click="triggerFileInput"
@@ -584,22 +587,22 @@ onUnmounted(() => {
                             </div>
                         </div>
                     </div>
+                </FormDialogBody>
 
-                    <DialogFooter :class="footerContainerClass">
-                        <template v-if="isReadonly">
-                            <Button type="button" size="pill" :class="primaryPillButtonClass" @click="dialogOpen = false"> Cerrar </Button>
-                        </template>
-                        <template v-else>
-                            <Button type="button" variant="outline" size="pill" :class="secondaryPillButtonClass" @click="dialogOpen = false">
-                                Cancelar
-                            </Button>
-                            <Button type="button" size="pill" :disabled="isLoading" :class="primaryPillButtonClass" @click.prevent="handleSubmit">
-                                {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
-                            </Button>
-                        </template>
-                    </DialogFooter>
-                </form>
-            </div>
-        </DialogContent>
+                <FormDialogFooter>
+                    <template v-if="isReadonly">
+                        <Button type="button" size="pill" :class="primaryPillButtonClass" @click="dialogOpen = false"> Cerrar </Button>
+                    </template>
+                    <template v-else>
+                        <Button type="button" variant="outline" size="pill" :class="secondaryPillButtonClass" @click="dialogOpen = false">
+                            Cancelar
+                        </Button>
+                        <Button type="submit" size="pill" :disabled="isLoading" :class="primaryPillButtonClass">
+                            {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
+                        </Button>
+                    </template>
+                </FormDialogFooter>
+            </form>
+        </FormDialogContent>
     </Dialog>
 </template>
