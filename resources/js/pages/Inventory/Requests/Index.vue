@@ -19,12 +19,11 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Ban, Check, Eye, Pencil, PlusCircle, Search } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import InventoryRequestDeliveryDialog from './InventoryRequestDeliveryDialog.vue';
 import InventoryRequestDialog from './InventoryRequestDialog.vue';
 import InventoryRequestRejectDialog from './InventoryRequestRejectDialog.vue';
@@ -58,8 +57,6 @@ const currentUserId = ref<number | null>(null);
 const isRequestDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit' | 'view'>('create');
 const selectedRequestId = ref<number | null>(null);
-const isPreparingRequestDialog = ref(false);
-const isRequestDialogBootstrapping = ref(false);
 const isDeliveryDialogOpen = ref(false);
 const deliveryRequestId = ref<number | null>(null);
 const isRejectDialogOpen = ref(false);
@@ -74,12 +71,6 @@ const actionButtonClass =
 const actionButtonSuccessClass = 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50';
 const actionButtonDangerClass = 'text-destructive hover:text-destructive hover:bg-destructive/10';
 const actionIconClass = 'h-4 w-4';
-const DIALOG_PREPARE_FALLBACK_MS = 10000;
-let requestDialogPrepareToken = 0;
-let requestDialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
-let requestDialogPreparationLoadingId: SmartLoadingTaskId | null = null;
-const smartLoading = useSmartLoading();
-
 const statusLabels: Record<string, string> = {
     solicitado: 'Solicitado',
     rechazado: 'Rechazado',
@@ -98,32 +89,6 @@ const statusOptions = [
     { id: 'entregado', name: 'Entregado' },
     { id: 'rechazado', name: 'Rechazado' },
 ];
-
-function clearRequestDialogPrepareFallbackTimer() {
-    if (requestDialogPrepareFallbackTimer) {
-        clearTimeout(requestDialogPrepareFallbackTimer);
-        requestDialogPrepareFallbackTimer = null;
-    }
-}
-
-function startRequestDialogPreparationLoading() {
-    if (requestDialogPreparationLoadingId) return;
-    requestDialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
-}
-
-function stopRequestDialogPreparationLoading() {
-    if (!requestDialogPreparationLoadingId) return;
-    smartLoading.stop(requestDialogPreparationLoadingId);
-    requestDialogPreparationLoadingId = null;
-}
-
-function finishRequestDialogPreparation(token: number) {
-    if (token !== requestDialogPrepareToken) return;
-    isPreparingRequestDialog.value = false;
-    isRequestDialogBootstrapping.value = false;
-    clearRequestDialogPrepareFallbackTimer();
-    stopRequestDialogPreparationLoading();
-}
 
 function formatDate(value?: string | null) {
     if (!value) return '-';
@@ -167,83 +132,26 @@ watch(statusFilter, () => {
     fetchRequests(1, searchQuery.value);
 });
 
-async function openCreateRequest() {
-    if (isPreparingRequestDialog.value) return;
-
-    const token = ++requestDialogPrepareToken;
-    isPreparingRequestDialog.value = true;
-    isRequestDialogBootstrapping.value = true;
-    startRequestDialogPreparationLoading();
-
+function openCreateRequest() {
     dialogType.value = 'create';
     selectedRequestId.value = null;
-
-    await nextTick();
-    if (token !== requestDialogPrepareToken) return;
-
     isRequestDialogOpen.value = true;
-
-    clearRequestDialogPrepareFallbackTimer();
-    requestDialogPrepareFallbackTimer = setTimeout(() => {
-        finishRequestDialogPreparation(token);
-    }, DIALOG_PREPARE_FALLBACK_MS);
 }
 
-async function openEditRequest(request: InventoryRequestRow) {
-    if (isPreparingRequestDialog.value) return;
-
-    const token = ++requestDialogPrepareToken;
-    isPreparingRequestDialog.value = true;
-    isRequestDialogBootstrapping.value = true;
-    startRequestDialogPreparationLoading();
-
+function openEditRequest(request: InventoryRequestRow) {
     dialogType.value = 'edit';
     selectedRequestId.value = request.id;
-
-    await nextTick();
-    if (token !== requestDialogPrepareToken) return;
-
     isRequestDialogOpen.value = true;
-
-    clearRequestDialogPrepareFallbackTimer();
-    requestDialogPrepareFallbackTimer = setTimeout(() => {
-        finishRequestDialogPreparation(token);
-    }, DIALOG_PREPARE_FALLBACK_MS);
 }
 
-async function openViewRequest(request: InventoryRequestRow) {
-    if (isPreparingRequestDialog.value) return;
-
-    const token = ++requestDialogPrepareToken;
-    isPreparingRequestDialog.value = true;
-    isRequestDialogBootstrapping.value = true;
-    startRequestDialogPreparationLoading();
-
+function openViewRequest(request: InventoryRequestRow) {
     dialogType.value = 'view';
     selectedRequestId.value = request.id;
-
-    await nextTick();
-    if (token !== requestDialogPrepareToken) return;
-
     isRequestDialogOpen.value = true;
-
-    clearRequestDialogPrepareFallbackTimer();
-    requestDialogPrepareFallbackTimer = setTimeout(() => {
-        finishRequestDialogPreparation(token);
-    }, DIALOG_PREPARE_FALLBACK_MS);
 }
 
 function closeRequestDialog() {
     isRequestDialogOpen.value = false;
-    finishRequestDialogPreparation(requestDialogPrepareToken);
-}
-
-function handleRequestDialogLoadingState(value: boolean) {
-    if (!isRequestDialogBootstrapping.value) return;
-
-    if (value) return;
-
-    finishRequestDialogPreparation(requestDialogPrepareToken);
 }
 
 function openDelivery(request: InventoryRequestRow) {
@@ -284,11 +192,6 @@ function canReject(request: InventoryRequestRow) {
 onMounted(() => {
     fetchRequests();
 });
-
-onBeforeUnmount(() => {
-    clearRequestDialogPrepareFallbackTimer();
-    stopRequestDialogPreparationLoading();
-});
 </script>
 
 <template>
@@ -313,7 +216,6 @@ onBeforeUnmount(() => {
 
                 <Button
                     size="sm"
-                    :disabled="isPreparingRequestDialog"
                     class="flex h-10 items-center gap-1 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                     @click="openCreateRequest"
                 >
@@ -469,10 +371,8 @@ onBeforeUnmount(() => {
             :is-open="isRequestDialogOpen"
             :dialog-type="dialogType"
             :request-id="selectedRequestId"
-            :defer-content="isPreparingRequestDialog"
             @close="closeRequestDialog"
             @saved="handleRequestSaved"
-            @loading-state="handleRequestDialogLoadingState"
         />
         <InventoryRequestDeliveryDialog
             :is-open="isDeliveryDialogOpen"

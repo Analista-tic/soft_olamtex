@@ -5,6 +5,7 @@ import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import FormDialogFooter from '@/components/FormDialogFooter.vue';
 import FormDialogHeader from '@/components/FormDialogHeader.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import TextareaField from '@/components/TextareaField.vue';
@@ -50,22 +51,19 @@ const props = defineProps<{
     dialogType: 'create' | 'edit' | 'view';
     requestId: number | null;
     initialDraft?: InitialDraftPayload | null;
-    deferContent?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'saved', message?: string): void;
     (e: 'saved', message: string, requestId: number | null): void;
-    (e: 'loading-state', value: boolean): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<InventoryRequestForm>(createDefaultForm());
 const isLoading = ref(false);
-const isInitializingDialog = ref(false);
+const isHydrationLoading = ref(false);
 const isSubmittingDialog = ref(false);
-const showFullscreenOverlay = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
 const itemsTableRef = ref<{ addItem: () => void } | null>(null);
@@ -73,13 +71,10 @@ const nextDocumentNumber = ref('');
 const isLoadingNumber = ref(false);
 const imagePreview = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
-const previousBodyOverflow = ref<string | null>(null);
-
-const OVERLAY_DELAY_MS = 150;
-let overlayDelayTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isReadonly = computed(() => props.dialogType === 'view');
-const shouldShowOverlayRaw = computed(() => dialogOpen.value && !props.deferContent && (isSubmittingDialog.value || isInitializingDialog.value));
+const shouldBlockBody = computed(() => dialogOpen.value && isHydrationLoading.value);
+const canRenderForm = computed(() => !shouldBlockBody.value);
 const primaryPillButtonClass = 'shadow-sm';
 const secondaryPillButtonClass = 'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
 const actionPillButtonClass = 'border-primary/40 text-primary shadow-sm hover:bg-primary/10';
@@ -89,13 +84,6 @@ const statusLabels: Record<string, string> = {
     rechazado: 'Rechazado',
     entregado: 'Entregado',
 };
-
-function clearOverlayDelay() {
-    if (overlayDelayTimer) {
-        clearTimeout(overlayDelayTimer);
-        overlayDelayTimer = null;
-    }
-}
 
 const safeDocumentNumber = computed({
     get: () => localForm.value.document_number ?? '',
@@ -208,18 +196,24 @@ function formatDateValue(value: string) {
     return parsed.toISOString().split('T')[0];
 }
 
-async function initializeDialog() {
-    isInitializingDialog.value = true;
+function initializeDialog() {
+    resetForm();
+
+    if ((props.dialogType === 'edit' || props.dialogType === 'view') && props.requestId) {
+        void hydrateRequest(props.requestId);
+        return;
+    }
+
+    applyInitialDraft(props.initialDraft);
+    void fetchNextNumber();
+}
+
+async function hydrateRequest(requestId: number) {
+    isHydrationLoading.value = true;
     try {
-        resetForm();
-        if ((props.dialogType === 'edit' || props.dialogType === 'view') && props.requestId) {
-            await fetchRequest(props.requestId);
-            return;
-        }
-        await fetchNextNumber();
-        applyInitialDraft(props.initialDraft);
+        await fetchRequest(requestId);
     } finally {
-        isInitializingDialog.value = false;
+        isHydrationLoading.value = false;
     }
 }
 
@@ -364,67 +358,22 @@ async function handleSubmit() {
 
 watch(
     () => props.isOpen,
-    async (isOpen) => {
+    (isOpen) => {
         dialogOpen.value = isOpen;
         if (isOpen) {
-            await initializeDialog();
+            initializeDialog();
         } else {
-            isInitializingDialog.value = false;
+            isHydrationLoading.value = false;
             isSubmittingDialog.value = false;
-            showFullscreenOverlay.value = false;
-            clearOverlayDelay();
         }
     },
 );
 
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) {
-        isInitializingDialog.value = false;
+        isHydrationLoading.value = false;
         isSubmittingDialog.value = false;
-        showFullscreenOverlay.value = false;
-        clearOverlayDelay();
         emit('close');
-    }
-});
-
-watch(
-    shouldShowOverlayRaw,
-    (value) => {
-        emit('loading-state', value);
-
-        if (!value) {
-            clearOverlayDelay();
-            showFullscreenOverlay.value = false;
-            return;
-        }
-
-        clearOverlayDelay();
-        overlayDelayTimer = setTimeout(() => {
-            overlayDelayTimer = null;
-            if (shouldShowOverlayRaw.value) {
-                showFullscreenOverlay.value = true;
-            }
-        }, OVERLAY_DELAY_MS);
-    },
-    { immediate: true },
-);
-
-watch(showFullscreenOverlay, (value) => {
-    if (typeof document === 'undefined') {
-        return;
-    }
-
-    if (value) {
-        if (previousBodyOverflow.value === null) {
-            previousBodyOverflow.value = document.body.style.overflow;
-        }
-        document.body.style.overflow = 'hidden';
-        return;
-    }
-
-    if (previousBodyOverflow.value !== null) {
-        document.body.style.overflow = previousBodyOverflow.value;
-        previousBodyOverflow.value = null;
     }
 });
 
@@ -439,31 +388,12 @@ watch(
 
 onUnmounted(() => {
     revokePreview();
-    clearOverlayDelay();
-    if (typeof document !== 'undefined') {
-        document.body.style.overflow = previousBodyOverflow.value ?? '';
-    }
-    previousBodyOverflow.value = null;
 });
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <div
-            v-if="showFullscreenOverlay"
-            class="fixed inset-0 z-[2000] grid place-items-center bg-background/60 backdrop-blur-sm"
-            role="status"
-            aria-live="polite"
-        >
-            <div class="rounded-xl border border-border bg-card px-6 py-5 shadow-xl">
-                <div class="flex items-center gap-3">
-                    <span class="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p class="text-sm font-medium text-foreground">Cargando información...</p>
-                </div>
-            </div>
-        </div>
-
-        <FormDialogContent v-if="!props.deferContent" size="lg" class="p-0" content-class="p-0" :scrollable="false">
+        <FormDialogContent size="lg" class="p-0" content-class="p-0" :scrollable="false">
             <FormDialogHeader
                 :title="`${dialogType === 'edit' ? 'Editar' : dialogType === 'view' ? 'Ver' : 'Nueva'} Solicitud Interna`"
                 description="Registro de solicitudes internas de insumos o materiales."
@@ -477,8 +407,15 @@ onUnmounted(() => {
                 @close-error="errorMessage = ''"
             />
             <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="handleSubmit">
-                <FormDialogBody>
-                    <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+                <FormDialogBody class="relative" :class="{ 'min-h-[420px]': shouldBlockBody }">
+                    <FormLoadingOverlay
+                        :active="shouldBlockBody"
+                        :delay-ms="0"
+                        message="Cargando solicitud..."
+                        description="Consultando el detalle de la solicitud seleccionada."
+                    />
+
+                    <div v-if="canRenderForm" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
                         <div class="space-y-4">
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div class="space-y-1">
@@ -597,7 +534,7 @@ onUnmounted(() => {
                         <Button type="button" variant="outline" size="pill" :class="secondaryPillButtonClass" @click="dialogOpen = false">
                             Cancelar
                         </Button>
-                        <Button type="submit" size="pill" :disabled="isLoading" :class="primaryPillButtonClass">
+                        <Button type="submit" size="pill" :disabled="isLoading || shouldBlockBody" :class="primaryPillButtonClass">
                             {{ isLoading ? 'Guardando...' : dialogType === 'edit' ? 'Actualizar' : 'Guardar' }}
                         </Button>
                     </template>

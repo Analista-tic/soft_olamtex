@@ -1,3 +1,12 @@
+<script lang="ts">
+import type { Tax as CachedTax } from '@/domain/Finance';
+import type { AdditionalField as CachedAdditionalField, CategorySubGroup as CachedCategorySubGroup } from '@/domain/MasterData';
+
+let cachedCategorySubGroups: CachedCategorySubGroup[] | null = null;
+let cachedTaxes: CachedTax[] | null = null;
+let cachedAdditionalFields: CachedAdditionalField[] | null = null;
+</script>
+
 <script setup lang="ts">
 import axios from 'axios';
 import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
@@ -5,6 +14,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AlertBox from '@/components/AlertBox.vue';
 import FormHeader from '@/components/FormHeader.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
@@ -53,12 +63,14 @@ const props = withDefaults(
         form: Partial<Item>;
         showAdvancedLink?: boolean;
         showAdvancedSections?: boolean;
+        showInternalLoadingOverlay?: boolean;
         preloadedSubGroups?: any[];
         preloadedTaxes?: any[];
     }>(),
     {
         showAdvancedLink: true,
         showAdvancedSections: false,
+        showInternalLoadingOverlay: true,
     },
 );
 
@@ -70,28 +82,11 @@ const emit = defineEmits<{
     (e: 'loading-state', value: boolean): void;
 }>();
 
-const loadingCounter = ref(0);
-const isLoadingState = ref(false);
-
-function updateLoadingState(delta: number) {
-    loadingCounter.value = Math.max(0, loadingCounter.value + delta);
-    const nextState = loadingCounter.value > 0;
-    if (isLoadingState.value !== nextState) {
-        isLoadingState.value = nextState;
-        emit('loading-state', nextState);
-    }
-}
-
-function trackLoading<T>(work: () => Promise<T>): Promise<T> {
-    updateLoadingState(1);
-    return Promise.resolve()
-        .then(work)
-        .catch((err) => {
-            console.warn('[trackLoading] error capturado:', err);
-            return undefined as unknown as T;
-        })
-        .finally(() => updateLoadingState(-1));
-}
+const isCatalogBootstrapLoading = ref(false);
+const isItemHydrationLoading = ref(false);
+const isSecondaryLoading = ref(false);
+const isBlockingLoading = computed(() => isCatalogBootstrapLoading.value || isItemHydrationLoading.value);
+const canRenderForm = computed(() => !isBlockingLoading.value);
 
 type ItemType = 'product' | 'service';
 
@@ -455,18 +450,22 @@ async function fetchWarehouses() {
     }
 }
 
-async function fetchCategorySubGroups() {
+async function fetchCategorySubGroups(force = false) {
     try {
         const raw: any[] =
-            props.preloadedSubGroups && props.preloadedSubGroups.length > 0
+            !force && props.preloadedSubGroups && props.preloadedSubGroups.length > 0
                 ? props.preloadedSubGroups
-                : (
-                      await axios.get('/categorias/subgrupos-data', {
-                          params: { per_page: 1000 },
-                      })
-                  ).data.data;
+                : !force && cachedCategorySubGroups
+                  ? cachedCategorySubGroups
+                  : (
+                        await axios.get('/categorias/subgrupos-data', {
+                            params: { per_page: 1000 },
+                        })
+                    ).data.data;
 
-        categorySubGroups.value = raw;
+        cachedCategorySubGroups = raw;
+
+        categorySubGroups.value = [...raw];
 
         const seen = new Set<number>();
         categoryGroups.value = (raw as any[])
@@ -480,10 +479,17 @@ async function fetchCategorySubGroups() {
     }
 }
 
-async function fetchTaxes() {
+async function fetchTaxes(force = false) {
     try {
-        const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
-        taxes.value = (data.data ?? []).filter((t: any) => t.status);
+        const raw: Tax[] =
+            !force && props.preloadedTaxes && props.preloadedTaxes.length > 0
+                ? props.preloadedTaxes
+                : !force && cachedTaxes
+                  ? cachedTaxes
+                  : (await axios.get('/impuestos/data', { params: { per_page: 100, status: true } })).data.data;
+
+        cachedTaxes = (raw ?? []).filter((t: any) => t.status);
+        taxes.value = [...cachedTaxes];
     } catch (error) {
         console.warn('fetchTaxes error:', error);
         taxes.value = [];
@@ -507,8 +513,26 @@ async function fetchAccountingAccounts() {
     }
 }
 
-async function fetchAdditionalFields() {
+function applyAdditionalFields(normalizedFields: AdditionalField[]) {
+    const fields = [...normalizedFields];
+    extraFieldNames.value = fields.map((f) => f.name);
+    additionalFieldsMeta.value = fields;
+
+    additionalFieldOptions.value = fields.reduce((acc: Record<string, string[]>, field: any) => {
+        if (field?.name) {
+            acc[field.name] = Array.isArray(field.options) ? field.options.map((opt: any) => String(opt)) : [];
+        }
+        return acc;
+    }, {});
+}
+
+async function fetchAdditionalFields(force = false) {
     try {
+        if (!force && cachedAdditionalFields) {
+            applyAdditionalFields(cachedAdditionalFields);
+            return;
+        }
+
         const { data } = await axios.get('/campos-adicionales/options');
         const payload: any[] = Array.isArray(data?.data ?? data) ? (data?.data ?? data) : [];
 
@@ -537,15 +561,8 @@ async function fetchAdditionalFields() {
             return aPos - bPos;
         });
 
-        extraFieldNames.value = normalizedFields.map((f) => f.name);
-        additionalFieldsMeta.value = normalizedFields;
-
-        additionalFieldOptions.value = normalizedFields.reduce((acc: Record<string, string[]>, field: any) => {
-            if (field?.name) {
-                acc[field.name] = Array.isArray(field.options) ? field.options.map((opt: any) => String(opt)) : [];
-            }
-            return acc;
-        }, {});
+        cachedAdditionalFields = normalizedFields;
+        applyAdditionalFields(normalizedFields);
     } catch (error) {
         console.error('Error al cargar campos adicionales:', error);
         extraFieldNames.value = [];
@@ -583,32 +600,53 @@ let catalogsLoadPromise: Promise<void> | null = null;
 
 function loadFormCatalogs(): Promise<void> {
     if (!catalogsLoadPromise) {
-        catalogsLoadPromise = Promise.all([
-            fetchWarehouses(),
-            fetchCategorySubGroups(),
-            fetchTaxes(),
-            fetchAdditionalFields(),
-            ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
-        ]).then(() => undefined);
+        isCatalogBootstrapLoading.value = true;
+        catalogsLoadPromise = Promise.all([fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields()])
+            .then(() => undefined)
+            .finally(() => {
+                isCatalogBootstrapLoading.value = false;
+            });
     }
 
     return catalogsLoadPromise;
 }
 
+async function loadSecondaryFormData(itemId?: number): Promise<void> {
+    isSecondaryLoading.value = true;
+    try {
+        await Promise.all([
+            fetchWarehouses(),
+            ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
+            itemId ? refreshWarehouseStocksForCurrentItem(itemId) : Promise.resolve(),
+        ]);
+    } finally {
+        isSecondaryLoading.value = false;
+    }
+}
+
 async function hydrateOpenForm() {
-    await loadFormCatalogs();
+    const itemId = Number(props.form.id);
+    const shouldLoadItemDetails = props.dialogType !== 'create' && Number.isFinite(itemId) && itemId > 0;
 
-    if (props.dialogType !== 'create' && props.form.id) {
-        await loadItemDetails(Number(props.form.id));
-    } else {
+    if (!shouldLoadItemDetails) {
         applyFormData(props.form);
+        await loadFormCatalogs();
+        warehouseStocks.value = [];
+        void loadSecondaryFormData();
+        updateNameField();
+        syncGroupFromSubgroup();
+        return;
     }
 
-    if (props.form.id) {
-        await refreshWarehouseStocksForCurrentItem(Number(props.form.id));
-    } else {
-        warehouseStocks.value = [];
+    isItemHydrationLoading.value = true;
+    try {
+        await loadFormCatalogs();
+        await loadItemDetails(itemId);
+    } finally {
+        isItemHydrationLoading.value = false;
     }
+
+    void loadSecondaryFormData(itemId);
 
     updateNameField();
     syncGroupFromSubgroup();
@@ -643,7 +681,7 @@ async function handleGroupCreated(newGroup: Partial<CategoryGroup>) {
 async function handleSubGroupSubmit(formData: Partial<CategorySubGroup>) {
     try {
         await axios.post('/categorias/subgrupos', formData);
-        await fetchCategorySubGroups();
+        await fetchCategorySubGroups(true);
     } catch (error) {
         console.error('Error al crear el subgrupo:', error);
     } finally {
@@ -660,7 +698,7 @@ async function handleTaxDialogSubmit(formData: TaxDialogSubmitPayload) {
     taxDialogLoading.value = true;
     try {
         await axios.post('/impuestos', formData);
-        await fetchTaxes();
+        await fetchTaxes(true);
         isTaxDialogOpen.value = false;
     } catch (error) {
         console.error('Error creando impuesto', error);
@@ -687,7 +725,7 @@ async function handleAdditionalFieldDialogSubmit(field: AdditionalFieldPayload) 
         };
         delete payload.label;
         await axios.post('/campos-adicionales', payload);
-        await fetchAdditionalFields();
+        await fetchAdditionalFields(true);
         additionalFieldDialogOpen.value = false;
     } catch (error) {
         console.error('Error creando campo adicional', error);
@@ -718,6 +756,12 @@ function addWarehouseStock() {
 }
 
 function handleAddWarehouseStock() {
+    if (isSecondaryLoading.value) {
+        alertType.value = 'info';
+        alertMessage.value = 'Espera a que terminen de cargar las bodegas.';
+        return;
+    }
+
     const available = availableWarehouses().length;
     if (available === 0) {
         alertType.value = 'warning';
@@ -1195,11 +1239,20 @@ watch(
     () => props.isOpen,
     async (value) => {
         if (value) {
-            emit('loading-state', isLoadingState.value);
-            await trackLoading(hydrateOpenForm);
+            await hydrateOpenForm();
         } else {
+            isItemHydrationLoading.value = false;
+            isSecondaryLoading.value = false;
             warehouseStocks.value = [];
         }
+    },
+    { immediate: true },
+);
+
+watch(
+    isBlockingLoading,
+    (value) => {
+        emit('loading-state', value);
     },
     { immediate: true },
 );
@@ -1261,8 +1314,21 @@ onBeforeUnmount(() => {
                 "
             />
 
-            <div ref="dialogInnerRef" class="min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
-                <fieldset :disabled="isViewMode" class="space-y-3">
+            <div
+                ref="dialogInnerRef"
+                class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-5 py-4"
+                :class="{ 'min-h-[420px]': isBlockingLoading }"
+                style="scrollbar-width: thin"
+            >
+                <FormLoadingOverlay
+                    v-if="showInternalLoadingOverlay"
+                    :active="isBlockingLoading"
+                    :delay-ms="0"
+                    message="Cargando formulario de item..."
+                    description="Preparando catalogos y datos iniciales necesarios."
+                />
+
+                <fieldset v-if="canRenderForm" :disabled="isViewMode" class="space-y-3">
                     <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
                         <div class="flex min-w-0 flex-col gap-3">
                             <div>
@@ -1421,7 +1487,8 @@ onBeforeUnmount(() => {
                                         v-if="!isViewMode"
                                         type="button"
                                         class="rounded-full p-1 transition hover:bg-muted"
-                                        :class="availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
+                                        :class="isSecondaryLoading || availableWarehouses().length === 0 ? 'cursor-not-allowed opacity-50' : ''"
+                                        :disabled="isSecondaryLoading"
                                         @click="handleAddWarehouseStock"
                                         title="Agregar Bodega"
                                     >
@@ -1500,7 +1567,8 @@ onBeforeUnmount(() => {
                                     </div>
                                 </div>
 
-                                <div v-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
+                                <div v-if="isSecondaryLoading" class="px-2 py-1 text-xs text-muted-foreground">Cargando bodegas e inventario...</div>
+                                <div v-else-if="warehouseStocks.length === 0" class="px-2 py-1 text-xs text-gray-400">No hay bodegas asociadas.</div>
                             </div>
                         </div>
 
@@ -1695,7 +1763,7 @@ onBeforeUnmount(() => {
                     variant="default"
                     type="submit"
                     class="w-full justify-center rounded-full px-5 py-2 text-sm font-semibold shadow-sm md:w-auto"
-                    :disabled="isLoadingState"
+                    :disabled="isBlockingLoading"
                 >
                     {{ dialogType === 'create' ? 'Guardar' : 'Actualizar' }}
                 </Button>

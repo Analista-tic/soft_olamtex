@@ -13,13 +13,12 @@ import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 import type { PurchaseInvoice } from '@/domain/Expenses';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Eye, Mail, MoreVertical, Package, PlusCircle, Printer, Search } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseInvoiceDialogTelas from './PurchaseInvoiceDialogTelas.vue';
 import PurchaseInvoicePrintDialog from './PurchaseInvoicePrintDialog.vue';
 
@@ -31,8 +30,6 @@ const dialogType = ref<'create' | 'edit'>('create');
 const isDialogReadOnly = ref(false);
 const form = ref<Partial<PurchaseInvoice>>({});
 const isPreparingDialog = ref(false);
-const isDialogBootstrapping = ref(false);
-const hasDialogLoadingStarted = ref(false);
 const invoiceToDelete = ref<PurchaseInvoice | null>(null);
 const isDeleteDialogOpen = ref(false);
 const searchQuery = ref('');
@@ -71,11 +68,6 @@ const isDateToActive = computed(() => Boolean(dateTo.value));
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
 const subgroupButtonClasses = useFilterButtonClasses(isSubgroupFilterActive);
-const DIALOG_PREPARE_FALLBACK_MS = 10000;
-let dialogPrepareToken = 0;
-let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
-let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
-const smartLoading = useSmartLoading();
 
 const formatDate = (value?: string | null) => {
     if (!value) return '-';
@@ -151,85 +143,20 @@ async function fetchSubgroups() {
     }
 }
 
-function clearDialogPrepareFallbackTimer() {
-    if (dialogPrepareFallbackTimer) {
-        clearTimeout(dialogPrepareFallbackTimer);
-        dialogPrepareFallbackTimer = null;
-    }
-}
-
-function startDialogPreparationLoading() {
-    if (dialogPreparationLoadingId) return;
-    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
-}
-
-function stopDialogPreparationLoading() {
-    if (!dialogPreparationLoadingId) return;
-    smartLoading.stop(dialogPreparationLoadingId);
-    dialogPreparationLoadingId = null;
-}
-
-function finishDialogPreparation(token: number) {
-    if (token !== dialogPrepareToken) return;
-    isPreparingDialog.value = false;
-    isDialogBootstrapping.value = false;
-    hasDialogLoadingStarted.value = false;
-    clearDialogPrepareFallbackTimer();
-    stopDialogPreparationLoading();
-}
-
-async function startDialogPreparationContext() {
-    if (isPreparingDialog.value) return null;
-
-    const token = ++dialogPrepareToken;
+function openDialogWithPreparation(type: 'create' | 'edit', invoice: PurchaseInvoice | null = null, readOnly = false) {
+    if (isPreparingDialog.value) return;
     isPreparingDialog.value = true;
-    isDialogBootstrapping.value = true;
-    hasDialogLoadingStarted.value = false;
-    clearDialogPrepareFallbackTimer();
-    startDialogPreparationLoading();
-
-    return token;
-}
-
-function armDialogPreparationFallback(token: number) {
-    clearDialogPrepareFallbackTimer();
-    dialogPrepareFallbackTimer = setTimeout(() => {
-        finishDialogPreparation(token);
-    }, DIALOG_PREPARE_FALLBACK_MS);
-}
-
-async function openDialogWithPreparation(type: 'create' | 'edit', invoice: PurchaseInvoice | null = null, readOnly = false) {
-    const token = await startDialogPreparationContext();
-    if (token === null) return;
-
     dialogType.value = type;
     isDialogReadOnly.value = readOnly;
     form.value = invoice ? (JSON.parse(JSON.stringify(invoice)) as Partial<PurchaseInvoice>) : {};
     clearAlerts();
-
-    await nextTick();
-    if (token !== dialogPrepareToken) return;
-
     isDialogOpen.value = true;
-    armDialogPreparationFallback(token);
+    isPreparingDialog.value = false;
 }
 
 function closeDialog() {
     isDialogReadOnly.value = false;
     isDialogOpen.value = false;
-    finishDialogPreparation(dialogPrepareToken);
-}
-
-function handleDialogLoadingState(value: boolean) {
-    if (!isDialogBootstrapping.value) return;
-
-    if (value) {
-        hasDialogLoadingStarted.value = true;
-        return;
-    }
-
-    if (!hasDialogLoadingStarted.value) return;
-    finishDialogPreparation(dialogPrepareToken);
 }
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
@@ -325,11 +252,6 @@ onMounted(() => {
     fetchInvoices();
     fetchProviders();
     fetchSubgroups();
-});
-
-onBeforeUnmount(() => {
-    clearDialogPrepareFallbackTimer();
-    stopDialogPreparationLoading();
 });
 
 function openPrintDialog(invoice: PurchaseInvoice) {
@@ -587,11 +509,9 @@ function handleDialogError(message?: string) {
             :dialogType="dialogType"
             :form="form"
             :readOnly="isDialogReadOnly"
-            :defer-content="isPreparingDialog"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
             @error="handleDialogError"
-            @loading-state="handleDialogLoadingState"
         />
         <PurchaseInvoicePrintDialog
             v-if="isPrintDialogOpen"

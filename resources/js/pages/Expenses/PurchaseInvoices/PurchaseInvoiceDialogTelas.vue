@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DateField from '@/components/DateField.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -23,13 +24,11 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     form: Partial<PurchaseInvoice>;
     readOnly?: boolean;
-    deferContent?: boolean;
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh', message?: string): void;
     (e: 'error', message?: string): void;
-    (e: 'loading-state', value: boolean): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
@@ -52,7 +51,8 @@ const originalFormSnapshot = ref<string>('');
 const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
 const invoiceDate = ref<Date | null>(null);
 const deliveryDate = ref<Date | null>(null);
-const shouldEmitLoadingState = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
+const isBootstrapping = computed(() => dialogOpen.value && isInitializingDialog.value);
+const canRenderForm = computed(() => !isBootstrapping.value);
 
 const subtotal = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total) || 0), 0));
 const iva = computed(() => (localForm.value.items || []).reduce((acc, item) => acc + (Number(item.total_tax) || 0), 0));
@@ -189,12 +189,11 @@ function resetForm() {
 async function initializeDialog() {
     isInitializingDialog.value = true;
     try {
-        await fetchContacts();
         resetForm();
-        await fetchPendingPurchaseOrders();
+        await Promise.all([fetchContacts(), fetchPendingPurchaseOrders()]);
         if (props.dialogType === 'create') {
             nextInvoiceId.value = null;
-            await fetchNextInvoiceId();
+            void fetchNextInvoiceId();
         }
     } finally {
         isInitializingDialog.value = false;
@@ -526,19 +525,11 @@ watch(dialogOpen, (isOpen) => {
         emit('close');
     }
 });
-
-watch(
-    shouldEmitLoadingState,
-    (value) => {
-        emit('loading-state', value);
-    },
-    { immediate: true },
-);
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent v-if="!props.deferContent" class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
+        <DialogContent class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
             <AlertStack
                 :success-message="successMessage"
                 :error-message="errorMessage"
@@ -577,8 +568,19 @@ watch(
                     </div>
                 </div>
             </DialogHeader>
-            <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
+            <div
+                class="relative flex-1 overflow-y-auto scroll-smooth px-4 pr-2"
+                :class="{ 'min-h-[420px]': isBootstrapping }"
+                style="scrollbar-width: thin"
+            >
+                <FormLoadingOverlay
+                    :active="isBootstrapping"
+                    :delay-ms="0"
+                    message="Cargando factura de compra tela..."
+                    description="Preparando proveedores, ordenes de tela pendientes y datos iniciales."
+                />
                 <form
+                    v-if="canRenderForm"
                     @submit.prevent="handleSubmit()"
                     :class="{ 'pointer-events-none opacity-50': (dialogType === 'create' && isLoadingInvoiceId) || isReadOnly }"
                     class="space-y-6"

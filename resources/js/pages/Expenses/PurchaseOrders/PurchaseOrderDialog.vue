@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
@@ -25,13 +26,11 @@ const props = defineProps<{
     dialogType: 'create' | 'edit';
     form: Partial<PurchaseOrder>;
     readonly?: boolean;
-    deferContent?: boolean;
 }>();
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh', message?: string): void;
     (e: 'error', message?: string): void;
-    (e: 'loading-state', value: boolean): void;
 }>();
 
 const dialogOpen = ref(props.isOpen);
@@ -49,7 +48,8 @@ const isSendingMail = ref(false);
 const { successMessage, errorMessage, errorType, showError, clearAlerts, clearSuccess, clearError } = useAlertStack();
 const originalFormSnapshot = ref<string>('');
 const itemsTableRef = ref<{ addItem: () => void; validateFabricFields: () => string | null } | null>(null);
-const shouldEmitLoadingState = computed(() => dialogOpen.value && (isInitializingDialog.value || isSubmittingDialog.value));
+const isBootstrapping = computed(() => dialogOpen.value && isInitializingDialog.value);
+const canRenderForm = computed(() => !isBootstrapping.value);
 
 // Computed para determinar si la orden puede editarse
 const canEdit = computed(() => {
@@ -182,11 +182,10 @@ async function initializeDialog() {
             selectedPurchaseRequestId.value = null;
         }
         resetForm();
-        await fetchContacts();
-        await fetchPendingPurchaseRequests();
+        await Promise.all([fetchContacts(), fetchPendingPurchaseRequests()]);
         if (props.dialogType === 'create') {
             nextOrderId.value = null;
-            await fetchNextOrderId();
+            void fetchNextOrderId();
         }
     } finally {
         isInitializingDialog.value = false;
@@ -579,19 +578,11 @@ watch(selectedPurchaseRequestId, async (requestId) => {
         await loadRequestToOrder(requestId);
     }
 });
-
-watch(
-    shouldEmitLoadingState,
-    (value) => {
-        emit('loading-state', value);
-    },
-    { immediate: true },
-);
 </script>
 
 <template>
     <Dialog v-model:open="dialogOpen">
-        <DialogContent v-if="!props.deferContent" class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
+        <DialogContent class="flex max-h-[90vh] max-w-[200vh] flex-col p-0">
             <AlertStack
                 v-show="successMessage || errorMessage"
                 class="fixed left-1/2 top-4 z-50 w-full max-w-lg -translate-x-1/2"
@@ -623,8 +614,19 @@ watch(
                         </div>
                     </div>
                 </DialogHeader>
-                <div class="flex-1 overflow-y-auto scroll-smooth px-4 pr-2" style="scrollbar-width: thin">
+                <div
+                    class="relative flex-1 overflow-y-auto scroll-smooth px-4 pr-2"
+                    :class="{ 'min-h-[420px]': isBootstrapping }"
+                    style="scrollbar-width: thin"
+                >
+                    <FormLoadingOverlay
+                        :active="isBootstrapping"
+                        :delay-ms="0"
+                        message="Cargando orden de compra..."
+                        description="Preparando proveedores, solicitudes aprobadas y datos iniciales."
+                    />
                     <form
+                        v-if="canRenderForm"
                         @submit.prevent="handleSubmit()"
                         :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingOrderId }"
                         class="space-y-6"
