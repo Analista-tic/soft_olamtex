@@ -70,12 +70,13 @@ function handleInteractOutside(event: unknown) {
             @interact-outside="handleInteractOutside"
             :class="
                 cn(
-                    'fixed inset-0 z-50 m-auto h-fit max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-4xl border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-[28px]',
+                    'h-fit w-[calc(100%-2rem)] max-w-4xl border border-border bg-background shadow-[0_25px_70px_rgba(15,23,42,0.35)] sm:rounded-[28px]',
                     props.class,
+                    'fixed left-1/2 top-1/2 z-[51] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-y-auto',
                 )
             "
         >
-            <div class="flex h-full max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[10px]">
+            <div class="flex max-h-[calc(100vh-3rem)] flex-col overflow-hidden rounded-[10px]">
                 <div
                     :class="cn(
                         'dialog-scroll-area flex min-h-0 flex-1 flex-col scroll-smooth',
@@ -111,4 +112,3 @@ function handleInteractOutside(event: unknown) {
     height: 6px;
 }
 </style>
-

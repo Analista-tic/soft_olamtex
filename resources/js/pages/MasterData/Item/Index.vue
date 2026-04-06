@@ -2,7 +2,7 @@
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Ban, CheckCircle, Download, FileSpreadsheet, Pencil, PlusCircle, Search, Trash, Upload } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
@@ -35,7 +35,6 @@ import BulkUploadDialog from './BulkUploadDialog.vue';
 import ItemDialog from './ItemDialog.vue';
 
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmartLoading';
 
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
@@ -67,8 +66,6 @@ const statusFilter = ref<StatusFilter>(DEFAULT_STATUS_FILTER);
 const isDialogOpen = ref(false);
 const dialogType = ref<DialogType>('create');
 const form = ref<Partial<Item>>({});
-const isPreparingDialog = ref(false);
-const isDialogBootstrapping = ref(false);
 // Precarga de catálogos para el dialog de ítems
 const preloadedSubGroups = ref<any[]>([]);
 const preloadedTaxes = ref<any[]>([]);
@@ -88,12 +85,7 @@ const errorMessage = ref('');
 const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
-const DIALOG_PREPARE_FALLBACK_MS = 10000;
-let dialogPrepareToken = 0;
-let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
-let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
 let activeFetchController: AbortController | null = null;
-const smartLoading = useSmartLoading();
 
 function getEmptyForm(): Partial<Item> {
     return {
@@ -118,32 +110,6 @@ function setSuccess(message: string) {
 function setError(message: string) {
     errorMessage.value = message;
     successMessage.value = '';
-}
-
-function clearDialogPrepareFallbackTimer() {
-    if (dialogPrepareFallbackTimer) {
-        clearTimeout(dialogPrepareFallbackTimer);
-        dialogPrepareFallbackTimer = null;
-    }
-}
-
-function startDialogPreparationLoading() {
-    if (dialogPreparationLoadingId) return;
-    dialogPreparationLoadingId = smartLoading.start({ label: 'Cargando información...' });
-}
-
-function stopDialogPreparationLoading() {
-    if (!dialogPreparationLoadingId) return;
-    smartLoading.stop(dialogPreparationLoadingId);
-    dialogPreparationLoadingId = null;
-}
-
-function finishDialogPreparation(token: number) {
-    if (token !== dialogPrepareToken) return;
-    isPreparingDialog.value = false;
-    isDialogBootstrapping.value = false;
-    clearDialogPrepareFallbackTimer();
-    stopDialogPreparationLoading();
 }
 
 function getErrorMessage(err: unknown, fallback: string) {
@@ -277,39 +243,15 @@ async function downloadTemplate() {
     }
 }
 
-async function openDialog(type: DialogType, item: Item | null = null) {
-    if (isPreparingDialog.value) return;
-
-    const token = ++dialogPrepareToken;
-    isPreparingDialog.value = true;
-    isDialogBootstrapping.value = true;
-    startDialogPreparationLoading();
-
+function openDialog(type: DialogType, item: Item | null = null) {
+    if (isDialogOpen.value) return;
     dialogType.value = type;
     form.value = item ? { ...item } : getEmptyForm();
-
-    await nextTick();
-    if (token !== dialogPrepareToken) return;
-
     isDialogOpen.value = true;
-
-    clearDialogPrepareFallbackTimer();
-    dialogPrepareFallbackTimer = setTimeout(() => {
-        finishDialogPreparation(token);
-    }, DIALOG_PREPARE_FALLBACK_MS);
 }
 
 function closeDialog() {
     isDialogOpen.value = false;
-    finishDialogPreparation(dialogPrepareToken);
-}
-
-function handleDialogLoadingState(value: boolean) {
-    if (!isDialogBootstrapping.value) return;
-
-    if (value) return;
-
-    finishDialogPreparation(dialogPrepareToken);
 }
 
 async function handleDialogRefresh() {
@@ -379,8 +321,6 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-    clearDialogPrepareFallbackTimer();
-    stopDialogPreparationLoading();
     if (activeFetchController) {
         activeFetchController.abort();
         activeFetchController = null;
@@ -412,7 +352,7 @@ onBeforeUnmount(() => {
                         @click="openDialog('create')"
                         variant="default"
                         size="sm"
-                        :disabled="isPreparingDialog"
+                        :disabled="isDialogOpen"
                         class="flex h-10 items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold shadow-sm"
                     >
                         <PlusCircle class="h-4 w-4" /> Crear nuevo ítem
@@ -597,12 +537,10 @@ onBeforeUnmount(() => {
             :isOpen="isDialogOpen"
             :dialogType="dialogType"
             :form="form"
-            :defer-content="isPreparingDialog"
             :preloaded-sub-groups="preloadedSubGroups"
             :preloaded-taxes="preloadedTaxes"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
-            @loading-state="handleDialogLoadingState"
         />
 
         <ConfirmDialog

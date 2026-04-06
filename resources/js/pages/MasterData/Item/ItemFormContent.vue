@@ -84,8 +84,13 @@ function updateLoadingState(delta: number) {
 
 function trackLoading<T>(work: () => Promise<T>): Promise<T> {
     updateLoadingState(1);
-    const promise = Promise.resolve().then(work);
-    return promise.finally(() => updateLoadingState(-1));
+    return Promise.resolve()
+        .then(work)
+        .catch((err) => {
+            console.warn('[trackLoading] error capturado:', err);
+            return undefined as unknown as T;
+        })
+        .finally(() => updateLoadingState(-1));
 }
 
 type ItemType = 'product' | 'service';
@@ -442,8 +447,6 @@ async function loadItemDetails(itemId: number) {
     try {
         const { data } = await axios.get(`/item/${itemId}`);
         applyFormData(data);
-        // Sincronizar grupo explícitamente después de recibir los datos
-        // por si fetchCategorySubGroups ya terminó antes que loadItemDetails
         await nextTick();
         syncGroupFromSubgroup();
     } catch (error) {
@@ -462,17 +465,19 @@ async function fetchWarehouses() {
 
 async function fetchCategorySubGroups() {
     try {
-        // Usar datos precargados si están disponibles — evita
-        // request redundante cuando el Index ya los cargó
         const raw: any[] =
             props.preloadedSubGroups && props.preloadedSubGroups.length > 0
                 ? props.preloadedSubGroups
-                : (await axios.get('/categorias/subgrupos-data', { params: { per_page: 1000 } })).data.data;
+                : (
+                      await axios.get('/categorias/subgrupos-data', {
+                          params: { per_page: 1000 },
+                      })
+                  ).data.data;
+
         categorySubGroups.value = raw;
 
-        // Derive groups from the eager-loaded relation — avoids a second HTTP request
         const seen = new Set<number>();
-        categoryGroups.value = raw
+        categoryGroups.value = (raw as any[])
             .map((sg: any) => sg.category_group)
             .filter((g: any) => g && !seen.has(g.id) && seen.add(g.id))
             .sort((a: any, b: any) => a.name.localeCompare(b.name));
@@ -484,8 +489,13 @@ async function fetchCategorySubGroups() {
 }
 
 async function fetchTaxes() {
-    const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
-    taxes.value = (data.data ?? []).filter((t: any) => t.status);
+    try {
+        const { data } = await axios.get('/impuestos/data', { params: { per_page: 100, status: true } });
+        taxes.value = (data.data ?? []).filter((t: any) => t.status);
+    } catch (error) {
+        console.warn('fetchTaxes error:', error);
+        taxes.value = [];
+    }
 }
 
 async function fetchAccountingAccounts() {
@@ -497,8 +507,11 @@ async function fetchAccountingAccounts() {
         accountingIncomeOptions.value    = all.filter((a) => a.account_type === 'income');
         accountingInventoryOptions.value = all.filter((a) => a.account_type === 'asset');
         accountingCostOptions.value      = all.filter((a) => a.account_type === 'cost');
-    } catch (error) {
-        console.error('Error al cargar cuentas contables:', error);
+    } catch {
+        // Endpoint puede no existir en todos los contextos — no bloquear el dialog
+        accountingIncomeOptions.value    = [];
+        accountingInventoryOptions.value = [];
+        accountingCostOptions.value      = [];
     }
 }
 
@@ -1083,16 +1096,6 @@ watch(
 );
 
 watch(
-    () => categorySubGroups.value.length,
-    (newLength) => {
-        if (newLength > 0 && localForm.value.category_sub_group_id) {
-            syncGroupFromSubgroup();
-        }
-    },
-    { immediate: true },
-);
-
-watch(
     [() => localForm.value.category_sub_group_id, () => extraFieldNames.value.map((key) => extraFields.value[key]).join('|')],
     () => updateNameField(),
     { immediate: true },
@@ -1143,39 +1146,18 @@ watch(
     async (value) => {
         if (value) {
             emit('loading-state', isLoadingState.value);
-
-            // Garantizar que los subgrupos estén listos ANTES de cargar
-            // el ítem — loadItemDetails llama syncGroupFromSubgroup
-            // internamente y necesita categorySubGroups poblado.
-            if (categorySubGroups.value.length === 0) {
-                await trackLoading(() => fetchCategorySubGroups());
-            }
-
-            // Cargar detalles del ítem DESPUÉS de que los subgrupos
-            // ya están disponibles en memoria
             if (props.dialogType !== 'create' && props.form.id) {
                 await trackLoading(() => loadItemDetails(Number(props.form.id)));
             }
-
             if (props.form.id) {
                 await trackLoading(() => refreshWarehouseStocksForCurrentItem(Number(props.form.id)));
             } else {
                 warehouseStocks.value = [];
             }
-
-            // Segunda sincronización explícita como garantía:
-            // cubre el caso en que onMounted cargó los subgrupos
-            // pero applyFormData corrió antes de que terminara.
-            nextTick(() => syncGroupFromSubgroup());
         } else {
             warehouseStocks.value = [];
         }
     },
-    // immediate: true es crítico — DialogContent de Radix desmonta el
-    // componente al cerrar y lo remonta al abrir, así que isOpen ya es
-    // true desde el primer render y sin immediate el callback nunca
-    // se ejecutaría (no habría "cambio" de valor).
-    { immediate: true },
 );
 
 const INVENTORY_ADJUSTMENT_SAVED_EVENT = 'inventory-adjustment-saved';
@@ -1193,20 +1175,15 @@ const handleInventoryAdjustmentSaved = (event: Event) => {
 
 onMounted(() => {
     void trackLoading(async () => {
-        await Promise.all([fetchWarehouses(), fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields(), fetchAccountingAccounts()]);
+        await Promise.all([
+            fetchWarehouses(),
+            fetchCategorySubGroups(),
+            fetchTaxes(),
+            fetchAdditionalFields(),
+            ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
+        ]);
 
-        // Re-agregar nombres de campos adicionales que vienen del ítem pero
-        // no están en el catálogo oficial (fetchAdditionalFields pudo haber
-        // sobrescrito extraFieldNames con solo los nombres del catálogo).
-        // NO llamamos fillExtraFields(props.form.extra_fields) porque en el
-        // dialog props.form lleva datos truncados del listado y borraría
-        // los extra fields que loadItemDetails ya pobló.
-        const knownNames = new Set(extraFieldNames.value);
-        for (const key of Object.keys(extraFields.value)) {
-            if (key && !knownNames.has(key)) {
-                extraFieldNames.value = [...extraFieldNames.value, key];
-            }
-        }
+        fillExtraFields(props.form.extra_fields);
 
         if (props.form.id) {
             await fetchWarehouseStocks(props.form.id);
@@ -1231,7 +1208,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="-mx-6 -my-10 flex min-h-0 flex-1 flex-col">
+    <div class="-mx-6 flex min-h-0 flex-1 flex-col">
         <transition name="fade">
             <div
                 v-if="alertMessage"
