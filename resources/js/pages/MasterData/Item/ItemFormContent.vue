@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import axios from 'axios';
 import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AlertBox from '@/components/AlertBox.vue';
 import FormHeader from '@/components/FormHeader.vue';
@@ -123,7 +123,7 @@ const itemTypeLabelMap: Record<ItemType, string> = itemTypeOptions.reduce(
     {} as Record<ItemType, string>,
 );
 
-function prepareLocalForm(source: ItemFormSource): ItemForm {
+function mapItemToFormState(source: ItemFormSource): ItemForm {
     const resolvedTaxId = source.tax_id ?? (typeof source.tax === 'object' && source.tax !== null ? source.tax.id : undefined);
 
     return {
@@ -144,7 +144,7 @@ const isTaxIdBlank = (value: unknown): boolean => {
     return trimmed === '' || trimmed === 'none';
 };
 
-const localForm = ref<ItemForm>(prepareLocalForm(props.form));
+const localForm = ref<ItemForm>(mapItemToFormState(props.form));
 
 const warehouses = ref<Warehouse[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
@@ -424,7 +424,7 @@ function syncGroupFromSubgroup() {
 }
 
 function applyFormData(source: ItemFormSource) {
-    localForm.value = prepareLocalForm(source);
+    localForm.value = mapItemToFormState(source);
     unitMeasure.value = getInitialUnitMeasure(source);
     fillExtraFields(source.extra_fields);
 
@@ -441,8 +441,6 @@ async function loadItemDetails(itemId: number) {
     try {
         const { data } = await axios.get(`/item/${itemId}`);
         applyFormData(data);
-        await nextTick();
-        syncGroupFromSubgroup();
     } catch (error) {
         console.error('Error al cargar el item:', error);
     }
@@ -579,6 +577,41 @@ async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
         return;
     }
     await fetchWarehouseStocks(resolvedItemId);
+}
+
+let catalogsLoadPromise: Promise<void> | null = null;
+
+function loadFormCatalogs(): Promise<void> {
+    if (!catalogsLoadPromise) {
+        catalogsLoadPromise = Promise.all([
+            fetchWarehouses(),
+            fetchCategorySubGroups(),
+            fetchTaxes(),
+            fetchAdditionalFields(),
+            ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
+        ]).then(() => undefined);
+    }
+
+    return catalogsLoadPromise;
+}
+
+async function hydrateOpenForm() {
+    await loadFormCatalogs();
+
+    if (props.dialogType !== 'create' && props.form.id) {
+        await loadItemDetails(Number(props.form.id));
+    } else {
+        applyFormData(props.form);
+    }
+
+    if (props.form.id) {
+        await refreshWarehouseStocksForCurrentItem(Number(props.form.id));
+    } else {
+        warehouseStocks.value = [];
+    }
+
+    updateNameField();
+    syncGroupFromSubgroup();
 }
 
 function openGroupDialog() {
@@ -856,6 +889,36 @@ async function checkDuplicateName(): Promise<string | null> {
     return null;
 }
 
+function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Record<string, any> {
+    const resolvedTaxId = localForm.value.tax_id === 'none' ? null : localForm.value.tax_id;
+    const selectedTax = taxes.value.find((tax) => String(tax.id) === String(resolvedTaxId));
+    const selectedTaxPercentage = selectedTax ? Number(selectedTax.percentage) : 0;
+
+    return {
+        ...localForm.value,
+        category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
+        tax_id: resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== '' ? Number(resolvedTaxId) : undefined,
+        tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
+        negative_movement: localForm.value.negative_movement,
+        bar_code: localForm.value.bar_code || '',
+        description: (localForm.value.description || '').trim() || 'N/A',
+        reference: localForm.value.reference || '',
+        extra_fields: JSON.stringify(orderedExtraFields),
+        name: nameField.value,
+        unit_measure: unitMeasure.value,
+        item_type: normalizeItemType(localForm.value.item_type),
+        tracks_inventory: localForm.value.tracks_inventory ?? normalizeItemType(localForm.value.item_type) !== 'service',
+        status:
+            typeof localForm.value.status === 'boolean'
+                ? localForm.value.status
+                    ? 1
+                    : 0
+                : localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true
+                  ? 1
+                  : 0,
+    };
+}
+
 async function handleSubmit() {
     resetErrors();
     alertMessage.value = '';
@@ -920,33 +983,7 @@ async function handleSubmit() {
 
     updateNameField(orderedExtraFields);
 
-    const resolvedTaxId = localForm.value.tax_id === 'none' ? null : localForm.value.tax_id;
-    const selectedTax = taxes.value.find((tax) => String(tax.id) === String(resolvedTaxId));
-    const selectedTaxPercentage = selectedTax ? Number(selectedTax.percentage) : 0;
-
-    const cleanForm: any = {
-        ...localForm.value,
-        category_sub_group_id: Number(localForm.value.category_sub_group_id) || undefined,
-        tax_id: resolvedTaxId !== undefined && resolvedTaxId !== null && String(resolvedTaxId) !== '' ? Number(resolvedTaxId) : undefined,
-        tax: Number.isFinite(selectedTaxPercentage) ? selectedTaxPercentage : 0,
-        negative_movement: localForm.value.negative_movement,
-        bar_code: localForm.value.bar_code || '',
-        description: (localForm.value.description || '').trim() || 'N/A',
-        reference: localForm.value.reference || '',
-        extra_fields: JSON.stringify(orderedExtraFields),
-        name: nameField.value,
-        unit_measure: unitMeasure.value,
-        item_type: normalizeItemType(localForm.value.item_type),
-        tracks_inventory: localForm.value.tracks_inventory ?? normalizeItemType(localForm.value.item_type) !== 'service',
-        status:
-            typeof localForm.value.status === 'boolean'
-                ? localForm.value.status
-                    ? 1
-                    : 0
-                : localForm.value.status === 1 || localForm.value.status === '1' || localForm.value.status === true
-                  ? 1
-                  : 0,
-    };
+    const cleanForm = mapFormStateToPayload(orderedExtraFields);
 
     const formData = new FormData();
 
@@ -1087,7 +1124,13 @@ watch(
 
 watch(
     () => props.form,
-    (newVal) => applyFormData(newVal),
+    (newVal) => {
+        if (props.isOpen && props.dialogType !== 'create' && newVal.id) {
+            return;
+        }
+
+        applyFormData(newVal);
+    },
     { deep: true, immediate: true },
 );
 
@@ -1153,18 +1196,12 @@ watch(
     async (value) => {
         if (value) {
             emit('loading-state', isLoadingState.value);
-            if (props.dialogType !== 'create' && props.form.id) {
-                await trackLoading(() => loadItemDetails(Number(props.form.id)));
-            }
-            if (props.form.id) {
-                await trackLoading(() => refreshWarehouseStocksForCurrentItem(Number(props.form.id)));
-            } else {
-                warehouseStocks.value = [];
-            }
+            await trackLoading(hydrateOpenForm);
         } else {
             warehouseStocks.value = [];
         }
     },
+    { immediate: true },
 );
 
 const INVENTORY_ADJUSTMENT_SAVED_EVENT = 'inventory-adjustment-saved';
@@ -1181,26 +1218,6 @@ const handleInventoryAdjustmentSaved = (event: Event) => {
 };
 
 onMounted(() => {
-    void trackLoading(async () => {
-        await Promise.all([
-            fetchWarehouses(),
-            fetchCategorySubGroups(),
-            fetchTaxes(),
-            fetchAdditionalFields(),
-            ...(props.showAdvancedSections ? [fetchAccountingAccounts()] : []),
-        ]);
-
-        fillExtraFields(props.form.extra_fields);
-
-        if (props.form.id) {
-            await fetchWarehouseStocks(props.form.id);
-        }
-
-        imagePreview.value = resolveImageUrl(localForm.value.img, localForm.value.img_url);
-        updateNameField();
-        syncGroupFromSubgroup();
-    });
-
     if (typeof window !== 'undefined') {
         window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
     }
@@ -1669,7 +1686,7 @@ onBeforeUnmount(() => {
                     Ir al formulario avanzado
                 </button>
 
-                <Button variant="outline" size="pill" class="w-full justify-center md:w-auto" @click="handleClose">
+                <Button type="button" variant="outline" size="pill" class="w-full justify-center md:w-auto" @click="handleClose">
                     {{ dialogType === 'view' ? 'Cerrar' : 'Cancelar' }}
                 </Button>
 
