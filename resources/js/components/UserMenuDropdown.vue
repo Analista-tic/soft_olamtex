@@ -89,7 +89,7 @@ function logout() {
                 <span>Perfil</span>
             </DropdownMenuItem>
 
-            <DropdownMenuItem class="cursor-pointer" @select.prevent="goConfig">
+            <DropdownMenuItem class="cursor-pointer" @select="goConfig">
                 <Settings class="mr-2 h-4 w-4" />
                 <span>Configuracion</span>
             </DropdownMenuItem>

@@ -12,8 +12,9 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('configuracion', fn () => Inertia::render('Configuration/Index'))
-        ->middleware('permission:ver usuarios')
+    Route::get('configuracion', fn () => Inertia::render('UnderConstruction', [
+        'title' => 'Configuración',
+    ]))
         ->name('configuracion');
 
     Route::get('configuracion/empresa', [CompanySettingsController::class, 'edit'])
